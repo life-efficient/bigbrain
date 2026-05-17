@@ -1,16 +1,22 @@
+import { stat } from 'node:fs/promises';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const DEFAULT_INCLUDE_GLOBS = ['**/*.md'];
 const DEFAULT_EXCLUDE_GLOBS = ['.git/**', 'archive/**', '.raw/**'];
 const DEFAULT_LOOKBACK_FALLBACK = '24h';
+const CONFIG_FILENAME = 'bigbrain.config.json';
+const STATE_FILENAME = 'bigbrain.state.json';
+const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url));
+const PACKAGE_ROOT = path.resolve(MODULE_DIR, '..', '..');
 
 export function defaultConfigPath() {
-  return path.resolve(process.cwd(), 'bigbrain.config.json');
+  return path.resolve(PACKAGE_ROOT, CONFIG_FILENAME);
 }
 
 export function defaultStatePath(configPath = defaultConfigPath()) {
-  return path.resolve(path.dirname(configPath), 'bigbrain.state.json');
+  return path.resolve(path.dirname(configPath), STATE_FILENAME);
 }
 
 export async function loadConfig(configPath = defaultConfigPath()) {
@@ -37,10 +43,24 @@ export async function loadConfig(configPath = defaultConfigPath()) {
     ? parsed.lookback_fallback.trim()
     : DEFAULT_LOOKBACK_FALLBACK;
 
+  const normalizedBrainDir = path.normalize(brainDir);
+  const normalizedTasksFile = path.normalize(tasksFile);
+
+  await requireExistingDirectory(
+    normalizedBrainDir,
+    `Configured brain directory not found: ${normalizedBrainDir}
+Update ${configPath} with the correct "brain_dir" path, then rerun bigbrain and ask the user where it should point if that location is not known.`,
+  );
+  await requireExistingFile(
+    normalizedTasksFile,
+    `Configured tasks file not found: ${normalizedTasksFile}
+Update ${configPath} with the correct "tasks_file" path, then rerun bigbrain and ask the user where it should point if that location is not known.`,
+  );
+
   return {
     configPath,
-    brainDir: path.normalize(brainDir),
-    tasksFile: path.normalize(tasksFile),
+    brainDir: normalizedBrainDir,
+    tasksFile: normalizedTasksFile,
     includeGlobs,
     excludeGlobs,
     lookbackFallback,
@@ -127,4 +147,26 @@ function requireIsoString(value, fieldName) {
 
 function isMissingFileError(error) {
   return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT');
+}
+
+async function requireExistingDirectory(dirPath, message) {
+  let stats;
+  try {
+    stats = await stat(dirPath);
+  } catch (error) {
+    if (isMissingFileError(error)) throw new Error(message);
+    throw error;
+  }
+  if (!stats.isDirectory()) throw new Error(message);
+}
+
+async function requireExistingFile(filePath, message) {
+  let stats;
+  try {
+    stats = await stat(filePath);
+  } catch (error) {
+    if (isMissingFileError(error)) throw new Error(message);
+    throw error;
+  }
+  if (!stats.isFile()) throw new Error(message);
 }

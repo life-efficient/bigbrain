@@ -3,10 +3,13 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-import { loadConfig, loadState } from '../../src/bigbrain/config.js';
+import { defaultConfigPath, loadConfig, loadState } from '../../src/bigbrain/config.js';
 import { resolveWindow } from '../../src/bigbrain/time.js';
 import { listRecentFiles } from '../../src/bigbrain/recent.js';
+
+const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 test('recent listing excludes tasks file and .raw paths and sorts newest first', async () => {
   const fixture = await createFixture();
@@ -71,6 +74,44 @@ test('loadState fails clearly on malformed state json', async () => {
   }
 });
 
+test('defaultConfigPath always resolves to the package config', async () => {
+  const originalCwd = process.cwd();
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-cwd-'));
+
+  try {
+    process.chdir(tempDir);
+    assert.equal(
+      defaultConfigPath(),
+      path.join(PACKAGE_ROOT, 'bigbrain.config.json'),
+    );
+  } finally {
+    process.chdir(originalCwd);
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig fails clearly when the configured brain directory is missing', async () => {
+  const fixture = await createFixture();
+
+  try {
+    await fs.rm(fixture.brainDir, { recursive: true, force: true });
+    await assert.rejects(() => loadConfig(fixture.configPath), /Configured brain directory not found/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('loadConfig fails clearly when the configured tasks file is missing', async () => {
+  const fixture = await createFixture();
+
+  try {
+    await fs.rm(fixture.tasksFile, { force: true });
+    await assert.rejects(() => loadConfig(fixture.configPath), /Configured tasks file not found/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function createFixture({ withState = true } = {}) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-recent-'));
   const brainDir = path.join(rootDir, 'brain');
@@ -82,6 +123,7 @@ async function createFixture({ withState = true } = {}) {
   await fs.mkdir(path.join(brainDir, 'meetings', '.raw'), { recursive: true });
   await fs.mkdir(path.join(brainDir, 'projects'), { recursive: true });
   await fs.mkdir(path.join(brainDir, 'people'), { recursive: true });
+  await fs.writeFile(tasksFile, '# Tasks\n', 'utf8');
 
   await fs.writeFile(configPath, JSON.stringify({
     brain_dir: brainDir,
