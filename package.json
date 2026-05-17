@@ -1,0 +1,14 @@
+{
+  "name": "bigbrain",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "bin": {
+    "bigbrain": "./bin/bigbrain.js"
+  },
+  "scripts": {
+    "recent": "node ./bin/bigbrain.js recent",
+    "refresh-tasks": "node ./scripts/refresh-tasks.mjs",
+    "test": "node --test test/bigbrain/*.test.mjs"
+  }
+}

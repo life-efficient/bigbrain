@@ -1,0 +1,12 @@
+{
+  "brain_dir": "/path/to/brain-home",
+  "tasks_file": "/path/to/brain-home/ops/tasks.md",
+  "include_globs": ["**/*.md"],
+  "exclude_globs": [
+    ".git/**",
+    "archive/**",
+    ".raw/**",
+    "/path/to/brain-home/ops/tasks.md"
+  ],
+  "lookback_fallback": "24h"
+}
