@@ -1,0 +1,432 @@
+# Bigbrain Architecture
+
+`bigbrain` is the scoped successor to the current `brain` + `gbrain` setup.
+The code lives in the repo; the actual brain instance lives in an external
+brain home selected at runtime.
+
+The design goal is not to reproduce all of `gbrain`. The design goal is to keep
+the parts that materially help Alex operate:
+
+- MECE markdown file structure
+- linked entity store
+- bidirectional relative links
+- hybrid retrieval with keyword + semantic fusion
+- automations that keep markdown and database state aligned
+- git-backed durability
+- a small set of maintenance and freshness workflows
+- a scoped CLI
+- a lightweight dashboard
+
+## Product Definition
+
+`bigbrain` should be:
+
+- a local-first personal operating system for notes, entities, tasks, and meetings
+- markdown-native for canonical authored pages
+- database-backed for links, search, embeddings, and operational state
+- opinionated about filing and consistency
+- OpenAI-first for embeddings and query-time synthesis
+
+`bigbrain` should not be:
+
+- a general-purpose agent platform
+- a heavy remote multi-tenant service
+- a broad auth and OAuth product
+- a kitchen-sink workflow framework
+
+## Core Requirements
+
+The initial system must support:
+
+- MECE markdown layout with typed top-level directories
+- CRUD for canonical pages
+- relative wikilink or markdown-link parsing
+- bidirectional link index in the database
+- hybrid search:
+  - syntactic search over markdown content and selected metadata
+  - semantic search over embeddings
+  - reciprocal-rank fusion over both result sets
+- automations for:
+  - link consistency
+  - citation consistency
+  - freshness updates from recent conversations and recent file changes
+  - markdown/database sync
+- git backup and GitHub-friendly workflows
+- ingestion and enrichment workflows
+- lightweight dashboard for graph, inbox, and tasks
+- migration from an existing `gbrain`-style brain
+
+## What You Are Missing
+
+The current requirement list is strong, but a few pieces need to be explicit so
+the system stays coherent:
+
+- canonical entity schema
+- source provenance model
+- versioning and migration strategy
+- idempotent sync rules
+- search/query contract
+- conflict rules between markdown truth and database projections
+- testable automation boundaries
+
+Without these, the system will drift back into hidden complexity.
+
+## Source of Truth
+
+`bigbrain` should use a split-brain model with clear authority.
+
+### Markdown in the external brain home is authoritative for:
+
+- canonical page bodies
+- human-authored structure
+- explicit links written in the notes
+- inbox and tasks content
+
+### Database in the external brain home is authoritative for:
+
+- parsed entity metadata
+- forward and backward link index
+- embeddings
+- lexical search index
+- recent activity index
+- automation state
+- health and consistency reports
+
+This keeps authored knowledge readable in git while allowing fast graph and
+search operations.
+
+## Proposed File Structure
+
+The top-level structure should stay intentionally small:
+
+- `people/`
+- `companies/`
+- `projects/`
+- `meetings/`
+- `deals/`
+- `concepts/`
+- `ops/`
+- `inbox/`
+- `sources/`
+- `archive/`
+
+Each page should have:
+
+- stable relative path
+- stable slug
+- page type derived from path
+- optional frontmatter for metadata
+- body content with relative links
+
+## Data Model
+
+The database should stay narrow and derived from the markdown layer.
+
+### Primary tables
+
+- `pages`
+  - `id`
+  - `slug`
+  - `path`
+  - `type`
+  - `title`
+  - `frontmatter_json`
+  - `body_markdown`
+  - `body_text`
+  - `content_hash`
+  - `created_at`
+  - `updated_at`
+  - `last_indexed_at`
+
+- `links`
+  - `from_page_id`
+  - `to_slug`
+  - `to_page_id`
+  - `link_text`
+  - `link_kind`
+  - `is_resolved`
+
+- `sources`
+  - `id`
+  - `page_id`
+  - `source_type`
+  - `source_ref`
+  - `source_url`
+  - `source_note`
+
+- `embeddings`
+  - `page_id`
+  - `chunk_id`
+  - `chunk_text`
+  - `embedding_model`
+  - `embedding`
+  - `content_hash`
+
+- `activity_log`
+  - `id`
+  - `page_id`
+  - `activity_type`
+  - `timestamp`
+  - `details_json`
+
+- `automation_state`
+  - `name`
+  - `last_run_at`
+  - `last_success_at`
+  - `last_status`
+  - `cursor_json`
+
+- `health_findings`
+  - `id`
+  - `finding_type`
+  - `severity`
+  - `page_id`
+  - `details_json`
+  - `created_at`
+
+### Optional later tables
+
+- `entities`
+- `conversation_ingests`
+- `tasks_index`
+- `graph_cache`
+
+These should come later, only if the page-derived tables are insufficient.
+
+## Search vs Query
+
+These should not be the same command.
+
+### `search`
+
+`search` is retrieval only.
+
+It should:
+
+- return matching pages or chunks
+- support exact terms and fuzzy lexical matches
+- support semantic retrieval
+- optionally show the fused score components
+- never synthesize an answer
+
+### `query`
+
+`query` is answer generation over retrieved context.
+
+It should:
+
+- call `search` internally
+- use OpenAI for synthesis
+- return a concise answer with citations back to pages
+- remain grounded in retrieved context
+
+This distinction matters because you use both modes differently.
+
+## Hybrid Retrieval
+
+The retrieval stack should be:
+
+1. lexical retrieval over page text and titles
+2. semantic retrieval over chunk embeddings
+3. reciprocal-rank fusion over both lists
+4. optional lightweight re-ranking later
+
+The first version should avoid over-optimizing. The key is predictable results
+and debuggability.
+
+## Link Model
+
+Relative links in markdown are core to the system.
+
+`bigbrain` should support:
+
+- wikilinks if present
+- standard relative markdown links
+- path-based resolution into canonical slugs
+- backlinks computed from the indexed `links` table
+
+Required maintenance flows:
+
+- detect broken outgoing links
+- detect unresolved slugs
+- detect missing reciprocal reference opportunities
+- optionally rewrite moved links during file moves or migrations
+
+## Automations
+
+Automations should be narrow, explicit, and idempotent.
+
+### Required automations
+
+- `sync`
+  - detect changed files
+  - parse markdown
+  - update page rows
+  - update links
+  - refresh embeddings for changed content
+
+- `fix-citations`
+  - find malformed or missing source attribution patterns
+  - repair safe cases
+  - emit findings for ambiguous cases
+
+- `fix-links`
+  - find broken relative links and unresolved references
+  - repair safe cases
+  - emit findings when confidence is low
+
+- `refresh-tasks`
+  - already seeded in the current repo
+
+- `freshness`
+  - inspect recent conversations, meetings, or file changes
+  - update relevant MECE pages or produce queued findings
+
+### Optional later automations
+
+- `dream`
+- `orphan-review`
+- `stale-entity-review`
+
+Those should only return if they prove useful.
+
+## CLI Surface
+
+The CLI should stay close to the operating needs you named.
+
+### Phase 1 commands
+
+- `bigbrain init`
+- `bigbrain migrate`
+- `bigbrain import`
+- `bigbrain sync`
+- `bigbrain get <slug>`
+- `bigbrain put <slug>`
+- `bigbrain list`
+- `bigbrain search <query>`
+- `bigbrain query <question>`
+- `bigbrain links <slug>`
+- `bigbrain backlinks <slug>`
+- `bigbrain health`
+- `bigbrain recent`
+
+### Phase 2 commands
+
+- `bigbrain fix citations`
+- `bigbrain fix links`
+- `bigbrain enrich <slug>`
+- `bigbrain ingest <source>`
+- `bigbrain dashboard`
+
+## Migration
+
+Migration is a first-class feature, not an afterthought.
+
+`bigbrain migrate` should support:
+
+- importing an existing `gbrain`-style markdown tree
+- normalizing paths into the target MECE structure
+- rewriting links where needed
+- backfilling page metadata
+- indexing the imported corpus
+- generating a migration report with:
+  - moved files
+  - rewritten links
+  - unresolved references
+  - skipped files
+
+The first migration target should be the current `/path/to/brain-home`.
+
+## Embeddings and Query Provider
+
+Use OpenAI by default for:
+
+- embeddings
+- grounded answer generation for `query`
+- optional enrichment transforms
+
+The system should be provider-aware, but not provider-complicated.
+
+Practical default:
+
+- `text-embedding-3-small` for embeddings first
+- a chat model for `query`
+
+## Dashboard
+
+The web surface should stay lightweight.
+
+Initial screens:
+
+- graph explorer
+- tasks view
+- inbox view
+- health findings
+- recent changes
+
+The dashboard is for sanity and triage, not for full authoring.
+
+## Health Model
+
+`bigbrain health` should report:
+
+- missing files or bad config
+- parse failures
+- unresolved links
+- citation issues
+- embedding lag
+- stale automation runs
+- git dirty state
+- backup remote status
+
+It should be concise and operational.
+
+## Recommended Implementation Order
+
+### Milestone 1: repository foundation
+
+- formalize config
+- define database schema
+- add markdown parser and link extractor
+- add `sync`
+- add `get`, `put`, `list`
+
+### Milestone 2: retrieval
+
+- lexical index
+- embeddings
+- RRF fusion
+- `search`
+- `query`
+
+### Milestone 3: integrity
+
+- backlinks
+- `health`
+- `fix links`
+- `fix citations`
+
+### Milestone 4: workflows
+
+- `ingest`
+- `enrich`
+- improved `refresh-tasks`
+- freshness automation
+
+### Milestone 5: visibility
+
+- lightweight dashboard
+- graph visualization
+- inbox/tasks pages
+
+## Opinionated Non-Goals
+
+At least initially, `bigbrain` should not include:
+
+- complex OAuth
+- remote multi-tenant access control
+- general-purpose job orchestration
+- broad admin product surface
+- many-client MCP hosting
+
+If needed later, these can be layered on after the core system proves itself.

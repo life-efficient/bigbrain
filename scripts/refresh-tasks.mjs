@@ -3,17 +3,15 @@
 import path from 'node:path';
 
 import { runTaskRefresh } from '../src/bigbrain/task-refresh.js';
-import { defaultConfigPath, defaultStatePath } from '../src/bigbrain/config.js';
 
 async function main() {
   const flags = parseFlags(process.argv.slice(2));
-  const configPath = flags.configPath ?? defaultConfigPath();
-  const statePath = flags.statePath ?? defaultStatePath(configPath);
 
   try {
     const result = await runTaskRefresh({
-      configPath,
-      statePath,
+      configPath: flags.configPath,
+      statePath: flags.statePath,
+      brainHome: flags.brainHome,
       dryRun: flags.dryRun,
     });
 
@@ -36,6 +34,7 @@ async function main() {
 
 function parseFlags(args) {
   const flags = {
+    brainHome: null,
     configPath: null,
     statePath: null,
     dryRun: false,
@@ -45,6 +44,9 @@ function parseFlags(args) {
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     switch (arg) {
+      case '--brain-home':
+        flags.brainHome = path.resolve(args[++index] ?? '');
+        break;
       case '--config':
         flags.configPath = path.resolve(args[++index] ?? '');
         break;

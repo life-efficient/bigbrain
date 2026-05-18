@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
-import { loadConfig, loadState, defaultConfigPath, defaultStatePath } from './config.js';
+import { loadConfig, loadState, persistState, resolveBrainHome } from './config.js';
 import { resolveWindow } from './time.js';
 import { listRecentFiles } from './recent.js';
 
@@ -16,13 +16,16 @@ const RELEVANT_CATEGORIES = new Set([
 ]);
 
 export async function runTaskRefresh({
-  configPath = defaultConfigPath(),
-  statePath = defaultStatePath(configPath),
+  configPath = null,
+  statePath = null,
+  brainHome = null,
   dryRun = false,
   now = new Date(),
 } = {}) {
-  const config = await loadConfig(configPath);
-  const state = await loadState(statePath, { allowMissing: true });
+  const resolvedBrainHome = brainHome || await resolveBrainHome({ explicitConfigPath: configPath });
+  const config = await loadConfig(configPath ? { configPath } : { brainHome: resolvedBrainHome });
+  const state = await loadState(statePath ? { statePath } : { brainHome: resolvedBrainHome }, { allowMissing: true });
+  const effectiveStatePath = statePath || config.statePath;
   const window = resolveWindow({
     stateLastCheckedAt: state.lastCheckedAt,
     fallbackDuration: config.lookbackFallback,
@@ -56,7 +59,7 @@ export async function runTaskRefresh({
   ].join(', ');
 
   if (!dryRun) {
-    await persistState(statePath, {
+    await persistState(effectiveStatePath, {
       last_checked_at: report.window_end,
       last_run_status: 'success',
       last_run_summary: summary,
@@ -258,10 +261,6 @@ function normalizeForTokens(value) {
     .replace(/[`_*()[\]{}:,.!?/\\-]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-async function persistState(statePath, nextState) {
-  await writeFile(statePath, `${JSON.stringify(nextState, null, 2)}\n`, 'utf8');
 }
 
 function toPosixPath(value) {

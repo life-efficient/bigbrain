@@ -1,0 +1,27 @@
+{
+  "brain_dir": "/absolute/path/to/your/bigbrain-home",
+  "tasks_file": "/absolute/path/to/your/bigbrain-home/ops/tasks.md",
+  "schema_dirs": [
+    "people",
+    "companies",
+    "deals",
+    "meetings",
+    "projects",
+    "ideas",
+    "concepts",
+    "writing",
+    "sources",
+    "inbox",
+    "archive",
+    "dreams",
+    "ops"
+  ],
+  "sqlite_path": "/absolute/path/to/your/bigbrain-home/.bigbrain/bigbrain.sqlite",
+  "openai_embedding_model": "text-embedding-3-small",
+  "openai_query_model": "gpt-4o-mini",
+  "freshness_inputs": ["markdown", "meetings", "conversations"],
+  "dashboard_port": 3474,
+  "lookback_fallback": "24h",
+  "include_globs": ["**/*.md"],
+  "exclude_globs": [".git/**", "archive/**", ".raw/**"]
+}

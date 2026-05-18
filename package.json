@@ -7,7 +7,10 @@
     "bigbrain": "./bin/bigbrain.js"
   },
   "scripts": {
+    "init": "node ./bin/bigbrain.js init",
     "recent": "node ./bin/bigbrain.js recent",
+    "sync": "node ./bin/bigbrain.js sync",
+    "schema": "node ./bin/bigbrain.js schema",
     "refresh-tasks": "node ./scripts/refresh-tasks.mjs",
     "test": "node --test test/bigbrain/*.test.mjs"
   }

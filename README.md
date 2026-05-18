@@ -1,25 +1,78 @@
 # bigbrain
 
-Standalone task refresh package for gbrain-style markdown directories.
+`bigbrain` is a distributable personal knowledge runtime.
 
-## Files
+The code lives in this repo. The actual brain pages, SQLite index, config, and
+runtime state live outside the repo in a selected brain home.
 
-- `bigbrain.config.json` — stable target config, always read from this package directory
-- `bigbrain.state.json` — committed run state baseline, updated after successful refreshes
-- `bin/bigbrain.js` — CLI with `recent`
-- `scripts/refresh-tasks.mjs` — conservative task reconciler
-- `skills/task-refresh/SKILL.md` — reusable skill definition
+The goal is not to rebuild everything in `gbrain`. The goal is to keep the
+useful parts:
 
-## Behavior
+- MECE markdown file structure
+- linked database
+- relative markdown links and backlinks
+- hybrid search with keyword + semantic fusion
+- automations for consistency and freshness
+- git-backed durability
+- a scoped CLI that targets an external brain home
+- a lightweight dashboard
 
-- `bigbrain` always reads `bigbrain.config.json` from the package directory
-- `bigbrain` always reads `bigbrain.state.json` next to that config file
-- if the configured `brain_dir` or `tasks_file` does not exist, `bigbrain` exits with a setup error telling the caller to update the config and ask the user where the paths should point if unknown
+## Current Runtime
+
+Implemented foundation:
+
+- external brain-home initialization
+- external config and SQLite index under `.bigbrain/`
+- page CRUD against the brain home
+- lexical search plus optional OpenAI-backed semantic/query flows
+- link extraction and backlinks
+- migration from an existing `brain`-style corpus
+- health checks
+- schema/filing guidance
+- existing task refresh adapted to the new runtime model
+- lightweight built-in dashboard
+
+## Architecture
+
+See:
+
+- [`docs/architecture.md`](./docs/architecture.md)
+- [`docs/roadmap.md`](./docs/roadmap.md)
+- [`docs/schema.md`](./docs/schema.md)
+
+## Brain Home
+
+Running `bigbrain init /path/to/home` creates:
+
+- the canonical top-level page directories
+- `ops/tasks.md`
+- `.bigbrain/config.json`
+- `.bigbrain/state.json`
+- `.bigbrain/bigbrain.sqlite`
+
+An example config shape is in [`bigbrain.config.example.json`](./bigbrain.config.example.json).
 
 ## Commands
 
 ```bash
-npm run recent -- --json
-npm run refresh-tasks -- --dry-run --json
+bigbrain init /path/to/brain-home
+bigbrain --brain-home /path/to/brain-home sync
+bigbrain --brain-home /path/to/brain-home search "query terms"
+bigbrain --brain-home /path/to/brain-home query "grounded question"
+bigbrain --brain-home /path/to/brain-home health
+bigbrain --brain-home /path/to/brain-home schema
+bigbrain --brain-home /path/to/brain-home dashboard
+bigbrain --brain-home /path/to/brain-home migrate /path/to/existing/brain
+```
+
+Task refresh still works:
+
+```bash
+npm run refresh-tasks -- --brain-home /path/to/brain-home --dry-run --json
+```
+
+## Tests
+
+```bash
 npm test
 ```
