@@ -69,6 +69,29 @@ test('health reports page-shape issues', async () => {
   }
 });
 
+test('health verifies the bigbrain command is available on PATH from outside the repo', async () => {
+  const fixture = await createFixture('bigbrain-cli-health-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const fakeBinDir = path.join(fixture.rootDir, 'fake-bin');
+    const probeDir = path.join(fixture.rootDir, 'probe-dir');
+    await fs.mkdir(fakeBinDir, { recursive: true });
+    await fs.mkdir(probeDir, { recursive: true });
+    await fs.writeFile(path.join(fakeBinDir, 'bigbrain'), `#!/bin/sh\nexec ${JSON.stringify(process.execPath)} ${JSON.stringify(path.resolve('bin/bigbrain.js'))} \"$@\"\n`, 'utf8');
+    await fs.chmod(path.join(fakeBinDir, 'bigbrain'), 0o755);
+
+    const report = await runHealthCheck(config, {
+      env: { ...process.env, PATH: `${fakeBinDir}:${process.env.PATH}` },
+      cliCwd: probeDir,
+    });
+
+    assert.equal(report.cli_status.available, true);
+    assert.equal(report.findings.some((finding) => finding.finding_type === 'cli_not_available_globally'), false);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('health does not flag meeting pages for missing separator or timeline', async () => {
   const fixture = await createFixture('bigbrain-meeting-health-');
   try {

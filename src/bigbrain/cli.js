@@ -264,6 +264,7 @@ function renderSearchText(rows) {
 function renderHealthText(report) {
   const lines = [`Pages: ${report.page_count}`, `Findings: ${report.finding_count}`];
   if (report.git_status) lines.push(`Git clean: ${report.git_status.clean}`);
+  if (report.cli_status) lines.push(`CLI available anywhere: ${report.cli_status.available}`);
   for (const finding of report.findings.slice(0, 20)) {
     lines.push(`- ${finding.severity} ${finding.finding_type}${finding.page_slug ? ` on ${finding.page_slug}` : ''}${renderHealthFindingDetails(finding.details)}`);
   }

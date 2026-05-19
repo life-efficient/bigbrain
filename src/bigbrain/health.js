@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -9,7 +10,7 @@ import { validatePageShape } from './schema.js';
 
 const execFileAsync = promisify(execFile);
 
-export async function runHealthCheck(config) {
+export async function runHealthCheck(config, { env = process.env, cliCommand = 'bigbrain', cliCwd = os.tmpdir() } = {}) {
   const db = await openDatabase(config);
   clearHealthFindings(db);
   const pages = listPages(db);
@@ -65,6 +66,19 @@ export async function runHealthCheck(config) {
     });
   }
 
+  const cliStatus = await detectCliAvailability({ env, command: cliCommand, cwd: cliCwd });
+  if (!cliStatus.available) {
+    insertHealthFinding(db, {
+      findingType: 'cli_not_available_globally',
+      severity: 'high',
+      details: {
+        command: cliStatus.command,
+        cwd: cliStatus.cwd,
+        message: cliStatus.message,
+      },
+    });
+  }
+
   const findings = listHealthFindings(db).map((row) => ({
     finding_type: row.finding_type,
     severity: row.severity,
@@ -79,6 +93,7 @@ export async function runHealthCheck(config) {
     finding_count: findings.length,
     findings,
     git_status: gitStatus,
+    cli_status: cliStatus,
   };
 }
 
@@ -98,5 +113,23 @@ async function detectGitStatus(brainDir) {
     };
   } catch {
     return null;
+  }
+}
+
+async function detectCliAvailability({ env, command, cwd }) {
+  try {
+    await execFileAsync(command, ['--help'], { cwd, env, timeout: 5000 });
+    return {
+      available: true,
+      command,
+      cwd,
+    };
+  } catch (error) {
+    return {
+      available: false,
+      command,
+      cwd,
+      message: error instanceof Error ? error.message : String(error),
+    };
   }
 }
