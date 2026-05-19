@@ -100,23 +100,49 @@ Running `bigbrain init /path/to/home` creates:
 
 An example config shape is in [`bigbrain.config.example.json`](./bigbrain.config.example.json).
 
+## Install
+
+Install the CLI globally from this repo:
+
+```bash
+cd /path/to/bigbrain
+npm link
+```
+
+After linking, `bigbrain` should work from any working directory. The CLI does
+not depend on the current directory for normal use. It resolves the target brain
+home in this order:
+
+1. `--brain-home /path/to/brain-home`
+2. `BIGBRAIN_HOME=/path/to/brain-home`
+3. the saved default pointer at `~/.config/bigbrain/default-brain-home`
+
+The runtime config, state, and SQLite index live under
+`~/.bigbrain-state/brains/<brain-id>/` by default. Agents or automations that
+run `bigbrain sync` must be able to write to that state directory because sync
+updates the SQLite index and state file.
+
+For agent setup, see [`INSTALL_FOR_AGENTS.md`](./INSTALL_FOR_AGENTS.md).
+
 ## Commands
 
 ```bash
 bigbrain init /path/to/brain-home
-bigbrain --brain-home /path/to/brain-home sync
-bigbrain --brain-home /path/to/brain-home search "query terms"
-bigbrain --brain-home /path/to/brain-home query "grounded question"
-bigbrain --brain-home /path/to/brain-home health
-bigbrain --brain-home /path/to/brain-home schema
-bigbrain --brain-home /path/to/brain-home dashboard
-bigbrain --brain-home /path/to/brain-home migrate /path/to/existing/brain
+bigbrain sync
+bigbrain search "query terms"
+bigbrain query "grounded question"
+bigbrain health
+bigbrain schema
+bigbrain dashboard
+bigbrain migrate /path/to/existing/brain
 ```
+
+Pass `--brain-home /path/to/brain-home` when targeting a non-default brain.
 
 Task refresh still works:
 
 ```bash
-npm run refresh-tasks -- --brain-home /path/to/brain-home --dry-run --json
+bigbrain refresh-tasks --json
 ```
 
 ## Tests
