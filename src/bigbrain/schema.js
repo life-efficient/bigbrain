@@ -16,6 +16,7 @@ const FOLDER_RULES = [
   ['archive', 'Historical or dead pages that should not stay active.'],
   ['dreams', 'Reserved for later dream-cycle outputs; not active in v1.'],
   ['ops', 'Operational files such as tasks and run-state documents.'],
+  ['.artifacts', 'Attached raw files and generated outputs, organized outside the canonical page graph.'],
 ];
 
 export function schemaDescription() {
@@ -29,10 +30,19 @@ export function schemaDescription() {
       '---',
       'Append-only timeline / evidence log',
     ],
+    artifact_shape: [
+      '.artifacts/<artifact-slug>/',
+      'artifact.md companion page',
+      'raw attached files such as pdf/png/pptx/xlsx/txt',
+      'artifact.md carries parents back to one or more canonical brain pages',
+      'artifact storage is neutral about input versus output',
+    ],
     notes: [
       'Compiled truth lives above --- and gets rewritten as understanding changes.',
       'Timeline lives below --- and is append-only evidence.',
       'Use relative markdown links instead of duplicate pages.',
+      'Artifacts live under .artifacts/ and are not canonical brain pages.',
+      'Repo documentation pages such as README.md files should be excluded from strict brain-page validation.',
     ],
   };
 }
@@ -53,11 +63,28 @@ export function renderSchemaMarkdown() {
     '5. `---`',
     '6. Append-only timeline / evidence log',
     '',
+    'Meeting pages may later get a dedicated meeting schema. Raw transcript dumps belong under `.artifacts/`, not as standalone brain pages.',
+    '',
+    '## Artifact Shape',
+    '',
+    '```text',
+    '.artifacts/<artifact-slug>/',
+    '  artifact.md',
+    '  <raw-files...>',
+    '```',
+    '',
+    '- `artifact.md` is a lightweight companion page, not a full entity page.',
+    '- Canonical pages link outward to artifacts.',
+    '- `artifact.md` records `parents:` back to one or more canonical pages.',
+    '- Artifacts may hold both upstream inputs and generated outputs.',
+    '',
     '## Filing Rules',
     '',
     '- File by primary subject, not by source or format.',
     '- Use cross-links instead of duplicate pages.',
     '- Use `inbox/` when a page does not clearly fit yet.',
+    '- Store attached files under `.artifacts/`, not directly in entity directories.',
+    '- Repo documentation pages such as directory `README.md` files are not canonical brain pages.',
   );
   return `${lines.join('\n')}\n`;
 }
