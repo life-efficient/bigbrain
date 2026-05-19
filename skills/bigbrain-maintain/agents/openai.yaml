@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Maintain"
+  short_description: "Check BigBrain, fix obvious issues, and report what still needs attention"
+  default_prompt: "Use BigBrain: Maintain to check BigBrain, fix obvious issues it can handle safely, and report anything that still needs manual follow-up."

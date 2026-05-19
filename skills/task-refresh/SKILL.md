@@ -2,7 +2,7 @@
 name: task-refresh
 version: 1.0.0
 description: |
-  Reconcile the canonical ops/tasks.md file for a gbrain-style markdown directory
+  Reconcile the canonical ops/tasks.md file for a BigBrain-style markdown directory
   by inspecting recently changed notes and applying conservative task updates.
 triggers:
   - "refresh tasks from recent notes"
@@ -13,7 +13,7 @@ tools:
 mutating: true
 ---
 
-# Task Refresh
+# BigBrain: Task Refresh
 
 Use this skill when the task list needs to be kept current based on recently changed
 pages, not when the user wants the tasks themselves executed.
