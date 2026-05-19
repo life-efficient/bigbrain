@@ -98,6 +98,43 @@ Should be excluded by include_globs.
   }
 });
 
+test('sync exclude_globs supports nested filename patterns like **/README.md', async () => {
+  const fixture = await createFixture('bigbrain-sync-readme-glob-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'companies/README.md', `---
+title: Companies
+---
+# Companies
+
+Guide page.
+---
+2026-05-18 | Added.
+`);
+    await writeMarkdown(fixture.brainHome, 'companies/acme.md', `---
+title: Acme
+---
+# Acme
+
+Real company page.
+---
+2026-05-18 | Added.
+`);
+
+    const rawConfig = JSON.parse(await fs.readFile(fixture.configPath, 'utf8'));
+    rawConfig.exclude_globs = [...rawConfig.exclude_globs, '**/README.md'];
+    await fs.writeFile(fixture.configPath, `${JSON.stringify(rawConfig, null, 2)}\n`, 'utf8');
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const slugs = listPageSlugs(db);
+    assert.deepEqual(slugs, ['companies/acme']);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function createFixture(prefix) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   const pointerPath = path.join(rootDir, 'pointer');

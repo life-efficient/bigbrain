@@ -30,6 +30,10 @@ function matchesGlob(relativePath, pattern) {
 
   if (normalizedPattern === '**') return true;
   if (normalizedPattern === '**/*.md') return normalizedRelative.endsWith('.md');
+  if (normalizedPattern.startsWith('**/')) {
+    const suffix = normalizedPattern.slice(3);
+    return normalizedRelative === suffix || normalizedRelative.endsWith(`/${suffix}`);
+  }
   if (normalizedPattern.endsWith('/**')) {
     const prefix = normalizedPattern.slice(0, -3);
     return normalizedRelative === prefix || normalizedRelative.startsWith(`${prefix}/`);
