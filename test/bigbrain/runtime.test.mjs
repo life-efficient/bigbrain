@@ -8,7 +8,7 @@ import { configPathForBrainHome, initializeBrainHome, loadConfig, metaDirForBrai
 import { openDatabase } from '../../src/bigbrain/db.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
-import { formatAnswerContext, fuseResults, searchBrain } from '../../src/bigbrain/search.js';
+import { formatAnswerContext, fuseResults, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
 import { renderSchemaMarkdown, recommendFolderForInput } from '../../src/bigbrain/schema.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -113,6 +113,13 @@ test('answer context emphasizes the top-ranked sources first', () => {
   assert.match(context, /Top-ranked sources:/);
   assert.match(context, /1\. deals\/exampleco-process — ExampleCo Process/);
   assert.match(context, /Result 1\nSlug: deals\/exampleco-process/);
+});
+
+test('auto expansion stays off for direct entity lookups and on for broader questions', () => {
+  assert.equal(shouldAutoExpandQuery('Jordan Lee'), false);
+  assert.equal(shouldAutoExpandQuery('Who is Jordan Lee?'), false);
+  assert.equal(shouldAutoExpandQuery("What's next on my TODO list?"), true);
+  assert.equal(shouldAutoExpandQuery('what did i mention recently about example ai?'), true);
 });
 
 test('health reports page-shape issues', async () => {

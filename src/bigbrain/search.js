@@ -59,11 +59,27 @@ export function formatAnswerContext(results) {
 }
 
 async function resolveQueries({ query, config, apiKey }) {
+  if (!shouldAutoExpandQuery(query)) return [query];
   try {
     return await expandQueryVariants({ query, model: config.openaiQueryModel, apiKey });
   } catch {
     return [query];
   }
+}
+
+export function shouldAutoExpandQuery(query) {
+  const wordCount = countWords(query);
+  if (wordCount < 4) return false;
+
+  const normalized = query.toLowerCase().trim();
+  const intent = classifyQueryIntent(query);
+  if (intent === 'entity') return false;
+
+  if (/\?/.test(query)) return true;
+  if (/\b(recent|recently|current|currently|next|state|status|todo|mentioned?|advised?)\b/i.test(query)) return true;
+  if (/\bwhat's\s+next\b/i.test(normalized) || /\bwhat\s+did\s+i\b/i.test(normalized)) return true;
+
+  return wordCount >= 6;
 }
 
 async function semanticSearchLists({ db, config, queries, limit, apiKey }) {
@@ -193,6 +209,10 @@ function classifyQueryIntent(query) {
     return 'event';
   }
   return 'general';
+}
+
+function countWords(query) {
+  return query.trim().split(/\s+/).filter(Boolean).length;
 }
 
 function cosineSimilarity(left, right) {
