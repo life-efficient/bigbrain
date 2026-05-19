@@ -109,6 +109,7 @@ The top-level structure should stay intentionally small:
 - `inbox/`
 - `sources/`
 - `archive/`
+- `.artifacts/`
 
 Each page should have:
 
@@ -117,6 +118,26 @@ Each page should have:
 - page type derived from path
 - optional frontmatter for metadata
 - body content with relative links
+
+Artifacts should not be forced into canonical page directories. Instead, keep
+them in a top-level attachment store:
+
+```text
+.artifacts/<artifact-slug>/
+  artifact.md
+  <raw-files...>
+```
+
+This is the right place for:
+
+- transcript dumps
+- source PDFs and decks
+- generated diagrams and images
+- spreadsheets and models
+- sendable outward-facing deliverables
+
+The artifact store is deliberately neutral about "input" versus "output"
+because a generated output may later become a reused input.
 
 ## Data Model
 
@@ -144,6 +165,13 @@ The database should stay narrow and derived from the markdown layer.
   - `to_page_id`
   - `link_text`
   - `link_kind`
+  - `is_resolved`
+
+- `artifact_links`
+  - `from_page_id`
+  - `artifact_slug`
+  - `link_text`
+  - `file_path`
   - `is_resolved`
 
 - `sources`
@@ -190,6 +218,7 @@ The database should stay narrow and derived from the markdown layer.
 - `conversation_ingests`
 - `tasks_index`
 - `graph_cache`
+- `artifacts`
 
 These should come later, only if the page-derived tables are insufficient.
 
@@ -244,6 +273,15 @@ Relative links in markdown are core to the system.
 - standard relative markdown links
 - path-based resolution into canonical slugs
 - backlinks computed from the indexed `links` table
+- artifact-link detection for paths under `.artifacts/`
+
+There are two distinct link classes:
+
+- page links: canonical brain page to canonical brain page
+- artifact links: canonical brain page to attached artifact files or
+  `.artifacts/*/artifact.md`
+
+Artifact links should not be treated as unresolved graph-page links.
 
 Required maintenance flows:
 
@@ -251,6 +289,9 @@ Required maintenance flows:
 - detect unresolved slugs
 - detect missing reciprocal reference opportunities
 - optionally rewrite moved links during file moves or migrations
+- detect orphaned artifacts with no remaining parent references
+- verify consistency between page-authored artifact links and
+  `artifact.md` `parents:` metadata
 
 ## Automations
 
