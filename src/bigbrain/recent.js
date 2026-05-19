@@ -58,6 +58,7 @@ function shouldSkipDirectory(relativePath) {
   const normalized = toPosixPath(relativePath);
   if (normalized === '.git' || normalized.startsWith('.git/')) return true;
   if (normalized === '.bigbrain' || normalized.startsWith('.bigbrain/')) return true;
+  if (normalized === '.bigbrain-state' || normalized.startsWith('.bigbrain-state/')) return true;
   if (normalized === 'archive' || normalized.startsWith('archive/')) return true;
   const segments = normalized.split('/');
   return segments.includes('.raw');

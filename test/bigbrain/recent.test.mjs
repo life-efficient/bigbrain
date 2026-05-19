@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { initializeBrainHome, loadConfig, loadState } from '../../src/bigbrain/config.js';
+import { initializeBrainHome, loadConfig, loadState, metaDirForBrainHome } from '../../src/bigbrain/config.js';
 import { listRecentFiles } from '../../src/bigbrain/recent.js';
 import { resolveWindow } from '../../src/bigbrain/time.js';
 
@@ -21,8 +21,8 @@ test('recent listing excludes tasks file and .raw paths and sorts newest first',
     await setMtime(path.join(fixture.brainHome, 'ops/tasks.md'), '2026-05-18T11:50:00.000Z');
     await setMtime(path.join(fixture.brainHome, 'meetings/.raw/transcript.md'), '2026-05-18T11:40:00.000Z');
 
-    const config = await loadConfig({ brainHome: fixture.brainHome });
-    const state = await loadState({ brainHome: fixture.brainHome });
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const state = await loadState({ statePath: fixture.statePath });
     const window = resolveWindow({
       stateLastCheckedAt: state.lastCheckedAt,
       fallbackDuration: config.lookbackFallback,
@@ -46,8 +46,8 @@ test('recent listing uses fallback window when state file is missing', async () 
     await writeMarkdown(fixture.brainHome, 'people/alice.md', '# Alice');
     await setMtime(path.join(fixture.brainHome, 'people/alice.md'), '2026-05-17T15:00:00.000Z');
 
-    const config = await loadConfig({ brainHome: fixture.brainHome });
-    const state = await loadState({ brainHome: fixture.brainHome }, { allowMissing: true });
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const state = await loadState({ statePath: fixture.statePath }, { allowMissing: true });
     const window = resolveWindow({
       stateLastCheckedAt: state.lastCheckedAt,
       fallbackDuration: config.lookbackFallback,
@@ -62,13 +62,15 @@ test('recent listing uses fallback window when state file is missing', async () 
 async function createFixture({ withState = true } = {}) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-recent-'));
   const pointerPath = path.join(rootDir, 'pointer');
+  const stateRoot = path.join(rootDir, 'state-root');
   const brainHome = path.join(rootDir, 'brain-home');
-  await initializeBrainHome(brainHome, { env: { ...process.env, BIGBRAIN_POINTER_PATH: pointerPath } });
+  const env = { ...process.env, BIGBRAIN_POINTER_PATH: pointerPath, BIGBRAIN_STATE_ROOT: stateRoot };
+  const init = await initializeBrainHome(brainHome, { env });
   if (!withState) {
-    await fs.rm(path.join(brainHome, '.bigbrain', 'state.json'), { force: true });
+    await fs.rm(path.join(metaDirForBrainHome(brainHome, env), 'state.json'), { force: true });
   }
   await fs.mkdir(path.join(brainHome, 'meetings', '.raw'), { recursive: true });
-  return { rootDir, brainHome };
+  return { rootDir, brainHome, configPath: init.configPath, statePath: init.statePath };
 }
 
 async function writeMarkdown(brainHome, relativePath, content) {

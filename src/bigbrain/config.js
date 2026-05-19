@@ -1,4 +1,6 @@
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 
 import {
@@ -10,24 +12,36 @@ import {
   DEFAULT_FRESHNESS_INPUTS,
   DEFAULT_POINTER_PATH,
   DEFAULT_QUERY_MODEL,
-  META_DIRNAME,
+  DEFAULT_STATE_ROOT,
+  LEGACY_META_DIRNAME,
   STATE_FILENAME,
+  STATE_ROOT_DIRNAME,
 } from './constants.js';
 
-export function metaDirForBrainHome(brainHome) {
-  return path.join(path.resolve(brainHome), META_DIRNAME);
+export function legacyMetaDirForBrainHome(brainHome) {
+  return path.join(path.resolve(brainHome), LEGACY_META_DIRNAME);
 }
 
-export function configPathForBrainHome(brainHome) {
-  return path.join(metaDirForBrainHome(brainHome), CONFIG_FILENAME);
+export function stateRootPath(env = process.env) {
+  if (env.BIGBRAIN_STATE_ROOT) return path.resolve(env.BIGBRAIN_STATE_ROOT);
+  if (env.HOME) return path.join(path.resolve(env.HOME), STATE_ROOT_DIRNAME, 'brains');
+  return DEFAULT_STATE_ROOT;
 }
 
-export function statePathForBrainHome(brainHome) {
-  return path.join(metaDirForBrainHome(brainHome), STATE_FILENAME);
+export function metaDirForBrainHome(brainHome, env = process.env) {
+  return path.join(stateRootPath(env), runtimeDirNameForBrainHome(brainHome));
 }
 
-export function dbPathForBrainHome(brainHome) {
-  return path.join(metaDirForBrainHome(brainHome), DB_FILENAME);
+export function configPathForBrainHome(brainHome, env = process.env) {
+  return path.join(metaDirForBrainHome(brainHome, env), CONFIG_FILENAME);
+}
+
+export function statePathForBrainHome(brainHome, env = process.env) {
+  return path.join(metaDirForBrainHome(brainHome, env), STATE_FILENAME);
+}
+
+export function dbPathForBrainHome(brainHome, env = process.env) {
+  return path.join(metaDirForBrainHome(brainHome, env), DB_FILENAME);
 }
 
 export function pointerPath(env = process.env) {
@@ -56,7 +70,10 @@ export async function resolveBrainHome({
   explicitConfigPath = null,
   env = process.env,
 } = {}) {
-  if (explicitConfigPath) return path.dirname(path.dirname(path.resolve(explicitConfigPath)));
+  if (explicitConfigPath) {
+    const config = await readJsonFile(path.resolve(explicitConfigPath), 'config');
+    return requireAbsoluteString(config.brain_dir, 'brain_dir');
+  }
   if (explicitBrainHome) return path.resolve(explicitBrainHome);
   if (env.BIGBRAIN_HOME) return path.resolve(env.BIGBRAIN_HOME);
   const pointed = await loadDefaultBrainHomePointer(env);
@@ -64,40 +81,43 @@ export async function resolveBrainHome({
   throw new Error('No brain home selected. Pass --brain-home, set BIGBRAIN_HOME, or initialize a default brain home.');
 }
 
-export function buildDefaultConfig(brainHome) {
+export function buildDefaultConfig(brainHome, env = process.env) {
   const resolvedBrainHome = path.resolve(brainHome);
   return {
     brain_dir: resolvedBrainHome,
     tasks_file: path.join(resolvedBrainHome, 'ops', 'tasks.md'),
     schema_dirs: [...CANONICAL_SCHEMA_DIRS],
-    sqlite_path: dbPathForBrainHome(resolvedBrainHome),
+    sqlite_path: dbPathForBrainHome(resolvedBrainHome, env),
     openai_embedding_model: DEFAULT_EMBEDDING_MODEL,
     openai_query_model: DEFAULT_QUERY_MODEL,
     freshness_inputs: [...DEFAULT_FRESHNESS_INPUTS],
     dashboard_port: DEFAULT_DASHBOARD_PORT,
     lookback_fallback: '24h',
     include_globs: ['**/*.md'],
-    exclude_globs: ['.git/**', 'archive/**', '.raw/**'],
+    exclude_globs: ['.git/**', 'archive/**', '.raw/**', '**/README.md'],
   };
 }
 
 export async function initializeBrainHome(brainHome, { env = process.env } = {}) {
   const resolvedBrainHome = path.resolve(brainHome);
-  const config = buildDefaultConfig(resolvedBrainHome);
-  await fs.mkdir(metaDirForBrainHome(resolvedBrainHome), { recursive: true });
+  const config = buildDefaultConfig(resolvedBrainHome, env);
+  const metaDir = metaDirForBrainHome(resolvedBrainHome, env);
+
+  await maybeMigrateLegacyRuntime(resolvedBrainHome, metaDir);
+  await fs.mkdir(metaDir, { recursive: true });
   for (const dir of config.schema_dirs) {
     await fs.mkdir(path.join(resolvedBrainHome, dir), { recursive: true });
   }
   await writeIfMissing(config.tasks_file, defaultTasksMarkdown());
-  await writeIfMissing(path.join(resolvedBrainHome, 'README.md'), defaultBrainReadme());
-  await writeIfMissing(configPathForBrainHome(resolvedBrainHome), `${JSON.stringify(config, null, 2)}\n`);
-  await writeIfMissing(statePathForBrainHome(resolvedBrainHome), `${JSON.stringify(defaultState(), null, 2)}\n`);
+  await writeIfMissing(configPathForBrainHome(resolvedBrainHome, env), `${JSON.stringify(config, null, 2)}\n`);
+  await writeIfMissing(statePathForBrainHome(resolvedBrainHome, env), `${JSON.stringify(defaultState(), null, 2)}\n`);
+  await reconcileConfigFile(configPathForBrainHome(resolvedBrainHome, env), config);
   await saveDefaultBrainHomePointer(resolvedBrainHome, env);
 
   return {
     brainHome: resolvedBrainHome,
-    configPath: configPathForBrainHome(resolvedBrainHome),
-    statePath: statePathForBrainHome(resolvedBrainHome),
+    configPath: configPathForBrainHome(resolvedBrainHome, env),
+    statePath: statePathForBrainHome(resolvedBrainHome, env),
     config,
   };
 }
@@ -105,16 +125,14 @@ export async function initializeBrainHome(brainHome, { env = process.env } = {})
 export async function loadConfig(input = null) {
   const configPath = await resolveConfigPath(input);
   const raw = await readJsonFile(configPath, 'config');
-  const brainHome = path.isAbsolute(raw.brain_dir)
-    ? path.resolve(raw.brain_dir)
-    : path.dirname(path.dirname(configPath));
+  const brainHome = requireAbsoluteString(raw.brain_dir, 'brain_dir');
   const derivedDefault = buildDefaultConfig(brainHome);
 
   const config = {
     brainHome,
     configPath,
-    statePath: statePathForBrainHome(brainHome),
-    metaDir: metaDirForBrainHome(brainHome),
+    statePath: path.join(path.dirname(configPath), STATE_FILENAME),
+    metaDir: path.dirname(configPath),
     brainDir: requireAbsoluteString(raw.brain_dir, 'brain_dir'),
     tasksFile: requireAbsoluteString(raw.tasks_file, 'tasks_file'),
     schemaDirs: normalizeStringArray(raw.schema_dirs, derivedDefault.schema_dirs, 'schema_dirs'),
@@ -139,7 +157,7 @@ export async function loadState(input = null, { allowMissing = true } = {}) {
     : input?.brainHome
       ? statePathForBrainHome(input.brainHome)
       : input?.configPath
-        ? statePathForBrainHome(path.dirname(path.dirname(path.resolve(input.configPath))))
+        ? path.join(path.dirname(path.resolve(input.configPath)), STATE_FILENAME)
         : await resolveStatePath();
 
   try {
@@ -194,6 +212,43 @@ async function writeIfMissing(filePath, content) {
   }
 }
 
+async function maybeMigrateLegacyRuntime(brainHome, targetMetaDir) {
+  const legacyMetaDir = legacyMetaDirForBrainHome(brainHome);
+  if (path.resolve(legacyMetaDir) === path.resolve(targetMetaDir)) return;
+  const legacyExists = await fs.stat(legacyMetaDir).then((stats) => stats.isDirectory()).catch(() => false);
+  if (!legacyExists) return;
+
+  await fs.mkdir(targetMetaDir, { recursive: true });
+  for (const filename of [CONFIG_FILENAME, STATE_FILENAME, DB_FILENAME, `${DB_FILENAME}-shm`, `${DB_FILENAME}-wal`]) {
+    const sourcePath = path.join(legacyMetaDir, filename);
+    const targetPath = path.join(targetMetaDir, filename);
+    const exists = await fs.stat(sourcePath).then((stats) => stats.isFile()).catch(() => false);
+    if (!exists) continue;
+    const alreadyThere = await fs.stat(targetPath).then((stats) => stats.isFile()).catch(() => false);
+    if (alreadyThere) continue;
+    await fs.copyFile(sourcePath, targetPath);
+  }
+}
+
+async function reconcileConfigFile(configPath, desiredConfig) {
+  const current = await readJsonFile(configPath, 'config');
+  const next = {
+    ...current,
+    brain_dir: desiredConfig.brain_dir,
+    tasks_file: desiredConfig.tasks_file,
+    sqlite_path: desiredConfig.sqlite_path,
+  };
+  if (JSON.stringify(next) === JSON.stringify(current)) return;
+  await fs.writeFile(configPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+}
+
+function runtimeDirNameForBrainHome(brainHome) {
+  const resolvedBrainHome = path.resolve(brainHome);
+  const base = path.basename(resolvedBrainHome).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'brain';
+  const hash = crypto.createHash('sha1').update(resolvedBrainHome).digest('hex').slice(0, 10);
+  return `${base}-${hash}`;
+}
+
 function defaultState() {
   return {
     last_checked_at: null,
@@ -211,17 +266,6 @@ function defaultTasksMarkdown() {
 ## P2 — This Week
 
 ## P3 — Backlog
-`;
-}
-
-function defaultBrainReadme() {
-  return `# Bigbrain Home
-
-This directory is the external brain home for a bigbrain instance.
-
-- Markdown pages are the authored source of truth.
-- Runtime state lives in \`.bigbrain/\`.
-- Tasks live in \`ops/tasks.md\`.
 `;
 }
 

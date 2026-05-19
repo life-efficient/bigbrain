@@ -26,7 +26,12 @@ test('recent meeting update rewrites an existing matching task', async () => {
 `);
     await setMtime(path.join(fixture.brainHome, 'meetings/client-sync.md'), '2026-05-18T09:00:00.000Z');
 
-    const result = await runTaskRefresh({ brainHome: fixture.brainHome, now: new Date('2026-05-18T12:00:00.000Z') });
+    const result = await runTaskRefresh({
+      configPath: fixture.configPath,
+      statePath: fixture.statePath,
+      brainHome: fixture.brainHome,
+      now: new Date('2026-05-18T12:00:00.000Z'),
+    });
     const nextTasks = await fs.readFile(path.join(fixture.brainHome, 'ops/tasks.md'), 'utf8');
     assert.equal(result.updated_tasks, 1);
     assert.match(nextTasks, /Send Jordan the revised follow-up package/);
@@ -47,12 +52,14 @@ test('dry run does not advance state', async () => {
     await setMtime(path.join(fixture.brainHome, 'projects/launch-plan.md'), '2026-05-18T10:00:00.000Z');
 
     await runTaskRefresh({
+      configPath: fixture.configPath,
+      statePath: fixture.statePath,
       brainHome: fixture.brainHome,
       dryRun: true,
       now: new Date('2026-05-18T12:00:00.000Z'),
     });
 
-    const state = JSON.parse(await fs.readFile(path.join(fixture.brainHome, '.bigbrain/state.json'), 'utf8'));
+    const state = JSON.parse(await fs.readFile(fixture.statePath, 'utf8'));
     assert.equal(state.last_checked_at, null);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
@@ -62,9 +69,10 @@ test('dry run does not advance state', async () => {
 async function createFixture() {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-tasks-'));
   const pointerPath = path.join(rootDir, 'pointer');
+  const stateRoot = path.join(rootDir, 'state-root');
   const brainHome = path.join(rootDir, 'brain-home');
-  await initializeBrainHome(brainHome, { env: { ...process.env, BIGBRAIN_POINTER_PATH: pointerPath } });
-  return { rootDir, brainHome };
+  const init = await initializeBrainHome(brainHome, { env: { ...process.env, BIGBRAIN_POINTER_PATH: pointerPath, BIGBRAIN_STATE_ROOT: stateRoot } });
+  return { rootDir, brainHome, configPath: init.configPath, statePath: init.statePath };
 }
 
 async function writeFile(filePath, content) {
