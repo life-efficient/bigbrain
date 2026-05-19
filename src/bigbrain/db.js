@@ -143,6 +143,20 @@ export function replaceEmbeddingForPage(db, { pageSlug, chunkId, chunkText, mode
   `).run(pageSlug, chunkId, chunkText, model, JSON.stringify(vector), contentHash);
 }
 
+export function listPageSlugs(db) {
+  return db.prepare('SELECT slug FROM pages ORDER BY slug').all().map((row) => row.slug);
+}
+
+export function deletePageIndex(db, slug) {
+  db.prepare('DELETE FROM embeddings WHERE page_slug = ?').run(slug);
+  db.prepare('DELETE FROM links WHERE from_slug = ? OR to_slug = ?').run(slug, slug);
+  db.prepare('DELETE FROM sources WHERE page_slug = ?').run(slug);
+  db.prepare('DELETE FROM activity_log WHERE page_slug = ?').run(slug);
+  db.prepare('DELETE FROM health_findings WHERE page_slug = ?').run(slug);
+  db.prepare('DELETE FROM pages_fts WHERE slug = ?').run(slug);
+  db.prepare('DELETE FROM pages WHERE slug = ?').run(slug);
+}
+
 export function listPages(db, { type = null } = {}) {
   if (type) return db.prepare('SELECT slug, title, type, summary, updated_at FROM pages WHERE type = ? ORDER BY slug').all(type);
   return db.prepare('SELECT slug, title, type, summary, updated_at FROM pages ORDER BY slug').all();

@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { openDatabase, replaceEmbeddingForPage, replaceLinksForPage, replacePageIndex } from './db.js';
+import { deletePageIndex, listPageSlugs, openDatabase, replaceEmbeddingForPage, replaceLinksForPage, replacePageIndex } from './db.js';
 import { embedTexts } from './openai.js';
 import { extractLinks, parseMarkdownPage, slugFromPath } from './markdown.js';
 
@@ -21,6 +21,10 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY } 
     parsed.links = extractLinks(raw, slug);
     knownSlugs.add(slug);
     pages.push(parsed);
+  }
+
+  for (const indexedSlug of listPageSlugs(db)) {
+    if (!knownSlugs.has(indexedSlug)) deletePageIndex(db, indexedSlug);
   }
 
   for (const page of pages) replacePageIndex(db, page);
