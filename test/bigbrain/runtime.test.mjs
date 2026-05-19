@@ -55,6 +55,45 @@ AI operator working on retrieval systems.
   }
 });
 
+test('search tolerates punctuation in natural-language queries', async () => {
+  const fixture = await createFixture('bigbrain-search-punctuation-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'deals/exampleco-process.md', `---
+title: ExampleCo Process
+---
+# ExampleCo Process
+
+Current ExampleCo sale timeline and next step.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const result = await searchBrain({ db, config, query: 'What is the current ExampleCo sale timeline and next step?', apiKey: null });
+    assert.equal(result.fused.length > 0, true);
+    assert.equal(result.fused.some((row) => row.slug === 'deals/exampleco-process'), true);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('fused search favors the strongest semantic page across multiple ranked lists', () => {
+  const fused = fuseResults(
+    [
+      { slug: 'deals/exampleco-ahmed-engagement-proposal', title: 'Jordan Lee Engagement Proposal', type: 'deals', summary: '', snippet: 'next step', lexical_score: -1 },
+      { slug: 'people/jordan-lee', title: 'Jordan Lee', type: 'people', summary: '', snippet: 'sale', lexical_score: -2 },
+    ],
+    [
+      { slug: 'deals/exampleco-process', title: 'ExampleCo Process', type: 'deals', summary: '', snippet: 'sale timeline', semantic_score: 0.9 },
+      { slug: 'deals/exampleco-ahmed-engagement-proposal', title: 'Jordan Lee Engagement Proposal', type: 'deals', summary: '', snippet: 'next step', semantic_score: 0.7 },
+    ],
+    3,
+  );
+
+  assert.equal(fused[0].slug, 'deals/exampleco-ahmed-engagement-proposal');
+  assert.equal(fused.some((row) => row.slug === 'deals/exampleco-process'), true);
+});
+
 test('health reports page-shape issues', async () => {
   const fixture = await createFixture('bigbrain-health-');
   try {

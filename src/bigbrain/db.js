@@ -166,6 +166,16 @@ export function getPageRecord(db, slug) {
   return db.prepare('SELECT * FROM pages WHERE slug = ?').get(slug);
 }
 
+export function getPagesBySlugs(db, slugs) {
+  if (slugs.length === 0) return [];
+  const placeholders = slugs.map(() => '?').join(', ');
+  return db.prepare(`
+    SELECT slug, title, type, summary, compiled_truth
+    FROM pages
+    WHERE slug IN (${placeholders})
+  `).all(...slugs);
+}
+
 export function getOutgoingLinks(db, slug) {
   return db.prepare('SELECT to_slug, link_text, link_kind, is_resolved FROM links WHERE from_slug = ? ORDER BY to_slug').all(slug);
 }
@@ -175,6 +185,7 @@ export function getBacklinks(db, slug) {
 }
 
 export function lexicalSearch(db, query, limit = 10) {
+  if (!query.trim()) return [];
   return db.prepare(`
     SELECT p.slug, p.title, p.type, p.summary,
            snippet(pages_fts, 3, '[', ']', ' … ', 10) AS snippet,

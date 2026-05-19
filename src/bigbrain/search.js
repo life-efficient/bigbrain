@@ -1,11 +1,31 @@
-import { allEmbeddings, lexicalSearch } from './db.js';
-import { answerQuestion, embedTexts } from './openai.js';
+import { allEmbeddings, getPagesBySlugs, lexicalSearch } from './db.js';
+import { answerQuestion, embedTexts, expandQueryVariants } from './openai.js';
+
+const RRF_K = 60;
 
 export async function searchBrain({ db, config, query, limit = 10, apiKey = process.env.OPENAI_API_KEY }) {
-  const lexical = lexicalSearch(db, safeFtsQuery(query), limit);
-  const semantic = await semanticSearch({ db, config, query, limit, apiKey });
-  const fused = fuseResults(lexical, semantic, limit);
-  return { lexical, semantic, fused };
+  const queries = await resolveQueries({ query, config, apiKey });
+  const innerLimit = Math.min(limit * 3, 30);
+  const lexicalLists = queries
+    .map((candidate) => lexicalSearch(db, safeFtsQuery(candidate), innerLimit))
+    .filter((rows) => rows.length > 0);
+  const semanticLists = await semanticSearchLists({ db, config, queries, limit: innerLimit, apiKey });
+  const intentWeights = weightsForIntent(classifyQueryIntent(query));
+  const fused = fuseRankedLists(
+    [
+      ...semanticLists.map((rows) => ({ list: rows, k: effectiveRrfK(RRF_K, intentWeights.vectorWeight), source: 'semantic' })),
+      ...lexicalLists.map((rows) => ({ list: rows, k: effectiveRrfK(RRF_K, intentWeights.keywordWeight), source: 'lexical' })),
+    ],
+    limit,
+  );
+  applyExactMatchBoost(fused, query, intentWeights.exactMatchBoost);
+  fused.sort((left, right) => right.score - left.score || left.slug.localeCompare(right.slug));
+  return {
+    queries,
+    lexical: lexicalLists[0] ?? [],
+    semantic: semanticLists[0] ?? [],
+    fused: fused.slice(0, limit),
+  };
 }
 
 export async function queryBrain({ db, config, question, limit = 6, apiKey = process.env.OPENAI_API_KEY }) {
@@ -17,61 +37,141 @@ export async function queryBrain({ db, config, question, limit = 6, apiKey = pro
   return { answer: answer || null, search };
 }
 
-async function semanticSearch({ db, config, query, limit, apiKey }) {
+async function resolveQueries({ query, config, apiKey }) {
+  try {
+    return await expandQueryVariants({ query, model: config.openaiQueryModel, apiKey });
+  } catch {
+    return [query];
+  }
+}
+
+async function semanticSearchLists({ db, config, queries, limit, apiKey }) {
   if (!apiKey) return [];
   const embeddings = allEmbeddings(db);
-  if (embeddings.length === 0) return [];
-  const [queryVector] = await embedTexts([query], config.openaiEmbeddingModel, apiKey);
-  return embeddings
-    .map((row) => ({
-      slug: row.page_slug,
-      snippet: row.chunk_text.slice(0, 240),
-      semantic_score: cosineSimilarity(queryVector, JSON.parse(row.embedding_json)),
-    }))
+  if (embeddings.length === 0 || queries.length === 0) return [];
+
+  const queryVectors = await embedTexts(queries, config.openaiEmbeddingModel, apiKey);
+  if (queryVectors.length === 0) return [];
+
+  const metadataBySlug = new Map(
+    getPagesBySlugs(db, [...new Set(embeddings.map((row) => row.page_slug))]).map((row) => [row.slug, row]),
+  );
+
+  return queryVectors.map((queryVector) => embeddings
+    .map((row) => {
+      const metadata = metadataBySlug.get(row.page_slug);
+      return {
+        slug: row.page_slug,
+        title: metadata?.title ?? row.page_slug,
+        type: metadata?.type ?? null,
+        summary: metadata?.summary ?? '',
+        snippet: row.chunk_text.slice(0, 240),
+        semantic_score: cosineSimilarity(queryVector, JSON.parse(row.embedding_json)),
+      };
+    })
     .sort((left, right) => right.semantic_score - left.semantic_score)
-    .slice(0, limit);
+    .slice(0, limit));
 }
 
 export function fuseResults(lexical, semantic, limit) {
-  const bySlug = new Map();
-  const lexicalIndex = new Map(lexical.map((row, index) => [row.slug, index + 1]));
-  const semanticIndex = new Map(semantic.map((row, index) => [row.slug, index + 1]));
-
-  for (const row of lexical) {
-    bySlug.set(row.slug, {
-      slug: row.slug,
-      title: row.title,
-      type: row.type,
-      summary: row.summary,
-      snippet: row.snippet,
-      lexical_rank: lexicalIndex.get(row.slug),
-      semantic_rank: semanticIndex.get(row.slug) ?? null,
-      score: 0,
-    });
-  }
-  for (const row of semantic) {
-    const existing = bySlug.get(row.slug) || {
-      slug: row.slug,
-      title: row.slug,
-      type: null,
-      summary: '',
-      snippet: row.snippet,
-      lexical_rank: lexicalIndex.get(row.slug) ?? null,
-      semantic_rank: semanticIndex.get(row.slug),
-      score: 0,
-    };
-    if (!existing.snippet) existing.snippet = row.snippet;
-    existing.semantic_rank = semanticIndex.get(row.slug);
-    bySlug.set(row.slug, existing);
-  }
-  for (const result of bySlug.values()) {
-    result.score = (reciprocalRank(result.lexical_rank) * 2) + reciprocalRank(result.semantic_rank);
-  }
-  return [...bySlug.values()].sort((left, right) => right.score - left.score || left.slug.localeCompare(right.slug)).slice(0, limit);
+  return fuseRankedLists(
+    [
+      ...(semantic.length ? [{ list: semantic, k: RRF_K, source: 'semantic' }] : []),
+      ...(lexical.length ? [{ list: lexical, k: RRF_K, source: 'lexical' }] : []),
+    ],
+    limit,
+  );
 }
 
-function reciprocalRank(rank) {
-  return rank ? 1 / (60 + rank) : 0;
+function fuseRankedLists(lists, limit) {
+  const scores = new Map();
+
+  for (const { list, k, source = 'unknown' } of lists) {
+    for (let rank = 0; rank < list.length; rank += 1) {
+      const row = list[rank];
+      const existing = scores.get(row.slug);
+      const contribution = 1 / (k + rank);
+
+      if (existing) {
+        existing.score += contribution;
+        if (!existing.snippet && row.snippet) existing.snippet = row.snippet;
+        if (!existing.summary && row.summary) existing.summary = row.summary;
+        if (!existing.title && row.title) existing.title = row.title;
+        if (!existing.type && row.type) existing.type = row.type;
+        if (source === 'lexical') existing.lexicalHits += 1;
+        if (source === 'semantic') existing.semanticHits += 1;
+      } else {
+        scores.set(row.slug, {
+          slug: row.slug,
+          title: row.title ?? row.slug,
+          type: row.type ?? null,
+          summary: row.summary ?? '',
+          snippet: row.snippet ?? '',
+          score: contribution,
+          lexicalHits: source === 'lexical' ? 1 : 0,
+          semanticHits: source === 'semantic' ? 1 : 0,
+        });
+      }
+    }
+  }
+
+  const entries = [...scores.values()];
+  if (entries.length === 0) return [];
+
+  const maxScore = Math.max(...entries.map((entry) => entry.score));
+  if (maxScore > 0) {
+    for (const entry of entries) entry.score /= maxScore;
+  }
+
+  return entries
+    .sort((left, right) => (
+      right.score - left.score
+      || right.lexicalHits - left.lexicalHits
+      || right.semanticHits - left.semanticHits
+      || left.slug.localeCompare(right.slug)
+    ))
+    .slice(0, limit);
+}
+
+function effectiveRrfK(baseK, weight) {
+  if (weight <= 0) return baseK;
+  return baseK / weight;
+}
+
+function applyExactMatchBoost(results, query, boost) {
+  if (boost === 1) return;
+  const normalized = query.toLowerCase().trim();
+  if (!normalized) return;
+  const kebab = normalized.replace(/\s+/g, '-');
+
+  for (const result of results) {
+    const slug = (result.slug ?? '').toLowerCase();
+    const title = (result.title ?? '').toLowerCase().trim();
+    if (slug === normalized || slug === kebab || slug.endsWith(`/${kebab}`) || title === normalized) {
+      result.score *= boost;
+    }
+  }
+}
+
+function weightsForIntent(intent) {
+  switch (intent) {
+    case 'entity':
+      return { keywordWeight: 1.15, vectorWeight: 1.0, exactMatchBoost: 1.25 };
+    case 'event':
+      return { keywordWeight: 1.20, vectorWeight: 0.95, exactMatchBoost: 1.10 };
+    default:
+      return { keywordWeight: 1.0, vectorWeight: 1.0, exactMatchBoost: 1.0 };
+  }
+}
+
+function classifyQueryIntent(query) {
+  if (/\bwho\s+is\b/i.test(query) || /\bwhat\s+(is|does|are)\b/i.test(query) || /\btell\s+me\s+about\b/i.test(query)) {
+    return 'entity';
+  }
+  if (/\bannounce[ds]?(ment)?\b/i.test(query) || /\blaunch(ed|es|ing)?\b/i.test(query) || /\bacquisition\b/i.test(query) || /\bhappened?\b/i.test(query)) {
+    return 'event';
+  }
+  return 'general';
 }
 
 function cosineSimilarity(left, right) {
@@ -89,5 +189,35 @@ function cosineSimilarity(left, right) {
 }
 
 function safeFtsQuery(value) {
-  return value.trim().split(/\s+/).filter(Boolean).map((token) => token.replace(/"/g, '')).join(' ');
+  const stopWords = new Set([
+    'a',
+    'an',
+    'and',
+    'are',
+    'for',
+    'from',
+    'how',
+    'in',
+    'is',
+    'of',
+    'on',
+    'or',
+    'the',
+    'to',
+    'what',
+    'when',
+    'where',
+    'which',
+    'who',
+    'why',
+    'with',
+  ]);
+
+  return value
+    .trim()
+    .split(/\s+/)
+    .map((token) => token.replace(/[^\p{L}\p{N}_-]+/gu, '').toLowerCase())
+    .filter((token) => !stopWords.has(token))
+    .filter(Boolean)
+    .join(' ');
 }

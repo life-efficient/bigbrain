@@ -87,6 +87,8 @@ See:
 - [`docs/architecture.md`](./docs/architecture.md)
 - [`docs/roadmap.md`](./docs/roadmap.md)
 - [`docs/schema.md`](./docs/schema.md)
+- [`src/bigbrain/README.md`](./src/bigbrain/README.md)
+- [`TODO.md`](./TODO.md)
 
 ## Brain Home
 
