@@ -30,11 +30,32 @@ export async function searchBrain({ db, config, query, limit = 10, apiKey = proc
 
 export async function queryBrain({ db, config, question, limit = 6, apiKey = process.env.OPENAI_API_KEY }) {
   const search = await searchBrain({ db, config, query: question, limit, apiKey });
-  const context = search.fused
-    .map((result, index) => `${index + 1}. ${result.slug}\nTitle: ${result.title}\nSummary: ${result.summary}\nSnippet: ${result.snippet || ''}`)
-    .join('\n\n');
+  const context = formatAnswerContext(search.fused);
+  const preferredSources = search.fused.slice(0, 3).map((result) => result.slug);
   const answer = await answerQuestion({ model: config.openaiQueryModel, apiKey, question, context });
-  return { answer: answer || null, search };
+  return { answer: answer || null, preferred_sources: preferredSources, search };
+}
+
+export function formatAnswerContext(results) {
+  const preferredSources = results.slice(0, 3).map((result, index) => (
+    `${index + 1}. ${result.slug} — ${result.title || result.slug}`
+  ));
+
+  const entries = results.map((result, index) => [
+    `Result ${index + 1}`,
+    `Slug: ${result.slug}`,
+    `Title: ${result.title || result.slug}`,
+    `Summary: ${result.summary || ''}`,
+    `Snippet: ${result.snippet || ''}`,
+  ].join('\n'));
+
+  return [
+    'Top-ranked sources:',
+    preferredSources.length ? preferredSources.join('\n') : 'none',
+    '',
+    'Retrieved context:',
+    entries.join('\n\n'),
+  ].join('\n');
 }
 
 async function resolveQueries({ query, config, apiKey }) {

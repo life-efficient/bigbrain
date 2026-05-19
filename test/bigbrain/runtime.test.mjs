@@ -8,7 +8,7 @@ import { configPathForBrainHome, initializeBrainHome, loadConfig, metaDirForBrai
 import { openDatabase } from '../../src/bigbrain/db.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
-import { fuseResults, searchBrain } from '../../src/bigbrain/search.js';
+import { formatAnswerContext, fuseResults, searchBrain } from '../../src/bigbrain/search.js';
 import { renderSchemaMarkdown, recommendFolderForInput } from '../../src/bigbrain/schema.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -92,6 +92,27 @@ test('fused search favors the strongest semantic page across multiple ranked lis
 
   assert.equal(fused[0].slug, 'deals/exampleco-ahmed-engagement-proposal');
   assert.equal(fused.some((row) => row.slug === 'deals/exampleco-process'), true);
+});
+
+test('answer context emphasizes the top-ranked sources first', () => {
+  const context = formatAnswerContext([
+    {
+      slug: 'deals/exampleco-process',
+      title: 'ExampleCo Process',
+      summary: '# ExampleCo Process',
+      snippet: 'Competitive sale timeline.',
+    },
+    {
+      slug: 'companies/exampleco',
+      title: 'ExampleCo',
+      summary: '# ExampleCo',
+      snippet: 'Company context.',
+    },
+  ]);
+
+  assert.match(context, /Top-ranked sources:/);
+  assert.match(context, /1\. deals\/exampleco-process — ExampleCo Process/);
+  assert.match(context, /Result 1\nSlug: deals\/exampleco-process/);
 });
 
 test('health reports page-shape issues', async () => {

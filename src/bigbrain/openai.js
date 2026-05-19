@@ -64,7 +64,16 @@ export async function answerQuestion({ model, apiKey, question, context }) {
       input: [
         {
           role: 'system',
-          content: [{ type: 'input_text', text: 'Answer only from the provided bigbrain context. Be concise and mention source slugs when relevant.' }],
+          content: [{
+            type: 'input_text',
+            text: [
+              'Answer only from the provided bigbrain context.',
+              'Prefer the top-ranked sources when they support the answer.',
+              'Cite supporting source slugs inline in parentheses.',
+              'If the retrieved context is insufficient or conflicting, say so instead of guessing.',
+              'Be concise and concrete.',
+            ].join(' '),
+          }],
         },
         {
           role: 'user',
