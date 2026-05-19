@@ -212,20 +212,28 @@ function cosineSimilarity(left, right) {
 function safeFtsQuery(value) {
   const stopWords = new Set([
     'a',
+    'about',
     'an',
     'and',
     'are',
+    'did',
     'for',
     'from',
+    'have',
     'how',
+    'i',
     'in',
     'is',
+    'me',
+    'my',
     'of',
     'on',
     'or',
     'the',
+    'things',
     'to',
     'what',
+    'whats',
     'when',
     'where',
     'which',
@@ -237,7 +245,11 @@ function safeFtsQuery(value) {
   return value
     .trim()
     .split(/\s+/)
-    .map((token) => token.replace(/[^\p{L}\p{N}_-]+/gu, '').toLowerCase())
+    .flatMap((token) => token
+      .replace(/[^\p{L}\p{N}_-]+/gu, '')
+      .toLowerCase()
+      .split(/-+/)
+      .filter(Boolean))
     .filter((token) => !stopWords.has(token))
     .filter(Boolean)
     .join(' ');
