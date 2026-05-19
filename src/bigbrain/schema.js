@@ -30,6 +30,13 @@ export function schemaDescription() {
       '---',
       'Append-only timeline / evidence log',
     ],
+    meeting_page_shape: [
+      'YAML frontmatter',
+      'Title and meeting metadata',
+      'Optional Prep section with Context and Meeting Plan',
+      'Structured meeting sections such as Summary, Key Decisions, Action Items, and Discussion Notes',
+      'Separator and timeline are optional for meetings',
+    ],
     artifact_shape: [
       '.artifacts/<artifact-slug>/',
       'artifact.md companion page',
@@ -42,7 +49,7 @@ export function schemaDescription() {
       'Timeline lives below --- and is append-only evidence.',
       'Use relative markdown links instead of duplicate pages.',
       'Artifacts live under .artifacts/ and are not canonical brain pages.',
-      'Repo documentation pages such as README.md files should be excluded from strict brain-page validation.',
+      'Repo documentation pages such as README.md files should be excluded from indexing and strict brain-page validation.',
     ],
   };
 }
@@ -63,7 +70,15 @@ export function renderSchemaMarkdown() {
     '5. `---`',
     '6. Append-only timeline / evidence log',
     '',
-    'Meeting pages may later get a dedicated meeting schema. Raw transcript dumps belong under `.artifacts/`, not as standalone brain pages.',
+    '## Meeting Page Shape',
+    '',
+    '1. YAML frontmatter',
+    '2. Title and meeting metadata',
+    '3. Optional `## Prep` with `### Context` and `### Meeting Plan`',
+    '4. Structured meeting sections such as `## Summary`, `## Key Decisions`, `## Action Items`, and `## Discussion Notes`',
+    '5. `---` and `## Timeline` are optional for meetings',
+    '',
+    'Raw transcript dumps belong under `.artifacts/`, not as standalone brain pages.',
     '',
     '## Artifact Shape',
     '',
@@ -84,7 +99,7 @@ export function renderSchemaMarkdown() {
     '- Use cross-links instead of duplicate pages.',
     '- Use `inbox/` when a page does not clearly fit yet.',
     '- Store attached files under `.artifacts/`, not directly in entity directories.',
-    '- Repo documentation pages such as directory `README.md` files are not canonical brain pages.',
+    '- Repo documentation pages such as directory `README.md` files are not canonical brain pages and should be excluded from indexing.',
   );
   return `${lines.join('\n')}\n`;
 }
@@ -105,13 +120,114 @@ export function recommendFolderForInput(input) {
 }
 
 export function validatePageShape(parsedPage) {
+  if (isRepoDocumentationPage(parsedPage.slug)) return [];
+
   const findings = [];
-  if (!parsedPage.hasFrontmatter) findings.push('missing_frontmatter');
-  if (!parsedPage.hasSeparator) findings.push('missing_separator');
-  if (!parsedPage.title) findings.push('missing_title');
-  if (!parsedPage.compiledTruth.trim()) findings.push('missing_compiled_truth');
-  if (PAGE_REQUIRED_TIMELINE_TYPES.has(parsedPage.type) && !parsedPage.timeline.trim()) findings.push('missing_timeline');
+  if (!parsedPage.hasFrontmatter) findings.push({ type: 'missing_frontmatter' });
+  if (!parsedPage.title) findings.push({ type: 'missing_title' });
+  if (!parsedPage.compiledTruth.trim()) findings.push({ type: 'missing_compiled_truth' });
+  if (requiresSeparator(parsedPage) && !parsedPage.hasSeparator) findings.push({ type: 'missing_separator' });
+  if (PAGE_REQUIRED_TIMELINE_TYPES.has(parsedPage.type) && !parsedPage.timeline.trim()) findings.push({ type: 'missing_timeline' });
+  if (parsedPage.type === 'meetings') findings.push(...validateMeetingPage(parsedPage));
   return findings;
+}
+
+function requiresSeparator(parsedPage) {
+  return parsedPage.type !== 'meetings';
+}
+
+function isRepoDocumentationPage(slug) {
+  return path.posix.basename(slug).toLowerCase() === 'readme';
+}
+
+function validateMeetingPage(parsedPage) {
+  const findings = [];
+  const outline = extractMeetingOutline(parsedPage.compiledTruth);
+  const requiredSections = ['Summary', 'Key Decisions', 'Action Items', 'Discussion Notes'];
+  const missingSections = requiredSections.filter((section) => !outline.topNormalized.includes(normalizeHeading(section)));
+
+  if (missingSections.length > 0) {
+    findings.push({
+      type: 'missing_meeting_heading',
+      details: {
+        missing: missingSections,
+        found: outline.topHeadings,
+      },
+    });
+  }
+
+  const hasPrep = outline.topNormalized.includes('prep');
+  const misplacedPrepSubheadings = outline.topHeadings.filter((heading) => {
+    const normalized = normalizeHeading(heading);
+    return normalized === 'context' || normalized === 'meeting plan';
+  });
+
+  if (!hasPrep && misplacedPrepSubheadings.length > 0) {
+    findings.push({
+      type: 'invalid_meeting_prep_structure',
+      details: {
+        message: 'Context and Meeting Plan should live under ## Prep, not as top-level headings.',
+        found: misplacedPrepSubheadings,
+      },
+    });
+  }
+
+  if (hasPrep) {
+    const prepSubheadings = outline.subheadingsBySection.get('prep') || [];
+    const prepSubNormalized = prepSubheadings.map(normalizeHeading);
+    const requiredPrepSubheadings = ['Context', 'Meeting Plan'];
+    const missingPrepSubheadings = requiredPrepSubheadings.filter((heading) => !prepSubNormalized.includes(normalizeHeading(heading)));
+    const unexpectedPrepSubheadings = prepSubheadings.filter((heading) => !requiredPrepSubheadings.some((required) => normalizeHeading(required) === normalizeHeading(heading)));
+
+    if (missingPrepSubheadings.length > 0 || unexpectedPrepSubheadings.length > 0) {
+      findings.push({
+        type: 'invalid_meeting_prep_heading',
+        details: {
+          required: requiredPrepSubheadings,
+          missing: missingPrepSubheadings,
+          found: prepSubheadings,
+          unexpected: unexpectedPrepSubheadings,
+        },
+      });
+    }
+  }
+
+  return findings;
+}
+
+function extractMeetingOutline(markdown) {
+  const topHeadings = [];
+  const topNormalized = [];
+  const subheadingsBySection = new Map();
+  let currentTopSection = null;
+
+  for (const line of markdown.split('\n')) {
+    const topMatch = line.match(/^##\s+(.+?)\s*$/);
+    if (topMatch) {
+      const heading = cleanHeading(topMatch[1]);
+      const normalized = normalizeHeading(heading);
+      currentTopSection = normalized;
+      topHeadings.push(heading);
+      topNormalized.push(normalized);
+      if (!subheadingsBySection.has(normalized)) subheadingsBySection.set(normalized, []);
+      continue;
+    }
+
+    const subMatch = line.match(/^###\s+(.+?)\s*$/);
+    if (subMatch && currentTopSection) {
+      subheadingsBySection.get(currentTopSection).push(cleanHeading(subMatch[1]));
+    }
+  }
+
+  return { topHeadings, topNormalized, subheadingsBySection };
+}
+
+function cleanHeading(value) {
+  return value.trim().replace(/\s+/g, ' ');
+}
+
+function normalizeHeading(value) {
+  return cleanHeading(value).toLowerCase();
 }
 
 function recommendation(folder, input, reason) {

@@ -111,6 +111,9 @@ The top-level structure should stay intentionally small:
 - `archive/`
 - `.artifacts/`
 
+Repo documentation pages such as directory `README.md` files are not canonical
+brain pages and should stay outside the indexed graph.
+
 Each page should have:
 
 - stable relative path
@@ -138,6 +141,28 @@ This is the right place for:
 
 The artifact store is deliberately neutral about "input" versus "output"
 because a generated output may later become a reused input.
+
+## Meeting Lifecycle Model
+
+Meetings should use one canonical page across the full lifecycle:
+
+- prep before the meeting
+- summary and decisions after the meeting
+- attached transcript dumps or other supporting files under `.artifacts/`
+
+The meeting page format is intentionally lighter than the generic entity-page
+schema. A meeting page may include:
+
+- title and metadata
+- optional `## Prep`
+  - `### Context`
+  - `### Meeting Plan`
+- `## Summary`
+- `## Key Decisions`
+- `## Action Items`
+- `## Discussion Notes`
+
+For meetings, `---` and `## Timeline` are optional rather than required.
 
 ## Data Model
 

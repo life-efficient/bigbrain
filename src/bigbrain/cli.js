@@ -265,9 +265,17 @@ function renderHealthText(report) {
   const lines = [`Pages: ${report.page_count}`, `Findings: ${report.finding_count}`];
   if (report.git_status) lines.push(`Git clean: ${report.git_status.clean}`);
   for (const finding of report.findings.slice(0, 20)) {
-    lines.push(`- ${finding.severity} ${finding.finding_type}${finding.page_slug ? ` on ${finding.page_slug}` : ''}`);
+    lines.push(`- ${finding.severity} ${finding.finding_type}${finding.page_slug ? ` on ${finding.page_slug}` : ''}${renderHealthFindingDetails(finding.details)}`);
   }
   return lines.join('\n');
+}
+
+function renderHealthFindingDetails(details) {
+  if (!details || typeof details !== 'object') return '';
+  if (Array.isArray(details.missing) && details.missing.length > 0) return `: missing ${details.missing.join(', ')}`;
+  if (typeof details.message === 'string' && details.message) return `: ${details.message}`;
+  if (typeof details.target_slug === 'string' && details.target_slug) return `: ${details.target_slug}`;
+  return '';
 }
 
 function requireFirstArg(args, message) {

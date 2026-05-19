@@ -32,7 +32,7 @@ async function semanticSearch({ db, config, query, limit, apiKey }) {
     .slice(0, limit);
 }
 
-function fuseResults(lexical, semantic, limit) {
+export function fuseResults(lexical, semantic, limit) {
   const bySlug = new Map();
   const lexicalIndex = new Map(lexical.map((row, index) => [row.slug, index + 1]));
   const semanticIndex = new Map(semantic.map((row, index) => [row.slug, index + 1]));
@@ -65,7 +65,7 @@ function fuseResults(lexical, semantic, limit) {
     bySlug.set(row.slug, existing);
   }
   for (const result of bySlug.values()) {
-    result.score = reciprocalRank(result.lexical_rank) + reciprocalRank(result.semantic_rank);
+    result.score = (reciprocalRank(result.lexical_rank) * 2) + reciprocalRank(result.semantic_rank);
   }
   return [...bySlug.values()].sort((left, right) => right.score - left.score || left.slug.localeCompare(right.slug)).slice(0, limit);
 }

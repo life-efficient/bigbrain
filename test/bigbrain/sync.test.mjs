@@ -135,6 +135,37 @@ Real company page.
   }
 });
 
+test('init excludes nested README pages from indexing by default', async () => {
+  const fixture = await createFixture('bigbrain-sync-default-readme-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'companies/README.md', `---
+title: Companies
+---
+# Companies
+
+Guide page.
+`);
+    await writeMarkdown(fixture.brainHome, 'companies/acme.md', `---
+title: Acme
+---
+# Acme
+
+Real company page.
+---
+2026-05-18 | Added.
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const slugs = listPageSlugs(db);
+    assert.deepEqual(slugs, ['companies/acme']);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function createFixture(prefix) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   const pointerPath = path.join(rootDir, 'pointer');

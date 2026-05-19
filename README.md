@@ -51,7 +51,19 @@ the artifact. Brain pages link out to artifacts, and `artifact.md` records its
 parent page slugs so attachment is explicitly bidirectional.
 
 Repo documentation pages such as `README.md` files are not canonical brain
-pages and should eventually be ignored by indexing and schema validation.
+pages and should be ignored by indexing and schema validation.
+
+Meeting pages are a separate authored class. They can share the same canonical
+meeting page across the full lifecycle:
+
+- optional pre-meeting `## Prep`
+- post-meeting `## Summary`
+- `## Key Decisions`
+- `## Action Items`
+- `## Discussion Notes`
+
+For meetings, `---` and `## Timeline` are optional. The prep workflow should
+update the same meeting page that later receives ingested meeting outcomes.
 
 ## Current Runtime
 

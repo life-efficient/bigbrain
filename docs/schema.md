@@ -26,9 +26,26 @@
 5. `---`
 6. Append-only timeline / evidence log
 
-Meeting pages are currently authored as structured summaries and may later get
-their own dedicated meeting-page schema. Raw transcript dumps should not be
-forced into page schema; they belong under `.artifacts/`.
+Meeting pages are a dedicated authored class. They do not need to follow the
+generic page separator and timeline shape.
+
+Suggested meeting-page shape:
+
+1. YAML frontmatter
+2. Title and meeting metadata
+3. Optional `## Prep`
+4. `## Summary`
+5. `## Key Decisions`
+6. `## Action Items`
+7. `## Discussion Notes`
+
+Within `## Prep`, the preferred subheadings are:
+
+- `### Context`
+- `### Meeting Plan`
+
+Raw transcript dumps should not be forced into page schema; they belong under
+`.artifacts/`.
 
 ## Artifact Shape
 
@@ -78,4 +95,5 @@ output may become a future input.
 - Do not store attached files directly in entity directories; place them under
   `.artifacts/` and reference them from canonical pages.
 - Repo documentation pages such as directory `README.md` files are not part of
-  the canonical brain graph and should be excluded from strict page validation.
+  the canonical brain graph and should be excluded from indexing and strict
+  page validation.
