@@ -3,12 +3,13 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { deletePageIndex, listPageSlugs, openDatabase, replaceEmbeddingForPage, replaceLinksForPage, replacePageIndex } from './db.js';
+import { isExcludedPath, matchesIncludeGlobs, shouldSkipSystemPath } from './file-selection.js';
 import { embedTexts } from './openai.js';
 import { extractLinks, parseMarkdownPage, slugFromPath } from './markdown.js';
 
 export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY } = {}) {
   const db = await openDatabase(config);
-  const files = await collectMarkdownFiles(config.brainDir);
+  const files = await collectMarkdownFiles(config);
   const knownSlugs = new Set();
   const pages = [];
 
@@ -54,10 +55,17 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY } 
   };
 }
 
-async function collectMarkdownFiles(rootDir) {
+async function collectMarkdownFiles(config) {
   const files = [];
-  await walk(rootDir, async (fullPath, relative) => {
-    if (relative.endsWith('.md') && !shouldSkip(relative)) files.push(fullPath);
+  const brainDir = path.resolve(config.brainDir);
+  const tasksFile = path.resolve(config.tasksFile);
+
+  await walk(brainDir, async (fullPath, relative) => {
+    const normalizedRelative = relative.split(path.sep).join('/');
+    if (!normalizedRelative.endsWith('.md')) return;
+    if (!matchesIncludeGlobs(normalizedRelative, config.includeGlobs)) return;
+    if (isExcludedPath(fullPath, normalizedRelative, config.excludeGlobs, tasksFile)) return;
+    files.push(fullPath);
   });
   return files;
 }
@@ -68,23 +76,12 @@ async function walk(rootDir, onFile, relativeDir = '') {
   for (const entry of entries) {
     const relative = relativeDir ? path.join(relativeDir, entry.name) : entry.name;
     if (entry.isDirectory()) {
-      if (shouldSkip(relative)) continue;
+      if (shouldSkipSystemPath(relative)) continue;
       await walk(rootDir, onFile, relative);
       continue;
     }
     if (entry.isFile()) await onFile(path.join(rootDir, relative), relative);
   }
-}
-
-function shouldSkip(relative) {
-  const normalized = relative.split(path.sep).join('/');
-  if (normalized === '.git' || normalized.startsWith('.git/')) return true;
-  if (normalized.startsWith('.bigbrain/')) return true;
-  if (normalized === 'README.md') return true;
-  if (normalized === 'ops/tasks.md') return true;
-  if (normalized.startsWith('archive/')) return true;
-  if (normalized.startsWith('.raw/') || normalized.includes('/.raw/')) return true;
-  return false;
 }
 
 function sha256(value) {

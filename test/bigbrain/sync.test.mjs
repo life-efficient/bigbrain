@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { openDatabase } from '../../src/bigbrain/db.js';
+import { listPageSlugs, openDatabase } from '../../src/bigbrain/db.js';
 import { searchBrain } from '../../src/bigbrain/search.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -46,6 +46,53 @@ Renamed company.
 
     assert.equal(oldResult.fused.some((row) => row.slug === 'companies/old-name'), false);
     assert.equal(newResult.fused.some((row) => row.slug === 'companies/new-name'), true);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('sync respects include_globs and exclude_globs from config', async () => {
+  const fixture = await createFixture('bigbrain-sync-globs-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
+title: Alice
+---
+# Alice
+
+Included person.
+---
+2026-05-18 | Added.
+`);
+    await writeMarkdown(fixture.brainHome, 'projects/hidden.md', `---
+title: Hidden Project
+---
+# Hidden Project
+
+Should be excluded.
+---
+2026-05-18 | Added.
+`);
+    await writeMarkdown(fixture.brainHome, 'companies/acme.md', `---
+title: Acme
+---
+# Acme
+
+Should be excluded by include_globs.
+---
+2026-05-18 | Added.
+`);
+
+    const rawConfig = JSON.parse(await fs.readFile(fixture.configPath, 'utf8'));
+    rawConfig.include_globs = ['people/**', 'projects/**'];
+    rawConfig.exclude_globs = ['projects/**'];
+    await fs.writeFile(fixture.configPath, `${JSON.stringify(rawConfig, null, 2)}\n`, 'utf8');
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const slugs = listPageSlugs(db);
+    assert.deepEqual(slugs, ['people/alice']);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
