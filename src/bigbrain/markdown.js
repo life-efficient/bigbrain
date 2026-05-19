@@ -43,7 +43,7 @@ export function extractLinks(markdown, currentSlug) {
     const [, label, target] = match;
     const resolved = resolveLinkTarget(target, currentDir);
     if (!resolved) continue;
-    links.push({ linkText: label.trim(), targetRaw: target.trim(), toSlug: resolved, kind: 'markdown' });
+    links.push({ linkText: label.trim(), targetRaw: target.trim(), toSlug: resolved.toSlug, kind: resolved.kind });
   }
   for (const match of markdown.matchAll(/\[\[([^[\]]+)\]\]/g)) {
     const target = match[1].trim().split('|')[0].trim();
@@ -133,9 +133,15 @@ function resolveLinkTarget(target, currentDir) {
   if (!target || /^(https?:|mailto:|#)/i.test(target)) return null;
   const withoutAnchor = target.split('#')[0].trim();
   if (!withoutAnchor) return null;
-  if (looksCanonicalSlug(withoutAnchor)) return stripMarkdownExtension(normalizeSlug(withoutAnchor));
+  if (looksCanonicalSlug(withoutAnchor)) {
+    const normalized = normalizeSlug(withoutAnchor);
+    if (isAssetPath(normalized)) return { kind: 'asset', toSlug: normalized };
+    return { kind: 'markdown', toSlug: stripMarkdownExtension(normalized) };
+  }
   const resolved = path.posix.normalize(path.posix.join(currentDir, withoutAnchor));
-  return stripMarkdownExtension(stripLeadingCurrentDir(resolved));
+  const normalized = stripLeadingCurrentDir(resolved);
+  if (isAssetPath(normalized)) return { kind: 'asset', toSlug: normalized };
+  return { kind: 'markdown', toSlug: stripMarkdownExtension(normalized) };
 }
 
 function resolveWikiTarget(target) {
@@ -157,6 +163,10 @@ function stripLeadingCurrentDir(value) {
 
 function stripMarkdownExtension(value) {
   return value.replace(/\.md$/i, '');
+}
+
+function isAssetPath(value) {
+  return /\.[a-z0-9]+$/i.test(value) && !/\.md$/i.test(value);
 }
 
 function dedupeLinks(links) {

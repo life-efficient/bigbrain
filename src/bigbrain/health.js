@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -28,22 +29,28 @@ export async function runHealthCheck(config) {
 
     const parsed = parseMarkdownPage(raw, page.slug);
     for (const issue of validatePageShape(parsed)) {
+      const finding = typeof issue === 'string' ? { type: issue } : issue;
       insertHealthFinding(db, {
-        findingType: issue,
-        severity: issue === 'missing_frontmatter' || issue === 'missing_separator' ? 'medium' : 'low',
+        findingType: finding.type,
+        severity: severityForFinding(finding.type),
         pageSlug: page.slug,
+        details: finding.details ?? {},
       });
     }
 
     for (const link of getOutgoingLinks(db, page.slug)) {
-      const targetPath = fullPathFromSlug(config.brainDir, link.to_slug);
-      const exists = await fs.stat(targetPath).then(() => true).catch(() => false);
+      const targetPath = link.link_kind === 'asset'
+        ? path.join(config.brainDir, link.to_slug)
+        : fullPathFromSlug(config.brainDir, link.to_slug);
+      const exists = await fs.stat(targetPath)
+        .then((stats) => (link.link_kind === 'asset' ? stats.isFile() : true))
+        .catch(() => false);
       if (!exists) {
         insertHealthFinding(db, {
           findingType: 'unresolved_link',
           severity: 'medium',
           pageSlug: page.slug,
-          details: { target_slug: link.to_slug },
+          details: { target_slug: link.to_slug, link_kind: link.link_kind },
         });
       }
     }
@@ -73,6 +80,12 @@ export async function runHealthCheck(config) {
     findings,
     git_status: gitStatus,
   };
+}
+
+function severityForFinding(findingType) {
+  if (findingType === 'missing_frontmatter' || findingType === 'missing_separator') return 'medium';
+  if (findingType === 'missing_meeting_heading' || findingType === 'invalid_meeting_prep_heading' || findingType === 'invalid_meeting_prep_structure') return 'medium';
+  return 'low';
 }
 
 async function detectGitStatus(brainDir) {
