@@ -12,27 +12,27 @@ import { syncBrain } from '../../src/bigbrain/sync.js';
 test('regression: direct entity lookup keeps the exact entity page first', async () => {
   const fixture = await createFixture('bigbrain-search-regression-entity-');
   try {
-    await writeMarkdown(fixture.brainHome, 'people/jordan-vale.md', `---
-title: Jordan Vale
+    await writeMarkdown(fixture.brainHome, 'people/jordan-lee.md', `---
+title: Jordan Lee
 ---
-# Jordan Vale
+# Jordan Lee
 
-Jordan Vale is an operating partner focused on industrial software.
+Jordan Lee is the founder of ExampleCo.
 `);
-    await writeMarkdown(fixture.brainHome, 'projects/vale-automation-playbook.md', `---
-title: Vale Automation Playbook
+    await writeMarkdown(fixture.brainHome, 'projects/exampleco-outreach-playbook.md', `---
+title: ExampleCo Outreach Playbook
 ---
-# Vale Automation Playbook
+# ExampleCo Outreach Playbook
 
-This playbook packages Jordan Vale's operating approach for factory software rollouts.
+This playbook packages outreach ideas for Jordan Lee and the ExampleCo sale process.
 `);
 
     const config = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({ config, apiKey: null });
 
     const db = await openDatabase(config);
-    const result = await searchBrain({ db, config, query: 'Who is Jordan Vale?', apiKey: null });
-    assert.equal(result.fused[0].slug, 'people/jordan-vale');
+    const result = await searchBrain({ db, config, query: 'Who is Jordan Lee?', apiKey: null });
+    assert.equal(result.fused[0].slug, 'people/jordan-lee');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -41,27 +41,35 @@ This playbook packages Jordan Vale's operating approach for factory software rol
 test('regression: process query with punctuation still finds the process page', async () => {
   const fixture = await createFixture('bigbrain-search-regression-process-');
   try {
-    await writeMarkdown(fixture.brainHome, 'deals/northstar-sale-process.md', `---
-title: Northstar Sale Process
+    await writeMarkdown(fixture.brainHome, 'deals/exampleco-process-status.md', `---
+title: ExampleCo Process Status
 ---
-# Northstar Sale Process
+# ExampleCo Process Status
 
-Current sale timeline and next step for Northstar Robotics.
+Current state with Jordan Lee and Casey is a monthly preparation cycle before a broader process.
+Next step is to review buyer priorities and confirm the next check-in.
 `);
-    await writeMarkdown(fixture.brainHome, 'companies/northstar-robotics.md', `---
-title: Northstar Robotics
+    await writeMarkdown(fixture.brainHome, 'people/casey-morgan.md', `---
+title: Casey Morgan
 ---
-# Northstar Robotics
+# Casey Morgan
 
-Northstar Robotics builds warehouse robots.
+Casey Morgan is involved in the ExampleCo process discussions.
+`);
+    await writeMarkdown(fixture.brainHome, 'people/jordan-lee.md', `---
+title: Jordan Lee
+---
+# Jordan Lee
+
+Jordan Lee is the founder of ExampleCo.
 `);
 
     const config = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({ config, apiKey: null });
 
     const db = await openDatabase(config);
-    const result = await searchBrain({ db, config, query: 'What is the current Northstar sale timeline and next step?', apiKey: null });
-    assert.equal(result.fused.some((row) => row.slug === 'deals/northstar-sale-process'), true);
+    const result = await searchBrain({ db, config, query: 'Jordan Casey state', apiKey: null });
+    assert.equal(result.fused.some((row) => row.slug === 'deals/exampleco-process-status'), true);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -70,27 +78,27 @@ Northstar Robotics builds warehouse robots.
 test('regression: overview query returns the canonical project page before adjacent notes', async () => {
   const fixture = await createFixture('bigbrain-search-regression-overview-');
   try {
-    await writeMarkdown(fixture.brainHome, 'projects/lighthouse-analytics.md', `---
-title: Lighthouse Analytics
+    await writeMarkdown(fixture.brainHome, 'projects/wellness-app.md', `---
+title: Wellness App
 ---
-# Lighthouse Analytics
+# Wellness App
 
-Lighthouse Analytics is the canonical operating project page for a retail reporting platform.
+Wellness App is the canonical operating project page for the app workstream.
 `);
-    await writeMarkdown(fixture.brainHome, 'concepts/lighthouse-launch-notes.md', `---
-title: Lighthouse Launch Notes
+    await writeMarkdown(fixture.brainHome, 'concepts/wellness-proposal-notes.md', `---
+title: Wellness Proposal Notes
 ---
-# Lighthouse Launch Notes
+# Wellness Proposal Notes
 
-Notes from the Lighthouse Analytics launch and onboarding sprint.
+Notes from proposal drafting for the Wellness App.
 `);
 
     const config = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({ config, apiKey: null });
 
     const db = await openDatabase(config);
-    const result = await searchBrain({ db, config, query: 'Lighthouse Analytics', apiKey: null });
-    assert.equal(result.fused[0].slug, 'projects/lighthouse-analytics');
+    const result = await searchBrain({ db, config, query: 'Wellness App', apiKey: null });
+    assert.equal(result.fused[0].slug, 'projects/wellness-app');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
