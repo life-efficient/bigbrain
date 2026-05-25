@@ -28,6 +28,7 @@ export function parseMarkdownPage(markdown, slug) {
     frontmatter,
     hasFrontmatter,
     hasSeparator,
+    bodyContentMarkdown: body,
     compiledTruth,
     timeline,
     bodyMarkdown: markdown,
@@ -72,6 +73,12 @@ export function rewriteSlugLinksToRelative(markdown, currentSlug) {
 export function relativeMarkdownTarget(fromDir, targetSlug) {
   const relative = path.posix.relative(fromDir, `${targetSlug}.md`);
   return relative.startsWith('.') ? relative : `./${relative}`;
+}
+
+export function resolveMarkdownLink(currentSlug, target) {
+  const resolved = resolveLinkTarget(target, path.posix.dirname(currentSlug));
+  if (!resolved || resolved.kind !== 'markdown') return null;
+  return resolved.toSlug;
 }
 
 function parseFrontmatter(markdown) {

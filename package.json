@@ -7,11 +7,30 @@
     "bigbrain": "./bin/bigbrain.js"
   },
   "scripts": {
+    "build:dashboard": "node ./scripts/build-dashboard-client.mjs",
     "init": "node ./bin/bigbrain.js init",
     "recent": "node ./bin/bigbrain.js recent",
     "sync": "node ./bin/bigbrain.js sync",
     "schema": "node ./bin/bigbrain.js schema",
     "refresh-tasks": "node ./scripts/refresh-tasks.mjs",
     "test": "node --test test/bigbrain/*.test.mjs"
+  },
+  "dependencies": {
+    "@tiptap/extension-link": "^3.23.5",
+    "@tiptap/extension-table": "^3.23.5",
+    "@tiptap/extension-table-cell": "^3.23.5",
+    "@tiptap/extension-table-header": "^3.23.5",
+    "@tiptap/extension-table-row": "^3.23.5",
+    "@tiptap/extension-task-item": "^3.23.5",
+    "@tiptap/extension-task-list": "^3.23.5",
+    "@tiptap/markdown": "^3.23.5",
+    "@tiptap/react": "^3.23.5",
+    "@tiptap/starter-kit": "^3.23.5",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "vis-network": "^10.1.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
   }
 }

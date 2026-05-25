@@ -25,3 +25,10 @@
 - Score queries on top-hit quality, top-3 quality, noise, and answer usefulness.
 - Use the eval harness before and after each ranking change so search work does not drift into unmeasured tweaks.
 
+## Dashboard UI
+
+- Replace the hand-rolled graph renderer with a pluggable visualizer layer built around polymorphic React components.
+- Start with at least one third-party graph visualizer, but keep the adapter boundary explicit so built-in custom visualizers can live beside vendor-backed ones.
+- Add a subtle in-app dropdown to switch between graph visualizers without leaving the dashboard.
+- Keep the graph data contract visualizer-agnostic so the same nodes and edges can feed third-party and custom renderers.
+- Separate visualizer selection, graph data fetching, and graph interaction state so future renderers can reuse zoom, pan, focus, and selection behavior where possible.

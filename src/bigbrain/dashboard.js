@@ -1,28 +1,43 @@
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import { build } from 'esbuild';
 
 import { openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
 import { runHealthCheck } from './health.js';
+import { fullPathFromSlug, parseMarkdownPage, resolveMarkdownLink, slugFromPath } from './markdown.js';
 import { renderSchemaMarkdown } from './schema.js';
+
+const moduleDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(moduleDir, '..', '..');
+const dashboardClientEntry = path.join(repoRoot, 'src', 'dashboard-client', 'main.jsx');
+const dashboardBundleFilename = 'dashboard-client.js';
 
 export async function startDashboard(config, { port = config.dashboardPort } = {}) {
   const db = await openDatabase(config);
+  const clientAssetPath = await ensureDashboardAssets(config);
+
   const server = http.createServer(async (req, res) => {
     try {
-      if (req.url === '/' || req.url === '/index.html') {
+      const requestUrl = new URL(req.url || '/', 'http://127.0.0.1');
+      if (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(renderAppHtml());
         return;
       }
-      if (req.url === '/api/schema') return json(res, { markdown: renderSchemaMarkdown() });
-      if (req.url === '/api/tasks') return json(res, await buildTasksPayload(config));
-      if (req.url === '/api/inbox') return json(res, await buildInboxPayload(config));
-      if (req.url === '/api/recent') return json(res, buildRecentPayload(db));
-      if (req.url === '/api/graph') {
-        return json(res, buildGraphPayload(db));
+      if (requestUrl.pathname === `/assets/${dashboardBundleFilename}`) {
+        await serveFile(res, clientAssetPath, 'application/javascript; charset=utf-8');
+        return;
       }
-      if (req.url === '/api/health') return json(res, await buildHealthPayload(config));
+      if (requestUrl.pathname === '/api/schema') return json(res, { markdown: renderSchemaMarkdown() });
+      if (requestUrl.pathname === '/api/tasks') return json(res, await buildTasksPayload(config));
+      if (requestUrl.pathname === '/api/inbox') return json(res, await buildInboxPayload(config));
+      if (requestUrl.pathname === '/api/recent') return json(res, buildRecentPayload(db));
+      if (requestUrl.pathname === '/api/graph') return json(res, buildGraphPayload(db));
+      if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
+      if (requestUrl.pathname === '/api/preview') return json(res, await buildPreviewPayload(config, requestUrl));
       res.writeHead(404);
       res.end('Not found');
     } catch (error) {
@@ -32,6 +47,29 @@ export async function startDashboard(config, { port = config.dashboardPort } = {
   });
   await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
   return server;
+}
+
+async function ensureDashboardAssets(config) {
+  const outdir = path.join(config.metaDir, 'dashboard-assets');
+  const outfile = path.join(outdir, dashboardBundleFilename);
+  await fs.mkdir(outdir, { recursive: true });
+  await build({
+    entryPoints: [dashboardClientEntry],
+    bundle: true,
+    format: 'esm',
+    platform: 'browser',
+    outfile,
+    sourcemap: 'inline',
+    jsx: 'automatic',
+    target: ['es2022'],
+  });
+  return outfile;
+}
+
+async function serveFile(res, filePath, contentType) {
+  const body = await fs.readFile(filePath);
+  res.writeHead(200, { 'Content-Type': contentType });
+  res.end(body);
 }
 
 function json(res, value) {
@@ -44,382 +82,144 @@ function renderAppHtml() {
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>bigbrain dashboard</title>
     <style>
       :root {
-        --bg: #f4f1ea;
-        --card: rgba(255,255,255,0.72);
-        --ink: #1f1a17;
-        --muted: #665c55;
-        --line: rgba(31,26,23,0.08);
-        --accent: #205c5b;
-        --warm: #bc7b4d;
+        --bg: #ffffff;
+        --card: rgba(255,255,255,0.94);
+        --ink: #172033;
+        --muted: #6b7280;
+        --line: rgba(148,163,184,0.22);
+        --accent: #5f8fe8;
+        --warm: #f4c7b8;
         --danger: #a44545;
       }
       * { box-sizing: border-box; }
-      body { font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; background:
-        radial-gradient(circle at top left, rgba(188,123,77,0.10), transparent 30%),
-        radial-gradient(circle at top right, rgba(32,92,91,0.10), transparent 28%),
-        var(--bg); color: var(--ink); }
-      main { max-width: 1380px; margin: 0 auto; padding: 36px 24px 80px; }
+      body {
+        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, sans-serif;
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        height: 100vh;
+        overflow: hidden;
+      }
+      #root { height: 100vh; overflow: hidden; }
+      .page-shell { display: grid; grid-template-columns: minmax(0, 1fr) 0; height: 100vh; overflow: hidden; transition: grid-template-columns 180ms ease; }
+      .page-shell.preview-open { grid-template-columns: minmax(0, 1fr) minmax(320px, 460px); }
+      main { min-width: 0; max-width: 1380px; height: 100vh; margin: 0 auto; padding: 36px 24px 24px; width: 100%; overflow: auto; }
       h1 { font-size: 44px; margin: 0 0 6px; letter-spacing: -0.03em; }
       h2 { margin: 0 0 14px; font-size: 20px; }
       h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
       p { color: var(--muted); margin: 0; }
       .topline { display: flex; justify-content: space-between; align-items: end; gap: 16px; margin-bottom: 28px; }
       .stats { display: flex; gap: 10px; flex-wrap: wrap; }
-      .pill { padding: 8px 12px; border-radius: 999px; background: rgba(255,255,255,0.7); border: 1px solid var(--line); font-size: 13px; }
+      .pill { padding: 8px 12px; border-radius: 999px; background: #ffffff; border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(15,23,42,0.04); font-size: 13px; }
       .layout { display: grid; gap: 20px; grid-template-columns: 1.3fr 0.9fr; }
       .stack { display: grid; gap: 20px; }
       .split { display: grid; gap: 20px; grid-template-columns: 1fr 1fr; }
-      .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 20px; box-shadow: 0 12px 34px rgba(31,26,23,0.05); backdrop-filter: blur(14px); }
-      .graph-wrap { height: 520px; overflow: hidden; position: relative; }
-      .graph-hud { position: absolute; top: 14px; right: 14px; display: flex; gap: 8px; z-index: 2; }
-      .graph-button { border: 1px solid var(--line); background: rgba(255,255,255,0.86); color: var(--ink); border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer; }
-      .graph-button:hover { background: rgba(255,255,255,0.96); }
+      .split-gap { margin-top: 20px; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 20px; box-shadow: 0 18px 48px rgba(15,23,42,0.06); backdrop-filter: blur(10px); }
+      .loading-card { min-height: 180px; display: grid; gap: 10px; align-content: center; }
+      .section-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 14px; }
+      .section-subtle { font-size: 13px; margin-top: 2px; }
+      .graph-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+      .graph-wrap { height: 520px; overflow: hidden; position: relative; border-radius: 18px; background:
+        radial-gradient(circle at 18% 18%, rgba(191,231,198,0.18), transparent 24%),
+        radial-gradient(circle at 82% 16%, rgba(184,192,255,0.16), transparent 22%),
+        radial-gradient(circle at 72% 72%, rgba(255,211,224,0.18), transparent 24%),
+        #ffffff; border: 1px solid rgba(148,163,184,0.18); }
+      .graph-canvas-shell { position: relative; height: 100%; width: 100%; }
+      .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
+      .force-shell canvas { border-radius: 18px; }
+      .graph-controls { display: flex; gap: 8px; }
+      .graph-controls-inline { position: static; z-index: auto; }
+      .graph-button { border: 1px solid var(--line); background: rgba(255,255,255,0.98); color: var(--ink); border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); }
+      .graph-button:hover { background: #ffffff; }
       .graph-note { position: absolute; left: 14px; bottom: 14px; z-index: 2; font-size: 12px; color: var(--muted); padding: 8px 10px; border-radius: 999px; background: rgba(255,255,255,0.84); border: 1px solid var(--line); }
-      svg { width: 100%; height: 100%; display: block; }
+      .graph-toolbar { display: flex; flex-wrap: wrap; justify-content: end; align-items: center; gap: 10px; }
+      .graph-controls-inline { position: static; }
+      .graph-select-shell { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 999px; border: 1px solid var(--line); background: #ffffff; color: var(--muted); font-size: 12px; box-shadow: 0 6px 18px rgba(15,23,42,0.04); }
+      .graph-select-shell select { border: 0; background: transparent; color: var(--ink); font: inherit; outline: none; }
       .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-      .legend span { font-size: 12px; color: var(--muted); padding: 6px 8px; border-radius: 999px; background: rgba(255,255,255,0.72); border: 1px solid var(--line); }
+      .legend span { font-size: 12px; color: var(--muted); padding: 6px 8px; border-radius: 999px; background: #ffffff; border: 1px solid var(--line); text-transform: lowercase; }
       .task-section, .inbox-list, .recent-list, .health-list { display: grid; gap: 12px; }
       .task-group { border-top: 1px solid var(--line); padding-top: 14px; }
       .task-group:first-child { border-top: 0; padding-top: 0; }
-      .task { padding: 12px 14px; border-radius: 14px; background: rgba(255,255,255,0.7); border: 1px solid rgba(31,26,23,0.06); line-height: 1.45; }
+      .task { padding: 12px 14px; border-radius: 14px; background: #ffffff; border: 1px solid rgba(148,163,184,0.16); line-height: 1.45; }
       .task.done { opacity: 0.6; }
       .meta { font-size: 12px; color: var(--muted); }
-      .inbox-item, .recent-item, .health-item { padding: 14px; border-radius: 14px; background: rgba(255,255,255,0.7); border: 1px solid rgba(31,26,23,0.06); }
+      .inbox-item, .recent-item, .health-item { padding: 14px; border-radius: 14px; background: #ffffff; border: 1px solid rgba(148,163,184,0.16); }
       .recent-item strong, .inbox-item strong { display: block; margin-bottom: 6px; }
       .health-item.high { border-color: rgba(164,69,69,0.35); }
       .health-item.medium { border-color: rgba(188,123,77,0.35); }
+      .card-copy { margin-top: 8px; line-height: 1.5; color: var(--ink); }
       .schema { white-space: pre-wrap; font-size: 12px; line-height: 1.5; max-height: 360px; overflow: auto; }
+      .markdown-shell { color: var(--ink); }
+      .empty-copy { color: var(--muted); font-size: 14px; }
+      .tailwind-prose { color: var(--ink); font-size: 14px; line-height: 1.7; }
+      .tailwind-prose:focus { outline: none; }
+      .tailwind-prose > *:first-child { margin-top: 0; }
+      .tailwind-prose > *:last-child { margin-bottom: 0; }
+      .tailwind-prose p,
+      .tailwind-prose ul,
+      .tailwind-prose ol,
+      .tailwind-prose blockquote,
+      .tailwind-prose pre,
+      .tailwind-prose table { margin: 0 0 0.95em; }
+      .tailwind-prose h1,
+      .tailwind-prose h2,
+      .tailwind-prose h3,
+      .tailwind-prose h4 { color: var(--ink); letter-spacing: -0.02em; margin: 0 0 0.55em; }
+      .tailwind-prose h1 { font-size: 1.45rem; }
+      .tailwind-prose h2 { font-size: 1.2rem; }
+      .tailwind-prose h3 { font-size: 1rem; text-transform: none; letter-spacing: -0.01em; }
+      .tailwind-prose h4 { font-size: 0.95rem; }
+      .tailwind-prose a { color: var(--accent); text-decoration: underline; text-underline-offset: 0.18em; }
+      .tailwind-prose a:hover { color: #426fd0; }
+      .tailwind-prose strong { color: var(--ink); }
+      .tailwind-prose code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.9em; background: rgba(95,143,232,0.08); padding: 0.15em 0.35em; border-radius: 0.35rem; }
+      .tailwind-prose pre { background: #172033; color: #f8fafc; border-radius: 14px; padding: 14px 16px; overflow: auto; }
+      .tailwind-prose pre code { background: transparent; color: inherit; padding: 0; }
+      .tailwind-prose ul,
+      .tailwind-prose ol { padding-left: 1.2rem; }
+      .tailwind-prose li { margin: 0.25em 0; }
+      .tailwind-prose ul[data-type="taskList"] { list-style: none; padding-left: 0; }
+      .tailwind-prose ul[data-type="taskList"] li { display: flex; align-items: start; gap: 0.6rem; }
+      .tailwind-prose ul[data-type="taskList"] li > label { margin-top: 0.18rem; }
+      .tailwind-prose blockquote { border-left: 3px solid rgba(32,92,91,0.24); padding-left: 1rem; color: var(--muted); }
+      .tailwind-prose hr { border: 0; border-top: 1px solid var(--line); margin: 1rem 0; }
+      .tailwind-prose table { width: 100%; border-collapse: collapse; font-size: 13px; }
+      .tailwind-prose th,
+      .tailwind-prose td { border: 1px solid rgba(31,26,23,0.08); padding: 0.55rem 0.65rem; text-align: left; }
+      .tailwind-prose th { background: rgba(31,26,23,0.04); }
+      .sidecar-shell { min-width: 0; position: sticky; top: 0; height: 100vh; padding: 24px 24px 24px 0; }
+      .sidecar-panel { height: 100%; overflow: auto; opacity: 0; transform: translateX(28px); pointer-events: none; transition: opacity 180ms ease, transform 180ms ease; background: rgba(255,255,255,0.96); border-left: 1px solid var(--line); box-shadow: -18px 0 40px rgba(15,23,42,0.08); backdrop-filter: blur(18px); padding: 28px 24px 32px; }
+      .preview-open .sidecar-panel { opacity: 1; transform: translateX(0); pointer-events: auto; }
+      .sidecar-head { display: flex; justify-content: space-between; gap: 16px; align-items: start; margin-bottom: 18px; }
       @media (max-width: 1100px) {
+        .page-shell,
+        .page-shell.preview-open { grid-template-columns: 1fr; }
         .layout { grid-template-columns: 1fr; }
         .split { grid-template-columns: 1fr; }
         .graph-wrap { height: 420px; }
+        .section-head { align-items: stretch; flex-direction: column; }
+        .graph-toolbar { justify-content: space-between; }
+        .sidecar-shell { position: fixed; inset: auto 0 0 0; height: min(68vh, 720px); padding: 0; z-index: 10; }
+        .sidecar-panel { border-left: 0; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; padding-top: 22px; }
       }
     </style>
   </head>
   <body>
-    <main>
-      <div class="topline">
-        <div>
-          <h1>bigbrain</h1>
-          <p>Graph, tasks, inbox, recent movement, and brain health in one place.</p>
-        </div>
-        <div class="stats" id="stats"></div>
-      </div>
-      <div class="layout">
-        <section class="card">
-          <h2>Knowledge Graph</h2>
-          <div class="graph-wrap">
-            <div class="graph-hud">
-              <button class="graph-button" id="graph-zoom-in" type="button">Zoom in</button>
-              <button class="graph-button" id="graph-zoom-out" type="button">Zoom out</button>
-              <button class="graph-button" id="graph-reset" type="button">Reset</button>
-            </div>
-            <div class="graph-note">Drag to move. Scroll to zoom.</div>
-            <svg id="graph"></svg>
-          </div>
-          <div class="legend">
-            <span>people</span><span>companies</span><span>projects</span><span>meetings</span><span>deals</span><span>concepts</span>
-          </div>
-        </section>
-        <div class="stack">
-          <section class="card">
-            <h2>Tasks</h2>
-            <div id="tasks" class="task-section"></div>
-          </section>
-          <section class="card">
-            <h2>Inbox</h2>
-            <div id="inbox" class="inbox-list"></div>
-          </section>
-        </div>
-      </div>
-      <div class="split" style="margin-top:20px;">
-        <section class="card">
-          <h2>Recent Pages</h2>
-          <div id="recent" class="recent-list"></div>
-        </section>
-        <section class="card">
-          <h2>Health</h2>
-          <div id="health" class="health-list"></div>
-        </section>
-      </div>
-      <div class="split" style="margin-top:20px;">
-        <section class="card">
-          <h2>Schema</h2>
-          <div id="schema" class="schema"></div>
-        </section>
-        <section class="card">
-          <h2>What This Is</h2>
-          <p style="line-height:1.6;">This dashboard now favors operating views over raw payloads: a live graph, rendered tasks, inbox cards, recent page movement, and a compressed health summary. It is still lightweight, but it should feel much closer to a real brain console than a JSON inspector.</p>
-        </section>
-      </div>
-    </main>
-    <script>
-      const TYPE_COLORS = {
-        people: '#205c5b',
-        companies: '#bc7b4d',
-        projects: '#516a93',
-        meetings: '#7a5c8d',
-        deals: '#9a4c4c',
-        concepts: '#54734f',
-        writing: '#7b6a52',
-        inbox: '#8a6d45'
-      };
-
-      Promise.all([
-        fetch('/api/schema').then(r => r.json()),
-        fetch('/api/tasks').then(r => r.json()),
-        fetch('/api/inbox').then(r => r.json()),
-        fetch('/api/recent').then(r => r.json()),
-        fetch('/api/health').then(r => r.json()),
-        fetch('/api/graph').then(r => r.json())
-      ]).then(([schema, tasks, inbox, recent, health, graph]) => {
-        renderStats(graph, tasks, inbox, health);
-        renderSchema(schema);
-        renderTasks(tasks);
-        renderInbox(inbox);
-        renderRecent(recent);
-        renderHealth(health);
-        renderGraph(graph);
-      }).catch((error) => {
-        document.body.innerHTML = '<pre style="padding:20px;">' + String(error) + '</pre>';
-      });
-
-      function renderStats(graph, tasks, inbox, health) {
-        const stats = [
-          ['pages', graph.meta.page_count],
-          ['edges', graph.meta.edge_count],
-          ['open tasks', tasks.meta.open_tasks],
-          ['inbox', inbox.items.length],
-          ['health findings', health.finding_count]
-        ];
-        document.getElementById('stats').innerHTML = stats.map(([label, value]) =>
-          '<div class="pill"><strong>' + value + '</strong> ' + label + '</div>'
-        ).join('');
-      }
-
-      function renderSchema(schema) {
-        document.getElementById('schema').textContent = schema.markdown;
-      }
-
-      function renderTasks(tasks) {
-        const root = document.getElementById('tasks');
-        root.innerHTML = tasks.sections.map(section => {
-          const items = section.items.map(item =>
-            '<div class="task ' + (item.completed ? 'done' : '') + '">' +
-              item.text +
-            '</div>'
-          ).join('');
-          return '<div class="task-group"><h3>' + section.heading + '</h3>' + items + '</div>';
-        }).join('');
-      }
-
-      function renderInbox(inbox) {
-        const root = document.getElementById('inbox');
-        root.innerHTML = inbox.items.map(item =>
-          '<div class="inbox-item">' +
-            '<strong>' + escapeHtml(item.title) + '</strong>' +
-            '<div class="meta">' + escapeHtml(item.slug) + '</div>' +
-            '<div style="margin-top:8px; line-height:1.5;">' + escapeHtml(item.summary) + '</div>' +
-          '</div>'
-        ).join('');
-      }
-
-      function renderRecent(recent) {
-        const root = document.getElementById('recent');
-        root.innerHTML = recent.pages.map(page =>
-          '<div class="recent-item">' +
-            '<strong>' + escapeHtml(page.title) + '</strong>' +
-            '<div class="meta">' + escapeHtml(page.slug) + ' · ' + escapeHtml(page.type) + '</div>' +
-            '<div style="margin-top:8px; line-height:1.5;">' + escapeHtml(page.summary || '') + '</div>' +
-          '</div>'
-        ).join('');
-      }
-
-      function renderHealth(health) {
-        const root = document.getElementById('health');
-        root.innerHTML = health.top_findings.map(item =>
-          '<div class="health-item ' + item.severity + '">' +
-            '<strong>' + escapeHtml(item.finding_type) + '</strong>' +
-            '<div class="meta">' + escapeHtml(item.page_slug || 'brain-wide') + '</div>' +
-          '</div>'
-        ).join('');
-      }
-
-      function renderGraph(graph) {
-        const svg = document.getElementById('graph');
-        const width = svg.clientWidth || 800;
-        const height = svg.clientHeight || 520;
-        const nodes = graph.nodes.map((node, index) => ({
-          ...node,
-          x: width / 2 + Math.cos(index / graph.nodes.length * Math.PI * 2) * (width * 0.28),
-          y: height / 2 + Math.sin(index / graph.nodes.length * Math.PI * 2) * (height * 0.28),
-          vx: 0,
-          vy: 0
-        }));
-        const nodeMap = new Map(nodes.map(node => [node.slug, node]));
-        const edges = graph.edges
-          .map(edge => ({ source: nodeMap.get(edge.source), target: nodeMap.get(edge.target) }))
-          .filter(edge => edge.source && edge.target);
-
-        for (let step = 0; step < 180; step++) {
-          for (let i = 0; i < nodes.length; i++) {
-            for (let j = i + 1; j < nodes.length; j++) {
-              const a = nodes[i];
-              const b = nodes[j];
-              let dx = b.x - a.x;
-              let dy = b.y - a.y;
-              let dist2 = dx * dx + dy * dy + 0.01;
-              let force = 2800 / dist2;
-              a.vx -= dx * force * 0.0006;
-              a.vy -= dy * force * 0.0006;
-              b.vx += dx * force * 0.0006;
-              b.vy += dy * force * 0.0006;
-            }
-          }
-          for (const edge of edges) {
-            const dx = edge.target.x - edge.source.x;
-            const dy = edge.target.y - edge.source.y;
-            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            const targetDist = 90;
-            const force = (dist - targetDist) * 0.0025;
-            edge.source.vx += dx / dist * force;
-            edge.source.vy += dy / dist * force;
-            edge.target.vx -= dx / dist * force;
-            edge.target.vy -= dy / dist * force;
-          }
-          for (const node of nodes) {
-            node.vx += (width / 2 - node.x) * 0.0008;
-            node.vy += (height / 2 - node.y) * 0.0008;
-            node.x += node.vx;
-            node.y += node.vy;
-            node.vx *= 0.86;
-            node.vy *= 0.86;
-            node.x = Math.max(30, Math.min(width - 30, node.x));
-            node.y = Math.max(30, Math.min(height - 30, node.y));
-          }
-        }
-
-        const lines = edges.map(edge =>
-          '<line x1="' + edge.source.x + '" y1="' + edge.source.y + '" x2="' + edge.target.x + '" y2="' + edge.target.y + '" stroke="rgba(31,26,23,0.11)" stroke-width="1" />'
-        ).join('');
-
-        const circles = nodes.map(node => {
-          const color = TYPE_COLORS[node.type] || '#7b6a52';
-          const radius = Math.max(5, Math.min(16, 4 + Math.sqrt(node.degree || 1)));
-          return '<g>' +
-            '<circle cx="' + node.x + '" cy="' + node.y + '" r="' + radius + '" fill="' + color + '" fill-opacity="0.86" />' +
-            (radius > 9 ? '<text x="' + (node.x + radius + 4) + '" y="' + (node.y + 4) + '" font-size="10" fill="#1f1a17">' + escapeHtml(node.title.slice(0, 28)) + '</text>' : '') +
-          '</g>';
-        }).join('');
-
-        svg.innerHTML = '<g id="graph-viewport">' + lines + circles + '</g>';
-        attachGraphInteractions(svg, width, height);
-      }
-
-      function attachGraphInteractions(svg, width, height) {
-        const viewport = document.getElementById('graph-viewport');
-        if (!viewport) return;
-
-        const state = {
-          scale: 1,
-          minScale: 0.45,
-          maxScale: 3.2,
-          x: 0,
-          y: 0,
-          dragging: false,
-          dragStartX: 0,
-          dragStartY: 0,
-          originX: 0,
-          originY: 0
-        };
-
-        svg.style.cursor = 'grab';
-        svg.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
-
-        const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
-
-        function apply() {
-          viewport.setAttribute('transform', 'translate(' + state.x + ' ' + state.y + ') scale(' + state.scale + ')');
-        }
-
-        function zoomAt(factor, clientX, clientY) {
-          const rect = svg.getBoundingClientRect();
-          const cursorX = clientX - rect.left;
-          const cursorY = clientY - rect.top;
-          const nextScale = clamp(state.scale * factor, state.minScale, state.maxScale);
-          const appliedFactor = nextScale / state.scale;
-          if (appliedFactor === 1) return;
-          state.x = cursorX - (cursorX - state.x) * appliedFactor;
-          state.y = cursorY - (cursorY - state.y) * appliedFactor;
-          state.scale = nextScale;
-          apply();
-        }
-
-        svg.onwheel = (event) => {
-          event.preventDefault();
-          const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-          zoomAt(factor, event.clientX, event.clientY);
-        };
-
-        svg.onpointerdown = (event) => {
-          state.dragging = true;
-          state.dragStartX = event.clientX;
-          state.dragStartY = event.clientY;
-          state.originX = state.x;
-          state.originY = state.y;
-          svg.style.cursor = 'grabbing';
-          svg.setPointerCapture(event.pointerId);
-        };
-
-        svg.onpointermove = (event) => {
-          if (!state.dragging) return;
-          state.x = state.originX + (event.clientX - state.dragStartX);
-          state.y = state.originY + (event.clientY - state.dragStartY);
-          apply();
-        };
-
-        function stopDragging(event) {
-          state.dragging = false;
-          svg.style.cursor = 'grab';
-          if (event?.pointerId !== undefined && svg.hasPointerCapture(event.pointerId)) {
-            svg.releasePointerCapture(event.pointerId);
-          }
-        }
-
-        svg.onpointerup = stopDragging;
-        svg.onpointerleave = stopDragging;
-        svg.onpointercancel = stopDragging;
-
-        document.getElementById('graph-zoom-in').onclick = () => zoomAt(1.18, width / 2, height / 2);
-        document.getElementById('graph-zoom-out').onclick = () => zoomAt(1 / 1.18, width / 2, height / 2);
-        document.getElementById('graph-reset').onclick = () => {
-          state.scale = 1;
-          state.x = 0;
-          state.y = 0;
-          apply();
-        };
-
-        apply();
-      }
-
-      function escapeHtml(value) {
-        return String(value)
-          .replace(/&/g, '&amp;')
-          .replace(/</g, '&lt;')
-          .replace(/>/g, '&gt;')
-          .replace(/"/g, '&quot;')
-          .replace(/'/g, '&#39;');
-      }
-    </script>
+    <div id="root"></div>
+    <script type="module" src="/assets/${dashboardBundleFilename}"></script>
   </body>
 </html>`;
 }
 
 async function buildTasksPayload(config) {
   const markdown = await fs.readFile(config.tasksFile, 'utf8');
+  const slug = slugFromPath(config.brainDir, config.tasksFile);
   const sections = [];
   let current = null;
   for (const line of markdown.split('\n')) {
@@ -433,11 +233,12 @@ async function buildTasksPayload(config) {
     if (task && current) {
       current.items.push({
         completed: task[1].toLowerCase() === 'x',
-        text: task[2].trim(),
+        markdown: task[2].trim(),
       });
     }
   }
   return {
+    slug,
     markdown,
     sections,
     meta: {
@@ -454,18 +255,44 @@ async function buildInboxPayload(config) {
     if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
     const fullPath = path.join(inboxDir, entry.name);
     const raw = await fs.readFile(fullPath, 'utf8');
-    const title = raw.match(/^title:\s*(.+)$/m)?.[1]?.trim().replace(/^['"]|['"]$/g, '') || raw.match(/^#\s+(.+)$/m)?.[1]?.trim() || entry.name;
-    const summary = raw.split('\n').map((line) => line.trim()).find((line) => line && !line.startsWith('#') && !line.startsWith('---') && !line.startsWith('title:') && !line.startsWith('type:') && !line.startsWith('created:')) || '';
+    const slug = `inbox/${entry.name.replace(/\.md$/, '')}`;
+    const parsed = parseMarkdownPage(raw, slug);
     const stat = await fs.stat(fullPath);
     items.push({
-      slug: `inbox/${entry.name.replace(/\.md$/, '')}`,
-      title,
-      summary,
+      slug,
+      title: parsed.title,
+      summary: parsed.summary,
+      markdown: parsed.bodyContentMarkdown,
       updated_at: stat.mtime.toISOString(),
     });
   }
   items.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   return { items };
+}
+
+async function buildPreviewPayload(config, requestUrl) {
+  const sourceSlug = requestUrl.searchParams.get('from')?.trim();
+  const target = requestUrl.searchParams.get('target')?.trim();
+  if (!sourceSlug || !target) throw new Error('Preview requires both from and target.');
+  const slug = resolveMarkdownLink(sourceSlug, target);
+  if (!slug) throw new Error(`Unsupported preview target: ${target}`);
+  const fullPath = resolveBrainMarkdownPath(config.brainDir, slug);
+  const raw = await fs.readFile(fullPath, 'utf8');
+  const parsed = parseMarkdownPage(raw, slug);
+  return {
+    slug,
+    title: parsed.title,
+    markdown: parsed.bodyContentMarkdown,
+  };
+}
+
+function resolveBrainMarkdownPath(brainDir, slug) {
+  const candidate = path.resolve(fullPathFromSlug(brainDir, slug));
+  const resolvedBrainDir = path.resolve(brainDir);
+  if (candidate !== resolvedBrainDir && !candidate.startsWith(`${resolvedBrainDir}${path.sep}`)) {
+    throw new Error(`Linked file is outside the brain directory: ${slug}`);
+  }
+  return candidate;
 }
 
 function buildRecentPayload(db) {
