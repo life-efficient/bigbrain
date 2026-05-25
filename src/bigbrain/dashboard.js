@@ -106,9 +106,9 @@ function renderAppHtml() {
         overflow: hidden;
       }
       #root { height: 100vh; overflow: hidden; }
-      .page-shell { display: grid; grid-template-columns: minmax(0, 1fr) 0; height: 100vh; overflow: hidden; transition: grid-template-columns 260ms ease; }
-      .page-shell.preview-open { grid-template-columns: minmax(0, 1fr) minmax(420px, 46vw); }
-      main { min-width: 0; max-width: none; height: 100vh; margin: 0; padding: 20px 20px 16px; width: 100%; overflow: hidden; display: flex; flex-direction: column; }
+      .page-shell { --sidecar-width: 0px; position: relative; height: 100vh; overflow: hidden; }
+      .page-shell.preview-open { --sidecar-width: min(420px, 46vw); }
+      main { min-width: 0; max-width: none; height: 100vh; margin: 0; padding: 20px calc(20px + var(--sidecar-width)) 16px 20px; width: 100%; overflow: hidden; display: flex; flex-direction: column; transition: padding-right 240ms ease; }
       h1 { font-size: 44px; margin: 0 0 6px; letter-spacing: -0.03em; }
       h2 { margin: 0 0 14px; font-size: 20px; }
       h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
@@ -181,7 +181,19 @@ function renderAppHtml() {
       .inbox-task-button { text-align: left; width: 100%; cursor: pointer; transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
       .inbox-task-button:hover { transform: translateY(-1px); box-shadow: 0 18px 36px rgba(15,23,42,0.07); border-color: rgba(95,143,232,0.22); }
       .inbox-card-head { display: grid; gap: 6px; margin-bottom: 10px; }
-      .inbox-card-summary { font-size: 14px; line-height: 1.55; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+      .inbox-card-summary { font-size: 14px; line-height: 1.55; color: var(--ink); max-height: 7.8em; overflow: hidden; }
+      .inbox-card-summary .tailwind-prose { font-size: inherit; line-height: inherit; }
+      .inbox-card-summary .tailwind-prose h1,
+      .inbox-card-summary .tailwind-prose h2,
+      .inbox-card-summary .tailwind-prose h3,
+      .inbox-card-summary .tailwind-prose h4,
+      .inbox-card-summary .tailwind-prose pre,
+      .inbox-card-summary .tailwind-prose table,
+      .inbox-card-summary .tailwind-prose hr { display: none; }
+      .inbox-card-summary .tailwind-prose p,
+      .inbox-card-summary .tailwind-prose ul,
+      .inbox-card-summary .tailwind-prose ol,
+      .inbox-card-summary .tailwind-prose blockquote { margin: 0 0 0.45em; }
       .task-section, .inbox-list, .recent-list, .health-list { display: grid; gap: 12px; }
       .task-section-compact .task { padding: 10px 12px; }
       .task-group { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
@@ -233,13 +245,12 @@ function renderAppHtml() {
       .tailwind-prose th,
       .tailwind-prose td { border: 1px solid rgba(31,26,23,0.08); padding: 0.55rem 0.65rem; text-align: left; }
       .tailwind-prose th { background: rgba(31,26,23,0.04); }
-      .sidecar-shell { min-width: 0; position: sticky; top: 0; height: 100vh; padding: 0; overflow: hidden; }
-      .sidecar-panel { height: 100%; overflow: auto; opacity: 0; transform: translateX(44px); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; background: rgba(255,255,255,0.98); border-left: 1px solid var(--line); box-shadow: -24px 0 54px rgba(15,23,42,0.10); backdrop-filter: blur(18px); padding: 28px 28px 32px; }
+      .sidecar-shell { position: absolute; top: 0; right: 0; width: min(420px, 46vw); height: 100vh; padding: 0; overflow: hidden; pointer-events: none; }
+      .sidecar-panel { height: 100%; overflow: auto; opacity: 0; transform: translateX(100%); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; background: rgba(255,255,255,0.98); border-left: 1px solid var(--line); box-shadow: -24px 0 54px rgba(15,23,42,0.10); backdrop-filter: blur(18px); padding: 28px 28px 32px; will-change: transform, opacity; }
+      .preview-open .sidecar-shell { pointer-events: auto; }
       .preview-open .sidecar-panel { opacity: 1; transform: translateX(0); pointer-events: auto; }
       .sidecar-head { display: flex; justify-content: space-between; gap: 16px; align-items: start; margin-bottom: 18px; }
       @media (max-width: 1100px) {
-        .page-shell,
-        .page-shell.preview-open { grid-template-columns: 1fr; }
         .split { grid-template-columns: 1fr; }
         main { padding: 16px 16px 12px; }
         .graph-wrap { height: 420px; }
@@ -252,7 +263,8 @@ function renderAppHtml() {
         .topline-brand { justify-self: start; }
         .view-nav-header { justify-self: start; justify-content: flex-start; }
         .topline-actions { justify-self: start; }
-        .sidecar-shell { position: fixed; inset: auto 0 0 0; height: min(72vh, 760px); padding: 0; z-index: 10; }
+        .page-shell.preview-open { --sidecar-width: 0px; }
+        .sidecar-shell { position: fixed; inset: auto 0 0 0; width: 100%; height: min(72vh, 760px); padding: 0; z-index: 10; }
         .sidecar-panel { border-left: 0; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; padding-top: 22px; }
       }
     </style>
@@ -308,13 +320,35 @@ async function buildInboxPayload(config) {
     items.push({
       slug,
       title: parsed.title,
-      summary: parsed.summary,
+      summary: extractInboxPreview(parsed),
       markdown: parsed.bodyContentMarkdown,
       updated_at: stat.mtime.toISOString(),
     });
   }
   items.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   return { items };
+}
+
+function extractInboxPreview(parsed) {
+  const withoutTitle = stripSourceReferences(
+    parsed.compiledTruth
+      .replace(new RegExp(`^#\\s+${escapeRegExp(parsed.title)}\\s*`, 'i'), '')
+      .trim(),
+  );
+  const lines = withoutTitle
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !/^#{1,6}\s/.test(line) && line !== '---' && !/^Date:\s/i.test(line));
+  const previewLines = [];
+  let totalLength = 0;
+  for (const line of lines) {
+    const normalizedLine = line.replace(/\s+/g, ' ').trim();
+    if (!normalizedLine) continue;
+    previewLines.push(normalizedLine);
+    totalLength += normalizedLine.length;
+    if (previewLines.length >= 3 || totalLength >= 320) break;
+  }
+  return previewLines.join('\n\n').trim();
 }
 
 async function buildPreviewPayload(config, requestUrl) {
@@ -353,6 +387,14 @@ function resolveBrainMarkdownPath(brainDir, slug) {
     throw new Error(`Linked file is outside the brain directory: ${slug}`);
   }
   return candidate;
+}
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function stripSourceReferences(value) {
+  return value.replace(/\[Source:[^\]]+\]/g, '').replace(/\s+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 function buildRecentPayload(db) {

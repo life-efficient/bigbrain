@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { memo, useEffect, useEffectEvent, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { TYPE_ORDER } from './graph/colors.js';
@@ -142,20 +142,29 @@ function DashboardApp() {
   }
 
   const { schema, tasks, inbox, recent, health, graph } = state.data;
-  const visualizer = graphVisualizers.find((item) => item.id === visualizerId) || graphVisualizers[0];
-  const VisualizerComponent = visualizer.Component;
-  const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const inboxItems = Array.isArray(inbox?.items) ? inbox.items : [];
   const taskSections = Array.isArray(tasks?.sections) ? tasks.sections : [];
   const healthFindingCount = Number.isFinite(health?.finding_count) ? health.finding_count : 0;
-  const presentTypes = new Set(graphNodes.map((node) => node.type));
-  const legendTypes = TYPE_ORDER.filter((type) => presentTypes.has(type));
   const healthFindings = Array.isArray(health?.findings)
     ? health.findings
     : Array.isArray(health?.top_findings)
       ? health.top_findings
       : [];
   const healthSeverity = deriveHealthSeverity(healthFindings);
+  const handleGraphNodeOpen = useEffectEvent(async (slug) => {
+    setPreview({ status: 'loading', slug });
+    try {
+      const params = new URLSearchParams({ slug });
+      const data = await fetchJson(`/api/page?${params.toString()}`);
+      setPreview({ status: 'ready', ...data });
+    } catch (error) {
+      setPreview({
+        status: 'error',
+        slug,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
 
   const views = [
     { id: 'inbox', label: 'Inbox', count: inboxItems.length, shortcut: 'I' },
@@ -186,21 +195,6 @@ function DashboardApp() {
       title: item.title,
       markdown: item.markdown,
     });
-  }
-
-  async function openPageBySlug(slug) {
-    setPreview({ status: 'loading', slug });
-    try {
-      const params = new URLSearchParams({ slug });
-      const data = await fetchJson(`/api/page?${params.toString()}`);
-      setPreview({ status: 'ready', ...data });
-    } catch (error) {
-      setPreview({
-        status: 'error',
-        slug,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
   }
 
   return (
@@ -277,7 +271,14 @@ function DashboardApp() {
                       <strong>{item.title}</strong>
                       <span className="meta">{item.slug}</span>
                     </div>
-                    <div className="inbox-card-summary">{item.summary || 'Open to inspect full detail.'}</div>
+                    <div className="inbox-card-summary">
+                      <MarkdownDocument
+                        markdown={stripSourceReferences(item.summary || '')}
+                        sourceSlug={item.slug}
+                        onRelativeLinkClick={openPreview}
+                        emptyLabel="Open to inspect full detail."
+                      />
+                    </div>
                   </button>
                 ))}
               </div>
@@ -292,7 +293,11 @@ function DashboardApp() {
                     <h3>{section.heading}</h3>
                     {section.items.map((item, index) => (
                       <div key={`${section.heading}:${index}`} className={`task ${item.completed ? 'done' : ''}`}>
-                        <MarkdownDocument markdown={item.markdown} sourceSlug={tasks.slug} onRelativeLinkClick={openPreview} />
+                        <MarkdownDocument
+                          markdown={stripSourceReferences(item.markdown)}
+                          sourceSlug={tasks.slug}
+                          onRelativeLinkClick={openPreview}
+                        />
                       </div>
                     ))}
                   </div>
@@ -302,50 +307,13 @@ function DashboardApp() {
           ) : null}
 
           {view === 'graph' ? (
-            <section className="card hero-card">
-              <div className="section-head">
-                <div>
-                  <div className="graph-stats">
-                    <span className="pill"><strong>{Number.isFinite(graph?.meta?.page_count) ? graph.meta.page_count : 0}</strong> pages</span>
-                    <span className="pill"><strong>{Number.isFinite(graph?.meta?.edge_count) ? graph.meta.edge_count : 0}</strong> edges</span>
-                  </div>
-                  <div className="legend">
-                    {legendTypes.map((type) => (
-                      <span key={type}>{type}</span>
-                    ))}
-                  </div>
-                </div>
-                <div className="graph-toolbar">
-                  <label className="graph-select-shell">
-                    <span>View</span>
-                    <select value={visualizerId} onChange={(event) => setVisualizerId(event.target.value)}>
-                      {graphVisualizers.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.label}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  {visualizer.controls?.length ? (
-                    <div className="graph-controls graph-controls-inline">
-                      {visualizer.controls.map((control) => (
-                        <button
-                          key={control}
-                          type="button"
-                          className="graph-button"
-                          onClick={() => visualizerRef.current?.[control]?.()}
-                        >
-                          {GRAPH_CONTROL_LABELS[control] || control}
-                        </button>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-              <div className="graph-wrap graph-wrap-expanded">
-                <VisualizerComponent ref={visualizerRef} graph={graph} onNodeOpen={openPageBySlug} />
-              </div>
-            </section>
+            <GraphPanel
+              graph={graph}
+              visualizerId={visualizerId}
+              setVisualizerId={setVisualizerId}
+              visualizerRef={visualizerRef}
+              onNodeOpen={handleGraphNodeOpen}
+            />
           ) : null}
         </div>
 
@@ -429,6 +397,65 @@ function isTypingTarget(target) {
   }
   const tagName = target.tagName;
   return target.isContentEditable || tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
+}
+
+const GraphPanel = memo(function GraphPanel({ graph, visualizerId, setVisualizerId, visualizerRef, onNodeOpen }) {
+  const visualizer = graphVisualizers.find((item) => item.id === visualizerId) || graphVisualizers[0];
+  const VisualizerComponent = visualizer.Component;
+  const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  const presentTypes = new Set(graphNodes.map((node) => node.type));
+  const legendTypes = TYPE_ORDER.filter((type) => presentTypes.has(type));
+
+  return (
+    <section className="card hero-card">
+      <div className="section-head">
+        <div>
+          <div className="graph-stats">
+            <span className="pill"><strong>{Number.isFinite(graph?.meta?.page_count) ? graph.meta.page_count : 0}</strong> pages</span>
+            <span className="pill"><strong>{Number.isFinite(graph?.meta?.edge_count) ? graph.meta.edge_count : 0}</strong> edges</span>
+          </div>
+          <div className="legend">
+            {legendTypes.map((type) => (
+              <span key={type}>{type}</span>
+            ))}
+          </div>
+        </div>
+        <div className="graph-toolbar">
+          <label className="graph-select-shell">
+            <span>View</span>
+            <select value={visualizerId} onChange={(event) => setVisualizerId(event.target.value)}>
+              {graphVisualizers.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {visualizer.controls?.length ? (
+            <div className="graph-controls graph-controls-inline">
+              {visualizer.controls.map((control) => (
+                <button
+                  key={control}
+                  type="button"
+                  className="graph-button"
+                  onClick={() => visualizerRef.current?.[control]?.()}
+                >
+                  {GRAPH_CONTROL_LABELS[control] || control}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <div className="graph-wrap graph-wrap-expanded">
+        <VisualizerComponent ref={visualizerRef} graph={graph} onNodeOpen={onNodeOpen} />
+      </div>
+    </section>
+  );
+});
+
+function stripSourceReferences(value) {
+  return value.replace(/\s*\[Source:[^\]]+\]/g, '').replace(/\s{2,}/g, ' ').trim();
 }
 
 const root = createRoot(document.getElementById('root'));
