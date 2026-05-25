@@ -69,6 +69,29 @@ function DashboardApp() {
   }, [healthOpen]);
 
   useEffect(() => {
+    if (!preview || healthOpen) return undefined;
+
+    function handleEscape(event) {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      if (event.key !== 'Escape') {
+        return;
+      }
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+      event.preventDefault();
+      setPreview(null);
+    }
+
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [preview, healthOpen]);
+
+  useEffect(() => {
     function handleKeydown(event) {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
         return;
@@ -241,65 +264,55 @@ function DashboardApp() {
 
         <div className={`view-stage ${view === 'graph' ? 'view-stage-graph' : 'view-stage-list'}`}>
           {view === 'inbox' ? (
-            <section className="card hero-card list-page-card">
-              <div className="section-head">
-                <div>
-                  <h2>Inbox</h2>
-                </div>
+            <div className="list-page-card standalone-list-region">
+              <div className="task-section">
+                {inboxItems.map((item) => (
+                  <button
+                    key={item.slug}
+                    type="button"
+                    className="task inbox-task-button"
+                    onClick={() => openInboxItem(item)}
+                  >
+                    <div className="inbox-card-head">
+                      <strong>{item.title}</strong>
+                      <span className="meta">{item.slug}</span>
+                    </div>
+                    <div className="inbox-card-summary">{item.summary || 'Open to inspect full detail.'}</div>
+                  </button>
+                ))}
               </div>
-              <div className="list-scroll-region">
-                <div className="inbox-card-grid inbox-card-grid-narrow">
-                  {inboxItems.map((item) => (
-                    <button
-                      key={item.slug}
-                      type="button"
-                      className="inbox-card-button"
-                      onClick={() => openInboxItem(item)}
-                    >
-                      <div className="inbox-card-head">
-                        <strong>{item.title}</strong>
-                        <span className="meta">{item.slug}</span>
-                      </div>
-                      <div className="inbox-card-summary">{item.summary || 'Open to inspect full detail.'}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </section>
+            </div>
           ) : null}
 
           {view === 'tasks' ? (
-            <section className="card hero-card list-page-card">
-              <div className="section-head">
-                <div>
-                  <h2>Tasks</h2>
-                </div>
+            <div className="list-page-card standalone-list-region">
+              <div className="task-section">
+                {taskSections.map((section) => (
+                  <div key={section.heading} className="task-group">
+                    <h3>{section.heading}</h3>
+                    {section.items.map((item, index) => (
+                      <div key={`${section.heading}:${index}`} className={`task ${item.completed ? 'done' : ''}`}>
+                        <MarkdownDocument markdown={item.markdown} sourceSlug={tasks.slug} onRelativeLinkClick={openPreview} />
+                      </div>
+                    ))}
+                  </div>
+                ))}
               </div>
-              <div className="list-scroll-region">
-                <div className="task-section">
-                  {taskSections.map((section) => (
-                    <div key={section.heading} className="task-group">
-                      <h3>{section.heading}</h3>
-                      {section.items.map((item, index) => (
-                        <div key={`${section.heading}:${index}`} className={`task ${item.completed ? 'done' : ''}`}>
-                          <MarkdownDocument markdown={item.markdown} sourceSlug={tasks.slug} onRelativeLinkClick={openPreview} />
-                        </div>
-                      ))}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
+            </div>
           ) : null}
 
           {view === 'graph' ? (
             <section className="card hero-card">
               <div className="section-head">
                 <div>
-                  <h2>Knowledge Graph</h2>
                   <div className="graph-stats">
                     <span className="pill"><strong>{Number.isFinite(graph?.meta?.page_count) ? graph.meta.page_count : 0}</strong> pages</span>
                     <span className="pill"><strong>{Number.isFinite(graph?.meta?.edge_count) ? graph.meta.edge_count : 0}</strong> edges</span>
+                  </div>
+                  <div className="legend">
+                    {legendTypes.map((type) => (
+                      <span key={type}>{type}</span>
+                    ))}
                   </div>
                 </div>
                 <div className="graph-toolbar">
@@ -331,11 +344,6 @@ function DashboardApp() {
               </div>
               <div className="graph-wrap graph-wrap-expanded">
                 <VisualizerComponent ref={visualizerRef} graph={graph} onNodeOpen={openPageBySlug} />
-              </div>
-              <div className="legend">
-                {legendTypes.map((type) => (
-                  <span key={type}>{type}</span>
-                ))}
               </div>
             </section>
           ) : null}

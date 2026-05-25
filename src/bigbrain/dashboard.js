@@ -152,10 +152,11 @@ function renderAppHtml() {
       .hero-card { min-height: 0; height: 100%; display: flex; flex-direction: column; min-width: 0; }
       .list-page-card { width: min(780px, 100%); max-width: 780px; }
       .list-scroll-region { flex: 1; min-height: 0; overflow: auto; padding-right: 4px; }
+      .standalone-list-region { height: 100%; overflow: auto; padding-right: 4px; }
       .loading-card { min-height: 180px; display: grid; gap: 10px; align-content: center; }
       .section-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 14px; }
       .section-subtle { font-size: 13px; margin-top: 2px; }
-      .graph-stats { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+      .graph-stats { display: flex; flex-wrap: wrap; gap: 8px; }
       .graph-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
       .graph-wrap { height: 520px; overflow: hidden; position: relative; border-radius: 18px; background:
         radial-gradient(circle at 18% 18%, rgba(191,231,198,0.18), transparent 24%),
@@ -177,15 +178,13 @@ function renderAppHtml() {
       .graph-select-shell select { border: 0; background: transparent; color: var(--ink); font: inherit; outline: none; }
       .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
       .legend span { font-size: 12px; color: var(--muted); padding: 6px 8px; border-radius: 999px; background: #ffffff; border: 1px solid var(--line); text-transform: lowercase; }
-      .inbox-card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
-      .inbox-card-grid-narrow { grid-template-columns: 1fr; }
-      .inbox-card-button { text-align: left; width: 100%; border: 1px solid rgba(148,163,184,0.16); background: #ffffff; border-radius: 18px; padding: 16px; cursor: pointer; box-shadow: 0 12px 28px rgba(15,23,42,0.04); transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
-      .inbox-card-button:hover { transform: translateY(-1px); box-shadow: 0 18px 36px rgba(15,23,42,0.07); border-color: rgba(95,143,232,0.22); }
+      .inbox-task-button { text-align: left; width: 100%; cursor: pointer; transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
+      .inbox-task-button:hover { transform: translateY(-1px); box-shadow: 0 18px 36px rgba(15,23,42,0.07); border-color: rgba(95,143,232,0.22); }
       .inbox-card-head { display: grid; gap: 6px; margin-bottom: 10px; }
       .inbox-card-summary { font-size: 14px; line-height: 1.55; color: var(--ink); display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
       .task-section, .inbox-list, .recent-list, .health-list { display: grid; gap: 12px; }
       .task-section-compact .task { padding: 10px 12px; }
-      .task-group { border-top: 1px solid var(--line); padding-top: 14px; }
+      .task-group { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
       .task-group:first-child { border-top: 0; padding-top: 0; }
       .task { padding: 12px 14px; border-radius: 14px; background: #ffffff; border: 1px solid rgba(148,163,184,0.16); line-height: 1.45; }
       .task.done { opacity: 0.6; }
