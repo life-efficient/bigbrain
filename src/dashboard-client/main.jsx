@@ -7,9 +7,12 @@ import { MarkdownDocument } from './markdown.jsx';
 
 function DashboardApp() {
   const [state, setState] = useState({ status: 'loading', error: null, data: null });
+  const [view, setView] = useState('inbox');
   const [visualizerId, setVisualizerId] = useState(graphVisualizers[0].id);
   const [preview, setPreview] = useState(null);
+  const [healthOpen, setHealthOpen] = useState(false);
   const visualizerRef = useRef(null);
+  const healthMenuRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -42,6 +45,57 @@ function DashboardApp() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!healthOpen) return undefined;
+
+    function handlePointerDown(event) {
+      if (healthMenuRef.current && !healthMenuRef.current.contains(event.target)) {
+        setHealthOpen(false);
+      }
+    }
+
+    function handleEscape(event) {
+      if (event.key === 'Escape') {
+        setHealthOpen(false);
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [healthOpen]);
+
+  useEffect(() => {
+    function handleKeydown(event) {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      if (isTypingTarget(event.target)) {
+        return;
+      }
+
+      const key = event.key.toLowerCase();
+      if (key === 'i') {
+        event.preventDefault();
+        setView('inbox');
+      } else if (key === 't') {
+        event.preventDefault();
+        setView('tasks');
+      } else if (key === 'g') {
+        event.preventDefault();
+        setView('graph');
+      }
+    }
+
+    window.addEventListener('keydown', handleKeydown);
+    return () => {
+      window.removeEventListener('keydown', handleKeydown);
+    };
+  }, []);
+
   if (state.status === 'loading') {
     return (
       <main>
@@ -67,15 +121,23 @@ function DashboardApp() {
   const { schema, tasks, inbox, recent, health, graph } = state.data;
   const visualizer = graphVisualizers.find((item) => item.id === visualizerId) || graphVisualizers[0];
   const VisualizerComponent = visualizer.Component;
-  const presentTypes = new Set(graph.nodes.map((node) => node.type));
+  const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  const inboxItems = Array.isArray(inbox?.items) ? inbox.items : [];
+  const taskSections = Array.isArray(tasks?.sections) ? tasks.sections : [];
+  const healthFindingCount = Number.isFinite(health?.finding_count) ? health.finding_count : 0;
+  const presentTypes = new Set(graphNodes.map((node) => node.type));
   const legendTypes = TYPE_ORDER.filter((type) => presentTypes.has(type));
+  const healthFindings = Array.isArray(health?.findings)
+    ? health.findings
+    : Array.isArray(health?.top_findings)
+      ? health.top_findings
+      : [];
+  const healthSeverity = deriveHealthSeverity(healthFindings);
 
-  const stats = [
-    ['pages', graph.meta.page_count],
-    ['edges', graph.meta.edge_count],
-    ['open tasks', tasks.meta.open_tasks],
-    ['inbox', inbox.items.length],
-    ['health findings', health.finding_count],
+  const views = [
+    { id: 'inbox', label: 'Inbox', count: inboxItems.length, shortcut: 'I' },
+    { id: 'tasks', label: 'Tasks', count: Number.isFinite(tasks?.meta?.open_tasks) ? tasks.meta.open_tasks : 0, shortcut: 'T' },
+    { id: 'graph', label: 'Graph', shortcut: 'G' },
   ];
 
   async function openPreview({ href, sourceSlug }) {
@@ -94,140 +156,191 @@ function DashboardApp() {
     }
   }
 
+  function openInboxItem(item) {
+    setPreview({
+      status: 'ready',
+      slug: item.slug,
+      title: item.title,
+      markdown: item.markdown,
+    });
+  }
+
+  async function openPageBySlug(slug) {
+    setPreview({ status: 'loading', slug });
+    try {
+      const params = new URLSearchParams({ slug });
+      const data = await fetchJson(`/api/page?${params.toString()}`);
+      setPreview({ status: 'ready', ...data });
+    } catch (error) {
+      setPreview({
+        status: 'error',
+        slug,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   return (
     <div className={`page-shell ${preview ? 'preview-open' : ''}`}>
       <main>
         <div className="topline">
-          <div>
+          <div className="topline-brand">
             <h1>bigbrain</h1>
-            <p>Graph, tasks, inbox, recent movement, and brain health in one place.</p>
           </div>
-          <div className="stats">
-            {stats.map(([label, value]) => (
-              <div key={label} className="pill">
-                <strong>{value}</strong> {label}
-              </div>
+          <div className="view-nav view-nav-header">
+            {views.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                className={`view-chip ${view === item.id ? 'active' : ''}`}
+                onClick={() => setView(item.id)}
+              >
+                {item.label}
+                {typeof item.count === 'number' ? <span className="view-chip-count">{item.count}</span> : null}
+                <kbd className="view-chip-kbd">{item.shortcut}</kbd>
+              </button>
             ))}
           </div>
-        </div>
-
-        <div className="layout">
-          <section className="card">
-            <div className="section-head">
-            <div>
-              <h2>Knowledge Graph</h2>
-            </div>
-              <div className="graph-toolbar">
-                <label className="graph-select-shell">
-                  <span>View</span>
-                  <select value={visualizerId} onChange={(event) => setVisualizerId(event.target.value)}>
-                    {graphVisualizers.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {visualizer.controls?.length ? (
-                  <div className="graph-controls graph-controls-inline">
-                    {visualizer.controls.map((control) => (
-                      <button
-                        key={control}
-                        type="button"
-                        className="graph-button"
-                        onClick={() => visualizerRef.current?.[control]?.()}
-                      >
-                        {GRAPH_CONTROL_LABELS[control] || control}
-                      </button>
-                    ))}
+          <div className="topline-actions">
+            <div className="health-menu" ref={healthMenuRef}>
+              <button
+                type="button"
+                className={`health-button severity-${healthSeverity} ${healthFindingCount ? 'has-findings' : ''} ${healthOpen ? 'open' : ''}`}
+                aria-label={healthFindingCount ? `${healthFindingCount} health findings` : 'No health findings'}
+                aria-expanded={healthOpen}
+                onClick={() => setHealthOpen((value) => !value)}
+              >
+                <span className="health-icon" aria-hidden="true">{healthSeverity === 'high' ? '●' : '◌'}</span>
+                {healthFindingCount ? <span className="health-badge">{healthFindingCount}</span> : null}
+              </button>
+              {healthOpen ? (
+                <div className="health-dropdown" role="menu">
+                  <div className="health-dropdown-head">
+                    <strong>Health</strong>
+                    <span className="meta">
+                      {healthFindingCount ? `${healthFindingCount} item${healthFindingCount === 1 ? '' : 's'} to review` : 'All clear'}
+                    </span>
                   </div>
-                ) : null}
-              </div>
-            </div>
-            <div className="graph-wrap">
-              <VisualizerComponent ref={visualizerRef} graph={graph} />
-            </div>
-            <div className="legend">
-              {legendTypes.map((type) => (
-                <span key={type}>{type}</span>
-              ))}
-            </div>
-          </section>
-
-          <div className="stack">
-            <section className="card">
-              <h2>Tasks</h2>
-              <div className="task-section">
-                {tasks.sections.map((section) => (
-                  <div key={section.heading} className="task-group">
-                    <h3>{section.heading}</h3>
-                    {section.items.map((item, index) => (
-                      <div key={`${section.heading}:${index}`} className={`task ${item.completed ? 'done' : ''}`}>
-                        <MarkdownDocument markdown={item.markdown} sourceSlug={tasks.slug} onRelativeLinkClick={openPreview} />
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="card">
-              <h2>Inbox</h2>
-              <div className="inbox-list">
-                {inbox.items.map((item) => (
-                  <div key={item.slug} className="inbox-item">
-                    <strong>{item.title}</strong>
-                    <div className="meta">{item.slug}</div>
-                    <div className="card-copy">
-                      <MarkdownDocument markdown={item.markdown} sourceSlug={item.slug} onRelativeLinkClick={openPreview} />
+                  {healthFindings.length ? (
+                    <div className="health-dropdown-list">
+                      {healthFindings.map((item, index) => (
+                        <div key={`${item.page_slug || item.finding_type}:${index}`} className={`health-dropdown-item ${item.severity}`}>
+                          <div className="health-dropdown-copy">{formatHealthMessage(item)}</div>
+                          <div className="meta">{formatHealthMeta(item)}</div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+                  ) : (
+                    <div className="empty-copy">No current health warnings.</div>
+                  )}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 
-        <div className="split split-gap">
-          <section className="card">
-            <h2>Recent Pages</h2>
-            <div className="recent-list">
-              {recent.pages.map((page) => (
-                <div key={page.slug} className="recent-item">
-                  <strong>{page.title}</strong>
-                  <div className="meta">{page.slug} · {page.type}</div>
-                  <div className="card-copy">{page.summary || ''}</div>
+        <div className={`view-stage ${view === 'graph' ? 'view-stage-graph' : 'view-stage-list'}`}>
+          {view === 'inbox' ? (
+            <section className="card hero-card list-page-card">
+              <div className="section-head">
+                <div>
+                  <h2>Inbox</h2>
                 </div>
-              ))}
-            </div>
-          </section>
-          <section className="card">
-            <h2>Health</h2>
-            <div className="health-list">
-              {health.top_findings.map((item, index) => (
-                <div key={`${item.finding_type}:${item.page_slug || 'brain-wide'}:${index}`} className={`health-item ${item.severity}`}>
-                  <strong>{item.finding_type}</strong>
-                  <div className="meta">{item.page_slug || 'brain-wide'}</div>
+              </div>
+              <div className="list-scroll-region">
+                <div className="inbox-card-grid inbox-card-grid-narrow">
+                  {inboxItems.map((item) => (
+                    <button
+                      key={item.slug}
+                      type="button"
+                      className="inbox-card-button"
+                      onClick={() => openInboxItem(item)}
+                    >
+                      <div className="inbox-card-head">
+                        <strong>{item.title}</strong>
+                        <span className="meta">{item.slug}</span>
+                      </div>
+                      <div className="inbox-card-summary">{item.summary || 'Open to inspect full detail.'}</div>
+                    </button>
+                  ))}
                 </div>
-              ))}
-            </div>
-          </section>
+              </div>
+            </section>
+          ) : null}
+
+          {view === 'tasks' ? (
+            <section className="card hero-card list-page-card">
+              <div className="section-head">
+                <div>
+                  <h2>Tasks</h2>
+                </div>
+              </div>
+              <div className="list-scroll-region">
+                <div className="task-section">
+                  {taskSections.map((section) => (
+                    <div key={section.heading} className="task-group">
+                      <h3>{section.heading}</h3>
+                      {section.items.map((item, index) => (
+                        <div key={`${section.heading}:${index}`} className={`task ${item.completed ? 'done' : ''}`}>
+                          <MarkdownDocument markdown={item.markdown} sourceSlug={tasks.slug} onRelativeLinkClick={openPreview} />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          {view === 'graph' ? (
+            <section className="card hero-card">
+              <div className="section-head">
+                <div>
+                  <h2>Knowledge Graph</h2>
+                  <div className="graph-stats">
+                    <span className="pill"><strong>{Number.isFinite(graph?.meta?.page_count) ? graph.meta.page_count : 0}</strong> pages</span>
+                    <span className="pill"><strong>{Number.isFinite(graph?.meta?.edge_count) ? graph.meta.edge_count : 0}</strong> edges</span>
+                  </div>
+                </div>
+                <div className="graph-toolbar">
+                  <label className="graph-select-shell">
+                    <span>View</span>
+                    <select value={visualizerId} onChange={(event) => setVisualizerId(event.target.value)}>
+                      {graphVisualizers.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {visualizer.controls?.length ? (
+                    <div className="graph-controls graph-controls-inline">
+                      {visualizer.controls.map((control) => (
+                        <button
+                          key={control}
+                          type="button"
+                          className="graph-button"
+                          onClick={() => visualizerRef.current?.[control]?.()}
+                        >
+                          {GRAPH_CONTROL_LABELS[control] || control}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              <div className="graph-wrap graph-wrap-expanded">
+                <VisualizerComponent ref={visualizerRef} graph={graph} onNodeOpen={openPageBySlug} />
+              </div>
+              <div className="legend">
+                {legendTypes.map((type) => (
+                  <span key={type}>{type}</span>
+                ))}
+              </div>
+            </section>
+          ) : null}
         </div>
 
-        <div className="split split-gap">
-          <section className="card">
-            <h2>Schema</h2>
-            <div className="schema">{schema.markdown}</div>
-          </section>
-          <section className="card">
-            <h2>What This Is</h2>
-            <p className="card-copy">
-              This dashboard now favors operating views over raw payloads: a live graph, rendered tasks, inbox cards,
-              recent page movement, and a compressed health summary. The graph view is now designed around switchable
-              renderers rather than one hard-coded implementation.
-            </p>
-          </section>
-        </div>
       </main>
 
       <aside className="sidecar-shell" aria-hidden={!preview}>
@@ -263,6 +376,51 @@ async function fetchJson(url) {
     throw new Error(`${url} failed with ${response.status}`);
   }
   return response.json();
+}
+
+function formatHealthMeta(item) {
+  const parts = [];
+  if (item.page_slug) parts.push(item.page_slug);
+  if (item.finding_type) parts.push(item.finding_type.replaceAll('_', ' '));
+  return parts.join(' · ');
+}
+
+function formatHealthMessage(item) {
+  if (typeof item.message === 'string' && item.message.trim()) {
+    return item.message;
+  }
+
+  switch (item.finding_type) {
+    case 'git_status':
+      return item.details?.clean === false ? 'Working tree has local changes.' : 'Git status needs review.';
+    case 'missing_separator':
+      return 'Missing required separator in page body.';
+    case 'invalid_meeting_prep_heading':
+      return 'Meeting prep has unexpected headings.';
+    default:
+      return item.finding_type ? item.finding_type.replaceAll('_', ' ') : 'Health finding';
+  }
+}
+
+function deriveHealthSeverity(findings) {
+  if (!Array.isArray(findings) || findings.length === 0) {
+    return 'clear';
+  }
+  if (findings.some((item) => item?.severity === 'high')) {
+    return 'high';
+  }
+  if (findings.some((item) => item?.severity === 'medium')) {
+    return 'medium';
+  }
+  return 'low';
+}
+
+function isTypingTarget(target) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  const tagName = target.tagName;
+  return target.isContentEditable || tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
 }
 
 const root = createRoot(document.getElementById('root'));
