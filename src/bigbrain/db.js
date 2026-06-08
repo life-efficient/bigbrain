@@ -143,6 +143,10 @@ export function replaceEmbeddingForPage(db, { pageSlug, chunkId, chunkText, mode
   `).run(pageSlug, chunkId, chunkText, model, JSON.stringify(vector), contentHash);
 }
 
+export function getEmbeddingRecord(db, pageSlug) {
+  return db.prepare('SELECT embedding_model, content_hash FROM embeddings WHERE page_slug = ? LIMIT 1').get(pageSlug);
+}
+
 export function listPageSlugs(db) {
   return db.prepare('SELECT slug FROM pages ORDER BY slug').all().map((row) => row.slug);
 }

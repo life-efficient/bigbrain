@@ -2,12 +2,12 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { deletePageIndex, listPageSlugs, openDatabase, replaceEmbeddingForPage, replaceLinksForPage, replacePageIndex } from './db.js';
+import { deletePageIndex, getEmbeddingRecord, listPageSlugs, openDatabase, replaceEmbeddingForPage, replaceLinksForPage, replacePageIndex } from './db.js';
 import { isExcludedPath, matchesIncludeGlobs, shouldSkipSystemPath } from './file-selection.js';
 import { embedTexts } from './openai.js';
 import { extractLinks, parseMarkdownPage, slugFromPath } from './markdown.js';
 
-export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY } = {}) {
+export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, embedder = embedTexts } = {}) {
   const db = await openDatabase(config);
   const files = await collectMarkdownFiles(config);
   const knownSlugs = new Set();
@@ -31,18 +31,23 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY } 
   for (const page of pages) replacePageIndex(db, page);
   for (const page of pages) replaceLinksForPage(db, page.slug, page.links, knownSlugs);
 
-  if (apiKey && pages.length > 0) {
-    const texts = pages.map((page) => `${page.title}\n\n${page.compiledTruth}`);
-    const vectors = await embedTexts(texts, config.openaiEmbeddingModel, apiKey);
-    for (let index = 0; index < pages.length; index += 1) {
+  const pagesNeedingEmbeddings = apiKey
+    ? pages.filter((page) => shouldRefreshEmbedding(db, page, config.openaiEmbeddingModel))
+    : [];
+
+  if (apiKey && pagesNeedingEmbeddings.length > 0) {
+    const texts = pagesNeedingEmbeddings.map((page) => `${page.title}\n\n${page.compiledTruth}`);
+    const vectors = await embedder(texts, config.openaiEmbeddingModel, apiKey);
+    for (let index = 0; index < pagesNeedingEmbeddings.length; index += 1) {
       if (!vectors[index]) continue;
+      const page = pagesNeedingEmbeddings[index];
       replaceEmbeddingForPage(db, {
-        pageSlug: pages[index].slug,
-        chunkId: `${pages[index].slug}:compiled_truth`,
-        chunkText: pages[index].compiledTruth,
+        pageSlug: page.slug,
+        chunkId: `${page.slug}:compiled_truth`,
+        chunkText: page.compiledTruth,
         model: config.openaiEmbeddingModel,
         vector: vectors[index],
-        contentHash: pages[index].contentHash,
+        contentHash: page.contentHash,
       });
     }
   }
@@ -50,9 +55,16 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY } 
   return {
     indexed_pages: pages.length,
     indexed_links: pages.reduce((sum, page) => sum + page.links.length, 0),
-    embeddings_generated: apiKey ? pages.length : 0,
+    embeddings_generated: pagesNeedingEmbeddings.length,
     used_embedding_model: apiKey ? config.openaiEmbeddingModel : null,
   };
+}
+
+function shouldRefreshEmbedding(db, page, model) {
+  const existing = getEmbeddingRecord(db, page.slug);
+  if (!existing) return true;
+  if (existing.embedding_model !== model) return true;
+  return existing.content_hash !== page.contentHash;
 }
 
 async function collectMarkdownFiles(config) {

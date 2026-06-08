@@ -166,6 +166,58 @@ Real company page.
   }
 });
 
+test('sync only regenerates missing or stale embeddings when api key is set', async () => {
+  const fixture = await createFixture('bigbrain-sync-embeddings-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
+title: Alice
+---
+# Alice
+
+Original person note.
+`);
+    await writeMarkdown(fixture.brainHome, 'companies/acme.md', `---
+title: Acme
+---
+# Acme
+
+Original company note.
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const calls = [];
+    const embedder = async (texts, model, apiKey) => {
+      calls.push({ texts, model, apiKey });
+      return texts.map((_, index) => [index + 0.1, index + 0.2]);
+    };
+
+    const firstSync = await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(firstSync.embeddings_generated, 2);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].texts.length, 2);
+
+    const secondSync = await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(secondSync.embeddings_generated, 0);
+    assert.equal(calls.length, 1);
+
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
+title: Alice
+---
+# Alice
+
+Updated person note.
+`);
+
+    const thirdSync = await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(thirdSync.embeddings_generated, 1);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[1].texts.length, 1);
+    assert.match(calls[1].texts[0], /Updated person note/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function createFixture(prefix) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   const pointerPath = path.join(rootDir, 'pointer');
