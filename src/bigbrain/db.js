@@ -135,12 +135,16 @@ export function replaceLinksForPage(db, slug, links, knownSlugs) {
   }
 }
 
-export function replaceEmbeddingForPage(db, { pageSlug, chunkId, chunkText, model, vector, contentHash }) {
+export function replaceEmbeddingsForPage(db, { pageSlug, chunks, model, vectors, contentHash }) {
   db.prepare('DELETE FROM embeddings WHERE page_slug = ?').run(pageSlug);
-  db.prepare(`
+  const insert = db.prepare(`
     INSERT INTO embeddings (page_slug, chunk_id, chunk_text, embedding_model, embedding_json, content_hash)
     VALUES (?, ?, ?, ?, ?, ?)
-  `).run(pageSlug, chunkId, chunkText, model, JSON.stringify(vector), contentHash);
+  `);
+  for (let index = 0; index < chunks.length; index += 1) {
+    if (!vectors[index]) continue;
+    insert.run(pageSlug, chunks[index].id, chunks[index].text, model, JSON.stringify(vectors[index]), contentHash);
+  }
 }
 
 export function getEmbeddingRecord(db, pageSlug) {

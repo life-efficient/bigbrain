@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { deletePageIndex, getEmbeddingRecord, listPageSlugs, openDatabase, replaceEmbeddingForPage, replaceLinksForPage, replacePageIndex } from './db.js';
+import { deletePageIndex, getEmbeddingRecord, listPageSlugs, openDatabase, replaceEmbeddingsForPage, replaceLinksForPage, replacePageIndex } from './db.js';
 import { isExcludedPath, matchesIncludeGlobs, shouldSkipSystemPath } from './file-selection.js';
 import { embedTexts } from './openai.js';
 import { extractLinks, parseMarkdownPage, slugFromPath } from './markdown.js';
@@ -35,29 +35,64 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
     ? pages.filter((page) => shouldRefreshEmbedding(db, page, config.openaiEmbeddingModel))
     : [];
 
+  let embeddingChunksGenerated = 0;
+  const embeddingFailures = [];
+
   if (apiKey && pagesNeedingEmbeddings.length > 0) {
-    const texts = pagesNeedingEmbeddings.map((page) => `${page.title}\n\n${page.compiledTruth}`);
-    const vectors = await embedder(texts, config.openaiEmbeddingModel, apiKey);
-    for (let index = 0; index < pagesNeedingEmbeddings.length; index += 1) {
-      if (!vectors[index]) continue;
-      const page = pagesNeedingEmbeddings[index];
-      replaceEmbeddingForPage(db, {
-        pageSlug: page.slug,
-        chunkId: `${page.slug}:compiled_truth`,
-        chunkText: page.compiledTruth,
-        model: config.openaiEmbeddingModel,
-        vector: vectors[index],
-        contentHash: page.contentHash,
-      });
+    for (const page of pagesNeedingEmbeddings) {
+      const chunks = chunkPageForEmbedding(page);
+      try {
+        const vectors = await embedder(chunks.map((chunk) => chunk.text), config.openaiEmbeddingModel, apiKey);
+        replaceEmbeddingsForPage(db, {
+          pageSlug: page.slug,
+          chunks,
+          model: config.openaiEmbeddingModel,
+          vectors,
+          contentHash: page.contentHash,
+        });
+        embeddingChunksGenerated += vectors.filter(Boolean).length;
+      } catch (error) {
+        embeddingFailures.push({
+          page_slug: page.slug,
+          chunk_count: chunks.length,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
     }
+
   }
+
+  const pagesWithFailedEmbeddings = embeddingFailures.length;
+  const pagesWithGeneratedEmbeddings = pagesNeedingEmbeddings.length - pagesWithFailedEmbeddings;
 
   return {
     indexed_pages: pages.length,
     indexed_links: pages.reduce((sum, page) => sum + page.links.length, 0),
-    embeddings_generated: pagesNeedingEmbeddings.length,
+    embeddings_generated: pagesWithGeneratedEmbeddings,
+    embedding_chunks_generated: embeddingChunksGenerated,
+    embedding_pages_failed: pagesWithFailedEmbeddings,
+    embedding_failures: embeddingFailures,
     used_embedding_model: apiKey ? config.openaiEmbeddingModel : null,
   };
+}
+
+const MAX_EMBEDDING_CHUNK_WORDS = 1500;
+
+function chunkPageForEmbedding(page) {
+  const text = `${page.title}\n\n${page.compiledTruth}`.trim();
+  if (!text) return [{ id: `${page.slug}:compiled_truth:0`, text: page.title || page.slug }];
+
+  const words = text.split(/\s+/);
+  if (words.length <= MAX_EMBEDDING_CHUNK_WORDS) return [{ id: `${page.slug}:compiled_truth:0`, text }];
+
+  const chunks = [];
+  for (let start = 0; start < words.length; start += MAX_EMBEDDING_CHUNK_WORDS) {
+    chunks.push({
+      id: `${page.slug}:compiled_truth:${chunks.length}`,
+      text: words.slice(start, start + MAX_EMBEDDING_CHUNK_WORDS).join(' '),
+    });
+  }
+  return chunks;
 }
 
 function shouldRefreshEmbedding(db, page, model) {

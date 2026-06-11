@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { listPageSlugs, openDatabase } from '../../src/bigbrain/db.js';
+import { allEmbeddings, listPageSlugs, openDatabase } from '../../src/bigbrain/db.js';
 import { searchBrain } from '../../src/bigbrain/search.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -193,12 +193,14 @@ Original company note.
 
     const firstSync = await syncBrain({ config, apiKey: 'test-key', embedder });
     assert.equal(firstSync.embeddings_generated, 2);
-    assert.equal(calls.length, 1);
-    assert.equal(calls[0].texts.length, 2);
+    assert.equal(firstSync.embedding_chunks_generated, 2);
+    assert.equal(calls.length, 2);
+    assert.equal(calls[0].texts.length, 1);
+    assert.equal(calls[1].texts.length, 1);
 
     const secondSync = await syncBrain({ config, apiKey: 'test-key', embedder });
     assert.equal(secondSync.embeddings_generated, 0);
-    assert.equal(calls.length, 1);
+    assert.equal(calls.length, 2);
 
     await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
 title: Alice
@@ -210,9 +212,90 @@ Updated person note.
 
     const thirdSync = await syncBrain({ config, apiKey: 'test-key', embedder });
     assert.equal(thirdSync.embeddings_generated, 1);
-    assert.equal(calls.length, 2);
-    assert.equal(calls[1].texts.length, 1);
-    assert.match(calls[1].texts[0], /Updated person note/);
+    assert.equal(thirdSync.embedding_chunks_generated, 1);
+    assert.equal(calls.length, 3);
+    assert.equal(calls[2].texts.length, 1);
+    assert.match(calls[2].texts[0], /Updated person note/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('sync chunks oversized page content before embedding', async () => {
+  const fixture = await createFixture('bigbrain-sync-embedding-chunks-');
+  try {
+    const longBody = Array.from({ length: 3300 }, (_, index) => `word${index}`).join(' ');
+    await writeMarkdown(fixture.brainHome, 'concepts/long-note.md', `---
+title: Long Note
+---
+# Long Note
+
+${longBody}
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const calls = [];
+    const embedder = async (texts, model, apiKey) => {
+      calls.push({ texts, model, apiKey });
+      return texts.map((_, index) => [index + 0.1, index + 0.2]);
+    };
+
+    const result = await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(result.embeddings_generated, 1);
+    assert.equal(result.embedding_chunks_generated, 3);
+    assert.equal(result.embedding_pages_failed, 0);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].texts.length, 3);
+    assert.equal(calls[0].texts.every((text) => text.split(/\s+/).length <= 1500), true);
+
+    const db = await openDatabase(config);
+    const embeddings = allEmbeddings(db);
+    assert.equal(embeddings.length, 3);
+    assert.deepEqual(embeddings.map((row) => row.page_slug), [
+      'concepts/long-note',
+      'concepts/long-note',
+      'concepts/long-note',
+    ]);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('sync reports per-page embedding failures without aborting indexing', async () => {
+  const fixture = await createFixture('bigbrain-sync-embedding-failure-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
+title: Alice
+---
+# Alice
+
+Short person note.
+`);
+    await writeMarkdown(fixture.brainHome, 'companies/acme.md', `---
+title: Acme
+---
+# Acme
+
+Short company note.
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const embedder = async (texts) => {
+      if (texts[0].includes('Alice')) throw new Error('OpenAI embeddings failed: 400 oversized input');
+      return texts.map(() => [0.1, 0.2]);
+    };
+
+    const result = await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(result.indexed_pages, 2);
+    assert.equal(result.embeddings_generated, 1);
+    assert.equal(result.embedding_chunks_generated, 1);
+    assert.equal(result.embedding_pages_failed, 1);
+    assert.equal(result.embedding_failures[0].page_slug, 'people/alice');
+    assert.match(result.embedding_failures[0].error, /oversized input/);
+
+    const db = await openDatabase(config);
+    assert.deepEqual(listPageSlugs(db), ['companies/acme', 'people/alice']);
+    assert.equal(allEmbeddings(db).length, 1);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
