@@ -6,8 +6,7 @@ The code lives in this repo. The actual brain pages live in a selected
 markdown brain home. The SQLite index, config, and runtime state live outside
 that repo under a per-brain directory in your home folder.
 
-The goal is not to rebuild everything in `gbrain`. The goal is to keep the
-useful parts:
+The goal is to keep the useful parts of a personal operating stack:
 
 - MECE markdown file structure
 - linked database
@@ -84,9 +83,7 @@ Implemented foundation:
 
 See:
 
-- [`docs/architecture.md`](./docs/architecture.md)
-- [`docs/roadmap.md`](./docs/roadmap.md)
-- [`docs/schema.md`](./docs/schema.md)
+- [`docs/design.md`](./docs/design.md)
 - [`src/bigbrain/README.md`](./src/bigbrain/README.md)
 - [`TODO.md`](./TODO.md)
 
@@ -123,6 +120,12 @@ The runtime config, state, and SQLite index live under
 `~/.bigbrain-state/brains/<brain-id>/` by default. Agents or automations that
 run `bigbrain sync` must be able to write to that state directory because sync
 updates the SQLite index and state file.
+
+For repo-backed automation runs, prefer a state root inside the target brain
+home, for example `/path/to/brain/.bigbrain-state/brains`. Automation run
+markers should live beside it under `.bigbrain-state/automation-runs/` with
+names such as `nightly-maintenance/` or `hourly-task-refresh/`. Do not write
+runtime state into the BigBrain source repo.
 
 For agent setup, see [`INSTALL_FOR_AGENTS.md`](./INSTALL_FOR_AGENTS.md).
 

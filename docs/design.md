@@ -1,11 +1,10 @@
-# Bigbrain Architecture
+# Bigbrain Design
 
-`bigbrain` is the scoped successor to the current `brain` + `gbrain` setup.
-The code lives in the repo; the actual brain instance lives in an external
-brain home selected at runtime.
+`bigbrain` is a local-first personal knowledge runtime. The code lives in this
+repo; each actual brain instance lives in an external brain home selected at
+runtime.
 
-The design goal is not to reproduce all of `gbrain`. The design goal is to keep
-the parts that materially help Alex operate:
+The design goal is to keep the parts that materially help Alex operate:
 
 - MECE markdown file structure
 - linked entity store
@@ -54,7 +53,7 @@ The initial system must support:
 - git backup and GitHub-friendly workflows
 - ingestion and enrichment workflows
 - lightweight dashboard for graph, inbox, and tasks
-- migration from an existing `gbrain`-style brain
+- migration from an existing markdown brain corpus
 
 ## What You Are Missing
 
@@ -101,14 +100,18 @@ The top-level structure should stay intentionally small:
 
 - `people/`
 - `companies/`
-- `projects/`
-- `meetings/`
 - `deals/`
+- `meetings/`
+- `projects/`
+- `ideas/`
+- `personal-protocol/`
 - `concepts/`
-- `ops/`
-- `inbox/`
+- `writing/`
 - `sources/`
+- `inbox/`
 - `archive/`
+- `dreams/`
+- `ops/`
 - `.artifacts/`
 
 Repo documentation pages such as directory `README.md` files are not canonical
@@ -121,6 +124,17 @@ Each page should have:
 - page type derived from path
 - optional frontmatter for metadata
 - body content with relative links
+
+### Page Shape
+
+Generic canonical pages should use:
+
+1. YAML frontmatter
+2. Title and short executive summary
+3. Compiled truth / current state / key context
+4. Open threads where relevant
+5. `---`
+6. Append-only timeline / evidence log
 
 Artifacts should not be forced into canonical page directories. Instead, keep
 them in a top-level attachment store:
@@ -163,6 +177,60 @@ schema. A meeting page may include:
 - `## Discussion Notes`
 
 For meetings, `---` and `## Timeline` are optional rather than required.
+
+Raw transcript dumps should not be forced into page schema; they belong under
+`.artifacts/`.
+
+## Artifact Shape
+
+Artifacts live outside the canonical page directories:
+
+```text
+.artifacts/<artifact-slug>/
+  artifact.md
+  <raw-files...>
+```
+
+`artifact.md` is a lightweight companion page, not a full entity page. It
+should usually include:
+
+1. YAML frontmatter
+2. Short description of what the artifact is
+3. Parent page references
+4. Optional timeline when iteration or reuse history matters
+
+Suggested frontmatter:
+
+```yaml
+type: artifact
+title: ExampleCo Advisory Contract Draft v1
+parents:
+  - deals/exampleco-advisory-arrangement
+files:
+  - contract-draft-v1.pdf
+kind: contract
+created: 2026-05-19
+```
+
+The canonical graph is bidirectional:
+
+- brain pages link outward to artifacts
+- `artifact.md` records one or more `parents:` back to canonical pages
+
+Artifacts may contain both upstream inputs and generated outputs. That semantic
+distinction is intentionally not hard-coded at the storage layer because an
+output may become a future input.
+
+## Filing Rules
+
+- File by primary subject, not by source or format.
+- Use cross-links instead of duplicate pages.
+- Use `inbox/` when a page does not clearly fit yet.
+- Do not store attached files directly in entity directories; place them under
+  `.artifacts/` and reference them from canonical pages.
+- Repo documentation pages such as directory `README.md` files are not part of
+  the canonical brain graph and should be excluded from indexing and strict
+  page validation.
 
 ## Data Model
 
@@ -392,7 +460,7 @@ Migration is a first-class feature, not an afterthought.
 
 `bigbrain migrate` should support:
 
-- importing an existing `gbrain`-style markdown tree
+- importing an existing markdown tree
 - normalizing paths into the target MECE structure
 - rewriting links where needed
 - backfilling page metadata

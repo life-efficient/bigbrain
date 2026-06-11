@@ -1,3 +1,6 @@
 node_modules
 .bigbrain-dashboard
 .DS_Store
+.automation-runtime/
+.bigbrain-nightly-state/
+.bigbrain-state/

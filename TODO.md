@@ -1,17 +1,29 @@
 # TODO
 
+## Roadmap
+
+- Keep `bigbrain` as the primary local-first personal knowledge runtime.
+- Keep brain data outside the BigBrain source repo by default.
+- Continue moving toward a package layout with clearer command, indexing,
+  storage, search, and automation boundaries.
+- Keep SQLite as the local database default unless a concrete production need
+  requires Postgres.
+- Keep markdown as the source of truth, with SQLite as the derived index.
+- Keep the built-in dashboard lightweight and local.
+- Add migration support for existing markdown brain corpora.
+
 ## Search And Query
 
 - Improve chunk-level ranking now that sync can store multiple embedding rows per page.
-- Port the compiled-truth-aware dedup pipeline from `gbrain` once chunk metadata exists.
+- Add compiled-truth-aware deduplication once chunk metadata exists.
 - Add cosine re-scoring after RRF so the final ranking is not only list-position fusion.
-- Port `gbrain`'s recency and salience layers once BigBrain has the metadata needed to support them cleanly.
+- Add recency and salience layers once BigBrain has the metadata needed to support them cleanly.
 - Add backlink-aware boosts after the link graph is reliable enough to use as a ranking signal.
 - Add query-result telemetry so ranking changes can be judged against real queries instead of only spot checks.
 - Add a small search cache for repeated semantic queries to reduce repeated embedding work.
 - Improve answer grounding so `query` answers cite the highest-ranked result more explicitly and avoid weak generic summaries.
 - Add regression fixtures for representative real queries like ExampleCo, Wellness, Example Contact, and direct entity lookups.
-- Decide whether BigBrain should keep LLM query expansion on by default or move toward the lighter `gbrain` search-lite intent-first default.
+- Decide whether BigBrain should keep LLM query expansion on by default or move toward an intent-first default.
 
 ## Data Model
 
@@ -20,9 +32,17 @@
 
 ## Evaluation
 
-- Build a repeatable side-by-side eval harness for `gbrain` vs `bigbrain` on the same brain home.
+- Build a repeatable retrieval eval harness against a fixed fixture brain home.
 - Score queries on top-hit quality, top-3 quality, noise, and answer usefulness.
 - Use the eval harness before and after each ranking change so search work does not drift into unmeasured tweaks.
+
+## Open Design Decisions
+
+- Exact markdown link syntax support: wikilinks, markdown links, or both.
+- Frontmatter contract.
+- Chunk source/type metadata for embeddings.
+- Freshness automation inputs: markdown change history, conversation transcripts, meeting ingests, or a bounded mix.
+- Whether the dashboard should remain inside the CLI runtime or split into a separate app later.
 
 ## Dashboard UI
 
