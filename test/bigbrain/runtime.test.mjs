@@ -159,6 +159,80 @@ test('health verifies the bigbrain command is available on PATH from outside the
   }
 });
 
+test('health accepts active automations that match repo templates', async () => {
+  const fixture = await createFixture('bigbrain-automation-template-health-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const templateDir = path.join(fixture.rootDir, 'templates', 'automations');
+    const activeDir = path.join(fixture.rootDir, 'active', 'automations');
+    const automation = `version = 1
+id = "bigbrain-frequent-sync"
+kind = "cron"
+name = "BigBrain Frequent Sync"
+prompt = "Run sync."
+status = "ACTIVE"
+rrule = "FREQ=MINUTELY;INTERVAL=45"
+created_at = 1
+updated_at = 2
+`;
+
+    await writeAutomationToml(templateDir, 'bigbrain-frequent-sync', automation);
+    await writeAutomationToml(activeDir, 'bigbrain-frequent-sync', automation.replace('updated_at = 2', 'updated_at = 3'));
+
+    const report = await runHealthCheck(config, {
+      cliCommand: process.execPath,
+      automationTemplateDir: templateDir,
+      automationActiveDir: activeDir,
+    });
+
+    assert.equal(report.automation_template_status.checked_count, 1);
+    assert.equal(report.automation_template_status.mismatch_count, 0);
+    assert.equal(report.findings.some((finding) => finding.finding_type === 'automation_template_mismatch'), false);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('health flags active automation definitions that drift from repo templates', async () => {
+  const fixture = await createFixture('bigbrain-automation-template-drift-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const templateDir = path.join(fixture.rootDir, 'templates', 'automations');
+    const activeDir = path.join(fixture.rootDir, 'active', 'automations');
+    await writeAutomationToml(templateDir, 'bigbrain-nightly-maintenance', `version = 1
+id = "bigbrain-nightly-maintenance"
+kind = "cron"
+name = "BigBrain Nightly Maintenance"
+prompt = "Run sync, health, and refresh."
+status = "ACTIVE"
+rrule = "FREQ=DAILY;BYHOUR=3;BYMINUTE=30;BYSECOND=0"
+`);
+    await writeAutomationToml(activeDir, 'bigbrain-nightly-maintenance', `version = 1
+id = "bigbrain-nightly-maintenance"
+kind = "cron"
+name = "BigBrain Nightly Maintenance"
+prompt = "Run only health."
+status = "ACTIVE"
+rrule = "FREQ=DAILY;BYHOUR=3;BYMINUTE=30;BYSECOND=0"
+`);
+
+    const report = await runHealthCheck(config, {
+      cliCommand: process.execPath,
+      automationTemplateDir: templateDir,
+      automationActiveDir: activeDir,
+    });
+    const finding = report.findings.find((item) => item.finding_type === 'automation_template_mismatch');
+
+    assert.equal(report.automation_template_status.mismatch_count, 1);
+    assert.equal(Boolean(finding), true);
+    assert.equal(finding.severity, 'medium');
+    assert.equal(finding.details.id, 'bigbrain-nightly-maintenance');
+    assert.equal(finding.details.status, 'mismatch');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('health does not flag meeting pages for missing separator or timeline', async () => {
   const fixture = await createFixture('bigbrain-meeting-health-');
   try {
@@ -334,6 +408,12 @@ async function createFixture(prefix) {
 
 async function writeMarkdown(brainHome, relativePath, content) {
   const fullPath = path.join(brainHome, relativePath);
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
+  await fs.writeFile(fullPath, content, 'utf8');
+}
+
+async function writeAutomationToml(automationRoot, id, content) {
+  const fullPath = path.join(automationRoot, id, 'automation.toml');
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.writeFile(fullPath, content, 'utf8');
 }

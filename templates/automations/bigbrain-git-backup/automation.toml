@@ -1,0 +1,13 @@
+version = 1
+id = "bigbrain-git-backup"
+kind = "cron"
+name = "BigBrain Git Backup"
+prompt = "Back up the current BigBrain brain repo to its Git remote. First read `$CODEX_HOME/automations/bigbrain-git-backup/memory.md` if present. From the workspace root, run `git status --short --branch`. Before pulling, ensure non-interactive GitHub HTTPS auth is usable: run `gh auth status`; if it succeeds, run `gh auth setup-git`; if it fails or `gh` is unavailable, continue to the pull but report any auth failure clearly and stop before staging/committing if the remote cannot be verified. Then run these commands in order from the workspace root: `git pull --rebase --autostash`, `git add -A`, `git diff --cached --quiet`; if the diff command exits 0, report that the remote is up to date, there were no changes to back up, and do not commit. If it exits 1, run `git commit -m \"brain: automated backup\"` and then `git push`. Report whether the remote is up to date, whether a commit was created, and any warnings or errors. Before returning, append a concise run summary with the current UTC time to `$CODEX_HOME/automations/bigbrain-git-backup/memory.md`."
+status = "ACTIVE"
+rrule = "FREQ=HOURLY;INTERVAL=1;BYMINUTE=20;BYSECOND=0"
+model = "gpt-5.5"
+reasoning_effort = "low"
+execution_environment = "local"
+cwds = ["/path/to/brain-home"]
+created_at = 1781173087000
+updated_at = 1781173346000

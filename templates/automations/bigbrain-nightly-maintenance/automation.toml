@@ -1,0 +1,13 @@
+version = 1
+id = "bigbrain-nightly-maintenance"
+kind = "cron"
+name = "BigBrain Nightly Maintenance"
+prompt = "From the workspace root, run `bigbrain sync --json`, then `bigbrain health --json`, then `bigbrain refresh-tasks --json`. In the final report, separate: 1) sync status, 2) health status, 3) task refresh result, and 4) unresolved items that still need attention. Do not guess past command output."
+status = "ACTIVE"
+rrule = "FREQ=DAILY;BYHOUR=3;BYMINUTE=30;BYSECOND=0"
+model = "gpt-5.5"
+reasoning_effort = "low"
+execution_environment = "local"
+cwds = ["/path/to/brain-home"]
+created_at = 1779217798002
+updated_at = 1781007781948

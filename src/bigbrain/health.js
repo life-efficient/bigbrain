@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -9,8 +10,16 @@ import { fullPathFromSlug, parseMarkdownPage } from './markdown.js';
 import { validatePageShape } from './schema.js';
 
 const execFileAsync = promisify(execFile);
+const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+const AUTOMATION_TEMPLATE_DIR = path.join(REPO_ROOT, 'templates', 'automations');
 
-export async function runHealthCheck(config, { env = process.env, cliCommand = 'bigbrain', cliCwd = os.tmpdir() } = {}) {
+export async function runHealthCheck(config, {
+  env = process.env,
+  cliCommand = 'bigbrain',
+  cliCwd = os.tmpdir(),
+  automationTemplateDir = AUTOMATION_TEMPLATE_DIR,
+  automationActiveDir = defaultAutomationActiveDir(env),
+} = {}) {
   const db = await openDatabase(config);
   clearHealthFindings(db);
   const pages = listPages(db);
@@ -79,6 +88,19 @@ export async function runHealthCheck(config, { env = process.env, cliCommand = '
     });
   }
 
+  const automationTemplateStatus = await detectAutomationTemplateStatus({
+    templateDir: automationTemplateDir,
+    activeDir: automationActiveDir,
+  });
+  for (const check of automationTemplateStatus.checks) {
+    if (check.status === 'match') continue;
+    insertHealthFinding(db, {
+      findingType: 'automation_template_mismatch',
+      severity: check.status === 'missing_active' || check.status === 'missing_template' ? 'high' : 'medium',
+      details: check,
+    });
+  }
+
   const findings = listHealthFindings(db).map((row) => ({
     finding_type: row.finding_type,
     severity: row.severity,
@@ -94,6 +116,7 @@ export async function runHealthCheck(config, { env = process.env, cliCommand = '
     findings,
     git_status: gitStatus,
     cli_status: cliStatus,
+    automation_template_status: automationTemplateStatus,
   };
 }
 
@@ -132,4 +155,105 @@ async function detectCliAvailability({ env, command, cwd }) {
       message: error instanceof Error ? error.message : String(error),
     };
   }
+}
+
+function defaultAutomationActiveDir(env) {
+  const codexHome = env.CODEX_HOME || (env.HOME ? path.join(env.HOME, '.codex') : null);
+  return codexHome ? path.join(codexHome, 'automations') : null;
+}
+
+async function detectAutomationTemplateStatus({ templateDir, activeDir }) {
+  const templateFiles = await listAutomationTemplateFiles(templateDir);
+  const checks = [];
+
+  for (const template of templateFiles) {
+    if (template.missing) {
+      checks.push({
+        id: template.id,
+        status: 'missing_template',
+        template_path: template.path,
+        active_path: activeDir ? path.join(activeDir, template.id, 'automation.toml') : null,
+      });
+      continue;
+    }
+
+    const activePath = activeDir ? path.join(activeDir, template.id, 'automation.toml') : null;
+    if (!activePath) {
+      checks.push({
+        id: template.id,
+        status: 'missing_active_dir',
+        template_path: template.path,
+        active_path: null,
+      });
+      continue;
+    }
+
+    const activeRaw = await fs.readFile(activePath, 'utf8').catch((error) => {
+      if (error?.code === 'ENOENT') return null;
+      throw error;
+    });
+    if (activeRaw === null) {
+      checks.push({
+        id: template.id,
+        status: 'missing_active',
+        template_path: template.path,
+        active_path: activePath,
+      });
+      continue;
+    }
+
+    const templateComparable = comparableAutomationToml(template.raw);
+    const activeComparable = comparableAutomationToml(activeRaw);
+    checks.push({
+      id: template.id,
+      status: templateComparable === activeComparable ? 'match' : 'mismatch',
+      template_path: template.path,
+      active_path: activePath,
+    });
+  }
+
+  return {
+    template_dir: templateDir,
+    active_dir: activeDir,
+    checked_count: checks.length,
+    mismatch_count: checks.filter((check) => check.status !== 'match').length,
+    checks,
+  };
+}
+
+async function listAutomationTemplateFiles(templateDir) {
+  let entries;
+  try {
+    entries = await fs.readdir(templateDir, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code !== 'ENOENT') throw error;
+    return [];
+  }
+
+  const files = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const templatePath = path.join(templateDir, entry.name, 'automation.toml');
+    const raw = await fs.readFile(templatePath, 'utf8').catch((error) => {
+      if (error?.code === 'ENOENT') return null;
+      throw error;
+    });
+    if (raw === null) {
+      files.push({ id: entry.name, path: templatePath, raw: null, missing: true });
+      continue;
+    }
+    files.push({ id: entry.name, path: templatePath, raw });
+  }
+  return files;
+}
+
+function comparableAutomationToml(raw) {
+  if (raw === null) return null;
+  return raw
+    .replace(/\r\n/g, '\n')
+    .split('\n')
+    .filter((line) => !/^(created_at|updated_at)\s*=/.test(line))
+    .map((line) => line.trimEnd())
+    .join('\n')
+    .trim();
 }

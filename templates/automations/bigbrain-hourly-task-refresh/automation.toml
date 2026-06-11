@@ -1,0 +1,13 @@
+version = 1
+id = "bigbrain-hourly-task-refresh"
+kind = "cron"
+name = "BigBrain Hourly Task Refresh"
+prompt = "Run `bigbrain refresh-tasks --json` from the workspace root. Report whether the refresh succeeded, whether `ops/tasks.md` changed, how many tasks were updated or added if that is available from the command output, and any warnings or errors."
+status = "ACTIVE"
+rrule = "FREQ=HOURLY;INTERVAL=1"
+model = "gpt-5.5"
+reasoning_effort = "low"
+execution_environment = "local"
+cwds = ["/path/to/brain-home"]
+created_at = 1779219407767
+updated_at = 1781007775165
