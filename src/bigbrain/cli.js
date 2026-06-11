@@ -68,10 +68,10 @@ async function handleSync(global) {
   await persistState(config.statePath, {
     last_checked_at: new Date().toISOString(),
     last_run_status: 'success',
-    last_run_summary: `Indexed ${result.indexed_pages} page(s)`,
+    last_run_summary: `Index now has ${result.index_totals_after_sync.pages} page(s); ${result.outstanding_work.pages_needing_embeddings} page(s) need embeddings`,
     last_seen_files: [],
   });
-  output(global, result, `Indexed ${result.indexed_pages} page(s), ${result.indexed_links} link(s).`);
+  output(global, result, renderSyncText(result));
 }
 
 async function handleList(args, global) {
@@ -249,6 +249,14 @@ function output(global, jsonValue, textValue) {
     return;
   }
   console.log(textValue);
+}
+
+function renderSyncText(result) {
+  return [
+    `Sync succeeded. Index now has ${result.index_totals_after_sync.pages} page(s) and ${result.index_totals_after_sync.links} link(s).`,
+    `Outstanding: ${result.outstanding_work.pages_needing_embeddings} page(s) need embeddings, ${result.outstanding_work.embedding_chunks_pending} embedding chunk(s) pending, ${result.outstanding_work.pages_with_embedding_failures} embedding failure(s).`,
+    `This run: ${result.run_work.pages_embedded} page(s) embedded, ${result.run_work.embedding_chunks_created} embedding chunk(s) created.`,
+  ].join('\n');
 }
 
 function renderRecentText(report) {

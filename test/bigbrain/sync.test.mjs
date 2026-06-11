@@ -194,12 +194,27 @@ Original company note.
     const firstSync = await syncBrain({ config, apiKey: 'test-key', embedder });
     assert.equal(firstSync.embeddings_generated, 2);
     assert.equal(firstSync.embedding_chunks_generated, 2);
+    assert.deepEqual(firstSync.index_totals_after_sync, { pages: 2, links: 0 });
+    assert.deepEqual(firstSync.outstanding_work, {
+      pages_needing_embeddings: 0,
+      embedding_chunks_pending: 0,
+      pages_with_embedding_failures: 0,
+      links_pending_indexing: 0,
+    });
+    assert.deepEqual(firstSync.run_work, {
+      pages_embedded: 2,
+      embedding_chunks_created: 2,
+      pages_embedding_failed: 0,
+    });
     assert.equal(calls.length, 2);
     assert.equal(calls[0].texts.length, 1);
     assert.equal(calls[1].texts.length, 1);
 
     const secondSync = await syncBrain({ config, apiKey: 'test-key', embedder });
     assert.equal(secondSync.embeddings_generated, 0);
+    assert.equal(secondSync.outstanding_work.pages_needing_embeddings, 0);
+    assert.equal(secondSync.outstanding_work.embedding_chunks_pending, 0);
+    assert.equal(secondSync.run_work.pages_embedded, 0);
     assert.equal(calls.length, 2);
 
     await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
@@ -213,6 +228,8 @@ Updated person note.
     const thirdSync = await syncBrain({ config, apiKey: 'test-key', embedder });
     assert.equal(thirdSync.embeddings_generated, 1);
     assert.equal(thirdSync.embedding_chunks_generated, 1);
+    assert.equal(thirdSync.outstanding_work.pages_needing_embeddings, 0);
+    assert.equal(thirdSync.run_work.pages_embedded, 1);
     assert.equal(calls.length, 3);
     assert.equal(calls[2].texts.length, 1);
     assert.match(calls[2].texts[0], /Updated person note/);
@@ -292,6 +309,18 @@ Short company note.
     assert.equal(result.embedding_pages_failed, 1);
     assert.equal(result.embedding_failures[0].page_slug, 'people/alice');
     assert.match(result.embedding_failures[0].error, /oversized input/);
+    assert.deepEqual(result.index_totals_after_sync, { pages: 2, links: 0 });
+    assert.deepEqual(result.outstanding_work, {
+      pages_needing_embeddings: 1,
+      embedding_chunks_pending: 1,
+      pages_with_embedding_failures: 1,
+      links_pending_indexing: 0,
+    });
+    assert.deepEqual(result.run_work, {
+      pages_embedded: 1,
+      embedding_chunks_created: 1,
+      pages_embedding_failed: 1,
+    });
 
     const db = await openDatabase(config);
     assert.deepEqual(listPageSlugs(db), ['companies/acme', 'people/alice']);

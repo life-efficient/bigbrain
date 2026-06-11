@@ -144,11 +144,15 @@ bigbrain migrate /path/to/existing/brain
 
 Pass `--brain-home /path/to/brain-home` when targeting a non-default brain.
 
-`bigbrain sync --json` reports indexed page and link counts plus embedding
-status. `embeddings_generated` is the number of pages successfully embedded;
-`embedding_chunks_generated` is the number of stored embedding chunks;
-`embedding_pages_failed` and `embedding_failures` identify pages whose
-embedding refresh failed while page/link indexing still completed.
+`bigbrain sync --json` reports index totals separately from run work and
+outstanding work. `index_totals_after_sync.pages` and
+`index_totals_after_sync.links` are the current index size after sync, not new
+items from this run. `outstanding_work.pages_needing_embeddings` and
+`outstanding_work.embedding_chunks_pending` report what remains to be done.
+`run_work.pages_embedded` and `run_work.embedding_chunks_created` report work
+completed during this run. Legacy top-level fields such as `indexed_pages`,
+`indexed_links`, `embeddings_generated`, and `embedding_chunks_generated` remain
+available for compatibility.
 
 Task refresh still works:
 

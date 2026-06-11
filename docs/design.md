@@ -491,10 +491,12 @@ Practical default:
 `bigbrain sync` embeds page title plus compiled truth. Changed pages are split
 into bounded word chunks before calling the embeddings API, then stored as
 multiple rows in `embeddings` with stable `chunk_id` values. The sync report
-keeps `embeddings_generated` as the count of pages successfully embedded and
-adds `embedding_chunks_generated`, `embedding_pages_failed`, and
-`embedding_failures` so automation can distinguish index freshness from
-provider or input-size failures.
+separates `index_totals_after_sync` from `outstanding_work` and `run_work` so
+automation can distinguish current index size, remaining embedding work, and
+work completed during the current run. Legacy top-level fields such as
+`indexed_pages`, `indexed_links`, `embeddings_generated`,
+`embedding_chunks_generated`, `embedding_pages_failed`, and
+`embedding_failures` remain for compatibility.
 
 ## Dashboard
 

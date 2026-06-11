@@ -31,15 +31,15 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
   for (const page of pages) replacePageIndex(db, page);
   for (const page of pages) replaceLinksForPage(db, page.slug, page.links, knownSlugs);
 
-  const pagesNeedingEmbeddings = apiKey
-    ? pages.filter((page) => shouldRefreshEmbedding(db, page, config.openaiEmbeddingModel))
-    : [];
+  const pagesNeedingEmbeddings = pages.filter((page) => shouldRefreshEmbedding(db, page, config.openaiEmbeddingModel));
+  const embeddingChunksNeeded = pagesNeedingEmbeddings.reduce((sum, page) => sum + chunkPageForEmbedding(page).length, 0);
+  const pagesAttemptedForEmbedding = apiKey ? pagesNeedingEmbeddings : [];
 
   let embeddingChunksGenerated = 0;
   const embeddingFailures = [];
 
-  if (apiKey && pagesNeedingEmbeddings.length > 0) {
-    for (const page of pagesNeedingEmbeddings) {
+  if (apiKey && pagesAttemptedForEmbedding.length > 0) {
+    for (const page of pagesAttemptedForEmbedding) {
       const chunks = chunkPageForEmbedding(page);
       try {
         const vectors = await embedder(chunks.map((chunk) => chunk.text), config.openaiEmbeddingModel, apiKey);
@@ -63,7 +63,13 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
   }
 
   const pagesWithFailedEmbeddings = embeddingFailures.length;
-  const pagesWithGeneratedEmbeddings = pagesNeedingEmbeddings.length - pagesWithFailedEmbeddings;
+  const pagesWithGeneratedEmbeddings = pagesAttemptedForEmbedding.length - pagesWithFailedEmbeddings;
+  const outstandingPagesNeedingEmbeddings = apiKey
+    ? pagesWithFailedEmbeddings
+    : pagesNeedingEmbeddings.length;
+  const outstandingEmbeddingChunks = apiKey
+    ? embeddingFailures.reduce((sum, failure) => sum + failure.chunk_count, 0)
+    : embeddingChunksNeeded;
 
   return {
     indexed_pages: pages.length,
@@ -73,6 +79,21 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
     embedding_pages_failed: pagesWithFailedEmbeddings,
     embedding_failures: embeddingFailures,
     used_embedding_model: apiKey ? config.openaiEmbeddingModel : null,
+    index_totals_after_sync: {
+      pages: pages.length,
+      links: pages.reduce((sum, page) => sum + page.links.length, 0),
+    },
+    outstanding_work: {
+      pages_needing_embeddings: outstandingPagesNeedingEmbeddings,
+      embedding_chunks_pending: outstandingEmbeddingChunks,
+      pages_with_embedding_failures: pagesWithFailedEmbeddings,
+      links_pending_indexing: 0,
+    },
+    run_work: {
+      pages_embedded: pagesWithGeneratedEmbeddings,
+      embedding_chunks_created: embeddingChunksGenerated,
+      pages_embedding_failed: pagesWithFailedEmbeddings,
+    },
   };
 }
 
