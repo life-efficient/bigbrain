@@ -2,8 +2,8 @@
 
 ## Search And Query
 
-- Add a real chunk-level index so ranking can work on multiple chunks per page instead of one embedding row per page.
-- Port the compiled-truth-aware dedup pipeline from `gbrain` once chunk-level retrieval exists.
+- Improve chunk-level ranking now that sync can store multiple embedding rows per page.
+- Port the compiled-truth-aware dedup pipeline from `gbrain` once chunk metadata exists.
 - Add cosine re-scoring after RRF so the final ranking is not only list-position fusion.
 - Port `gbrain`'s recency and salience layers once BigBrain has the metadata needed to support them cleanly.
 - Add backlink-aware boosts after the link graph is reliable enough to use as a ranking signal.
@@ -15,7 +15,6 @@
 
 ## Data Model
 
-- Extend the embeddings table to support multiple chunks per page.
 - Store chunk source or section type so future ranking can distinguish compiled truth, timeline, and raw body text.
 - Add effective-date metadata to indexed rows so temporal ranking can be implemented without reparsing whole files at query time.
 

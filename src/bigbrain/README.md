@@ -16,7 +16,7 @@ ranking design.
    phrasings through `expandQueryVariants()`.
 3. Each query variant runs:
    - lexical retrieval from SQLite FTS5 via `lexicalSearch()` in [db.js](./db.js)
-   - semantic retrieval from the page-level embedding table
+   - semantic retrieval from stored embedding chunks
 4. The ranked lists are merged with reciprocal-rank fusion using the same
    general shape as `gbrain` search-lite:
    - multiple ranked lists
@@ -37,12 +37,14 @@ ranking design.
 
 ### What is deliberately not ported yet
 
-`bigbrain` does not currently have the schema needed to cleanly carry over the
-full `gbrain` pipeline. The following are still intentionally absent:
+`bigbrain` now stores multiple embedding chunks per page during sync, but it
+does not yet have the full metadata and ranking machinery needed to cleanly
+carry over the full `gbrain` pipeline. The following are still intentionally
+absent:
 
-- chunk-level retrieval and chunk metadata
 - compiled-truth chunk boosting
 - chunk dedup pipeline
+- chunk source/type metadata
 - backlink boosts
 - recency and salience scoring
 - query cache
@@ -55,7 +57,7 @@ Those belong in later expansion work once the local data model supports them.
 
 The goal here is not to drag `gbrain` wholesale into `bigbrain`. The goal is to
 reuse the parts of the ranking/query system that are already proven, while
-keeping the implementation compatible with BigBrain's simpler page-level index.
+keeping the implementation compatible with BigBrain's simpler local index.
 
 That means:
 

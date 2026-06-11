@@ -141,6 +141,12 @@ bigbrain migrate /path/to/existing/brain
 
 Pass `--brain-home /path/to/brain-home` when targeting a non-default brain.
 
+`bigbrain sync --json` reports indexed page and link counts plus embedding
+status. `embeddings_generated` is the number of pages successfully embedded;
+`embedding_chunks_generated` is the number of stored embedding chunks;
+`embedding_pages_failed` and `embedding_failures` identify pages whose
+embedding refresh failed while page/link indexing still completed.
+
 Task refresh still works:
 
 ```bash

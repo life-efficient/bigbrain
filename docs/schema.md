@@ -97,3 +97,19 @@ output may become a future input.
 - Repo documentation pages such as directory `README.md` files are not part of
   the canonical brain graph and should be excluded from indexing and strict
   page validation.
+
+## Runtime Embeddings
+
+`bigbrain sync` stores embeddings outside the markdown tree in SQLite. Each
+changed page can produce multiple `embeddings` rows:
+
+- `page_slug` identifies the canonical page.
+- `chunk_id` is stable within the page, currently shaped like
+  `<page-slug>:compiled_truth:<index>`.
+- `chunk_text` contains the bounded title-plus-compiled-truth chunk sent to the
+  embedding provider.
+- `embedding_model`, `embedding_json`, and `content_hash` record the provider
+  output and the page version it belongs to.
+
+This runtime table is allowed to be chunked even though the authored markdown
+page remains a single canonical page.

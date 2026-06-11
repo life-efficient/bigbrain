@@ -208,11 +208,11 @@ The database should stay narrow and derived from the markdown layer.
   - `source_note`
 
 - `embeddings`
-  - `page_id`
+  - `page_slug`
   - `chunk_id`
   - `chunk_text`
   - `embedding_model`
-  - `embedding`
+  - `embedding_json`
   - `content_hash`
 
 - `activity_log`
@@ -330,6 +330,8 @@ Automations should be narrow, explicit, and idempotent.
   - update page rows
   - update links
   - refresh embeddings for changed content
+  - split oversized page content into compiled-truth chunks before embedding
+  - report per-page embedding failures without aborting page and link indexing
 
 - `fix-citations`
   - find malformed or missing source attribution patterns
@@ -417,6 +419,14 @@ Practical default:
 
 - `text-embedding-3-small` for embeddings first
 - a chat model for `query`
+
+`bigbrain sync` embeds page title plus compiled truth. Changed pages are split
+into bounded word chunks before calling the embeddings API, then stored as
+multiple rows in `embeddings` with stable `chunk_id` values. The sync report
+keeps `embeddings_generated` as the count of pages successfully embedded and
+adds `embedding_chunks_generated`, `embedding_pages_failed`, and
+`embedding_failures` so automation can distinguish index freshness from
+provider or input-size failures.
 
 ## Dashboard
 
