@@ -69,7 +69,7 @@ update the same meeting page that later receives ingested meeting outcomes.
 Implemented foundation:
 
 - external brain-home initialization
-- external config and SQLite index under `~/.bigbrain-state/brains/<brain-id>/`
+- external config and SQLite index under `<brain-home>/.bigbrain-state/brains/<brain-id>/`
 - page CRUD against the brain home
 - lexical search plus optional OpenAI-backed semantic/query flows
 - link extraction and backlinks
@@ -93,9 +93,9 @@ Running `bigbrain init /path/to/home` creates:
 
 - the canonical top-level page directories
 - `ops/tasks.md`
-- `~/.bigbrain-state/brains/<brain-id>/config.json`
-- `~/.bigbrain-state/brains/<brain-id>/state.json`
-- `~/.bigbrain-state/brains/<brain-id>/bigbrain.sqlite`
+- `<brain-home>/.bigbrain-state/brains/<brain-id>/config.json`
+- `<brain-home>/.bigbrain-state/brains/<brain-id>/state.json`
+- `<brain-home>/.bigbrain-state/brains/<brain-id>/bigbrain.sqlite`
 
 An example config shape is in [`bigbrain.config.example.json`](./bigbrain.config.example.json).
 
@@ -116,16 +116,16 @@ home in this order:
 2. `BIGBRAIN_HOME=/path/to/brain-home`
 3. the saved default pointer at `~/.config/bigbrain/default-brain-home`
 
-The runtime config, state, and SQLite index live under
-`~/.bigbrain-state/brains/<brain-id>/` by default. Agents or automations that
+The runtime config, state, and SQLite index live under the selected brain home
+at `.bigbrain-state/brains/<brain-id>/` by default. Agents or automations that
 run `bigbrain sync` must be able to write to that state directory because sync
-updates the SQLite index and state file.
+updates the SQLite index and state file. `BIGBRAIN_STATE_ROOT` remains available
+as an explicit override for tests or unusual deployments.
 
-For repo-backed automation runs, prefer a state root inside the target brain
-home, for example `/path/to/brain/.bigbrain-state/brains`. Automation run
-markers should live beside it under `.bigbrain-state/automation-runs/` with
-names such as `nightly-maintenance/` or `hourly-task-refresh/`. Do not write
-runtime state into the BigBrain source repo.
+Automation run markers should live beside the runtime state under
+`.bigbrain-state/automation-runs/` with names such as `nightly-maintenance/` or
+`hourly-task-refresh/`. Do not write runtime state into the BigBrain source
+repo.
 
 For agent setup, see [`INSTALL_FOR_AGENTS.md`](./INSTALL_FOR_AGENTS.md).
 

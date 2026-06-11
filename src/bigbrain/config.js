@@ -22,14 +22,15 @@ export function legacyMetaDirForBrainHome(brainHome) {
   return path.join(path.resolve(brainHome), LEGACY_META_DIRNAME);
 }
 
-export function stateRootPath(env = process.env) {
+export function stateRootPath(env = process.env, brainHome = null) {
   if (env.BIGBRAIN_STATE_ROOT) return path.resolve(env.BIGBRAIN_STATE_ROOT);
+  if (brainHome) return path.join(path.resolve(brainHome), STATE_ROOT_DIRNAME, 'brains');
   if (env.HOME) return path.join(path.resolve(env.HOME), STATE_ROOT_DIRNAME, 'brains');
   return DEFAULT_STATE_ROOT;
 }
 
 export function metaDirForBrainHome(brainHome, env = process.env) {
-  return path.join(stateRootPath(env), runtimeDirNameForBrainHome(brainHome));
+  return path.join(stateRootPath(env, brainHome), runtimeDirNameForBrainHome(brainHome));
 }
 
 export function configPathForBrainHome(brainHome, env = process.env) {

@@ -51,12 +51,19 @@ bigbrain sync --json
 Sync writes to the runtime state directory:
 
 ```text
-~/.bigbrain-state/brains/<brain-id>/
+<brain-home>/.bigbrain-state/brains/<brain-id>/
 ```
 
 The automation environment must be able to write there. Read-only access is not
 sufficient because sync updates `bigbrain.sqlite`, `state.json`, and SQLite
 sidecar files.
+
+Use `BIGBRAIN_STATE_ROOT` only when an automation intentionally needs a separate
+state root. For the selected brain, the normal root is:
+
+```text
+/path/to/brain-home/.bigbrain-state/brains
+```
 
 ## Quick health check
 
