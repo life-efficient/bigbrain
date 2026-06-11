@@ -22,7 +22,7 @@ status = "ACTIVE"
 rrule = "FREQ=MINUTELY;INTERVAL=45"
 cwds = ["<brain-home>"]
 `;
-    const active = template.replace('cwds = ["<brain-home>"]', 'cwds = ["/workspace/example/projects/brain"]');
+    const active = template.replace('cwds = ["<brain-home>"]', 'cwds = ["/workspace/brain-home"]');
 
     await writeAutomationToml(templateDir, 'bigbrain-frequent-sync', template);
     await writeAutomationToml(activeDir, 'bigbrain-frequent-sync', active);
