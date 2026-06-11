@@ -1,5 +1,5 @@
 ---
-name: task-refresh
+name: "BigBrain: Task Refresh"
 version: 1.0.0
 description: |
   Review recent changes in a BigBrain and update `ops/tasks.md` so the task list

@@ -12,6 +12,7 @@ import { validatePageShape } from './schema.js';
 const execFileAsync = promisify(execFile);
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const AUTOMATION_TEMPLATE_DIR = path.join(REPO_ROOT, 'templates', 'automations');
+const SKILL_TEMPLATE_DIR = path.join(REPO_ROOT, 'skills');
 
 export async function runHealthCheck(config, {
   env = process.env,
@@ -19,6 +20,8 @@ export async function runHealthCheck(config, {
   cliCwd = os.tmpdir(),
   automationTemplateDir = AUTOMATION_TEMPLATE_DIR,
   automationActiveDir = defaultAutomationActiveDir(env),
+  skillTemplateDir = SKILL_TEMPLATE_DIR,
+  skillActiveDir = null,
 } = {}) {
   const db = await openDatabase(config);
   clearHealthFindings(db);
@@ -101,6 +104,20 @@ export async function runHealthCheck(config, {
     });
   }
 
+  const skillTemplateStatus = await detectSkillTemplateStatus({
+    templateDir: skillTemplateDir,
+    activeDir: skillActiveDir ?? await resolveActiveSkillsDir(env, skillTemplateDir),
+    env,
+  });
+  for (const check of skillTemplateStatus.checks) {
+    if (check.status === 'match') continue;
+    insertHealthFinding(db, {
+      findingType: 'skill_template_mismatch',
+      severity: check.status === 'missing_active' || check.status === 'missing_active_dir' ? 'high' : 'medium',
+      details: check,
+    });
+  }
+
   const findings = listHealthFindings(db).map((row) => ({
     finding_type: row.finding_type,
     severity: row.severity,
@@ -117,6 +134,7 @@ export async function runHealthCheck(config, {
     git_status: gitStatus,
     cli_status: cliStatus,
     automation_template_status: automationTemplateStatus,
+    skill_template_status: skillTemplateStatus,
   };
 }
 
@@ -160,6 +178,149 @@ async function detectCliAvailability({ env, command, cwd }) {
 function defaultAutomationActiveDir(env) {
   const codexHome = env.CODEX_HOME || (env.HOME ? path.join(env.HOME, '.codex') : null);
   return codexHome ? path.join(codexHome, 'automations') : null;
+}
+
+function candidateActiveSkillsDirs(env) {
+  const candidates = [
+    env.BIGBRAIN_SKILLS_DIR,
+    env.AGENTS_SKILLS_DIR,
+    env.CODEX_SKILLS_DIR,
+  ];
+  if (env.HOME) {
+    candidates.push(
+      path.join(env.HOME, '.agents', 'skills'),
+      path.join(env.HOME, '.codex', 'skills'),
+    );
+  }
+  return [...new Set(candidates.filter(Boolean).map((candidate) => path.resolve(candidate)))];
+}
+
+async function resolveActiveSkillsDir(env, skillTemplateDir) {
+  const candidates = candidateActiveSkillsDirs(env);
+  const scored = [];
+  const repoSkills = await listSkillTemplateDirs(skillTemplateDir);
+  for (const candidate of candidates) {
+    const stats = await fs.stat(candidate).catch(() => null);
+    if (!stats?.isDirectory()) continue;
+    let score = 1;
+    for (const skill of repoSkills) {
+      if (await pathExists(path.join(candidate, skill.id))) score += 4;
+    }
+    if (await pathExists(path.join(candidate, 'RESOLVER.md'))) score += 2;
+    scored.push({ path: candidate, score });
+  }
+  scored.sort((left, right) => right.score - left.score || left.path.localeCompare(right.path));
+  return scored[0]?.path ?? null;
+}
+
+async function detectSkillTemplateStatus({ templateDir, activeDir }) {
+  const skills = await listSkillTemplateDirs(templateDir);
+  const checks = [];
+
+  for (const skill of skills) {
+    const activePath = activeDir ? path.join(activeDir, skill.id) : null;
+    if (!activePath) {
+      checks.push({
+        id: skill.id,
+        status: 'missing_active_dir',
+        template_path: skill.path,
+        active_path: null,
+      });
+      continue;
+    }
+
+    const activeStats = await fs.stat(activePath).catch((error) => {
+      if (error?.code === 'ENOENT') return null;
+      throw error;
+    });
+    if (!activeStats?.isDirectory()) {
+      checks.push({
+        id: skill.id,
+        status: 'missing_active',
+        template_path: skill.path,
+        active_path: activePath,
+      });
+      continue;
+    }
+
+    const templateFiles = await listRelativeFiles(skill.path);
+    const activeFiles = await listRelativeFiles(activePath);
+    const expected = new Set(templateFiles);
+    const actual = new Set(activeFiles);
+    const missing = templateFiles.filter((file) => !actual.has(file));
+    const extra = activeFiles.filter((file) => !expected.has(file));
+    const changed = [];
+    for (const relativeFile of templateFiles) {
+      if (!actual.has(relativeFile)) continue;
+      const [templateRaw, activeRaw] = await Promise.all([
+        fs.readFile(path.join(skill.path, relativeFile)),
+        fs.readFile(path.join(activePath, relativeFile)),
+      ]);
+      if (!templateRaw.equals(activeRaw)) changed.push(relativeFile);
+    }
+
+    const link = await fs.lstat(activePath)
+      .then((stats) => (stats.isSymbolicLink() ? 'symlink' : 'directory'))
+      .catch(() => 'unknown');
+    checks.push({
+      id: skill.id,
+      status: missing.length || extra.length || changed.length ? 'mismatch' : 'match',
+      template_path: skill.path,
+      active_path: activePath,
+      install_type: link,
+      missing,
+      extra,
+      changed,
+    });
+  }
+
+  return {
+    template_dir: templateDir,
+    active_dir: activeDir,
+    checked_count: checks.length,
+    mismatch_count: checks.filter((check) => check.status !== 'match').length,
+    checks,
+  };
+}
+
+async function listSkillTemplateDirs(templateDir) {
+  let entries;
+  try {
+    entries = await fs.readdir(templateDir, { withFileTypes: true });
+  } catch (error) {
+    if (error?.code === 'ENOENT') return [];
+    throw error;
+  }
+  const skills = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const skillPath = path.join(templateDir, entry.name);
+    if (await pathExists(path.join(skillPath, 'SKILL.md'))) {
+      skills.push({ id: entry.name, path: skillPath });
+    }
+  }
+  return skills;
+}
+
+async function listRelativeFiles(rootDir) {
+  const files = [];
+  async function visit(currentDir) {
+    const entries = await fs.readdir(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        await visit(fullPath);
+      } else if (entry.isFile()) {
+        files.push(path.relative(rootDir, fullPath));
+      }
+    }
+  }
+  await visit(rootDir);
+  return files.sort();
+}
+
+async function pathExists(candidatePath) {
+  return fs.access(candidatePath).then(() => true).catch(() => false);
 }
 
 async function detectAutomationTemplateStatus({ templateDir, activeDir }) {

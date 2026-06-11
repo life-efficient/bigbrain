@@ -1,5 +1,5 @@
 ---
-name: bigbrain-maintain
+name: "BigBrain: Maintain"
 version: 1.0.0
 description: |
   Check a BigBrain for problems, fix the obvious ones that BigBrain already

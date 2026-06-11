@@ -19,6 +19,35 @@ command -v bigbrain
 bigbrain --help
 ```
 
+## Install skills
+
+BigBrain skills are provided from this repo under `skills/`. Install those
+directories into the user's real active skills directory exactly as written:
+
+- `skills/bigbrain-maintain/`
+- `skills/task-refresh/`
+
+First determine the active skills directory for the current harness. Common
+locations are:
+
+- `~/.agents/skills`
+- `~/.codex/skills`
+
+Prefer the directory that is already in active use. If both exist, use the one
+that already contains the user's custom skills. Prefer symlinks so edits in this
+repo remain the source of truth:
+
+```bash
+repo_root="$(pwd)"
+mkdir -p ~/.agents/skills
+ln -sfn "$repo_root/skills/bigbrain-maintain" ~/.agents/skills/bigbrain-maintain
+ln -sfn "$repo_root/skills/task-refresh" ~/.agents/skills/task-refresh
+```
+
+If the harness does not support symlinks, copy the directories exactly. Do not
+rewrite the skill contents. Skill names in `SKILL.md` frontmatter use quoted
+`BigBrain: ...` values so the colon remains valid YAML.
+
 ## Brain selection
 
 BigBrain resolves the brain home without relying on the current directory:
