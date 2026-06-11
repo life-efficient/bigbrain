@@ -4,7 +4,7 @@
 repo; each actual brain instance lives in an external brain home selected at
 runtime.
 
-The design goal is to keep the parts that materially help Alex operate:
+The design goal is to keep the parts that materially help an individual operate:
 
 - MECE markdown file structure
 - linked entity store
@@ -471,7 +471,7 @@ Migration is a first-class feature, not an afterthought.
   - unresolved references
   - skipped files
 
-The first migration target should be the current `/path/to/brain-home`.
+A migration target can be any selected markdown brain home, such as `/path/to/brain-home`.
 
 ## Embeddings and Query Provider
 

@@ -1,13 +1,14 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useRef } from 'react';
 import { Network } from 'vis-network/standalone';
 
 import { TYPE_COLORS } from './colors.js';
 
-export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ graph }, ref) {
-  const shellRef = useRef(null);
+export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ graph, onNodeOpen }, ref) {
   const canvasRef = useRef(null);
   const networkRef = useRef(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 520 });
+  const handleNodeOpen = useEffectEvent((nodeId) => {
+    onNodeOpen?.(nodeId);
+  });
 
   useImperativeHandle(ref, () => ({
     resetView() {
@@ -19,21 +20,6 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
       });
     },
   }), []);
-
-  useEffect(() => {
-    if (!shellRef.current) return undefined;
-    const update = () => {
-      const rect = shellRef.current.getBoundingClientRect();
-      setDimensions({
-        width: Math.max(320, Math.round(rect.width)),
-        height: Math.max(320, Math.round(rect.height)),
-      });
-    };
-    update();
-    const observer = new ResizeObserver(update);
-    observer.observe(shellRef.current);
-    return () => observer.disconnect();
-  }, []);
 
   useEffect(() => {
     if (!canvasRef.current) return undefined;
@@ -135,23 +121,24 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
       });
     });
 
+    network.on('click', (event) => {
+      const nodeId = event.nodes?.[0];
+      if (!nodeId) return;
+      handleNodeOpen(nodeId);
+    });
+
     networkRef.current = network;
     return () => {
       network.destroy();
       networkRef.current = null;
     };
-  }, [graph]);
-
-  useEffect(() => {
-    networkRef.current?.redraw();
-    networkRef.current?.fit({ animation: false });
-  }, [dimensions]);
+  }, [graph, handleNodeOpen]);
 
   return (
-    <div ref={shellRef} className="graph-canvas-shell force-shell">
+    <div className="graph-canvas-shell force-shell">
       <div
         ref={canvasRef}
-        style={{ width: `${dimensions.width}px`, height: `${dimensions.height}px` }}
+        style={{ width: '100%', height: '100%' }}
       />
     </div>
   );

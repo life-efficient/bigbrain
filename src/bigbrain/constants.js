@@ -19,6 +19,7 @@ export const CANONICAL_SCHEMA_DIRS = [
   'meetings',
   'projects',
   'ideas',
+  'personal-protocol',
   'concepts',
   'writing',
   'sources',

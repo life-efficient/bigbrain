@@ -11,6 +11,7 @@ const RELEVANT_CATEGORIES = new Set([
   'companies',
   'people',
   'deals',
+  'personal-protocol',
   'concepts',
   'inbox',
 ]);

@@ -104,7 +104,7 @@ async function handleSearch(args, global) {
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
   const result = await searchBrain({ db, config, query });
-  output(global, result, renderSearchText(result.fused));
+  output(global, result, renderWarningText(result.warnings, renderSearchText(result.fused)));
 }
 
 async function handleQuery(args, global) {
@@ -113,7 +113,10 @@ async function handleQuery(args, global) {
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
   const result = await queryBrain({ db, config, question });
-  output(global, result, result.answer ? `${result.answer}\n\nSources:\n${renderSearchText(result.search.fused)}` : `No OpenAI answer generated.\n\nRetrieved:\n${renderSearchText(result.search.fused)}`);
+  const text = result.answer
+    ? `${result.answer}\n\nSources:\n${renderSearchText(result.search.fused)}`
+    : `No OpenAI answer generated.\n\nRetrieved:\n${renderSearchText(result.search.fused)}`;
+  output(global, result, renderWarningText(result.warnings, text));
 }
 
 async function handleLinks(args, global) {
@@ -267,6 +270,12 @@ function renderRecentText(report) {
 function renderSearchText(rows) {
   if (!rows.length) return 'No results.';
   return rows.map((row) => `${row.slug}\n  ${row.snippet || row.summary || ''}`).join('\n');
+}
+
+function renderWarningText(warnings, text) {
+  if (!Array.isArray(warnings) || warnings.length === 0) return text;
+  const warningLines = warnings.map((warning) => `Warning: ${warning}`).join('\n');
+  return `${warningLines}\n\n${text}`;
 }
 
 function renderHealthText(report) {

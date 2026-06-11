@@ -8,7 +8,7 @@ import { configPathForBrainHome, initializeBrainHome, loadConfig, metaDirForBrai
 import { openDatabase } from '../../src/bigbrain/db.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
-import { formatAnswerContext, fuseResults, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
+import { boostResultsForQuery, classifyQueryIntent, formatAnswerContext, fuseResults, queryBrain, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
 import { renderSchemaMarkdown, recommendFolderForInput } from '../../src/bigbrain/schema.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -25,10 +25,40 @@ test('init creates an external brain home with runtime state under the home-leve
     await fs.stat(path.join(metaDirForBrainHome(brainHome, env), 'config.json'));
     await fs.stat(path.join(metaDirForBrainHome(brainHome, env), 'state.json'));
     await fs.stat(path.join(brainHome, 'ops/tasks.md'));
+    await fs.stat(path.join(brainHome, 'personal-protocol'));
     await assert.rejects(fs.stat(path.join(brainHome, '.bigbrain', 'config.json')));
   } finally {
     await fs.rm(rootDir, { recursive: true, force: true });
   }
+});
+
+test('init defaults runtime state under the selected brain home', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-init-local-state-'));
+  try {
+    const brainHome = path.join(rootDir, 'brain-home');
+    const env = {
+      ...process.env,
+      HOME: path.join(rootDir, 'home'),
+      BIGBRAIN_POINTER_PATH: path.join(rootDir, 'pointer'),
+      BIGBRAIN_STATE_ROOT: undefined,
+    };
+
+    const init = await initializeBrainHome(brainHome, { env });
+    assert.equal(init.configPath, path.join(brainHome, '.bigbrain-state', 'config.json'));
+    await fs.stat(path.join(brainHome, '.bigbrain-state'));
+    await assert.rejects(fs.stat(path.join(env.HOME, '.bigbrain-state', 'brains')));
+    const storedConfig = JSON.parse(await fs.readFile(init.configPath, 'utf8'));
+    assert.equal('tasks_file' in storedConfig, false);
+    assert.equal('sqlite_path' in storedConfig, false);
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('folder recommendation routes personal operating preferences to personal-protocol', () => {
+  const result = recommendFolderForInput('Calendar organization preference for travel days');
+  assert.equal(result.folder, 'personal-protocol');
+  assert.equal(result.relative_path.startsWith('personal-protocol/'), true);
 });
 
 test('sync indexes markdown pages and search finds lexical matches', async () => {
@@ -77,20 +107,83 @@ Current ExampleCo sale timeline and next step.
   }
 });
 
+test('search falls back to lexical results and warns when OpenAI-backed retrieval fails', async () => {
+  const fixture = await createFixture('bigbrain-search-fallback-');
+  const originalFetch = globalThis.fetch;
+  try {
+    await writeMarkdown(fixture.brainHome, 'projects/seed-stage-advisory.md', `---
+title: Seed-Stage Advisory
+---
+# Seed-Stage Advisory
+
+Seed-stage companies I have advised include software, education, and workflow startups at the early operating stage.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({
+      config,
+      apiKey: 'test-key',
+      embedder: async (texts) => texts.map(() => [0.1, 0.2, 0.3]),
+    });
+
+    globalThis.fetch = async () => {
+      throw new Error('fetch failed');
+    };
+
+    const db = await openDatabase(config);
+    const result = await searchBrain({ db, config, query: 'What seed-stage companies have I advised?', apiKey: 'test-key' });
+    assert.equal(result.fused[0].slug, 'projects/seed-stage-advisory');
+    assert.equal(result.warnings.length >= 1, true);
+    assert.match(result.warnings.join('\n'), /falling back to lexical-only results/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('query returns retrieved context and warns when OpenAI answer generation fails', async () => {
+  const fixture = await createFixture('bigbrain-query-fallback-');
+  const originalFetch = globalThis.fetch;
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alex-rivera.md', `---
+title: Alex Rivera
+---
+# Alex Rivera
+
+Alex Rivera is the founder of ExampleCo and a useful customer-discovery contact.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    globalThis.fetch = async () => {
+      throw new Error('fetch failed');
+    };
+
+    const db = await openDatabase(config);
+    const result = await queryBrain({ db, config, question: 'Who is Alex Rivera?', apiKey: 'test-key' });
+    assert.equal(result.answer, null);
+    assert.equal(result.search.fused[0].slug, 'people/alex-rivera');
+    assert.equal(result.warnings.length >= 1, true);
+    assert.match(result.warnings.join('\n'), /returning retrieved context only/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('fused search favors the strongest semantic page across multiple ranked lists', () => {
   const fused = fuseResults(
     [
-      { slug: 'deals/exampleco-ahmed-engagement-proposal', title: 'Jordan Lee Engagement Proposal', type: 'deals', summary: '', snippet: 'next step', lexical_score: -1 },
+      { slug: 'deals/exampleco-jordan-engagement-proposal', title: 'Jordan Lee Engagement Proposal', type: 'deals', summary: '', snippet: 'next step', lexical_score: -1 },
       { slug: 'people/jordan-lee', title: 'Jordan Lee', type: 'people', summary: '', snippet: 'sale', lexical_score: -2 },
     ],
     [
       { slug: 'deals/exampleco-process', title: 'ExampleCo Process', type: 'deals', summary: '', snippet: 'sale timeline', semantic_score: 0.9 },
-      { slug: 'deals/exampleco-ahmed-engagement-proposal', title: 'Jordan Lee Engagement Proposal', type: 'deals', summary: '', snippet: 'next step', semantic_score: 0.7 },
+      { slug: 'deals/exampleco-jordan-engagement-proposal', title: 'Jordan Lee Engagement Proposal', type: 'deals', summary: '', snippet: 'next step', semantic_score: 0.7 },
     ],
     3,
   );
 
-  assert.equal(fused[0].slug, 'deals/exampleco-ahmed-engagement-proposal');
+  assert.equal(fused[0].slug, 'deals/exampleco-jordan-engagement-proposal');
   assert.equal(fused.some((row) => row.slug === 'deals/exampleco-process'), true);
 });
 
@@ -120,6 +213,41 @@ test('auto expansion stays off for direct entity lookups and on for broader ques
   assert.equal(shouldAutoExpandQuery('Who is Jordan Lee?'), false);
   assert.equal(shouldAutoExpandQuery("What's next on my TODO list?"), true);
   assert.equal(shouldAutoExpandQuery('what did i mention recently about example ai?'), true);
+});
+
+test('direct multi-word lookups classify as entity intent', () => {
+  assert.equal(classifyQueryIntent('Alex Rivera'), 'entity');
+  assert.equal(classifyQueryIntent('Wellness App'), 'entity');
+  assert.equal(classifyQueryIntent('current buyer status'), 'general');
+});
+
+test('query boosts keep exact title matches ahead of semantic neighbors', () => {
+  const results = [
+    {
+      slug: 'people/taylor-brooks',
+      title: 'Taylor Brooks',
+      type: 'people',
+      summary: '',
+      snippet: '',
+      score: 1,
+      lexicalHits: 0,
+      semanticHits: 1,
+    },
+    {
+      slug: 'people/alex-rivera',
+      title: 'Alex Rivera',
+      type: 'people',
+      summary: '',
+      snippet: '',
+      score: 0.92,
+      lexicalHits: 1,
+      semanticHits: 1,
+    },
+  ];
+
+  boostResultsForQuery(results, 'Alex Rivera');
+  results.sort((left, right) => right.score - left.score || left.slug.localeCompare(right.slug));
+  assert.equal(results[0].slug, 'people/alex-rivera');
 });
 
 test('health reports page-shape issues', async () => {
@@ -354,7 +482,7 @@ test('fusion prefers lexical hits over semantic-only ties for direct lookups', (
     ],
     [
       {
-        slug: 'companies/bugshan-investment',
+        slug: 'companies/sample-investment',
         snippet: 'semantic-only near miss',
         semantic_score: 0.9,
       },

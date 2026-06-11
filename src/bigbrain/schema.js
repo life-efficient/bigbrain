@@ -9,6 +9,7 @@ const FOLDER_RULES = [
   ['meetings', 'Specific meetings, calls, or transcripts.'],
   ['projects', 'Actively built execution tracks with a repo, spec, or team.'],
   ['ideas', 'Unbuilt possibilities that are not yet active projects.'],
+  ['personal-protocol', 'Personal operating instructions, preferences, and repeatable how-to pages.'],
   ['concepts', 'Reusable mental models, frameworks, and general strategy.'],
   ['writing', 'Prose artifacts, drafts, and essay-style outputs.'],
   ['sources', 'Raw imports, archived snapshots, and source material.'],
@@ -111,6 +112,7 @@ export function recommendFolderForInput(input) {
   if (/meeting|call|transcript|sync|prep/.test(lower)) return recommendation('meetings', text, 'the primary subject is a specific meeting or call');
   if (/deal|acquisition|investor|fundraise|teaser|valuation/.test(lower)) return recommendation('deals', text, 'the primary subject is a transaction or financing item');
   if (/draft|essay|writeup|proposal|memo|article/.test(lower)) return recommendation('writing', text, 'the primary subject is a prose artifact');
+  if (/protocol|preference|operating instruction|how to|how-to|playbook for me|calendar organization|personal rule/.test(lower)) return recommendation('personal-protocol', text, 'the item reads like a personal operating preference or repeatable protocol');
   if (/framework|mental model|thesis|playbook|strategy|concept/.test(lower)) return recommendation('concepts', text, 'the primary subject is a reusable concept or framework');
   if (/idea|possibility|someday|explore/.test(lower)) return recommendation('ideas', text, 'the item sounds like an unbuilt possibility');
   if (/project|build|launch|roadmap|implementation/.test(lower)) return recommendation('projects', text, 'the item sounds like an active execution track');

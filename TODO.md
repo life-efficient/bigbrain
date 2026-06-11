@@ -22,7 +22,7 @@
 - Add query-result telemetry so ranking changes can be judged against real queries instead of only spot checks.
 - Add a small search cache for repeated semantic queries to reduce repeated embedding work.
 - Improve answer grounding so `query` answers cite the highest-ranked result more explicitly and avoid weak generic summaries.
-- Add regression fixtures for representative real queries like ExampleCo, Wellness, Example Contact, and direct entity lookups.
+- Add regression fixtures for representative query shapes like direct entity lookups, project overviews, and recent-mention searches.
 - Decide whether BigBrain should keep LLM query expansion on by default or move toward an intent-first default.
 
 ## Data Model

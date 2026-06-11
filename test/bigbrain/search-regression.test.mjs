@@ -38,6 +38,35 @@ This playbook packages outreach ideas for Jordan Lee and the ExampleCo sale proc
   }
 });
 
+test('regression: bare exact entity query keeps the entity page first', async () => {
+  const fixture = await createFixture('bigbrain-search-regression-bare-entity-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alex-rivera.md', `---
+title: Alex Rivera
+---
+# Alex Rivera
+
+Alex Rivera is the founder of ExampleCo and a useful customer-discovery contact.
+`);
+    await writeMarkdown(fixture.brainHome, 'projects/ai-advisory.md', `---
+title: AI Advisory
+---
+# AI Advisory
+
+Alex Rivera mentioned a partner referral as a route to customers for this work.
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const result = await searchBrain({ db, config, query: 'Alex Rivera', apiKey: null });
+    assert.equal(result.fused[0].slug, 'people/alex-rivera');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('regression: process query with punctuation still finds the process page', async () => {
   const fixture = await createFixture('bigbrain-search-regression-process-');
   try {
@@ -134,7 +163,7 @@ Finished tasks from last week.
 });
 
 test('regression: recent-mention query finds the example ai context page', async () => {
-  const fixture = await createFixture('bigbrain-search-regression-tomoro-');
+  const fixture = await createFixture('bigbrain-search-regression-example-ai-');
   try {
     await writeMarkdown(fixture.brainHome, 'companies/example-ai.md', `---
 title: Example AI

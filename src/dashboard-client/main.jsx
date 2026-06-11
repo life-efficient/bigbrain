@@ -119,6 +119,21 @@ function DashboardApp() {
     };
   }, []);
 
+  const handleGraphNodeOpen = useEffectEvent(async (slug) => {
+    setPreview({ status: 'loading', slug });
+    try {
+      const params = new URLSearchParams({ slug });
+      const data = await fetchJson(`/api/page?${params.toString()}`);
+      setPreview({ status: 'ready', ...data });
+    } catch (error) {
+      setPreview({
+        status: 'error',
+        slug,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  });
+
   if (state.status === 'loading') {
     return (
       <main>
@@ -151,20 +166,6 @@ function DashboardApp() {
       ? health.top_findings
       : [];
   const healthSeverity = deriveHealthSeverity(healthFindings);
-  const handleGraphNodeOpen = useEffectEvent(async (slug) => {
-    setPreview({ status: 'loading', slug });
-    try {
-      const params = new URLSearchParams({ slug });
-      const data = await fetchJson(`/api/page?${params.toString()}`);
-      setPreview({ status: 'ready', ...data });
-    } catch (error) {
-      setPreview({
-        status: 'error',
-        slug,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    }
-  });
 
   const views = [
     { id: 'inbox', label: 'Inbox', count: inboxItems.length, shortcut: 'I' },

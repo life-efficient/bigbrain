@@ -2,7 +2,7 @@ import React, { forwardRef, useImperativeHandle, useMemo, useRef, useState } fro
 
 import { TYPE_COLORS } from './colors.js';
 
-export const CustomConstellationVisualizer = forwardRef(function CustomConstellationVisualizer({ graph }, ref) {
+export const CustomConstellationVisualizer = forwardRef(function CustomConstellationVisualizer({ graph, onNodeOpen }, ref) {
   const [viewport, setViewport] = useState({ scale: 1, x: 0, y: 0 });
   const dragRef = useRef({
     dragging: false,
@@ -121,7 +121,14 @@ export const CustomConstellationVisualizer = forwardRef(function CustomConstella
           {laidOut.nodes.map((node) => {
             const radius = Math.max(5, Math.min(16, 4 + Math.sqrt(node.degree || 1)));
             return (
-              <g key={node.slug}>
+              <g
+                key={node.slug}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onNodeOpen?.(node.slug);
+                }}
+                style={{ cursor: 'pointer' }}
+              >
                 <circle
                   cx={node.x}
                   cy={node.y}

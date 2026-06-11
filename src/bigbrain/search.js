@@ -4,12 +4,18 @@ import { answerQuestion, embedTexts, expandQueryVariants } from './openai.js';
 const RRF_K = 60;
 
 export async function searchBrain({ db, config, query, limit = 10, apiKey = process.env.OPENAI_API_KEY }) {
-  const queries = await resolveQueries({ query, config, apiKey });
+  const warnings = [];
+  const queries = await resolveQueries({ query, config, apiKey, warnings });
   const innerLimit = Math.min(limit * 3, 30);
   const lexicalLists = queries
     .map((candidate) => lexicalSearch(db, safeFtsQuery(candidate), innerLimit))
     .filter((rows) => rows.length > 0);
-  const semanticLists = await semanticSearchLists({ db, config, queries, limit: innerLimit, apiKey });
+  let semanticLists = [];
+  try {
+    semanticLists = await semanticSearchLists({ db, config, queries, limit: innerLimit, apiKey });
+  } catch (error) {
+    warnings.push(formatWarning('semantic search unavailable; falling back to lexical-only results', error));
+  }
   const intentWeights = weightsForIntent(classifyQueryIntent(query));
   const fused = fuseRankedLists(
     [
@@ -18,13 +24,14 @@ export async function searchBrain({ db, config, query, limit = 10, apiKey = proc
     ],
     limit,
   );
-  applyExactMatchBoost(fused, query, intentWeights.exactMatchBoost);
+  boostResultsForQuery(fused, query, intentWeights);
   fused.sort((left, right) => right.score - left.score || left.slug.localeCompare(right.slug));
   return {
     queries,
     lexical: lexicalLists[0] ?? [],
     semantic: semanticLists[0] ?? [],
     fused: fused.slice(0, limit),
+    warnings,
   };
 }
 
@@ -32,8 +39,14 @@ export async function queryBrain({ db, config, question, limit = 6, apiKey = pro
   const search = await searchBrain({ db, config, query: question, limit, apiKey });
   const context = formatAnswerContext(search.fused);
   const preferredSources = search.fused.slice(0, 3).map((result) => result.slug);
-  const answer = await answerQuestion({ model: config.openaiQueryModel, apiKey, question, context });
-  return { answer: answer || null, preferred_sources: preferredSources, search };
+  const warnings = [...search.warnings];
+  let answer = null;
+  try {
+    answer = await answerQuestion({ model: config.openaiQueryModel, apiKey, question, context });
+  } catch (error) {
+    warnings.push(formatWarning('OpenAI answer generation unavailable; returning retrieved context only', error));
+  }
+  return { answer: answer || null, preferred_sources: preferredSources, search, warnings };
 }
 
 export function formatAnswerContext(results) {
@@ -58,13 +71,31 @@ export function formatAnswerContext(results) {
   ].join('\n');
 }
 
-async function resolveQueries({ query, config, apiKey }) {
+async function resolveQueries({ query, config, apiKey, warnings }) {
   if (!shouldAutoExpandQuery(query)) return [query];
   try {
     return await expandQueryVariants({ query, model: config.openaiQueryModel, apiKey });
-  } catch {
+  } catch (error) {
+    warnings?.push(formatWarning('query expansion unavailable; using the original query', error));
     return [query];
   }
+}
+
+function formatWarning(message, error) {
+  if (!(error instanceof Error)) return message;
+  const parts = [];
+  if (error.message) parts.push(error.message);
+  const causeMessage = extractCauseMessage(error.cause);
+  if (causeMessage && causeMessage !== error.message) parts.push(`cause: ${causeMessage}`);
+  const suffix = parts.length ? ` (${parts.join('; ')})` : '';
+  return `${message}${suffix}`;
+}
+
+function extractCauseMessage(cause) {
+  if (!cause) return '';
+  if (cause instanceof Error && cause.message) return cause.message;
+  if (typeof cause === 'object' && typeof cause.message === 'string' && cause.message) return cause.message;
+  return '';
 }
 
 export function shouldAutoExpandQuery(query) {
@@ -118,6 +149,13 @@ export function fuseResults(lexical, semantic, limit) {
     ],
     limit,
   );
+}
+
+export function boostResultsForQuery(results, query, intentWeights = weightsForIntent(classifyQueryIntent(query))) {
+  applyExactMatchBoost(results, query, intentWeights.exactMatchBoost);
+  applyTitlePhraseBoost(results, query, intentWeights.titlePhraseBoost);
+  applyTokenSetBoost(results, query, intentWeights.tokenSetBoost);
+  applyLexicalTieBreak(results, query, intentWeights.lexicalTieBreakBoost);
 }
 
 function fuseRankedLists(lists, limit) {
@@ -177,14 +215,56 @@ function effectiveRrfK(baseK, weight) {
 
 function applyExactMatchBoost(results, query, boost) {
   if (boost === 1) return;
-  const normalized = query.toLowerCase().trim();
+  const normalized = normalizeComparableText(query);
   if (!normalized) return;
   const kebab = normalized.replace(/\s+/g, '-');
 
   for (const result of results) {
-    const slug = (result.slug ?? '').toLowerCase();
-    const title = (result.title ?? '').toLowerCase().trim();
+    const slug = normalizeComparableText(result.slug ?? '');
+    const title = normalizeComparableText(result.title ?? '');
     if (slug === normalized || slug === kebab || slug.endsWith(`/${kebab}`) || title === normalized) {
+      result.score *= boost;
+    }
+  }
+}
+
+function applyTitlePhraseBoost(results, query, boost) {
+  if (boost === 1) return;
+  const normalizedQuery = normalizeComparableText(query);
+  if (!normalizedQuery) return;
+
+  for (const result of results) {
+    const normalizedTitle = normalizeComparableText(result.title ?? '');
+    if (!normalizedTitle) continue;
+    if (normalizedTitle.includes(normalizedQuery)) result.score *= boost;
+  }
+}
+
+function applyTokenSetBoost(results, query, boost) {
+  if (boost === 1) return;
+  const queryTokens = comparableTokens(query);
+  if (queryTokens.length < 2) return;
+
+  for (const result of results) {
+    const titleTokens = comparableTokens(result.title ?? '');
+    if (titleTokens.length === 0) continue;
+    if (containsOrderedTokenRun(titleTokens, queryTokens)) {
+      result.score *= boost;
+      continue;
+    }
+    if (hasFullTokenCoverage(titleTokens, queryTokens)) result.score *= Math.sqrt(boost);
+  }
+}
+
+function applyLexicalTieBreak(results, query, boost) {
+  if (boost === 1) return;
+  const queryTokens = comparableTokens(query);
+  if (queryTokens.length === 0) return;
+
+  for (const result of results) {
+    if (!result.lexicalHits) continue;
+    const titleTokens = comparableTokens(result.title ?? '');
+    if (containsOrderedTokenRun(titleTokens, queryTokens) || hasFullTokenCoverage(titleTokens, queryTokens)) {
       result.score *= boost;
     }
   }
@@ -193,15 +273,37 @@ function applyExactMatchBoost(results, query, boost) {
 function weightsForIntent(intent) {
   switch (intent) {
     case 'entity':
-      return { keywordWeight: 1.15, vectorWeight: 1.0, exactMatchBoost: 1.25 };
+      return {
+        keywordWeight: 1.2,
+        vectorWeight: 0.95,
+        exactMatchBoost: 1.35,
+        titlePhraseBoost: 1.2,
+        tokenSetBoost: 1.3,
+        lexicalTieBreakBoost: 1.15,
+      };
     case 'event':
-      return { keywordWeight: 1.20, vectorWeight: 0.95, exactMatchBoost: 1.10 };
+      return {
+        keywordWeight: 1.20,
+        vectorWeight: 0.95,
+        exactMatchBoost: 1.10,
+        titlePhraseBoost: 1.08,
+        tokenSetBoost: 1.05,
+        lexicalTieBreakBoost: 1.05,
+      };
     default:
-      return { keywordWeight: 1.0, vectorWeight: 1.0, exactMatchBoost: 1.0 };
+      return {
+        keywordWeight: 1.0,
+        vectorWeight: 1.0,
+        exactMatchBoost: 1.0,
+        titlePhraseBoost: 1.0,
+        tokenSetBoost: 1.0,
+        lexicalTieBreakBoost: 1.0,
+      };
   }
 }
 
-function classifyQueryIntent(query) {
+export function classifyQueryIntent(query) {
+  if (looksLikeDirectLookup(query)) return 'entity';
   if (/\bwho\s+is\b/i.test(query) || /\bwhat\s+(is|does|are)\b/i.test(query) || /\btell\s+me\s+about\b/i.test(query)) {
     return 'entity';
   }
@@ -273,4 +375,59 @@ function safeFtsQuery(value) {
     .filter((token) => !stopWords.has(token))
     .filter(Boolean)
     .join(' ');
+}
+
+function looksLikeDirectLookup(query) {
+  const trimmed = query.trim();
+  if (!trimmed) return false;
+  if (/[?!]/.test(trimmed)) return false;
+
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  if (tokens.length === 0 || tokens.length > 5) return false;
+
+  const normalized = normalizeComparableText(trimmed);
+  if (!normalized) return false;
+  if (/\b(and|or|with|about|current|next|recent|recently|state|status|todo|mentioned|advised)\b/i.test(trimmed)) {
+    return false;
+  }
+
+  const comparable = comparableTokens(trimmed);
+  if (comparable.length === 0 || comparable.length > 5) return false;
+  return true;
+}
+
+function normalizeComparableText(value) {
+  return String(value ?? '')
+    .normalize('NFKD')
+    .replace(/[^\p{L}\p{N}\s/-]+/gu, ' ')
+    .replace(/[-_/]+/g, ' ')
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, ' ');
+}
+
+function comparableTokens(value) {
+  return normalizeComparableText(value)
+    .split(/\s+/)
+    .filter(Boolean);
+}
+
+function containsOrderedTokenRun(haystack, needle) {
+  if (needle.length === 0 || haystack.length < needle.length) return false;
+  for (let index = 0; index <= haystack.length - needle.length; index += 1) {
+    let matches = true;
+    for (let offset = 0; offset < needle.length; offset += 1) {
+      if (haystack[index + offset] !== needle[offset]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return true;
+  }
+  return false;
+}
+
+function hasFullTokenCoverage(titleTokens, queryTokens) {
+  const titleSet = new Set(titleTokens);
+  return queryTokens.every((token) => titleSet.has(token));
 }

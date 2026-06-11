@@ -9,18 +9,6 @@ export const GRAPH_CONTROL_LABELS = {
 
 export const graphVisualizers = [
   {
-    id: 'constellation',
-    label: 'Constellation',
-    Component: CustomConstellationVisualizer,
-    description: 'Custom SVG renderer',
-    interactionModel: 'custom',
-    controls: ['zoomIn', 'zoomOut', 'resetView'],
-    capabilities: {
-      ownsPan: true,
-      ownsWheelZoom: true,
-    },
-  },
-  {
     id: 'vis-network',
     label: 'Vis Network',
     Component: VisNetworkVisualizer,
@@ -30,6 +18,18 @@ export const graphVisualizers = [
     capabilities: {
       ownsPan: false,
       ownsWheelZoom: false,
+    },
+  },
+  {
+    id: 'constellation',
+    label: 'Constellation',
+    Component: CustomConstellationVisualizer,
+    description: 'Custom SVG renderer',
+    interactionModel: 'custom',
+    controls: ['zoomIn', 'zoomOut', 'resetView'],
+    capabilities: {
+      ownsPan: true,
+      ownsWheelZoom: true,
     },
   },
 ];
