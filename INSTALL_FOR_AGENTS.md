@@ -25,6 +25,7 @@ BigBrain skills are provided from this repo under `skills/`. Install those
 directories into the user's real active skills directory exactly as written:
 
 - `skills/bigbrain-maintain/`
+- `skills/bigbrain-query/`
 - `skills/task-refresh/`
 
 First determine the active skills directory for the current harness. Common
@@ -41,6 +42,7 @@ repo remain the source of truth:
 repo_root="$(pwd)"
 mkdir -p ~/.agents/skills
 ln -sfn "$repo_root/skills/bigbrain-maintain" ~/.agents/skills/bigbrain-maintain
+ln -sfn "$repo_root/skills/bigbrain-query" ~/.agents/skills/bigbrain-query
 ln -sfn "$repo_root/skills/task-refresh" ~/.agents/skills/task-refresh
 ```
 

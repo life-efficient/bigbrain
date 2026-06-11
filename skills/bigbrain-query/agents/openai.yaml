@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Query"
+  short_description: "Answer questions from BigBrain with source page citations"
+  default_prompt: "Use BigBrain: Query to search BigBrain, read relevant pages, and answer with cited source slugs."
