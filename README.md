@@ -69,7 +69,7 @@ update the same meeting page that later receives ingested meeting outcomes.
 Implemented foundation:
 
 - external brain-home initialization
-- external config and SQLite index under `<brain-home>/.bigbrain-state/brains/<brain-id>/`
+- external config and SQLite index under `<brain-home>/.bigbrain-state/`
 - page CRUD against the brain home
 - lexical search plus optional OpenAI-backed semantic/query flows
 - link extraction and backlinks
@@ -93,9 +93,9 @@ Running `bigbrain init /path/to/home` creates:
 
 - the canonical top-level page directories
 - `ops/tasks.md`
-- `<brain-home>/.bigbrain-state/brains/<brain-id>/config.json`
-- `<brain-home>/.bigbrain-state/brains/<brain-id>/state.json`
-- `<brain-home>/.bigbrain-state/brains/<brain-id>/bigbrain.sqlite`
+- `<brain-home>/.bigbrain-state/config.json`
+- `<brain-home>/.bigbrain-state/state.json`
+- `<brain-home>/.bigbrain-state/bigbrain.sqlite`
 
 An example config shape is in [`bigbrain.config.example.json`](./bigbrain.config.example.json).
 
@@ -117,10 +117,12 @@ home in this order:
 3. the saved default pointer at `~/.config/bigbrain/default-brain-home`
 
 The runtime config, state, and SQLite index live under the selected brain home
-at `.bigbrain-state/brains/<brain-id>/` by default. Agents or automations that
-run `bigbrain sync` must be able to write to that state directory because sync
+at `.bigbrain-state/` by default. Because that directory is already inside one
+brain home, it does not contain an extra `brains/<brain-id>/` nesting. Agents or
+automations that run `bigbrain sync` must be able to write there because sync
 updates the SQLite index and state file. `BIGBRAIN_STATE_ROOT` remains available
-as an explicit override for tests or unusual deployments.
+as an explicit override for tests or unusual deployments; when set, it can hold
+multiple brain runtimes under hashed subdirectories.
 
 Automation run markers should live beside the runtime state under
 `.bigbrain-state/automation-runs/` with names such as `nightly-maintenance/` or

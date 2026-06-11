@@ -24,12 +24,13 @@ export function legacyMetaDirForBrainHome(brainHome) {
 
 export function stateRootPath(env = process.env, brainHome = null) {
   if (env.BIGBRAIN_STATE_ROOT) return path.resolve(env.BIGBRAIN_STATE_ROOT);
-  if (brainHome) return path.join(path.resolve(brainHome), STATE_ROOT_DIRNAME, 'brains');
+  if (brainHome) return path.join(path.resolve(brainHome), STATE_ROOT_DIRNAME);
   if (env.HOME) return path.join(path.resolve(env.HOME), STATE_ROOT_DIRNAME, 'brains');
   return DEFAULT_STATE_ROOT;
 }
 
 export function metaDirForBrainHome(brainHome, env = process.env) {
+  if (!env.BIGBRAIN_STATE_ROOT) return stateRootPath(env, brainHome);
   return path.join(stateRootPath(env, brainHome), runtimeDirNameForBrainHome(brainHome));
 }
 
@@ -110,7 +111,7 @@ export async function initializeBrainHome(brainHome, { env = process.env } = {})
     await fs.mkdir(path.join(resolvedBrainHome, dir), { recursive: true });
   }
   await writeIfMissing(config.tasks_file, defaultTasksMarkdown());
-  await writeIfMissing(configPathForBrainHome(resolvedBrainHome, env), `${JSON.stringify(config, null, 2)}\n`);
+  await writeIfMissing(configPathForBrainHome(resolvedBrainHome, env), `${JSON.stringify(configFileDefaults(config), null, 2)}\n`);
   await writeIfMissing(statePathForBrainHome(resolvedBrainHome, env), `${JSON.stringify(defaultState(), null, 2)}\n`);
   await reconcileConfigFile(configPathForBrainHome(resolvedBrainHome, env), config);
   await saveDefaultBrainHomePointer(resolvedBrainHome, env);
@@ -135,9 +136,9 @@ export async function loadConfig(input = null) {
     statePath: path.join(path.dirname(configPath), STATE_FILENAME),
     metaDir: path.dirname(configPath),
     brainDir: requireAbsoluteString(raw.brain_dir, 'brain_dir'),
-    tasksFile: requireAbsoluteString(raw.tasks_file, 'tasks_file'),
+    tasksFile: resolveConfigPathValue(raw.tasks_file ?? derivedDefault.tasks_file, brainHome, 'tasks_file'),
     schemaDirs: normalizeStringArray(raw.schema_dirs, derivedDefault.schema_dirs, 'schema_dirs'),
-    sqlitePath: requireAbsoluteString(raw.sqlite_path ?? derivedDefault.sqlite_path, 'sqlite_path'),
+    sqlitePath: resolveConfigPathValue(raw.sqlite_path ?? derivedDefault.sqlite_path, brainHome, 'sqlite_path'),
     openaiEmbeddingModel: requireNonEmptyString(raw.openai_embedding_model ?? derivedDefault.openai_embedding_model, 'openai_embedding_model'),
     openaiQueryModel: requireNonEmptyString(raw.openai_query_model ?? derivedDefault.openai_query_model, 'openai_query_model'),
     freshnessInputs: normalizeStringArray(raw.freshness_inputs, derivedDefault.freshness_inputs, 'freshness_inputs'),
@@ -236,11 +237,16 @@ async function reconcileConfigFile(configPath, desiredConfig) {
   const next = {
     ...current,
     brain_dir: desiredConfig.brain_dir,
-    tasks_file: desiredConfig.tasks_file,
-    sqlite_path: desiredConfig.sqlite_path,
   };
+  if (current.tasks_file && path.resolve(current.tasks_file) === desiredConfig.tasks_file) delete next.tasks_file;
+  if (current.sqlite_path && path.resolve(current.sqlite_path) === desiredConfig.sqlite_path) delete next.sqlite_path;
   if (JSON.stringify(next) === JSON.stringify(current)) return;
   await fs.writeFile(configPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+}
+
+function configFileDefaults(config) {
+  const { tasks_file: _tasksFile, sqlite_path: _sqlitePath, ...stored } = config;
+  return stored;
 }
 
 function runtimeDirNameForBrainHome(brainHome) {
@@ -284,6 +290,14 @@ function requireAbsoluteString(value, fieldName) {
     throw new Error(`Invalid config: "${fieldName}" must be a non-empty absolute path.`);
   }
   return path.resolve(value);
+}
+
+function resolveConfigPathValue(value, brainHome, fieldName) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new Error(`Invalid config: "${fieldName}" must be a non-empty path.`);
+  }
+  const trimmed = value.trim();
+  return path.resolve(path.isAbsolute(trimmed) ? trimmed : path.join(brainHome, trimmed));
 }
 
 function requireNonEmptyString(value, fieldName) {
