@@ -11,7 +11,7 @@ import { validatePageShape } from './schema.js';
 
 const execFileAsync = promisify(execFile);
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const AUTOMATION_TEMPLATE_DIR = path.join(REPO_ROOT, 'templates', 'automations');
+const AUTOMATION_TEMPLATE_DIR = path.join(REPO_ROOT, 'automations');
 const SKILL_TEMPLATE_DIR = path.join(REPO_ROOT, 'skills');
 
 export async function runHealthCheck(config, {
