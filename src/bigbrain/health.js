@@ -413,7 +413,7 @@ function comparableAutomationToml(raw) {
   return raw
     .replace(/\r\n/g, '\n')
     .split('\n')
-    .filter((line) => !/^(created_at|updated_at)\s*=/.test(line))
+    .filter((line) => !/^(created_at|updated_at|cwds)\s*=/.test(line))
     .map((line) => line.trimEnd())
     .join('\n')
     .trim();

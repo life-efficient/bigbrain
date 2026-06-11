@@ -8,6 +8,6 @@ rrule = "FREQ=DAILY;BYHOUR=3;BYMINUTE=30;BYSECOND=0"
 model = "gpt-5.5"
 reasoning_effort = "low"
 execution_environment = "local"
-cwds = ["/path/to/brain-home"]
+cwds = ["<brain-home>"]
 created_at = 1779217798002
 updated_at = 1781007781948
