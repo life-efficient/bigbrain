@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "electron/main.cjs",
   "bin": {
     "bigbrain": "./bin/bigbrain.js"
   },
@@ -13,6 +14,9 @@
     "sync": "node ./bin/bigbrain.js sync",
     "schema": "node ./bin/bigbrain.js schema",
     "refresh-tasks": "node ./scripts/refresh-tasks.mjs",
+    "desktop:dev": "node electron/dev-launcher.cjs",
+    "desktop:dist": "electron-builder --mac dmg zip",
+    "desktop:dir": "electron-builder --mac dir",
     "test": "node --test test/bigbrain/*.test.mjs"
   },
   "dependencies": {
@@ -31,6 +35,42 @@
     "vis-network": "^10.1.0"
   },
   "devDependencies": {
+    "electron": "^37.1.0",
+    "electron-builder": "^26.0.12",
     "esbuild": "^0.28.0"
+  },
+  "build": {
+    "appId": "ai.diffusing.bigbrain.dashboard",
+    "productName": "BigBrain Dashboard",
+    "asar": false,
+    "directories": {
+      "output": "dist/electron"
+    },
+    "files": [
+      "bin/**/*",
+      "electron/**/*",
+      "node_modules/**/*",
+      "package.json",
+      "README.md",
+      "src/**/*"
+    ],
+    "mac": {
+      "icon": "electron/assets/app-icon.icns",
+      "category": "public.app-category.productivity",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ]
+    }
   }
 }
