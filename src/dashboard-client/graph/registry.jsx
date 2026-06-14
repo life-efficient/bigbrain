@@ -25,6 +25,12 @@ export const GRAPH_LAYOUT_STYLES = [
   { id: 'clusters', label: 'Clusters' },
 ];
 
+export const GRAPH_LABEL_STYLES = [
+  { id: 'selected', label: 'Key' },
+  { id: 'all', label: 'All' },
+  { id: 'off', label: 'Off' },
+];
+
 export const graphVisualizers = [
   {
     id: 'custom',

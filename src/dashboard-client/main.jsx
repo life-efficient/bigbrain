@@ -5,6 +5,7 @@ import { TYPE_ORDER } from './graph/colors.js';
 import {
   GRAPH_ARC_STYLES,
   GRAPH_CONTROL_LABELS,
+  GRAPH_LABEL_STYLES,
   GRAPH_LAYOUT_STYLES,
   GRAPH_NODE_STYLES,
   graphVisualizers,
@@ -20,12 +21,15 @@ function DashboardApp() {
   const [nodeStyle, setNodeStyle] = useState(GRAPH_NODE_STYLES[0].id);
   const [arcStyle, setArcStyle] = useState(GRAPH_ARC_STYLES[0].id);
   const [layoutStyle, setLayoutStyle] = useState(GRAPH_LAYOUT_STYLES[0].id);
+  const [labelStyle, setLabelStyle] = useState(GRAPH_LABEL_STYLES[0].id);
   const [themeMode, setThemeMode] = useState('auto');
   const [prefersDark, setPrefersDark] = useState(false);
   const [preview, setPreview] = useState(null);
   const [healthOpen, setHealthOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const visualizerRef = useRef(null);
   const healthMenuRef = useRef(null);
+  const settingsMenuRef = useRef(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,17 +76,21 @@ function DashboardApp() {
   }, []);
 
   useEffect(() => {
-    if (!healthOpen) return undefined;
+    if (!healthOpen && !settingsOpen) return undefined;
 
     function handlePointerDown(event) {
       if (healthMenuRef.current && !healthMenuRef.current.contains(event.target)) {
         setHealthOpen(false);
+      }
+      if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
+        setSettingsOpen(false);
       }
     }
 
     function handleEscape(event) {
       if (event.key === 'Escape') {
         setHealthOpen(false);
+        setSettingsOpen(false);
       }
     }
 
@@ -92,7 +100,7 @@ function DashboardApp() {
       window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [healthOpen]);
+  }, [healthOpen, settingsOpen]);
 
   useEffect(() => {
     if (!preview || healthOpen) return undefined;
@@ -249,13 +257,43 @@ function DashboardApp() {
               ))}
             </div>
             <div className="topline-actions">
+              <div className="settings-menu" ref={settingsMenuRef}>
+                <button
+                  type="button"
+                  className={`settings-button ${settingsOpen ? 'open' : ''}`}
+                  aria-label="Open settings"
+                  aria-expanded={settingsOpen}
+                  onClick={() => {
+                    setHealthOpen(false);
+                    setSettingsOpen((value) => !value);
+                  }}
+                >
+                  <SettingsIcon />
+                  <span>Settings</span>
+                </button>
+                {settingsOpen ? (
+                  <div className="settings-dropdown" role="menu">
+                    <div className="settings-dropdown-head">
+                      <strong>Settings</strong>
+                      <span className="meta">Appearance</span>
+                    </div>
+                    <div className="settings-field">
+                      <span className="settings-label">Theme</span>
+                      <ThemeModeToggle themeMode={themeMode} onChange={setThemeMode} />
+                    </div>
+                  </div>
+                ) : null}
+              </div>
               <div className="health-menu" ref={healthMenuRef}>
                 <button
                   type="button"
                   className={`health-button severity-${healthSeverity} ${healthFindingCount ? 'has-findings' : ''} ${healthOpen ? 'open' : ''}`}
                   aria-label={healthFindingCount ? `${healthFindingCount} health findings` : 'No health findings'}
                   aria-expanded={healthOpen}
-                  onClick={() => setHealthOpen((value) => !value)}
+                  onClick={() => {
+                    setSettingsOpen(false);
+                    setHealthOpen((value) => !value);
+                  }}
                 >
                   <span className="health-icon" aria-hidden="true">{healthSeverity === 'high' ? '●' : '◌'}</span>
                   {healthFindingCount ? <span className="health-badge">{healthFindingCount}</span> : null}
@@ -347,8 +385,8 @@ function DashboardApp() {
                 setArcStyle={setArcStyle}
                 layoutStyle={layoutStyle}
                 setLayoutStyle={setLayoutStyle}
-                themeMode={themeMode}
-                setThemeMode={setThemeMode}
+                labelStyle={labelStyle}
+                setLabelStyle={setLabelStyle}
                 visualizerRef={visualizerRef}
                 onNodeOpen={handleGraphNodeOpen}
               />
@@ -448,8 +486,8 @@ const GraphPanel = memo(function GraphPanel({
   setArcStyle,
   layoutStyle,
   setLayoutStyle,
-  themeMode,
-  setThemeMode,
+  labelStyle,
+  setLabelStyle,
   visualizerRef,
   onNodeOpen,
 }) {
@@ -461,6 +499,9 @@ const GraphPanel = memo(function GraphPanel({
   const presentTypes = new Set(graphNodes.map((node) => node.type));
   const legendTypes = TYPE_ORDER.filter((type) => presentTypes.has(type));
   const isCustomRenderer = visualizerId === 'custom';
+  const visibleControls = Array.isArray(visualizer.controls)
+    ? visualizer.controls.filter((control) => !['zoomIn', 'zoomOut', 'resetView'].includes(control))
+    : [];
 
   useEffect(() => {
     if (!styleMenuOpen) return undefined;
@@ -538,22 +579,19 @@ const GraphPanel = memo(function GraphPanel({
                   onSelect={setLayoutStyle}
                   disabled={!isCustomRenderer}
                 />
+                <GraphStyleOptionGroup
+                  label="Labels"
+                  value={labelStyle}
+                  options={GRAPH_LABEL_STYLES}
+                  onSelect={setLabelStyle}
+                  disabled={!isCustomRenderer}
+                />
               </div>
             ) : null}
           </div>
-          <label className="graph-select-shell">
-            <span>Theme</span>
-            <select value={themeMode} onChange={(event) => setThemeMode(event.target.value)}>
-              {GRAPH_THEME_MODES.map((mode) => (
-                <option key={mode} value={mode}>
-                  {mode[0].toUpperCase() + mode.slice(1)}
-                </option>
-              ))}
-            </select>
-          </label>
-          {visualizer.controls?.length ? (
+          {visibleControls.length ? (
             <div className="graph-controls graph-controls-inline">
-              {visualizer.controls.map((control) => (
+              {visibleControls.map((control) => (
                 <button
                   key={control}
                   type="button"
@@ -575,6 +613,7 @@ const GraphPanel = memo(function GraphPanel({
           nodeStyle={nodeStyle}
           arcStyle={arcStyle}
           layoutStyle={layoutStyle}
+          labelStyle={labelStyle}
         />
       </div>
     </section>
@@ -600,6 +639,40 @@ function GraphStyleOptionGroup({ label, value, options, onSelect, disabled = fal
         ))}
       </div>
     </div>
+  );
+}
+
+function ThemeModeToggle({ themeMode, onChange }) {
+  return (
+    <div className="theme-toggle" role="group" aria-label="Theme mode">
+      {GRAPH_THEME_MODES.map((mode) => (
+        <button
+          key={mode}
+          type="button"
+          className={`theme-toggle-button ${themeMode === mode ? 'active' : ''}`}
+          onClick={() => onChange(mode)}
+          aria-pressed={themeMode === mode}
+        >
+          {mode[0].toUpperCase() + mode.slice(1)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function SettingsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="settings-icon">
+      <path
+        d="M10 3h4l.45 2.23a7.78 7.78 0 0 1 1.53.63l1.96-1.12 2.83 2.83-1.12 1.96c.25.49.46 1 .63 1.53L23 11v4l-2.23.45a7.78 7.78 0 0 1-.63 1.53l1.12 1.96-2.83 2.83-1.96-1.12c-.49.25-1 .46-1.53.63L14 23h-4l-.45-2.23a7.78 7.78 0 0 1-1.53-.63l-1.96 1.12-2.83-2.83 1.12-1.96a7.78 7.78 0 0 1-.63-1.53L1 15v-4l2.23-.45c.17-.53.38-1.04.63-1.53L2.74 7.06l2.83-2.83 1.96 1.12c.49-.25 1-.46 1.53-.63L10 3Z"
+        fill="currentColor"
+        opacity="0.18"
+      />
+      <path
+        d="M10.81 3h2.38l.4 1.97.31.08c.57.14 1.11.37 1.61.67l.28.17 1.73-.99 1.68 1.68-.99 1.73.17.28c.3.5.53 1.04.67 1.61l.08.31 1.97.4v2.38l-1.97.4-.08.31c-.14.57-.37 1.11-.67 1.61l-.17.28.99 1.73-1.68 1.68-1.73-.99-.28.17c-.5.3-1.04.53-1.61.67l-.31.08-.4 1.97h-2.38l-.4-1.97-.31-.08a6.9 6.9 0 0 1-1.61-.67l-.28-.17-1.73.99-1.68-1.68.99-1.73-.17-.28a6.9 6.9 0 0 1-.67-1.61l-.08-.31-1.97-.4v-2.38l1.97-.4.08-.31c.14-.57.37-1.11.67-1.61l.17-.28-.99-1.73 1.68-1.68 1.73.99.28-.17c.5-.3 1.04-.53 1.61-.67l.31-.08.4-1.97ZM12 8.25A3.75 3.75 0 1 0 12 15.75 3.75 3.75 0 0 0 12 8.25Z"
+        fill="currentColor"
+      />
+    </svg>
   );
 }
 

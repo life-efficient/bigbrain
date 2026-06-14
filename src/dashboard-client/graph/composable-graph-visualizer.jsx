@@ -27,6 +27,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   nodeStyle = 'orb',
   arcStyle = 'straight',
   layoutStyle = 'orbital',
+  labelStyle = 'selected',
 }, ref) {
   const theme = useGraphTheme();
   const defsId = useId().replace(/:/g, '-');
@@ -34,7 +35,15 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   const laidOut = useMemo(() => buildLayout(graph), [buildLayout, graph]);
   const { viewport, bind } = useGraphViewport(ref, laidOut);
   const labelCount = layoutStyle === 'clusters' ? 6 : layoutStyle === 'lanes' ? 5 : 4;
-  const labeled = useMemo(() => pickLabelNodes(laidOut.nodes, labelCount), [labelCount, laidOut]);
+  const labeled = useMemo(() => {
+    if (labelStyle === 'off') {
+      return new Set();
+    }
+    if (labelStyle === 'all') {
+      return new Set(laidOut.nodes.map((node) => node.slug));
+    }
+    return pickLabelNodes(laidOut.nodes, labelCount);
+  }, [labelCount, labelStyle, laidOut]);
 
   return (
     <div className="graph-canvas-shell">
