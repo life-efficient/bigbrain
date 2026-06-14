@@ -7,7 +7,6 @@ import React, {
   useState,
 } from 'react';
 
-import { TYPE_COLORS } from './colors.js';
 import { clamp } from './shared.js';
 import { getGraphThemeTokens } from './theme.js';
 
@@ -128,15 +127,15 @@ export function useGraphViewport(ref, laidOut, options = {}) {
 export function GraphTypeDefs({ idPrefix }) {
   return (
     <>
-      {Object.entries(TYPE_COLORS).map(([type, color]) => (
+      {['people', 'companies', 'projects', 'meetings', 'deals', 'personal-protocol', 'concepts', 'writing', 'inbox', 'unknown'].map((type) => (
         <React.Fragment key={type}>
           <radialGradient id={`${idPrefix}-node-gradient-${type}`} cx="38%" cy="35%" r="72%">
-            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.98" />
-            <stop offset="35%" stopColor={color} stopOpacity="0.96" />
-            <stop offset="100%" stopColor={color} stopOpacity="0.26" />
+            <stop offset="0%" stopColor="#ffffff" stopOpacity="0.96" />
+            <stop offset="45%" stopColor="#d4d4d8" stopOpacity="0.84" />
+            <stop offset="100%" stopColor="#71717a" stopOpacity="0.36" />
           </radialGradient>
           <filter id={`${idPrefix}-node-glow-${type}`} x="-200%" y="-200%" width="400%" height="400%">
-            <feGaussianBlur stdDeviation="8" result="blur" />
+            <feGaussianBlur stdDeviation="4" result="blur" />
             <feColorMatrix
               in="blur"
               type="matrix"
@@ -186,5 +185,29 @@ export function GraphNodeLabel({ node, theme, visible }) {
     >
       {node.title.slice(0, 30)}
     </text>
+  );
+}
+
+export function GraphFixedLabels({ nodes, viewport, labeled, theme }) {
+  return (
+    <g className="graph-fixed-labels" pointerEvents="none">
+      {nodes.map((node) => {
+        if (!labeled.has(node.slug)) return null;
+        const x = viewport.x + node.x * viewport.scale + node.radius * viewport.scale + 10;
+        const y = viewport.y + node.y * viewport.scale + 3;
+        return (
+          <text
+            key={node.slug}
+            x={x}
+            y={y}
+            fontSize="11"
+            fill={theme.graphMutedLabel}
+            letterSpacing="0.02em"
+          >
+            {node.title.slice(0, 28)}
+          </text>
+        );
+      })}
+    </g>
   );
 }

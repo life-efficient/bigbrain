@@ -1,10 +1,9 @@
 import React, { forwardRef, useId, useMemo } from 'react';
 
-import { TYPE_COLORS } from './colors.js';
 import { buildNeuralMeshLayout, pickLabelNodes } from './shared.js';
 import {
   GraphBackdropDefs,
-  GraphNodeLabel,
+  GraphFixedLabels,
   GraphTypeDefs,
   useGraphTheme,
   useGraphViewport,
@@ -15,13 +14,14 @@ export const NeuralMeshVisualizer = forwardRef(function NeuralMeshVisualizer({ g
   const defsId = useId().replace(/:/g, '-');
   const laidOut = useMemo(() => buildNeuralMeshLayout(graph), [graph]);
   const { viewport, bind } = useGraphViewport(ref, laidOut);
-  const labeled = useMemo(() => pickLabelNodes(laidOut.nodes, 14), [laidOut]);
+  const labeled = useMemo(() => pickLabelNodes(laidOut.nodes, 5), [laidOut]);
 
   return (
     <div className="graph-canvas-shell">
       <svg
         className="graph-svg futuristic-graph neural-graph"
         viewBox={`0 0 ${laidOut.width} ${laidOut.height}`}
+        preserveAspectRatio="xMidYMid slice"
         {...bind}
       >
         <defs>
@@ -29,43 +29,31 @@ export const NeuralMeshVisualizer = forwardRef(function NeuralMeshVisualizer({ g
           <GraphTypeDefs idPrefix={defsId} />
         </defs>
 
-        <rect width={laidOut.width} height={laidOut.height} fill={`url(#${defsId}-surface-gradient)`} rx="18" />
-        <rect width={laidOut.width} height={laidOut.height} fill={`url(#${defsId}-grid-pattern)`} rx="18" />
+        <rect width={laidOut.width} height={laidOut.height} fill={theme.graphBase} />
 
         <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
-          {Array.from({ length: 7 }, (_, index) => (
+          {laidOut.lanes.map((x) => (
             <line
-              key={`layer-${index}`}
-              x1={120 + index * 120}
-              y1="34"
-              x2={120 + index * 120}
-              y2={laidOut.height - 34}
+              key={x}
+              x1={x}
+              y1="0"
+              x2={x}
+              y2={laidOut.height}
               stroke={theme.graphGrid}
-              strokeDasharray="4 12"
+              strokeDasharray="8 18"
             />
           ))}
 
           {laidOut.edges.map((edge) => (
-            <g key={edge.key}>
-              <line
-                x1={edge.source.x}
-                y1={edge.source.y}
-                x2={edge.target.x}
-                y2={edge.target.y}
-                stroke={theme.graphEdge}
-                strokeWidth="1.2"
-              />
-              <line
-                x1={edge.source.x}
-                y1={edge.source.y}
-                x2={edge.target.x}
-                y2={edge.target.y}
-                stroke={theme.graphEdgeStrong}
-                strokeOpacity="0.55"
-                strokeDasharray="7 16"
-                className="graph-pulse-line"
-              />
-            </g>
+            <line
+              key={edge.key}
+              x1={edge.source.x}
+              y1={edge.source.y}
+              x2={edge.target.x}
+              y2={edge.target.y}
+              stroke={theme.graphEdge}
+              strokeWidth="1"
+            />
           ))}
 
           {laidOut.nodes.map((node) => (
@@ -77,35 +65,27 @@ export const NeuralMeshVisualizer = forwardRef(function NeuralMeshVisualizer({ g
               }}
               style={{ cursor: 'pointer' }}
             >
-              <circle
-                cx={node.x}
-                cy={node.y}
-                r={node.radius * 1.8}
-                fill={TYPE_COLORS[node.type] || theme.accent}
-                fillOpacity="0.18"
-                filter={`url(#${defsId}-node-glow-${node.type})`}
-              />
               <rect
                 x={node.x - node.radius}
                 y={node.y - node.radius}
                 width={node.radius * 2}
                 height={node.radius * 2}
-                rx={node.radius * 0.55}
-                fill={`url(#${defsId}-node-gradient-${node.type})`}
+                fill="none"
                 stroke={theme.graphNodeStroke}
                 strokeWidth="1"
-                transform={`rotate(${18 + (node.index % 5) * 8} ${node.x} ${node.y})`}
+                transform={`rotate(45 ${node.x} ${node.y})`}
               />
               <circle
                 cx={node.x}
                 cy={node.y}
-                r={Math.max(2.6, node.radius * 0.28)}
+                r={Math.max(1.6, node.radius * 0.34)}
                 fill={theme.accentWarm}
               />
-              <GraphNodeLabel node={node} theme={theme} visible={labeled.has(node.slug)} />
             </g>
           ))}
         </g>
+
+        <GraphFixedLabels nodes={laidOut.nodes} viewport={viewport} labeled={labeled} theme={theme} />
       </svg>
     </div>
   );

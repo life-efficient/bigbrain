@@ -1,8 +1,6 @@
-import { TYPE_COLORS } from './colors.js';
-
 export const GRAPH_LAYOUT_SIZE = {
-  width: 960,
-  height: 560,
+  width: 1280,
+  height: 920,
 };
 
 export function clamp(value, min, max) {
@@ -10,7 +8,7 @@ export function clamp(value, min, max) {
 }
 
 export function getNodeRadius(degree) {
-  return clamp(5 + Math.sqrt(Math.max(1, degree || 1)) * 1.6, 7, 20);
+  return clamp(4 + Math.sqrt(Math.max(1, degree || 1)) * 0.9, 5, 11);
 }
 
 export function normalizeGraph(graph, { width = GRAPH_LAYOUT_SIZE.width, height = GRAPH_LAYOUT_SIZE.height } = {}) {
@@ -25,8 +23,6 @@ export function normalizeGraph(graph, { width = GRAPH_LAYOUT_SIZE.width, height 
     neighbors: 0,
     x: width / 2,
     y: height / 2,
-    vx: 0,
-    vy: 0,
   }));
   const nodeMap = new Map(nodes.map((node) => [node.slug, node]));
   const edges = (Array.isArray(graph?.edges) ? graph.edges : [])
@@ -60,116 +56,98 @@ export function normalizeGraph(graph, { width = GRAPH_LAYOUT_SIZE.width, height 
 
 export function buildJarvisLayout(graph) {
   const layout = normalizeGraph(graph);
-  const maxDegree = Math.max(1, ...layout.nodes.map((node) => node.degree || 1));
-
-  for (const node of layout.nodes) {
-    const angle = ((node.index + 1) / Math.max(layout.nodes.length, 1)) * Math.PI * 2;
-    const tier = 1 - (node.degree || 0) / maxDegree;
-    const orbit = 82 + tier * 168 + (node.index % 5) * 8;
-    node.x = layout.centerX + Math.cos(angle) * orbit;
-    node.y = layout.centerY + Math.sin(angle) * orbit;
-  }
-
-  simulateLayout(layout, {
-    steps: 200,
-    repulsion: 3100,
-    springLength: 112,
-    springStrength: 0.0034,
-    centerStrength: 0.0015,
-    orbitStrength: 0.0055,
-    orbitRadius(node) {
-      const tier = 1 - (node.degree || 0) / maxDegree;
-      return 70 + tier * 185;
-    },
-  });
-
+  const sorted = [...layout.nodes].sort(sortByWeight);
+  const rings = [120, 220, 320, 420, 520];
+  placeOnRings(sorted, { centerX: layout.centerX, centerY: layout.centerY, rings, gap: 26, startAngle: -Math.PI / 2 });
+  resolveCollisions(layout.nodes, 20, layout.width, layout.height);
   return {
     ...layout,
-    rings: [74, 132, 194, 252],
+    rings,
   };
 }
 
 export function buildNeuralMeshLayout(graph) {
   const layout = normalizeGraph(graph);
-  const maxDegree = Math.max(1, ...layout.nodes.map((node) => node.degree || 1));
-  const columns = Math.max(3, Math.ceil(Math.sqrt(Math.max(layout.nodes.length, 1))));
+  const sorted = [...layout.nodes].sort(sortByWeight);
+  const laneCount = 6;
+  const laneWidth = (layout.width - 240) / (laneCount - 1);
+  const lanes = Array.from({ length: laneCount }, () => []);
 
-  for (const node of layout.nodes) {
-    const col = node.index % columns;
-    const row = Math.floor(node.index / columns);
-    const depth = (node.degree || 0) / maxDegree;
-    node.depth = depth;
-    node.x = ((col + 1) / (columns + 1)) * layout.width + (row % 2) * 12;
-    node.y = ((row + 1) / (Math.ceil(layout.nodes.length / columns) + 1)) * layout.height;
-  }
-
-  simulateLayout(layout, {
-    steps: 220,
-    repulsion: 2650,
-    springLength: 92,
-    springStrength: 0.0045,
-    centerStrength: 0.0008,
-    layerStrength: 0.0042,
-    layerTarget(node) {
-      const depth = node.depth || 0;
-      return {
-        x: 120 + depth * (layout.width - 240),
-        y: layout.centerY + Math.sin(node.index * 1.17) * (layout.height * 0.22),
-      };
-    },
+  sorted.forEach((node, index) => {
+    const laneIndex = index % laneCount;
+    lanes[laneIndex].push(node);
   });
 
-  return layout;
+  lanes.forEach((laneNodes, laneIndex) => {
+    const x = 120 + laneWidth * laneIndex;
+    const verticalGap = (layout.height - 180) / Math.max(1, laneNodes.length);
+    laneNodes.forEach((node, index) => {
+      node.x = x + (laneIndex % 2 === 0 ? -18 : 18);
+      node.y = 90 + verticalGap * (index + 0.5);
+    });
+  });
+
+  relaxLayout(layout, { padding: 24, centerPull: 0.002, linkPull: 0.018, iterations: 22, horizontalBias: 0.012 });
+  return {
+    ...layout,
+    lanes: Array.from({ length: laneCount }, (_, laneIndex) => 120 + laneWidth * laneIndex),
+  };
 }
 
 export function buildSignalBloomLayout(graph) {
   const layout = normalizeGraph(graph);
-  const centers = layout.typeCenters;
-  const haloSizes = new Map();
+  const groups = new Map(layout.types.map((type) => [type, []]));
+  layout.nodes
+    .sort(sortByWeight)
+    .forEach((node) => {
+      if (!groups.has(node.type)) groups.set(node.type, []);
+      groups.get(node.type).push(node);
+    });
 
-  for (const node of layout.nodes) {
-    const center = centers.get(node.type) || { x: layout.centerX, y: layout.centerY };
-    const angle = ((node.index + 1) / Math.max(layout.nodes.length, 1)) * Math.PI * 2;
-    const spread = 26 + (node.index % 6) * 14;
-    node.x = center.x + Math.cos(angle) * spread;
-    node.y = center.y + Math.sin(angle) * spread;
-    haloSizes.set(node.type, Math.max(haloSizes.get(node.type) || 0, spread + node.radius * 7));
-  }
-
-  simulateLayout(layout, {
-    steps: 210,
-    repulsion: 2900,
-    springLength: 108,
-    springStrength: 0.0035,
-    centerStrength: 0.0007,
-    clusterStrength: 0.006,
-    clusterCenter(node) {
-      return centers.get(node.type) || { x: layout.centerX, y: layout.centerY };
-    },
-  });
-
-  return {
-    ...layout,
-    clusters: [...centers.entries()].map(([type, center]) => ({
+  const clusterEntries = [...groups.entries()];
+  const clusters = [];
+  for (const [type, nodes] of clusterEntries) {
+    const center = layout.typeCenters.get(type) || { x: layout.centerX, y: layout.centerY };
+    const radii = buildClusterRings(nodes.length);
+    placeOnRings(nodes, {
+      centerX: center.x,
+      centerY: center.y,
+      rings: radii,
+      gap: 16,
+      startAngle: -Math.PI / 2,
+    });
+    clusters.push({
       type,
       x: center.x,
       y: center.y,
-      radius: haloSizes.get(type) || 84,
-      color: TYPE_COLORS[type] || '#9dd9ff',
-    })),
+      radius: (radii[radii.length - 1] || 48) + 48,
+    });
+  }
+
+  relaxLayout(layout, { padding: 20, centerPull: 0.0005, linkPull: 0.0015, iterations: 8 });
+  return {
+    ...layout,
+    clusters,
   };
 }
 
-export function pickLabelNodes(nodes, maxCount = 18) {
-  return new Set(
-    [...nodes]
-      .sort((a, b) => (b.degree || 0) - (a.degree || 0) || b.radius - a.radius)
-      .slice(0, maxCount)
-      .map((node) => node.slug),
-  );
+export function pickLabelNodes(nodes, maxCount = 16) {
+  const selected = [];
+  const minDistance = 140;
+  for (const node of [...nodes].sort(sortByWeight)) {
+    const tooClose = selected.some((candidate) => {
+      const dx = candidate.x - node.x;
+      const dy = candidate.y - node.y;
+      return Math.sqrt(dx * dx + dy * dy) < minDistance;
+    });
+    if (tooClose) continue;
+    selected.push(node);
+    if (selected.length >= maxCount) break;
+  }
+  return new Set(selected.map((node) => node.slug));
 }
 
-export function buildCurvedEdgePath(edge, bend = 0.14) {
+export function buildCurvedEdgePath(edge, bend = 0.12) {
   const midX = (edge.source.x + edge.target.x) / 2;
   const midY = (edge.source.y + edge.target.y) / 2;
   const dx = edge.target.x - edge.source.x;
@@ -177,86 +155,107 @@ export function buildCurvedEdgePath(edge, bend = 0.14) {
   const length = Math.sqrt(dx * dx + dy * dy) || 1;
   const normalX = -dy / length;
   const normalY = dx / length;
-  const curve = Math.min(36, length * bend);
+  const curve = Math.min(40, length * bend);
   const controlX = midX + normalX * curve;
   const controlY = midY + normalY * curve;
   return `M ${edge.source.x} ${edge.source.y} Q ${controlX} ${controlY} ${edge.target.x} ${edge.target.y}`;
 }
 
-function simulateLayout(layout, options) {
+function sortByWeight(a, b) {
+  return (b.degree || 0) - (a.degree || 0) || b.neighbors - a.neighbors || a.slug.localeCompare(b.slug);
+}
+
+function placeOnRings(nodes, { centerX, centerY, rings, gap, startAngle }) {
+  let index = 0;
+  for (const radius of rings) {
+    const circumference = Math.PI * 2 * radius;
+    const capacity = Math.max(1, Math.floor(circumference / (18 + gap)));
+    const slice = nodes.slice(index, index + capacity);
+    if (!slice.length) break;
+    slice.forEach((node, offset) => {
+      const angle = startAngle + (offset / slice.length) * Math.PI * 2;
+      node.x = centerX + Math.cos(angle) * radius;
+      node.y = centerY + Math.sin(angle) * radius;
+    });
+    index += slice.length;
+  }
+
+  if (index < nodes.length) {
+    const fallbackRadius = (rings[rings.length - 1] || 40) + 72;
+    nodes.slice(index).forEach((node, offset) => {
+      const angle = startAngle + (offset / Math.max(1, nodes.length - index)) * Math.PI * 2;
+      node.x = centerX + Math.cos(angle) * fallbackRadius;
+      node.y = centerY + Math.sin(angle) * fallbackRadius;
+    });
+  }
+}
+
+function buildClusterRings(count) {
+  if (count <= 1) return [0];
+  const rings = [];
+  let placed = 0;
+  let radius = 44;
+  while (placed < count) {
+    rings.push(radius);
+    const capacity = Math.max(6, Math.floor((Math.PI * 2 * radius) / 28));
+    placed += capacity;
+    radius += 48;
+  }
+  return rings;
+}
+
+function relaxLayout(layout, options) {
   const {
-    steps,
-    repulsion,
-    springLength,
-    springStrength,
-    centerStrength,
-    orbitStrength,
-    orbitRadius,
-    clusterStrength,
-    clusterCenter,
-    layerStrength,
-    layerTarget,
+    padding,
+    centerPull,
+    linkPull,
+    iterations,
+    horizontalBias = 0,
   } = options;
 
-  for (let step = 0; step < steps; step += 1) {
-    for (let i = 0; i < layout.nodes.length; i += 1) {
-      for (let j = i + 1; j < layout.nodes.length; j += 1) {
-        const a = layout.nodes[i];
-        const b = layout.nodes[j];
-        const dx = b.x - a.x;
-        const dy = b.y - a.y;
-        const dist2 = dx * dx + dy * dy + 0.01;
-        const force = repulsion / dist2;
-        a.vx -= dx * force * 0.00065;
-        a.vy -= dy * force * 0.00065;
-        b.vx += dx * force * 0.00065;
-        b.vy += dy * force * 0.00065;
-      }
-    }
+  for (let step = 0; step < iterations; step += 1) {
+    resolveCollisions(layout.nodes, padding, layout.width, layout.height);
 
     for (const edge of layout.edges) {
       const dx = edge.target.x - edge.source.x;
       const dy = edge.target.y - edge.source.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      const force = (dist - springLength) * springStrength;
-      edge.source.vx += (dx / dist) * force;
-      edge.source.vy += (dy / dist) * force;
-      edge.target.vx -= (dx / dist) * force;
-      edge.target.vy -= (dy / dist) * force;
+      edge.source.x += dx * linkPull * 0.5;
+      edge.source.y += dy * linkPull * 0.5;
+      edge.target.x -= dx * linkPull * 0.5;
+      edge.target.y -= dy * linkPull * 0.5;
     }
 
     for (const node of layout.nodes) {
-      node.vx += (layout.centerX - node.x) * centerStrength;
-      node.vy += (layout.centerY - node.y) * centerStrength;
+      node.x += (layout.centerX - node.x) * centerPull;
+      node.y += (layout.centerY - node.y) * centerPull;
+      node.x += Math.sign(layout.centerX - node.x) * horizontalBias;
+      node.x = clamp(node.x, 40, layout.width - 40);
+      node.y = clamp(node.y, 40, layout.height - 40);
+    }
+  }
+}
 
-      if (orbitStrength && orbitRadius) {
-        const dx = node.x - layout.centerX;
-        const dy = node.y - layout.centerY;
-        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-        const target = orbitRadius(node);
-        const force = (dist - target) * orbitStrength;
-        node.vx -= (dx / dist) * force;
-        node.vy -= (dy / dist) * force;
-      }
-
-      if (clusterStrength && clusterCenter) {
-        const target = clusterCenter(node);
-        node.vx += (target.x - node.x) * clusterStrength;
-        node.vy += (target.y - node.y) * clusterStrength;
-      }
-
-      if (layerStrength && layerTarget) {
-        const target = layerTarget(node);
-        node.vx += (target.x - node.x) * layerStrength;
-        node.vy += (target.y - node.y) * layerStrength;
-      }
-
-      node.x += node.vx;
-      node.y += node.vy;
-      node.vx *= 0.84;
-      node.vy *= 0.84;
-      node.x = clamp(node.x, 34, layout.width - 34);
-      node.y = clamp(node.y, 34, layout.height - 34);
+function resolveCollisions(nodes, padding, width, height) {
+  for (let i = 0; i < nodes.length; i += 1) {
+    for (let j = i + 1; j < nodes.length; j += 1) {
+      const a = nodes[i];
+      const b = nodes[j];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const distance = Math.sqrt(dx * dx + dy * dy) || 0.001;
+      const minimum = a.radius + b.radius + padding;
+      if (distance >= minimum) continue;
+      const overlap = (minimum - distance) / 2;
+      const nx = dx / distance;
+      const ny = dy / distance;
+      a.x -= nx * overlap;
+      a.y -= ny * overlap;
+      b.x += nx * overlap;
+      b.y += ny * overlap;
+      a.x = clamp(a.x, 40, width - 40);
+      a.y = clamp(a.y, 40, height - 40);
+      b.x = clamp(b.x, 40, width - 40);
+      b.y = clamp(b.y, 40, height - 40);
     }
   }
 }
@@ -267,7 +266,7 @@ function buildTypeCenters(types, width, height) {
   }
 
   const radiusX = width * 0.28;
-  const radiusY = height * 0.24;
+  const radiusY = height * 0.21;
   return new Map(types.map((type, index) => {
     const angle = ((index + 1) / types.length) * Math.PI * 2 - Math.PI / 2;
     return [type, {

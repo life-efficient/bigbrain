@@ -27,7 +27,10 @@ export async function startDashboard(config, { port = config.dashboardPort } = {
     try {
       const requestUrl = new URL(req.url || '/', 'http://127.0.0.1');
       if (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html') {
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
         res.end(renderAppHtml());
         return;
       }
@@ -85,7 +88,10 @@ async function ensureDashboardAssets(config) {
 
 async function serveFile(res, filePath, contentType) {
   const body = await fs.readFile(filePath);
-  res.writeHead(200, { 'Content-Type': contentType });
+  res.writeHead(200, {
+    'Content-Type': contentType,
+    'Cache-Control': 'no-store',
+  });
   res.end(body);
 }
 
@@ -121,11 +127,7 @@ function renderAppHtml() {
         --accent-strong: #09b8f2;
         --warm: #f4c7b8;
         --danger: #a44545;
-        --graph-bg:
-          radial-gradient(circle at 18% 18%, rgba(92,241,255,0.12), transparent 24%),
-          radial-gradient(circle at 82% 16%, rgba(120,167,255,0.12), transparent 22%),
-          radial-gradient(circle at 72% 72%, rgba(255,211,224,0.12), transparent 24%),
-          linear-gradient(135deg, rgba(255,255,255,0.98), rgba(242,248,255,0.96));
+        --graph-bg: #18181B;
         --shadow-soft: 0 18px 48px rgba(15,23,42,0.06);
         --shadow-float: 0 24px 54px rgba(15,23,42,0.12);
         --pre-bg: #172033;
@@ -150,11 +152,7 @@ function renderAppHtml() {
         --accent-soft: rgba(92,241,255,0.14);
         --accent-strong: #30cfff;
         --danger: #ff8f8f;
-        --graph-bg:
-          radial-gradient(circle at 18% 18%, rgba(92,241,255,0.12), transparent 24%),
-          radial-gradient(circle at 82% 16%, rgba(120,167,255,0.12), transparent 22%),
-          radial-gradient(circle at 72% 72%, rgba(179,134,255,0.1), transparent 24%),
-          linear-gradient(135deg, rgba(7,16,27,0.98), rgba(8,25,42,0.98));
+        --graph-bg: #18181B;
         --shadow-soft: 0 20px 52px rgba(0,0,0,0.26);
         --shadow-float: 0 26px 60px rgba(0,0,0,0.34);
         --pre-bg: #020814;
@@ -224,12 +222,12 @@ function renderAppHtml() {
       .graph-stats { display: flex; flex-wrap: wrap; gap: 8px; }
       .graph-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
       .graph-wrap { height: 520px; overflow: hidden; position: relative; border-radius: 18px; background: var(--graph-bg); border: 1px solid rgba(148,163,184,0.18); }
-      .graph-wrap-expanded { height: 100%; min-height: 560px; }
+      .graph-wrap-expanded { flex: 1; min-height: 0; height: auto; }
       .graph-canvas-shell { position: relative; height: 100%; width: 100%; }
       .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
       .graph-svg:active { cursor: grabbing; }
       .force-shell canvas { border-radius: 18px; }
-      .futuristic-graph { background: transparent; }
+      .futuristic-graph { background: #18181B; }
       .graph-pulse-line { animation: graph-pulse 7s linear infinite; }
       .graph-controls { display: flex; gap: 8px; }
       .graph-controls-inline { position: static; z-index: auto; }
@@ -240,6 +238,7 @@ function renderAppHtml() {
       .graph-controls-inline { position: static; }
       .graph-select-shell { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 12px; box-shadow: 0 6px 18px rgba(15,23,42,0.04); }
       .graph-select-shell select { border: 0; background: transparent; color: var(--ink); font: inherit; outline: none; }
+      .graph-fixed-labels text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
       .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
       .legend span { font-size: 12px; color: var(--muted); padding: 6px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); text-transform: lowercase; }
       .inbox-task-button { text-align: left; width: 100%; cursor: pointer; transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
@@ -322,7 +321,7 @@ function renderAppHtml() {
         .split { grid-template-columns: 1fr; }
         main { padding: 16px 16px 12px; }
         .graph-wrap { height: 420px; }
-        .graph-wrap-expanded { min-height: 420px; height: 100%; }
+        .graph-wrap-expanded { min-height: 360px; height: auto; }
         .section-head { align-items: stretch; flex-direction: column; }
         .graph-toolbar { justify-content: space-between; }
         .view-stage-list { justify-content: stretch; }
