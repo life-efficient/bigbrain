@@ -41,7 +41,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
       <svg
         className="graph-svg futuristic-graph composable-graph"
         viewBox={`0 0 ${laidOut.width} ${laidOut.height}`}
-        preserveAspectRatio="none"
+        preserveAspectRatio="xMidYMid meet"
         {...bind}
       >
         <defs>

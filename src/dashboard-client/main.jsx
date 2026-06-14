@@ -511,46 +511,33 @@ const GraphPanel = memo(function GraphPanel({
             </button>
             {styleMenuOpen ? (
               <div className="graph-style-menu">
-                <label className="graph-menu-field">
-                  <span>Renderer</span>
-                  <select value={visualizerId} onChange={(event) => setVisualizerId(event.target.value)}>
-                    {graphVisualizers.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="graph-menu-field">
-                  <span>Node</span>
-                  <select value={nodeStyle} onChange={(event) => setNodeStyle(event.target.value)} disabled={!isCustomRenderer}>
-                    {GRAPH_NODE_STYLES.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="graph-menu-field">
-                  <span>Arc</span>
-                  <select value={arcStyle} onChange={(event) => setArcStyle(event.target.value)} disabled={!isCustomRenderer}>
-                    {GRAPH_ARC_STYLES.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="graph-menu-field">
-                  <span>Spacing</span>
-                  <select value={layoutStyle} onChange={(event) => setLayoutStyle(event.target.value)} disabled={!isCustomRenderer}>
-                    {GRAPH_LAYOUT_STYLES.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <GraphStyleOptionGroup
+                  label="Renderer"
+                  value={visualizerId}
+                  options={graphVisualizers}
+                  onSelect={setVisualizerId}
+                />
+                <GraphStyleOptionGroup
+                  label="Node"
+                  value={nodeStyle}
+                  options={GRAPH_NODE_STYLES}
+                  onSelect={setNodeStyle}
+                  disabled={!isCustomRenderer}
+                />
+                <GraphStyleOptionGroup
+                  label="Arc"
+                  value={arcStyle}
+                  options={GRAPH_ARC_STYLES}
+                  onSelect={setArcStyle}
+                  disabled={!isCustomRenderer}
+                />
+                <GraphStyleOptionGroup
+                  label="Spacing"
+                  value={layoutStyle}
+                  options={GRAPH_LAYOUT_STYLES}
+                  onSelect={setLayoutStyle}
+                  disabled={!isCustomRenderer}
+                />
               </div>
             ) : null}
           </div>
@@ -593,6 +580,28 @@ const GraphPanel = memo(function GraphPanel({
     </section>
   );
 });
+
+function GraphStyleOptionGroup({ label, value, options, onSelect, disabled = false }) {
+  return (
+    <div className={`graph-menu-field ${disabled ? 'disabled' : ''}`}>
+      <span>{label}</span>
+      <div className="graph-option-grid">
+        {options.map((item) => (
+          <button
+            key={item.id}
+            type="button"
+            className={`graph-option-button ${value === item.id ? 'selected' : ''}`}
+            onClick={() => onSelect(item.id)}
+            disabled={disabled}
+            aria-pressed={value === item.id}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function stripSourceReferences(value) {
   return value.replace(/\s*\[Source:[^\]]+\]/g, '').replace(/\s{2,}/g, ' ').trim();
