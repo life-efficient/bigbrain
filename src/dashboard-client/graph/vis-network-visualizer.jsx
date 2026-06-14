@@ -2,8 +2,10 @@ import React, { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useR
 import { Network } from 'vis-network/standalone';
 
 import { TYPE_COLORS } from './colors.js';
+import { useGraphTheme } from './visualizer-core.jsx';
 
 export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ graph, onNodeOpen }, ref) {
+  const theme = useGraphTheme();
   const canvasRef = useRef(null);
   const networkRef = useRef(null);
   const handleNodeOpen = useEffectEvent((nodeId) => {
@@ -11,6 +13,28 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
   });
 
   useImperativeHandle(ref, () => ({
+    zoomIn() {
+      const network = networkRef.current;
+      if (!network) return;
+      network.moveTo({
+        scale: Math.min(3.2, network.getScale() * 1.18),
+        animation: {
+          duration: 220,
+          easingFunction: 'easeInOutQuad',
+        },
+      });
+    },
+    zoomOut() {
+      const network = networkRef.current;
+      if (!network) return;
+      network.moveTo({
+        scale: Math.max(0.42, network.getScale() / 1.18),
+        animation: {
+          duration: 220,
+          easingFunction: 'easeInOutQuad',
+        },
+      });
+    },
     resetView() {
       networkRef.current?.fit({
         animation: {
@@ -50,8 +74,8 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
           shape: 'dot',
           scaling: { min: 10, max: 26 },
           font: {
-            face: 'ui-sans-serif',
-            color: '#314158',
+            face: '"SF Mono", "IBM Plex Mono", ui-monospace, monospace',
+            color: theme.graphLabel,
             size: 12,
             strokeWidth: 0,
           },
@@ -59,7 +83,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
           borderWidthSelected: 2,
           shadow: {
             enabled: true,
-            color: 'rgba(180, 198, 255, 0.35)',
+            color: theme.graphHalo,
             size: 20,
             x: 0,
             y: 0,
@@ -67,8 +91,8 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
         },
         edges: {
           color: {
-            color: 'rgba(148,163,184,0.32)',
-            highlight: 'rgba(148,163,184,0.54)',
+            color: theme.graphEdge,
+            highlight: theme.graphEdgeStrong,
           },
           smooth: {
             enabled: true,
@@ -79,14 +103,14 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
         groups: Object.fromEntries(Object.entries(TYPE_COLORS).map(([type, color]) => [type, {
           color: {
             background: color,
-            border: '#ffffff',
+            border: theme.graphNodeStroke,
             highlight: {
               background: color,
-              border: '#ffffff',
+              border: theme.graphNodeStroke,
             },
             hover: {
               background: color,
-              border: '#ffffff',
+              border: theme.graphNodeStroke,
             },
           },
         }])),
@@ -132,7 +156,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
       network.destroy();
       networkRef.current = null;
     };
-  }, [graph, handleNodeOpen]);
+  }, [graph, handleNodeOpen, theme.graphEdge, theme.graphEdgeStrong, theme.graphHalo, theme.graphLabel, theme.graphNodeStroke]);
 
   return (
     <div className="graph-canvas-shell force-shell">
