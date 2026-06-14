@@ -33,9 +33,17 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   const defsId = useId().replace(/:/g, '-');
   const [hoveredSlug, setHoveredSlug] = useState(null);
   const [activeSlug, setActiveSlug] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
   const buildLayout = LAYOUT_BUILDERS[layoutStyle] || buildJarvisLayout;
   const laidOut = useMemo(() => buildLayout(graph), [buildLayout, graph]);
-  const { viewport, bind } = useGraphViewport(ref, laidOut);
+  const { viewport, bind } = useGraphViewport(ref, laidOut, {
+    onDragStateChange(dragging) {
+      setIsDragging(dragging);
+      if (dragging) {
+        setHoveredSlug(null);
+      }
+    },
+  });
   const labelCount = layoutStyle === 'clusters' ? 6 : layoutStyle === 'lanes' ? 5 : 4;
   const labeled = useMemo(() => {
     const next = new Set();
@@ -78,6 +86,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
             onNodeOpen={onNodeOpen}
             activeSlug={activeSlug}
             hoveredSlug={hoveredSlug}
+            isDragging={isDragging}
             onActiveSlugChange={setActiveSlug}
             onHoveredSlugChange={setHoveredSlug}
           />
@@ -252,6 +261,7 @@ function NodeLayer({
   onNodeOpen,
   activeSlug,
   hoveredSlug,
+  isDragging,
   onActiveSlugChange,
   onHoveredSlugChange,
 }) {
@@ -262,9 +272,11 @@ function NodeLayer({
         event.stopPropagation();
       }}
       onPointerEnter={() => {
+        if (isDragging) return;
         onHoveredSlugChange(node.slug);
       }}
       onPointerLeave={() => {
+        if (isDragging) return;
         onHoveredSlugChange((current) => (current === node.slug ? null : current));
       }}
       onClick={(event) => {

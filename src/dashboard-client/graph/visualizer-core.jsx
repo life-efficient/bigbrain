@@ -30,8 +30,10 @@ export function useGraphViewport(ref, laidOut, options = {}) {
     maxScale = 3.4,
     buttonZoomFactor = 1.18,
     wheelZoomFactor = 1.12,
+    onDragStateChange,
   } = options;
   const [viewport, setViewport] = useState({ scale: 1, x: 0, y: 0 });
+  const viewportRef = useRef(viewport);
   const dragRef = useRef({
     dragging: false,
     startX: 0,
@@ -39,11 +41,24 @@ export function useGraphViewport(ref, laidOut, options = {}) {
     originX: 0,
     originY: 0,
   });
+  const frameRef = useRef(0);
+  const pendingViewportRef = useRef(null);
   const layoutSignature = `${laidOut.nodes.map((node) => `${node.slug}:${Math.round(node.x)}:${Math.round(node.y)}`).join('|')}::${laidOut.edges.length}::${laidOut.width}x${laidOut.height}`;
+
+  useEffect(() => {
+    viewportRef.current = viewport;
+  }, [viewport]);
 
   useEffect(() => {
     setViewport({ scale: 1, x: 0, y: 0 });
   }, [layoutSignature]);
+
+  useEffect(() => () => {
+    if (frameRef.current) {
+      window.cancelAnimationFrame(frameRef.current);
+      frameRef.current = 0;
+    }
+  }, []);
 
   function zoomAround(anchorX, anchorY, factor) {
     setViewport((current) => {
@@ -84,30 +99,49 @@ export function useGraphViewport(ref, laidOut, options = {}) {
   }
 
   function onPointerDown(event) {
+    if (event.button !== 0) return;
     const next = dragRef.current;
     next.dragging = true;
     next.startX = event.clientX;
     next.startY = event.clientY;
-    next.originX = viewport.x;
-    next.originY = viewport.y;
+    next.originX = viewportRef.current.x;
+    next.originY = viewportRef.current.y;
+    onDragStateChange?.(true);
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   function onPointerMove(event) {
     const drag = dragRef.current;
     if (!drag.dragging) return;
-    setViewport((current) => ({
-      ...current,
+    const nextViewport = {
+      ...viewportRef.current,
       x: drag.originX + ((event.clientX - drag.startX) / event.currentTarget.clientWidth) * laidOut.width,
       y: drag.originY + ((event.clientY - drag.startY) / event.currentTarget.clientHeight) * laidOut.height,
-    }));
+    };
+    pendingViewportRef.current = nextViewport;
+    if (frameRef.current) return;
+    frameRef.current = window.requestAnimationFrame(() => {
+      frameRef.current = 0;
+      if (!pendingViewportRef.current) return;
+      viewportRef.current = pendingViewportRef.current;
+      setViewport(pendingViewportRef.current);
+      pendingViewportRef.current = null;
+    });
   }
 
   function stopDragging(event) {
     const drag = dragRef.current;
+    if (!drag.dragging) return;
     drag.dragging = false;
-    if (event?.pointerId !== undefined && event.currentTarget.hasPointerCapture?.(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
+    onDragStateChange?.(false);
+    if (event?.pointerId !== undefined) {
+      try {
+        if (event.currentTarget.hasPointerCapture?.(event.pointerId)) {
+          event.currentTarget.releasePointerCapture(event.pointerId);
+        }
+      } catch {
+        // Ignore pointer-capture release issues from platform/browser edge cases.
+      }
     }
   }
 
@@ -118,8 +152,8 @@ export function useGraphViewport(ref, laidOut, options = {}) {
       onPointerDown,
       onPointerMove,
       onPointerUp: stopDragging,
-      onPointerLeave: stopDragging,
       onPointerCancel: stopDragging,
+      onLostPointerCapture: stopDragging,
     },
   };
 }
