@@ -5,6 +5,7 @@ import { TYPE_ORDER } from './graph/colors.js';
 import {
   GRAPH_ARC_STYLES,
   GRAPH_CONTROL_LABELS,
+  GRAPH_DEFAULTS,
   GRAPH_LABEL_STYLES,
   GRAPH_LAYOUT_STYLES,
   GRAPH_NODE_STYLES,
@@ -14,14 +15,54 @@ import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
 import { MarkdownDocument } from './markdown.jsx';
 
+class DashboardErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Dashboard render failure', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.error) {
+      return (
+        <main>
+          <section className="card loading-card error-card">
+            <h1>bigbrain</h1>
+            <p>The dashboard hit a frontend error.</p>
+            <div className="error-actions">
+              <button
+                type="button"
+                className="graph-button"
+                onClick={() => window.location.reload()}
+              >
+                Reload dashboard
+              </button>
+            </div>
+            <pre className="error-details">{String(this.state.error?.stack || this.state.error)}</pre>
+          </section>
+        </main>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
 function DashboardApp() {
   const [state, setState] = useState({ status: 'loading', error: null, data: null });
   const [view, setView] = useState('inbox');
-  const [visualizerId, setVisualizerId] = useState(graphVisualizers[0].id);
-  const [nodeStyle, setNodeStyle] = useState(GRAPH_NODE_STYLES[0].id);
-  const [arcStyle, setArcStyle] = useState(GRAPH_ARC_STYLES[0].id);
-  const [layoutStyle, setLayoutStyle] = useState(GRAPH_LAYOUT_STYLES[0].id);
-  const [labelStyle, setLabelStyle] = useState(GRAPH_LABEL_STYLES[0].id);
+  const [visualizerId, setVisualizerId] = useState(GRAPH_DEFAULTS.visualizerId);
+  const [nodeStyle, setNodeStyle] = useState(GRAPH_DEFAULTS.nodeStyle);
+  const [arcStyle, setArcStyle] = useState(GRAPH_DEFAULTS.arcStyle);
+  const [layoutStyle, setLayoutStyle] = useState(GRAPH_DEFAULTS.layoutStyle);
+  const [labelStyle, setLabelStyle] = useState(GRAPH_DEFAULTS.labelStyle);
   const [themeMode, setThemeMode] = useState('auto');
   const [prefersDark, setPrefersDark] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -681,4 +722,8 @@ function stripSourceReferences(value) {
 }
 
 const root = createRoot(document.getElementById('root'));
-root.render(<DashboardApp />);
+root.render(
+  <DashboardErrorBoundary>
+    <DashboardApp />
+  </DashboardErrorBoundary>,
+);

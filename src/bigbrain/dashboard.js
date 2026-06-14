@@ -170,18 +170,107 @@ function renderAppHtml() {
       .view-chip.active .view-chip-count { background: rgba(255,255,255,0.1); }
       .view-chip-kbd { font: inherit; font-size: 11px; line-height: 1; color: var(--muted); border: 1px solid var(--line); border-bottom-color: var(--line-strong); background: var(--surface-strong); border-radius: 7px; padding: 4px 6px; min-width: 20px; text-align: center; box-shadow: inset 0 -1px 0 rgba(148,163,184,0.12); }
       .view-chip.active .view-chip-kbd { color: var(--ink); background: var(--surface); border-color: var(--line-strong); }
-      .health-menu { position: relative; }
-      .health-button { position: relative; min-width: 38px; height: 38px; padding: 0 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.04); display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+      .settings-menu, .health-menu { position: relative; }
+      .settings-button, .health-button {
+        position: relative;
+        min-width: 38px;
+        height: 38px;
+        padding: 0 11px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        color: var(--muted);
+        cursor: pointer;
+        box-shadow: 0 6px 18px rgba(15,23,42,0.04);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+      }
+      .settings-button {
+        padding: 0 14px 0 12px;
+        color: var(--ink);
+        background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+      }
+      .settings-button.open, .health-button.open { box-shadow: 0 12px 28px rgba(15,23,42,0.08); }
+      .settings-icon { width: 16px; height: 16px; }
+      .settings-dropdown, .health-dropdown {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 10px);
+        border: 1px solid var(--line);
+        background: var(--panel);
+        box-shadow: var(--shadow-float);
+        backdrop-filter: blur(18px);
+        z-index: 20;
+      }
+      .settings-dropdown {
+        width: min(320px, calc(100vw - 40px));
+        padding: 14px;
+        border-radius: 18px;
+        display: grid;
+        gap: 14px;
+      }
+      .settings-dropdown-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 12px;
+      }
+      .settings-field {
+        display: grid;
+        gap: 10px;
+        padding: 14px;
+        border-radius: 16px;
+        border: 1px solid rgba(148,163,184,0.16);
+        background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02));
+      }
+      .settings-label {
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .theme-toggle {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px;
+        border-radius: 999px;
+        border: 1px solid var(--line);
+        background: rgba(255,255,255,0.03);
+        width: fit-content;
+      }
+      .theme-toggle-button {
+        border: 0;
+        background: transparent;
+        color: var(--muted);
+        border-radius: 999px;
+        padding: 8px 13px;
+        font: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background 140ms ease, color 140ms ease, box-shadow 140ms ease;
+      }
+      .theme-toggle-button:hover {
+        color: var(--ink);
+      }
+      .theme-toggle-button.active {
+        background: var(--ink);
+        color: var(--bg);
+        box-shadow: 0 8px 18px rgba(15,23,42,0.14);
+      }
       .health-button.severity-clear,
       .health-button.severity-low { color: var(--muted); border-color: var(--line); background: var(--surface); }
       .health-button.severity-medium { color: #8c6a2f; border-color: rgba(188,123,77,0.22); background: rgba(188,123,77,0.06); }
       .health-button.severity-high { color: var(--danger); border-color: rgba(164,69,69,0.24); background: rgba(164,69,69,0.06); }
-      .health-button.open { box-shadow: 0 12px 28px rgba(15,23,42,0.08); }
       .health-icon { font-size: 14px; line-height: 1; opacity: 0.9; }
       .health-badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: rgba(15,23,42,0.08); color: var(--ink); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
       .health-button.severity-medium .health-badge { background: rgba(188,123,77,0.14); color: #7a5624; }
       .health-button.severity-high .health-badge { background: rgba(164,69,69,0.14); color: #913737; }
-      .health-dropdown { position: absolute; right: 0; top: calc(100% + 10px); width: min(380px, calc(100vw - 40px)); max-height: min(440px, 70vh); overflow: auto; padding: 14px; border-radius: 18px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 20; }
+      .health-dropdown { width: min(380px, calc(100vw - 40px)); max-height: min(440px, 70vh); overflow: auto; padding: 14px; border-radius: 18px; }
       .health-dropdown-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
       .health-dropdown-list { display: grid; gap: 10px; }
       .health-dropdown-item { padding: 12px 13px; border-radius: 14px; border: 1px solid rgba(148,163,184,0.16); background: var(--surface); }
@@ -199,6 +288,9 @@ function renderAppHtml() {
       .list-scroll-region { flex: 1; min-height: 0; overflow: auto; padding-right: 4px; }
       .standalone-list-region { height: 100%; overflow: auto; padding-right: 4px; }
       .loading-card { min-height: 180px; display: grid; gap: 10px; align-content: center; }
+      .error-card { max-width: min(820px, 100%); }
+      .error-actions { display: flex; gap: 10px; margin-top: 6px; }
+      .error-details { margin: 0; max-height: 320px; overflow: auto; border-radius: 14px; border: 1px solid var(--line); background: var(--pre-bg); color: var(--pre-ink); padding: 14px 16px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
       .section-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 14px; }
       .section-subtle { font-size: 13px; margin-top: 2px; }
       .graph-stats { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -219,8 +311,6 @@ function renderAppHtml() {
       .graph-note { position: absolute; left: 14px; bottom: 14px; z-index: 2; font-size: 12px; color: var(--muted); padding: 8px 10px; border-radius: 999px; background: var(--surface-strong); border: 1px solid var(--line); }
       .graph-toolbar { display: flex; flex-wrap: wrap; justify-content: end; align-items: center; gap: 10px; }
       .graph-controls-inline { position: static; }
-      .graph-select-shell { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 12px; box-shadow: 0 6px 18px rgba(15,23,42,0.04); }
-      .graph-select-shell select { border: 0; background: transparent; color: var(--ink); font: inherit; outline: none; }
       .graph-style-menu-shell { position: relative; }
       .graph-style-menu { position: absolute; right: 0; top: calc(100% + 10px); min-width: 300px; display: grid; gap: 14px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 8; }
       .graph-menu-field { display: grid; gap: 8px; font-size: 12px; color: var(--muted); }
