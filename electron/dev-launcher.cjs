@@ -29,6 +29,7 @@ function main() {
   }
 
   prepareDevAppBundle();
+  quitRunningDevApp();
 
   if (process.argv.includes("--prepare-only")) {
     process.stdout.write(`${TARGET_APP_PATH}\n`);
@@ -98,6 +99,40 @@ function prepareDevAppBundle() {
   setPlistValue("CFBundleIconFile", "app-icon.icns");
   setPlistValue("LSApplicationCategoryType", "public.app-category.productivity");
   syncDevAppIcon();
+}
+
+function quitRunningDevApp() {
+  try {
+    if (!isDevAppRunning()) {
+      return;
+    }
+
+    execFileSync("osascript", ["-e", `tell application id "${DEV_BUNDLE_ID}" to quit`], {
+      stdio: "ignore",
+    });
+
+    const deadline = Date.now() + 5000;
+    while (Date.now() < deadline) {
+      if (!isDevAppRunning()) {
+        return;
+      }
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150);
+    }
+  } catch {
+    // Fall through. Launching will still work when no app is running.
+  }
+}
+
+function isDevAppRunning() {
+  try {
+    const result = execFileSync("osascript", ["-e", `application id "${DEV_BUNDLE_ID}" is running`], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return result.trim() === "true";
+  } catch {
+    return false;
+  }
 }
 
 function setPlistValue(key, value) {
