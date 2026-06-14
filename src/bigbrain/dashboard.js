@@ -582,7 +582,7 @@ function buildGraphPayload(db) {
       degree: outgoing.length + backlinks.length,
       outgoing,
     };
-  }).sort((a, b) => b.degree - a.degree || a.slug.localeCompare(b.slug)).slice(0, 90);
+  }).sort((a, b) => b.degree - a.degree || a.slug.localeCompare(b.slug));
 
   const allowed = new Set(candidateNodes.map((node) => node.slug));
   const edges = [];
