@@ -3,10 +3,10 @@ const net = require("net");
 const path = require("path");
 const { pathToFileURL } = require("url");
 
-const APP_DISPLAY_NAME = "BigBrain Dashboard";
+const APP_DISPLAY_NAME = "BigBrain";
 const LOCAL_HOST = "127.0.0.1";
 const DEFAULT_WINDOW_SIZE = { width: 1520, height: 980 };
-const APP_ICON_PATH = path.join(__dirname, "assets", "app-icon.png");
+const APP_ICON_PATH = path.join(__dirname, "assets", "desktop-icon.png");
 
 let mainWindow = null;
 let dashboardServer = null;
@@ -29,7 +29,7 @@ if (!singleInstanceLock) {
       createMainWindow();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      dialog.showErrorBox("BigBrain Dashboard failed to start", message);
+      dialog.showErrorBox("BigBrain failed to start", message);
       app.quit();
     }
   });

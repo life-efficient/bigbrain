@@ -41,7 +41,7 @@
   },
   "build": {
     "appId": "ai.diffusing.bigbrain.dashboard",
-    "productName": "BigBrain Dashboard",
+    "productName": "BigBrain",
     "asar": false,
     "directories": {
       "output": "dist/electron"
@@ -55,7 +55,7 @@
       "src/**/*"
     ],
     "mac": {
-      "icon": "electron/assets/app-icon.icns",
+      "icon": "electron/assets/desktop-app-icon.icns",
       "category": "public.app-category.productivity",
       "target": [
         {

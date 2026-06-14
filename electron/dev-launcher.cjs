@@ -4,7 +4,7 @@ const fs = require("fs");
 const path = require("path");
 const { spawn, execFileSync } = require("child_process");
 
-const APP_NAME = "BigBrain Dashboard";
+const APP_NAME = "BigBrain";
 const DEV_APP_NAME = `${APP_NAME}.app`;
 const DEV_BUNDLE_ID = "ai.diffusing.bigbrain.dashboard.dev";
 const ROOT_DIR = path.resolve(__dirname, "..");
@@ -15,10 +15,10 @@ const TARGET_APP_PATH = path.join(BUILD_DIR, DEV_APP_NAME);
 const TARGET_PLIST_PATH = path.join(TARGET_APP_PATH, "Contents", "Info.plist");
 const TARGET_RESOURCES_DIR = path.join(TARGET_APP_PATH, "Contents", "Resources");
 const TARGET_EXECUTABLE_PATH = path.join(TARGET_APP_PATH, "Contents", "MacOS", "Electron");
-const CUSTOM_ICON_SOURCE_PATH = path.join(ROOT_DIR, "electron", "assets", "app-icon.icns");
+const CUSTOM_ICON_SOURCE_PATH = path.join(ROOT_DIR, "electron", "assets", "desktop-app-icon.icns");
 const CUSTOM_ICON_TARGET_PATH = path.join(TARGET_RESOURCES_DIR, "app-icon.icns");
 const STAMP_PATH = path.join(BUILD_DIR, "launcher-stamp.json");
-const LAUNCHER_VERSION = 1;
+const LAUNCHER_VERSION = 2;
 
 main();
 
