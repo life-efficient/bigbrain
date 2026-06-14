@@ -1,4 +1,4 @@
-import React, { forwardRef, useId, useMemo } from 'react';
+import React, { forwardRef, useId, useMemo, useState } from 'react';
 
 import {
   buildCurvedEdgePath,
@@ -31,19 +31,25 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
 }, ref) {
   const theme = useGraphTheme();
   const defsId = useId().replace(/:/g, '-');
+  const [hoveredSlug, setHoveredSlug] = useState(null);
+  const [activeSlug, setActiveSlug] = useState(null);
   const buildLayout = LAYOUT_BUILDERS[layoutStyle] || buildJarvisLayout;
   const laidOut = useMemo(() => buildLayout(graph), [buildLayout, graph]);
   const { viewport, bind } = useGraphViewport(ref, laidOut);
   const labelCount = layoutStyle === 'clusters' ? 6 : layoutStyle === 'lanes' ? 5 : 4;
   const labeled = useMemo(() => {
+    const next = new Set();
     if (labelStyle === 'off') {
-      return new Set();
+      // Keep manual hover/selection labels visible even when the base mode is off.
+    } else if (labelStyle === 'all') {
+      laidOut.nodes.forEach((node) => next.add(node.slug));
+    } else {
+      pickLabelNodes(laidOut.nodes, labelCount).forEach((slug) => next.add(slug));
     }
-    if (labelStyle === 'all') {
-      return new Set(laidOut.nodes.map((node) => node.slug));
-    }
-    return pickLabelNodes(laidOut.nodes, labelCount);
-  }, [labelCount, labelStyle, laidOut]);
+    if (activeSlug) next.add(activeSlug);
+    if (hoveredSlug) next.add(hoveredSlug);
+    return next;
+  }, [activeSlug, hoveredSlug, labelCount, labelStyle, laidOut]);
 
   return (
     <div className="graph-canvas-shell">
@@ -65,7 +71,16 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
         <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
           <LayoutBackdrop layoutStyle={layoutStyle} laidOut={laidOut} theme={theme} />
           <ArcLayer arcStyle={arcStyle} laidOut={laidOut} theme={theme} />
-          <NodeLayer nodeStyle={nodeStyle} laidOut={laidOut} theme={theme} onNodeOpen={onNodeOpen} />
+          <NodeLayer
+            nodeStyle={nodeStyle}
+            laidOut={laidOut}
+            theme={theme}
+            onNodeOpen={onNodeOpen}
+            activeSlug={activeSlug}
+            hoveredSlug={hoveredSlug}
+            onActiveSlugChange={setActiveSlug}
+            onHoveredSlugChange={setHoveredSlug}
+          />
         </g>
 
         <GraphFixedLabels nodes={laidOut.nodes} viewport={viewport} labeled={labeled} theme={theme} />
@@ -230,27 +245,55 @@ function ArcLayer({ arcStyle, laidOut, theme }) {
   );
 }
 
-function NodeLayer({ nodeStyle, laidOut, theme, onNodeOpen }) {
+function NodeLayer({
+  nodeStyle,
+  laidOut,
+  theme,
+  onNodeOpen,
+  activeSlug,
+  hoveredSlug,
+  onActiveSlugChange,
+  onHoveredSlugChange,
+}) {
   return laidOut.nodes.map((node) => (
     <g
       key={node.slug}
+      onPointerDown={(event) => {
+        event.stopPropagation();
+      }}
+      onPointerEnter={() => {
+        onHoveredSlugChange(node.slug);
+      }}
+      onPointerLeave={() => {
+        onHoveredSlugChange((current) => (current === node.slug ? null : current));
+      }}
       onClick={(event) => {
         event.stopPropagation();
+        onActiveSlugChange(node.slug);
         onNodeOpen?.(node.slug);
       }}
       style={{ cursor: 'pointer' }}
     >
-      {renderNodeShape(node, nodeStyle, theme)}
+      {renderNodeShape(node, nodeStyle, theme, activeSlug === node.slug || hoveredSlug === node.slug)}
     </g>
   ));
 }
 
-function renderNodeShape(node, nodeStyle, theme) {
+function renderNodeShape(node, nodeStyle, theme, emphasized) {
+  const hitRadius = Math.max(14, node.radius * 2.9);
   if (nodeStyle === 'diamond') {
     const outer = node.radius * 2.2;
     const inner = Math.max(1.8, node.radius * 0.38);
     return (
       <>
+        <circle
+          cx={node.x}
+          cy={node.y}
+          r={hitRadius}
+          fill="#ffffff"
+          fillOpacity="0.001"
+          stroke="none"
+        />
         <rect
           x={node.x - outer / 2}
           y={node.y - outer / 2}
@@ -258,7 +301,7 @@ function renderNodeShape(node, nodeStyle, theme) {
           height={outer}
           fill="none"
           stroke={theme.graphNodeStroke}
-          strokeWidth="1"
+          strokeWidth={emphasized ? '1.5' : '1'}
           transform={`rotate(45 ${node.x} ${node.y})`}
         />
         <rect
@@ -270,7 +313,7 @@ function renderNodeShape(node, nodeStyle, theme) {
           stroke={theme.graphGrid}
           strokeWidth="1"
           transform={`rotate(45 ${node.x} ${node.y})`}
-          opacity="0.52"
+          opacity={emphasized ? '0.82' : '0.52'}
         />
         <circle cx={node.x} cy={node.y} r={inner} fill={theme.accentStrong} />
       </>
@@ -282,8 +325,16 @@ function renderNodeShape(node, nodeStyle, theme) {
     const d = buildHexPath(node.x, node.y, side);
     return (
       <>
-        <path d={d} fill="none" stroke={theme.graphNodeStroke} strokeWidth="1" />
-        <path d={buildHexPath(node.x, node.y, side * 0.72)} fill="none" stroke={theme.graphGrid} strokeWidth="1" opacity="0.34" />
+        <circle
+          cx={node.x}
+          cy={node.y}
+          r={hitRadius}
+          fill="#ffffff"
+          fillOpacity="0.001"
+          stroke="none"
+        />
+        <path d={d} fill="none" stroke={theme.graphNodeStroke} strokeWidth={emphasized ? '1.5' : '1'} />
+        <path d={buildHexPath(node.x, node.y, side * 0.72)} fill="none" stroke={theme.graphGrid} strokeWidth="1" opacity={emphasized ? '0.64' : '0.34'} />
         <circle cx={node.x} cy={node.y} r={Math.max(1.8, node.radius * 0.32)} fill={theme.accentStrong} />
       </>
     );
@@ -294,10 +345,18 @@ function renderNodeShape(node, nodeStyle, theme) {
       <circle
         cx={node.x}
         cy={node.y}
+        r={hitRadius}
+        fill="#ffffff"
+        fillOpacity="0.001"
+        stroke="none"
+      />
+      <circle
+        cx={node.x}
+        cy={node.y}
         r={node.radius * 1.55}
         fill="none"
         stroke={theme.graphNodeStroke}
-        strokeWidth="1"
+        strokeWidth={emphasized ? '1.5' : '1'}
       />
       <circle
         cx={node.x}
@@ -306,7 +365,7 @@ function renderNodeShape(node, nodeStyle, theme) {
         fill="none"
         stroke={theme.graphGrid}
         strokeWidth="1"
-        opacity="0.48"
+        opacity={emphasized ? '0.78' : '0.48'}
       />
       <circle cx={node.x} cy={node.y} r={Math.max(1.8, node.radius * 0.4)} fill={theme.accentStrong} />
     </>
