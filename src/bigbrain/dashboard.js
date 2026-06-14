@@ -14,6 +14,10 @@ const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..');
 const dashboardClientEntry = path.join(repoRoot, 'src', 'dashboard-client', 'main.jsx');
 const dashboardBundleFilename = 'dashboard-client.js';
+const dashboardIconDir = path.join(repoRoot, 'electron', 'assets');
+const faviconPath = path.join(dashboardIconDir, 'favicon.ico');
+const faviconPngPath = path.join(dashboardIconDir, 'favicon-32.png');
+const appleTouchIconPath = path.join(dashboardIconDir, 'apple-touch-icon.png');
 
 export async function startDashboard(config, { port = config.dashboardPort } = {}) {
   const db = await openDatabase(config);
@@ -25,6 +29,18 @@ export async function startDashboard(config, { port = config.dashboardPort } = {
       if (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(renderAppHtml());
+        return;
+      }
+      if (requestUrl.pathname === '/favicon.ico') {
+        await serveFile(res, faviconPath, 'image/x-icon');
+        return;
+      }
+      if (requestUrl.pathname === '/assets/favicon-32.png') {
+        await serveFile(res, faviconPngPath, 'image/png');
+        return;
+      }
+      if (requestUrl.pathname === '/assets/apple-touch-icon.png') {
+        await serveFile(res, appleTouchIconPath, 'image/png');
         return;
       }
       if (requestUrl.pathname === `/assets/${dashboardBundleFilename}`) {
@@ -84,6 +100,9 @@ function renderAppHtml() {
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png" />
     <title>bigbrain dashboard</title>
     <style>
       :root {
