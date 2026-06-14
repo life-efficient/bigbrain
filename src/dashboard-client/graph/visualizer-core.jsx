@@ -39,7 +39,7 @@ export function useGraphViewport(ref, laidOut, options = {}) {
     originX: 0,
     originY: 0,
   });
-  const layoutSignature = `${laidOut.nodes.map((node) => node.slug).join('|')}::${laidOut.edges.length}::${laidOut.width}x${laidOut.height}`;
+  const layoutSignature = `${laidOut.nodes.map((node) => `${node.slug}:${Math.round(node.x)}:${Math.round(node.y)}`).join('|')}::${laidOut.edges.length}::${laidOut.width}x${laidOut.height}`;
 
   useEffect(() => {
     setViewport({ scale: 1, x: 0, y: 0 });

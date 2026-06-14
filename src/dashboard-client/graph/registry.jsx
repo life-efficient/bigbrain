@@ -1,6 +1,4 @@
-import { JarvisHudVisualizer } from './jarvis-hud-visualizer.jsx';
-import { NeuralMeshVisualizer } from './neural-mesh-visualizer.jsx';
-import { SignalBloomVisualizer } from './signal-bloom-visualizer.jsx';
+import { ComposableGraphVisualizer } from './composable-graph-visualizer.jsx';
 import { VisNetworkVisualizer } from './vis-network-visualizer.jsx';
 
 export const GRAPH_CONTROL_LABELS = {
@@ -9,36 +7,30 @@ export const GRAPH_CONTROL_LABELS = {
   resetView: 'Reset',
 };
 
+export const GRAPH_NODE_STYLES = [
+  { id: 'orb', label: 'Orb' },
+  { id: 'diamond', label: 'Diamond' },
+  { id: 'hex', label: 'Hex' },
+];
+
+export const GRAPH_ARC_STYLES = [
+  { id: 'straight', label: 'Straight' },
+  { id: 'curve', label: 'Curve' },
+  { id: 'beam', label: 'Beam' },
+];
+
+export const GRAPH_LAYOUT_STYLES = [
+  { id: 'orbital', label: 'Orbital' },
+  { id: 'lanes', label: 'Lanes' },
+  { id: 'clusters', label: 'Clusters' },
+];
+
 export const graphVisualizers = [
   {
-    id: 'jarvis-hud',
-    label: 'Jarvis HUD',
-    Component: JarvisHudVisualizer,
-    description: 'Orbital control-room visualizer',
-    interactionModel: 'custom',
-    controls: ['zoomIn', 'zoomOut', 'resetView'],
-    capabilities: {
-      ownsPan: true,
-      ownsWheelZoom: true,
-    },
-  },
-  {
-    id: 'neural-mesh',
-    label: 'Neural Mesh',
-    Component: NeuralMeshVisualizer,
-    description: 'Layered dense network view',
-    interactionModel: 'custom',
-    controls: ['zoomIn', 'zoomOut', 'resetView'],
-    capabilities: {
-      ownsPan: true,
-      ownsWheelZoom: true,
-    },
-  },
-  {
-    id: 'signal-bloom',
-    label: 'Signal Bloom',
-    Component: SignalBloomVisualizer,
-    description: 'Cluster-first cinematic graph',
+    id: 'custom',
+    label: 'Custom',
+    Component: ComposableGraphVisualizer,
+    description: 'Composable monochrome graph renderer',
     interactionModel: 'custom',
     controls: ['zoomIn', 'zoomOut', 'resetView'],
     capabilities: {

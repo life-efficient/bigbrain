@@ -2,7 +2,13 @@ import React, { memo, useEffect, useEffectEvent, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client';
 
 import { TYPE_ORDER } from './graph/colors.js';
-import { GRAPH_CONTROL_LABELS, graphVisualizers } from './graph/registry.jsx';
+import {
+  GRAPH_ARC_STYLES,
+  GRAPH_CONTROL_LABELS,
+  GRAPH_LAYOUT_STYLES,
+  GRAPH_NODE_STYLES,
+  graphVisualizers,
+} from './graph/registry.jsx';
 import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
 import { MarkdownDocument } from './markdown.jsx';
@@ -11,6 +17,9 @@ function DashboardApp() {
   const [state, setState] = useState({ status: 'loading', error: null, data: null });
   const [view, setView] = useState('inbox');
   const [visualizerId, setVisualizerId] = useState(graphVisualizers[0].id);
+  const [nodeStyle, setNodeStyle] = useState(GRAPH_NODE_STYLES[0].id);
+  const [arcStyle, setArcStyle] = useState(GRAPH_ARC_STYLES[0].id);
+  const [layoutStyle, setLayoutStyle] = useState(GRAPH_LAYOUT_STYLES[0].id);
   const [themeMode, setThemeMode] = useState('auto');
   const [prefersDark, setPrefersDark] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -332,6 +341,12 @@ function DashboardApp() {
                 graph={graph}
                 visualizerId={visualizerId}
                 setVisualizerId={setVisualizerId}
+                nodeStyle={nodeStyle}
+                setNodeStyle={setNodeStyle}
+                arcStyle={arcStyle}
+                setArcStyle={setArcStyle}
+                layoutStyle={layoutStyle}
+                setLayoutStyle={setLayoutStyle}
                 themeMode={themeMode}
                 setThemeMode={setThemeMode}
                 visualizerRef={visualizerRef}
@@ -427,16 +442,48 @@ const GraphPanel = memo(function GraphPanel({
   graph,
   visualizerId,
   setVisualizerId,
+  nodeStyle,
+  setNodeStyle,
+  arcStyle,
+  setArcStyle,
+  layoutStyle,
+  setLayoutStyle,
   themeMode,
   setThemeMode,
   visualizerRef,
   onNodeOpen,
 }) {
+  const [styleMenuOpen, setStyleMenuOpen] = useState(false);
+  const styleMenuRef = useRef(null);
   const visualizer = graphVisualizers.find((item) => item.id === visualizerId) || graphVisualizers[0];
   const VisualizerComponent = visualizer.Component;
   const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const presentTypes = new Set(graphNodes.map((node) => node.type));
   const legendTypes = TYPE_ORDER.filter((type) => presentTypes.has(type));
+  const isCustomRenderer = visualizerId === 'custom';
+
+  useEffect(() => {
+    if (!styleMenuOpen) return undefined;
+
+    function handlePointerDown(event) {
+      if (styleMenuRef.current && !styleMenuRef.current.contains(event.target)) {
+        setStyleMenuOpen(false);
+      }
+    }
+
+    function handleEscape(event) {
+      if (event.key === 'Escape') {
+        setStyleMenuOpen(false);
+      }
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleEscape);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleEscape);
+    };
+  }, [styleMenuOpen]);
 
   return (
     <section className="card hero-card">
@@ -453,16 +500,60 @@ const GraphPanel = memo(function GraphPanel({
           </div>
         </div>
         <div className="graph-toolbar">
-          <label className="graph-select-shell">
-            <span>Style</span>
-            <select value={visualizerId} onChange={(event) => setVisualizerId(event.target.value)}>
-              {graphVisualizers.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-          </label>
+          <div className="graph-style-menu-shell" ref={styleMenuRef}>
+            <button
+              type="button"
+              className={`graph-button ${styleMenuOpen ? 'graph-button-active' : ''}`}
+              aria-expanded={styleMenuOpen}
+              onClick={() => setStyleMenuOpen((value) => !value)}
+            >
+              Graph style
+            </button>
+            {styleMenuOpen ? (
+              <div className="graph-style-menu">
+                <label className="graph-menu-field">
+                  <span>Renderer</span>
+                  <select value={visualizerId} onChange={(event) => setVisualizerId(event.target.value)}>
+                    {graphVisualizers.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="graph-menu-field">
+                  <span>Node</span>
+                  <select value={nodeStyle} onChange={(event) => setNodeStyle(event.target.value)} disabled={!isCustomRenderer}>
+                    {GRAPH_NODE_STYLES.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="graph-menu-field">
+                  <span>Arc</span>
+                  <select value={arcStyle} onChange={(event) => setArcStyle(event.target.value)} disabled={!isCustomRenderer}>
+                    {GRAPH_ARC_STYLES.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="graph-menu-field">
+                  <span>Spacing</span>
+                  <select value={layoutStyle} onChange={(event) => setLayoutStyle(event.target.value)} disabled={!isCustomRenderer}>
+                    {GRAPH_LAYOUT_STYLES.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ) : null}
+          </div>
           <label className="graph-select-shell">
             <span>Theme</span>
             <select value={themeMode} onChange={(event) => setThemeMode(event.target.value)}>
@@ -490,7 +581,14 @@ const GraphPanel = memo(function GraphPanel({
         </div>
       </div>
       <div className="graph-wrap graph-wrap-expanded">
-        <VisualizerComponent ref={visualizerRef} graph={graph} onNodeOpen={onNodeOpen} />
+        <VisualizerComponent
+          ref={visualizerRef}
+          graph={graph}
+          onNodeOpen={onNodeOpen}
+          nodeStyle={nodeStyle}
+          arcStyle={arcStyle}
+          layoutStyle={layoutStyle}
+        />
       </div>
     </section>
   );

@@ -233,11 +233,18 @@ function renderAppHtml() {
       .graph-controls-inline { position: static; z-index: auto; }
       .graph-button { border: 1px solid var(--line); background: var(--surface-strong); color: var(--ink); border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); }
       .graph-button:hover { background: var(--surface); }
+      .graph-button-active { background: var(--surface); border-color: var(--line-strong); }
       .graph-note { position: absolute; left: 14px; bottom: 14px; z-index: 2; font-size: 12px; color: var(--muted); padding: 8px 10px; border-radius: 999px; background: var(--surface-strong); border: 1px solid var(--line); }
       .graph-toolbar { display: flex; flex-wrap: wrap; justify-content: end; align-items: center; gap: 10px; }
       .graph-controls-inline { position: static; }
       .graph-select-shell { display: inline-flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 12px; box-shadow: 0 6px 18px rgba(15,23,42,0.04); }
       .graph-select-shell select { border: 0; background: transparent; color: var(--ink); font: inherit; outline: none; }
+      .graph-style-menu-shell { position: relative; }
+      .graph-style-menu { position: absolute; right: 0; top: calc(100% + 10px); min-width: 220px; display: grid; gap: 10px; padding: 12px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 8; }
+      .graph-menu-field { display: grid; gap: 6px; font-size: 12px; color: var(--muted); }
+      .graph-menu-field span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+      .graph-menu-field select { border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; outline: none; border-radius: 10px; padding: 9px 10px; }
+      .graph-menu-field select:disabled { opacity: 0.45; cursor: not-allowed; }
       .graph-fixed-labels text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
       .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
       .legend span { font-size: 12px; color: var(--muted); padding: 6px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); text-transform: lowercase; }
@@ -324,6 +331,7 @@ function renderAppHtml() {
         .graph-wrap-expanded { min-height: 360px; height: auto; }
         .section-head { align-items: stretch; flex-direction: column; }
         .graph-toolbar { justify-content: space-between; }
+        .graph-style-menu { left: 0; right: auto; }
         .view-stage-list { justify-content: stretch; }
         .list-page-card { width: 100%; max-width: none; }
         .topline { grid-template-columns: 1fr; align-items: start; justify-items: stretch; }
