@@ -293,7 +293,7 @@ function renderAppHtml() {
       .error-card { max-width: min(820px, 100%); }
       .error-actions { display: flex; gap: 10px; margin-top: 6px; }
       .error-details { margin: 0; max-height: 320px; overflow: auto; border-radius: 14px; border: 1px solid var(--line); background: var(--pre-bg); color: var(--pre-ink); padding: 14px 16px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
-      .section-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 14px; }
+      .section-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }
       .section-subtle { font-size: 13px; margin-top: 2px; }
       .graph-stats { display: flex; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: 12px; font-weight: 400; }
       .graph-stat strong { color: var(--ink); font-weight: 500; }
@@ -413,7 +413,7 @@ function renderAppHtml() {
         main { padding: 16px 16px 12px; }
         .graph-wrap { height: 420px; }
         .graph-wrap-expanded { min-height: 360px; height: auto; }
-        .section-head { align-items: start; flex-direction: row; }
+        .section-head { align-items: center; flex-direction: row; }
         .graph-toolbar { justify-content: flex-end; align-self: flex-start; }
         .graph-style-menu, .graph-filter-menu { right: 0; left: auto; }
         .view-stage-list { justify-content: stretch; }
