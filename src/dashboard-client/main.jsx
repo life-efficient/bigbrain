@@ -607,7 +607,18 @@ const GraphPanel = memo(function GraphPanel({
 
   return (
     <section className="card hero-card">
-      <div className="section-head">
+      <div className="graph-wrap graph-wrap-expanded">
+        <VisualizerComponent
+          ref={visualizerRef}
+          graph={filteredGraph}
+          onNodeOpen={onNodeOpen}
+          nodeStyle={nodeStyle}
+          arcStyle={arcStyle}
+          layoutStyle={layoutStyle}
+          labelStyle={labelStyle}
+        />
+      </div>
+      <div className="graph-footer">
         <div>
           <div className="graph-stats">
             <span className="graph-stat"><strong>{Number.isFinite(filteredGraph?.meta?.page_count) ? filteredGraph.meta.page_count : 0}</strong> pages</span>
@@ -722,17 +733,6 @@ const GraphPanel = memo(function GraphPanel({
             </div>
           ) : null}
         </div>
-      </div>
-      <div className="graph-wrap graph-wrap-expanded">
-        <VisualizerComponent
-          ref={visualizerRef}
-          graph={filteredGraph}
-          onNodeOpen={onNodeOpen}
-          nodeStyle={nodeStyle}
-          arcStyle={arcStyle}
-          layoutStyle={layoutStyle}
-          labelStyle={labelStyle}
-        />
       </div>
     </section>
   );

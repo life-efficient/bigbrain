@@ -295,6 +295,7 @@ function renderAppHtml() {
       .error-details { margin: 0; max-height: 320px; overflow: auto; border-radius: 14px; border: 1px solid var(--line); background: var(--pre-bg); color: var(--pre-ink); padding: 14px 16px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
       .section-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }
       .section-subtle { font-size: 13px; margin-top: 2px; }
+      .graph-footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 14px; }
       .graph-stats { display: flex; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: 12px; font-weight: 400; }
       .graph-stat strong { color: var(--ink); font-weight: 500; }
       .graph-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; margin-left: auto; }
@@ -316,8 +317,8 @@ function renderAppHtml() {
       .graph-note { position: absolute; left: 14px; bottom: 14px; z-index: 2; font-size: 12px; color: var(--muted); padding: 8px 10px; border-radius: 999px; background: var(--surface-strong); border: 1px solid var(--line); }
       .graph-controls-inline { position: static; }
       .graph-style-menu-shell, .graph-filter-menu-shell { position: relative; }
-      .graph-style-menu { position: absolute; right: 0; top: calc(100% + 10px); min-width: 300px; display: grid; gap: 14px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 8; }
-      .graph-filter-menu { position: absolute; right: 0; top: calc(100% + 10px); min-width: 220px; display: grid; gap: 4px; padding: 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 9; }
+      .graph-style-menu { position: absolute; right: 0; bottom: calc(100% + 10px); min-width: 300px; display: grid; gap: 14px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 8; }
+      .graph-filter-menu { position: absolute; right: 0; bottom: calc(100% + 10px); min-width: 220px; display: grid; gap: 4px; padding: 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 9; }
       .menu-item { width: 100%; border: 0; background: transparent; color: var(--muted); border-radius: 10px; padding: 9px 10px; display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 13px; text-align: left; cursor: pointer; }
       .menu-item:hover, .menu-item.selected { background: rgba(255,255,255,0.07); color: var(--ink); }
       .menu-item-check { width: 16px; text-align: center; color: var(--ink); }
@@ -413,7 +414,7 @@ function renderAppHtml() {
         main { padding: 16px 16px 12px; }
         .graph-wrap { height: 420px; }
         .graph-wrap-expanded { min-height: 360px; height: auto; }
-        .section-head { align-items: center; flex-direction: row; }
+        .section-head, .graph-footer { align-items: center; flex-direction: row; }
         .graph-toolbar { justify-content: flex-end; align-self: flex-start; }
         .graph-style-menu, .graph-filter-menu { right: 0; left: auto; }
         .view-stage-list { justify-content: stretch; }
