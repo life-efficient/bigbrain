@@ -158,11 +158,12 @@ function renderAppHtml() {
       h2 { margin: 0 0 14px; font-size: 20px; }
       h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
       p { color: var(--muted); margin: 0; }
-      .topline { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; margin-bottom: 18px; }
+      .topline { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; margin-bottom: 18px; -webkit-app-region: drag; user-select: none; }
       .topline-brand { justify-self: start; min-width: 0; }
       .topline-actions { display: flex; align-items: center; gap: 12px; justify-self: end; }
       .view-nav { display: flex; gap: 10px; flex-wrap: wrap; }
       .view-nav-header { justify-content: center; justify-self: center; }
+      .view-nav, .topline-actions, .settings-dropdown, .health-dropdown { -webkit-app-region: no-drag; }
       .view-chip { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 10px 14px; font-size: 13px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.04); display: inline-flex; align-items: center; gap: 8px; }
       .view-chip.active { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.08); }
       .pill { padding: 8px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(15,23,42,0.04); font-size: 13px; }

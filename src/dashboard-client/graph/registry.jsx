@@ -9,10 +9,10 @@ export const GRAPH_CONTROL_LABELS = {
 
 export const GRAPH_DEFAULTS = {
   visualizerId: 'custom',
-  nodeStyle: 'hex',
-  arcStyle: 'straight',
-  layoutStyle: 'clusters',
-  labelStyle: 'selected',
+  nodeStyle: 'diamond',
+  arcStyle: 'curve',
+  layoutStyle: 'lanes',
+  labelStyle: 'off',
 };
 
 export const GRAPH_NODE_STYLES = [

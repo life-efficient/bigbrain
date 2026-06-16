@@ -57,7 +57,7 @@ class DashboardErrorBoundary extends React.Component {
 
 function DashboardApp() {
   const [state, setState] = useState({ status: 'loading', error: null, data: null });
-  const [view, setView] = useState('inbox');
+  const [view, setView] = useState('graph');
   const [visualizerId, setVisualizerId] = useState(GRAPH_DEFAULTS.visualizerId);
   const [nodeStyle, setNodeStyle] = useState(GRAPH_DEFAULTS.nodeStyle);
   const [arcStyle, setArcStyle] = useState(GRAPH_DEFAULTS.arcStyle);
