@@ -285,7 +285,7 @@ function renderAppHtml() {
       .view-stage { flex: 1; min-height: 0; width: 100%; }
       .view-stage-list { display: flex; justify-content: center; }
       .view-stage-graph { display: block; }
-      .hero-card { min-height: 0; height: 100%; display: flex; flex-direction: column; min-width: 0; }
+      .hero-card { min-height: 0; height: 100%; display: flex; flex-direction: column; min-width: 0; border: 0; background: transparent; box-shadow: none; backdrop-filter: none; padding: 0; }
       .list-page-card { width: min(780px, 100%); max-width: 780px; }
       .list-scroll-region { flex: 1; min-height: 0; overflow: auto; padding-right: 4px; }
       .standalone-list-region { height: 100%; overflow: auto; padding-right: 4px; }
