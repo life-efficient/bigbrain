@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useEffectEvent, useRef, useState } from 'react';
+import React, { memo, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
 import { TYPE_ORDER } from './graph/colors.js';
@@ -280,9 +280,7 @@ function DashboardApp() {
       <div className={`page-shell theme-${resolvedTheme} ${preview ? 'preview-open' : ''}`} data-theme-mode={themeMode}>
         <main>
           <div className="topline">
-            <div className="topline-brand">
-              <h1>bigbrain</h1>
-            </div>
+            <div className="topline-brand" aria-hidden="true" />
             <div className="view-nav view-nav-header">
               {views.map((item) => (
                 <button
@@ -310,7 +308,6 @@ function DashboardApp() {
                   }}
                 >
                   <SettingsIcon />
-                  <span>Settings</span>
                 </button>
                 {settingsOpen ? (
                   <div className="settings-dropdown" role="menu">
@@ -533,29 +530,62 @@ const GraphPanel = memo(function GraphPanel({
   onNodeOpen,
 }) {
   const [styleMenuOpen, setStyleMenuOpen] = useState(false);
+  const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const [selectedPageTypes, setSelectedPageTypes] = useState([]);
   const styleMenuRef = useRef(null);
+  const filterMenuRef = useRef(null);
   const visualizer = graphVisualizers.find((item) => item.id === visualizerId) || graphVisualizers[0];
   const VisualizerComponent = visualizer.Component;
   const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const presentTypes = new Set(graphNodes.map((node) => node.type));
-  const legendTypes = TYPE_ORDER.filter((type) => presentTypes.has(type));
+  const pageTypes = [
+    ...TYPE_ORDER.filter((type) => presentTypes.has(type)),
+    ...[...presentTypes].filter((type) => !TYPE_ORDER.includes(type)).sort(),
+  ];
+  const selectedTypeSet = useMemo(() => new Set(selectedPageTypes), [selectedPageTypes]);
+  const filteredGraph = useMemo(() => {
+    if (!selectedPageTypes.length) {
+      return graph;
+    }
+
+    const nodes = graphNodes.filter((node) => selectedTypeSet.has(node.type));
+    const slugs = new Set(nodes.map((node) => node.slug));
+    const edges = (Array.isArray(graph?.edges) ? graph.edges : []).filter((edge) => {
+      return slugs.has(edge.source) && slugs.has(edge.target);
+    });
+
+    return {
+      ...graph,
+      nodes,
+      edges,
+      meta: {
+        ...graph?.meta,
+        page_count: nodes.length,
+        edge_count: edges.length,
+      },
+    };
+  }, [graph, graphNodes, selectedPageTypes.length, selectedTypeSet]);
   const isCustomRenderer = visualizerId === 'custom';
   const visibleControls = Array.isArray(visualizer.controls)
     ? visualizer.controls.filter((control) => !['zoomIn', 'zoomOut', 'resetView'].includes(control))
     : [];
 
   useEffect(() => {
-    if (!styleMenuOpen) return undefined;
+    if (!styleMenuOpen && !filterMenuOpen) return undefined;
 
     function handlePointerDown(event) {
       if (styleMenuRef.current && !styleMenuRef.current.contains(event.target)) {
         setStyleMenuOpen(false);
+      }
+      if (filterMenuRef.current && !filterMenuRef.current.contains(event.target)) {
+        setFilterMenuOpen(false);
       }
     }
 
     function handleEscape(event) {
       if (event.key === 'Escape') {
         setStyleMenuOpen(false);
+        setFilterMenuOpen(false);
       }
     }
 
@@ -565,29 +595,76 @@ const GraphPanel = memo(function GraphPanel({
       window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [styleMenuOpen]);
+  }, [styleMenuOpen, filterMenuOpen]);
+
+  function togglePageType(type) {
+    setSelectedPageTypes((current) => (
+      current.includes(type)
+        ? current.filter((item) => item !== type)
+        : [...current, type]
+    ));
+  }
 
   return (
     <section className="card hero-card">
       <div className="section-head">
         <div>
           <div className="graph-stats">
-            <span className="pill"><strong>{Number.isFinite(graph?.meta?.page_count) ? graph.meta.page_count : 0}</strong> pages</span>
-            <span className="pill"><strong>{Number.isFinite(graph?.meta?.edge_count) ? graph.meta.edge_count : 0}</strong> edges</span>
-          </div>
-          <div className="legend">
-            {legendTypes.map((type) => (
-              <span key={type}>{type}</span>
-            ))}
+            <span className="graph-stat"><strong>{Number.isFinite(filteredGraph?.meta?.page_count) ? filteredGraph.meta.page_count : 0}</strong> pages</span>
+            <span className="graph-stat"><strong>{Number.isFinite(filteredGraph?.meta?.edge_count) ? filteredGraph.meta.edge_count : 0}</strong> edges</span>
           </div>
         </div>
         <div className="graph-toolbar">
+          <div className="graph-filter-menu-shell" ref={filterMenuRef}>
+            <button
+              type="button"
+              className={`icon-button graph-icon-button ${filterMenuOpen ? 'graph-button-active' : ''}`}
+              aria-label="Filter page types"
+              aria-expanded={filterMenuOpen}
+              onClick={() => {
+                setStyleMenuOpen(false);
+                setFilterMenuOpen((value) => !value);
+              }}
+            >
+              <FilterIcon />
+            </button>
+            {filterMenuOpen ? (
+              <div className="graph-filter-menu" role="menu">
+                <button
+                  type="button"
+                  className={`menu-item ${selectedPageTypes.length === 0 ? 'selected' : ''}`}
+                  onClick={() => setSelectedPageTypes([])}
+                  role="menuitemcheckbox"
+                  aria-checked={selectedPageTypes.length === 0}
+                >
+                  <span>All page types</span>
+                  <span className="menu-item-check" aria-hidden="true">{selectedPageTypes.length === 0 ? '✓' : ''}</span>
+                </button>
+                {pageTypes.map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    className={`menu-item ${selectedTypeSet.has(type) ? 'selected' : ''}`}
+                    onClick={() => togglePageType(type)}
+                    role="menuitemcheckbox"
+                    aria-checked={selectedTypeSet.has(type)}
+                  >
+                    <span>{type}</span>
+                    <span className="menu-item-check" aria-hidden="true">{selectedTypeSet.has(type) ? '✓' : ''}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
           <div className="graph-style-menu-shell" ref={styleMenuRef}>
             <button
               type="button"
               className={`graph-button ${styleMenuOpen ? 'graph-button-active' : ''}`}
               aria-expanded={styleMenuOpen}
-              onClick={() => setStyleMenuOpen((value) => !value)}
+              onClick={() => {
+                setFilterMenuOpen(false);
+                setStyleMenuOpen((value) => !value);
+              }}
             >
               Graph style
             </button>
@@ -649,7 +726,7 @@ const GraphPanel = memo(function GraphPanel({
       <div className="graph-wrap graph-wrap-expanded">
         <VisualizerComponent
           ref={visualizerRef}
-          graph={graph}
+          graph={filteredGraph}
           onNodeOpen={onNodeOpen}
           nodeStyle={nodeStyle}
           arcStyle={arcStyle}
@@ -712,6 +789,20 @@ function SettingsIcon() {
       <path
         d="M10.81 3h2.38l.4 1.97.31.08c.57.14 1.11.37 1.61.67l.28.17 1.73-.99 1.68 1.68-.99 1.73.17.28c.3.5.53 1.04.67 1.61l.08.31 1.97.4v2.38l-1.97.4-.08.31c-.14.57-.37 1.11-.67 1.61l-.17.28.99 1.73-1.68 1.68-1.73-.99-.28.17c-.5.3-1.04.53-1.61.67l-.31.08-.4 1.97h-2.38l-.4-1.97-.31-.08a6.9 6.9 0 0 1-1.61-.67l-.28-.17-1.73.99-1.68-1.68.99-1.73-.17-.28a6.9 6.9 0 0 1-.67-1.61l-.08-.31-1.97-.4v-2.38l1.97-.4.08-.31c.14-.57.37-1.11.67-1.61l.17-.28-.99-1.73 1.68-1.68 1.73.99.28-.17c.5-.3 1.04-.53 1.61-.67l.31-.08.4-1.97ZM12 8.25A3.75 3.75 0 1 0 12 15.75 3.75 3.75 0 0 0 12 8.25Z"
         fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+function FilterIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="settings-icon">
+      <path
+        d="M4 5h16l-6.5 7.38V19l-3 1.5v-8.12L4 5Z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
       />
     </svg>
   );

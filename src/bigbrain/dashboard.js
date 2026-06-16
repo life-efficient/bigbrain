@@ -158,7 +158,7 @@ function renderAppHtml() {
       h2 { margin: 0 0 14px; font-size: 20px; }
       h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
       p { color: var(--muted); margin: 0; }
-      .topline { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; margin-bottom: 18px; -webkit-app-region: drag; user-select: none; }
+      .topline { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 16px; margin-bottom: 18px; -webkit-app-region: drag; user-select: none; }
       .topline-brand { justify-self: start; min-width: 0; }
       .topline-actions { display: flex; align-items: center; gap: 12px; justify-self: end; }
       .view-nav { display: flex; gap: 10px; flex-wrap: wrap; }
@@ -189,7 +189,8 @@ function renderAppHtml() {
         gap: 8px;
       }
       .settings-button {
-        padding: 0 14px 0 12px;
+        width: 38px;
+        padding: 0;
         color: var(--ink);
         background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
       }
@@ -294,8 +295,9 @@ function renderAppHtml() {
       .error-details { margin: 0; max-height: 320px; overflow: auto; border-radius: 14px; border: 1px solid var(--line); background: var(--pre-bg); color: var(--pre-ink); padding: 14px 16px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
       .section-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 14px; }
       .section-subtle { font-size: 13px; margin-top: 2px; }
-      .graph-stats { display: flex; flex-wrap: wrap; gap: 8px; }
-      .graph-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: wrap; }
+      .graph-stats { display: flex; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: 12px; font-weight: 400; }
+      .graph-stat strong { color: var(--ink); font-weight: 500; }
+      .graph-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; margin-left: auto; }
       .graph-wrap { height: 520px; overflow: hidden; position: relative; border-radius: 18px; background: var(--graph-bg); border: 1px solid rgba(148,163,184,0.18); }
       .graph-wrap-expanded { flex: 1; min-height: 0; height: auto; }
       .graph-canvas-shell { position: relative; height: 100%; width: 100%; }
@@ -309,11 +311,16 @@ function renderAppHtml() {
       .graph-button { border: 1px solid var(--line); background: var(--surface-strong); color: var(--ink); border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); }
       .graph-button:hover { background: var(--surface); }
       .graph-button-active { background: rgba(255,255,255,0.08); border-color: var(--line-strong); }
+      .icon-button { width: 38px; height: 38px; padding: 0; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-strong); color: var(--ink); cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); display: inline-flex; align-items: center; justify-content: center; }
+      .icon-button:hover { background: var(--surface); }
       .graph-note { position: absolute; left: 14px; bottom: 14px; z-index: 2; font-size: 12px; color: var(--muted); padding: 8px 10px; border-radius: 999px; background: var(--surface-strong); border: 1px solid var(--line); }
-      .graph-toolbar { display: flex; flex-wrap: wrap; justify-content: end; align-items: center; gap: 10px; }
       .graph-controls-inline { position: static; }
-      .graph-style-menu-shell { position: relative; }
+      .graph-style-menu-shell, .graph-filter-menu-shell { position: relative; }
       .graph-style-menu { position: absolute; right: 0; top: calc(100% + 10px); min-width: 300px; display: grid; gap: 14px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 8; }
+      .graph-filter-menu { position: absolute; right: 0; top: calc(100% + 10px); min-width: 220px; display: grid; gap: 4px; padding: 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 9; }
+      .menu-item { width: 100%; border: 0; background: transparent; color: var(--muted); border-radius: 10px; padding: 9px 10px; display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 13px; text-align: left; cursor: pointer; }
+      .menu-item:hover, .menu-item.selected { background: rgba(255,255,255,0.07); color: var(--ink); }
+      .menu-item-check { width: 16px; text-align: center; color: var(--ink); }
       .graph-menu-field { display: grid; gap: 8px; font-size: 12px; color: var(--muted); }
       .graph-menu-field.disabled { opacity: 0.55; }
       .graph-menu-field span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
@@ -406,15 +413,15 @@ function renderAppHtml() {
         main { padding: 16px 16px 12px; }
         .graph-wrap { height: 420px; }
         .graph-wrap-expanded { min-height: 360px; height: auto; }
-        .section-head { align-items: stretch; flex-direction: column; }
-        .graph-toolbar { justify-content: space-between; }
-        .graph-style-menu { left: 0; right: auto; }
+        .section-head { align-items: start; flex-direction: row; }
+        .graph-toolbar { justify-content: flex-end; align-self: flex-start; }
+        .graph-style-menu, .graph-filter-menu { right: 0; left: auto; }
         .view-stage-list { justify-content: stretch; }
         .list-page-card { width: 100%; max-width: none; }
-        .topline { grid-template-columns: 1fr; align-items: start; justify-items: stretch; }
+        .topline { grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; justify-items: initial; }
         .topline-brand { justify-self: start; }
-        .view-nav-header { justify-self: start; justify-content: flex-start; }
-        .topline-actions { justify-self: start; }
+        .view-nav-header { justify-self: center; justify-content: center; }
+        .topline-actions { justify-self: end; }
         .page-shell.preview-open { --sidecar-width: 0px; }
         .sidecar-shell { position: fixed; inset: auto 0 0 0; width: 100%; height: min(72vh, 760px); padding: 0; z-index: 10; }
         .sidecar-panel { border-left: 0; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; padding-top: 22px; }
