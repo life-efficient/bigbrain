@@ -1,0 +1,220 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+
+import { parseMarkdownPage } from './markdown.js';
+
+export const DEFAULT_COLLECTIONS = [
+  'archive',
+  'companies',
+  'concepts',
+  'deals',
+  'ideas',
+  'inbox',
+  'meetings',
+  'people',
+  'projects',
+  'sources',
+  'writing',
+];
+
+export async function listBrainPath({ config, relativePath = '', recursive = true } = {}) {
+  const root = config.brainDir;
+  const fullPath = safeBrainPath(root, relativePath);
+  const stats = await fs.stat(fullPath);
+  if (stats.isFile()) {
+    return [await entryForPath(root, fullPath, stats)];
+  }
+  if (!stats.isDirectory()) throw new Error(`Path is neither a file nor a directory: ${relativePath}`);
+
+  const entries = [];
+  await walkList(root, fullPath, entries, recursive);
+  entries.sort((left, right) => left.path.localeCompare(right.path));
+  return entries;
+}
+
+export async function readBrainPage({ config, pagePath }) {
+  const relative = normalizePagePath(pagePath);
+  const fullPath = safeBrainPath(config.brainDir, relative);
+  const markdown = await fs.readFile(fullPath, 'utf8');
+  const parsed = parseMarkdownPage(markdown, relative.replace(/\.md$/i, ''));
+  const parts = splitPageMarkdown(markdown);
+  return {
+    path: relative,
+    slug: relative.replace(/\.md$/i, ''),
+    title: parsed.title,
+    type: parsed.type,
+    frontmatter: parsed.frontmatter,
+    frontmatter_raw: parts.frontmatterRaw,
+    body: parsed.compiledTruth,
+    timeline: parsed.timeline,
+    markdown,
+  };
+}
+
+export async function createBrainPage({
+  config,
+  pagePath,
+  title,
+  body,
+  timelineEntry,
+  frontmatter = {},
+}) {
+  const relative = normalizePagePath(pagePath);
+  assertAllowedPagePath(relative);
+  const fullPath = safeBrainPath(config.brainDir, relative);
+  if (await exists(fullPath)) throw new Error(`Page already exists: ${relative}`);
+
+  const now = new Date().toISOString().slice(0, 10);
+  const metadata = {
+    type: 'note',
+    title: requireNonEmpty(title, 'title'),
+    created: now,
+    ...omitReservedFrontmatter(frontmatter),
+  };
+  const markdown = renderPageMarkdown({
+    frontmatterRaw: renderFrontmatter(metadata),
+    title: metadata.title,
+    body: requireNonEmpty(body, 'body'),
+    timeline: formatTimelineEntry(timelineEntry, now),
+  });
+
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
+  await fs.writeFile(fullPath, markdown, 'utf8');
+  return readBrainPage({ config, pagePath: relative });
+}
+
+export async function updateBrainPage({ config, pagePath, body, timelineEntry }) {
+  const relative = normalizePagePath(pagePath);
+  assertAllowedPagePath(relative);
+  const existing = await readBrainPage({ config, pagePath: relative });
+  const now = new Date().toISOString().slice(0, 10);
+  const nextTimeline = appendTimelineEntry(existing.timeline, timelineEntry, now);
+  const markdown = renderPageMarkdown({
+    frontmatterRaw: existing.frontmatter_raw,
+    title: existing.title,
+    body: requireNonEmpty(body, 'body'),
+    timeline: nextTimeline,
+  });
+  await fs.writeFile(safeBrainPath(config.brainDir, relative), markdown, 'utf8');
+  return readBrainPage({ config, pagePath: relative });
+}
+
+export function normalizePagePath(input) {
+  const trimmed = requireNonEmpty(input, 'path').replace(/\\/g, '/').replace(/^\/+/, '');
+  const normalized = path.posix.normalize(trimmed);
+  if (normalized === '.' || normalized.startsWith('../') || path.posix.isAbsolute(normalized)) {
+    throw new Error(`Invalid brain path: ${input}`);
+  }
+  return normalized.endsWith('.md') ? normalized : `${normalized}.md`;
+}
+
+export function safeBrainPath(brainDir, relativePath = '') {
+  const normalized = String(relativePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  const fullPath = path.resolve(brainDir, normalized);
+  const root = path.resolve(brainDir);
+  if (fullPath !== root && !fullPath.startsWith(`${root}${path.sep}`)) {
+    throw new Error(`Path escapes brain root: ${relativePath}`);
+  }
+  return fullPath;
+}
+
+export function assertAllowedPagePath(relativePath) {
+  const parts = relativePath.split('/');
+  if (parts.length < 2) throw new Error('Page path must include a collection folder.');
+  if (parts.some((part) => !part || part === '.' || part === '..')) throw new Error(`Invalid page path: ${relativePath}`);
+  if (parts.some((part) => part.startsWith('.'))) throw new Error(`Hidden paths are not allowed: ${relativePath}`);
+  if (!relativePath.endsWith('.md')) throw new Error('Page path must end in .md.');
+}
+
+function renderPageMarkdown({ frontmatterRaw, title, body, timeline }) {
+  return [
+    '---',
+    frontmatterRaw.trim(),
+    '---',
+    '',
+    normalizeCurrentBody(title, body),
+    '',
+    '---',
+    '',
+    '## Timeline',
+    '',
+    timeline.trim(),
+    '',
+  ].join('\n');
+}
+
+function normalizeCurrentBody(title, body) {
+  const trimmed = body.trim();
+  if (/^#\s+/m.test(trimmed)) return trimmed;
+  return [`# ${title}`, '', trimmed].join('\n');
+}
+
+function renderFrontmatter(frontmatter) {
+  return Object.entries(frontmatter)
+    .filter(([, value]) => value !== undefined && value !== null)
+    .map(([key, value]) => `${key}: ${formatYamlValue(value)}`)
+    .join('\n');
+}
+
+function omitReservedFrontmatter(frontmatter) {
+  const { type, title, created, ...rest } = frontmatter || {};
+  return rest;
+}
+
+function formatYamlValue(value) {
+  if (Array.isArray(value)) return `[${value.map((item) => String(item)).join(', ')}]`;
+  if (typeof value === 'boolean') return value ? 'true' : 'false';
+  const text = String(value);
+  return /[:#\n]|^\s|\s$/.test(text) ? JSON.stringify(text) : text;
+}
+
+function appendTimelineEntry(timeline, entry, date) {
+  const formatted = formatTimelineEntry(entry, date);
+  return [timeline.trim(), formatted].filter(Boolean).join('\n');
+}
+
+function formatTimelineEntry(entry, date) {
+  const text = requireNonEmpty(entry, 'timeline_entry');
+  if (/^\s*-\s+\*\*\d{4}-\d{2}-\d{2}\*\*/.test(text)) return text.trim();
+  return `- **${date}** | ${text.trim()}`;
+}
+
+function splitPageMarkdown(markdown) {
+  if (!markdown.startsWith('---\n')) return { frontmatterRaw: '' };
+  const end = markdown.indexOf('\n---\n', 4);
+  if (end < 0) return { frontmatterRaw: '' };
+  return { frontmatterRaw: markdown.slice(4, end) };
+}
+
+async function walkList(root, current, entries, recursive) {
+  const dirents = await fs.readdir(current, { withFileTypes: true });
+  for (const dirent of dirents) {
+    if (shouldHideEntry(dirent.name)) continue;
+    const fullPath = path.join(current, dirent.name);
+    const stats = await fs.stat(fullPath);
+    entries.push(await entryForPath(root, fullPath, stats));
+    if (recursive && stats.isDirectory()) await walkList(root, fullPath, entries, recursive);
+  }
+}
+
+async function entryForPath(root, fullPath, stats) {
+  return {
+    path: path.relative(root, fullPath).split(path.sep).join('/'),
+    kind: stats.isDirectory() ? 'directory' : 'file',
+    size: stats.isFile() ? stats.size : null,
+    updated_at: stats.mtime.toISOString(),
+  };
+}
+
+function shouldHideEntry(name) {
+  return name.startsWith('.') || name === 'node_modules';
+}
+
+async function exists(fullPath) {
+  return fs.stat(fullPath).then(() => true).catch(() => false);
+}
+
+function requireNonEmpty(value, name) {
+  if (typeof value !== 'string' || !value.trim()) throw new Error(`${name} is required.`);
+  return value.trim();
+}

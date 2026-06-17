@@ -6,6 +6,7 @@ import { openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js
 import { startDashboard } from './dashboard.js';
 import { runHealthCheck } from './health.js';
 import { fullPathFromSlug } from './markdown.js';
+import { startMcpServer } from './mcp-server.js';
 import { migrateBrain } from './migrate.js';
 import { listRecentFiles } from './recent.js';
 import { renderSchemaMarkdown, recommendFolderForInput, schemaDescription } from './schema.js';
@@ -33,6 +34,7 @@ export async function runCli(argv) {
     case 'file': return handleFile(args, global);
     case 'refresh-tasks': return handleRefreshTasks(global);
     case 'dashboard': return handleDashboard(args, global);
+    case 'mcp': return handleMcp(args, global);
     case '--help':
     case '-h':
     case undefined:
@@ -176,6 +178,14 @@ async function handleDashboard(args, global) {
   console.log(`Dashboard running at http://127.0.0.1:${port}`);
 }
 
+async function handleMcp(args, global) {
+  const config = await loadRuntimeConfig(global);
+  const port = Number(argValue(args, '--port') || process.env.PORT || 3333);
+  const host = argValue(args, '--host') || process.env.HOST || '0.0.0.0';
+  const { url } = await startMcpServer({ config, host, port });
+  console.log(`BigBrain MCP server running at ${url}`);
+}
+
 async function loadRuntimeConfig(global) {
   const brainHome = await resolveBrainHome({
     explicitBrainHome: global.brainHome,
@@ -238,6 +248,7 @@ Commands:
   file <path-or-description>
   refresh-tasks
   dashboard [--port N]
+  mcp [--host HOST] [--port N]
 
 Global options:
   --brain-home <path>
