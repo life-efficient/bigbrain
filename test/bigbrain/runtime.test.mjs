@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 
 import { configPathForBrainHome, initializeBrainHome, loadConfig, metaDirForBrainHome } from '../../src/bigbrain/config.js';
 import { openDatabase } from '../../src/bigbrain/db.js';
@@ -50,6 +51,42 @@ test('init defaults runtime state under the selected brain home', async () => {
     const storedConfig = JSON.parse(await fs.readFile(init.configPath, 'utf8'));
     assert.equal('tasks_file' in storedConfig, false);
     assert.equal('sqlite_path' in storedConfig, false);
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('CLI commands honor explicit --config paths', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-cli-config-'));
+  try {
+    const brainHome = path.join(rootDir, 'brain-home');
+    const runtimeDir = path.join(rootDir, 'runtime');
+    const tasksFile = path.join(runtimeDir, 'tasks.md');
+    const configPath = path.join(runtimeDir, 'config.json');
+    await fs.mkdir(path.join(brainHome, 'people'), { recursive: true });
+    await fs.mkdir(runtimeDir, { recursive: true });
+    await fs.writeFile(tasksFile, '# Tasks\n', 'utf8');
+    await fs.writeFile(path.join(brainHome, 'people', 'cli-config.md'), `---
+title: CLI Config
+---
+# CLI Config
+
+Explicit config path page.
+`, 'utf8');
+    await fs.writeFile(configPath, `${JSON.stringify({
+      brain_dir: brainHome,
+      tasks_file: tasksFile,
+      sqlite_path: path.join(runtimeDir, 'bigbrain.sqlite'),
+      include_globs: ['**/*.md'],
+      exclude_globs: [],
+    }, null, 2)}\n`, 'utf8');
+
+    const sync = await runNode(['./bin/bigbrain.js', '--config', configPath, 'sync', '--json'], { cwd: process.cwd() });
+    assert.equal(sync.code, 0, sync.stderr);
+    const result = await runNode(['./bin/bigbrain.js', '--config', configPath, 'list', '--json'], { cwd: process.cwd() });
+    assert.equal(result.code, 0, result.stderr);
+    const rows = JSON.parse(result.stdout);
+    assert.equal(rows.some((row) => row.slug === 'people/cli-config'), true);
   } finally {
     await fs.rm(rootDir, { recursive: true, force: true });
   }
@@ -544,4 +581,25 @@ async function writeAutomationToml(automationRoot, id, content) {
   const fullPath = path.join(automationRoot, id, 'automation.toml');
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.writeFile(fullPath, content, 'utf8');
+}
+
+async function runNode(args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, args, {
+      ...options,
+      env: { ...process.env, ...(options.env || {}) },
+    });
+    const stdout = [];
+    const stderr = [];
+    child.stdout.on('data', (chunk) => stdout.push(chunk));
+    child.stderr.on('data', (chunk) => stderr.push(chunk));
+    child.once('error', reject);
+    child.once('exit', (code) => {
+      resolve({
+        code,
+        stdout: Buffer.concat(stdout).toString('utf8'),
+        stderr: Buffer.concat(stderr).toString('utf8'),
+      });
+    });
+  });
 }

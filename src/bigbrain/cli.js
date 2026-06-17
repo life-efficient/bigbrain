@@ -187,9 +187,9 @@ async function handleMcp(args, global) {
 }
 
 async function loadRuntimeConfig(global) {
+  if (global.configPath) return loadConfig({ configPath: global.configPath });
   const brainHome = await resolveBrainHome({
     explicitBrainHome: global.brainHome,
-    explicitConfigPath: global.configPath,
   });
   return loadConfig({ brainHome });
 }
