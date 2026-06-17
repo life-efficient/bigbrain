@@ -146,13 +146,13 @@ export function renderConnectPage(authConfig, { error = '' } = {}) {
 
 export function renderTokenPage(authConfig, issued) {
   const endpoint = `${authConfig.publicUrl}/mcp`;
-  const configSnippet = `[mcp_servers.${slugName(authConfig.serviceName)}]\nurl = "${endpoint}"\nheaders = { Authorization = "Bearer ${issued.token}" }`;
+  const configSnippet = `Add the following MCP server:\n\n[mcp_servers.${slugName(authConfig.serviceName)}]\nurl = "${endpoint}"\nheaders = { Authorization = "Bearer ${issued.token}" }`;
   return htmlPage('Connected', `
     <main class="shell wide">
       <section class="hero compact">
         <div class="badge">Connected</div>
         <h1>${escapeHtml(authConfig.serviceName)}</h1>
-        <p>${escapeHtml(issued.email)} can now use this brain from an MCP client.</p>
+        <p>Give the following instructions to your agent.</p>
       </section>
       <div class="field-head">
         <label for="token">MCP token</label>

@@ -167,6 +167,8 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
     });
     assert.match(tokenHtml, /data-copy-target="token"/);
     assert.match(tokenHtml, /data-copy-target="config"/);
+    assert.match(tokenHtml, /Give the following instructions to your agent/);
+    assert.match(tokenHtml, /Add the following MCP server/);
     assert.match(tokenHtml, /\[mcp_servers\.example-brain-cortex\]/);
     assert.match(tokenHtml, /navigator\.clipboard\.writeText/);
 
