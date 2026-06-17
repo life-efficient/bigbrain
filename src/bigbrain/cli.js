@@ -3,7 +3,6 @@ import path from 'node:path';
 
 import { initializeBrainHome, loadConfig, loadState, persistState, resolveBrainHome } from './config.js';
 import { openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
-import { startDashboard } from './dashboard.js';
 import { runHealthCheck } from './health.js';
 import { fullPathFromSlug } from './markdown.js';
 import { startMcpServer } from './mcp-server.js';
@@ -174,6 +173,7 @@ async function handleRefreshTasks(global) {
 async function handleDashboard(args, global) {
   const config = await loadRuntimeConfig(global);
   const port = Number(argValue(args, '--port') || config.dashboardPort);
+  const { startDashboard } = await import('./dashboard.js');
   await startDashboard(config, { port });
   console.log(`Dashboard running at http://127.0.0.1:${port}`);
 }
