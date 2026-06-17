@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -56,6 +57,82 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
   }
 });
 
+test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', async () => {
+  const fixture = await createFixture('bigbrain-mcp-oauth-');
+  const token = 'bbmcp_test-token';
+  const tokenStorePath = path.join(fixture.rootDir, 'tokens.json');
+  await fs.writeFile(tokenStorePath, `${JSON.stringify({
+    tokens: [{
+      token_hash: hashToken(token),
+      email: 'teammate@example.com',
+      name: 'Team Mate',
+      provider: 'google',
+      created_at: new Date().toISOString(),
+      last_used_at: null,
+      revoked_at: null,
+    }],
+    states: [],
+  }, null, 2)}\n`);
+
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: {
+        mode: 'oauth_allowlist',
+        authToken: null,
+        publicUrl: 'https://brain.example.test',
+        provider: 'google',
+        googleClientId: 'client-id',
+        googleClientSecret: 'client-secret',
+        allowedEmails: ['teammate@example.com'],
+        allowedDomains: [],
+        tokenStorePath,
+        allowSharedToken: false,
+        serviceName: 'Example Brain Cortex',
+      },
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const connect = await fetch(running.url.replace('/mcp', '/connect'));
+    assert.equal(connect.status, 200);
+    assert.match(await connect.text(), /Sign in with Google/);
+
+    const unauthorized = await fetch(running.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer nope',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+    });
+    assert.equal(unauthorized.status, 401);
+
+    const created = await rpc(running.url, 'tools/call', {
+      name: 'create_page',
+      arguments: {
+        path: 'people/oauth-test',
+        title: 'OAuth Test',
+        body: 'Created with a per-user MCP token.',
+        timeline_entry: 'Created through hosted MCP.',
+      },
+    }, token);
+
+    assert.equal(created.error, undefined, created.error?.message);
+    assert.match(created.result.structuredContent.timeline, /Created through hosted MCP\. \(via teammate@example\.com\)/);
+
+    const stored = JSON.parse(await fs.readFile(tokenStorePath, 'utf8'));
+    assert.match(stored.tokens[0].last_used_at, /^\d{4}-\d{2}-\d{2}T/);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function rpc(url, method, params, token) {
   const response = await fetch(url, {
     method: 'POST',
@@ -79,4 +156,8 @@ async function createFixture(prefix) {
   };
   const init = await initializeBrainHome(brainHome, { env });
   return { rootDir, brainHome, configPath: init.configPath };
+}
+
+function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
 }

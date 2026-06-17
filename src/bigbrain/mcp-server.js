@@ -13,6 +13,17 @@ import {
 } from './page-ops.js';
 import { queryBrain, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
+import {
+  authRoutesEnabled,
+  assertOAuthConfigured,
+  authorizeMcpRequest,
+  buildAuthConfig,
+  completeOAuthCallback,
+  createOAuthStart,
+  renderAuthErrorPage,
+  renderConnectPage,
+  renderTokenPage,
+} from './mcp-auth.js';
 
 const DEFAULT_MCP_PROTOCOL_VERSION = '2024-11-05';
 const execFileAsync = promisify(execFile);
@@ -22,10 +33,12 @@ export async function startMcpServer({
   host = '0.0.0.0',
   port = Number(process.env.PORT || 3333),
   authToken = process.env.BIGBRAIN_MCP_TOKEN || process.env.MCP_AUTH_TOKEN || null,
+  authConfig = buildAuthConfig({ authToken }),
   syncIntervalMs = Number(process.env.BIGBRAIN_MCP_SYNC_INTERVAL_MS || 300000),
   gitBackupEnabled = process.env.BIGBRAIN_MCP_GIT_BACKUP === '1',
   gitBackupIntervalMs = Number(process.env.BIGBRAIN_MCP_GIT_BACKUP_INTERVAL_MS || 300000),
 } = {}) {
+  if (authRoutesEnabled(authConfig)) assertOAuthConfigured(authConfig);
   await syncAndPersist(config);
   const syncTimer = syncIntervalMs > 0
     ? setInterval(() => {
@@ -46,20 +59,41 @@ export async function startMcpServer({
 
   const server = http.createServer(async (request, response) => {
     try {
+      const route = new URL(request.url || '/', 'http://127.0.0.1');
+      if (request.method === 'GET' && route.pathname === '/connect' && authRoutesEnabled(authConfig)) {
+        return sendHtml(response, 200, renderConnectPage(authConfig));
+      }
+      if (request.method === 'GET' && route.pathname === '/auth/start' && authRoutesEnabled(authConfig)) {
+        response.writeHead(302, { location: await createOAuthStart(authConfig) });
+        response.end();
+        return;
+      }
+      if (request.method === 'GET' && route.pathname === '/auth/callback' && authRoutesEnabled(authConfig)) {
+        try {
+          const issued = await completeOAuthCallback(authConfig, {
+            code: route.searchParams.get('code'),
+            state: route.searchParams.get('state'),
+          });
+          return sendHtml(response, 200, renderTokenPage(authConfig, issued));
+        } catch (error) {
+          return sendHtml(response, 403, renderAuthErrorPage(authConfig, error instanceof Error ? error.message : String(error)));
+        }
+      }
       if (request.method === 'GET' && request.url === '/health') {
-        return sendJson(response, 200, { ok: true, brain_home: config.brainHome });
+        return sendJson(response, 200, { ok: true });
       }
       if (request.method !== 'POST' || !request.url?.startsWith('/mcp')) {
         return sendJson(response, 404, jsonRpcError(null, -32004, 'Not found'));
       }
-      if (!isAuthorized(request, authToken)) {
-        return sendJson(response, 401, jsonRpcError(null, -32001, 'Unauthorized'));
+      const authorization = await authorizeMcpRequest(request, authConfig);
+      if (!authorization.ok) {
+        return sendJson(response, authorization.status || 401, jsonRpcError(null, -32001, authorization.message || 'Unauthorized'));
       }
 
       const payload = JSON.parse(await readRequestBody(request));
       const result = Array.isArray(payload)
-        ? await Promise.all(payload.map((message) => handleJsonRpcMessage({ config, message, gitBackupEnabled })))
-        : await handleJsonRpcMessage({ config, message: payload, gitBackupEnabled });
+        ? await Promise.all(payload.map((message) => handleJsonRpcMessage({ config, message, gitBackupEnabled, actor: authorization.actor })))
+        : await handleJsonRpcMessage({ config, message: payload, gitBackupEnabled, actor: authorization.actor });
       return sendJson(response, 200, result);
     } catch (error) {
       return sendJson(response, 500, jsonRpcError(null, -32603, error instanceof Error ? error.message : String(error)));
@@ -88,7 +122,7 @@ export async function startMcpServer({
   };
 }
 
-async function handleJsonRpcMessage({ config, message, gitBackupEnabled }) {
+async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor }) {
   if (!message || message.jsonrpc !== '2.0') return jsonRpcError(message?.id ?? null, -32600, 'Invalid JSON-RPC request.');
   if (message.id === undefined) return null;
 
@@ -105,7 +139,7 @@ async function handleJsonRpcMessage({ config, message, gitBackupEnabled }) {
       case 'tools/list':
         return jsonRpcResult(message.id, { tools: toolDefinitions() });
       case 'tools/call':
-        return jsonRpcResult(message.id, await callTool({ config, params: message.params || {}, gitBackupEnabled }));
+        return jsonRpcResult(message.id, await callTool({ config, params: message.params || {}, gitBackupEnabled, actor }));
       default:
         return jsonRpcError(message.id, -32601, `Unknown method: ${message.method}`);
     }
@@ -114,7 +148,7 @@ async function handleJsonRpcMessage({ config, message, gitBackupEnabled }) {
   }
 }
 
-async function callTool({ config, params, gitBackupEnabled }) {
+async function callTool({ config, params, gitBackupEnabled, actor }) {
   const name = params.name;
   const args = params.arguments || {};
   switch (name) {
@@ -136,10 +170,10 @@ async function callTool({ config, params, gitBackupEnabled }) {
         pagePath: args.path,
         title: args.title,
         body: args.body,
-        timelineEntry: args.timeline_entry,
+        timelineEntry: timelineWithActor(args.timeline_entry, actor),
         frontmatter: args.frontmatter || {},
       });
-      await postWriteMaintenance(config, gitBackupEnabled);
+      await postWriteMaintenance(config, gitBackupEnabled, actor);
       return toolJson(page);
     }
     case 'update_page': {
@@ -147,9 +181,9 @@ async function callTool({ config, params, gitBackupEnabled }) {
         config,
         pagePath: args.path,
         body: args.body,
-        timelineEntry: args.timeline_entry,
+        timelineEntry: timelineWithActor(args.timeline_entry, actor),
       });
-      await postWriteMaintenance(config, gitBackupEnabled);
+      await postWriteMaintenance(config, gitBackupEnabled, actor);
       return toolJson(page);
     }
     default:
@@ -157,10 +191,10 @@ async function callTool({ config, params, gitBackupEnabled }) {
   }
 }
 
-async function postWriteMaintenance(config, gitBackupEnabled) {
+async function postWriteMaintenance(config, gitBackupEnabled, actor) {
   await syncAndPersist(config);
   if (gitBackupEnabled) {
-    await backupGitChanges(config, 'bigbrain: automated MCP backup');
+    await backupGitChanges(config, backupMessage(actor));
   }
 }
 
@@ -315,19 +349,20 @@ function toolJson(value) {
   };
 }
 
-function isAuthorized(request, authToken) {
-  if (!authToken) return true;
-  const authorization = request.headers.authorization || '';
-  if (authorization === `Bearer ${authToken}`) return true;
-  return request.headers['x-bigbrain-token'] === authToken;
-}
-
 function sendJson(response, statusCode, value) {
   response.writeHead(statusCode, {
     'content-type': 'application/json; charset=utf-8',
     'access-control-allow-origin': '*',
   });
   response.end(JSON.stringify(value));
+}
+
+function sendHtml(response, statusCode, html) {
+  response.writeHead(statusCode, {
+    'content-type': 'text/html; charset=utf-8',
+    'cache-control': 'no-store',
+  });
+  response.end(html);
 }
 
 async function readRequestBody(request) {
@@ -345,4 +380,15 @@ function normalizeLimit(value, fallback) {
   const number = Number(value || fallback);
   if (!Number.isFinite(number) || number <= 0) return fallback;
   return Math.min(Math.floor(number), 50);
+}
+
+function timelineWithActor(entry, actor) {
+  if (!actor?.email) return entry;
+  return `${entry} (via ${actor.email})`;
+}
+
+function backupMessage(actor) {
+  return actor?.email
+    ? `bigbrain: MCP contribution from ${actor.email}`
+    : 'bigbrain: automated MCP backup';
 }

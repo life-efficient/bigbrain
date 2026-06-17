@@ -84,6 +84,7 @@ Implemented foundation:
 See:
 
 - [`docs/design.md`](./docs/design.md)
+- [`docs/mcp-hosting.md`](./docs/mcp-hosting.md)
 - [`src/bigbrain/README.md`](./src/bigbrain/README.md)
 - [`TODO.md`](./TODO.md)
 
