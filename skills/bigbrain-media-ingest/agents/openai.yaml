@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Media Ingest"
+  short_description: "Capture durable knowledge from audio or video while preserving raw artifacts"
+  default_prompt: "Use BigBrain: Media Ingest to summarize time-based media into a canonical page, preserve raw artifacts, and sync the index."

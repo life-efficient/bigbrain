@@ -1,0 +1,4 @@
+interface:
+  display_name: "Understand BigBrain"
+  short_description: "Explain the BigBrain model, filing rules, and next skill to use"
+  default_prompt: "Use Understand BigBrain to explain BigBrain structure, filing rules, page shape, artifact handling, and which BigBrain skill should handle the task."

@@ -7,6 +7,14 @@ export const GRAPH_CONTROL_LABELS = {
   resetView: 'Reset',
 };
 
+export const GRAPH_DEFAULTS = {
+  visualizerId: 'custom',
+  nodeStyle: 'hex',
+  arcStyle: 'straight',
+  layoutStyle: 'clusters',
+  labelStyle: 'selected',
+};
+
 export const GRAPH_NODE_STYLES = [
   { id: 'orb', label: 'Orb' },
   { id: 'diamond', label: 'Diamond' },

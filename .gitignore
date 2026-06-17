@@ -4,3 +4,6 @@ node_modules
 .automation-runtime/
 .bigbrain-nightly-state/
 .bigbrain-state/
+build/
+dist/
+electron/assets/*.iconset/

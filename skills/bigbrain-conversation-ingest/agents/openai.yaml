@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Conversation Ingest"
+  short_description: "Capture durable knowledge from chat without ingesting routine chatter"
+  default_prompt: "Use BigBrain: Conversation Ingest to decide whether a chat message contains durable knowledge, update the right page, and sync the index."

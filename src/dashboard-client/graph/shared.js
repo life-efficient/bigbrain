@@ -104,27 +104,38 @@ export function buildSignalBloomLayout(graph) {
       groups.get(node.type).push(node);
     });
 
-  const clusterEntries = [...groups.entries()];
+  const clusterEntries = [...groups.entries()].map(([type, nodes]) => ({
+    type,
+    nodes,
+    estimatedRadius: estimateClusterRadius(nodes),
+  }));
+  const clusterCenters = buildAdaptiveClusterCenters(clusterEntries, layout.width, layout.height);
   const clusters = [];
-  for (const [type, nodes] of clusterEntries) {
-    const center = layout.typeCenters.get(type) || { x: layout.centerX, y: layout.centerY };
-    const radii = buildClusterRings(nodes.length);
-    placeOnRings(nodes, {
+  for (const entry of clusterEntries) {
+    const center = clusterCenters.get(entry.type) || { x: layout.centerX, y: layout.centerY };
+    const clusterRadius = placePackedCluster(entry.nodes, {
       centerX: center.x,
       centerY: center.y,
-      rings: radii,
-      gap: 16,
-      startAngle: -Math.PI / 2,
     });
     clusters.push({
-      type,
+      type: entry.type,
       x: center.x,
       y: center.y,
-      radius: (radii[radii.length - 1] || 48) + 48,
+      radius: clusterRadius,
     });
   }
 
-  relaxLayout(layout, { padding: 20, centerPull: 0.0005, linkPull: 0.0015, iterations: 8 });
+  const clusterCenterMap = new Map(clusters.map((cluster) => [cluster.type, cluster]));
+  relaxLayout(layout, {
+    padding: 18,
+    centerPull: 0.0004,
+    linkPull: 0.0022,
+    iterations: 12,
+    anchorPull: 0.028,
+    getAnchor(node) {
+      return clusterCenterMap.get(node.type) || null;
+    },
+  });
   return {
     ...layout,
     clusters,
@@ -190,20 +201,6 @@ function placeOnRings(nodes, { centerX, centerY, rings, gap, startAngle }) {
   }
 }
 
-function buildClusterRings(count) {
-  if (count <= 1) return [0];
-  const rings = [];
-  let placed = 0;
-  let radius = 44;
-  while (placed < count) {
-    rings.push(radius);
-    const capacity = Math.max(6, Math.floor((Math.PI * 2 * radius) / 28));
-    placed += capacity;
-    radius += 48;
-  }
-  return rings;
-}
-
 function relaxLayout(layout, options) {
   const {
     padding,
@@ -211,6 +208,8 @@ function relaxLayout(layout, options) {
     linkPull,
     iterations,
     horizontalBias = 0,
+    anchorPull = 0,
+    getAnchor = null,
   } = options;
 
   for (let step = 0; step < iterations; step += 1) {
@@ -226,6 +225,11 @@ function relaxLayout(layout, options) {
     }
 
     for (const node of layout.nodes) {
+      const anchor = typeof getAnchor === 'function' ? getAnchor(node) : null;
+      if (anchor) {
+        node.x += (anchor.x - node.x) * anchorPull;
+        node.y += (anchor.y - node.y) * anchorPull;
+      }
       node.x += (layout.centerX - node.x) * centerPull;
       node.y += (layout.centerY - node.y) * centerPull;
       node.x += Math.sign(layout.centerX - node.x) * horizontalBias;
@@ -233,6 +237,146 @@ function relaxLayout(layout, options) {
       node.y = clamp(node.y, 40, layout.height - 40);
     }
   }
+}
+
+function estimateClusterRadius(nodes) {
+  if (!nodes.length) return 0;
+  if (nodes.length === 1) return nodes[0].radius + 28;
+
+  let index = 0;
+  let radius = 34;
+  let outer = 0;
+  while (index < nodes.length) {
+    const budget = Math.PI * 2 * radius * 0.84;
+    let used = 0;
+    let taken = 0;
+    while (index + taken < nodes.length) {
+      const node = nodes[index + taken];
+      const footprint = node.radius * 2 + 16;
+      if (taken > 0 && used + footprint > budget) break;
+      used += footprint;
+      taken += 1;
+    }
+    if (taken === 0) {
+      taken = 1;
+    }
+    const ringNodes = nodes.slice(index, index + taken);
+    const largest = Math.max(...ringNodes.map((node) => node.radius));
+    outer = Math.max(outer, radius + largest + 24);
+    index += taken;
+    radius += 46 + largest * 0.4;
+  }
+  return outer;
+}
+
+function placePackedCluster(nodes, { centerX, centerY }) {
+  if (!nodes.length) return 0;
+  if (nodes.length === 1) {
+    nodes[0].x = centerX;
+    nodes[0].y = centerY;
+    return nodes[0].radius + 28;
+  }
+
+  let index = 0;
+  let ringRadius = 34;
+  let outer = 0;
+  let ringIndex = 0;
+
+  while (index < nodes.length) {
+    const budget = Math.PI * 2 * ringRadius * 0.84;
+    let used = 0;
+    let taken = 0;
+    while (index + taken < nodes.length) {
+      const node = nodes[index + taken];
+      const footprint = node.radius * 2 + 16;
+      if (taken > 0 && used + footprint > budget) break;
+      used += footprint;
+      taken += 1;
+    }
+    if (taken === 0) {
+      taken = 1;
+      used = nodes[index].radius * 2 + 16;
+    }
+
+    const slice = nodes.slice(index, index + taken);
+    const largest = Math.max(...slice.map((node) => node.radius));
+    const sweep = slice.length === 1
+      ? 0
+      : clamp((used / Math.max(1, ringRadius)) * 1.08, Math.PI * 0.72, Math.PI * 1.82);
+    const angleCenter = -Math.PI / 2 + ringIndex * 0.42;
+    const angleStart = angleCenter - sweep / 2;
+    let cursor = 0;
+    for (const node of slice) {
+      const footprint = node.radius * 2 + 16;
+      const segment = sweep === 0 ? 0 : (footprint / used) * sweep;
+      const angle = sweep === 0 ? angleCenter : angleStart + cursor + segment / 2;
+      node.x = centerX + Math.cos(angle) * ringRadius;
+      node.y = centerY + Math.sin(angle) * ringRadius;
+      cursor += segment;
+    }
+
+    outer = Math.max(outer, ringRadius + largest + 24);
+    index += slice.length;
+    ringRadius += 46 + largest * 0.4;
+    ringIndex += 1;
+  }
+
+  return outer;
+}
+
+function buildAdaptiveClusterCenters(clusterEntries, width, height) {
+  if (!clusterEntries.length) {
+    return new Map();
+  }
+
+  if (clusterEntries.length === 1) {
+    return new Map([[clusterEntries[0].type, { x: width / 2, y: height / 2 }]]);
+  }
+
+  const maxRadius = Math.max(...clusterEntries.map((entry) => entry.estimatedRadius));
+  const totalRadius = clusterEntries.reduce((sum, entry) => sum + entry.estimatedRadius, 0);
+  const orbitX = clamp(width * 0.08 + totalRadius * 0.14 + maxRadius * 0.55, width * 0.14, width * 0.24);
+  const orbitY = clamp(height * 0.06 + totalRadius * 0.11 + maxRadius * 0.42, height * 0.1, height * 0.19);
+  const centers = clusterEntries.map((entry, index) => {
+    const angle = ((index + 0.5) / clusterEntries.length) * Math.PI * 2 - Math.PI / 2;
+    return {
+      type: entry.type,
+      radius: entry.estimatedRadius,
+      preferredX: width / 2 + Math.cos(angle) * orbitX,
+      preferredY: height / 2 + Math.sin(angle) * orbitY,
+      x: width / 2 + Math.cos(angle) * orbitX,
+      y: height / 2 + Math.sin(angle) * orbitY,
+    };
+  });
+
+  for (let step = 0; step < 18; step += 1) {
+    for (let i = 0; i < centers.length; i += 1) {
+      const a = centers[i];
+      for (let j = i + 1; j < centers.length; j += 1) {
+        const b = centers[j];
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const distance = Math.hypot(dx, dy) || 0.001;
+        const minimum = a.radius + b.radius + 42;
+        if (distance >= minimum) continue;
+        const overlap = (minimum - distance) / 2;
+        const nx = dx / distance;
+        const ny = dy / distance;
+        a.x -= nx * overlap;
+        a.y -= ny * overlap;
+        b.x += nx * overlap;
+        b.y += ny * overlap;
+      }
+    }
+    for (const center of centers) {
+      center.x += (center.preferredX - center.x) * 0.16;
+      center.y += (center.preferredY - center.y) * 0.16;
+      center.x = clamp(center.x, 120, width - 120);
+      center.y = clamp(center.y, 120, height - 120);
+    }
+  }
+
+  return new Map(centers.map((center) => [center.type, { x: center.x, y: center.y }]));
 }
 
 function resolveCollisions(nodes, padding, width, height) {

@@ -217,7 +217,7 @@ export function GraphNodeLabel({ node, theme, visible }) {
       fill={theme.graphMutedLabel}
       letterSpacing="0.02em"
     >
-      {node.title.slice(0, 30)}
+      {node.title}
     </text>
   );
 }
@@ -238,7 +238,7 @@ export function GraphFixedLabels({ nodes, viewport, labeled, theme }) {
             fill={theme.graphMutedLabel}
             letterSpacing="0.02em"
           >
-            {node.title.slice(0, 28)}
+            {node.title}
           </text>
         );
       })}

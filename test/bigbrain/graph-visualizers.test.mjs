@@ -59,3 +59,34 @@ test('graph layouts preserve dense graph structure within bounds', () => {
     }
   }
 });
+
+test('signal bloom keeps small type clusters compact and non-overlapping', () => {
+  const graph = {
+    nodes: [
+      { slug: 'people/alex', title: 'Alex', type: 'people', degree: 8 },
+      { slug: 'people/blair', title: 'Blair', type: 'people', degree: 6 },
+      { slug: 'projects/bigbrain', title: 'BigBrain', type: 'projects', degree: 7 },
+      { slug: 'projects/jarvis', title: 'Jarvis', type: 'projects', degree: 5 },
+      { slug: 'companies/acme', title: 'Acme', type: 'companies', degree: 6 },
+      { slug: 'companies/zenith', title: 'Zenith', type: 'companies', degree: 4 },
+    ],
+    edges: [],
+  };
+
+  const layout = buildSignalBloomLayout(graph);
+
+  for (const cluster of layout.clusters) {
+    assert.equal(cluster.radius < 70, true);
+    const distanceFromCenter = Math.hypot(cluster.x - layout.centerX, cluster.y - layout.centerY);
+    assert.equal(distanceFromCenter < 240, true);
+  }
+
+  for (let i = 0; i < layout.nodes.length; i += 1) {
+    for (let j = i + 1; j < layout.nodes.length; j += 1) {
+      const a = layout.nodes[i];
+      const b = layout.nodes[j];
+      const distance = Math.hypot(a.x - b.x, a.y - b.y);
+      assert.equal(distance + 0.5 >= a.radius + b.radius + 16, true);
+    }
+  }
+});

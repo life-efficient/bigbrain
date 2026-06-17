@@ -167,3 +167,25 @@ bigbrain refresh-tasks --json
 ```bash
 npm test
 ```
+
+## Desktop App
+
+The dashboard can also run as a Mac desktop app.
+
+For local development:
+
+```bash
+npm run desktop:dev
+```
+
+That launches a real `.app` wrapper around the built-in dashboard server, so it
+behaves like a normal desktop app in the Dock and can be added to macOS login
+items.
+
+To build distributable artifacts:
+
+```bash
+npm run desktop:dist
+```
+
+This writes the packaged app outputs to `dist/electron/`.
