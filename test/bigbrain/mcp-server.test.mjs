@@ -7,6 +7,7 @@ import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { openDatabase, getPageRecord } from '../../src/bigbrain/db.js';
+import { renderTokenPage } from '../../src/bigbrain/mcp-auth.js';
 import { startMcpServer } from '../../src/bigbrain/mcp-server.js';
 
 test('MCP server lists tools and writes pages through tools/call', async () => {
@@ -156,6 +157,18 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
     assert.match(connectHtml, /Continue with Google/);
     assert.doesNotMatch(connectHtml, /teammate@example\.com/);
     assert.match(connectHtml, /Access is restricted to approved collaborators/);
+
+    const tokenHtml = renderTokenPage({
+      publicUrl: 'https://brain.example.test',
+      serviceName: 'Example Brain Cortex',
+    }, {
+      token,
+      email: 'teammate@example.com',
+    });
+    assert.match(tokenHtml, /data-copy-target="token"/);
+    assert.match(tokenHtml, /data-copy-target="config"/);
+    assert.match(tokenHtml, /\[mcp_servers\.example-brain-cortex\]/);
+    assert.match(tokenHtml, /navigator\.clipboard\.writeText/);
 
     const unauthorized = await fetch(running.url, {
       method: 'POST',

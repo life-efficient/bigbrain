@@ -154,10 +154,16 @@ export function renderTokenPage(authConfig, issued) {
         <h1>${escapeHtml(authConfig.serviceName)}</h1>
         <p>${escapeHtml(issued.email)} can now use this brain from an MCP client.</p>
       </section>
-      <label for="token">MCP token</label>
-      <textarea id="token" readonly>${escapeHtml(issued.token)}</textarea>
-      <label for="config">Codex MCP config</label>
-      <textarea id="config" readonly>${escapeHtml(configSnippet)}</textarea>
+      <div class="field-head">
+        <label for="token">MCP token</label>
+        <button class="copy-button" type="button" data-copy-target="token">Copy token</button>
+      </div>
+      <textarea id="token" readonly spellcheck="false">${escapeHtml(issued.token)}</textarea>
+      <div class="field-head">
+        <label for="config">Codex MCP config</label>
+        <button class="copy-button" type="button" data-copy-target="config">Copy config</button>
+      </div>
+      <textarea id="config" readonly spellcheck="false">${escapeHtml(configSnippet)}</textarea>
       <div class="notice">Copy this now. For security, the token is shown only once.</div>
     </main>
   `);
@@ -315,7 +321,14 @@ function htmlPage(title, body) {
       letter-spacing: 0;
     }
     p { margin: 0 0 20px; color: var(--muted); max-width: 58ch; }
-    label { display: block; margin: 20px 0 8px; color: #d8e0ec; font-weight: 700; }
+    label { display: block; margin: 0; color: #d8e0ec; font-weight: 700; }
+    .field-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 20px 0 8px;
+    }
     textarea {
       width: 100%;
       min-height: 112px;
@@ -329,6 +342,20 @@ function htmlPage(title, body) {
       outline: none;
     }
     textarea:focus { border-color: rgba(125, 211, 252, 0.62); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14); }
+    .copy-button {
+      min-height: 32px;
+      padding: 6px 10px;
+      border: 1px solid rgba(125, 211, 252, 0.28);
+      border-radius: 8px;
+      color: #dff6ff;
+      background: rgba(14, 165, 233, 0.11);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .copy-button:hover { border-color: rgba(125, 211, 252, 0.58); background: rgba(14, 165, 233, 0.18); }
+    .copy-button.copied { color: #022c22; background: #5eead4; border-color: #5eead4; }
     .button {
       display: inline-flex;
       align-items: center;
@@ -375,10 +402,33 @@ function htmlPage(title, body) {
       body { padding: 18px 12px; align-items: start; }
       .shell { padding: 24px; }
       .button { width: 100%; }
+      .field-head { align-items: stretch; flex-direction: column; }
+      .copy-button { width: 100%; }
     }
   </style>
 </head>
-<body>${body}</body>
+<body>${body}
+<script>
+  for (const button of document.querySelectorAll('[data-copy-target]')) {
+    button.addEventListener('click', async () => {
+      const target = document.getElementById(button.dataset.copyTarget);
+      if (!target) return;
+      try {
+        await navigator.clipboard.writeText(target.value);
+        const previous = button.textContent;
+        button.textContent = 'Copied';
+        button.classList.add('copied');
+        setTimeout(() => {
+          button.textContent = previous;
+          button.classList.remove('copied');
+        }, 1400);
+      } catch {
+        target.focus();
+        target.select();
+      }
+    });
+  }
+</script></body>
 </html>`;
 }
 
