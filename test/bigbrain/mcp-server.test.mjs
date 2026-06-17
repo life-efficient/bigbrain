@@ -152,7 +152,10 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
 
     const connect = await fetch(running.url.replace('/mcp', '/connect'));
     assert.equal(connect.status, 200);
-    assert.match(await connect.text(), /Sign in with Google/);
+    const connectHtml = await connect.text();
+    assert.match(connectHtml, /Continue with Google/);
+    assert.doesNotMatch(connectHtml, /teammate@example\.com/);
+    assert.match(connectHtml, /Access is restricted to approved collaborators/);
 
     const unauthorized = await fetch(running.url, {
       method: 'POST',

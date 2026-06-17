@@ -126,18 +126,20 @@ export async function completeOAuthCallback(authConfig, { code, state }) {
 
 export function renderConnectPage(authConfig, { error = '' } = {}) {
   const title = escapeHtml(authConfig.serviceName);
-  const errorHtml = error ? `<p class="error">${escapeHtml(error)}</p>` : '';
-  const allowlist = [
-    ...authConfig.allowedEmails,
-    ...authConfig.allowedDomains.map((domain) => `*@${domain}`),
-  ].join(', ');
+  const errorHtml = error ? `<div class="notice error">${escapeHtml(error)}</div>` : '';
   return htmlPage(title, `
-    <main>
-      <h1>${title}</h1>
-      <p>Sign in to get your personal MCP token for this brain.</p>
+    <main class="shell">
+      <section class="hero">
+        <div class="badge">Private team brain</div>
+        <h1>${title}</h1>
+        <p>Sign in with your approved Google account to get a personal MCP token for your AI tools.</p>
+      </section>
       ${errorHtml}
-      <a class="button" href="/auth/start">Sign in with Google</a>
-      <p class="muted">Access is limited to: ${escapeHtml(allowlist || 'configured team members')}</p>
+      <a class="button" href="/auth/start">
+        <span class="google-mark">G</span>
+        <span>Continue with Google</span>
+      </a>
+      <p class="muted">Access is restricted to approved collaborators.</p>
     </main>
   `);
 }
@@ -146,14 +148,17 @@ export function renderTokenPage(authConfig, issued) {
   const endpoint = `${authConfig.publicUrl}/mcp`;
   const configSnippet = `[mcp_servers.${slugName(authConfig.serviceName)}]\nurl = "${endpoint}"\nheaders = { Authorization = "Bearer ${issued.token}" }`;
   return htmlPage('Connected', `
-    <main>
-      <h1>Connected</h1>
-      <p>${escapeHtml(issued.email)} can now use ${escapeHtml(authConfig.serviceName)}.</p>
+    <main class="shell wide">
+      <section class="hero compact">
+        <div class="badge">Connected</div>
+        <h1>${escapeHtml(authConfig.serviceName)}</h1>
+        <p>${escapeHtml(issued.email)} can now use this brain from an MCP client.</p>
+      </section>
       <label for="token">MCP token</label>
       <textarea id="token" readonly>${escapeHtml(issued.token)}</textarea>
       <label for="config">Codex MCP config</label>
       <textarea id="config" readonly>${escapeHtml(configSnippet)}</textarea>
-      <p class="muted">Copy this now. For security, the token is shown only once.</p>
+      <div class="notice">Copy this now. For security, the token is shown only once.</div>
     </main>
   `);
 }
@@ -250,15 +255,127 @@ function htmlPage(title, body) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(title)}</title>
   <style>
-    body { margin: 0; font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #17202a; background: #f7f8fa; }
-    main { max-width: 720px; margin: 10vh auto; padding: 32px; background: #fff; border: 1px solid #d8dee6; border-radius: 8px; }
-    h1 { margin: 0 0 12px; font-size: 28px; }
-    p { margin: 0 0 20px; }
-    label { display: block; margin: 20px 0 8px; font-weight: 650; }
-    textarea { box-sizing: border-box; width: 100%; min-height: 104px; padding: 12px; border: 1px solid #b7c0ca; border-radius: 6px; font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: #15202b; background: #fbfcfd; }
-    .button { display: inline-block; padding: 10px 14px; border-radius: 6px; background: #155eef; color: white; text-decoration: none; font-weight: 650; }
-    .muted { color: #5d6b7a; font-size: 14px; }
-    .error { padding: 10px 12px; border: 1px solid #f0b8b8; border-radius: 6px; color: #8f1d1d; background: #fff5f5; }
+    :root {
+      color-scheme: dark;
+      --bg: #07090d;
+      --panel: rgba(18, 22, 31, 0.78);
+      --panel-strong: rgba(24, 29, 41, 0.94);
+      --line: rgba(148, 163, 184, 0.22);
+      --text: #eef2f7;
+      --muted: #9aa8bc;
+      --accent: #7dd3fc;
+      --accent-strong: #38bdf8;
+      --danger: #fca5a5;
+      --danger-bg: rgba(127, 29, 29, 0.32);
+    }
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 32px 18px;
+      font: 16px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 20% 12%, rgba(56, 189, 248, 0.16), transparent 32%),
+        radial-gradient(circle at 82% 78%, rgba(45, 212, 191, 0.12), transparent 30%),
+        linear-gradient(145deg, #05070a 0%, #0a0f18 48%, #090b10 100%);
+    }
+    .shell {
+      width: min(100%, 680px);
+      padding: 34px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, var(--panel-strong), var(--panel));
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(18px);
+    }
+    .wide { width: min(100%, 820px); }
+    .hero { margin-bottom: 28px; }
+    .hero.compact { margin-bottom: 24px; }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      margin-bottom: 16px;
+      padding: 5px 10px;
+      border: 1px solid rgba(125, 211, 252, 0.34);
+      border-radius: 999px;
+      color: #bae6fd;
+      background: rgba(14, 165, 233, 0.12);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: clamp(34px, 8vw, 60px);
+      line-height: 1;
+      letter-spacing: 0;
+    }
+    p { margin: 0 0 20px; color: var(--muted); max-width: 58ch; }
+    label { display: block; margin: 20px 0 8px; color: #d8e0ec; font-weight: 700; }
+    textarea {
+      width: 100%;
+      min-height: 112px;
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+      color: #e5eefb;
+      background: rgba(5, 8, 13, 0.72);
+      resize: vertical;
+      outline: none;
+    }
+    textarea:focus { border-color: rgba(125, 211, 252, 0.62); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14); }
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 46px;
+      padding: 11px 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: #031018;
+      background: linear-gradient(135deg, #e0f2fe, var(--accent-strong));
+      text-decoration: none;
+      font-weight: 800;
+      box-shadow: 0 14px 36px rgba(14, 165, 233, 0.22);
+    }
+    .button:hover { filter: brightness(1.05); }
+    .google-mark {
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      color: #111827;
+      background: rgba(255, 255, 255, 0.86);
+      font-weight: 900;
+    }
+    .muted { margin-top: 16px; color: var(--muted); font-size: 14px; }
+    .notice {
+      margin: 20px 0 0;
+      padding: 11px 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: #cbd5e1;
+      background: rgba(15, 23, 42, 0.72);
+      font-size: 14px;
+    }
+    .error {
+      margin-bottom: 18px;
+      border-color: rgba(252, 165, 165, 0.34);
+      color: var(--danger);
+      background: var(--danger-bg);
+    }
+    @media (max-width: 560px) {
+      body { padding: 18px 12px; align-items: start; }
+      .shell { padding: 24px; }
+      .button { width: 100%; }
+    }
   </style>
 </head>
 <body>${body}</body>
