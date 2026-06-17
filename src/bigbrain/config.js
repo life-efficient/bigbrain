@@ -50,6 +50,29 @@ export function pointerPath(env = process.env) {
   return env.BIGBRAIN_POINTER_PATH || DEFAULT_POINTER_PATH;
 }
 
+export function userEnvPath(env = process.env) {
+  const home = env.HOME || os.homedir();
+  return path.join(path.resolve(home), '.config', 'bigbrain', '.env');
+}
+
+export async function loadUserEnv(env = process.env, envPath = userEnvPath(env)) {
+  let raw;
+  try {
+    raw = await fs.readFile(envPath, 'utf8');
+  } catch (error) {
+    if (isMissingFileError(error)) return { path: envPath, loaded: [], missing: true };
+    throw error;
+  }
+
+  const loaded = [];
+  for (const [key, value] of parseEnvFile(raw)) {
+    if (env[key] !== undefined) continue;
+    env[key] = value;
+    loaded.push(key);
+  }
+  return { path: envPath, loaded, missing: false };
+}
+
 export async function loadDefaultBrainHomePointer(env = process.env) {
   try {
     const raw = await fs.readFile(pointerPath(env), 'utf8');
@@ -331,6 +354,31 @@ function requireIsoString(value, fieldName) {
 
 function isMissingFileError(error) {
   return Boolean(error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT');
+}
+
+function parseEnvFile(raw) {
+  const entries = [];
+  for (const line of raw.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith('#')) continue;
+    const normalized = trimmed.startsWith('export ') ? trimmed.slice('export '.length).trim() : trimmed;
+    const separator = normalized.indexOf('=');
+    if (separator <= 0) continue;
+    const key = normalized.slice(0, separator).trim();
+    if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(key)) continue;
+    entries.push([key, unquoteEnvValue(normalized.slice(separator + 1).trim())]);
+  }
+  return entries;
+}
+
+function unquoteEnvValue(value) {
+  if (value.length >= 2 && value.startsWith('"') && value.endsWith('"')) {
+    return value.slice(1, -1).replace(/\\n/g, '\n').replace(/\\"/g, '"').replace(/\\\\/g, '\\');
+  }
+  if (value.length >= 2 && value.startsWith("'") && value.endsWith("'")) {
+    return value.slice(1, -1);
+  }
+  return value;
 }
 
 async function requireExistingDirectory(dirPath, message) {

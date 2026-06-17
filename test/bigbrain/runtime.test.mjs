@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
-import { configPathForBrainHome, initializeBrainHome, loadConfig, metaDirForBrainHome } from '../../src/bigbrain/config.js';
+import { configPathForBrainHome, initializeBrainHome, loadConfig, loadUserEnv, metaDirForBrainHome, userEnvPath } from '../../src/bigbrain/config.js';
 import { openDatabase } from '../../src/bigbrain/db.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
@@ -51,6 +51,48 @@ test('init defaults runtime state under the selected brain home', async () => {
     const storedConfig = JSON.parse(await fs.readFile(init.configPath, 'utf8'));
     assert.equal('tasks_file' in storedConfig, false);
     assert.equal('sqlite_path' in storedConfig, false);
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('loads BigBrain user env from the current home config directory', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-user-env-'));
+  try {
+    const env = { HOME: path.join(rootDir, 'home') };
+    const envPath = userEnvPath(env);
+    await fs.mkdir(path.dirname(envPath), { recursive: true });
+    await fs.writeFile(envPath, `
+# BigBrain local secrets
+OPENAI_API_KEY="from-user-env"
+export BIGBRAIN_TEST_VALUE='quoted value'
+`, 'utf8');
+
+    const result = await loadUserEnv(env);
+    assert.equal(result.missing, false);
+    assert.equal(result.path, envPath);
+    assert.deepEqual(result.loaded, ['OPENAI_API_KEY', 'BIGBRAIN_TEST_VALUE']);
+    assert.equal(env.OPENAI_API_KEY, 'from-user-env');
+    assert.equal(env.BIGBRAIN_TEST_VALUE, 'quoted value');
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('BigBrain user env does not override existing process values', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-user-env-existing-'));
+  try {
+    const env = {
+      HOME: path.join(rootDir, 'home'),
+      OPENAI_API_KEY: 'already-set',
+    };
+    const envPath = userEnvPath(env);
+    await fs.mkdir(path.dirname(envPath), { recursive: true });
+    await fs.writeFile(envPath, 'OPENAI_API_KEY=from-user-env\n', 'utf8');
+
+    const result = await loadUserEnv(env);
+    assert.deepEqual(result.loaded, []);
+    assert.equal(env.OPENAI_API_KEY, 'already-set');
   } finally {
     await fs.rm(rootDir, { recursive: true, force: true });
   }

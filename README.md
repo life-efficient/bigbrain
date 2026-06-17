@@ -130,6 +130,12 @@ Automation run markers should live beside the runtime state under
 `hourly-task-refresh/`. Do not write runtime state into the BigBrain source
 repo.
 
+Machine-local BigBrain secrets live outside the source repo and brain home in
+`${HOME}/.config/bigbrain/.env`. The CLI loads that file before commands run and
+does not override variables already set in the process environment. Put
+`OPENAI_API_KEY=...` there to enable embeddings, semantic search, and generated
+answers.
+
 For agent setup, see [`INSTALL_FOR_AGENTS.md`](./INSTALL_FOR_AGENTS.md).
 
 ## Commands

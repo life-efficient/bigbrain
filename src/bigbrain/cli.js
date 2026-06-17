@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { initializeBrainHome, loadConfig, loadState, persistState, resolveBrainHome } from './config.js';
+import { initializeBrainHome, loadConfig, loadState, loadUserEnv, persistState, resolveBrainHome } from './config.js';
 import { openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
 import { runHealthCheck } from './health.js';
 import { fullPathFromSlug } from './markdown.js';
@@ -15,6 +15,7 @@ import { runTaskRefresh } from './task-refresh.js';
 import { resolveWindow } from './time.js';
 
 export async function runCli(argv) {
+  await loadUserEnv();
   const { command, args, global } = parseGlobalArgs(argv);
   switch (command) {
     case 'init': return handleInit(args, global);
