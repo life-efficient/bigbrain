@@ -55,6 +55,11 @@ Create a Google OAuth client with this redirect URI:
 https://your-service.example.com/auth/callback
 ```
 
+Use the Google Auth Platform client UI for this credential. The `gcloud iam
+oauth-clients` commands create IAM/IAP OAuth clients, which are not accepted by
+the public `accounts.google.com` OAuth endpoint used by BigBrain's Google
+allowlist flow.
+
 Then send teammates to:
 
 ```text
