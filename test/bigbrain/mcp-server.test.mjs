@@ -19,6 +19,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
       port: 0,
       authToken: 'secret',
       syncIntervalMs: 0,
+      gitBackupEnabled: false,
     });
 
     const listed = await rpc(running.url, 'tools/list', {}, 'secret');
@@ -41,6 +42,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
       },
     }, 'secret');
 
+    assert.equal(created.error, undefined, created.error?.message);
     assert.equal(created.result.structuredContent.slug, 'people/mcp-test');
     assert.match(created.result.structuredContent.markdown, /Created through MCP endpoint test/);
 

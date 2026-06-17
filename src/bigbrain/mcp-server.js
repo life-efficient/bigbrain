@@ -1,4 +1,7 @@
 import http from 'node:http';
+import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 import { persistState } from './config.js';
 import { openDatabase } from './db.js';
@@ -12,6 +15,7 @@ import { queryBrain, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
 
 const DEFAULT_MCP_PROTOCOL_VERSION = '2024-11-05';
+const execFileAsync = promisify(execFile);
 
 export async function startMcpServer({
   config,
@@ -19,6 +23,8 @@ export async function startMcpServer({
   port = Number(process.env.PORT || 3333),
   authToken = process.env.BIGBRAIN_MCP_TOKEN || process.env.MCP_AUTH_TOKEN || null,
   syncIntervalMs = Number(process.env.BIGBRAIN_MCP_SYNC_INTERVAL_MS || 300000),
+  gitBackupEnabled = process.env.BIGBRAIN_MCP_GIT_BACKUP === '1',
+  gitBackupIntervalMs = Number(process.env.BIGBRAIN_MCP_GIT_BACKUP_INTERVAL_MS || 300000),
 } = {}) {
   await syncAndPersist(config);
   const syncTimer = syncIntervalMs > 0
@@ -29,6 +35,14 @@ export async function startMcpServer({
       }, syncIntervalMs)
     : null;
   if (syncTimer) syncTimer.unref?.();
+  const gitBackupTimer = gitBackupEnabled && gitBackupIntervalMs > 0
+    ? setInterval(() => {
+        backupGitChanges(config, 'bigbrain: automated MCP backup').catch((error) => {
+          console.error(`BigBrain MCP git backup failed: ${error.message}`);
+        });
+      }, gitBackupIntervalMs)
+    : null;
+  if (gitBackupTimer) gitBackupTimer.unref?.();
 
   const server = http.createServer(async (request, response) => {
     try {
@@ -44,8 +58,8 @@ export async function startMcpServer({
 
       const payload = JSON.parse(await readRequestBody(request));
       const result = Array.isArray(payload)
-        ? await Promise.all(payload.map((message) => handleJsonRpcMessage({ config, message })))
-        : await handleJsonRpcMessage({ config, message: payload });
+        ? await Promise.all(payload.map((message) => handleJsonRpcMessage({ config, message, gitBackupEnabled })))
+        : await handleJsonRpcMessage({ config, message: payload, gitBackupEnabled });
       return sendJson(response, 200, result);
     } catch (error) {
       return sendJson(response, 500, jsonRpcError(null, -32603, error instanceof Error ? error.message : String(error)));
@@ -68,12 +82,13 @@ export async function startMcpServer({
     url: `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${resolvedPort}/mcp`,
     close: () => new Promise((resolve, reject) => {
       if (syncTimer) clearInterval(syncTimer);
+      if (gitBackupTimer) clearInterval(gitBackupTimer);
       server.close((error) => error ? reject(error) : resolve());
     }),
   };
 }
 
-async function handleJsonRpcMessage({ config, message }) {
+async function handleJsonRpcMessage({ config, message, gitBackupEnabled }) {
   if (!message || message.jsonrpc !== '2.0') return jsonRpcError(message?.id ?? null, -32600, 'Invalid JSON-RPC request.');
   if (message.id === undefined) return null;
 
@@ -90,7 +105,7 @@ async function handleJsonRpcMessage({ config, message }) {
       case 'tools/list':
         return jsonRpcResult(message.id, { tools: toolDefinitions() });
       case 'tools/call':
-        return jsonRpcResult(message.id, await callTool({ config, params: message.params || {} }));
+        return jsonRpcResult(message.id, await callTool({ config, params: message.params || {}, gitBackupEnabled }));
       default:
         return jsonRpcError(message.id, -32601, `Unknown method: ${message.method}`);
     }
@@ -99,7 +114,7 @@ async function handleJsonRpcMessage({ config, message }) {
   }
 }
 
-async function callTool({ config, params }) {
+async function callTool({ config, params, gitBackupEnabled }) {
   const name = params.name;
   const args = params.arguments || {};
   switch (name) {
@@ -124,7 +139,7 @@ async function callTool({ config, params }) {
         timelineEntry: args.timeline_entry,
         frontmatter: args.frontmatter || {},
       });
-      await syncAndPersist(config);
+      await postWriteMaintenance(config, gitBackupEnabled);
       return toolJson(page);
     }
     case 'update_page': {
@@ -134,11 +149,18 @@ async function callTool({ config, params }) {
         body: args.body,
         timelineEntry: args.timeline_entry,
       });
-      await syncAndPersist(config);
+      await postWriteMaintenance(config, gitBackupEnabled);
       return toolJson(page);
     }
     default:
       throw new Error(`Unknown tool: ${name}`);
+  }
+}
+
+async function postWriteMaintenance(config, gitBackupEnabled) {
+  await syncAndPersist(config);
+  if (gitBackupEnabled) {
+    await backupGitChanges(config, 'bigbrain: automated MCP backup');
   }
 }
 
@@ -165,6 +187,37 @@ async function syncAndPersist(config) {
     last_seen_files: [],
   });
   return result;
+}
+
+async function backupGitChanges(config, message) {
+  const repoRoot = await gitRepoRoot(config.brainDir);
+  const status = await git(repoRoot, ['status', '--porcelain']);
+  if (!status.stdout.trim()) return { committed: false, pushed: false };
+
+  const relativeBrainDir = path.relative(repoRoot, config.brainDir) || '.';
+  await git(repoRoot, ['add', relativeBrainDir]);
+  const staged = await git(repoRoot, ['diff', '--cached', '--name-only']);
+  if (!staged.stdout.trim()) return { committed: false, pushed: false };
+
+  await git(repoRoot, ['commit', '-m', message]);
+  await git(repoRoot, ['push']);
+  return { committed: true, pushed: true };
+}
+
+async function gitRepoRoot(cwd) {
+  const result = await git(cwd, ['rev-parse', '--show-toplevel']);
+  return result.stdout.trim();
+}
+
+async function git(cwd, args) {
+  return execFileAsync('git', args, {
+    cwd,
+    env: {
+      ...process.env,
+      GIT_TERMINAL_PROMPT: '0',
+    },
+    maxBuffer: 10 * 1024 * 1024,
+  });
 }
 
 function toolDefinitions() {
