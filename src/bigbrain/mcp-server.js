@@ -161,6 +161,8 @@ async function callTool({ config, params, gitBackupEnabled, actor }) {
         config,
         relativePath: args.path || '',
         recursive: args.recursive !== false,
+        limit: args.limit,
+        orderBy: args.order_by,
       }));
     case 'read':
       return toolJson(await readBrainPage({ config, pagePath: args.path }));
@@ -288,6 +290,8 @@ function toolDefinitions() {
         properties: {
           path: { type: 'string' },
           recursive: { type: 'boolean' },
+          limit: { type: 'number' },
+          order_by: { type: 'string', enum: ['updated_at', 'created_at', 'alphanumeric'] },
         },
       },
     },

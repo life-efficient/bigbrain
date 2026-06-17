@@ -17,7 +17,17 @@ export const DEFAULT_COLLECTIONS = [
   'writing',
 ];
 
-export async function listBrainPath({ config, relativePath = '', recursive = true } = {}) {
+const LIST_ORDER_BY = new Set(['updated_at', 'created_at', 'alphanumeric']);
+
+export async function listBrainPath({
+  config,
+  relativePath = '',
+  recursive = true,
+  limit = null,
+  orderBy = 'alphanumeric',
+} = {}) {
+  const normalizedOrderBy = normalizeListOrderBy(orderBy);
+  const normalizedLimit = normalizeListLimit(limit);
   const root = config.brainDir;
   const fullPath = safeBrainPath(root, relativePath);
   const stats = await fs.stat(fullPath);
@@ -28,8 +38,8 @@ export async function listBrainPath({ config, relativePath = '', recursive = tru
 
   const entries = [];
   await walkList(root, fullPath, entries, recursive);
-  entries.sort((left, right) => left.path.localeCompare(right.path));
-  return entries;
+  entries.sort(listEntrySorter(normalizedOrderBy));
+  return normalizedLimit === null ? entries : entries.slice(0, normalizedLimit);
 }
 
 export async function readBrainPage({ config, pagePath }) {
@@ -202,8 +212,35 @@ async function entryForPath(root, fullPath, stats) {
     path: path.relative(root, fullPath).split(path.sep).join('/'),
     kind: stats.isDirectory() ? 'directory' : 'file',
     size: stats.isFile() ? stats.size : null,
+    created_at: stats.birthtime.toISOString(),
     updated_at: stats.mtime.toISOString(),
   };
+}
+
+function listEntrySorter(orderBy) {
+  if (orderBy === 'updated_at' || orderBy === 'created_at') {
+    return (left, right) => right[orderBy].localeCompare(left[orderBy]) || comparePath(left.path, right.path);
+  }
+  return (left, right) => comparePath(left.path, right.path);
+}
+
+function comparePath(left, right) {
+  return left.localeCompare(right, undefined, { numeric: true });
+}
+
+function normalizeListOrderBy(value) {
+  const normalized = String(value || 'alphanumeric').trim();
+  if (!LIST_ORDER_BY.has(normalized)) {
+    throw new Error(`order_by must be one of: ${Array.from(LIST_ORDER_BY).join(', ')}`);
+  }
+  return normalized;
+}
+
+function normalizeListLimit(value) {
+  if (value === undefined || value === null || value === '') return null;
+  const number = Number(value);
+  if (!Number.isFinite(number) || number <= 0) throw new Error('limit must be a positive number.');
+  return Math.floor(number);
 }
 
 function shouldHideEntry(name) {

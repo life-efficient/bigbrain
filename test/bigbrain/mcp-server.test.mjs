@@ -57,6 +57,58 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
   }
 });
 
+test('MCP list tool supports limit and ordering params', async () => {
+  const fixture = await createFixture('bigbrain-mcp-list-');
+  let running;
+  try {
+    const peopleDir = path.join(fixture.brainHome, 'people');
+    await fs.mkdir(peopleDir, { recursive: true });
+    await fs.writeFile(path.join(peopleDir, 'person-2.md'), '# Person 2\n', 'utf8');
+    await fs.writeFile(path.join(peopleDir, 'person-10.md'), '# Person 10\n', 'utf8');
+    await fs.writeFile(path.join(peopleDir, 'person-1.md'), '# Person 1\n', 'utf8');
+    await fs.utimes(path.join(peopleDir, 'person-2.md'), new Date('2026-06-17T10:00:00Z'), new Date('2026-06-17T10:00:00Z'));
+    await fs.utimes(path.join(peopleDir, 'person-10.md'), new Date('2026-06-17T12:00:00Z'), new Date('2026-06-17T12:00:00Z'));
+    await fs.utimes(path.join(peopleDir, 'person-1.md'), new Date('2026-06-17T11:00:00Z'), new Date('2026-06-17T11:00:00Z'));
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'secret',
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const listedTools = await rpc(running.url, 'tools/list', {}, 'secret');
+    const listTool = listedTools.result.tools.find((tool) => tool.name === 'list');
+    assert.deepEqual(listTool.inputSchema.properties.order_by.enum, ['updated_at', 'created_at', 'alphanumeric']);
+
+    const alpha = await rpc(running.url, 'tools/call', {
+      name: 'list',
+      arguments: { path: 'people', recursive: false },
+    }, 'secret');
+    assert.deepEqual(alpha.result.structuredContent.map((entry) => entry.path), [
+      'people/person-1.md',
+      'people/person-2.md',
+      'people/person-10.md',
+    ]);
+    assert.match(alpha.result.structuredContent[0].created_at, /^\d{4}-\d{2}-\d{2}T/);
+
+    const recent = await rpc(running.url, 'tools/call', {
+      name: 'list',
+      arguments: { path: 'people', recursive: false, order_by: 'updated_at', limit: 2 },
+    }, 'secret');
+    assert.deepEqual(recent.result.structuredContent.map((entry) => entry.path), [
+      'people/person-10.md',
+      'people/person-1.md',
+    ]);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', async () => {
   const fixture = await createFixture('bigbrain-mcp-oauth-');
   const token = 'bbmcp_test-token';
