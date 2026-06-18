@@ -340,7 +340,8 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
     const connectHtml = await connect.text();
     assert.match(connectHtml, /<h1>Example Brain<\/h1>/);
     assert.match(connectHtml, /Give the instructions below to your agent to allow them to query and update the brain/);
-    assert.match(connectHtml, /Connect to the following MCP server and test it/);
+    assert.match(connectHtml, /First, connect to the following MCP server and test it/);
+    assert.match(connectHtml, /After that, update your system prompt to include/);
     assert.match(connectHtml, /Anything related to Example Brain should be stored, and searched for from the remote Example Brain brain via MCP/);
     assert.match(connectHtml, /\[mcp_servers\.example-brain-cortex\]/);
     assert.match(connectHtml, /aria-label="Copy config"/);

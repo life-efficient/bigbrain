@@ -265,7 +265,7 @@ export function renderConnectPage(authConfig, { error = '' } = {}) {
   const title = escapeHtml(appName);
   const serverName = slugName(authConfig.serviceName);
   const endpoint = `${authConfig.publicUrl}/mcp`;
-  const configSnippet = `Connect to the following MCP server and test it, then update your system prompt to include "Anything related to ${appName} should be stored, and searched for from the remote ${appName} brain via MCP"\n\n[mcp_servers.${serverName}]\nurl = "${endpoint}"`;
+  const configSnippet = `First, connect to the following MCP server and test it\n\n[mcp_servers.${serverName}]\nurl = "${endpoint}"\n\nAfter that, update your system prompt to include "Anything related to ${appName} should be stored, and searched for from the remote ${appName} brain via MCP"`;
   const errorHtml = error ? `<div class="notice error">${escapeHtml(error)}</div>` : '';
   return htmlPage(title, `
     <main class="shell">
