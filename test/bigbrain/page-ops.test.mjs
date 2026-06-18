@@ -8,9 +8,14 @@ import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { openDatabase, getPageRecord } from '../../src/bigbrain/db.js';
 import {
   createBrainPage,
+  createRawFile,
   createRawFileWithPage,
+  deleteRawFile,
   listBrainPath,
+  listRawFiles,
   readBrainPage,
+  readRawFile,
+  updateRawFile,
   updateBrainPage,
 } from '../../src/bigbrain/page-ops.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
@@ -85,6 +90,61 @@ test('page ops create raw files with associated brain pages', async () => {
     const db = await openDatabase(config);
     assert.equal(getPageRecord(db, 'sources/example-deck').title, 'Example Brain Deck');
     assert.equal(getPageRecord(db, 'sources/.raw/example-deck.pdf'), undefined);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page ops support raw file CRUD without indexing raw files', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-raw-crud-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const created = await createRawFile({
+      config,
+      rawPath: 'sources/.raw/uploads/source.txt',
+      rawContentText: 'initial raw text',
+      mimeType: 'text/plain',
+    });
+
+    assert.equal(created.path, 'sources/.raw/uploads/source.txt');
+    assert.equal(created.size, 'initial raw text'.length);
+
+    const readInitial = await readRawFile({ config, rawPath: 'sources/.raw/uploads/source.txt' });
+    assert.equal(Buffer.from(readInitial.content_base64, 'base64').toString('utf8'), 'initial raw text');
+
+    const updated = await updateRawFile({
+      config,
+      rawPath: 'sources/.raw/uploads/source.txt',
+      rawContentText: 'updated raw text',
+      mimeType: 'text/plain',
+    });
+    assert.equal(updated.size, 'updated raw text'.length);
+
+    await createRawFile({
+      config,
+      rawPath: 'meetings/.raw/transcript.txt',
+      rawContentText: 'meeting raw text',
+    });
+
+    const allRaw = await listRawFiles({ config });
+    assert.deepEqual(allRaw.map((entry) => entry.path), [
+      'meetings/.raw/transcript.txt',
+      'sources/.raw/uploads/source.txt',
+    ]);
+
+    const sourcesRaw = await listRawFiles({ config, rawPath: 'sources/.raw', recursive: false });
+    assert.deepEqual(sourcesRaw.map((entry) => entry.path), []);
+
+    const nestedSourcesRaw = await listRawFiles({ config, rawPath: 'sources/.raw', recursive: true });
+    assert.deepEqual(nestedSourcesRaw.map((entry) => entry.path), ['sources/.raw/uploads/source.txt']);
+
+    const deleted = await deleteRawFile({ config, rawPath: 'sources/.raw/uploads/source.txt' });
+    assert.deepEqual(deleted, { path: 'sources/.raw/uploads/source.txt', deleted: true });
+    await assert.rejects(() => readRawFile({ config, rawPath: 'sources/.raw/uploads/source.txt' }), /ENOENT/);
+
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+    assert.equal(getPageRecord(db, 'meetings/.raw/transcript.txt'), undefined);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

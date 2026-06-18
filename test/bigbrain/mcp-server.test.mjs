@@ -26,6 +26,10 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     const listed = await rpc(running.url, 'tools/list', {}, 'secret');
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_page'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file_with_page'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'read_raw_file'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'update_raw_file'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'delete_raw_file'), true);
 
     const unauthorized = await fetch(running.url, {
       method: 'POST',
@@ -63,6 +67,66 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     const record = getPageRecord(db, 'people/mcp-test');
     assert.equal(record.title, 'MCP Test');
     assert.match(record.compiled_truth, /Created through the MCP server/);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('MCP server supports raw file CRUD tools', async () => {
+  const fixture = await createFixture('bigbrain-mcp-raw-crud-');
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'secret',
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const created = await rpc(running.url, 'tools/call', {
+      name: 'create_raw_file',
+      arguments: {
+        path: 'sources/.raw/mcp-crud.txt',
+        raw_content_text: 'first version',
+        mime_type: 'text/plain',
+      },
+    }, 'secret');
+    assert.equal(created.error, undefined, created.error?.message);
+    assert.equal(created.result.structuredContent.path, 'sources/.raw/mcp-crud.txt');
+    assert.equal(created.result.structuredContent.size, 'first version'.length);
+
+    const readInitial = await rpc(running.url, 'tools/call', {
+      name: 'read_raw_file',
+      arguments: { path: 'sources/.raw/mcp-crud.txt' },
+    }, 'secret');
+    assert.equal(Buffer.from(readInitial.result.structuredContent.content_base64, 'base64').toString('utf8'), 'first version');
+
+    const updated = await rpc(running.url, 'tools/call', {
+      name: 'update_raw_file',
+      arguments: {
+        path: 'sources/.raw/mcp-crud.txt',
+        raw_content_text: 'second version',
+        mime_type: 'text/plain',
+      },
+    }, 'secret');
+    assert.equal(updated.result.structuredContent.size, 'second version'.length);
+
+    const listed = await rpc(running.url, 'tools/call', {
+      name: 'list_raw_files',
+      arguments: { path: 'sources/.raw' },
+    }, 'secret');
+    assert.deepEqual(listed.result.structuredContent.map((entry) => entry.path), ['sources/.raw/mcp-crud.txt']);
+
+    const deleted = await rpc(running.url, 'tools/call', {
+      name: 'delete_raw_file',
+      arguments: { path: 'sources/.raw/mcp-crud.txt' },
+    }, 'secret');
+    assert.deepEqual(deleted.result.structuredContent, { path: 'sources/.raw/mcp-crud.txt', deleted: true });
+    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'sources', '.raw', 'mcp-crud.txt')), /ENOENT/);
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

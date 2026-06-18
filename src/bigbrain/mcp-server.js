@@ -7,9 +7,14 @@ import { persistState } from './config.js';
 import { openDatabase } from './db.js';
 import {
   createBrainPage,
+  createRawFile,
   createRawFileWithPage,
+  deleteRawFile,
+  listRawFiles,
   listBrainPath,
   readBrainPage,
+  readRawFile,
+  updateRawFile,
   updateBrainPage,
 } from './page-ops.js';
 import { queryBrain, searchBrain } from './search.js';
@@ -199,6 +204,27 @@ async function callTool({ config, params, gitBackupEnabled, actor }) {
       }));
     case 'read':
       return toolJson(await readBrainPage({ config, pagePath: args.path }));
+    case 'list_raw_files':
+      return toolJson(await listRawFiles({
+        config,
+        rawPath: args.path || '',
+        recursive: args.recursive !== false,
+        limit: args.limit,
+        orderBy: args.order_by,
+      }));
+    case 'read_raw_file':
+      return toolJson(await readRawFile({ config, rawPath: args.path }));
+    case 'create_raw_file': {
+      const rawFile = await createRawFile({
+        config,
+        rawPath: args.path,
+        rawContentBase64: args.raw_content_base64,
+        rawContentText: args.raw_content_text,
+        mimeType: args.mime_type,
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      return toolJson(rawFile);
+    }
     case 'create_page': {
       const page = await createBrainPage({
         config,
@@ -224,6 +250,22 @@ async function callTool({ config, params, gitBackupEnabled, actor }) {
         timelineEntry: timelineWithActor(args.timeline_entry, actor),
         frontmatter: args.frontmatter || {},
       });
+      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      return toolJson(result);
+    }
+    case 'update_raw_file': {
+      const rawFile = await updateRawFile({
+        config,
+        rawPath: args.path,
+        rawContentBase64: args.raw_content_base64,
+        rawContentText: args.raw_content_text,
+        mimeType: args.mime_type,
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      return toolJson(rawFile);
+    }
+    case 'delete_raw_file': {
+      const result = await deleteRawFile({ config, rawPath: args.path });
       await postWriteMaintenance(config, gitBackupEnabled, actor);
       return toolJson(result);
     }
@@ -356,6 +398,44 @@ function toolDefinitions() {
       },
     },
     {
+      name: 'list_raw_files',
+      description: 'List raw files stored under .raw folders in the selected brain.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Optional .raw path prefix such as sources/.raw or sources/.raw/deck.' },
+          recursive: { type: 'boolean' },
+          limit: { type: 'number' },
+          order_by: { type: 'string', enum: ['updated_at', 'created_at', 'alphanumeric'] },
+        },
+      },
+    },
+    {
+      name: 'read_raw_file',
+      description: 'Read one raw file as base64 content.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Raw file path such as sources/.raw/deck.pdf.' },
+        },
+        required: ['path'],
+      },
+    },
+    {
+      name: 'create_raw_file',
+      description: 'Create one raw file under <collection>/.raw/<file> without creating a markdown page.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Destination such as sources/.raw/deck.pdf.' },
+          raw_content_base64: { type: 'string', description: 'Base64 encoded raw bytes. Use this for PDFs, images, and other binary files.' },
+          raw_content_text: { type: 'string', description: 'Plain text raw content. Use exactly one of raw_content_base64 or raw_content_text.' },
+          mime_type: { type: 'string' },
+        },
+        required: ['path'],
+      },
+    },
+    {
       name: 'create_page',
       description: 'Create a markdown brain page with frontmatter, current body, and a timeline entry.',
       inputSchema: {
@@ -387,6 +467,31 @@ function toolDefinitions() {
           frontmatter: { type: 'object' },
         },
         required: ['raw_path', 'page_path', 'title', 'body', 'timeline_entry'],
+      },
+    },
+    {
+      name: 'update_raw_file',
+      description: 'Replace the bytes of one existing raw file under .raw.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Existing raw file path such as sources/.raw/deck.pdf.' },
+          raw_content_base64: { type: 'string', description: 'Base64 encoded raw bytes. Use this for PDFs, images, and other binary files.' },
+          raw_content_text: { type: 'string', description: 'Plain text raw content. Use exactly one of raw_content_base64 or raw_content_text.' },
+          mime_type: { type: 'string' },
+        },
+        required: ['path'],
+      },
+    },
+    {
+      name: 'delete_raw_file',
+      description: 'Delete one existing raw file under .raw.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Existing raw file path such as sources/.raw/deck.pdf.' },
+        },
+        required: ['path'],
       },
     },
     {

@@ -147,6 +147,80 @@ export async function createRawFileWithPage({
   }
 }
 
+export async function createRawFile({
+  config,
+  rawPath,
+  rawContentBase64,
+  rawContentText,
+  mimeType = null,
+}) {
+  const rawRelative = normalizeRawPath(rawPath);
+  const rawFullPath = safeBrainPath(config.brainDir, rawRelative);
+  if (await exists(rawFullPath)) throw new Error(`Raw file already exists: ${rawRelative}`);
+  const rawBytes = decodeRawContent({ rawContentBase64, rawContentText });
+  await fs.mkdir(path.dirname(rawFullPath), { recursive: true });
+  await fs.writeFile(rawFullPath, rawBytes);
+  return rawFileMetadata(config, rawRelative, { mimeType });
+}
+
+export async function readRawFile({ config, rawPath }) {
+  const rawRelative = normalizeRawPath(rawPath);
+  const rawFullPath = safeBrainPath(config.brainDir, rawRelative);
+  const stats = await fs.stat(rawFullPath);
+  if (!stats.isFile()) throw new Error(`Raw file is not a file: ${rawRelative}`);
+  const bytes = await fs.readFile(rawFullPath);
+  return {
+    ...(await rawFileMetadata(config, rawRelative, { stats })),
+    content_base64: bytes.toString('base64'),
+  };
+}
+
+export async function updateRawFile({
+  config,
+  rawPath,
+  rawContentBase64,
+  rawContentText,
+  mimeType = null,
+}) {
+  const rawRelative = normalizeRawPath(rawPath);
+  const rawFullPath = safeBrainPath(config.brainDir, rawRelative);
+  const stats = await fs.stat(rawFullPath);
+  if (!stats.isFile()) throw new Error(`Raw file is not a file: ${rawRelative}`);
+  const rawBytes = decodeRawContent({ rawContentBase64, rawContentText });
+  await fs.writeFile(rawFullPath, rawBytes);
+  return rawFileMetadata(config, rawRelative, { mimeType });
+}
+
+export async function deleteRawFile({ config, rawPath }) {
+  const rawRelative = normalizeRawPath(rawPath);
+  const rawFullPath = safeBrainPath(config.brainDir, rawRelative);
+  const stats = await fs.stat(rawFullPath);
+  if (!stats.isFile()) throw new Error(`Raw file is not a file: ${rawRelative}`);
+  await fs.rm(rawFullPath);
+  await pruneEmptyRawParents(config.brainDir, path.dirname(rawFullPath));
+  return {
+    path: rawRelative,
+    deleted: true,
+  };
+}
+
+export async function listRawFiles({
+  config,
+  rawPath = '',
+  recursive = true,
+  limit = null,
+  orderBy = 'alphanumeric',
+} = {}) {
+  const normalizedOrderBy = normalizeListOrderBy(orderBy);
+  const normalizedLimit = normalizeListLimit(limit);
+  const prefix = normalizeRawListPath(rawPath);
+  const root = config.brainDir;
+  const entries = [];
+  await walkRawFiles(root, root, entries, recursive, prefix);
+  entries.sort(listEntrySorter(normalizedOrderBy));
+  return normalizedLimit === null ? entries : entries.slice(0, normalizedLimit);
+}
+
 export async function updateBrainPage({ config, pagePath, body, timelineEntry }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
@@ -184,6 +258,21 @@ export function normalizeRawPath(input) {
   }
   if (parts.some((part, index) => !part || part === '.' || part === '..' || (part.startsWith('.') && index !== 1))) {
     throw new Error(`Invalid raw file path: ${input}`);
+  }
+  return normalized;
+}
+
+export function normalizeRawListPath(input = '') {
+  const trimmed = String(input || '').trim().replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!trimmed) return '';
+  const normalized = path.posix.normalize(trimmed);
+  if (normalized === '.' || normalized.startsWith('../') || path.posix.isAbsolute(normalized)) {
+    throw new Error(`Invalid raw file list path: ${input}`);
+  }
+  const parts = normalized.split('/');
+  if (!parts.includes('.raw')) throw new Error('Raw file list path must include a .raw folder.');
+  if (parts.some((part, index) => !part || part === '.' || part === '..' || (part.startsWith('.') && part !== '.raw'))) {
+    throw new Error(`Invalid raw file list path: ${input}`);
   }
   return normalized;
 }
@@ -296,6 +385,29 @@ async function walkList(root, current, entries, recursive) {
   }
 }
 
+async function walkRawFiles(root, current, entries, recursive, prefix) {
+  const dirents = await fs.readdir(current, { withFileTypes: true }).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  for (const dirent of dirents) {
+    if (dirent.name === '.git' || dirent.name === '.bigbrain' || dirent.name === '.bigbrain-state' || dirent.name === 'node_modules') continue;
+    const fullPath = path.join(current, dirent.name);
+    const relative = path.relative(root, fullPath).split(path.sep).join('/');
+    const stats = await fs.stat(fullPath);
+    if (stats.isDirectory()) {
+      const segments = relative.split('/');
+      if (recursive || !segments.includes('.raw') || path.basename(fullPath) === '.raw') {
+        await walkRawFiles(root, fullPath, entries, recursive, prefix);
+      }
+      continue;
+    }
+    if (!relative.split('/').includes('.raw')) continue;
+    if (prefix && relative !== prefix && !relative.startsWith(`${prefix}/`)) continue;
+    entries.push(await entryForPath(root, fullPath, stats));
+  }
+}
+
 async function entryForPath(root, fullPath, stats) {
   return {
     path: path.relative(root, fullPath).split(path.sep).join('/'),
@@ -304,6 +416,29 @@ async function entryForPath(root, fullPath, stats) {
     created_at: stats.birthtime.toISOString(),
     updated_at: stats.mtime.toISOString(),
   };
+}
+
+async function rawFileMetadata(config, rawRelative, { stats = null, mimeType = null } = {}) {
+  const fullPath = safeBrainPath(config.brainDir, rawRelative);
+  const fileStats = stats || await fs.stat(fullPath);
+  return {
+    path: rawRelative,
+    size: fileStats.size,
+    mime_type: mimeType || null,
+    created_at: fileStats.birthtime.toISOString(),
+    updated_at: fileStats.mtime.toISOString(),
+  };
+}
+
+async function pruneEmptyRawParents(brainDir, currentDir) {
+  const root = path.resolve(brainDir);
+  let cursor = path.resolve(currentDir);
+  while (cursor.startsWith(`${root}${path.sep}`) && path.basename(cursor) !== '.raw') {
+    const entries = await fs.readdir(cursor).catch(() => null);
+    if (!entries || entries.length > 0) return;
+    await fs.rmdir(cursor);
+    cursor = path.dirname(cursor);
+  }
 }
 
 function listEntrySorter(orderBy) {

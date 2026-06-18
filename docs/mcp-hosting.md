@@ -21,22 +21,32 @@ a personal brain unless that is intentionally what you want to publish.
 
 ## Raw File Uploads
 
-The MCP tool `create_raw_file_with_page` writes a raw source file and its
-corresponding markdown brain page together. Use this for inputs such as PDFs,
-screenshots, transcripts, slide decks, and spreadsheets.
+The MCP server exposes raw-file CRUD tools for inputs such as PDFs,
+screenshots, transcripts, slide decks, and spreadsheets:
+
+- `list_raw_files`
+- `read_raw_file`
+- `create_raw_file`
+- `update_raw_file`
+- `delete_raw_file`
+
+The tool `create_raw_file_with_page` writes a raw source file and its
+corresponding markdown brain page together.
 
 Required fields:
 
-- `raw_path`: destination under `<collection>/.raw/<file>`, for example
+- `path` or `raw_path`: destination under `<collection>/.raw/<file>`, for example
   `sources/.raw/example-deck.pdf`.
 - `raw_content_base64` or `raw_content_text`: provide exactly one. Use base64
   for PDFs and other binary files.
 - `page_path`, `title`, `body`, `timeline_entry`: the markdown brain page to
-  create at the same time.
+  create at the same time when using `create_raw_file_with_page`.
 
-The generated page gets a `raw_file` frontmatter field and a `## Source File`
-link back to the raw upload. Raw files under `.raw/` stay out of the indexed
-page graph; the associated markdown page is the searchable surface.
+Raw reads return `content_base64` so binary files can round-trip safely. The
+generated page from `create_raw_file_with_page` gets a `raw_file` frontmatter
+field and a `## Source File` link back to the raw upload. Raw files under
+`.raw/` stay out of the indexed page graph; the associated markdown page is the
+searchable surface.
 
 ## Auth Modes
 
