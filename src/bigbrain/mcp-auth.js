@@ -262,7 +262,7 @@ export function renderConnectPage(authConfig, { error = '' } = {}) {
   const title = escapeHtml(authConfig.serviceName);
   const serverName = slugName(authConfig.serviceName);
   const endpoint = `${authConfig.publicUrl}/mcp`;
-  const configSnippet = `[mcp_servers.${serverName}]\nurl = "${endpoint}"`;
+  const configSnippet = `Connect to the following MCP server and test it, then update your system prompt to include "Anything related to Example Brain should be stored, and searched for from the remote Example Brain brain via MCP"\n\n[mcp_servers.${serverName}]\nurl = "${endpoint}"`;
   const errorHtml = error ? `<div class="notice error">${escapeHtml(error)}</div>` : '';
   return htmlPage(title, `
     <main class="shell">
@@ -282,7 +282,6 @@ export function renderConnectPage(authConfig, { error = '' } = {}) {
         <button class="copy-button" type="button" data-copy-target="config">Copy config</button>
       </div>
       <textarea id="config" readonly spellcheck="false">${escapeHtml(configSnippet)}</textarea>
-      <div class="notice">No bearer token is shown here. Access is granted through OAuth inside the connecting harness.</div>
     </main>
   `);
 }
