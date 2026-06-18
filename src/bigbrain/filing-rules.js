@@ -15,25 +15,32 @@ const DEFAULT_RULES = {
   archive: 'Historical or superseded material that should not stay active.',
 };
 
-const ROUTING_HINTS = [
-  { collection: 'meetings', pattern: /\b(meeting|call|transcript|sync|prep|agenda|minutes)\b/i, reason: 'the primary subject is a specific meeting or call' },
-  { collection: 'people', pattern: /\b(person|people|owner|contact|bio)\b/i, reason: 'the primary subject appears to be a person' },
-  { collection: 'organizations', pattern: /\b(organization|organisation|unesco|sdaia|ministry|university|vendor|partner|company|institution|committee)\b/i, reason: 'the primary subject appears to be an organization' },
-  { collection: 'companies', pattern: /\b(company|firm|vendor|partner|organization|organisation|institution)\b/i, reason: 'the primary subject appears to be an organization' },
-  { collection: 'projects', pattern: /\b(project|workstream|portfolio|website|app|implementation|build|deliverable)\b/i, reason: 'the item appears to belong to an active build or execution track' },
-  { collection: 'initiatives', pattern: /\b(initiative|workstream|programme|program|pillar delivery|activation)\b/i, reason: 'the item is an active named workstream' },
-  { collection: 'deliverables', pattern: /\b(deliverable|report|toolkit|course|workshop pack|declaration|podcast|episode|paper|publication|glossary|release|draft|memo)\b/i, reason: 'the item is a concrete output' },
-  { collection: 'concepts', pattern: /\b(concept|framework|strategy|pillar|model|principle|methodology|thesis)\b/i, reason: 'the item is reusable strategy or conceptual material' },
-  { collection: 'ops', pattern: /\b(roadmap|task|todo|operating|ops|mcp|server|deployment|sync|contribution|rule|cadence)\b/i, reason: 'the item is operating or coordination material' },
-  { collection: 'sources', pattern: /\b(source|raw|import|pdf|deck|slides|screenshot|snapshot|document|evidence|attachment)\b/i, reason: 'the item is source material or evidence' },
-];
-
-export async function filingRulesForBrain({ config, input = '', fileName = '', mimeType = '' }) {
+export async function filingRulesForBrain({ config }) {
   const sharedGuidance = await readSharedGuidance(config.brainDir);
   const collections = await readCollections(config.brainDir);
-  const available = new Set(collections.map((collection) => collection.name));
+  const rawFileRules = {
+    pattern: '<collection>/.raw/<file-or-folder>/<filename>',
+    create_with_page_tool: 'create_raw_file_with_page',
+    guidance: [
+      'Raw files are attachments, not canonical brain pages.',
+      'For uploads such as PDFs, decks, screenshots, spreadsheets, and transcripts, create a markdown page and raw file together when the raw file has brain value.',
+      'Place the raw file under the same collection as the markdown page it supports.',
+      'Use sources/.raw for evidence-first uploads whose subject has not yet become another canonical entity.',
+    ],
+    examples: [
+      {
+        raw_path: 'sources/.raw/example-strategic-initiatives-deck.pdf',
+        page_path: 'sources/example-strategic-initiatives-deck',
+      },
+      {
+        raw_path: 'meetings/.raw/unesco-workshop-sync/transcript.txt',
+        page_path: 'meetings/unesco-workshop-sync',
+      },
+    ],
+  };
   return {
     brain_dir: config.brainDir,
+    markdown: renderFilingRulesMarkdown({ config, sharedGuidance, collections, rawFileRules }),
     shared_guidance: sharedGuidance,
     collections,
     page_shape: sharedGuidance.pageShape.length > 0 ? sharedGuidance.pageShape : [
@@ -42,26 +49,7 @@ export async function filingRulesForBrain({ config, input = '', fileName = '', m
       'A separator line: ---',
       'An append-only ## Timeline evidence log.',
     ],
-    raw_file_rules: {
-      pattern: '<collection>/.raw/<file-or-folder>/<filename>',
-      create_with_page_tool: 'create_raw_file_with_page',
-      guidance: [
-        'Raw files are attachments, not canonical brain pages.',
-        'For uploads such as PDFs, decks, screenshots, spreadsheets, and transcripts, create a markdown page and raw file together when the raw file has brain value.',
-        'Place the raw file under the same collection as the markdown page it supports.',
-        'Use sources/.raw for evidence-first uploads whose subject has not yet become another canonical entity.',
-      ],
-      examples: [
-        {
-          raw_path: 'sources/.raw/example-strategic-initiatives-deck.pdf',
-          page_path: 'sources/example-strategic-initiatives-deck',
-        },
-        {
-          raw_path: 'meetings/.raw/unesco-workshop-sync/transcript.txt',
-          page_path: 'meetings/unesco-workshop-sync',
-        },
-      ],
-    },
+    raw_file_rules: rawFileRules,
     filing_principles: sharedGuidance.filingPrinciples.length > 0 ? sharedGuidance.filingPrinciples : [
       'File by primary subject, not by source format.',
       'Update an existing canonical page when the page already exists.',
@@ -69,7 +57,6 @@ export async function filingRulesForBrain({ config, input = '', fileName = '', m
       'Use relative markdown links instead of duplicating facts across pages.',
       'Use inbox/ only when no higher-confidence canonical home is clear.',
     ],
-    recommendation: recommendFiling({ input, fileName, mimeType, available }),
   };
 }
 
@@ -80,6 +67,7 @@ async function readSharedGuidance(brainDir) {
     return {
       path: null,
       summary: '',
+      markdown: '',
       filingPrinciples: [],
       pageShape: [],
     };
@@ -88,6 +76,7 @@ async function readSharedGuidance(brainDir) {
   return {
     path: 'FILING.md',
     summary: extracted.summary,
+    markdown,
     filingPrinciples: extracted.filingPrinciples,
     pageShape: extracted.pageShape,
   };
@@ -108,10 +97,57 @@ async function readCollections(brainDir) {
       what_does_not_go_here: extracted.whatDoesNotGoHere,
       filing_path: collectionGuidance.path,
       readme_path: collectionGuidance.path?.endsWith('/README.md') ? collectionGuidance.path : null,
+      markdown: collectionGuidance.markdown,
     });
   }
   collections.sort((left, right) => left.name.localeCompare(right.name));
   return collections;
+}
+
+function renderFilingRulesMarkdown({ config, sharedGuidance, collections, rawFileRules }) {
+  const sections = [
+    '# BigBrain Filing Rules',
+    '',
+    `Brain directory: \`${config.brainDir}\``,
+    '',
+  ];
+
+  if (sharedGuidance.markdown) {
+    sections.push(
+      `## Shared Guidance (${sharedGuidance.path})`,
+      '',
+      stripFrontmatter(sharedGuidance.markdown).trim(),
+      '',
+    );
+  }
+
+  sections.push(
+    '## Collections',
+    '',
+  );
+  for (const collection of collections) {
+    sections.push(
+      `### ${collection.name} (${collection.filing_path || 'no filing file'})`,
+      '',
+      collection.markdown ? stripFrontmatter(collection.markdown).trim() : (collection.purpose || 'No collection filing guidance found.'),
+      '',
+    );
+  }
+
+  sections.push(
+    '## Raw File Tooling',
+    '',
+    `- Pattern: \`${rawFileRules.pattern}\``,
+    `- Create with page tool: \`${rawFileRules.create_with_page_tool}\``,
+    ...rawFileRules.guidance.map((item) => `- ${item}`),
+    '',
+  );
+
+  return sections.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
+}
+
+function stripFrontmatter(markdown) {
+  return markdown.replace(/^---\r?\n[\s\S]*?\r?\n---\r?\n?/, '');
 }
 
 async function readCollectionGuidance(brainDir, collectionName) {
@@ -174,32 +210,6 @@ function bulletsUnderHeading(lines, heading) {
 
 function normalizeHeading(line) {
   return line.trim().replace(/\s+/g, ' ').toLowerCase();
-}
-
-function recommendFiling({ input, fileName, mimeType, available }) {
-  const text = [input, fileName, mimeType].filter(Boolean).join(' ').trim();
-  if (!text) return null;
-  const slugInput = fileName ? path.basename(fileName).replace(/\.[a-z0-9]+$/i, '') : input;
-  for (const hint of ROUTING_HINTS) {
-    if (!available.has(hint.collection) || !hint.pattern.test(text)) continue;
-    return recommendation(hint.collection, slugInput || text, hint.reason);
-  }
-  const fallback = available.has('inbox') ? 'inbox' : Array.from(available).sort()[0] || null;
-  return fallback ? recommendation(fallback, slugInput || text, 'no higher-confidence canonical home was obvious') : null;
-}
-
-function recommendation(collection, text, reason) {
-  const slug = slugify(path.basename(text).replace(/\.[a-z0-9]+$/i, '') || text) || 'new-page';
-  return {
-    collection,
-    page_path: `${collection}/${slug}`,
-    raw_path_pattern: `${collection}/.raw/${slug}/<filename>`,
-    reason,
-  };
-}
-
-function slugify(value) {
-  return String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
 async function readOptional(filePath) {

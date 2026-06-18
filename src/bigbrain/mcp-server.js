@@ -208,12 +208,7 @@ async function callTool({ config, params, gitBackupEnabled, actor }) {
     case 'read':
       return toolJson(await readBrainPage({ config, pagePath: args.path }));
     case 'filing_rules':
-      return toolJson(await filingRulesForBrain({
-        config,
-        input: args.input || '',
-        fileName: args.file_name || '',
-        mimeType: args.mime_type || '',
-      }));
+      return toolMarkdown(await filingRulesForBrain({ config }));
     case 'list_raw_files':
       return toolJson(await listRawFiles({
         config,
@@ -417,14 +412,10 @@ function toolDefinitions() {
     },
     {
       name: 'filing_rules',
-      description: 'Return the selected brain filing rules so an MCP harness can decide which collection, page path, and .raw path to use before creating files.',
+      description: 'Return the selected brain filing rules as combined Markdown, compiled from top-level and collection FILING.md files.',
       inputSchema: {
         type: 'object',
-        properties: {
-          input: { type: 'string', description: 'Optional short description of the item to file.' },
-          file_name: { type: 'string', description: 'Optional original filename, such as deck.pdf.' },
-          mime_type: { type: 'string', description: 'Optional MIME type, such as application/pdf.' },
-        },
+        properties: {},
       },
     },
     {
@@ -552,6 +543,13 @@ function toolJson(value) {
   const text = JSON.stringify(value, null, 2);
   return {
     content: [{ type: 'text', text }],
+    structuredContent: value,
+  };
+}
+
+function toolMarkdown(value) {
+  return {
+    content: [{ type: 'text', text: value.markdown }],
     structuredContent: value,
   };
 }
