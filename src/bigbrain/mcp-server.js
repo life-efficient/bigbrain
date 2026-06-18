@@ -305,14 +305,22 @@ async function toolSearch(config, args) {
   const query = requireString(args.query, 'query');
   const limit = normalizeLimit(args.limit, 10);
   const db = await openDatabase(config);
-  return searchBrain({ db, config, query, limit });
+  try {
+    return await searchBrain({ db, config, query, limit });
+  } finally {
+    await db.close?.();
+  }
 }
 
 async function toolQuery(config, args) {
   const question = requireString(args.question, 'question');
   const limit = normalizeLimit(args.limit, 6);
   const db = await openDatabase(config);
-  return queryBrain({ db, config, question, limit });
+  try {
+    return await queryBrain({ db, config, question, limit });
+  } finally {
+    await db.close?.();
+  }
 }
 
 async function syncAndPersist(config) {

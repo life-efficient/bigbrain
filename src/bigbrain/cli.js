@@ -81,6 +81,7 @@ async function handleList(args, global) {
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
   const rows = await listPages(db, { type: argValue(args, '--type') || null });
+  await db.close?.();
   output(global, rows, rows.map((row) => `${row.slug}  ${row.title}`).join('\n'));
 }
 
@@ -107,6 +108,7 @@ async function handleSearch(args, global) {
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
   const result = await searchBrain({ db, config, query });
+  await db.close?.();
   output(global, result, renderWarningText(result.warnings, renderSearchText(result.fused)));
 }
 
@@ -116,6 +118,7 @@ async function handleQuery(args, global) {
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
   const result = await queryBrain({ db, config, question });
+  await db.close?.();
   const text = result.answer
     ? `${result.answer}\n\nSources:\n${renderSearchText(result.search.fused)}`
     : `No OpenAI answer generated.\n\nRetrieved:\n${renderSearchText(result.search.fused)}`;
@@ -127,6 +130,7 @@ async function handleLinks(args, global) {
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
   const rows = await getOutgoingLinks(db, slug);
+  await db.close?.();
   output(global, rows, rows.map((row) => `${slug} -> ${row.to_slug} (${row.link_kind})`).join('\n'));
 }
 
@@ -135,6 +139,7 @@ async function handleBacklinks(args, global) {
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
   const rows = await getBacklinks(db, slug);
+  await db.close?.();
   output(global, rows, rows.map((row) => `${row.from_slug} -> ${slug} (${row.link_kind})`).join('\n'));
 }
 
