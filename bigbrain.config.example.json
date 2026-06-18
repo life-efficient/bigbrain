@@ -15,6 +15,8 @@
     "dreams",
     "ops"
   ],
+  "storage_backend": "sqlite",
+  "database_url_env": "DATABASE_URL",
   "openai_embedding_model": "text-embedding-3-small",
   "openai_query_model": "gpt-4o-mini",
   "freshness_inputs": ["markdown", "meetings", "conversations"],

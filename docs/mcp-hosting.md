@@ -120,13 +120,16 @@ Required environment:
 BIGBRAIN_MCP_AUTH_MODE=oauth_allowlist
 BIGBRAIN_MCP_PUBLIC_URL=https://your-service.example.com
 BIGBRAIN_MCP_SERVICE_NAME=Example Brain Cortex
-BIGBRAIN_MCP_TOKEN_STORE=/app/data/bigbrain-runtime/example-brain-cortex/mcp-tokens.json
 DATABASE_URL=postgres://...
 BIGBRAIN_MCP_ALLOWED_EMAILS=alice@example.com,bob@example.com
 BIGBRAIN_MCP_ALLOWED_DOMAINS=example.com
 BIGBRAIN_MCP_GOOGLE_CLIENT_ID=...
 BIGBRAIN_MCP_GOOGLE_CLIENT_SECRET=...
 ```
+
+Set `BIGBRAIN_MCP_TOKEN_STORE` only for file-backed SQLite or persistent-volume
+deployments. When the BigBrain config uses `storage_backend: "postgres"`, OAuth
+client, state, code, and token records are stored in Postgres instead.
 
 At least one of `BIGBRAIN_MCP_ALLOWED_EMAILS` or
 `BIGBRAIN_MCP_ALLOWED_DOMAINS` must be set.

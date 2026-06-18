@@ -118,6 +118,8 @@ See:
 
 - [`docs/design.md`](./docs/design.md)
 - [`docs/mcp-hosting.md`](./docs/mcp-hosting.md)
+- [`docs/postgres-migration.md`](./docs/postgres-migration.md)
+- [`docs/example-brain-deployment.md`](./docs/example-brain-deployment.md)
 - [`src/bigbrain/README.md`](./src/bigbrain/README.md)
 - [`TODO.md`](./TODO.md)
 
