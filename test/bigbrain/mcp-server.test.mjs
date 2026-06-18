@@ -28,9 +28,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(listed.result.tools.some((tool) => tool.name === 'filing_rules'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file_with_page'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file'), true);
-    assert.equal(listed.result.tools.some((tool) => tool.name === 'insert_raw_file'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'read_raw_file'), true);
-    assert.equal(listed.result.tools.some((tool) => tool.name === 'retrieve_raw_file'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'update_raw_file'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'delete_raw_file'), true);
 
@@ -188,42 +186,6 @@ test('MCP server supports raw file CRUD tools', async () => {
     }, 'secret');
     assert.deepEqual(deleted.result.structuredContent, { path: 'sources/.raw/mcp-crud.txt', deleted: true });
     await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'sources', '.raw', 'mcp-crud.txt')), /ENOENT/);
-  } finally {
-    if (running) await running.close();
-    await fs.rm(fixture.rootDir, { recursive: true, force: true });
-  }
-});
-
-test('MCP server supports insert and retrieve raw file aliases', async () => {
-  const fixture = await createFixture('bigbrain-mcp-raw-aliases-');
-  let running;
-  try {
-    const config = await loadConfig({ configPath: fixture.configPath });
-    running = await startMcpServer({
-      config,
-      host: '127.0.0.1',
-      port: 0,
-      authToken: 'secret',
-      syncIntervalMs: 0,
-      gitBackupEnabled: false,
-    });
-
-    const inserted = await rpc(running.url, 'tools/call', {
-      name: 'insert_raw_file',
-      arguments: {
-        path: 'sources/.raw/aliases/source.txt',
-        raw_content_text: 'alias insert content',
-        mime_type: 'text/plain',
-      },
-    }, 'secret');
-    assert.equal(inserted.error, undefined, inserted.error?.message);
-    assert.equal(inserted.result.structuredContent.path, 'sources/.raw/aliases/source.txt');
-
-    const retrieved = await rpc(running.url, 'tools/call', {
-      name: 'retrieve_raw_file',
-      arguments: { path: 'sources/.raw/aliases/source.txt' },
-    }, 'secret');
-    assert.equal(Buffer.from(retrieved.result.structuredContent.content_base64, 'base64').toString('utf8'), 'alias insert content');
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

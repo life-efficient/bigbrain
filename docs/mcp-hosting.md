@@ -33,11 +33,14 @@ screenshots, transcripts, slide decks, and spreadsheets:
 - `filing_rules`
 - `list_raw_files`
 - `read_raw_file`
-- `retrieve_raw_file` (alias for `read_raw_file`)
 - `create_raw_file`
-- `insert_raw_file` (alias for `create_raw_file`)
 - `update_raw_file`
 - `delete_raw_file`
+
+Use `create_raw_file` to upload a remote file without a markdown page,
+`create_raw_file_with_page` to upload a remote file and create the searchable
+brain page in the same call, `read_raw_file` to download the raw bytes as
+base64, and `update_raw_file` to replace the bytes of an existing upload.
 
 The tool `create_raw_file_with_page` writes a raw source file and its
 corresponding markdown brain page together.
