@@ -214,6 +214,110 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
   }
 });
 
+test('MCP OAuth allowlist mode exposes Codex-native OAuth endpoints', async () => {
+  const fixture = await createFixture('bigbrain-mcp-oauth-native-');
+  const tokenStorePath = path.join(fixture.rootDir, 'tokens.json');
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: {
+        mode: 'oauth_allowlist',
+        authToken: null,
+        publicUrl: 'https://brain.example.test',
+        provider: 'google',
+        googleClientId: 'client-id',
+        googleClientSecret: 'client-secret',
+        allowedEmails: ['teammate@example.com'],
+        allowedDomains: [],
+        tokenStorePath,
+        allowSharedToken: false,
+        serviceName: 'Example Brain Cortex',
+      },
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const protectedMetadata = await fetch(running.url.replace('/mcp', '/.well-known/oauth-protected-resource/mcp'));
+    assert.equal(protectedMetadata.status, 200);
+    assert.deepEqual((await protectedMetadata.json()).authorization_servers, ['https://brain.example.test']);
+
+    const authMetadata = await fetch(running.url.replace('/mcp', '/.well-known/oauth-authorization-server'));
+    assert.equal(authMetadata.status, 200);
+    const authMetadataJson = await authMetadata.json();
+    assert.equal(authMetadataJson.registration_endpoint, 'https://brain.example.test/oauth/register');
+    assert.deepEqual(authMetadataJson.code_challenge_methods_supported, ['S256']);
+
+    const registration = await fetch(running.url.replace('/mcp', '/oauth/register'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        redirect_uris: ['http://127.0.0.1:1455/callback'],
+        token_endpoint_auth_method: 'none',
+      }),
+    });
+    assert.equal(registration.status, 200);
+    const client = await registration.json();
+    assert.match(client.client_id, /^bbmcp_client_/);
+
+    const codeVerifier = 'a'.repeat(64);
+    const authorizeUrl = new URL(running.url.replace('/mcp', '/oauth/authorize'));
+    authorizeUrl.searchParams.set('client_id', client.client_id);
+    authorizeUrl.searchParams.set('redirect_uri', 'http://127.0.0.1:1455/callback');
+    authorizeUrl.searchParams.set('response_type', 'code');
+    authorizeUrl.searchParams.set('code_challenge', computePkceChallenge(codeVerifier));
+    authorizeUrl.searchParams.set('code_challenge_method', 'S256');
+    authorizeUrl.searchParams.set('state', 'codex-state');
+    const authorize = await fetch(authorizeUrl, { redirect: 'manual' });
+    assert.equal(authorize.status, 302);
+    assert.match(authorize.headers.get('location'), /^https:\/\/accounts\.google\.com\//);
+
+    const store = JSON.parse(await fs.readFile(tokenStorePath, 'utf8'));
+    const pendingState = store.states.find((entry) => entry.flow === 'agent_oauth');
+    assert.equal(pendingState.client_id, client.client_id);
+
+    store.states = [];
+    const authCode = 'bbmcp_code_test';
+    store.codes = [{
+      code_hash: hashToken(authCode),
+      client_id: client.client_id,
+      redirect_uri: 'http://127.0.0.1:1455/callback',
+      code_challenge: computePkceChallenge(codeVerifier),
+      scope: 'brain:read brain:write',
+      email: 'teammate@example.com',
+      name: 'Team Mate',
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + 60_000).toISOString(),
+    }];
+    await fs.writeFile(tokenStorePath, `${JSON.stringify(store, null, 2)}\n`);
+
+    const token = await fetch(running.url.replace('/mcp', '/oauth/token'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'authorization_code',
+        client_id: client.client_id,
+        redirect_uri: 'http://127.0.0.1:1455/callback',
+        code: authCode,
+        code_verifier: codeVerifier,
+      }),
+    });
+    assert.equal(token.status, 200);
+    const tokenJson = await token.json();
+    assert.equal(tokenJson.token_type, 'Bearer');
+    assert.match(tokenJson.access_token, /^bbmcp_/);
+
+    const listed = await rpc(running.url, 'tools/list', {}, tokenJson.access_token);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'list'), true);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function rpc(url, method, params, token) {
   const response = await fetch(url, {
     method: 'POST',
@@ -241,4 +345,8 @@ async function createFixture(prefix) {
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function computePkceChallenge(codeVerifier) {
+  return crypto.createHash('sha256').update(codeVerifier).digest('base64url');
 }

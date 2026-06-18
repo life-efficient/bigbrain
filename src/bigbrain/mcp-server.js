@@ -14,12 +14,17 @@ import {
 import { queryBrain, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
 import {
+  authorizationServerMetadata,
   authRoutesEnabled,
   assertOAuthConfigured,
   authorizeMcpRequest,
   buildAuthConfig,
   completeOAuthCallback,
+  createAgentOAuthStart,
   createOAuthStart,
+  exchangeAgentOAuthCode,
+  protectedResourceMetadata,
+  registerOAuthClient,
   renderAuthErrorPage,
   renderConnectPage,
   renderTokenPage,
@@ -63,6 +68,25 @@ export async function startMcpServer({
       if (request.method === 'GET' && route.pathname === '/connect' && authRoutesEnabled(authConfig)) {
         return sendHtml(response, 200, renderConnectPage(authConfig));
       }
+      if (request.method === 'GET' && isProtectedResourceMetadataPath(route.pathname) && authRoutesEnabled(authConfig)) {
+        return sendJson(response, 200, protectedResourceMetadata(authConfig), { cacheControl: 'public, max-age=300' });
+      }
+      if (request.method === 'GET' && route.pathname === '/.well-known/oauth-authorization-server' && authRoutesEnabled(authConfig)) {
+        return sendJson(response, 200, authorizationServerMetadata(authConfig), { cacheControl: 'public, max-age=300' });
+      }
+      if (request.method === 'POST' && route.pathname === '/oauth/register' && authRoutesEnabled(authConfig)) {
+        const input = JSON.parse(await readRequestBody(request) || '{}');
+        return sendJson(response, 200, await registerOAuthClient(authConfig, input), { cacheControl: 'no-store' });
+      }
+      if (request.method === 'GET' && route.pathname === '/oauth/authorize' && authRoutesEnabled(authConfig)) {
+        response.writeHead(302, { location: await createAgentOAuthStart(authConfig, request.url || '/') });
+        response.end();
+        return;
+      }
+      if (request.method === 'POST' && route.pathname === '/oauth/token' && authRoutesEnabled(authConfig)) {
+        const body = await readRequestBody(request);
+        return sendJson(response, 200, await exchangeAgentOAuthCode(authConfig, new URLSearchParams(body)), { cacheControl: 'no-store' });
+      }
       if (request.method === 'GET' && route.pathname === '/auth/start' && authRoutesEnabled(authConfig)) {
         response.writeHead(302, { location: await createOAuthStart(authConfig) });
         response.end();
@@ -74,6 +98,14 @@ export async function startMcpServer({
             code: route.searchParams.get('code'),
             state: route.searchParams.get('state'),
           });
+          if (issued.redirect_uri) {
+            const redirect = new URL(issued.redirect_uri);
+            redirect.searchParams.set('code', issued.code);
+            if (issued.state) redirect.searchParams.set('state', issued.state);
+            response.writeHead(302, { location: redirect.toString() });
+            response.end();
+            return;
+          }
           return sendHtml(response, 200, renderTokenPage(authConfig, issued));
         } catch (error) {
           return sendHtml(response, 403, renderAuthErrorPage(authConfig, error instanceof Error ? error.message : String(error)));
@@ -87,7 +119,10 @@ export async function startMcpServer({
       }
       const authorization = await authorizeMcpRequest(request, authConfig);
       if (!authorization.ok) {
-        return sendJson(response, authorization.status || 401, jsonRpcError(null, -32001, authorization.message || 'Unauthorized'));
+        return sendJson(response, authorization.status || 401, jsonRpcError(null, -32001, authorization.message || 'Unauthorized'), {
+          authConfig,
+          includeResourceMetadata: true,
+        });
       }
 
       const payload = JSON.parse(await readRequestBody(request));
@@ -356,11 +391,16 @@ function toolJson(value) {
   };
 }
 
-function sendJson(response, statusCode, value) {
-  response.writeHead(statusCode, {
+function sendJson(response, statusCode, value, options = {}) {
+  const headers = {
     'content-type': 'application/json; charset=utf-8',
     'access-control-allow-origin': '*',
-  });
+  };
+  if (options.cacheControl) headers['cache-control'] = options.cacheControl;
+  if (options.includeResourceMetadata && options.authConfig?.publicUrl) {
+    headers['www-authenticate'] = `Bearer error="invalid_token", resource_metadata="${options.authConfig.publicUrl}/.well-known/oauth-protected-resource/mcp"`;
+  }
+  response.writeHead(statusCode, headers);
   response.end(JSON.stringify(value));
 }
 
@@ -377,6 +417,12 @@ function sendHtml(response, statusCode, html) {
     'cache-control': 'no-store',
   });
   response.end(html);
+}
+
+function isProtectedResourceMetadataPath(pathname) {
+  return pathname === '/.well-known/oauth-protected-resource'
+    || pathname === '/.well-known/oauth-protected-resource/mcp'
+    || pathname === '/.well-known/oauth-protected-resource/api/mcp';
 }
 
 async function readRequestBody(request) {

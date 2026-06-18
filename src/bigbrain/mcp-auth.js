@@ -3,6 +3,11 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const DEFAULT_PROVIDER = 'google';
+const CLIENT_ID_PREFIX = 'bbmcp_client_';
+const CODE_PREFIX = 'bbmcp_code_';
+const ACCESS_TOKEN_PREFIX = 'bbmcp_';
+const AUTH_CODE_TTL_MS = 5 * 60 * 1000;
+const SCOPES = ['brain:read', 'brain:write'];
 
 export function buildAuthConfig({
   env = process.env,
@@ -92,6 +97,104 @@ export async function createOAuthStart(authConfig) {
   return url.toString();
 }
 
+export function protectedResourceMetadata(authConfig) {
+  return {
+    resource: `${authConfig.publicUrl}/mcp`,
+    authorization_servers: [authConfig.publicUrl],
+    bearer_methods_supported: ['header'],
+    scopes_supported: SCOPES,
+    resource_documentation: `${authConfig.publicUrl}/connect`,
+  };
+}
+
+export function authorizationServerMetadata(authConfig) {
+  return {
+    issuer: authConfig.publicUrl,
+    authorization_endpoint: `${authConfig.publicUrl}/oauth/authorize`,
+    token_endpoint: `${authConfig.publicUrl}/oauth/token`,
+    registration_endpoint: `${authConfig.publicUrl}/oauth/register`,
+    response_types_supported: ['code'],
+    grant_types_supported: ['authorization_code'],
+    code_challenge_methods_supported: ['S256'],
+    token_endpoint_auth_methods_supported: ['none'],
+    scopes_supported: SCOPES,
+    service_documentation: `${authConfig.publicUrl}/connect`,
+  };
+}
+
+export async function registerOAuthClient(authConfig, input = {}) {
+  assertOAuthConfigured(authConfig);
+  const redirectUris = Array.from(new Set(Array.isArray(input.redirect_uris) ? input.redirect_uris : [])).filter(Boolean);
+  if (!redirectUris.length) throw new Error('redirect_uris must include at least one callback URL.');
+  const clientId = `${CLIENT_ID_PREFIX}${randomToken(24)}`;
+  const store = await readTokenStore(authConfig);
+  store.clients.push({
+    client_id: clientId,
+    client_name: input.client_name || null,
+    redirect_uris: redirectUris,
+    grant_types: ['authorization_code'],
+    response_types: ['code'],
+    scope: input.scope || SCOPES.join(' '),
+    token_endpoint_auth_method: 'none',
+    created_at: new Date().toISOString(),
+  });
+  await writeTokenStore(authConfig, store);
+  return {
+    client_id: clientId,
+    client_id_issued_at: Math.floor(Date.now() / 1000),
+    redirect_uris: redirectUris,
+    grant_types: ['authorization_code'],
+    response_types: ['code'],
+    scope: input.scope || SCOPES.join(' '),
+    token_endpoint_auth_method: 'none',
+  };
+}
+
+export async function createAgentOAuthStart(authConfig, requestUrl) {
+  assertOAuthConfigured(authConfig);
+  const url = new URL(requestUrl, authConfig.publicUrl);
+  const clientId = url.searchParams.get('client_id');
+  const redirectUri = url.searchParams.get('redirect_uri');
+  const responseType = url.searchParams.get('response_type');
+  const codeChallenge = url.searchParams.get('code_challenge');
+  const codeChallengeMethod = url.searchParams.get('code_challenge_method');
+  const state = url.searchParams.get('state') || '';
+  const scope = normalizeScope(url.searchParams.get('scope'));
+
+  if (!clientId || !redirectUri || responseType !== 'code' || !codeChallenge || codeChallengeMethod !== 'S256') {
+    throw new Error('client_id, redirect_uri, response_type=code, code_challenge, and code_challenge_method=S256 are required.');
+  }
+
+  const store = await readTokenStore(authConfig);
+  const client = store.clients.find((entry) => entry.client_id === clientId);
+  if (!client) throw new Error('Unknown client_id.');
+  if (!client.redirect_uris.includes(redirectUri)) throw new Error('redirect_uri must match a registered callback URL.');
+
+  const googleState = randomToken(24);
+  store.states.push({
+    flow: 'agent_oauth',
+    state_hash: hashToken(googleState),
+    created_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    code_challenge: codeChallenge,
+    original_state: state,
+    scope,
+  });
+  pruneStore(store);
+  await writeTokenStore(authConfig, store);
+
+  const google = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  google.searchParams.set('client_id', authConfig.googleClientId);
+  google.searchParams.set('redirect_uri', callbackUrl(authConfig));
+  google.searchParams.set('response_type', 'code');
+  google.searchParams.set('scope', 'openid email profile');
+  google.searchParams.set('state', googleState);
+  google.searchParams.set('prompt', 'select_account');
+  return google.toString();
+}
+
 export async function completeOAuthCallback(authConfig, { code, state }) {
   assertOAuthConfigured(authConfig);
   if (!code || !state) throw new Error('Missing OAuth code or state.');
@@ -108,6 +211,27 @@ export async function completeOAuthCallback(authConfig, { code, state }) {
   if (!email || profile.email_verified === false) throw new Error('Google account email is not verified.');
   if (!isEmailAllowed(authConfig, email)) throw new Error(`${email} is not allowed to access this brain.`);
 
+  if (stateRecord.flow === 'agent_oauth') {
+    const authCode = `${CODE_PREFIX}${randomToken(24)}`;
+    store.codes.push({
+      code_hash: hashToken(authCode),
+      client_id: stateRecord.client_id,
+      redirect_uri: stateRecord.redirect_uri,
+      code_challenge: stateRecord.code_challenge,
+      scope: stateRecord.scope || SCOPES.join(' '),
+      email,
+      name: profile.name || email,
+      created_at: new Date().toISOString(),
+      expires_at: new Date(Date.now() + AUTH_CODE_TTL_MS).toISOString(),
+    });
+    await writeTokenStore(authConfig, store);
+    return {
+      redirect_uri: stateRecord.redirect_uri,
+      code: authCode,
+      state: stateRecord.original_state,
+    };
+  }
+
   const token = `bbmcp_${randomToken(32)}`;
   const issuedAt = new Date().toISOString();
   store.tokens.push({
@@ -122,6 +246,51 @@ export async function completeOAuthCallback(authConfig, { code, state }) {
   pruneStore(store);
   await writeTokenStore(authConfig, store);
   return { token, email, name: profile.name || email, created_at: issuedAt };
+}
+
+export async function exchangeAgentOAuthCode(authConfig, params) {
+  assertOAuthConfigured(authConfig);
+  const grantType = params.get('grant_type');
+  const code = params.get('code');
+  const codeVerifier = params.get('code_verifier');
+  const clientId = params.get('client_id');
+  const redirectUri = params.get('redirect_uri');
+  if (grantType !== 'authorization_code') throw new Error('Unsupported grant_type.');
+  if (!code || !codeVerifier || !clientId) throw new Error('code, code_verifier, and client_id are required.');
+
+  const store = await readTokenStore(authConfig);
+  const codeHash = hashToken(code);
+  const now = new Date();
+  const record = store.codes.find((entry) =>
+    entry.code_hash === codeHash
+    && entry.client_id === clientId
+    && new Date(entry.expires_at) > now
+    && (!redirectUri || entry.redirect_uri === redirectUri)
+  );
+  if (!record) throw new Error('Authorization code expired or invalid.');
+  if (computePkceChallenge(codeVerifier) !== record.code_challenge) {
+    throw new Error('code_verifier does not match the original PKCE challenge.');
+  }
+
+  store.codes = store.codes.filter((entry) => entry.code_hash !== codeHash);
+  const token = `${ACCESS_TOKEN_PREFIX}${randomToken(32)}`;
+  store.tokens.push({
+    token_hash: hashToken(token),
+    email: record.email,
+    name: record.name || record.email,
+    provider: 'google',
+    created_at: new Date().toISOString(),
+    last_used_at: null,
+    revoked_at: null,
+    scope: record.scope || SCOPES.join(' '),
+  });
+  pruneStore(store);
+  await writeTokenStore(authConfig, store);
+  return {
+    access_token: token,
+    token_type: 'Bearer',
+    scope: record.scope || SCOPES.join(' '),
+  };
 }
 
 export function renderConnectPage(authConfig, { error = '' } = {}) {
@@ -205,16 +374,18 @@ function isEmailAllowed(authConfig, email) {
 }
 
 async function readTokenStore(authConfig) {
-  if (!authConfig.tokenStorePath) return { tokens: [], states: [] };
+  if (!authConfig.tokenStorePath) return { tokens: [], states: [], clients: [], codes: [] };
   try {
     const parsed = JSON.parse(await fs.readFile(authConfig.tokenStorePath, 'utf8'));
     return {
       tokens: Array.isArray(parsed.tokens) ? parsed.tokens : [],
       states: Array.isArray(parsed.states) ? parsed.states : [],
+      clients: Array.isArray(parsed.clients) ? parsed.clients : [],
+      codes: Array.isArray(parsed.codes) ? parsed.codes : [],
     };
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
-    return { tokens: [], states: [] };
+    return { tokens: [], states: [], clients: [], codes: [] };
   }
 }
 
@@ -227,6 +398,7 @@ async function writeTokenStore(authConfig, store) {
 function pruneStore(store) {
   const now = new Date();
   store.states = store.states.filter((entry) => new Date(entry.expires_at) > now);
+  store.codes = (store.codes || []).filter((entry) => new Date(entry.expires_at) > now);
 }
 
 function bearerToken(request) {
@@ -238,6 +410,10 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function computePkceChallenge(codeVerifier) {
+  return crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+}
+
 function randomToken(bytes) {
   return crypto.randomBytes(bytes).toString('base64url');
 }
@@ -247,6 +423,12 @@ function parseList(value) {
     .split(',')
     .map((entry) => entry.trim())
     .filter(Boolean);
+}
+
+function normalizeScope(scope) {
+  const requested = String(scope || '').split(/\s+/).filter(Boolean);
+  const allowed = requested.filter((entry) => SCOPES.includes(entry));
+  return (allowed.length ? allowed : SCOPES).join(' ');
 }
 
 function slugName(name) {
