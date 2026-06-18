@@ -249,6 +249,73 @@ Alex Rivera is the founder of ExampleCo and a useful customer-discovery contact.
   }
 });
 
+test('search warns when semantic search is skipped because api key is missing', async () => {
+  const fixture = await createFixture('bigbrain-search-no-api-key-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alex-rivera.md', `---
+title: Alex Rivera
+---
+# Alex Rivera
+
+Alex Rivera is the founder of ExampleCo.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const result = await searchBrain({ db, config, query: 'Alex Rivera', apiKey: null });
+    assert.equal(result.fused[0].slug, 'people/alex-rivera');
+    assert.match(result.warnings.join('\n'), /semantic search skipped because OPENAI_API_KEY is not set/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('query warns when answer generation is skipped because api key is missing', async () => {
+  const fixture = await createFixture('bigbrain-query-no-api-key-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alex-rivera.md', `---
+title: Alex Rivera
+---
+# Alex Rivera
+
+Alex Rivera is the founder of ExampleCo.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const result = await queryBrain({ db, config, question: 'Alex Rivera', apiKey: null });
+    assert.equal(result.answer, null);
+    assert.equal(result.preferred_sources[0], 'people/alex-rivera');
+    assert.match(result.warnings.join('\n'), /OpenAI answer generation skipped because OPENAI_API_KEY is not set/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('search warns when semantic search is skipped because the index has no embeddings', async () => {
+  const fixture = await createFixture('bigbrain-search-no-embeddings-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alex-rivera.md', `---
+title: Alex Rivera
+---
+# Alex Rivera
+
+Alex Rivera is the founder of ExampleCo.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const result = await searchBrain({ db, config, query: 'Alex Rivera', apiKey: 'test-key' });
+    assert.equal(result.fused[0].slug, 'people/alex-rivera');
+    assert.match(result.warnings.join('\n'), /semantic search skipped because the index has no embeddings/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('fused search favors the strongest semantic page across multiple ranked lists', () => {
   const fused = fuseResults(
     [

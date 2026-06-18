@@ -12,7 +12,9 @@ export async function searchBrain({ db, config, query, limit = 10, apiKey = proc
     .filter((rows) => rows.length > 0);
   let semanticLists = [];
   try {
-    semanticLists = await semanticSearchLists({ db, config, queries, limit: innerLimit, apiKey });
+    const semanticResult = await semanticSearchLists({ db, config, queries, limit: innerLimit, apiKey });
+    semanticLists = semanticResult.lists;
+    if (semanticResult.skippedReason) warnings.push(semanticSkipWarning(semanticResult.skippedReason));
   } catch (error) {
     warnings.push(formatWarning('semantic search unavailable; falling back to lexical-only results', error));
   }
@@ -41,8 +43,11 @@ export async function queryBrain({ db, config, question, limit = 6, apiKey = pro
   const preferredSources = search.fused.slice(0, 3).map((result) => result.slug);
   const warnings = [...search.warnings];
   let answer = null;
+  if (!apiKey) {
+    warnings.push('OpenAI answer generation skipped because OPENAI_API_KEY is not set.');
+  }
   try {
-    answer = await answerQuestion({ model: config.openaiQueryModel, apiKey, question, context });
+    if (apiKey) answer = await answerQuestion({ model: config.openaiQueryModel, apiKey, question, context });
   } catch (error) {
     warnings.push(formatWarning('OpenAI answer generation unavailable; returning retrieved context only', error));
   }
@@ -91,6 +96,21 @@ function formatWarning(message, error) {
   return `${message}${suffix}`;
 }
 
+function semanticSkipWarning(reason) {
+  switch (reason) {
+    case 'missing_api_key':
+      return 'semantic search skipped because OPENAI_API_KEY is not set.';
+    case 'no_embeddings':
+      return 'semantic search skipped because the index has no embeddings. Run sync with OPENAI_API_KEY set.';
+    case 'no_queries':
+      return 'semantic search skipped because no query text was available.';
+    case 'no_query_vectors':
+      return 'semantic search skipped because no query embedding vectors were generated.';
+    default:
+      return 'semantic search skipped.';
+  }
+}
+
 function extractCauseMessage(cause) {
   if (!cause) return '';
   if (cause instanceof Error && cause.message) return cause.message;
@@ -114,31 +134,55 @@ export function shouldAutoExpandQuery(query) {
 }
 
 async function semanticSearchLists({ db, config, queries, limit, apiKey }) {
-  if (!apiKey) return [];
+  if (!apiKey) {
+    return {
+      lists: [],
+      skippedReason: 'missing_api_key',
+    };
+  }
   const embeddings = allEmbeddings(db);
-  if (embeddings.length === 0 || queries.length === 0) return [];
+  if (embeddings.length === 0) {
+    return {
+      lists: [],
+      skippedReason: 'no_embeddings',
+    };
+  }
+  if (queries.length === 0) {
+    return {
+      lists: [],
+      skippedReason: 'no_queries',
+    };
+  }
 
   const queryVectors = await embedTexts(queries, config.openaiEmbeddingModel, apiKey);
-  if (queryVectors.length === 0) return [];
+  if (queryVectors.length === 0) {
+    return {
+      lists: [],
+      skippedReason: 'no_query_vectors',
+    };
+  }
 
   const metadataBySlug = new Map(
     getPagesBySlugs(db, [...new Set(embeddings.map((row) => row.page_slug))]).map((row) => [row.slug, row]),
   );
 
-  return queryVectors.map((queryVector) => embeddings
-    .map((row) => {
-      const metadata = metadataBySlug.get(row.page_slug);
-      return {
-        slug: row.page_slug,
-        title: metadata?.title ?? row.page_slug,
-        type: metadata?.type ?? null,
-        summary: metadata?.summary ?? '',
-        snippet: row.chunk_text.slice(0, 240),
-        semantic_score: cosineSimilarity(queryVector, JSON.parse(row.embedding_json)),
-      };
-    })
-    .sort((left, right) => right.semantic_score - left.semantic_score)
-    .slice(0, limit));
+  return {
+    lists: queryVectors.map((queryVector) => embeddings
+      .map((row) => {
+        const metadata = metadataBySlug.get(row.page_slug);
+        return {
+          slug: row.page_slug,
+          title: metadata?.title ?? row.page_slug,
+          type: metadata?.type ?? null,
+          summary: metadata?.summary ?? '',
+          snippet: row.chunk_text.slice(0, 240),
+          semantic_score: cosineSimilarity(queryVector, JSON.parse(row.embedding_json)),
+        };
+      })
+      .sort((left, right) => right.semantic_score - left.semantic_score)
+      .slice(0, limit)),
+    skippedReason: null,
+  };
 }
 
 export function fuseResults(lexical, semantic, limit) {
