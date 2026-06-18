@@ -78,6 +78,27 @@ test('MCP server exposes brain-specific filing rules for harness routing', async
   const fixture = await createFixture('bigbrain-mcp-filing-rules-');
   let running;
   try {
+    await fs.writeFile(path.join(fixture.brainHome, 'FILING.md'), `---
+type: note
+title: Filing Rules
+created: 2026-06-19
+---
+
+# Filing Rules
+
+Shared cross-folder routing guidance.
+
+## Filing Principles
+
+- File by primary subject, not recipient context.
+- Use collection README files for folder-specific rules.
+
+## Page Shape
+
+- YAML frontmatter with type and title.
+- Append-only timeline evidence.
+`, 'utf8');
+
     await fs.mkdir(path.join(fixture.brainHome, 'organizations'), { recursive: true });
     await fs.writeFile(path.join(fixture.brainHome, 'organizations', 'README.md'), `---
 type: note
@@ -118,6 +139,15 @@ One page per organization.
     }, 'secret');
 
     assert.equal(rules.error, undefined, rules.error?.message);
+    assert.equal(rules.result.structuredContent.shared_guidance.path, 'FILING.md');
+    assert.deepEqual(rules.result.structuredContent.filing_principles, [
+      'File by primary subject, not recipient context.',
+      'Use collection README files for folder-specific rules.',
+    ]);
+    assert.deepEqual(rules.result.structuredContent.page_shape, [
+      'YAML frontmatter with type and title.',
+      'Append-only timeline evidence.',
+    ]);
     const organizations = rules.result.structuredContent.collections.find((collection) => collection.name === 'organizations');
     assert.equal(organizations.path, 'organizations/');
     assert.deepEqual(organizations.what_goes_here, [

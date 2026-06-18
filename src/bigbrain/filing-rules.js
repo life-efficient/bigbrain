@@ -28,12 +28,14 @@ const ROUTING_HINTS = [
 ];
 
 export async function filingRulesForBrain({ config, input = '', fileName = '', mimeType = '' }) {
+  const sharedGuidance = await readSharedGuidance(config.brainDir);
   const collections = await readCollections(config.brainDir);
   const available = new Set(collections.map((collection) => collection.name));
   return {
     brain_dir: config.brainDir,
+    shared_guidance: sharedGuidance,
     collections,
-    page_shape: [
+    page_shape: sharedGuidance.pageShape.length > 0 ? sharedGuidance.pageShape : [
       'YAML frontmatter with type, title, created, and optional tags/source fields.',
       'A current-state body that can be rewritten as understanding changes.',
       'A separator line: ---',
@@ -59,7 +61,7 @@ export async function filingRulesForBrain({ config, input = '', fileName = '', m
         },
       ],
     },
-    filing_principles: [
+    filing_principles: sharedGuidance.filingPrinciples.length > 0 ? sharedGuidance.filingPrinciples : [
       'File by primary subject, not by source format.',
       'Update an existing canonical page when the page already exists.',
       'Create a new page when the item introduces a distinct person, organization, meeting, initiative, deliverable, concept, source, or operating note.',
@@ -67,6 +69,26 @@ export async function filingRulesForBrain({ config, input = '', fileName = '', m
       'Use inbox/ only when no higher-confidence canonical home is clear.',
     ],
     recommendation: recommendFiling({ input, fileName, mimeType, available }),
+  };
+}
+
+async function readSharedGuidance(brainDir) {
+  const filePath = path.join(brainDir, 'FILING.md');
+  const markdown = await readOptional(filePath);
+  if (!markdown) {
+    return {
+      path: null,
+      summary: '',
+      filingPrinciples: [],
+      pageShape: [],
+    };
+  }
+  const extracted = extractSharedGuidance(markdown);
+  return {
+    path: 'FILING.md',
+    summary: extracted.summary,
+    filingPrinciples: extracted.filingPrinciples,
+    pageShape: extracted.pageShape,
   };
 }
 
@@ -99,6 +121,16 @@ function extractCollectionReadme(markdown) {
     summary,
     whatGoesHere: bulletsUnderHeading(lines, 'What Goes Here'),
     whatDoesNotGoHere: bulletsUnderHeading(lines, 'What Does Not Go Here'),
+  };
+}
+
+function extractSharedGuidance(markdown) {
+  const lines = markdown.split(/\r?\n/);
+  const titleIndex = lines.findIndex((line) => /^#\s+/.test(line));
+  return {
+    summary: titleIndex >= 0 ? paragraphAfterHeading(lines, titleIndex + 1) : '',
+    filingPrinciples: bulletsUnderHeading(lines, 'Filing Principles'),
+    pageShape: bulletsUnderHeading(lines, 'Page Shape'),
   };
 }
 
