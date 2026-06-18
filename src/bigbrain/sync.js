@@ -74,7 +74,7 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
     ? embeddingFailures.reduce((sum, failure) => sum + failure.chunk_count, 0)
     : embeddingChunksNeeded;
 
-  return {
+  const report = {
     indexed_pages: pages.length,
     indexed_links: pages.reduce((sum, page) => sum + page.links.length, 0),
     embeddings_generated: pagesWithGeneratedEmbeddings,
@@ -98,6 +98,8 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
       pages_embedding_failed: pagesWithFailedEmbeddings,
     },
   };
+  await db.close?.();
+  return report;
 }
 
 const MAX_EMBEDDING_CHUNK_WORDS = 1500;

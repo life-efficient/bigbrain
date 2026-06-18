@@ -541,7 +541,7 @@ export async function dbDoctor(config) {
       (SELECT count(*)::int FROM embeddings) AS embedding_count,
       0 AS token_count
   `));
-  return {
+  const report = {
     backend: 'postgres',
     ok: extension.rows.length === 1,
     vector_extension: extension.rows.length === 1,
@@ -551,6 +551,8 @@ export async function dbDoctor(config) {
     token_count: counts.rows[0].token_count,
     warnings: extension.rows.length === 1 ? [] : ['pgvector extension is not installed.'],
   };
+  await db.close?.();
+  return report;
 }
 
 export function sqliteRawDatabase(db) {

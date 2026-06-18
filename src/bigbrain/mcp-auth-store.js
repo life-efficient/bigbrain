@@ -41,12 +41,10 @@ export class PostgresMcpAuthStore {
 
   async read() {
     await this.pruneExpired();
-    const [tokens, states, clients, codes] = await Promise.all([
-      this.db.query('SELECT token_json FROM mcp_oauth_tokens ORDER BY created_at'),
-      this.db.query('SELECT state_json FROM mcp_oauth_states ORDER BY created_at'),
-      this.db.query('SELECT client_json FROM mcp_oauth_clients ORDER BY created_at'),
-      this.db.query('SELECT code_json FROM mcp_oauth_codes ORDER BY created_at'),
-    ]);
+    const tokens = await this.db.query('SELECT token_json FROM mcp_oauth_tokens ORDER BY created_at');
+    const states = await this.db.query('SELECT state_json FROM mcp_oauth_states ORDER BY created_at');
+    const clients = await this.db.query('SELECT client_json FROM mcp_oauth_clients ORDER BY created_at');
+    const codes = await this.db.query('SELECT code_json FROM mcp_oauth_codes ORDER BY created_at');
     return {
       tokens: tokens.rows.map((row) => normalizeJson(row.token_json)),
       states: states.rows.map((row) => normalizeJson(row.state_json)),
@@ -104,6 +102,10 @@ export class PostgresMcpAuthStore {
   async pruneExpired() {
     await this.db.query('DELETE FROM mcp_oauth_states WHERE expires_at <= now()');
     await this.db.query('DELETE FROM mcp_oauth_codes WHERE expires_at <= now()');
+  }
+
+  async close() {
+    await this.db.close?.();
   }
 }
 

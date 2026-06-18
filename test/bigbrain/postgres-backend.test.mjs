@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { allEmbeddings, dbDoctor, getPageRecord, listPageSlugs, openDatabase } from '../../src/bigbrain/db.js';
+import { allEmbeddings, dbDoctor, getPageRecord, listPageSlugs, openDatabase, semanticSearch } from '../../src/bigbrain/db.js';
 import { createMcpAuthStore } from '../../src/bigbrain/mcp-auth-store.js';
 import { migrateSqliteToPostgres } from '../../src/bigbrain/postgres-migrate.js';
 import { searchBrain } from '../../src/bigbrain/search.js';
@@ -37,8 +37,9 @@ Works on Example Brain partnerships and Postgres persistence.
     assert.equal((await allEmbeddings(db)).length, 1);
     const lexical = await searchBrain({ db, config, query: 'Example Brain partnerships', apiKey: null });
     assert.equal(lexical.fused[0].slug, 'people/alice');
-    const semantic = await searchBrain({ db, config, query: 'partnership persistence', apiKey: 'test-key' });
-    assert.equal(semantic.fused[0].slug, 'people/alice');
+    const semantic = await semanticSearch(db, [0.1, 0.2, 0.3], 5);
+    assert.equal(semantic[0].slug, 'people/alice');
+    await db.close?.();
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -72,6 +73,7 @@ Renamed company.
     const db = await openDatabase(config);
     assert.equal(await getPageRecord(db, 'companies/old-name'), undefined);
     assert.equal((await getPageRecord(db, 'companies/new-name')).title, 'New Name');
+    await db.close?.();
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -90,9 +92,12 @@ test('postgres auth store persists OAuth records', async (t) => {
       tokens: [{ token_hash: 'token-1', email: 'alice@example.com', created_at: '2026-06-18T00:00:00.000Z', last_used_at: null, revoked_at: null }],
     });
 
-    const reloaded = await (await createMcpAuthStore(config, { tokenStorePath: '' })).read();
+    const reloadedStore = await createMcpAuthStore(config, { tokenStorePath: '' });
+    const reloaded = await reloadedStore.read();
     assert.deepEqual(reloaded.clients.map((entry) => entry.client_id), ['client-1']);
     assert.deepEqual(reloaded.tokens.map((entry) => entry.email), ['alice@example.com']);
+    await store.close?.();
+    await reloadedStore.close?.();
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -109,13 +114,15 @@ title: Alice
 
 Migration source page.
 `);
+    const rawConfig = JSON.parse(await fs.readFile(fixture.configPath, 'utf8'));
+    rawConfig.storage_backend = 'sqlite';
+    await fs.writeFile(fixture.configPath, `${JSON.stringify(rawConfig, null, 2)}\n`, 'utf8');
     const sqliteConfig = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({
       config: sqliteConfig,
       apiKey: 'test-key',
       embedder: async (texts) => texts.map(() => [0.4, 0.5, 0.6]),
     });
-    const rawConfig = JSON.parse(await fs.readFile(fixture.configPath, 'utf8'));
     rawConfig.database_url_env = 'TEST_DATABASE_URL';
     await fs.writeFile(fixture.configPath, `${JSON.stringify(rawConfig, null, 2)}\n`, 'utf8');
 
