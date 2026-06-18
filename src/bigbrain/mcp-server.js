@@ -221,8 +221,10 @@ async function callTool({ config, params, gitBackupEnabled, actor }) {
         orderBy: args.order_by,
       }));
     case 'read_raw_file':
+    case 'retrieve_raw_file':
       return toolJson(await readRawFile({ config, rawPath: args.path }));
-    case 'create_raw_file': {
+    case 'create_raw_file':
+    case 'insert_raw_file': {
       const rawFile = await createRawFile({
         config,
         rawPath: args.path,
@@ -442,8 +444,33 @@ function toolDefinitions() {
       },
     },
     {
+      name: 'retrieve_raw_file',
+      description: 'Alias for read_raw_file. Retrieve one raw file as base64 content.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Raw file path such as sources/.raw/deck.pdf.' },
+        },
+        required: ['path'],
+      },
+    },
+    {
       name: 'create_raw_file',
       description: 'Create one raw file under <collection>/.raw/<file> without creating a markdown page.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Destination such as sources/.raw/deck.pdf.' },
+          raw_content_base64: { type: 'string', description: 'Base64 encoded raw bytes. Use this for PDFs, images, and other binary files.' },
+          raw_content_text: { type: 'string', description: 'Plain text raw content. Use exactly one of raw_content_base64 or raw_content_text.' },
+          mime_type: { type: 'string' },
+        },
+        required: ['path'],
+      },
+    },
+    {
+      name: 'insert_raw_file',
+      description: 'Alias for create_raw_file. Insert one new raw file under <collection>/.raw/<file> without creating a markdown page.',
       inputSchema: {
         type: 'object',
         properties: {
