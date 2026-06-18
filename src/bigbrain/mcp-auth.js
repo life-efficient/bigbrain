@@ -270,16 +270,20 @@ export function renderConnectPage(authConfig, { error = '' } = {}) {
   return htmlPage(title, `
     <main class="shell">
       <section class="hero">
-        <div class="badge">MCP endpoint</div>
         <h1>${title}</h1>
-        <p>Connect from an MCP-compatible harness. The harness will open the Google approval flow when it needs access.</p>
+        <p>Give the instructions below to your agent to allow them to query and update the brain.</p>
       </section>
       ${errorHtml}
-      <div class="field-head">
-        <label for="config">MCP config</label>
-        <button class="copy-button" type="button" data-copy-target="config">Copy config</button>
+      <pre id="config" class="copy-box" tabindex="0">${escapeHtml(configSnippet)}</pre>
+      <div class="copy-actions">
+        <button class="copy-button" type="button" data-copy-target="config" aria-label="Copy config">
+          <svg class="copy-icon" aria-hidden="true" viewBox="0 0 24 24">
+            <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
+            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
+          </svg>
+          <span>Copy config</span>
+        </button>
       </div>
-      <textarea id="config" readonly spellcheck="false">${escapeHtml(configSnippet)}</textarea>
     </main>
   `);
 }
@@ -461,20 +465,30 @@ function htmlPage(title, body) {
       gap: 12px;
       margin: 20px 0 8px;
     }
-    textarea {
+    .copy-box {
       width: 100%;
-      min-height: 112px;
+      margin: 0;
       padding: 13px 14px;
       border: 1px solid var(--line);
       border-radius: 8px;
       font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
       color: #e5eefb;
       background: rgba(5, 8, 13, 0.72);
-      resize: vertical;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
       outline: none;
     }
-    textarea:focus { border-color: rgba(125, 211, 252, 0.62); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14); }
+    .copy-box:focus { border-color: rgba(125, 211, 252, 0.62); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14); }
+    .copy-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 12px;
+    }
     .copy-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
       min-height: 32px;
       padding: 6px 10px;
       border: 1px solid rgba(125, 211, 252, 0.28);
@@ -485,9 +499,40 @@ function htmlPage(title, body) {
       font-size: 13px;
       font-weight: 800;
       cursor: pointer;
+      transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
     }
-    .copy-button:hover { border-color: rgba(125, 211, 252, 0.58); background: rgba(14, 165, 233, 0.18); }
-    .copy-button.copied { color: #022c22; background: #5eead4; border-color: #5eead4; }
+    .copy-button:hover { border-color: rgba(125, 211, 252, 0.58); background: rgba(14, 165, 233, 0.18); transform: translateY(-1px); }
+    .copy-button:active { transform: translateY(0); }
+    .copy-icon {
+      width: 15px;
+      height: 15px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .toast {
+      position: fixed;
+      top: 18px;
+      left: 50%;
+      z-index: 20;
+      min-width: min(92vw, 280px);
+      padding: 12px 14px;
+      border: 1px solid rgba(125, 211, 252, 0.28);
+      border-radius: 8px;
+      color: #eef2f7;
+      background: rgba(15, 23, 42, 0.96);
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.34);
+      opacity: 0;
+      pointer-events: none;
+      transform: translate(-50%, -14px);
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+    .toast.visible {
+      opacity: 1;
+      transform: translate(-50%, 0);
+    }
     .button {
       display: inline-flex;
       align-items: center;
@@ -535,28 +580,40 @@ function htmlPage(title, body) {
       .shell { padding: 24px; }
       .button { width: 100%; }
       .field-head { align-items: stretch; flex-direction: column; }
+      .copy-actions { justify-content: stretch; }
       .copy-button { width: 100%; }
     }
   </style>
 </head>
-<body>${body}
+<body><div class="toast" role="status" aria-live="polite"></div>${body}
 <script>
+  let toastTimer;
+  function showToast(message) {
+    const toast = document.querySelector('.toast');
+    if (!toast) return;
+    toast.textContent = message;
+    toast.classList.add('visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toast.classList.remove('visible');
+    }, 1800);
+  }
+
   for (const button of document.querySelectorAll('[data-copy-target]')) {
     button.addEventListener('click', async () => {
       const target = document.getElementById(button.dataset.copyTarget);
       if (!target) return;
+      const value = 'value' in target ? target.value : target.textContent;
       try {
-        await navigator.clipboard.writeText(target.value);
-        const previous = button.textContent;
-        button.textContent = 'Copied';
-        button.classList.add('copied');
-        setTimeout(() => {
-          button.textContent = previous;
-          button.classList.remove('copied');
-        }, 1400);
+        await navigator.clipboard.writeText(value);
+        showToast('Copied');
       } catch {
         target.focus();
-        target.select();
+        const selection = window.getSelection();
+        const range = document.createRange();
+        range.selectNodeContents(target);
+        selection.removeAllRanges();
+        selection.addRange(range);
       }
     });
   }

@@ -338,11 +338,15 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
     const connect = await fetch(running.url.replace('/mcp', '/connect'));
     assert.equal(connect.status, 200);
     const connectHtml = await connect.text();
-    assert.match(connectHtml, /MCP endpoint/);
     assert.match(connectHtml, /<h1>Example Brain<\/h1>/);
+    assert.match(connectHtml, /Give the instructions below to your agent to allow them to query and update the brain/);
     assert.match(connectHtml, /Connect to the following MCP server and test it/);
     assert.match(connectHtml, /Anything related to Example Brain should be stored, and searched for from the remote Example Brain brain via MCP/);
     assert.match(connectHtml, /\[mcp_servers\.example-brain-cortex\]/);
+    assert.match(connectHtml, /aria-label="Copy config"/);
+    assert.match(connectHtml, /viewBox="0 0 24 24"/);
+    assert.doesNotMatch(connectHtml, /MCP config/);
+    assert.doesNotMatch(connectHtml, /Copy endpoint/);
     assert.doesNotMatch(connectHtml, /No bearer token is shown here/);
     assert.doesNotMatch(connectHtml, /teammate@example\.com/);
     assert.doesNotMatch(connectHtml, /Continue with Google/);
