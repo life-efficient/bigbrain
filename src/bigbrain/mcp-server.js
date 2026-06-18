@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 
 import { persistState } from './config.js';
 import { openDatabase } from './db.js';
+import { filingRulesForBrain } from './filing-rules.js';
 import {
   createBrainPage,
   createRawFile,
@@ -204,6 +205,13 @@ async function callTool({ config, params, gitBackupEnabled, actor }) {
       }));
     case 'read':
       return toolJson(await readBrainPage({ config, pagePath: args.path }));
+    case 'filing_rules':
+      return toolJson(await filingRulesForBrain({
+        config,
+        input: args.input || '',
+        fileName: args.file_name || '',
+        mimeType: args.mime_type || '',
+      }));
     case 'list_raw_files':
       return toolJson(await listRawFiles({
         config,
@@ -395,6 +403,18 @@ function toolDefinitions() {
           path: { type: 'string' },
         },
         required: ['path'],
+      },
+    },
+    {
+      name: 'filing_rules',
+      description: 'Return the selected brain filing rules so an MCP harness can decide which collection, page path, and .raw path to use before creating files.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          input: { type: 'string', description: 'Optional short description of the item to file.' },
+          file_name: { type: 'string', description: 'Optional original filename, such as deck.pdf.' },
+          mime_type: { type: 'string', description: 'Optional MIME type, such as application/pdf.' },
+        },
       },
     },
     {

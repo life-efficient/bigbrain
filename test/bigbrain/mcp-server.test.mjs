@@ -25,6 +25,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
 
     const listed = await rpc(running.url, 'tools/list', {}, 'secret');
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_page'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'filing_rules'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file_with_page'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'read_raw_file'), true);
@@ -67,6 +68,64 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     const record = getPageRecord(db, 'people/mcp-test');
     assert.equal(record.title, 'MCP Test');
     assert.match(record.compiled_truth, /Created through the MCP server/);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('MCP server exposes brain-specific filing rules for harness routing', async () => {
+  const fixture = await createFixture('bigbrain-mcp-filing-rules-');
+  let running;
+  try {
+    await fs.mkdir(path.join(fixture.brainHome, 'organizations'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'organizations', 'README.md'), `---
+type: note
+title: Organizations
+created: 2026-06-18
+---
+
+# Organizations
+
+One page per organization.
+
+## What Goes Here
+
+- Institutional partners, government bodies, universities, vendors, companies, advisory groups, and other organizations.
+
+## What Does Not Go Here
+
+- Individual people; use [People](../people/README.md).
+`, 'utf8');
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'secret',
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const rules = await rpc(running.url, 'tools/call', {
+      name: 'filing_rules',
+      arguments: {
+        input: 'UNESCO partner profile',
+        file_name: 'unesco-profile.pdf',
+        mime_type: 'application/pdf',
+      },
+    }, 'secret');
+
+    assert.equal(rules.error, undefined, rules.error?.message);
+    const organizations = rules.result.structuredContent.collections.find((collection) => collection.name === 'organizations');
+    assert.equal(organizations.path, 'organizations/');
+    assert.deepEqual(organizations.what_goes_here, [
+      'Institutional partners, government bodies, universities, vendors, companies, advisory groups, and other organizations.',
+    ]);
+    assert.equal(rules.result.structuredContent.raw_file_rules.create_with_page_tool, 'create_raw_file_with_page');
+    assert.equal(rules.result.structuredContent.recommendation.collection, 'organizations');
+    assert.equal(rules.result.structuredContent.recommendation.page_path, 'organizations/unesco-profile');
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

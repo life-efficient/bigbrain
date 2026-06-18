@@ -21,9 +21,16 @@ a personal brain unless that is intentionally what you want to publish.
 
 ## Raw File Uploads
 
+Before writing a page or upload, an MCP harness should call `filing_rules`.
+That tool reads the selected brain's actual top-level folders and collection
+`README.md` files, then returns structured routing rules, page-shape guidance,
+raw-file path rules, and an optional recommendation when given `input`,
+`file_name`, or `mime_type`.
+
 The MCP server exposes raw-file CRUD tools for inputs such as PDFs,
 screenshots, transcripts, slide decks, and spreadsheets:
 
+- `filing_rules`
 - `list_raw_files`
 - `read_raw_file`
 - `create_raw_file`
