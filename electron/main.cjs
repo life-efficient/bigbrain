@@ -81,8 +81,8 @@ function createMainWindow() {
   mainWindow = new BrowserWindow({
     width: DEFAULT_WINDOW_SIZE.width,
     height: DEFAULT_WINDOW_SIZE.height,
-    minWidth: 980,
-    minHeight: 720,
+    minWidth: 720,
+    minHeight: 520,
     backgroundColor: "#ffffff",
     autoHideMenuBar: true,
     title: APP_DISPLAY_NAME,
