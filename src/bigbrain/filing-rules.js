@@ -20,6 +20,7 @@ const ROUTING_HINTS = [
   { collection: 'people', pattern: /\b(person|people|owner|contact|bio)\b/i, reason: 'the primary subject appears to be a person' },
   { collection: 'organizations', pattern: /\b(organization|organisation|unesco|sdaia|ministry|university|vendor|partner|company|institution|committee)\b/i, reason: 'the primary subject appears to be an organization' },
   { collection: 'companies', pattern: /\b(company|firm|vendor|partner|organization|organisation|institution)\b/i, reason: 'the primary subject appears to be an organization' },
+  { collection: 'projects', pattern: /\b(project|workstream|portfolio|website|app|implementation|build|deliverable)\b/i, reason: 'the item appears to belong to an active build or execution track' },
   { collection: 'initiatives', pattern: /\b(initiative|workstream|programme|program|pillar delivery|activation)\b/i, reason: 'the item is an active named workstream' },
   { collection: 'deliverables', pattern: /\b(deliverable|report|toolkit|course|workshop pack|declaration|podcast|episode|paper|publication|glossary|release|draft|memo)\b/i, reason: 'the item is a concrete output' },
   { collection: 'concepts', pattern: /\b(concept|framework|strategy|pillar|model|principle|methodology|thesis)\b/i, reason: 'the item is reusable strategy or conceptual material' },

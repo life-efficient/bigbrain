@@ -158,6 +158,19 @@ One page per organization.
     assert.equal(rules.result.structuredContent.raw_file_rules.create_with_page_tool, 'create_raw_file_with_page');
     assert.equal(rules.result.structuredContent.recommendation.collection, 'organizations');
     assert.equal(rules.result.structuredContent.recommendation.page_path, 'organizations/unesco-profile');
+
+    const projectRules = await rpc(running.url, 'tools/call', {
+      name: 'filing_rules',
+      arguments: {
+        input: 'personal portfolio rendered website draft',
+        file_name: 'rendered-portfolio.md',
+        mime_type: 'text/markdown',
+      },
+    }, 'secret');
+
+    assert.equal(projectRules.error, undefined, projectRules.error?.message);
+    assert.equal(projectRules.result.structuredContent.recommendation.collection, 'projects');
+    assert.equal(projectRules.result.structuredContent.recommendation.page_path, 'projects/rendered-portfolio');
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
