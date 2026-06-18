@@ -1,0 +1,54 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
+import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
+import { openDatabase } from '../../src/bigbrain/db.js';
+import { buildGraphPayload } from '../../src/bigbrain/dashboard.js';
+import { syncBrain } from '../../src/bigbrain/sync.js';
+
+test('dashboard graph excludes root infrastructure files from nodes and types', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-graph-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'index.md', '# Index\n\nSee [Alice](people/alice.md).\n');
+    await writeMarkdown(fixture.brainHome, 'schema.md', '# Schema\n\nSee [Relay](projects/relay.md).\n');
+    await writeMarkdown(fixture.brainHome, 'resolver.md', '# Resolver\n\nInternal resolver notes.\n');
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', '# Alice\n\nWorks on [Relay](../projects/relay.md) and reads [Index](../index.md).\n');
+    await writeMarkdown(fixture.brainHome, 'projects/relay.md', '# Relay\n\nRelated to [Alice](../people/alice.md).\n');
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+    const graph = await buildGraphPayload(db);
+
+    assert.deepEqual(graph.nodes.map((node) => node.slug), ['people/alice', 'projects/relay']);
+    assert.deepEqual([...new Set(graph.nodes.map((node) => node.type))].sort(), ['people', 'projects']);
+    assert.equal(graph.meta.page_count, 2);
+    assert.equal(graph.meta.node_count, 2);
+    assert.deepEqual(graph.edges, [
+      { source: 'people/alice', target: 'projects/relay' },
+      { source: 'projects/relay', target: 'people/alice' },
+    ]);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+async function createFixture(prefix) {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
+  const pointerPath = path.join(rootDir, 'pointer');
+  const stateRoot = path.join(rootDir, 'state-root');
+  const brainHome = path.join(rootDir, 'brain-home');
+  const init = await initializeBrainHome(brainHome, {
+    env: { ...process.env, BIGBRAIN_POINTER_PATH: pointerPath, BIGBRAIN_STATE_ROOT: stateRoot },
+  });
+  return { rootDir, brainHome, configPath: init.configPath };
+}
+
+async function writeMarkdown(brainHome, relativePath, content) {
+  const fullPath = path.join(brainHome, relativePath);
+  await fs.mkdir(path.dirname(fullPath), { recursive: true });
+  await fs.writeFile(fullPath, content, 'utf8');
+}

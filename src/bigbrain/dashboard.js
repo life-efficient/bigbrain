@@ -579,9 +579,10 @@ async function buildHealthPayload(config) {
   };
 }
 
-async function buildGraphPayload(db) {
+export async function buildGraphPayload(db) {
   const pages = await listPages(db);
-  const candidateNodes = (await Promise.all(pages.map(async (page) => {
+  const graphPages = pages.filter(isDirectoryBackedGraphPage);
+  const candidateNodes = (await Promise.all(graphPages.map(async (page) => {
     const outgoing = await getOutgoingLinks(db, page.slug);
     const backlinks = await getBacklinks(db, page.slug);
     return {
@@ -605,7 +606,7 @@ async function buildGraphPayload(db) {
 
   return {
     meta: {
-      page_count: pages.length,
+      page_count: candidateNodes.length,
       node_count: candidateNodes.length,
       edge_count: edges.length,
     },
@@ -617,4 +618,8 @@ async function buildGraphPayload(db) {
     })),
     edges,
   };
+}
+
+export function isDirectoryBackedGraphPage(page) {
+  return typeof page?.slug === 'string' && page.slug.includes('/');
 }
