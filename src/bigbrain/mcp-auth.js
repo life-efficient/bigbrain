@@ -273,11 +273,6 @@ export function renderConnectPage(authConfig, { error = '' } = {}) {
       </section>
       ${errorHtml}
       <div class="field-head">
-        <label for="endpoint">Endpoint</label>
-        <button class="copy-button" type="button" data-copy-target="endpoint">Copy endpoint</button>
-      </div>
-      <textarea id="endpoint" readonly spellcheck="false">${escapeHtml(endpoint)}</textarea>
-      <div class="field-head">
         <label for="config">MCP config</label>
         <button class="copy-button" type="button" data-copy-target="config">Copy config</button>
       </div>
