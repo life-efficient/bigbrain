@@ -92,8 +92,11 @@ export async function startMcpServer({
 
       const payload = JSON.parse(await readRequestBody(request));
       const result = Array.isArray(payload)
-        ? await Promise.all(payload.map((message) => handleJsonRpcMessage({ config, message, gitBackupEnabled, actor: authorization.actor })))
+        ? (await Promise.all(payload.map((message) => handleJsonRpcMessage({ config, message, gitBackupEnabled, actor: authorization.actor })))).filter(Boolean)
         : await handleJsonRpcMessage({ config, message: payload, gitBackupEnabled, actor: authorization.actor });
+      if (!result || (Array.isArray(result) && result.length === 0)) {
+        return sendNoContent(response);
+      }
       return sendJson(response, 200, result);
     } catch (error) {
       return sendJson(response, 500, jsonRpcError(null, -32603, error instanceof Error ? error.message : String(error)));
@@ -359,6 +362,13 @@ function sendJson(response, statusCode, value) {
     'access-control-allow-origin': '*',
   });
   response.end(JSON.stringify(value));
+}
+
+function sendNoContent(response) {
+  response.writeHead(202, {
+    'access-control-allow-origin': '*',
+  });
+  response.end();
 }
 
 function sendHtml(response, statusCode, html) {

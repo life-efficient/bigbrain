@@ -34,6 +34,17 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     });
     assert.equal(unauthorized.status, 401);
 
+    const initialized = await fetch(running.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer secret',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized', params: {} }),
+    });
+    assert.equal(initialized.status, 202);
+    assert.equal(await initialized.text(), '');
+
     const created = await rpc(running.url, 'tools/call', {
       name: 'create_page',
       arguments: {
