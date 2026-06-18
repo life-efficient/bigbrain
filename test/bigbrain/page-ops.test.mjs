@@ -51,7 +51,7 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
 
     await syncBrain({ config, apiKey: null });
     const db = await openDatabase(config);
-    const record = getPageRecord(db, 'people/jordan-lee');
+    const record = await getPageRecord(db, 'people/jordan-lee');
     assert.equal(record.title, 'Jordan Lee');
     assert.match(record.compiled_truth, /current Example Brain partner contact/);
   } finally {
@@ -88,8 +88,8 @@ test('page ops create raw files with associated brain pages', async () => {
 
     await syncBrain({ config, apiKey: null });
     const db = await openDatabase(config);
-    assert.equal(getPageRecord(db, 'sources/example-deck').title, 'Example Brain Deck');
-    assert.equal(getPageRecord(db, 'sources/.raw/example-deck.pdf'), undefined);
+    assert.equal((await getPageRecord(db, 'sources/example-deck')).title, 'Example Brain Deck');
+    assert.equal(await getPageRecord(db, 'sources/.raw/example-deck.pdf'), undefined);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -144,7 +144,7 @@ test('page ops support raw file CRUD without indexing raw files', async () => {
 
     await syncBrain({ config, apiKey: null });
     const db = await openDatabase(config);
-    assert.equal(getPageRecord(db, 'meetings/.raw/transcript.txt'), undefined);
+    assert.equal(await getPageRecord(db, 'meetings/.raw/transcript.txt'), undefined);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

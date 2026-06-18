@@ -1,6 +1,4 @@
 import crypto from 'node:crypto';
-import fs from 'node:fs/promises';
-import path from 'node:path';
 
 const DEFAULT_PROVIDER = 'google';
 const CLIENT_ID_PREFIX = 'bbmcp_client_';
@@ -28,6 +26,7 @@ export function buildAuthConfig({
     allowedEmails,
     allowedDomains,
     tokenStorePath: env.BIGBRAIN_MCP_TOKEN_STORE || '',
+    tokenStore: null,
     allowSharedToken: env.BIGBRAIN_MCP_ALLOW_SHARED_TOKEN === '1',
     serviceName: env.BIGBRAIN_MCP_SERVICE_NAME || 'BigBrain MCP',
   };
@@ -72,7 +71,9 @@ export function assertOAuthConfigured(authConfig) {
   if (!authConfig.allowedEmails.length && !authConfig.allowedDomains.length) {
     throw new Error('Set BIGBRAIN_MCP_ALLOWED_EMAILS or BIGBRAIN_MCP_ALLOWED_DOMAINS before enabling OAuth.');
   }
-  if (!authConfig.tokenStorePath) throw new Error('BIGBRAIN_MCP_TOKEN_STORE is required for OAuth auth.');
+  if (!authConfig.tokenStorePath && !authConfig.tokenStore) {
+    throw new Error('BIGBRAIN_MCP_TOKEN_STORE is required for OAuth auth unless a database token store is configured.');
+  }
 }
 
 export function protectedResourceMetadata(authConfig) {
@@ -329,25 +330,17 @@ function isEmailAllowed(authConfig, email) {
 }
 
 async function readTokenStore(authConfig) {
+  if (authConfig.tokenStore) return authConfig.tokenStore.read();
   if (!authConfig.tokenStorePath) return { tokens: [], states: [], clients: [], codes: [] };
-  try {
-    const parsed = JSON.parse(await fs.readFile(authConfig.tokenStorePath, 'utf8'));
-    return {
-      tokens: Array.isArray(parsed.tokens) ? parsed.tokens : [],
-      states: Array.isArray(parsed.states) ? parsed.states : [],
-      clients: Array.isArray(parsed.clients) ? parsed.clients : [],
-      codes: Array.isArray(parsed.codes) ? parsed.codes : [],
-    };
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-    return { tokens: [], states: [], clients: [], codes: [] };
-  }
+  const { FileMcpAuthStore } = await import('./mcp-auth-store.js');
+  return new FileMcpAuthStore(authConfig.tokenStorePath).read();
 }
 
 async function writeTokenStore(authConfig, store) {
+  if (authConfig.tokenStore) return authConfig.tokenStore.write(store);
   if (!authConfig.tokenStorePath) return;
-  await fs.mkdir(path.dirname(authConfig.tokenStorePath), { recursive: true });
-  await fs.writeFile(authConfig.tokenStorePath, `${JSON.stringify(store, null, 2)}\n`, { mode: 0o600 });
+  const { FileMcpAuthStore } = await import('./mcp-auth-store.js');
+  return new FileMcpAuthStore(authConfig.tokenStorePath).write(store);
 }
 
 function pruneStore(store) {

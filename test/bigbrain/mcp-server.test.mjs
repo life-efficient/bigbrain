@@ -65,7 +65,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.match(created.result.structuredContent.markdown, /Created through MCP endpoint test/);
 
     const db = await openDatabase(config);
-    const record = getPageRecord(db, 'people/mcp-test');
+    const record = await getPageRecord(db, 'people/mcp-test');
     assert.equal(record.title, 'MCP Test');
     assert.match(record.compiled_truth, /Created through the MCP server/);
   } finally {
@@ -232,7 +232,7 @@ test('MCP server uploads raw files with associated brain pages', async () => {
     assert.deepEqual(storedRaw, pdfBytes);
 
     const db = await openDatabase(config);
-    const record = getPageRecord(db, 'sources/mcp-upload');
+    const record = await getPageRecord(db, 'sources/mcp-upload');
     assert.equal(record.title, 'MCP Upload');
     assert.match(record.compiled_truth, /Uploaded through the MCP raw file tool/);
   } finally {

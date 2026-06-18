@@ -24,14 +24,14 @@ export async function runHealthCheck(config, {
   skillActiveDir = null,
 } = {}) {
   const db = await openDatabase(config);
-  clearHealthFindings(db);
-  const pages = listPages(db);
+  await clearHealthFindings(db);
+  const pages = await listPages(db);
 
   for (const page of pages) {
     const fullPath = fullPathFromSlug(config.brainDir, page.slug);
     const raw = await fs.readFile(fullPath, 'utf8').catch(() => null);
     if (!raw) {
-      insertHealthFinding(db, {
+      await insertHealthFinding(db, {
         findingType: 'missing_page_file',
         severity: 'high',
         pageSlug: page.slug,
@@ -43,7 +43,7 @@ export async function runHealthCheck(config, {
     const parsed = parseMarkdownPage(raw, page.slug);
     for (const issue of validatePageShape(parsed)) {
       const finding = typeof issue === 'string' ? { type: issue } : issue;
-      insertHealthFinding(db, {
+      await insertHealthFinding(db, {
         findingType: finding.type,
         severity: severityForFinding(finding.type),
         pageSlug: page.slug,
@@ -51,7 +51,7 @@ export async function runHealthCheck(config, {
       });
     }
 
-    for (const link of getOutgoingLinks(db, page.slug)) {
+    for (const link of await getOutgoingLinks(db, page.slug)) {
       const targetPath = link.link_kind === 'asset'
         ? path.join(config.brainDir, link.to_slug)
         : fullPathFromSlug(config.brainDir, link.to_slug);
@@ -59,7 +59,7 @@ export async function runHealthCheck(config, {
         .then((stats) => (link.link_kind === 'asset' ? stats.isFile() : true))
         .catch(() => false);
       if (!exists) {
-        insertHealthFinding(db, {
+        await insertHealthFinding(db, {
           findingType: 'unresolved_link',
           severity: 'medium',
           pageSlug: page.slug,
@@ -71,7 +71,7 @@ export async function runHealthCheck(config, {
 
   const gitStatus = await detectGitStatus(config.brainDir);
   if (gitStatus) {
-    insertHealthFinding(db, {
+    await insertHealthFinding(db, {
       findingType: 'git_status',
       severity: gitStatus.clean ? 'low' : 'medium',
       details: gitStatus,
@@ -80,7 +80,7 @@ export async function runHealthCheck(config, {
 
   const cliStatus = await detectCliAvailability({ env, command: cliCommand, cwd: cliCwd });
   if (!cliStatus.available) {
-    insertHealthFinding(db, {
+    await insertHealthFinding(db, {
       findingType: 'cli_not_available_globally',
       severity: 'high',
       details: {
@@ -97,7 +97,7 @@ export async function runHealthCheck(config, {
   });
   for (const check of automationTemplateStatus.checks) {
     if (check.status === 'match') continue;
-    insertHealthFinding(db, {
+    await insertHealthFinding(db, {
       findingType: 'automation_template_mismatch',
       severity: check.status === 'missing_active' || check.status === 'missing_template' ? 'high' : 'medium',
       details: check,
@@ -111,14 +111,14 @@ export async function runHealthCheck(config, {
   });
   for (const check of skillTemplateStatus.checks) {
     if (check.status === 'match') continue;
-    insertHealthFinding(db, {
+    await insertHealthFinding(db, {
       findingType: 'skill_template_mismatch',
       severity: check.status === 'missing_active' || check.status === 'missing_active_dir' ? 'high' : 'medium',
       details: check,
     });
   }
 
-  const findings = listHealthFindings(db).map((row) => ({
+  const findings = (await listHealthFindings(db)).map((row) => ({
     finding_type: row.finding_type,
     severity: row.severity,
     page_slug: row.page_slug,
@@ -128,7 +128,7 @@ export async function runHealthCheck(config, {
 
   return {
     page_count: pages.length,
-    backlink_coverage: pages.filter((page) => getBacklinks(db, page.slug).length > 0).length,
+    backlink_coverage: (await Promise.all(pages.map((page) => getBacklinks(db, page.slug)))).filter((rows) => rows.length > 0).length,
     finding_count: findings.length,
     findings,
     git_status: gitStatus,

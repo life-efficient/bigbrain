@@ -35,6 +35,7 @@ import {
   renderConnectPage,
   renderOAuthCompletePage,
 } from './mcp-auth.js';
+import { createMcpAuthStore } from './mcp-auth-store.js';
 
 const DEFAULT_MCP_PROTOCOL_VERSION = '2024-11-05';
 const execFileAsync = promisify(execFile);
@@ -49,6 +50,7 @@ export async function startMcpServer({
   gitBackupEnabled = process.env.BIGBRAIN_MCP_GIT_BACKUP === '1',
   gitBackupIntervalMs = Number(process.env.BIGBRAIN_MCP_GIT_BACKUP_INTERVAL_MS || 300000),
 } = {}) {
+  if (!authConfig.tokenStore) authConfig.tokenStore = await createMcpAuthStore(config, authConfig);
   if (authRoutesEnabled(authConfig)) assertOAuthConfigured(authConfig);
   await syncAndPersist(config);
   const syncTimer = syncIntervalMs > 0

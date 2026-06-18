@@ -53,8 +53,8 @@ export async function startDashboard(config, { port = config.dashboardPort } = {
       if (requestUrl.pathname === '/api/schema') return json(res, { markdown: renderSchemaMarkdown() });
       if (requestUrl.pathname === '/api/tasks') return json(res, await buildTasksPayload(config));
       if (requestUrl.pathname === '/api/inbox') return json(res, await buildInboxPayload(config));
-      if (requestUrl.pathname === '/api/recent') return json(res, buildRecentPayload(db));
-      if (requestUrl.pathname === '/api/graph') return json(res, buildGraphPayload(db));
+      if (requestUrl.pathname === '/api/recent') return json(res, await buildRecentPayload(db));
+      if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db));
       if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
       if (requestUrl.pathname === '/api/page') return json(res, await buildPagePayload(config, requestUrl));
       if (requestUrl.pathname === '/api/preview') return json(res, await buildPreviewPayload(config, requestUrl));
@@ -557,8 +557,8 @@ function stripSourceReferences(value) {
   return value.replace(/\[Source:[^\]]+\]/g, '').replace(/\s+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-function buildRecentPayload(db) {
-  const pages = listPages(db).slice(-24).reverse();
+async function buildRecentPayload(db) {
+  const pages = (await listPages(db)).slice(-24).reverse();
   return { pages };
 }
 
@@ -579,11 +579,11 @@ async function buildHealthPayload(config) {
   };
 }
 
-function buildGraphPayload(db) {
-  const pages = listPages(db);
-  const candidateNodes = pages.map((page) => {
-    const outgoing = getOutgoingLinks(db, page.slug);
-    const backlinks = getBacklinks(db, page.slug);
+async function buildGraphPayload(db) {
+  const pages = await listPages(db);
+  const candidateNodes = (await Promise.all(pages.map(async (page) => {
+    const outgoing = await getOutgoingLinks(db, page.slug);
+    const backlinks = await getBacklinks(db, page.slug);
     return {
       slug: page.slug,
       title: page.title,
@@ -591,7 +591,7 @@ function buildGraphPayload(db) {
       degree: outgoing.length + backlinks.length,
       outgoing,
     };
-  }).sort((a, b) => b.degree - a.degree || a.slug.localeCompare(b.slug));
+  }))).sort((a, b) => b.degree - a.degree || a.slug.localeCompare(b.slug));
 
   const allowed = new Set(candidateNodes.map((node) => node.slug));
   const edges = [];

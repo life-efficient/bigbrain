@@ -24,14 +24,17 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
     pages.push(parsed);
   }
 
-  for (const indexedSlug of listPageSlugs(db)) {
-    if (!knownSlugs.has(indexedSlug)) deletePageIndex(db, indexedSlug);
+  for (const indexedSlug of await listPageSlugs(db)) {
+    if (!knownSlugs.has(indexedSlug)) await deletePageIndex(db, indexedSlug);
   }
 
-  for (const page of pages) replacePageIndex(db, page);
-  for (const page of pages) replaceLinksForPage(db, page.slug, page.links, knownSlugs);
+  for (const page of pages) await replacePageIndex(db, page);
+  for (const page of pages) await replaceLinksForPage(db, page.slug, page.links, knownSlugs);
 
-  const pagesNeedingEmbeddings = pages.filter((page) => shouldRefreshEmbedding(db, page, config.openaiEmbeddingModel));
+  const pagesNeedingEmbeddings = [];
+  for (const page of pages) {
+    if (await shouldRefreshEmbedding(db, page, config.openaiEmbeddingModel)) pagesNeedingEmbeddings.push(page);
+  }
   const embeddingChunksNeeded = pagesNeedingEmbeddings.reduce((sum, page) => sum + chunkPageForEmbedding(page).length, 0);
   const pagesAttemptedForEmbedding = apiKey ? pagesNeedingEmbeddings : [];
 
@@ -43,7 +46,7 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
       const chunks = chunkPageForEmbedding(page);
       try {
         const vectors = await embedder(chunks.map((chunk) => chunk.text), config.openaiEmbeddingModel, apiKey);
-        replaceEmbeddingsForPage(db, {
+        await replaceEmbeddingsForPage(db, {
           pageSlug: page.slug,
           chunks,
           model: config.openaiEmbeddingModel,
@@ -116,8 +119,8 @@ function chunkPageForEmbedding(page) {
   return chunks;
 }
 
-function shouldRefreshEmbedding(db, page, model) {
-  const existing = getEmbeddingRecord(db, page.slug);
+async function shouldRefreshEmbedding(db, page, model) {
+  const existing = await getEmbeddingRecord(db, page.slug);
   if (!existing) return true;
   if (existing.embedding_model !== model) return true;
   return existing.content_hash !== page.contentHash;

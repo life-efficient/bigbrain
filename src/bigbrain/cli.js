@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig, loadState, loadUserEnv, persistState, resolveBrainHome } from './config.js';
-import { openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
+import { dbDoctor, openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
 import { runHealthCheck } from './health.js';
 import { fullPathFromSlug } from './markdown.js';
 import { startMcpServer } from './mcp-server.js';
@@ -30,6 +30,7 @@ export async function runCli(argv) {
     case 'backlinks': return handleBacklinks(args, global);
     case 'health': return handleHealth(global);
     case 'migrate': return handleMigrate(args, global);
+    case 'db': return handleDb(args, global);
     case 'schema': return handleSchema(global);
     case 'file': return handleFile(args, global);
     case 'refresh-tasks': return handleRefreshTasks(global);
@@ -79,7 +80,7 @@ async function handleSync(global) {
 async function handleList(args, global) {
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
-  const rows = listPages(db, { type: argValue(args, '--type') || null });
+  const rows = await listPages(db, { type: argValue(args, '--type') || null });
   output(global, rows, rows.map((row) => `${row.slug}  ${row.title}`).join('\n'));
 }
 
@@ -125,7 +126,7 @@ async function handleLinks(args, global) {
   const slug = requireFirstArg(args, 'links requires <slug>.');
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
-  const rows = getOutgoingLinks(db, slug);
+  const rows = await getOutgoingLinks(db, slug);
   output(global, rows, rows.map((row) => `${slug} -> ${row.to_slug} (${row.link_kind})`).join('\n'));
 }
 
@@ -133,7 +134,7 @@ async function handleBacklinks(args, global) {
   const slug = requireFirstArg(args, 'backlinks requires <slug>.');
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
-  const rows = getBacklinks(db, slug);
+  const rows = await getBacklinks(db, slug);
   output(global, rows, rows.map((row) => `${row.from_slug} -> ${slug} (${row.link_kind})`).join('\n'));
 }
 
@@ -148,6 +149,26 @@ async function handleMigrate(args, global) {
   const config = await loadRuntimeConfig(global);
   const report = await migrateBrain({ sourceDir, config });
   output(global, report, `Copied ${report.copied_files.length} file(s), rewrote ${report.rewritten_links.length} link file(s).`);
+}
+
+async function handleDb(args, global) {
+  const subcommand = args[0];
+  if (subcommand === 'doctor') {
+    const config = await loadRuntimeConfig(global);
+    const report = await dbDoctor(config);
+    output(global, report, report.ok
+      ? `Database ok (${report.backend}). Pages: ${report.page_count}, embeddings: ${report.embedding_count}.`
+      : `Database has issues (${report.backend}): ${report.warnings.join('; ')}`);
+    return;
+  }
+  if (subcommand === 'migrate' && args[1] === 'sqlite-to-postgres') {
+    const config = await loadRuntimeConfig(global);
+    const { migrateSqliteToPostgres } = await import('./postgres-migrate.js');
+    const report = await migrateSqliteToPostgres(config);
+    output(global, report, `Migrated ${report.pages} page(s), ${report.links} link(s), and ${report.embeddings} embedding chunk(s) to Postgres.`);
+    return;
+  }
+  throw new Error('db requires "doctor" or "migrate sqlite-to-postgres".');
 }
 
 async function handleSchema(global) {
@@ -245,6 +266,8 @@ Commands:
   recent [--since 24h] [--until ISO]
   health
   migrate <source-dir>
+  db doctor
+  db migrate sqlite-to-postgres
   schema
   file <path-or-description>
   refresh-tasks

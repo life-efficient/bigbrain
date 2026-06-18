@@ -30,6 +30,7 @@
     "@tiptap/markdown": "^3.23.5",
     "@tiptap/react": "^3.23.5",
     "@tiptap/starter-kit": "^3.23.5",
+    "pg": "^8.21.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "vis-network": "^10.1.0"

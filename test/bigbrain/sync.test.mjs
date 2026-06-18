@@ -91,7 +91,7 @@ Should be excluded by include_globs.
     await syncBrain({ config, apiKey: null });
 
     const db = await openDatabase(config);
-    const slugs = listPageSlugs(db);
+    const slugs = await listPageSlugs(db);
     assert.deepEqual(slugs, ['people/alice']);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
@@ -128,7 +128,7 @@ Real company page.
     await syncBrain({ config, apiKey: null });
 
     const db = await openDatabase(config);
-    const slugs = listPageSlugs(db);
+    const slugs = await listPageSlugs(db);
     assert.deepEqual(slugs, ['companies/acme']);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
@@ -159,7 +159,7 @@ Real company page.
     await syncBrain({ config, apiKey: null });
 
     const db = await openDatabase(config);
-    const slugs = listPageSlugs(db);
+    const slugs = await listPageSlugs(db);
     assert.deepEqual(slugs, ['companies/acme']);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
@@ -266,7 +266,7 @@ ${longBody}
     assert.equal(calls[0].texts.every((text) => text.split(/\s+/).length <= 1500), true);
 
     const db = await openDatabase(config);
-    const embeddings = allEmbeddings(db);
+    const embeddings = await allEmbeddings(db);
     assert.equal(embeddings.length, 3);
     assert.deepEqual(embeddings.map((row) => row.page_slug), [
       'concepts/long-note',
@@ -323,8 +323,8 @@ Short company note.
     });
 
     const db = await openDatabase(config);
-    assert.deepEqual(listPageSlugs(db), ['companies/acme', 'people/alice']);
-    assert.equal(allEmbeddings(db).length, 1);
+    assert.deepEqual(await listPageSlugs(db), ['companies/acme', 'people/alice']);
+    assert.equal((await allEmbeddings(db)).length, 1);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

@@ -112,6 +112,8 @@ export function buildDefaultConfig(brainHome, env = process.env) {
     brain_dir: resolvedBrainHome,
     tasks_file: path.join(resolvedBrainHome, 'ops', 'tasks.md'),
     schema_dirs: [...CANONICAL_SCHEMA_DIRS],
+    storage_backend: 'sqlite',
+    database_url_env: 'DATABASE_URL',
     sqlite_path: dbPathForBrainHome(resolvedBrainHome, env),
     openai_embedding_model: DEFAULT_EMBEDDING_MODEL,
     openai_query_model: DEFAULT_QUERY_MODEL,
@@ -161,6 +163,8 @@ export async function loadConfig(input = null) {
     brainDir: requireAbsoluteString(raw.brain_dir, 'brain_dir'),
     tasksFile: resolveConfigPathValue(raw.tasks_file ?? derivedDefault.tasks_file, brainHome, 'tasks_file'),
     schemaDirs: normalizeStringArray(raw.schema_dirs, derivedDefault.schema_dirs, 'schema_dirs'),
+    storageBackend: normalizeStorageBackend(raw.storage_backend ?? derivedDefault.storage_backend),
+    databaseUrlEnv: requireNonEmptyString(raw.database_url_env ?? derivedDefault.database_url_env, 'database_url_env'),
     sqlitePath: resolveConfigPathValue(raw.sqlite_path ?? derivedDefault.sqlite_path, brainHome, 'sqlite_path'),
     openaiEmbeddingModel: requireNonEmptyString(raw.openai_embedding_model ?? derivedDefault.openai_embedding_model, 'openai_embedding_model'),
     openaiQueryModel: requireNonEmptyString(raw.openai_query_model ?? derivedDefault.openai_query_model, 'openai_query_model'),
@@ -270,6 +274,14 @@ async function reconcileConfigFile(configPath, desiredConfig) {
 function configFileDefaults(config) {
   const { tasks_file: _tasksFile, sqlite_path: _sqlitePath, ...stored } = config;
   return stored;
+}
+
+function normalizeStorageBackend(value) {
+  const normalized = requireNonEmptyString(value, 'storage_backend').toLowerCase();
+  if (normalized !== 'sqlite' && normalized !== 'postgres') {
+    throw new Error('Invalid config: "storage_backend" must be "sqlite" or "postgres".');
+  }
+  return normalized;
 }
 
 function runtimeDirNameForBrainHome(brainHome) {

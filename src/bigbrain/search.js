@@ -1,4 +1,4 @@
-import { allEmbeddings, getPagesBySlugs, lexicalSearch } from './db.js';
+import { allEmbeddings, getPagesBySlugs, lexicalSearch, semanticSearch } from './db.js';
 import { answerQuestion, embedTexts, expandQueryVariants } from './openai.js';
 
 const RRF_K = 60;
@@ -7,8 +7,8 @@ export async function searchBrain({ db, config, query, limit = 10, apiKey = proc
   const warnings = [];
   const queries = await resolveQueries({ query, config, apiKey, warnings });
   const innerLimit = Math.min(limit * 3, 30);
-  const lexicalLists = queries
-    .map((candidate) => lexicalSearch(db, safeFtsQuery(candidate), innerLimit))
+  const lexicalLists = (await Promise.all(queries
+    .map((candidate) => lexicalSearch(db, safeFtsQuery(candidate), innerLimit))))
     .filter((rows) => rows.length > 0);
   let semanticLists = [];
   try {
@@ -140,7 +140,7 @@ async function semanticSearchLists({ db, config, queries, limit, apiKey }) {
       skippedReason: 'missing_api_key',
     };
   }
-  const embeddings = allEmbeddings(db);
+  const embeddings = await allEmbeddings(db);
   if (embeddings.length === 0) {
     return {
       lists: [],
@@ -162,8 +162,15 @@ async function semanticSearchLists({ db, config, queries, limit, apiKey }) {
     };
   }
 
+  if (db.backend === 'postgres') {
+    return {
+      lists: await Promise.all(queryVectors.map((queryVector) => semanticSearch(db, queryVector, limit))),
+      skippedReason: null,
+    };
+  }
+
   const metadataBySlug = new Map(
-    getPagesBySlugs(db, [...new Set(embeddings.map((row) => row.page_slug))]).map((row) => [row.slug, row]),
+    (await getPagesBySlugs(db, [...new Set(embeddings.map((row) => row.page_slug))])).map((row) => [row.slug, row]),
   );
 
   return {
