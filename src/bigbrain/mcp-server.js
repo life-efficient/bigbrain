@@ -21,13 +21,12 @@ import {
   buildAuthConfig,
   completeOAuthCallback,
   createAgentOAuthStart,
-  createOAuthStart,
   exchangeAgentOAuthCode,
   protectedResourceMetadata,
   registerOAuthClient,
   renderAuthErrorPage,
   renderConnectPage,
-  renderTokenPage,
+  renderOAuthCompletePage,
 } from './mcp-auth.js';
 
 const DEFAULT_MCP_PROTOCOL_VERSION = '2024-11-05';
@@ -87,11 +86,6 @@ export async function startMcpServer({
         const body = await readRequestBody(request);
         return sendJson(response, 200, await exchangeAgentOAuthCode(authConfig, new URLSearchParams(body)), { cacheControl: 'no-store' });
       }
-      if (request.method === 'GET' && route.pathname === '/auth/start' && authRoutesEnabled(authConfig)) {
-        response.writeHead(302, { location: await createOAuthStart(authConfig) });
-        response.end();
-        return;
-      }
       if (request.method === 'GET' && route.pathname === '/auth/callback' && authRoutesEnabled(authConfig)) {
         try {
           const issued = await completeOAuthCallback(authConfig, {
@@ -106,7 +100,7 @@ export async function startMcpServer({
             response.end();
             return;
           }
-          return sendHtml(response, 200, renderTokenPage(authConfig, issued));
+          return sendHtml(response, 200, renderOAuthCompletePage(authConfig));
         } catch (error) {
           return sendHtml(response, 403, renderAuthErrorPage(authConfig, error instanceof Error ? error.message : String(error)));
         }

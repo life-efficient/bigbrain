@@ -7,7 +7,6 @@ import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { openDatabase, getPageRecord } from '../../src/bigbrain/db.js';
-import { renderTokenPage } from '../../src/bigbrain/mcp-auth.js';
 import { startMcpServer } from '../../src/bigbrain/mcp-server.js';
 
 test('MCP server lists tools and writes pages through tools/call', async () => {
@@ -165,23 +164,15 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
     const connect = await fetch(running.url.replace('/mcp', '/connect'));
     assert.equal(connect.status, 200);
     const connectHtml = await connect.text();
-    assert.match(connectHtml, /Continue with Google/);
+    assert.match(connectHtml, /MCP endpoint/);
+    assert.match(connectHtml, /\[mcp_servers\.example-brain-cortex\]/);
+    assert.match(connectHtml, /No bearer token is shown here/);
     assert.doesNotMatch(connectHtml, /teammate@example\.com/);
-    assert.match(connectHtml, /Access is restricted to approved collaborators/);
+    assert.doesNotMatch(connectHtml, /Continue with Google/);
+    assert.doesNotMatch(connectHtml, /bbmcp_/);
 
-    const tokenHtml = renderTokenPage({
-      publicUrl: 'https://brain.example.test',
-      serviceName: 'Example Brain Cortex',
-    }, {
-      token,
-      email: 'teammate@example.com',
-    });
-    assert.match(tokenHtml, /data-copy-target="token"/);
-    assert.match(tokenHtml, /data-copy-target="config"/);
-    assert.match(tokenHtml, /Give the following instructions to your agent/);
-    assert.match(tokenHtml, /Add the following MCP server/);
-    assert.match(tokenHtml, /\[mcp_servers\.example-brain-cortex\]/);
-    assert.match(tokenHtml, /navigator\.clipboard\.writeText/);
+    const manualStart = await fetch(running.url.replace('/mcp', '/auth/start'));
+    assert.equal(manualStart.status, 404);
 
     const unauthorized = await fetch(running.url, {
       method: 'POST',

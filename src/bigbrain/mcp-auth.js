@@ -75,28 +75,6 @@ export function assertOAuthConfigured(authConfig) {
   if (!authConfig.tokenStorePath) throw new Error('BIGBRAIN_MCP_TOKEN_STORE is required for OAuth auth.');
 }
 
-export async function createOAuthStart(authConfig) {
-  assertOAuthConfigured(authConfig);
-  const store = await readTokenStore(authConfig);
-  const state = randomToken(24);
-  store.states.push({
-    state_hash: hashToken(state),
-    created_at: new Date().toISOString(),
-    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-  });
-  pruneStore(store);
-  await writeTokenStore(authConfig, store);
-
-  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
-  url.searchParams.set('client_id', authConfig.googleClientId);
-  url.searchParams.set('redirect_uri', callbackUrl(authConfig));
-  url.searchParams.set('response_type', 'code');
-  url.searchParams.set('scope', 'openid email profile');
-  url.searchParams.set('state', state);
-  url.searchParams.set('prompt', 'select_account');
-  return url.toString();
-}
-
 export function protectedResourceMetadata(authConfig) {
   return {
     resource: `${authConfig.publicUrl}/mcp`,
@@ -232,20 +210,7 @@ export async function completeOAuthCallback(authConfig, { code, state }) {
     };
   }
 
-  const token = `bbmcp_${randomToken(32)}`;
-  const issuedAt = new Date().toISOString();
-  store.tokens.push({
-    token_hash: hashToken(token),
-    email,
-    name: profile.name || email,
-    provider: 'google',
-    created_at: issuedAt,
-    last_used_at: null,
-    revoked_at: null,
-  });
-  pruneStore(store);
-  await writeTokenStore(authConfig, store);
-  return { token, email, name: profile.name || email, created_at: issuedAt };
+  return { completed: true, email, name: profile.name || email };
 }
 
 export async function exchangeAgentOAuthCode(authConfig, params) {
@@ -295,45 +260,41 @@ export async function exchangeAgentOAuthCode(authConfig, params) {
 
 export function renderConnectPage(authConfig, { error = '' } = {}) {
   const title = escapeHtml(authConfig.serviceName);
+  const serverName = slugName(authConfig.serviceName);
+  const endpoint = `${authConfig.publicUrl}/mcp`;
+  const configSnippet = `[mcp_servers.${serverName}]\nurl = "${endpoint}"`;
   const errorHtml = error ? `<div class="notice error">${escapeHtml(error)}</div>` : '';
   return htmlPage(title, `
     <main class="shell">
       <section class="hero">
-        <div class="badge">Private team brain</div>
+        <div class="badge">MCP endpoint</div>
         <h1>${title}</h1>
-        <p>Sign in with your approved Google account to get a personal MCP token for your AI tools.</p>
+        <p>Connect from an MCP-compatible harness. The harness will open the Google approval flow when it needs access.</p>
       </section>
       ${errorHtml}
-      <a class="button" href="/auth/start">
-        <span class="google-mark">G</span>
-        <span>Continue with Google</span>
-      </a>
-      <p class="muted">Access is restricted to approved collaborators.</p>
+      <div class="field-head">
+        <label for="endpoint">Endpoint</label>
+        <button class="copy-button" type="button" data-copy-target="endpoint">Copy endpoint</button>
+      </div>
+      <textarea id="endpoint" readonly spellcheck="false">${escapeHtml(endpoint)}</textarea>
+      <div class="field-head">
+        <label for="config">MCP config</label>
+        <button class="copy-button" type="button" data-copy-target="config">Copy config</button>
+      </div>
+      <textarea id="config" readonly spellcheck="false">${escapeHtml(configSnippet)}</textarea>
+      <div class="notice">No bearer token is shown here. Access is granted through OAuth inside the connecting harness.</div>
     </main>
   `);
 }
 
-export function renderTokenPage(authConfig, issued) {
-  const endpoint = `${authConfig.publicUrl}/mcp`;
-  const configSnippet = `Add the following MCP server:\n\n[mcp_servers.${slugName(authConfig.serviceName)}]\nurl = "${endpoint}"\nheaders = { Authorization = "Bearer ${issued.token}" }`;
+export function renderOAuthCompletePage(authConfig) {
   return htmlPage('Connected', `
-    <main class="shell wide">
+    <main class="shell">
       <section class="hero compact">
         <div class="badge">Connected</div>
         <h1>${escapeHtml(authConfig.serviceName)}</h1>
-        <p>Give the following instructions to your agent.</p>
+        <p>The OAuth approval is complete. You can close this tab and return to your harness.</p>
       </section>
-      <div class="field-head">
-        <label for="token">MCP token</label>
-        <button class="copy-button" type="button" data-copy-target="token">Copy token</button>
-      </div>
-      <textarea id="token" readonly spellcheck="false">${escapeHtml(issued.token)}</textarea>
-      <div class="field-head">
-        <label for="config">Codex MCP config</label>
-        <button class="copy-button" type="button" data-copy-target="config">Copy config</button>
-      </div>
-      <textarea id="config" readonly spellcheck="false">${escapeHtml(configSnippet)}</textarea>
-      <div class="notice">Copy this now. For security, the token is shown only once.</div>
     </main>
   `);
 }
