@@ -91,7 +91,7 @@ Shared cross-folder routing guidance.
 ## Filing Principles
 
 - File by primary subject, not recipient context.
-- Use collection README files for folder-specific rules.
+- Use collection FILING files for folder-specific rules.
 
 ## Page Shape
 
@@ -100,7 +100,7 @@ Shared cross-folder routing guidance.
 `, 'utf8');
 
     await fs.mkdir(path.join(fixture.brainHome, 'organizations'), { recursive: true });
-    await fs.writeFile(path.join(fixture.brainHome, 'organizations', 'README.md'), `---
+    await fs.writeFile(path.join(fixture.brainHome, 'organizations', 'FILING.md'), `---
 type: note
 title: Organizations
 created: 2026-06-18
@@ -142,7 +142,7 @@ One page per organization.
     assert.equal(rules.result.structuredContent.shared_guidance.path, 'FILING.md');
     assert.deepEqual(rules.result.structuredContent.filing_principles, [
       'File by primary subject, not recipient context.',
-      'Use collection README files for folder-specific rules.',
+      'Use collection FILING files for folder-specific rules.',
     ]);
     assert.deepEqual(rules.result.structuredContent.page_shape, [
       'YAML frontmatter with type and title.',
@@ -150,6 +150,8 @@ One page per organization.
     ]);
     const organizations = rules.result.structuredContent.collections.find((collection) => collection.name === 'organizations');
     assert.equal(organizations.path, 'organizations/');
+    assert.equal(organizations.filing_path, 'organizations/FILING.md');
+    assert.equal(organizations.readme_path, null);
     assert.deepEqual(organizations.what_goes_here, [
       'Institutional partners, government bodies, universities, vendors, companies, advisory groups, and other organizations.',
     ]);

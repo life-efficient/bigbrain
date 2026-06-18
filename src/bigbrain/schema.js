@@ -50,7 +50,7 @@ export function schemaDescription() {
       'Timeline lives below --- and is append-only evidence.',
       'Use relative markdown links instead of duplicate pages.',
       'Artifacts live under .artifacts/ and are not canonical brain pages.',
-      'Repo documentation pages such as README.md files should be excluded from indexing and strict brain-page validation.',
+      'Repo documentation pages such as README.md and FILING.md files should be excluded from indexing and strict brain-page validation.',
     ],
   };
 }
@@ -100,7 +100,7 @@ export function renderSchemaMarkdown() {
     '- Use cross-links instead of duplicate pages.',
     '- Use `inbox/` when a page does not clearly fit yet.',
     '- Store attached files under `.artifacts/`, not directly in entity directories.',
-    '- Repo documentation pages such as directory `README.md` files are not canonical brain pages and should be excluded from indexing.',
+    '- Repo documentation pages such as directory `README.md` and `FILING.md` files are not canonical brain pages and should be excluded from indexing.',
   );
   return `${lines.join('\n')}\n`;
 }

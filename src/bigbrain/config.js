@@ -121,7 +121,7 @@ export function buildDefaultConfig(brainHome, env = process.env) {
     dashboard_port: DEFAULT_DASHBOARD_PORT,
     lookback_fallback: '24h',
     include_globs: ['**/*.md'],
-    exclude_globs: ['.git/**', 'archive/**', '.raw/**', '**/README.md'],
+    exclude_globs: ['.git/**', 'archive/**', '.raw/**', '**/README.md', '**/FILING.md'],
   };
 }
 

@@ -58,10 +58,10 @@ one possible Postgres target rather than the product boundary.
 
 Before writing a page or upload, an MCP harness should call `filing_rules`.
 That tool reads the selected brain's top-level `FILING.md` file, actual
-top-level folders, and collection `README.md` files, then returns shared
-filing principles, structured routing rules, page-shape guidance, raw-file
-path rules, and an optional recommendation when given `input`, `file_name`, or
-`mime_type`.
+top-level folders, and collection `FILING.md` files, falling back to collection
+`README.md` files for older brains. It then returns shared filing principles,
+structured routing rules, page-shape guidance, raw-file path rules, and an
+optional recommendation when given `input`, `file_name`, or `mime_type`.
 
 The MCP server exposes raw-file CRUD tools for inputs such as PDFs,
 screenshots, transcripts, slide decks, and spreadsheets:

@@ -97,23 +97,33 @@ async function readCollections(brainDir) {
   const collections = [];
   for (const dirent of dirents) {
     if (!dirent.isDirectory() || shouldIgnoreTopLevel(dirent.name)) continue;
-    const readmePath = path.join(brainDir, dirent.name, 'README.md');
-    const readme = await readOptional(readmePath);
-    const extracted = readme ? extractCollectionReadme(readme) : {};
+    const collectionGuidance = await readCollectionGuidance(brainDir, dirent.name);
+    const extracted = collectionGuidance.markdown ? extractCollectionGuidance(collectionGuidance.markdown) : {};
     collections.push({
       name: dirent.name,
       path: `${dirent.name}/`,
-      purpose: extracted.summary || DEFAULT_RULES[dirent.name] || 'No collection README guidance found.',
+      purpose: extracted.summary || DEFAULT_RULES[dirent.name] || 'No collection filing guidance found.',
       what_goes_here: extracted.whatGoesHere,
       what_does_not_go_here: extracted.whatDoesNotGoHere,
-      readme_path: readme ? `${dirent.name}/README.md` : null,
+      filing_path: collectionGuidance.path,
+      readme_path: collectionGuidance.path?.endsWith('/README.md') ? collectionGuidance.path : null,
     });
   }
   collections.sort((left, right) => left.name.localeCompare(right.name));
   return collections;
 }
 
-function extractCollectionReadme(markdown) {
+async function readCollectionGuidance(brainDir, collectionName) {
+  const filingPath = path.join(brainDir, collectionName, 'FILING.md');
+  const filing = await readOptional(filingPath);
+  if (filing) return { path: `${collectionName}/FILING.md`, markdown: filing };
+  const readmePath = path.join(brainDir, collectionName, 'README.md');
+  const readme = await readOptional(readmePath);
+  if (readme) return { path: `${collectionName}/README.md`, markdown: readme };
+  return { path: null, markdown: '' };
+}
+
+function extractCollectionGuidance(markdown) {
   const lines = markdown.split(/\r?\n/);
   const titleIndex = lines.findIndex((line) => /^#\s+/.test(line));
   const summary = titleIndex >= 0 ? paragraphAfterHeading(lines, titleIndex + 1) : '';

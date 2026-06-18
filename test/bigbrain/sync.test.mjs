@@ -135,7 +135,7 @@ Real company page.
   }
 });
 
-test('init excludes nested README pages from indexing by default', async () => {
+test('init excludes nested README and FILING pages from indexing by default', async () => {
   const fixture = await createFixture('bigbrain-sync-default-readme-');
   try {
     await writeMarkdown(fixture.brainHome, 'companies/README.md', `---
@@ -144,6 +144,13 @@ title: Companies
 # Companies
 
 Guide page.
+`);
+    await writeMarkdown(fixture.brainHome, 'companies/FILING.md', `---
+title: Company Filing
+---
+# Company Filing
+
+Filing guide page.
 `);
     await writeMarkdown(fixture.brainHome, 'companies/acme.md', `---
 title: Acme
