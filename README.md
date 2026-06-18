@@ -1,10 +1,16 @@
 # bigbrain
 
-`bigbrain` is a distributable personal knowledge runtime.
+`bigbrain` is a distributable personal knowledge runtime and knowledge service
+for agents.
 
 The code lives in this repo. The actual brain pages live in a selected
 markdown brain home. The SQLite index, config, and runtime state live outside
 that repo under a per-brain directory in your home folder.
+
+BigBrain is intentionally a place agents visit when they need durable memory,
+not the place the agent itself has to live. Codex, Relay, Claude, local scripts,
+hosted MCP clients, or other agent runtimes should be able to consult and update
+the same brain through the CLI, dashboard, MCP, or future HTTP surfaces.
 
 The goal is to keep the useful parts of a personal operating stack:
 
@@ -12,10 +18,17 @@ The goal is to keep the useful parts of a personal operating stack:
 - linked database
 - relative markdown links and backlinks
 - hybrid search with keyword + semantic fusion
-- automations for consistency and freshness
+- explicit automations for consistency and freshness
 - git-backed durability
 - a scoped CLI that targets an external brain home
 - a lightweight dashboard
+- OpenAI-native embeddings, grounded query, and enrichment defaults
+
+BigBrain should stay smaller and sharper than a full agent platform. It is not
+an autonomous worker swarm, a general agent host, or a second operating system.
+The product boundary is: markdown and git as canonical truth, a rebuildable
+database/index as runtime state, and a polished cockpit for inspecting what
+agents and automations are doing with the brain.
 
 ## Brain Model
 
@@ -78,6 +91,26 @@ Implemented foundation:
 - schema/filing guidance
 - existing task refresh adapted to the new runtime model
 - lightweight built-in dashboard
+
+## Operating Modes
+
+BigBrain should support the same brain model across a few deployment shapes:
+
+- `local`: a personal brain home with local runtime state, currently SQLite
+  under `.bigbrain-state/`.
+- `server`: a bundled app plus local Postgres/pgvector for shared or hosted
+  brains that need durable embeddings, OAuth/session state, sync state, and
+  audit logs across redeploys.
+- `remote`: the same Postgres storage contract pointed at an external Postgres
+  or Supabase instance when operational needs justify it.
+- `thin client`: agent tools connect to a hosted BigBrain over MCP/API while the
+  agent runtime lives elsewhere.
+
+The database is service state, not the source of truth for authored knowledge.
+For hosted brains such as Example Brain, markdown in git remains canonical. Postgres
+can always be rebuilt from the markdown repo, but mutable runtime state such as
+OAuth clients, grants, sync runs, embedding rows, and audit logs should persist
+outside the app container.
 
 ## Architecture
 

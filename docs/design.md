@@ -1,8 +1,8 @@
 # Bigbrain Design
 
-`bigbrain` is a local-first personal knowledge runtime. The code lives in this
-repo; each actual brain instance lives in an external brain home selected at
-runtime.
+`bigbrain` is a local-first personal knowledge runtime and knowledge service
+for agents. The code lives in this repo; each actual brain instance lives in an
+external brain home selected at runtime.
 
 The design goal is to keep the parts that materially help an individual operate:
 
@@ -15,23 +15,57 @@ The design goal is to keep the parts that materially help an individual operate:
 - a small set of maintenance and freshness workflows
 - a scoped CLI
 - a lightweight dashboard
+- OpenAI-native embeddings, grounded query, and enrichment defaults
 
 ## Product Definition
 
 `bigbrain` should be:
 
-- a local-first personal operating system for notes, entities, tasks, and meetings
+- a local-first knowledge service for notes, entities, tasks, and meetings
 - markdown-native for canonical authored pages
 - database-backed for links, search, embeddings, and operational state
 - opinionated about filing and consistency
 - OpenAI-first for embeddings and query-time synthesis
+- pleasant to inspect through its dashboard
+- easy for agents to visit through CLI, MCP, or future API surfaces
 
 `bigbrain` should not be:
 
 - a general-purpose agent platform
 - a heavy remote multi-tenant service
-- a broad auth and OAuth product
+- the place the agent runtime must live
+- a broad auth and OAuth product beyond what hosted MCP needs
 - a kitchen-sink workflow framework
+- an opaque always-on autonomous worker swarm
+
+The core product distinction is:
+
+```text
+BigBrain is the brain agents visit.
+It is not the agent home.
+```
+
+Codex, Relay, Claude, local scripts, or hosted team clients should be able to
+consult and update BigBrain without BigBrain owning those runtimes. This keeps
+the system portable and makes the brain useful across agent tools.
+
+## Product Posture
+
+BigBrain should feel like Postgres plus semantic memory plus a polished cockpit
+for agents:
+
+- markdown and git are the durable, inspectable source of truth
+- the database is a rebuildable runtime projection and operational ledger
+- OpenAI APIs are the opinionated default for embeddings, query synthesis, and
+  future enrichment workflows
+- automations are explicit, scheduled, and inspectable rather than hidden
+  personalities
+- the dashboard is a first-class surface for health, graph, task, inbox, sync,
+  and agent activity inspection
+
+This posture still leaves room for hosted or team brains. The hosted form
+should preserve the same contract: agents connect to BigBrain, BigBrain indexes
+and serves the selected brain, and authored knowledge remains in markdown.
 
 ## Core Requirements
 
@@ -93,6 +127,48 @@ Without these, the system will drift back into hidden complexity.
 
 This keeps authored knowledge readable in git while allowing fast graph and
 search operations.
+
+For hosted deployments, the same split applies even when the local SQLite index
+is replaced by Postgres/pgvector. The database should persist embeddings, sync
+state, OAuth/session state, audit logs, health reports, and derived indexes, but
+it should not become the canonical authored content store.
+
+## Storage Modes
+
+The storage layer should be adapter-based so BigBrain can run in the simplest
+useful mode and grow without rewriting the product:
+
+- `sqlite`: default local state under `.bigbrain-state/` for personal use.
+- `postgres`: durable server state through `DATABASE_URL`, using pgvector when
+  semantic embeddings are enabled.
+- `remote-postgres`: the same Postgres adapter pointed at a hosted provider
+  such as Supabase when a separate managed database becomes desirable.
+
+Postgres should be a generic BigBrain backend, not a Supabase-specific product
+dependency. Supabase is a valid target because it is Postgres with useful
+managed features, but a bundled server with local Postgres should work with the
+same schema and migration path.
+
+For a hosted brain such as Example Brain, a practical production shape is:
+
+```text
+app service
+  -> BigBrain MCP/API/dashboard
+  -> DATABASE_URL
+
+local Postgres/pgvector service or volume
+  -> embeddings
+  -> sync state
+  -> OAuth/session state
+  -> audit logs
+
+GitHub markdown repo
+  -> canonical cortex pages
+```
+
+Because markdown remains canonical, the database can be rebuilt from git when
+needed. Durable runtime state still matters because redeploys should not force
+re-embedding, re-authorizing clients, or losing operational history.
 
 ## Proposed File Structure
 
@@ -312,6 +388,11 @@ The database should stay narrow and derived from the markdown layer.
 - `tasks_index`
 - `graph_cache`
 - `artifacts`
+- `oauth_clients`
+- `oauth_grants`
+- `oauth_sessions`
+- `mcp_audit_log`
+- `sync_runs`
 
 These should come later, only if the page-derived tables are insufficient.
 
@@ -388,7 +469,7 @@ Required maintenance flows:
 
 ## Automations
 
-Automations should be narrow, explicit, and idempotent.
+Automations should be narrow, explicit, idempotent, and inspectable.
 
 ### Required automations
 
@@ -424,7 +505,9 @@ Automations should be narrow, explicit, and idempotent.
 - `orphan-review`
 - `stale-entity-review`
 
-Those should only return if they prove useful.
+Those should only return if they prove useful. BigBrain should avoid adding
+background personalities or always-on agent loops by default. Maintenance jobs
+should have names, schedules, inputs, outputs, logs, and dashboard visibility.
 
 ## CLI Surface
 
@@ -500,7 +583,7 @@ work completed during the current run. Legacy top-level fields such as
 
 ## Dashboard
 
-The web surface should stay lightweight.
+The web surface should stay lightweight, polished, and operational.
 
 Initial screens:
 
@@ -509,8 +592,11 @@ Initial screens:
 - inbox view
 - health findings
 - recent changes
+- sync and embedding status
+- hosted MCP client activity when serving a team brain
 
-The dashboard is for sanity and triage, not for full authoring.
+The dashboard is for sanity, triage, and trust in agent activity. It is not
+initially a full authoring environment.
 
 ## Health Model
 
@@ -565,14 +651,49 @@ It should be concise and operational.
 - graph visualization
 - inbox/tasks pages
 
+### Milestone 6: hosted brain service
+
+- Postgres/pgvector storage adapter
+- bundled server deployment recipe
+- durable OAuth/session/token state
+- MCP audit log
+- scoped remote operation model
+- sync/reindex controls with dashboard visibility
+
+## Useful Inspiration From GBrain
+
+GBrain is useful proof that a markdown-backed agent brain can scale, serve MCP,
+and operate across local and hosted topologies. BigBrain should borrow the
+operational lessons without copying the product center of gravity.
+
+Ideas worth adapting:
+
+- explicit topologies: local, bundled server, remote database, and thin client
+- stdio MCP for local agents plus HTTP MCP for remote clients
+- scoped remote operations with admin-gated writes and maintenance commands
+- a small admin surface for live activity, clients, sync, embeddings, and health
+- install and operations docs written so agents can execute them safely
+- ingestion/source logs so imported or agent-written knowledge is reversible
+- retrieval/query evals for entity lookup, temporal questions, citations, and
+  top-k search quality
+- migration commands that make moving between local and hosted backends boring
+
+Things not to copy wholesale:
+
+- making BigBrain the agent runtime
+- schema-pack complexity before the simple typed-folder model needs it
+- always-on autonomous operations that are hard to inspect
+- Supabase-specific assumptions in the core storage model
+
 ## Opinionated Non-Goals
 
 At least initially, `bigbrain` should not include:
 
-- complex OAuth
+- complex OAuth beyond hosted MCP needs
 - remote multi-tenant access control
 - general-purpose job orchestration
-- broad admin product surface
-- many-client MCP hosting
+- a broad admin product surface unrelated to brain operations
+- many-client MCP hosting as a default local concern
+- an agent runtime or autonomous worker swarm
 
 If needed later, these can be layered on after the core system proves itself.

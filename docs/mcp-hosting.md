@@ -4,6 +4,11 @@ BigBrain can expose one configured brain over HTTP as an MCP server. The server
 does not discover or publish every local brain. It serves the `brain_dir` from
 the config used to start `bigbrain mcp`.
 
+The hosted server is still a knowledge service, not an agent runtime. Agents
+visit it over MCP/API when they need memory, search, query, or controlled
+writes. The agents themselves can live in Codex, Relay, Claude, local scripts,
+or other tools.
+
 ## Public Boundary
 
 The hosting wrapper or platform decides what is public by starting BigBrain with
@@ -18,6 +23,36 @@ lists, creates, and updates are constrained to that brain root.
 
 Use a separate deployment per shared brain. Do not point a hosted deployment at
 a personal brain unless that is intentionally what you want to publish.
+
+## Persistence Boundary
+
+Hosted BigBrain should treat the app container filesystem as disposable. For
+redeploy-heavy services, all mutable runtime state must be stored on persistent
+storage:
+
+- embeddings and embedding chunks
+- sync runs and sync cursors
+- OAuth clients, grants, sessions, and issued MCP tokens
+- MCP audit logs and contribution attribution
+- health findings and operational history
+
+Markdown remains canonical and should continue to live in the selected brain
+home or a git-backed content repo. Database state is a durable runtime
+projection and operational ledger. It should be rebuildable from markdown where
+possible, but redeploys should not force re-embedding, re-authentication, or
+loss of activity history.
+
+Preferred hosted storage modes:
+
+- local development: SQLite or local Postgres
+- bundled server: app service plus local Postgres/pgvector with a persistent
+  volume or database service
+- managed remote: the same Postgres schema pointed at a remote provider such as
+  Supabase when needed
+
+Use a generic `DATABASE_URL` Postgres contract for server deployments. Do not
+make the core hosted model depend on Supabase-specific APIs; Supabase should be
+one possible Postgres target rather than the product boundary.
 
 ## Raw File Uploads
 
@@ -72,6 +107,11 @@ BigBrain MCP supports these auth modes:
 
 Hosted deployments should use `oauth_allowlist`.
 
+The current file-backed token store is acceptable for local development or
+small persistent-volume deployments. The target hosted model should store token
+hashes, OAuth grants, sessions, and client metadata in the persistent database
+so redeploys do not invalidate connected agents.
+
 ## OAuth Allowlist Setup
 
 Required environment:
@@ -81,6 +121,7 @@ BIGBRAIN_MCP_AUTH_MODE=oauth_allowlist
 BIGBRAIN_MCP_PUBLIC_URL=https://your-service.example.com
 BIGBRAIN_MCP_SERVICE_NAME=Example Brain Cortex
 BIGBRAIN_MCP_TOKEN_STORE=/app/data/bigbrain-runtime/example-brain-cortex/mcp-tokens.json
+DATABASE_URL=postgres://...
 BIGBRAIN_MCP_ALLOWED_EMAILS=alice@example.com,bob@example.com
 BIGBRAIN_MCP_ALLOWED_DOMAINS=example.com
 BIGBRAIN_MCP_GOOGLE_CLIENT_ID=...
@@ -117,7 +158,8 @@ headers = { Authorization = "Bearer bbmcp_..." }
 ```
 
 The token is shown once. Store only the hashed token in
-`BIGBRAIN_MCP_TOKEN_STORE`.
+`BIGBRAIN_MCP_TOKEN_STORE` or, for hosted deployments, the database-backed token
+store.
 
 ## Contribution Attribution
 
@@ -136,7 +178,12 @@ the write came from an OAuth user.
 - `/mcp` requires auth unless `BIGBRAIN_MCP_AUTH_MODE=none`.
 - `/connect`, `/auth/start`, and `/auth/callback` are enabled only in
   `oauth_allowlist` mode.
-- Keep the token store on persistent storage.
+- Keep token/session state on persistent storage. Prefer the database-backed
+  store for hosted deployments.
 - Rotate any shared bootstrap token after migration to per-user tokens.
 - Prefer explicit email allowlists for external collaborators and domain
   allowlists only for domains you fully control.
+- Expose only remote-safe tools by default. Search, query, read, list, and
+  append-style contributions are safer than destructive writes, reindexing, or
+  git operations. Gate maintenance and publishing commands behind admin scopes
+  once scoped OAuth is available.

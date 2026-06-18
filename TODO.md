@@ -3,14 +3,32 @@
 ## Roadmap
 
 - Keep `bigbrain` as the primary local-first personal knowledge runtime.
+- Keep BigBrain as a knowledge service agents visit, not the runtime where
+  agents live.
+- Keep BigBrain OpenAI-first for embeddings, grounded query, and future
+  enrichment defaults.
 - Keep brain data outside the BigBrain source repo by default.
 - Continue moving toward a package layout with clearer command, indexing,
   storage, search, and automation boundaries.
 - Keep SQLite as the local database default unless a concrete production need
   requires Postgres.
 - Keep markdown as the source of truth, with SQLite as the derived index.
-- Keep the built-in dashboard lightweight and local.
+- Keep the built-in dashboard lightweight, polished, and operational.
 - Add migration support for existing markdown brain corpora.
+
+## Hosted Brain Service
+
+- Add a generic Postgres storage adapter behind `DATABASE_URL`, with pgvector
+  support for embeddings.
+- Keep the Postgres adapter provider-neutral so it can target local Postgres,
+  Railway Postgres, Supabase Postgres, or another standard Postgres service.
+- Store hosted MCP OAuth clients, grants, sessions, token hashes, sync runs,
+  embeddings, and audit logs in durable storage rather than app-container files.
+- Define remote-safe MCP tools separately from admin/maintenance tools.
+- Add a bundled deployment recipe for app + local Postgres/pgvector so a shared
+  brain can run without a separate managed Supabase project.
+- Add migration/export/import commands so local, bundled, and remote Postgres
+  backends can be moved or rebuilt cleanly.
 
 ## Search And Query
 
@@ -35,6 +53,24 @@
 - Build a repeatable retrieval eval harness against a fixed fixture brain home.
 - Score queries on top-hit quality, top-3 quality, noise, and answer usefulness.
 - Use the eval harness before and after each ranking change so search work does not drift into unmeasured tweaks.
+- Add eval cases for citations, time-sensitive questions, people/company/deal
+  lookups, and questions that should refuse when the brain lacks evidence.
+
+## GBrain-Inspired Improvements
+
+- Document explicit operating topologies: local, bundled server, remote
+  database, and thin-client MCP.
+- Add stdio and HTTP MCP serve modes with a consistent tool contract.
+- Add a dashboard activity view for MCP clients, recent tool calls, sync status,
+  embedding backlog, and write attribution.
+- Add source/ingest logs so agent-written or imported knowledge can be audited
+  and reversed.
+- Add agent-readable install and operations docs for deploying, connecting,
+  rotating secrets, restoring, reindexing, and migrating.
+- Keep schema/type behavior simple and tied to BigBrain's typed folders rather
+  than adopting a complex schema-pack system prematurely.
+- Keep maintenance jobs explicit, scheduled, and inspectable rather than adding
+  always-on autonomous worker loops.
 
 ## Open Design Decisions
 
