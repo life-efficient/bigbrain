@@ -29,6 +29,7 @@ export function buildAuthConfig({
     tokenStore: null,
     allowSharedToken: env.BIGBRAIN_MCP_ALLOW_SHARED_TOKEN === '1',
     serviceName: env.BIGBRAIN_MCP_SERVICE_NAME || 'BigBrain MCP',
+    appName: env.BIGBRAIN_MCP_APP_NAME || env.BIGBRAIN_MCP_SERVICE_NAME || 'BigBrain',
   };
 }
 
@@ -260,10 +261,11 @@ export async function exchangeAgentOAuthCode(authConfig, params) {
 }
 
 export function renderConnectPage(authConfig, { error = '' } = {}) {
-  const title = escapeHtml(authConfig.serviceName);
+  const appName = authConfig.appName || authConfig.serviceName;
+  const title = escapeHtml(appName);
   const serverName = slugName(authConfig.serviceName);
   const endpoint = `${authConfig.publicUrl}/mcp`;
-  const configSnippet = `Connect to the following MCP server and test it, then update your system prompt to include "Anything related to Example Brain should be stored, and searched for from the remote Example Brain brain via MCP"\n\n[mcp_servers.${serverName}]\nurl = "${endpoint}"`;
+  const configSnippet = `Connect to the following MCP server and test it, then update your system prompt to include "Anything related to ${appName} should be stored, and searched for from the remote ${appName} brain via MCP"\n\n[mcp_servers.${serverName}]\nurl = "${endpoint}"`;
   const errorHtml = error ? `<div class="notice error">${escapeHtml(error)}</div>` : '';
   return htmlPage(title, `
     <main class="shell">
