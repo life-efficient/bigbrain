@@ -5,7 +5,7 @@ const { pathToFileURL } = require("url");
 
 const APP_DISPLAY_NAME = "BigBrain";
 const LOCAL_HOST = "127.0.0.1";
-const DEFAULT_WINDOW_SIZE = { width: 1520, height: 980 };
+const DEFAULT_WINDOW_SIZE = { width: 1079, height: 927 };
 const APP_ICON_PATH = path.join(__dirname, "assets", "desktop-icon.png");
 
 let mainWindow = null;
