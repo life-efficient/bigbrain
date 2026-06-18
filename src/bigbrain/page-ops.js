@@ -93,6 +93,60 @@ export async function createBrainPage({
   return readBrainPage({ config, pagePath: relative });
 }
 
+export async function createRawFileWithPage({
+  config,
+  rawPath,
+  rawContentBase64,
+  rawContentText,
+  pagePath,
+  title,
+  body,
+  timelineEntry,
+  frontmatter = {},
+  mimeType = null,
+}) {
+  const rawRelative = normalizeRawPath(rawPath);
+  const pageRelative = normalizePagePath(pagePath);
+  assertAllowedPagePath(pageRelative);
+
+  const rawFullPath = safeBrainPath(config.brainDir, rawRelative);
+  const pageFullPath = safeBrainPath(config.brainDir, pageRelative);
+  if (await exists(rawFullPath)) throw new Error(`Raw file already exists: ${rawRelative}`);
+  if (await exists(pageFullPath)) throw new Error(`Page already exists: ${pageRelative}`);
+
+  const rawBytes = decodeRawContent({ rawContentBase64, rawContentText });
+  const rawLink = path.posix.relative(path.posix.dirname(pageRelative), rawRelative) || path.posix.basename(rawRelative);
+  const pageBody = appendRawFileSection(requireNonEmpty(body, 'body'), rawRelative, rawLink);
+
+  await fs.mkdir(path.dirname(rawFullPath), { recursive: true });
+  await fs.writeFile(rawFullPath, rawBytes);
+  try {
+    const page = await createBrainPage({
+      config,
+      pagePath: pageRelative,
+      title,
+      body: pageBody,
+      timelineEntry,
+      frontmatter: {
+        ...frontmatter,
+        raw_file: rawRelative,
+        ...(mimeType ? { raw_mime_type: mimeType } : {}),
+      },
+    });
+    return {
+      page,
+      raw_file: {
+        path: rawRelative,
+        size: rawBytes.length,
+        mime_type: mimeType || null,
+      },
+    };
+  } catch (error) {
+    await fs.rm(rawFullPath, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
 export async function updateBrainPage({ config, pagePath, body, timelineEntry }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
@@ -116,6 +170,22 @@ export function normalizePagePath(input) {
     throw new Error(`Invalid brain path: ${input}`);
   }
   return normalized.endsWith('.md') ? normalized : `${normalized}.md`;
+}
+
+export function normalizeRawPath(input) {
+  const trimmed = requireNonEmpty(input, 'raw_path').replace(/\\/g, '/').replace(/^\/+/, '');
+  const normalized = path.posix.normalize(trimmed);
+  if (normalized === '.' || normalized.startsWith('../') || path.posix.isAbsolute(normalized)) {
+    throw new Error(`Invalid raw file path: ${input}`);
+  }
+  const parts = normalized.split('/');
+  if (parts.length < 3 || parts[1] !== '.raw') {
+    throw new Error('Raw file path must use <collection>/.raw/<file>.');
+  }
+  if (parts.some((part, index) => !part || part === '.' || part === '..' || (part.startsWith('.') && index !== 1))) {
+    throw new Error(`Invalid raw file path: ${input}`);
+  }
+  return normalized;
 }
 
 export function safeBrainPath(brainDir, relativePath = '') {
@@ -181,6 +251,25 @@ function formatYamlValue(value) {
 function appendTimelineEntry(timeline, entry, date) {
   const formatted = formatTimelineEntry(entry, date);
   return [timeline.trim(), formatted].filter(Boolean).join('\n');
+}
+
+function appendRawFileSection(body, rawRelative, rawLink) {
+  const label = path.posix.basename(rawRelative);
+  return [
+    body.trim(),
+    '',
+    '## Source File',
+    '',
+    `- [${label}](${rawLink})`,
+  ].join('\n');
+}
+
+function decodeRawContent({ rawContentBase64, rawContentText }) {
+  const hasBase64 = typeof rawContentBase64 === 'string' && rawContentBase64.length > 0;
+  const hasText = typeof rawContentText === 'string' && rawContentText.length > 0;
+  if (hasBase64 === hasText) throw new Error('Provide exactly one of raw_content_base64 or raw_content_text.');
+  if (hasBase64) return Buffer.from(rawContentBase64, 'base64');
+  return Buffer.from(rawContentText, 'utf8');
 }
 
 function formatTimelineEntry(entry, date) {

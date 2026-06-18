@@ -7,6 +7,7 @@ import { persistState } from './config.js';
 import { openDatabase } from './db.js';
 import {
   createBrainPage,
+  createRawFileWithPage,
   listBrainPath,
   readBrainPage,
   updateBrainPage,
@@ -210,6 +211,22 @@ async function callTool({ config, params, gitBackupEnabled, actor }) {
       await postWriteMaintenance(config, gitBackupEnabled, actor);
       return toolJson(page);
     }
+    case 'create_raw_file_with_page': {
+      const result = await createRawFileWithPage({
+        config,
+        rawPath: args.raw_path,
+        rawContentBase64: args.raw_content_base64,
+        rawContentText: args.raw_content_text,
+        mimeType: args.mime_type,
+        pagePath: args.page_path,
+        title: args.title,
+        body: args.body,
+        timelineEntry: timelineWithActor(args.timeline_entry, actor),
+        frontmatter: args.frontmatter || {},
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      return toolJson(result);
+    }
     case 'update_page': {
       const page = await updateBrainPage({
         config,
@@ -351,6 +368,25 @@ function toolDefinitions() {
           frontmatter: { type: 'object' },
         },
         required: ['path', 'title', 'body', 'timeline_entry'],
+      },
+    },
+    {
+      name: 'create_raw_file_with_page',
+      description: 'Upload a raw file under <collection>/.raw/<file> and create the corresponding markdown brain page in one call.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          raw_path: { type: 'string', description: 'Destination such as sources/.raw/deck.pdf or meetings/.raw/call/transcript.txt.' },
+          raw_content_base64: { type: 'string', description: 'Base64 encoded raw bytes. Use this for PDFs, images, and other binary files.' },
+          raw_content_text: { type: 'string', description: 'Plain text raw content. Use exactly one of raw_content_base64 or raw_content_text.' },
+          mime_type: { type: 'string' },
+          page_path: { type: 'string', description: 'Markdown page path to create, such as sources/deck-summary.' },
+          title: { type: 'string' },
+          body: { type: 'string' },
+          timeline_entry: { type: 'string' },
+          frontmatter: { type: 'object' },
+        },
+        required: ['raw_path', 'page_path', 'title', 'body', 'timeline_entry'],
       },
     },
     {

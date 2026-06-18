@@ -25,6 +25,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
 
     const listed = await rpc(running.url, 'tools/list', {}, 'secret');
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_page'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file_with_page'), true);
 
     const unauthorized = await fetch(running.url, {
       method: 'POST',
@@ -62,6 +63,55 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     const record = getPageRecord(db, 'people/mcp-test');
     assert.equal(record.title, 'MCP Test');
     assert.match(record.compiled_truth, /Created through the MCP server/);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('MCP server uploads raw files with associated brain pages', async () => {
+  const fixture = await createFixture('bigbrain-mcp-raw-');
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'secret',
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const pdfBytes = Buffer.from('%PDF-1.4\nmcp upload\n%%EOF\n', 'utf8');
+    const created = await rpc(running.url, 'tools/call', {
+      name: 'create_raw_file_with_page',
+      arguments: {
+        raw_path: 'sources/.raw/mcp-upload.pdf',
+        raw_content_base64: pdfBytes.toString('base64'),
+        mime_type: 'application/pdf',
+        page_path: 'sources/mcp-upload',
+        title: 'MCP Upload',
+        body: 'Uploaded through the MCP raw file tool.',
+        timeline_entry: 'Uploaded source PDF through MCP.',
+        frontmatter: { tags: ['mcp', 'source'] },
+      },
+    }, 'secret');
+
+    assert.equal(created.error, undefined, created.error?.message);
+    assert.equal(created.result.structuredContent.raw_file.path, 'sources/.raw/mcp-upload.pdf');
+    assert.equal(created.result.structuredContent.raw_file.size, pdfBytes.length);
+    assert.equal(created.result.structuredContent.page.slug, 'sources/mcp-upload');
+    assert.equal(created.result.structuredContent.page.frontmatter.raw_file, 'sources/.raw/mcp-upload.pdf');
+    assert.match(created.result.structuredContent.page.markdown, /- \[mcp-upload\.pdf\]\(\.raw\/mcp-upload\.pdf\)/);
+
+    const storedRaw = await fs.readFile(path.join(fixture.brainHome, 'sources', '.raw', 'mcp-upload.pdf'));
+    assert.deepEqual(storedRaw, pdfBytes);
+
+    const db = await openDatabase(config);
+    const record = getPageRecord(db, 'sources/mcp-upload');
+    assert.equal(record.title, 'MCP Upload');
+    assert.match(record.compiled_truth, /Uploaded through the MCP raw file tool/);
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

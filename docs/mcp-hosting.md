@@ -19,6 +19,25 @@ lists, creates, and updates are constrained to that brain root.
 Use a separate deployment per shared brain. Do not point a hosted deployment at
 a personal brain unless that is intentionally what you want to publish.
 
+## Raw File Uploads
+
+The MCP tool `create_raw_file_with_page` writes a raw source file and its
+corresponding markdown brain page together. Use this for inputs such as PDFs,
+screenshots, transcripts, slide decks, and spreadsheets.
+
+Required fields:
+
+- `raw_path`: destination under `<collection>/.raw/<file>`, for example
+  `sources/.raw/example-deck.pdf`.
+- `raw_content_base64` or `raw_content_text`: provide exactly one. Use base64
+  for PDFs and other binary files.
+- `page_path`, `title`, `body`, `timeline_entry`: the markdown brain page to
+  create at the same time.
+
+The generated page gets a `raw_file` frontmatter field and a `## Source File`
+link back to the raw upload. Raw files under `.raw/` stay out of the indexed
+page graph; the associated markdown page is the searchable surface.
+
 ## Auth Modes
 
 BigBrain MCP supports these auth modes:

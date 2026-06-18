@@ -8,6 +8,7 @@ import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { openDatabase, getPageRecord } from '../../src/bigbrain/db.js';
 import {
   createBrainPage,
+  createRawFileWithPage,
   listBrainPath,
   readBrainPage,
   updateBrainPage,
@@ -48,6 +49,42 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
     const record = getPageRecord(db, 'people/jordan-lee');
     assert.equal(record.title, 'Jordan Lee');
     assert.match(record.compiled_truth, /current Example Brain partner contact/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page ops create raw files with associated brain pages', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-raw-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const pdfBytes = Buffer.from('%PDF-1.4\nraw deck\n%%EOF\n', 'utf8');
+    const result = await createRawFileWithPage({
+      config,
+      rawPath: 'sources/.raw/example-deck.pdf',
+      rawContentBase64: pdfBytes.toString('base64'),
+      mimeType: 'application/pdf',
+      pagePath: 'sources/example-deck',
+      title: 'Example Brain Deck',
+      body: 'Source deck for the Example Brain programme.',
+      timelineEntry: 'Uploaded source deck and created page.',
+      frontmatter: { tags: ['example-brain', 'source'] },
+    });
+
+    assert.equal(result.raw_file.path, 'sources/.raw/example-deck.pdf');
+    assert.equal(result.raw_file.size, pdfBytes.length);
+    assert.equal(result.page.slug, 'sources/example-deck');
+    assert.equal(result.page.frontmatter.raw_file, 'sources/.raw/example-deck.pdf');
+    assert.match(result.page.markdown, /raw_mime_type: application\/pdf/);
+    assert.match(result.page.markdown, /- \[example-deck\.pdf\]\(\.raw\/example-deck\.pdf\)/);
+
+    const storedRaw = await fs.readFile(path.join(fixture.brainHome, 'sources', '.raw', 'example-deck.pdf'));
+    assert.deepEqual(storedRaw, pdfBytes);
+
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+    assert.equal(getPageRecord(db, 'sources/example-deck').title, 'Example Brain Deck');
+    assert.equal(getPageRecord(db, 'sources/.raw/example-deck.pdf'), undefined);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
