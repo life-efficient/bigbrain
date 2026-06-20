@@ -222,26 +222,131 @@ async function handleRefreshTasks(global) {
 
 async function handleEval(args, global) {
   const subcommand = args[0];
-  if (subcommand !== 'retrieval') throw new Error('eval requires "retrieval".');
   const {
+    compareRetrievalEvalModes,
+    defaultPrivateRetrievalEvalCasesPath,
+    exportRetrievalEvalBaseline,
     loadRetrievalEvalCases,
+    maybeLoadDefaultPrivateRetrievalEvalCases,
+    renderRetrievalCompareText,
     runRetrievalEval,
     runRetrievalEvalOnConfig,
+    renderRetrievalEvalBaselineNdjson,
     renderRetrievalEvalText,
+    renderRetrievalReplayText,
+    replayRetrievalEvalBaseline,
   } = await import('./eval-retrieval.js');
-  const casesPath = argValue(args, '--cases');
-  const common = {
-    mode: argValue(args, '--mode') || undefined,
-    limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : undefined,
-  };
-  const report = casesPath
-    ? await runRetrievalEvalOnConfig({
+
+  if (subcommand === 'retrieval') {
+    const casesPath = argValue(args, '--cases');
+    const usePrivateDefault = args.includes('--private');
+    const loadedDefault = !casesPath && usePrivateDefault ? await maybeLoadDefaultPrivateRetrievalEvalCases() : null;
+    const common = {
+      mode: argValue(args, '--mode') || undefined,
+      limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : undefined,
+      failOnRegression: casesPath || loadedDefault ? args.includes('--fail-on-private-regression') : true,
+      redact: args.includes('--redact'),
+    };
+    const report = casesPath || loadedDefault
+      ? await runRetrievalEvalOnConfig({
+        config: await loadRuntimeConfig(global),
+        cases: casesPath ? await loadRetrievalEvalCases(casesPath) : loadedDefault.cases,
+        caseSource: casesPath ? 'external' : 'default-private',
+        ...common,
+      })
+      : await runRetrievalEval(common);
+    if (common.failOnRegression && !report.gates.passed) {
+      throw new Error(`Retrieval eval gates failed: ${report.gates.failures.length} failure(s).`);
+    }
+    output(global, report, renderRetrievalEvalText(report));
+    return;
+  }
+
+  if (subcommand === 'export') {
+    const cases = await loadEvalCasesForRealBrain({ args, loadRetrievalEvalCases, maybeLoadDefaultPrivateRetrievalEvalCases, defaultPrivateRetrievalEvalCasesPath });
+    const rows = await exportRetrievalEvalBaseline({
       config: await loadRuntimeConfig(global),
-      cases: await loadRetrievalEvalCases(casesPath),
-      ...common,
-    })
-    : await runRetrievalEval(common);
-  output(global, report, renderRetrievalEvalText(report));
+      cases: cases.cases,
+      caseSource: cases.source,
+      mode: argValue(args, '--mode') || undefined,
+      limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : undefined,
+      redact: args.includes('--redact'),
+    });
+    if (global.json) output(global, rows, renderRetrievalEvalBaselineNdjson(rows));
+    else process.stdout.write(renderRetrievalEvalBaselineNdjson(rows));
+    return;
+  }
+
+  if (subcommand === 'replay') {
+    const against = argValue(args, '--against') || args[1];
+    if (!against) throw new Error('eval replay requires --against <baseline.ndjson>.');
+    const report = await replayRetrievalEvalBaseline({
+      config: await loadRuntimeConfig(global),
+      baselinePath: against,
+      mode: argValue(args, '--mode') || null,
+      limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : null,
+      redact: args.includes('--redact'),
+    });
+    output(global, report, renderRetrievalReplayText(report));
+    return;
+  }
+
+  if (subcommand === 'compare') {
+    const casesPath = argValue(args, '--cases');
+    const modes = argValue(args, '--modes')
+      ? argValue(args, '--modes').split(',').map((mode) => mode.trim()).filter(Boolean)
+      : ['conservative', 'balanced', 'tokenmax'];
+    const common = {
+      modes,
+      limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : undefined,
+      failOnRegression: args.includes('--fail-on-private-regression'),
+      redact: args.includes('--redact'),
+    };
+    let report;
+    if (casesPath || args.includes('--private')) {
+      const cases = await loadEvalCasesForRealBrain({ args, loadRetrievalEvalCases, maybeLoadDefaultPrivateRetrievalEvalCases, defaultPrivateRetrievalEvalCasesPath });
+      report = await compareRetrievalEvalModes({
+        config: await loadRuntimeConfig(global),
+        cases: cases.cases,
+        caseSource: cases.source,
+        ...common,
+      });
+    } else {
+      const reports = [];
+      for (const mode of modes) reports.push(await runRetrievalEval({ mode, limit: common.limit, redact: common.redact }));
+      report = {
+        schema_version: 1,
+        suite: 'retrieval',
+        limit: common.limit ?? 5,
+        case_source: 'fixture',
+        modes: Object.fromEntries(reports.map((modeReport) => [modeReport.mode, {
+          metrics: modeReport.metrics,
+          family_metrics: modeReport.family_metrics,
+          gates: modeReport.gates,
+          warnings: modeReport.warnings,
+        }])),
+        reports,
+        _meta: reports[0]?._meta ?? {},
+      };
+    }
+    output(global, report, renderRetrievalCompareText(report, { markdown: args.includes('--markdown') }));
+    return;
+  }
+
+  throw new Error('eval requires "retrieval", "export", "replay", or "compare".');
+}
+
+async function loadEvalCasesForRealBrain({
+  args,
+  loadRetrievalEvalCases,
+  maybeLoadDefaultPrivateRetrievalEvalCases,
+  defaultPrivateRetrievalEvalCasesPath,
+}) {
+  const casesPath = argValue(args, '--cases');
+  if (casesPath) return { source: 'external', path: casesPath, cases: await loadRetrievalEvalCases(casesPath) };
+  const loaded = await maybeLoadDefaultPrivateRetrievalEvalCases();
+  if (loaded) return { source: 'default-private', ...loaded };
+  throw new Error(`No retrieval eval cases found. Pass --cases <path> or create ${defaultPrivateRetrievalEvalCasesPath()}.`);
 }
 
 async function handleDashboard(args, global) {
@@ -324,7 +429,10 @@ Commands:
   schema
   file <path-or-description>
   refresh-tasks
-  eval retrieval [--mode conservative|balanced|tokenmax] [--limit N] [--cases PATH]
+  eval retrieval [--mode conservative|balanced|tokenmax] [--limit N] [--cases PATH] [--private] [--redact]
+  eval export [--cases PATH] [--mode MODE] [--limit N] [--redact]
+  eval replay --against baseline.ndjson [--mode MODE] [--limit N]
+  eval compare [--cases PATH] [--modes conservative,balanced,tokenmax] [--markdown]
   dashboard [--port N]
   mcp [--host HOST] [--port N]
 

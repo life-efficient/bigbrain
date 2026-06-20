@@ -153,10 +153,13 @@ test('CLI runs deterministic retrieval evals', async () => {
   const json = await runNode(['./bin/bigbrain.js', 'eval', 'retrieval', '--json'], { cwd: process.cwd() });
   assert.equal(json.code, 0, json.stderr);
   const report = JSON.parse(json.stdout);
-  assert.equal(report.schema_version, 1);
+  assert.equal(report.schema_version, 2);
   assert.equal(report.mode, 'conservative');
   assert.equal(report.case_count >= 8, true);
   assert.equal(report.metrics.hit_at_1, report.case_count);
+  assert.equal(report.gates.passed, true);
+  assert.equal(report.family_metrics['alias-synonym'].hit_at_1, 2);
+  assert.equal(typeof report._meta.metric_glossary.mrr, 'string');
 });
 
 test('CLI retrieval eval can load private cases outside the repo', async () => {
@@ -195,6 +198,111 @@ Private eval retrieval target.
     assert.equal(report.case_source, 'external');
     assert.equal(report.metrics.hit_at_1, 1);
     assert.equal(report.results[0].expected_slug, 'people/private-eval');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('CLI retrieval eval supports default private cases, redaction, replay, and compare', async () => {
+  const fixture = await createFixture('bigbrain-private-eval-default-');
+  const homeDir = path.join(fixture.rootDir, 'home');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/private-eval.md', `---
+title: Private Eval
+---
+# Private Eval
+
+Private eval retrieval target.
+`);
+    await writeMarkdown(fixture.brainHome, 'notes/private-decoy.md', `---
+title: Private Decoy
+---
+# Private Decoy
+
+Private eval retrieval target decoy.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const defaultCasesPath = path.join(homeDir, '.config', 'bigbrain', 'evals', 'retrieval-cases.jsonl');
+    await fs.mkdir(path.dirname(defaultCasesPath), { recursive: true });
+    await fs.writeFile(defaultCasesPath, [
+      JSON.stringify({
+        id: 'private-target',
+        family: 'title-substring',
+        query: 'Private Eval',
+        expected_slug: 'people/private-eval',
+      }),
+      JSON.stringify({
+        id: 'private-negative',
+        family: 'hard-negative',
+        query: 'Private Decoy',
+        expected_slug: 'notes/private-decoy',
+        forbidden_slugs: ['people/private-eval'],
+      }),
+      '',
+    ].join('\n'), 'utf8');
+
+    const env = { HOME: homeDir };
+    const evalResult = await runNode([
+      './bin/bigbrain.js',
+      '--config',
+      fixture.configPath,
+      'eval',
+      'retrieval',
+      '--private',
+      '--redact',
+      '--json',
+    ], { cwd: process.cwd(), env });
+    assert.equal(evalResult.code, 0, evalResult.stderr);
+    const report = JSON.parse(evalResult.stdout);
+    assert.equal(report.case_source, 'default-private');
+    assert.equal(report.redacted, true);
+    assert.equal(report.results[0].query, null);
+    assert.equal(report.results[0].expected_slug.startsWith('slug-'), true);
+
+    const exported = await runNode([
+      './bin/bigbrain.js',
+      '--config',
+      fixture.configPath,
+      'eval',
+      'export',
+    ], { cwd: process.cwd(), env });
+    assert.equal(exported.code, 0, exported.stderr);
+    const baselinePath = path.join(fixture.rootDir, 'baseline.ndjson');
+    await fs.writeFile(baselinePath, exported.stdout, 'utf8');
+    const baselineRows = exported.stdout.trim().split('\n').map((line) => JSON.parse(line));
+    assert.equal(baselineRows.length, 2);
+    assert.equal(baselineRows[0].case_id, 'private-target');
+
+    const replay = await runNode([
+      './bin/bigbrain.js',
+      '--config',
+      fixture.configPath,
+      'eval',
+      'replay',
+      '--against',
+      baselinePath,
+      '--json',
+    ], { cwd: process.cwd(), env });
+    assert.equal(replay.code, 0, replay.stderr);
+    const replayReport = JSON.parse(replay.stdout);
+    assert.equal(replayReport.metrics.top1_stability_rate, 1);
+    assert.equal(replayReport.moved_queries.length, 0);
+
+    const compare = await runNode([
+      './bin/bigbrain.js',
+      '--config',
+      fixture.configPath,
+      'eval',
+      'compare',
+      '--private',
+      '--modes',
+      'conservative',
+      '--markdown',
+    ], { cwd: process.cwd(), env });
+    assert.equal(compare.code, 0, compare.stderr);
+    assert.match(compare.stdout, /\| Mode \| Hit@1 \| Hit@3 \| MRR \| Recall@k \| Gates \|/);
+    assert.match(compare.stdout, /\| conservative \|/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
