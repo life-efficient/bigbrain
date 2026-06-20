@@ -279,13 +279,17 @@ function DashboardApp() {
   }
 
   function openInboxItem(item) {
-    setActiveGraphSlug(item.slug || null);
-    setPreview({
-      status: 'ready',
-      slug: item.slug,
-      title: item.title,
-      markdown: item.markdown,
-    });
+    if (item?.slug) {
+      openPageBySlug(item.slug);
+      return;
+    }
+    setPreview({ status: 'ready', title: item?.title, markdown: item?.markdown });
+  }
+
+  function handlePreviewCardKeyDown(event, callback) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    callback();
   }
 
   const resolvedTheme = resolveThemeMode(themeMode, prefersDark);
@@ -383,11 +387,13 @@ function DashboardApp() {
                 <AssigneeFilter members={members} value={assigneeFilter} onChange={setAssigneeFilter} />
                 <div className="task-section">
                   {inboxItems.map((item) => (
-                    <button
+                    <div
                       key={item.slug}
-                      type="button"
                       className="task inbox-task-button"
+                      role="button"
+                      tabIndex={0}
                       onClick={() => openInboxItem(item)}
+                      onKeyDown={(event) => handlePreviewCardKeyDown(event, () => openInboxItem(item))}
                     >
                       <div className="inbox-card-head">
                         <strong>{item.title}</strong>
@@ -402,7 +408,7 @@ function DashboardApp() {
                           emptyLabel="Open to inspect full detail."
                         />
                       </div>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -416,11 +422,18 @@ function DashboardApp() {
                     <div key={section.heading} className="task-group">
                       <h3>{section.heading}</h3>
                       {section.items.map((item, index) => (
-                        <div key={`${section.heading}:${index}`} className={`task ${item.completed ? 'done' : ''}`}>
+                        <div
+                          key={`${section.heading}:${index}`}
+                          className={`task ${item.slug ? 'task-preview-button' : ''} ${item.completed ? 'done' : ''}`}
+                          role={item.slug ? 'button' : undefined}
+                          tabIndex={item.slug ? 0 : undefined}
+                          onClick={item.slug ? () => openPageBySlug(item.slug) : undefined}
+                          onKeyDown={item.slug ? (event) => handlePreviewCardKeyDown(event, () => openPageBySlug(item.slug)) : undefined}
+                        >
                           <AssigneePills assignees={item.assignees} invalidAssignees={item.invalid_assignees} />
                           <MarkdownDocument
                             markdown={stripSourceReferences(item.markdown)}
-                            sourceSlug={tasks.slug}
+                            sourceSlug={item.slug || tasks.slug}
                             onRelativeLinkClick={openPreview}
                           />
                         </div>

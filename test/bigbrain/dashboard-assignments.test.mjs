@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { buildInboxPayload, buildTasksPayload } from '../../src/bigbrain/dashboard.js';
+import { buildInboxPayload, buildPreviewPayload, buildTasksPayload } from '../../src/bigbrain/dashboard.js';
 import { openDatabase } from '../../src/bigbrain/db.js';
 import { upsertMember } from '../../src/bigbrain/members.js';
 
@@ -75,6 +75,48 @@ Task collection overview.
   }
 });
 
+test('dashboard task page items expose slugs for sidecar previews and relative links', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-task-links-');
+  let db;
+  try {
+    await writeMarkdown(fixture.brainHome, 'tasks/follow-up.md', `---
+title: Follow up with Ahmed
+status: open
+priority: p1
+---
+# Follow up with Ahmed
+
+Send the proposal to [Ahmed](../people/ahmed.md).
+`);
+    await writeMarkdown(fixture.brainHome, 'people/ahmed.md', `---
+title: Ahmed
+---
+# Ahmed
+
+Partner contact.
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    db = await openDatabase(config);
+
+    const payload = await buildTasksPayload(config, db);
+    const task = payload.sections.flatMap((section) => section.items)[0];
+    assert.equal(task.slug, 'tasks/follow-up');
+    assert.equal(task.markdown, 'Follow up with Ahmed');
+
+    const preview = await buildPreviewPayload(
+      config,
+      db,
+      new URL('/api/preview?from=tasks/follow-up&target=../people/ahmed.md', 'http://127.0.0.1'),
+    );
+    assert.equal(preview.slug, 'people/ahmed');
+    assert.equal(preview.title, 'Ahmed');
+  } finally {
+    await db?.close?.();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('dashboard inbox payload exposes member-backed assignees', async () => {
   const fixture = await createFixture('bigbrain-dashboard-inbox-assignments-');
   let db;
@@ -91,6 +133,10 @@ Needs sorting.
     await writeMarkdown(fixture.brainHome, 'inbox/filing.md', `# Inbox Filing
 
 Guidance for inbox handling.
+`);
+    await writeMarkdown(fixture.brainHome, 'inbox/README.md', `# Inbox
+
+Collection overview.
 `);
     const config = await loadConfig({ configPath: fixture.configPath });
     db = await openDatabase(config);

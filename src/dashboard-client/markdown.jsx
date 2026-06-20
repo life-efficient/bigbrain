@@ -69,6 +69,7 @@ export function MarkdownDocument({ markdown, sourceSlug, onRelativeLinkClick, em
         const href = anchor?.getAttribute('href')?.trim();
         if (!href || !isRelativeMarkdownHref(href)) return;
         event.preventDefault();
+        event.stopPropagation();
         onRelativeLinkClick?.({ href, sourceSlug });
       }}
     >

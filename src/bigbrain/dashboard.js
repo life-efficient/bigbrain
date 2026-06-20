@@ -589,6 +589,10 @@ function renderAppHtml() {
       .task-group { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
       .task-group:first-child { border-top: 0; padding-top: 0; }
       .task { padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid rgba(148,163,184,0.16); line-height: 1.45; }
+      .task-preview-button { cursor: pointer; transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
+      .task-preview-button:hover { transform: translateY(-1px); box-shadow: 0 18px 36px rgba(0,0,0,0.18); border-color: rgba(255,255,255,0.16); }
+      .task-preview-button:focus-visible,
+      .inbox-task-button:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
       .task.done { opacity: 0.6; }
       .assignee-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 9px; }
       .assignee-pill { display: inline-flex; align-items: center; min-height: 22px; padding: 3px 8px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.18); background: rgba(255,255,255,0.05); color: var(--muted); font-size: 11px; font-weight: 700; }
@@ -821,7 +825,7 @@ export async function buildInboxPayload(config, db = null, requestUrl = new URL(
   const hasAssigneeFilter = requestUrl.searchParams.has('assignee');
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
-    if (entry.name.toLowerCase() === 'filing.md') continue;
+    if (isDocumentationMarkdownFile(entry.name)) continue;
     const fullPath = path.join(inboxDir, entry.name);
     const raw = await fs.readFile(fullPath, 'utf8');
     const slug = `inbox/${entry.name.replace(/\.md$/, '')}`;
@@ -893,7 +897,11 @@ async function listMarkdownFiles(dir) {
 }
 
 function isTaskDocumentationFile(fullPath) {
-  const basename = path.basename(fullPath).toLowerCase();
+  return isDocumentationMarkdownFile(path.basename(fullPath));
+}
+
+function isDocumentationMarkdownFile(filename) {
+  const basename = String(filename || '').toLowerCase();
   return basename === 'readme.md' || basename === 'filing.md';
 }
 
@@ -1007,7 +1015,7 @@ function extractInboxPreview(parsed) {
   return previewLines.join('\n\n').trim();
 }
 
-async function buildPreviewPayload(config, db, requestUrl) {
+export async function buildPreviewPayload(config, db, requestUrl) {
   const sourceSlug = requestUrl.searchParams.get('from')?.trim();
   const target = requestUrl.searchParams.get('target')?.trim();
   if (!sourceSlug || !target) throw new Error('Preview requires both from and target.');
