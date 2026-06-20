@@ -624,8 +624,18 @@ function renderAppHtml() {
       .sidecar-meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
       .sidecar-chip { display: inline-flex; align-items: center; min-height: 25px; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; }
       .sidecar-chip.strong { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.08); }
-      .sidecar-body { padding: 22px 28px 34px; display: grid; gap: 18px; }
-      .sidecar-summary { padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line); background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025)); color: var(--ink); line-height: 1.55; overflow-wrap: anywhere; }
+      .sidecar-body { padding: 18px 28px 34px; display: grid; gap: 16px; }
+      .sidecar-summary { color: var(--muted); overflow-wrap: anywhere; }
+      .sidecar-summary .tailwind-prose { font-size: 13px; line-height: 1.5; color: var(--muted); }
+      .sidecar-summary .tailwind-prose p,
+      .sidecar-summary .tailwind-prose ul,
+      .sidecar-summary .tailwind-prose ol,
+      .sidecar-summary .tailwind-prose blockquote { margin: 0 0 0.55em; }
+      .sidecar-summary .tailwind-prose > *:last-child { margin-bottom: 0; }
+      .sidecar-summary .tailwind-prose h1,
+      .sidecar-summary .tailwind-prose h2,
+      .sidecar-summary .tailwind-prose h3,
+      .sidecar-summary .tailwind-prose h4 { font-size: 13px; line-height: 1.45; margin: 0 0 0.4em; text-transform: none; letter-spacing: 0; color: var(--ink); }
       .sidecar-section { display: grid; gap: 11px; }
       .sidecar-section h3 { margin: 0; }
       .sidecar-link-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }

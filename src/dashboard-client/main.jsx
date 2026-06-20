@@ -660,7 +660,15 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen }) {
           {preview?.status === 'error' && <div className="empty-copy">{preview.message}</div>}
           {preview?.status === 'ready' ? (
             <>
-              {summary ? <div className="sidecar-summary">{summary}</div> : null}
+              {summary ? (
+                <div className="sidecar-summary">
+                  <MarkdownDocument
+                    markdown={summary}
+                    sourceSlug={preview.slug}
+                    onRelativeLinkClick={onRelativeLinkClick}
+                  />
+                </div>
+              ) : null}
               <div className={`sidecar-document ${hasLinks ? 'has-link-sections' : ''}`}>
                 <MarkdownDocument
                   markdown={preview.markdown}
