@@ -211,6 +211,11 @@ One page per organization.
     ]);
     assert.match(organizations.markdown, /One page per organization/);
     assert.equal(rules.result.structuredContent.raw_file_rules.create_with_page_tool, 'create_raw_file_with_page');
+    assert.match(rules.result.content[0].text, /Use deliverables\/.raw when the raw file is an owned output/);
+    assert.equal(
+      rules.result.structuredContent.raw_file_rules.examples.some((example) => example.raw_path.startsWith('deliverables/.raw/')),
+      true,
+    );
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

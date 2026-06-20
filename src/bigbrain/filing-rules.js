@@ -3,13 +3,13 @@ import path from 'node:path';
 
 const DEFAULT_RULES = {
   inbox: 'Temporary unsorted captures when no canonical home is clear yet.',
-  sources: 'Source documents, imports, raw evidence, transcripts, decks, reports, and source extracts.',
+  sources: 'Evidence, imported material, provenance records, transcripts, and source extracts.',
   people: 'One page per human being.',
   organizations: 'One page per institution, government body, university, vendor, company, advisory group, or other organization.',
   companies: 'One page per company or organization.',
   meetings: 'Specific meetings, calls, meeting prep, and transcripts.',
   initiatives: 'Active named workstreams or programs.',
-  deliverables: 'Concrete outputs such as reports, toolkits, course materials, workshop packs, declarations, episodes, calls, releases, and drafts.',
+  deliverables: 'Owned outputs such as reports, decks, PDFs, toolkits, course materials, workshop packs, declarations, episodes, calls, releases, and drafts.',
   concepts: 'Reusable concepts, frameworks, pillar notes, strategy, and mental models.',
   ops: 'Operating material such as roadmaps, tasks, contribution rules, server notes, MCP notes, and cross-workstream coordination.',
   archive: 'Historical or superseded material that should not stay active.',
@@ -24,14 +24,19 @@ export async function filingRulesForBrain({ config }) {
     guidance: [
       'Raw files are attachments, not canonical brain pages.',
       'For uploads such as PDFs, decks, screenshots, spreadsheets, and transcripts, create a markdown page and raw file together when the raw file has brain value.',
-      'Place the raw file under the same collection as the markdown page it supports.',
+      'Place the raw file under the same collection as the markdown page it supports, choosing the collection by artifact role rather than file type.',
       'Use sources/.raw for evidence-first uploads whose subject has not yet become another canonical entity.',
+      'Use deliverables/.raw when the raw file is an owned output being reviewed, sent, published, presented, or maintained as the deliverable itself.',
       'Raw uploads are limited to the configured raw_file_max_bytes value, 25 MiB by default; compress oversized files or store a summary/link instead.',
     ],
     examples: [
       {
-        raw_path: 'sources/.raw/example-strategic-initiatives-deck.pdf',
-        page_path: 'sources/example-strategic-initiatives-deck',
+        raw_path: 'sources/.raw/example-evidence-deck/example-evidence-deck.pdf',
+        page_path: 'sources/example-evidence-deck',
+      },
+      {
+        raw_path: 'deliverables/.raw/example-partner-brief/example-partner-brief.pdf',
+        page_path: 'deliverables/example-partner-brief',
       },
       {
         raw_path: 'meetings/.raw/unesco-workshop-sync/transcript.txt',
