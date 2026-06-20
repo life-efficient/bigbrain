@@ -332,7 +332,7 @@ function DashboardApp() {
 
   return (
     <GraphThemeProvider resolvedTheme={resolvedTheme}>
-      <div className={`page-shell theme-${resolvedTheme} ${preview ? 'preview-open' : ''}`} data-theme-mode={themeMode}>
+      <div className={`page-shell theme-${resolvedTheme} view-${view} ${preview ? 'preview-open' : ''}`} data-theme-mode={themeMode}>
         <main>
           <div className="topline">
             <div className="topline-brand" aria-hidden="true" />

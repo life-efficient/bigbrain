@@ -430,9 +430,13 @@ function renderAppHtml() {
       .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 20px; box-shadow: var(--shadow-soft); backdrop-filter: blur(10px); }
       .view-stage { flex: 1; min-height: 0; width: 100%; }
       .view-stage-list { display: flex; justify-content: center; }
+      .view-inbox.preview-open .view-stage-list,
+      .view-tasks.preview-open .view-stage-list { justify-content: flex-start; }
       .view-stage-graph { display: block; }
       .hero-card { min-height: 0; height: 100%; display: flex; flex-direction: column; min-width: 0; border: 0; background: transparent; box-shadow: none; backdrop-filter: none; padding: 0; }
       .list-page-card { width: min(760px, 100%); max-width: 760px; margin: 0 auto; }
+      .view-inbox.preview-open .list-page-card,
+      .view-tasks.preview-open .list-page-card { width: 100%; max-width: none; margin: 0; }
       .list-scroll-region { flex: 1; min-height: 0; overflow: auto; padding-right: 4px; }
       .standalone-list-region { height: 100%; overflow: auto; padding-right: 4px; }
       .loading-card { min-height: 180px; display: grid; gap: 10px; align-content: center; }
@@ -740,6 +744,8 @@ function renderAppHtml() {
         .graph-style-menu, .graph-filter-menu { right: 0; left: auto; }
         .view-stage-list { justify-content: center; }
         .list-page-card { width: 100%; max-width: 760px; }
+        .view-inbox.preview-open .list-page-card,
+        .view-tasks.preview-open .list-page-card { max-width: 760px; margin: 0 auto; }
         .topline { grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; justify-items: initial; }
         .topline-brand { justify-self: start; }
         .view-nav-header { justify-self: center; justify-content: center; }
