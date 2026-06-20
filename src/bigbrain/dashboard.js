@@ -642,6 +642,13 @@ function renderAppHtml() {
       .explorer-viewer { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg); }
       .explorer-viewer.empty { place-items: center; display: grid; }
       .explorer-viewer-head { min-width: 0; min-height: 48px; padding: 10px 14px; border-bottom: 1px solid var(--line); display: grid; align-content: center; gap: 3px; }
+      .explorer-viewer-path-row { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
+      .explorer-viewer-actions { display: inline-flex; align-items: center; gap: 6px; }
+      .explorer-header-button { width: 30px; height: 30px; box-shadow: none; color: var(--muted); }
+      .explorer-header-button:hover,
+      .explorer-header-button:focus-visible,
+      .explorer-header-button.copied { color: var(--accent-strong); border-color: var(--accent-strong); background: rgba(125,211,252,0.12); }
+      .explorer-header-button svg { width: 15px; height: 15px; }
       .explorer-viewer-head strong,
       .explorer-viewer-head .meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .explorer-viewer-body { min-height: 0; overflow: auto; padding: 18px 20px; }

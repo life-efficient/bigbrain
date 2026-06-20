@@ -970,6 +970,35 @@ function ExplorerTreeNode({ node, depth, openPaths, selectedPath, onToggle, onOp
 
 function ExplorerViewer({ fileState, onRelativeLinkClick }) {
   const file = fileState.file;
+  const [copiedPath, setCopiedPath] = useState(false);
+  const copyResetTimerRef = useRef(null);
+  useEffect(() => {
+    setCopiedPath(false);
+    if (copyResetTimerRef.current) {
+      clearTimeout(copyResetTimerRef.current);
+      copyResetTimerRef.current = null;
+    }
+    return () => {
+      if (copyResetTimerRef.current) {
+        clearTimeout(copyResetTimerRef.current);
+        copyResetTimerRef.current = null;
+      }
+    };
+  }, [file?.path]);
+  async function copyFilePath() {
+    if (!file?.path) return;
+    try {
+      await copyTextToClipboard(file.path);
+      setCopiedPath(true);
+      if (copyResetTimerRef.current) clearTimeout(copyResetTimerRef.current);
+      copyResetTimerRef.current = window.setTimeout(() => {
+        setCopiedPath(false);
+        copyResetTimerRef.current = null;
+      }, 1200);
+    } catch (error) {
+      console.warn('Unable to copy file path', error);
+    }
+  }
   if (fileState.status === 'idle') {
     return (
       <div className="explorer-viewer empty">
@@ -996,7 +1025,29 @@ function ExplorerViewer({ fileState, onRelativeLinkClick }) {
     <div className="explorer-viewer">
       <div className="explorer-viewer-head">
         <strong>{file.name || file.path}</strong>
-        <span className="meta">{file.path}</span>
+        <div className="explorer-viewer-path-row">
+          <span className="meta">{file.path}</span>
+          <div className="explorer-viewer-actions" aria-label="File actions">
+            <button
+              type="button"
+              className={`icon-button explorer-header-button ${copiedPath ? 'copied' : ''}`}
+              onClick={copyFilePath}
+              aria-label="Copy file path"
+              title={copiedPath ? 'Copied' : 'Copy file path'}
+            >
+              <CopyIcon />
+            </button>
+            <a
+              className="icon-button explorer-header-button"
+              href={file.blob_url}
+              download={file.name || ''}
+              aria-label="Download file"
+              title="Download file"
+            >
+              <DownloadIcon />
+            </a>
+          </div>
+        </div>
       </div>
       <div className="explorer-viewer-body">
         {file.kind === 'markdown' ? (
@@ -1038,6 +1089,25 @@ function ExplorerViewer({ fileState, onRelativeLinkClick }) {
       </div>
     </div>
   );
+}
+
+async function copyTextToClipboard(value) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(value);
+    return;
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = value;
+  textarea.setAttribute('readonly', '');
+  textarea.style.position = 'fixed';
+  textarea.style.left = '-9999px';
+  try {
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+  } finally {
+    document.body.removeChild(textarea);
+  }
 }
 
 function fileGlyph(node) {
@@ -1363,6 +1433,25 @@ function FilterIcon() {
         strokeWidth="2"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function CopyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <rect x="9" y="9" width="10" height="10" rx="2" fill="none" stroke="currentColor" strokeWidth="2" />
+      <path d="M5 15V7a2 2 0 0 1 2-2h8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function DownloadIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 3v11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="m7 10 5 5 5-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 20h14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </svg>
   );
 }
