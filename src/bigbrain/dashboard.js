@@ -583,8 +583,9 @@ function renderAppHtml() {
       .inbox-card-summary .tailwind-prose blockquote { margin: 0 0 0.45em; }
       .task-section, .inbox-list, .recent-list, .health-list { display: grid; gap: 12px; }
       .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
-      .filter-chip { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; min-height: 32px; padding: 7px 11px; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
-      .filter-chip.active { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.09); }
+      .filter-label { color: var(--muted); font-size: 12px; font-weight: 700; }
+      .filter-select { min-height: 34px; max-width: min(100%, 280px); border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 6px 34px 6px 10px; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; }
+      .filter-select:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
       .task-section-compact .task { padding: 10px 12px; }
       .task-group { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
       .task-group:first-child { border-top: 0; padding-top: 0; }
@@ -752,6 +753,7 @@ export async function buildTasksPayload(config, db = null, requestUrl = new URL(
   if (taskPages.length > 0) {
     const activeMembers = db ? await listActiveMembers(db) : [];
     const activeMemberMap = memberMapByPersonSlug(activeMembers);
+    const currentMember = await resolveCurrentMember(db, actor);
     const requestedAssignee = await resolveRequestedAssignee(db, requestUrl, actor);
     const hasAssigneeFilter = requestUrl.searchParams.has('assignee');
     const filteredPages = hasAssigneeFilter
@@ -769,6 +771,7 @@ export async function buildTasksPayload(config, db = null, requestUrl = new URL(
       filters: {
         assignee: requestedAssignee?.person_slug || null,
         actor_email: actor?.email || null,
+        current_member: currentMember,
       },
       sections,
       meta: {
@@ -805,7 +808,11 @@ export async function buildTasksPayload(config, db = null, requestUrl = new URL(
     markdown,
     source: 'legacy_tasks_file',
     members: db ? await listActiveMembers(db) : [],
-    filters: { assignee: null, actor_email: actor?.email || null },
+    filters: {
+      assignee: null,
+      actor_email: actor?.email || null,
+      current_member: await resolveCurrentMember(db, actor),
+    },
     sections,
     meta: {
       open_tasks: sections.flatMap((section) => section.items).filter((item) => !item.completed).length,
@@ -821,6 +828,7 @@ export async function buildInboxPayload(config, db = null, requestUrl = new URL(
   const items = [];
   const activeMembers = db ? await listActiveMembers(db) : [];
   const activeMemberMap = memberMapByPersonSlug(activeMembers);
+  const currentMember = await resolveCurrentMember(db, actor);
   const requestedAssignee = await resolveRequestedAssignee(db, requestUrl, actor);
   const hasAssigneeFilter = requestUrl.searchParams.has('assignee');
   for (const entry of entries) {
@@ -850,6 +858,7 @@ export async function buildInboxPayload(config, db = null, requestUrl = new URL(
     filters: {
       assignee: requestedAssignee?.person_slug || null,
       actor_email: actor?.email || null,
+      current_member: currentMember,
     },
     items,
   };
@@ -944,6 +953,11 @@ async function resolveRequestedAssignee(db, requestUrl, actor) {
     return findActiveMemberByEmail(db, actor.email);
   }
   return null;
+}
+
+async function resolveCurrentMember(db, actor) {
+  if (!db || !actor?.email) return null;
+  return findActiveMemberByEmail(db, actor.email);
 }
 
 function resolveAssignees(assigneeSlugs, activeMemberMap) {

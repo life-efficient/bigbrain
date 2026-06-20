@@ -72,6 +72,7 @@ function DashboardApp() {
   const [healthOpen, setHealthOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [assigneeFilter, setAssigneeFilter] = useState('');
+  const defaultAssigneeAppliedRef = useRef(false);
   const visualizerRef = useRef(null);
   const healthMenuRef = useRef(null);
   const settingsMenuRef = useRef(null);
@@ -92,6 +93,13 @@ function DashboardApp() {
           fetchJson('/api/explorer/tree'),
         ]);
         if (cancelled) return;
+        const currentMemberSlug = tasks?.filters?.current_member?.person_slug || inbox?.filters?.current_member?.person_slug || '';
+        if (!defaultAssigneeAppliedRef.current && !assigneeFilter && currentMemberSlug) {
+          defaultAssigneeAppliedRef.current = true;
+          setAssigneeFilter(currentMemberSlug);
+          return;
+        }
+        defaultAssigneeAppliedRef.current = true;
         setState({
           status: 'ready',
           error: null,
@@ -616,23 +624,20 @@ function AssigneeFilter({ members, value, onChange }) {
   if (!members.length) return null;
   return (
     <div className="filter-bar" aria-label="Assignee filter">
-      <button
-        type="button"
-        className={`filter-chip ${value === '' ? 'active' : ''}`}
-        onClick={() => onChange('')}
+      <label className="filter-label" htmlFor="assignee-filter">Member</label>
+      <select
+        id="assignee-filter"
+        className="filter-select"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
       >
-        All
-      </button>
-      {members.map((member) => (
-        <button
-          key={member.person_slug}
-          type="button"
-          className={`filter-chip ${value === member.person_slug ? 'active' : ''}`}
-          onClick={() => onChange(member.person_slug)}
-        >
-          {member.name || member.person_slug}
-        </button>
-      ))}
+        <option value="">All members</option>
+        {members.map((member) => (
+          <option key={member.person_slug} value={member.person_slug}>
+            {member.name || member.person_slug}
+          </option>
+        ))}
+      </select>
     </div>
   );
 }

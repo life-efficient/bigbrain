@@ -66,6 +66,11 @@ Task collection overview.
     assert.deepEqual(filtered.sections.flatMap((section) => section.items).map((item) => item.slug), ['tasks/follow-up']);
     assert.equal(filtered.sections[0].items[0].assignees[0].email, 'hani@example.com');
 
+    const currentUser = await buildTasksPayload(config, db, new URL('/api/tasks', 'http://127.0.0.1'), {
+      actor: { email: 'hani@example.com', name: 'Hani' },
+    });
+    assert.equal(currentUser.filters.current_member.person_slug, 'people/hani');
+
     const unknown = await buildTasksPayload(config, db, new URL('/api/tasks?assignee=people/external-advisor', 'http://127.0.0.1'));
     assert.deepEqual(unknown.sections, []);
     assert.equal(unknown.meta.open_tasks, 0);
@@ -151,6 +156,11 @@ Collection overview.
     assert.deepEqual(payload.items.map((item) => item.slug), ['inbox/raw-note']);
     assert.deepEqual(payload.items[0].assignees.map((member) => member.person_slug), ['people/hani']);
     assert.deepEqual(payload.items[0].invalid_assignees, ['people/unknown']);
+
+    const currentUser = await buildInboxPayload(config, db, new URL('/api/inbox', 'http://127.0.0.1'), {
+      actor: { email: 'hani@example.com', name: 'Hani' },
+    });
+    assert.equal(currentUser.filters.current_member.person_slug, 'people/hani');
 
     const unknown = await buildInboxPayload(config, db, new URL('/api/inbox?assignee=people/unknown', 'http://127.0.0.1'));
     assert.deepEqual(unknown.items, []);
