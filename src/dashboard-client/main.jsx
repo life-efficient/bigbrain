@@ -803,6 +803,8 @@ function ExplorerPanel({ explorer }) {
   const [openPaths, setOpenPaths] = useState(() => new Set(['']));
   const [selectedPath, setSelectedPath] = useState('');
   const [fileState, setFileState] = useState({ status: 'idle', file: null, error: null });
+  const [treeWidth, setTreeWidth] = useState(310);
+  const shellRef = useRef(null);
 
   const openFilePath = useEffectEvent(async (filePath, fallback = {}) => {
     if (!filePath) return;
@@ -853,6 +855,30 @@ function ExplorerPanel({ explorer }) {
     });
   }
 
+  function resizeExplorerTree(event) {
+    event.preventDefault();
+    const shell = shellRef.current;
+    const bounds = shell?.getBoundingClientRect();
+    const startX = event.clientX;
+    const startWidth = treeWidth;
+    const maxWidth = bounds ? Math.max(220, Math.min(560, bounds.width - 360)) : 560;
+
+    function handlePointerMove(moveEvent) {
+      const nextWidth = clamp(startWidth + moveEvent.clientX - startX, 220, maxWidth);
+      setTreeWidth(nextWidth);
+    }
+
+    function handlePointerUp() {
+      document.body.classList.remove('explorer-resizing');
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    }
+
+    document.body.classList.add('explorer-resizing');
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', handlePointerUp);
+  }
+
   if (!root) {
     return (
       <section className="explorer-shell">
@@ -862,7 +888,11 @@ function ExplorerPanel({ explorer }) {
   }
 
   return (
-    <section className="explorer-shell">
+    <section
+      className="explorer-shell"
+      ref={shellRef}
+      style={{ '--explorer-tree-width': `${treeWidth}px` }}
+    >
       <div className="explorer-tree" aria-label="Brain file explorer">
         <div className="explorer-tree-head">Explorer</div>
         <ExplorerTreeNode
@@ -874,6 +904,19 @@ function ExplorerPanel({ explorer }) {
           onOpenFile={openFile}
         />
       </div>
+      <div
+        className="explorer-resizer"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize file list"
+        tabIndex={0}
+        onPointerDown={resizeExplorerTree}
+        onKeyDown={(event) => {
+          if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+          event.preventDefault();
+          setTreeWidth((current) => clamp(current + (event.key === 'ArrowRight' ? 24 : -24), 220, 560));
+        }}
+      />
       <ExplorerViewer
         fileState={fileState}
         onRelativeLinkClick={openExplorerLink}
@@ -992,6 +1035,10 @@ function fileGlyph(node) {
   if (node.kind === 'image') return 'I';
   if (node.kind === 'text') return 'T';
   return '•';
+}
+
+function clamp(value, min, max) {
+  return Math.min(Math.max(value, min), max);
 }
 
 const GraphPanel = memo(function GraphPanel({

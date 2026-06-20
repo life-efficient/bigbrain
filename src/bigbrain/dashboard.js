@@ -622,8 +622,15 @@ function renderAppHtml() {
       .health-item.medium { border-color: rgba(188,123,77,0.35); }
       .card-copy { margin-top: 8px; line-height: 1.5; color: var(--ink); }
       .schema { white-space: pre-wrap; font-size: 12px; line-height: 1.5; max-height: 360px; overflow: auto; }
-      .explorer-shell { height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(220px, 310px) minmax(0, 1fr); border: 1px solid var(--line); background: var(--panel); overflow: hidden; }
-      .explorer-tree { min-height: 0; overflow: auto; border-right: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 92%, #000 8%); padding: 8px 0 12px; }
+      .explorer-shell { --explorer-tree-width: 310px; height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(220px, var(--explorer-tree-width)) 8px minmax(0, 1fr); border: 1px solid var(--line); background: var(--panel); overflow: hidden; }
+      .explorer-tree { min-height: 0; overflow: auto; background: color-mix(in srgb, var(--panel) 92%, #000 8%); padding: 8px 0 12px; }
+      .explorer-resizer { min-height: 0; cursor: col-resize; border-left: 1px solid var(--line); border-right: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 86%, #000 14%); position: relative; }
+      .explorer-resizer::after { content: ""; position: absolute; top: 50%; left: 50%; width: 2px; height: 42px; border-radius: 999px; background: rgba(148,163,184,0.28); transform: translate(-50%, -50%); }
+      .explorer-resizer:hover,
+      .explorer-resizer:focus-visible { background: rgba(125,211,252,0.16); outline: none; }
+      .explorer-resizer:hover::after,
+      .explorer-resizer:focus-visible::after { background: var(--accent-strong); }
+      body.explorer-resizing { cursor: col-resize; user-select: none; }
       .explorer-tree-head { height: 32px; display: flex; align-items: center; padding: 0 12px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
       .explorer-row { width: 100%; min-width: 0; height: 26px; padding: 0 10px 0 calc(10px + var(--depth, 0) * 14px); border: 0; background: transparent; color: var(--muted); display: grid; grid-template-columns: 14px 18px minmax(0, 1fr); align-items: center; gap: 4px; text-align: left; font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; }
       .explorer-row:hover { background: rgba(255,255,255,0.05); color: var(--ink); }
