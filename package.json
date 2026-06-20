@@ -20,6 +20,7 @@
     "test": "node --test test/bigbrain/*.test.mjs"
   },
   "dependencies": {
+    "@radix-ui/react-select": "^2.2.6",
     "@tiptap/extension-link": "^3.23.5",
     "@tiptap/extension-table": "^3.23.5",
     "@tiptap/extension-table-cell": "^3.23.5",
