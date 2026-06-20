@@ -1,5 +1,6 @@
 import React, { forwardRef, useId, useMemo, useState } from 'react';
 
+import { getGraphNodeColor } from './colors.js';
 import {
   buildCurvedEdgePath,
   buildJarvisLayout,
@@ -28,6 +29,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   arcStyle = 'straight',
   layoutStyle = 'orbital',
   labelStyle = 'selected',
+  colorMode = 'updated',
   activeSlug = null,
   onActiveSlugChange,
 }, ref) {
@@ -82,6 +84,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
           <ArcLayer arcStyle={arcStyle} laidOut={laidOut} theme={theme} />
           <NodeLayer
             nodeStyle={nodeStyle}
+            colorMode={colorMode}
             laidOut={laidOut}
             theme={theme}
             onNodeOpen={onNodeOpen}
@@ -257,6 +260,7 @@ function ArcLayer({ arcStyle, laidOut, theme }) {
 
 function NodeLayer({
   nodeStyle,
+  colorMode,
   laidOut,
   theme,
   onNodeOpen,
@@ -287,13 +291,14 @@ function NodeLayer({
       }}
       style={{ cursor: 'pointer' }}
     >
-      {renderNodeShape(node, nodeStyle, theme, activeSlug === node.slug || hoveredSlug === node.slug)}
+      {renderNodeShape(node, nodeStyle, theme, activeSlug === node.slug || hoveredSlug === node.slug, colorMode)}
     </g>
   ));
 }
 
-function renderNodeShape(node, nodeStyle, theme, emphasized) {
+function renderNodeShape(node, nodeStyle, theme, emphasized, colorMode) {
   const hitRadius = Math.max(14, node.radius * 2.9);
+  const nodeColor = getGraphNodeColor(node, colorMode);
   if (nodeStyle === 'diamond') {
     const outer = node.radius * 2.2;
     const inner = Math.max(1.8, node.radius * 0.38);
@@ -328,7 +333,7 @@ function renderNodeShape(node, nodeStyle, theme, emphasized) {
           transform={`rotate(45 ${node.x} ${node.y})`}
           opacity={emphasized ? '0.82' : '0.52'}
         />
-        <circle cx={node.x} cy={node.y} r={inner} fill={theme.accentStrong} />
+        <circle cx={node.x} cy={node.y} r={inner} fill={nodeColor} />
       </>
     );
   }
@@ -348,7 +353,7 @@ function renderNodeShape(node, nodeStyle, theme, emphasized) {
         />
         <path d={d} fill="none" stroke={theme.graphNodeStroke} strokeWidth={emphasized ? '1.5' : '1'} />
         <path d={buildHexPath(node.x, node.y, side * 0.72)} fill="none" stroke={theme.graphGrid} strokeWidth="1" opacity={emphasized ? '0.64' : '0.34'} />
-        <circle cx={node.x} cy={node.y} r={Math.max(1.8, node.radius * 0.32)} fill={theme.accentStrong} />
+        <circle cx={node.x} cy={node.y} r={Math.max(1.8, node.radius * 0.32)} fill={nodeColor} />
       </>
     );
   }
@@ -380,7 +385,7 @@ function renderNodeShape(node, nodeStyle, theme, emphasized) {
         strokeWidth="1"
         opacity={emphasized ? '0.78' : '0.48'}
       />
-      <circle cx={node.x} cy={node.y} r={Math.max(1.8, node.radius * 0.4)} fill={theme.accentStrong} />
+      <circle cx={node.x} cy={node.y} r={Math.max(1.8, node.radius * 0.4)} fill={nodeColor} />
     </>
   );
 }

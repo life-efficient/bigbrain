@@ -13,6 +13,7 @@ export const GRAPH_DEFAULTS = {
   arcStyle: 'curve',
   layoutStyle: 'lanes',
   labelStyle: 'off',
+  colorMode: 'updated',
 };
 
 export const GRAPH_NODE_STYLES = [
@@ -37,6 +38,11 @@ export const GRAPH_LABEL_STYLES = [
   { id: 'selected', label: 'Key' },
   { id: 'all', label: 'All' },
   { id: 'off', label: 'Off' },
+];
+
+export const GRAPH_COLOR_MODES = [
+  { id: 'updated', label: 'Updated' },
+  { id: 'type', label: 'Type' },
 ];
 
 export const graphVisualizers = [

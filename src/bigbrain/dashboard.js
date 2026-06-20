@@ -1066,6 +1066,7 @@ export async function buildGraphPayload(db) {
       slug: page.slug,
       title: page.title,
       type: page.type,
+      updated_at: page.updated_at,
       degree: outgoing.length + backlinks.length,
       outgoing,
     };
@@ -1091,6 +1092,7 @@ export async function buildGraphPayload(db) {
       slug: node.slug,
       title: node.title,
       type: node.type,
+      updated_at: node.updated_at,
       degree: node.degree,
     })),
     edges,

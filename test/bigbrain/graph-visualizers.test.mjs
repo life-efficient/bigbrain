@@ -6,6 +6,7 @@ import {
   buildNeuralMeshLayout,
   buildSignalBloomLayout,
 } from '../../src/dashboard-client/graph/shared.js';
+import { getUpdatedNodeColor } from '../../src/dashboard-client/graph/colors.js';
 import { resolveThemeMode } from '../../src/dashboard-client/graph/theme.js';
 
 test('resolveThemeMode respects auto and manual modes', () => {
@@ -13,6 +14,19 @@ test('resolveThemeMode respects auto and manual modes', () => {
   assert.equal(resolveThemeMode('auto', false), 'light');
   assert.equal(resolveThemeMode('dark', false), 'dark');
   assert.equal(resolveThemeMode('light', true), 'light');
+});
+
+test('updated node colors use acid green on a five-day eased scale', () => {
+  const now = Date.parse('2026-06-21T12:00:00.000Z');
+
+  assert.equal(getUpdatedNodeColor('2026-06-21T12:00:00.000Z', now), '#00FF66');
+  assert.equal(getUpdatedNodeColor('2026-06-16T12:00:00.000Z', now), '#FFFFFF');
+  assert.equal(getUpdatedNodeColor(null, now), '#FFFFFF');
+
+  const midpoint = getUpdatedNodeColor('2026-06-18T12:00:00.000Z', now);
+  assert.match(midpoint, /^#[0-9A-F]{6}$/);
+  assert.notEqual(midpoint, '#00FF66');
+  assert.notEqual(midpoint, '#FFFFFF');
 });
 
 test('graph layouts safely handle empty and single-node graphs', () => {

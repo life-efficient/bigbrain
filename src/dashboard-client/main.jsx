@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { TYPE_ORDER } from './graph/colors.js';
 import {
   GRAPH_ARC_STYLES,
+  GRAPH_COLOR_MODES,
   GRAPH_CONTROL_LABELS,
   GRAPH_DEFAULTS,
   GRAPH_LABEL_STYLES,
@@ -63,6 +64,7 @@ function DashboardApp() {
   const [arcStyle, setArcStyle] = useState(GRAPH_DEFAULTS.arcStyle);
   const [layoutStyle, setLayoutStyle] = useState(GRAPH_DEFAULTS.layoutStyle);
   const [labelStyle, setLabelStyle] = useState(GRAPH_DEFAULTS.labelStyle);
+  const [colorMode, setColorMode] = useState(GRAPH_DEFAULTS.colorMode);
   const [themeMode, setThemeMode] = useState('auto');
   const [prefersDark, setPrefersDark] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -437,6 +439,8 @@ function DashboardApp() {
                 setLayoutStyle={setLayoutStyle}
                 labelStyle={labelStyle}
                 setLabelStyle={setLabelStyle}
+                colorMode={colorMode}
+                setColorMode={setColorMode}
                 visualizerRef={visualizerRef}
                 activeSlug={activeGraphSlug}
                 onActiveSlugChange={setActiveGraphSlug}
@@ -709,6 +713,8 @@ const GraphPanel = memo(function GraphPanel({
   setLayoutStyle,
   labelStyle,
   setLabelStyle,
+  colorMode,
+  setColorMode,
   visualizerRef,
   activeSlug,
   onActiveSlugChange,
@@ -801,6 +807,7 @@ const GraphPanel = memo(function GraphPanel({
           arcStyle={arcStyle}
           layoutStyle={layoutStyle}
           labelStyle={labelStyle}
+          colorMode={colorMode}
           activeSlug={activeSlug}
           onActiveSlugChange={onActiveSlugChange}
         />
@@ -894,6 +901,12 @@ const GraphPanel = memo(function GraphPanel({
                   options={GRAPH_LAYOUT_STYLES}
                   onSelect={setLayoutStyle}
                   disabled={!isCustomRenderer}
+                />
+                <GraphStyleOptionGroup
+                  label="Color"
+                  value={colorMode}
+                  options={GRAPH_COLOR_MODES}
+                  onSelect={setColorMode}
                 />
                 <GraphStyleOptionGroup
                   label="Labels"

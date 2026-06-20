@@ -1,10 +1,10 @@
 import React, { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useRef } from 'react';
 import { Network } from 'vis-network/standalone';
 
-import { TYPE_COLORS } from './colors.js';
+import { TYPE_COLORS, getGraphNodeColor } from './colors.js';
 import { useGraphTheme } from './visualizer-core.jsx';
 
-export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ graph, onNodeOpen, activeSlug, onActiveSlugChange }, ref) {
+export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ graph, onNodeOpen, activeSlug, onActiveSlugChange, colorMode = 'updated' }, ref) {
   const theme = useGraphTheme();
   const canvasRef = useRef(null);
   const networkRef = useRef(null);
@@ -57,6 +57,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
           title: `${node.title} (${node.type})`,
           group: node.type,
           value: Math.max(8, node.degree || 1),
+          color: resolveNodeNetworkColor(node, colorMode, theme),
         })),
         edges: graph.edges.map((edge) => ({
           from: edge.source,
@@ -157,7 +158,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
       network.destroy();
       networkRef.current = null;
     };
-  }, [graph, handleNodeOpen, onActiveSlugChange, theme.graphEdge, theme.graphEdgeStrong, theme.graphHalo, theme.graphLabel, theme.graphNodeStroke]);
+  }, [colorMode, graph, handleNodeOpen, onActiveSlugChange, theme.graphEdge, theme.graphEdgeStrong, theme.graphHalo, theme.graphLabel, theme.graphNodeStroke]);
 
   useEffect(() => {
     const network = networkRef.current;
@@ -178,3 +179,19 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
     </div>
   );
 });
+
+function resolveNodeNetworkColor(node, colorMode, theme) {
+  const color = getGraphNodeColor(node, colorMode);
+  return {
+    background: color,
+    border: theme.graphNodeStroke,
+    highlight: {
+      background: color,
+      border: theme.graphNodeStroke,
+    },
+    hover: {
+      background: color,
+      border: theme.graphNodeStroke,
+    },
+  };
+}

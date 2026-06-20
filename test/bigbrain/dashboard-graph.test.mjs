@@ -27,6 +27,7 @@ test('dashboard graph excludes root infrastructure files from nodes and types', 
     assert.deepEqual([...new Set(graph.nodes.map((node) => node.type))].sort(), ['people', 'projects']);
     assert.equal(graph.meta.page_count, 2);
     assert.equal(graph.meta.node_count, 2);
+    assert.match(graph.nodes[0].updated_at, /^\d{4}-\d{2}-\d{2}T/);
     assert.deepEqual(graph.edges, [
       { source: 'people/alice', target: 'projects/relay' },
       { source: 'projects/relay', target: 'people/alice' },

@@ -17,6 +17,7 @@ export function normalizeGraph(graph, { width = GRAPH_LAYOUT_SIZE.width, height 
     slug: node.slug,
     title: node.title || node.slug,
     type: node.type || 'unknown',
+    updated_at: node.updated_at || null,
     degree: Number.isFinite(node.degree) ? node.degree : 0,
     index,
     radius: getNodeRadius(node.degree),
