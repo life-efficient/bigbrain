@@ -2,26 +2,14 @@
 
 ## Roadmap
 
-- Keep `bigbrain` as the primary local-first personal knowledge runtime.
-- Keep BigBrain as a knowledge service agents visit, not the runtime where
-  agents live.
-- Keep BigBrain OpenAI-first for embeddings, grounded query, and future
-  enrichment defaults.
-- Keep brain data outside the BigBrain source repo by default.
 - Continue moving toward a package layout with clearer command, indexing,
   storage, search, and automation boundaries.
-- Keep SQLite as the local database default unless a concrete production need
-  requires Postgres.
-- Keep markdown as the source of truth, with SQLite as the derived index.
-- Keep the built-in dashboard lightweight, polished, and operational.
 - Add migration support for existing markdown brain corpora.
 
 ## Hosted Brain Service
 
 - Add a generic Postgres storage adapter behind `DATABASE_URL`, with pgvector
   support for embeddings.
-- Keep the Postgres adapter provider-neutral so it can target local Postgres,
-  Railway Postgres, Supabase Postgres, or another standard Postgres service.
 - Store hosted MCP OAuth clients, grants, sessions, token hashes, sync runs,
   embeddings, and audit logs in durable storage rather than app-container files.
 - Define remote-safe MCP tools separately from admin/maintenance tools.
