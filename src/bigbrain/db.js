@@ -223,7 +223,7 @@ export async function initializePostgresSchema(db) {
 export async function replacePageIndex(db, page) {
   if (db.backend === 'postgres') {
     const now = new Date().toISOString();
-    const updatedAt = page.updatedAt || now;
+    const updatedAt = await resolvePageUpdatedAt(page, now);
     await db.query(`
       INSERT INTO pages (
         slug, path, type, title, summary, frontmatter_json, compiled_truth, timeline,
@@ -262,7 +262,7 @@ export async function replacePageIndex(db, page) {
 
   const raw = unwrapSqlite(db);
   const now = new Date().toISOString();
-  const updatedAt = page.updatedAt || now;
+  const updatedAt = await resolvePageUpdatedAt(page, now);
   raw.prepare(`
     INSERT INTO pages (
       slug, path, type, title, summary, frontmatter_json, compiled_truth, timeline,
@@ -300,6 +300,28 @@ export async function replacePageIndex(db, page) {
   raw.prepare('DELETE FROM pages_fts WHERE slug = ?').run(page.slug);
   raw.prepare('INSERT INTO pages_fts (slug, title, summary, compiled_truth, timeline, body_text) VALUES (?, ?, ?, ?, ?, ?)')
     .run(page.slug, page.title, page.summary, page.compiledTruth, page.timeline, page.bodyText);
+}
+
+async function resolvePageUpdatedAt(page, fallback) {
+  if (page?.updatedAt) return page.updatedAt;
+  const timelineDate = latestTimelineDate(page?.timeline);
+  if (timelineDate) return timelineDate;
+  if (page?.path) {
+    try {
+      const stats = await fs.stat(page.path);
+      return stats.mtime.toISOString();
+    } catch {
+      // Fall through to the indexing timestamp only when the source file is unavailable.
+    }
+  }
+  return fallback;
+}
+
+function latestTimelineDate(timeline) {
+  if (!timeline) return null;
+  const matches = [...String(timeline).matchAll(/\b(20\d{2}-\d{2}-\d{2})\b/g)];
+  const latest = matches.map((match) => match[1]).sort().at(-1);
+  return latest ? `${latest}T00:00:00.000Z` : null;
 }
 
 export async function replaceLinksForPage(db, slug, links, knownSlugs) {

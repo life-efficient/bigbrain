@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { allEmbeddings, getPageRecord, listPageSlugs, openDatabase } from '../../src/bigbrain/db.js';
+import { allEmbeddings, getPageRecord, listPageSlugs, openDatabase, replacePageIndex } from '../../src/bigbrain/db.js';
 import { searchBrain } from '../../src/bigbrain/search.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -28,6 +28,43 @@ Stable page.
 
     const db = await openDatabase(config);
     const row = await getPageRecord(db, 'projects/old-project');
+    assert.equal(row.updated_at, oldDate.toISOString());
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page indexing falls back to file mtime when updatedAt is missing', async () => {
+  const fixture = await createFixture('bigbrain-index-updated-at-fallback-');
+  try {
+    const relativePath = 'projects/fallback-project.md';
+    const fullPath = await writeMarkdown(fixture.brainHome, relativePath, `---
+title: Fallback Project
+---
+# Fallback Project
+
+Stable page.
+`);
+    const oldDate = new Date('2026-01-03T04:05:06.000Z');
+    await fs.utimes(fullPath, oldDate, oldDate);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const db = await openDatabase(config);
+    await replacePageIndex(db, {
+      slug: 'projects/fallback-project',
+      path: fullPath,
+      type: 'projects',
+      title: 'Fallback Project',
+      summary: '',
+      frontmatter: { title: 'Fallback Project' },
+      compiledTruth: 'Stable page.',
+      timeline: '',
+      bodyMarkdown: '# Fallback Project\n\nStable page.\n',
+      bodyText: 'Fallback Project\n\nStable page.',
+      contentHash: 'test-content-hash',
+    });
+
+    const row = await getPageRecord(db, 'projects/fallback-project');
     assert.equal(row.updated_at, oldDate.toISOString());
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
