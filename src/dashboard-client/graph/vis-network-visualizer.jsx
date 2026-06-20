@@ -4,7 +4,7 @@ import { Network } from 'vis-network/standalone';
 import { TYPE_COLORS } from './colors.js';
 import { useGraphTheme } from './visualizer-core.jsx';
 
-export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ graph, onNodeOpen }, ref) {
+export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ graph, onNodeOpen, activeSlug, onActiveSlugChange }, ref) {
   const theme = useGraphTheme();
   const canvasRef = useRef(null);
   const networkRef = useRef(null);
@@ -148,6 +148,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
     network.on('click', (event) => {
       const nodeId = event.nodes?.[0];
       if (!nodeId) return;
+      onActiveSlugChange?.(nodeId);
       handleNodeOpen(nodeId);
     });
 
@@ -156,7 +157,17 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
       network.destroy();
       networkRef.current = null;
     };
-  }, [graph, handleNodeOpen, theme.graphEdge, theme.graphEdgeStrong, theme.graphHalo, theme.graphLabel, theme.graphNodeStroke]);
+  }, [graph, handleNodeOpen, onActiveSlugChange, theme.graphEdge, theme.graphEdgeStrong, theme.graphHalo, theme.graphLabel, theme.graphNodeStroke]);
+
+  useEffect(() => {
+    const network = networkRef.current;
+    if (!network) return;
+    if (activeSlug) {
+      network.selectNodes([activeSlug]);
+    } else {
+      network.unselectAll();
+    }
+  }, [activeSlug]);
 
   return (
     <div className="graph-canvas-shell force-shell">

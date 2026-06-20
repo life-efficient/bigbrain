@@ -634,6 +634,7 @@ function renderAppHtml() {
       .sidecar-link-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 700; }
       .sidecar-link-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
       .sidecar-document { border-top: 1px solid var(--line); padding-top: 18px; }
+      .sidecar-document.has-link-sections { border-bottom: 1px solid var(--line); padding-bottom: 18px; }
       .sidecar-document .tailwind-prose { font-size: 15px; line-height: 1.75; }
       @keyframes graph-pulse {
         from { stroke-dashoffset: 0; }

@@ -66,6 +66,7 @@ function DashboardApp() {
   const [themeMode, setThemeMode] = useState('auto');
   const [prefersDark, setPrefersDark] = useState(false);
   const [preview, setPreview] = useState(null);
+  const [activeGraphSlug, setActiveGraphSlug] = useState(null);
   const [healthOpen, setHealthOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [assigneeFilter, setAssigneeFilter] = useState('');
@@ -160,6 +161,7 @@ function DashboardApp() {
       }
       event.preventDefault();
       setPreview(null);
+      setActiveGraphSlug(null);
     }
 
     window.addEventListener('keydown', handleEscape);
@@ -197,6 +199,7 @@ function DashboardApp() {
   }, []);
 
   const handleGraphNodeOpen = useEffectEvent(async (slug) => {
+    setActiveGraphSlug(slug || null);
     setPreview({ status: 'loading', slug });
     try {
       const params = new URLSearchParams({ slug });
@@ -256,6 +259,7 @@ function DashboardApp() {
     try {
       const params = new URLSearchParams({ from: sourceSlug, target: href });
       const data = await fetchJson(`/api/preview?${params.toString()}`);
+      setActiveGraphSlug(data.slug || null);
       setPreview({ status: 'ready', href, sourceSlug, ...data });
     } catch (error) {
       setPreview({
@@ -268,6 +272,7 @@ function DashboardApp() {
   }
 
   function openInboxItem(item) {
+    setActiveGraphSlug(item.slug || null);
     setPreview({
       status: 'ready',
       slug: item.slug,
@@ -433,6 +438,8 @@ function DashboardApp() {
                 labelStyle={labelStyle}
                 setLabelStyle={setLabelStyle}
                 visualizerRef={visualizerRef}
+                activeSlug={activeGraphSlug}
+                onActiveSlugChange={setActiveGraphSlug}
                 onNodeOpen={handleGraphNodeOpen}
               />
             ) : null}
@@ -442,7 +449,10 @@ function DashboardApp() {
 
         <PageSidecar
           preview={preview}
-          onClose={() => setPreview(null)}
+          onClose={() => {
+            setPreview(null);
+            setActiveGraphSlug(null);
+          }}
           onRelativeLinkClick={openPreview}
           onPageOpen={openPageBySlug}
         />
@@ -617,10 +627,10 @@ function AssigneePills({ assignees, invalidAssignees }) {
 function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen }) {
   const type = preview?.type || preview?.slug?.split('/')[0] || 'page';
   const updatedLabel = formatDateTime(preview?.updated_at);
-  const pathLabel = preview?.path || preview?.slug || preview?.href || '';
   const summary = typeof preview?.summary === 'string' ? preview.summary.trim() : '';
   const outgoing = Array.isArray(preview?.links?.outgoing) ? preview.links.outgoing : [];
   const backlinks = Array.isArray(preview?.links?.backlinks) ? preview.links.backlinks : [];
+  const hasLinks = outgoing.length || backlinks.length;
 
   return (
     <aside className="sidecar-shell" aria-hidden={!preview}>
@@ -632,8 +642,6 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen }) {
                 <span className="sidecar-chip strong">{type}</span>
                 {updatedLabel ? <span className="sidecar-chip">{updatedLabel}</span> : null}
               </div>
-              <h2>{preview?.title || 'Linked File'}</h2>
-              <div className="meta">{pathLabel}</div>
             </div>
             <button type="button" className="graph-button" onClick={onClose}>
               Close
@@ -647,9 +655,7 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen }) {
           {preview?.status === 'ready' ? (
             <>
               {summary ? <div className="sidecar-summary">{summary}</div> : null}
-              <PageLinkSection title="Links out" links={outgoing} onPageOpen={onPageOpen} />
-              <PageLinkSection title="Backlinks" links={backlinks} onPageOpen={onPageOpen} />
-              <div className="sidecar-document">
+              <div className={`sidecar-document ${hasLinks ? 'has-link-sections' : ''}`}>
                 <MarkdownDocument
                   markdown={preview.markdown}
                   sourceSlug={preview.slug}
@@ -657,6 +663,8 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen }) {
                   emptyLabel="This file is empty."
                 />
               </div>
+              <PageLinkSection title="Links out" links={outgoing} onPageOpen={onPageOpen} />
+              <PageLinkSection title="Backlinks" links={backlinks} onPageOpen={onPageOpen} />
             </>
           ) : null}
         </div>
@@ -700,6 +708,8 @@ const GraphPanel = memo(function GraphPanel({
   labelStyle,
   setLabelStyle,
   visualizerRef,
+  activeSlug,
+  onActiveSlugChange,
   onNodeOpen,
 }) {
   const [styleMenuOpen, setStyleMenuOpen] = useState(false);
@@ -789,6 +799,8 @@ const GraphPanel = memo(function GraphPanel({
           arcStyle={arcStyle}
           layoutStyle={layoutStyle}
           labelStyle={labelStyle}
+          activeSlug={activeSlug}
+          onActiveSlugChange={onActiveSlugChange}
         />
       </div>
       <div className="graph-footer">

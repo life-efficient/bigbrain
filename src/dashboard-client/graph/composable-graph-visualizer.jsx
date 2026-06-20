@@ -28,11 +28,12 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   arcStyle = 'straight',
   layoutStyle = 'orbital',
   labelStyle = 'selected',
+  activeSlug = null,
+  onActiveSlugChange,
 }, ref) {
   const theme = useGraphTheme();
   const defsId = useId().replace(/:/g, '-');
   const [hoveredSlug, setHoveredSlug] = useState(null);
-  const [activeSlug, setActiveSlug] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const buildLayout = LAYOUT_BUILDERS[layoutStyle] || buildJarvisLayout;
   const laidOut = useMemo(() => buildLayout(graph), [buildLayout, graph]);
@@ -87,7 +88,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
             activeSlug={activeSlug}
             hoveredSlug={hoveredSlug}
             isDragging={isDragging}
-            onActiveSlugChange={setActiveSlug}
+            onActiveSlugChange={onActiveSlugChange}
             onHoveredSlugChange={setHoveredSlug}
           />
         </g>
@@ -281,7 +282,7 @@ function NodeLayer({
       }}
       onClick={(event) => {
         event.stopPropagation();
-        onActiveSlugChange(node.slug);
+        onActiveSlugChange?.(node.slug);
         onNodeOpen?.(node.slug);
       }}
       style={{ cursor: 'pointer' }}
