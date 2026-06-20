@@ -91,6 +91,25 @@ Required fields:
 - `page_path`, `title`, `body`, `timeline_entry`: the markdown brain page to
   create at the same time when using `create_raw_file_with_page`.
 
+For local binary artifacts, the normal upload path is still MCP:
+
+1. Read the local file on the client side.
+2. Base64 encode the bytes.
+3. Pass the encoded string as `raw_content_base64` to `create_raw_file` or
+   `create_raw_file_with_page`.
+4. Verify with `list_raw_files` and, when possible, `read_raw_file`; compare the
+   decoded byte count or checksum with the local source file.
+
+Do not add a server-side `local_filepath` field for remote MCP uploads. A path
+such as `/Users/alice/report.pdf` exists on the client machine, not on the
+hosted MCP server, and remote servers must not read arbitrary client paths. If a
+client surface makes large base64 arguments awkward, use
+`scripts/prepare-raw-upload.mjs` to prepare the MCP tool arguments from a local
+file, then submit those arguments through the authenticated MCP client. This is
+a convenience fallback for payload preparation; it must still call the MCP raw
+upload tool so indexing, timeline, sync, and backup behavior are preserved.
+Direct git pushes to the backing brain repo are not an ingestion substitute.
+
 Raw reads return `content_base64` so binary files can round-trip safely. The
 generated page from `create_raw_file_with_page` gets a `raw_file` frontmatter
 field and a `## Source File` link back to the raw upload. Raw files under
