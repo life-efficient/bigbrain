@@ -4,6 +4,10 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import { persistState } from './config.js';
+import {
+  createDashboardRequestHandler,
+  dashboardSessionCookie,
+} from './dashboard.js';
 import { openDatabase } from './db.js';
 import { filingRulesForBrain } from './filing-rules.js';
 import {
@@ -59,6 +63,7 @@ export async function startMcpServer({
     authConfig.memberLookup = (email) => findActiveMemberByEmail(memberDb, email);
   }
   if (authRoutesEnabled(authConfig)) assertOAuthConfigured(authConfig);
+  const dashboardHandler = await createDashboardRequestHandler(config, { authConfig, basePath: '/dashboard' });
   await syncAndPersist(config);
   const syncTimer = syncIntervalMs > 0
     ? setInterval(() => {
@@ -116,6 +121,14 @@ export async function startMcpServer({
             response.end();
             return;
           }
+          if (issued.dashboard_session_token) {
+            response.writeHead(302, {
+              location: issued.redirect_path || '/dashboard',
+              'set-cookie': dashboardSessionCookie(issued.dashboard_session_token, authConfig),
+            });
+            response.end();
+            return;
+          }
           return sendHtml(response, 200, renderOAuthCompletePage(authConfig));
         } catch (error) {
           return sendHtml(response, 403, renderAuthErrorPage(authConfig, error instanceof Error ? error.message : String(error)));
@@ -123,6 +136,9 @@ export async function startMcpServer({
       }
       if (request.method === 'GET' && request.url === '/health') {
         return sendJson(response, 200, { ok: true });
+      }
+      if (isDashboardRequest(route.pathname)) {
+        return dashboardHandler(request, response);
       }
       if (request.method !== 'POST' || !request.url?.startsWith('/mcp')) {
         return sendJson(response, 404, jsonRpcError(null, -32004, 'Not found'));
@@ -179,6 +195,14 @@ export async function startMcpServer({
       });
     }),
   };
+}
+
+function isDashboardRequest(pathname) {
+  return pathname === '/dashboard'
+    || pathname.startsWith('/dashboard/')
+    || pathname === '/favicon.ico'
+    || pathname.startsWith('/assets/')
+    || pathname.startsWith('/api/');
 }
 
 async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor }) {

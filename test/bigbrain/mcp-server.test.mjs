@@ -441,6 +441,14 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
     const manualStart = await fetch(running.url.replace('/mcp', '/auth/start'));
     assert.equal(manualStart.status, 404);
 
+    const dashboard = await fetch(running.url.replace('/mcp', '/dashboard'), { redirect: 'manual' });
+    assert.equal(dashboard.status, 302);
+    assert.match(dashboard.headers.get('location'), /^\/dashboard\/auth\/start\?redirect=%2Fdashboard/);
+
+    const dashboardStart = await fetch(running.url.replace('/mcp', '/dashboard/auth/start?redirect=/dashboard'), { redirect: 'manual' });
+    assert.equal(dashboardStart.status, 302);
+    assert.match(dashboardStart.headers.get('location'), /^https:\/\/accounts\.google\.com\//);
+
     const unauthorized = await fetch(running.url, {
       method: 'POST',
       headers: {
