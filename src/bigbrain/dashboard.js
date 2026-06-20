@@ -679,9 +679,12 @@ function renderAppHtml() {
         .view-nav-header { justify-self: center; justify-content: center; }
         .topline-actions { justify-self: end; }
         .page-shell.preview-open { --sidecar-width: 0px; }
-        .sidecar-shell { position: fixed; inset: auto 0 0 0; width: 100%; height: min(72vh, 760px); padding: 0; z-index: 10; }
-        .sidecar-panel { border-left: 0; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; }
+        .sidecar-shell { position: fixed; top: 0; right: 0; bottom: 0; left: auto; width: min(560px, 92vw); height: 100vh; padding: 0; z-index: 10; }
+        .sidecar-panel { border-left: 1px solid var(--line); border-top: 0; border-radius: 0; }
         .sidecar-link-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 640px) {
+        .sidecar-shell { left: 0; width: 100vw; }
       }
     </style>
   </head>
