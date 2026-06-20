@@ -517,6 +517,9 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     });
     await db.close?.();
 
+    await fs.writeFile(path.join(fixture.brainHome, 'tasks', 'FILING.md'), '# Task Filing\n\nGuidance only.\n', 'utf8');
+    await fs.writeFile(path.join(fixture.brainHome, 'tasks', 'README.md'), '# Tasks\n\nCollection overview.\n', 'utf8');
+
     running = await startMcpServer({
       config,
       host: '127.0.0.1',
@@ -571,6 +574,12 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
       arguments: { assignee: 'me', status: 'open' },
     }, token);
     assert.deepEqual(mine.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
+
+    const allTasks = await rpc(running.url, 'tools/call', {
+      name: 'tasks/list',
+      arguments: {},
+    }, token);
+    assert.deepEqual(allTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
 
     const updated = await rpc(running.url, 'tools/call', {
       name: 'tasks/update',

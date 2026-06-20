@@ -126,6 +126,7 @@ async function readTaskPages(config, memberMap) {
   const files = await listMarkdownFiles(taskDir).catch(() => []);
   const pages = [];
   for (const fullPath of files) {
+    if (isTaskDocumentationFile(fullPath)) continue;
     const raw = await fs.readFile(fullPath, 'utf8');
     const slug = slugFromPath(config.brainDir, fullPath);
     const parsed = parseMarkdownPage(raw, slug);
@@ -144,6 +145,11 @@ async function listMarkdownFiles(dir) {
     else if (entry.isFile() && entry.name.endsWith('.md')) files.push(fullPath);
   }
   return files;
+}
+
+function isTaskDocumentationFile(fullPath) {
+  const basename = path.basename(fullPath).toLowerCase();
+  return basename === 'readme.md' || basename === 'filing.md';
 }
 
 async function normalizeAndValidateAssignees(db, assignees, actor = null) {

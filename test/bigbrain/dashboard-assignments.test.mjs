@@ -34,6 +34,14 @@ assignees: [people/external-advisor]
 
 This should not resolve to a member.
 `);
+    await writeMarkdown(fixture.brainHome, 'tasks/FILING.md', `# Task Filing
+
+Guidance for task page shape.
+`);
+    await writeMarkdown(fixture.brainHome, 'tasks/README.md', `# Tasks
+
+Task collection overview.
+`);
 
     const config = await loadConfig({ configPath: fixture.configPath });
     db = await openDatabase(config);
@@ -49,6 +57,10 @@ This should not resolve to a member.
     assert.equal(all.meta.open_tasks, 2);
     assert.equal(all.meta.invalid_assignments, 1);
     assert.equal(all.members[0].person_slug, 'people/hani');
+    assert.deepEqual(
+      all.sections.flatMap((section) => section.items).map((item) => item.slug).sort(),
+      ['tasks/external-task', 'tasks/follow-up'],
+    );
 
     const filtered = await buildTasksPayload(config, db, new URL('/api/tasks?assignee=people/hani', 'http://127.0.0.1'));
     assert.deepEqual(filtered.sections.flatMap((section) => section.items).map((item) => item.slug), ['tasks/follow-up']);
