@@ -211,6 +211,11 @@ function DashboardApp() {
     }
   });
 
+  const openPageBySlug = useEffectEvent((slug) => {
+    if (!slug) return;
+    handleGraphNodeOpen(slug);
+  });
+
   if (state.status === 'loading') {
     return (
       <main>
@@ -440,29 +445,12 @@ function DashboardApp() {
 
         </main>
 
-        <aside className="sidecar-shell" aria-hidden={!preview}>
-          <div className="sidecar-panel">
-            <div className="sidecar-head">
-              <div>
-                <h2>{preview?.title || 'Linked File'}</h2>
-                <div className="meta">{preview?.slug || preview?.href || ''}</div>
-              </div>
-              <button type="button" className="graph-button" onClick={() => setPreview(null)}>
-                Close
-              </button>
-            </div>
-            {preview?.status === 'loading' && <div className="empty-copy">Loading linked file…</div>}
-            {preview?.status === 'error' && <div className="empty-copy">{preview.message}</div>}
-            {preview?.status === 'ready' && (
-              <MarkdownDocument
-                markdown={preview.markdown}
-                sourceSlug={preview.slug}
-                onRelativeLinkClick={openPreview}
-                emptyLabel="This file is empty."
-              />
-            )}
-          </div>
-        </aside>
+        <PageSidecar
+          preview={preview}
+          onClose={() => setPreview(null)}
+          onRelativeLinkClick={openPreview}
+          onPageOpen={openPageBySlug}
+        />
       </div>
     </GraphThemeProvider>
   );
@@ -513,6 +501,18 @@ function deriveHealthSeverity(findings) {
   return 'low';
 }
 
+function formatDateTime(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
+}
+
 function isTypingTarget(target) {
   if (!(target instanceof HTMLElement)) {
     return false;
@@ -558,6 +558,79 @@ function AssigneePills({ assignees, invalidAssignees }) {
       {invalid.map((slug) => (
         <span key={slug} className="assignee-pill invalid">{slug}</span>
       ))}
+    </div>
+  );
+}
+
+function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen }) {
+  const type = preview?.type || preview?.slug?.split('/')[0] || 'page';
+  const updatedLabel = formatDateTime(preview?.updated_at);
+  const pathLabel = preview?.path || preview?.slug || preview?.href || '';
+  const summary = typeof preview?.summary === 'string' ? preview.summary.trim() : '';
+  const outgoing = Array.isArray(preview?.links?.outgoing) ? preview.links.outgoing : [];
+  const backlinks = Array.isArray(preview?.links?.backlinks) ? preview.links.backlinks : [];
+
+  return (
+    <aside className="sidecar-shell" aria-hidden={!preview}>
+      <div className="sidecar-panel">
+        <div className="sidecar-head">
+          <div className="sidecar-title-row">
+            <div className="sidecar-title-copy">
+              <div className="sidecar-meta-row">
+                <span className="sidecar-chip strong">{type}</span>
+                {updatedLabel ? <span className="sidecar-chip">{updatedLabel}</span> : null}
+              </div>
+              <h2>{preview?.title || 'Linked File'}</h2>
+              <div className="meta">{pathLabel}</div>
+            </div>
+            <button type="button" className="graph-button" onClick={onClose}>
+              Close
+            </button>
+          </div>
+        </div>
+
+        <div className="sidecar-body">
+          {preview?.status === 'loading' && <div className="empty-copy">Loading page…</div>}
+          {preview?.status === 'error' && <div className="empty-copy">{preview.message}</div>}
+          {preview?.status === 'ready' ? (
+            <>
+              {summary ? <div className="sidecar-summary">{summary}</div> : null}
+              <PageLinkSection title="Links out" links={outgoing} onPageOpen={onPageOpen} />
+              <PageLinkSection title="Backlinks" links={backlinks} onPageOpen={onPageOpen} />
+              <div className="sidecar-document">
+                <MarkdownDocument
+                  markdown={preview.markdown}
+                  sourceSlug={preview.slug}
+                  onRelativeLinkClick={onRelativeLinkClick}
+                  emptyLabel="This file is empty."
+                />
+              </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+    </aside>
+  );
+}
+
+function PageLinkSection({ title, links, onPageOpen }) {
+  if (!links.length) return null;
+  return (
+    <div className="sidecar-section">
+      <h3>{title}</h3>
+      <div className="sidecar-link-grid">
+        {links.map((link) => (
+          <button
+            key={`${title}:${link.slug}`}
+            type="button"
+            className="sidecar-link-button"
+            onClick={() => onPageOpen(link.slug)}
+          >
+            <span className="sidecar-link-title">{link.label || link.slug}</span>
+            <span className="sidecar-link-meta">{link.slug}</span>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }

@@ -134,8 +134,8 @@ export async function startDashboard(config, {
       if (requestUrl.pathname === '/api/recent') return json(res, await buildRecentPayload(db));
       if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db));
       if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
-      if (requestUrl.pathname === '/api/page') return json(res, await buildPagePayload(config, requestUrl));
-      if (requestUrl.pathname === '/api/preview') return json(res, await buildPreviewPayload(config, requestUrl));
+      if (requestUrl.pathname === '/api/page') return json(res, await buildPagePayload(config, db, requestUrl));
+      if (requestUrl.pathname === '/api/preview') return json(res, await buildPreviewPayload(config, db, requestUrl));
       res.writeHead(404);
       res.end('Not found');
     } catch (error) {
@@ -245,7 +245,7 @@ function renderAppHtml() {
       }
       #root { height: 100vh; overflow: hidden; }
       .page-shell { --sidecar-width: 0px; position: relative; height: 100vh; overflow: hidden; background: var(--bg); color: var(--ink); }
-      .page-shell.preview-open { --sidecar-width: min(420px, 46vw); }
+      .page-shell.preview-open { --sidecar-width: min(560px, 48vw); }
       main { min-width: 0; max-width: none; height: 100vh; margin: 0; padding: 20px calc(20px + var(--sidecar-width)) 16px 20px; width: 100%; overflow: hidden; display: flex; flex-direction: column; transition: padding-right 240ms ease; }
       h1 { font-size: 44px; margin: 0 0 6px; letter-spacing: -0.03em; }
       h2 { margin: 0 0 14px; font-size: 20px; }
@@ -476,7 +476,7 @@ function renderAppHtml() {
       .tailwind-prose h1,
       .tailwind-prose h2,
       .tailwind-prose h3,
-      .tailwind-prose h4 { color: var(--ink); letter-spacing: -0.02em; margin: 0 0 0.55em; }
+      .tailwind-prose h4 { color: var(--ink); margin: 0 0 0.55em; }
       .tailwind-prose h1 { font-size: 1.45rem; }
       .tailwind-prose h2 { font-size: 1.2rem; }
       .tailwind-prose h3 { font-size: 1rem; text-transform: none; letter-spacing: -0.01em; }
@@ -499,11 +499,28 @@ function renderAppHtml() {
       .tailwind-prose th,
       .tailwind-prose td { border: 1px solid rgba(31,26,23,0.08); padding: 0.55rem 0.65rem; text-align: left; }
       .tailwind-prose th { background: rgba(31,26,23,0.04); }
-      .sidecar-shell { position: absolute; top: 0; right: 0; width: min(420px, 46vw); height: 100vh; padding: 0; overflow: hidden; pointer-events: none; }
-      .sidecar-panel { height: 100%; overflow: auto; opacity: 0; transform: translateX(100%); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; background: var(--panel); border-left: 1px solid var(--line); box-shadow: -24px 0 54px rgba(15,23,42,0.10); backdrop-filter: blur(18px); padding: 28px 28px 32px; will-change: transform, opacity; }
+      .sidecar-shell { position: absolute; top: 0; right: 0; width: min(560px, 48vw); height: 100vh; padding: 0; overflow: hidden; pointer-events: none; }
+      .sidecar-panel { height: 100%; overflow: auto; opacity: 0; transform: translateX(100%); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; background: var(--panel); border-left: 1px solid var(--line); box-shadow: -24px 0 54px rgba(15,23,42,0.10); backdrop-filter: blur(18px); padding: 0; will-change: transform, opacity; }
       .preview-open .sidecar-shell { pointer-events: auto; }
       .preview-open .sidecar-panel { opacity: 1; transform: translateX(0); pointer-events: auto; }
-      .sidecar-head { display: flex; justify-content: space-between; gap: 16px; align-items: start; margin-bottom: 18px; }
+      .sidecar-head { position: sticky; top: 0; z-index: 2; display: grid; gap: 14px; padding: 26px 28px 18px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(18px); }
+      .sidecar-title-row { display: flex; justify-content: space-between; gap: 18px; align-items: start; }
+      .sidecar-title-copy { min-width: 0; display: grid; gap: 8px; }
+      .sidecar-title-copy h2 { margin: 0; font-size: 25px; line-height: 1.12; overflow-wrap: anywhere; }
+      .sidecar-meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+      .sidecar-chip { display: inline-flex; align-items: center; min-height: 25px; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; }
+      .sidecar-chip.strong { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.08); }
+      .sidecar-body { padding: 22px 28px 34px; display: grid; gap: 18px; }
+      .sidecar-summary { padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line); background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025)); color: var(--ink); line-height: 1.55; overflow-wrap: anywhere; }
+      .sidecar-section { display: grid; gap: 11px; }
+      .sidecar-section h3 { margin: 0; }
+      .sidecar-link-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+      .sidecar-link-button { min-width: 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 10px 11px; text-align: left; cursor: pointer; display: grid; gap: 4px; }
+      .sidecar-link-button:hover { border-color: var(--line-strong); background: rgba(255,255,255,0.07); }
+      .sidecar-link-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 700; }
+      .sidecar-link-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
+      .sidecar-document { border-top: 1px solid var(--line); padding-top: 18px; }
+      .sidecar-document .tailwind-prose { font-size: 15px; line-height: 1.75; }
       @keyframes graph-pulse {
         from { stroke-dashoffset: 0; }
         to { stroke-dashoffset: -46; }
@@ -524,7 +541,8 @@ function renderAppHtml() {
         .topline-actions { justify-self: end; }
         .page-shell.preview-open { --sidecar-width: 0px; }
         .sidecar-shell { position: fixed; inset: auto 0 0 0; width: 100%; height: min(72vh, 760px); padding: 0; z-index: 10; }
-        .sidecar-panel { border-left: 0; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; padding-top: 22px; }
+        .sidecar-panel { border-left: 0; border-top: 1px solid var(--line); border-radius: 22px 22px 0 0; }
+        .sidecar-link-grid { grid-template-columns: 1fr; }
       }
     </style>
   </head>
@@ -793,32 +811,48 @@ function extractInboxPreview(parsed) {
   return previewLines.join('\n\n').trim();
 }
 
-async function buildPreviewPayload(config, requestUrl) {
+async function buildPreviewPayload(config, db, requestUrl) {
   const sourceSlug = requestUrl.searchParams.get('from')?.trim();
   const target = requestUrl.searchParams.get('target')?.trim();
   if (!sourceSlug || !target) throw new Error('Preview requires both from and target.');
   const slug = resolveMarkdownLink(sourceSlug, target);
   if (!slug) throw new Error(`Unsupported preview target: ${target}`);
-  const fullPath = resolveBrainMarkdownPath(config.brainDir, slug);
-  const raw = await fs.readFile(fullPath, 'utf8');
-  const parsed = parseMarkdownPage(raw, slug);
-  return {
-    slug,
-    title: parsed.title,
-    markdown: parsed.bodyContentMarkdown,
-  };
+  return buildPagePayloadForSlug(config, db, slug);
 }
 
-async function buildPagePayload(config, requestUrl) {
+export async function buildPagePayload(config, db, requestUrl) {
   const slug = requestUrl.searchParams.get('slug')?.trim();
   if (!slug) throw new Error('Page lookup requires slug.');
+  return buildPagePayloadForSlug(config, db, slug);
+}
+
+async function buildPagePayloadForSlug(config, db, slug) {
   const fullPath = resolveBrainMarkdownPath(config.brainDir, slug);
   const raw = await fs.readFile(fullPath, 'utf8');
   const parsed = parseMarkdownPage(raw, slug);
+  const stat = await fs.stat(fullPath);
+  const outgoing = db ? await getOutgoingLinks(db, slug) : [];
+  const backlinks = db ? await getBacklinks(db, slug) : [];
+  const relativePath = path.relative(config.brainDir, fullPath);
   return {
     slug,
     title: parsed.title,
+    type: parsed.type,
+    path: relativePath,
+    summary: extractPageReaderSummary(parsed),
+    frontmatter: parsed.frontmatter,
     markdown: parsed.bodyContentMarkdown,
+    updated_at: stat.mtime.toISOString(),
+    links: {
+      outgoing: outgoing
+        .filter((link) => link.link_kind === 'markdown' && link.is_resolved)
+        .slice(0, 12)
+        .map((link) => ({ slug: link.to_slug, label: link.link_text || link.to_slug })),
+      backlinks: backlinks
+        .filter((link) => link.link_kind === 'markdown')
+        .slice(0, 12)
+        .map((link) => ({ slug: link.from_slug, label: link.link_text || link.from_slug })),
+    },
   };
 }
 
@@ -829,6 +863,23 @@ function resolveBrainMarkdownPath(brainDir, slug) {
     throw new Error(`Linked file is outside the brain directory: ${slug}`);
   }
   return candidate;
+}
+
+function extractPageReaderSummary(parsed) {
+  const titlePattern = new RegExp(`^#\\s+${escapeRegExp(parsed.title)}\\s*$`, 'i');
+  const text = parsed.compiledTruth
+    .split('\n')
+    .map((line) => line.trim().replace(/^>\s*/, ''))
+    .filter((line) => line && line !== '---' && !titlePattern.test(line) && !/^#{1,6}\s/.test(line))
+    .join(' ')
+    .replace(/\*\*/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const cleaned = stripSourceReferences(text)
+    .replace(/\s+-\s+(?:Role|Timezone|WhatsApp|Assistant preference|Physical location):.*$/i, '')
+    .trim();
+  const sentences = cleaned.match(/[^.!?]+[.!?]+/g);
+  return (sentences ? sentences.slice(0, 2).join(' ') : cleaned).slice(0, 240).trim();
 }
 
 function escapeRegExp(value) {

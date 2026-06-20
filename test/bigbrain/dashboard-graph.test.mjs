@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { openDatabase } from '../../src/bigbrain/db.js';
-import { buildGraphPayload } from '../../src/bigbrain/dashboard.js';
+import { buildGraphPayload, buildPagePayload } from '../../src/bigbrain/dashboard.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
 test('dashboard graph excludes root infrastructure files from nodes and types', async () => {
@@ -31,6 +31,46 @@ test('dashboard graph excludes root infrastructure files from nodes and types', 
       { source: 'people/alice', target: 'projects/relay' },
       { source: 'projects/relay', target: 'people/alice' },
     ]);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('dashboard page payload includes file explorer metadata and nearby links', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-page-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', [
+      '---',
+      'title: Alice Example',
+      '---',
+      '# Alice Example',
+      '',
+      'Works on [Relay](../projects/relay.md).',
+      '',
+      '---',
+      '',
+      '## Timeline',
+    ].join('\n'));
+    await writeMarkdown(fixture.brainHome, 'projects/relay.md', '# Relay\n\nRelated to [Alice](../people/alice.md).\n');
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+    const payload = await buildPagePayload(
+      config,
+      db,
+      new URL('/api/page?slug=people/alice', 'http://127.0.0.1'),
+    );
+
+    assert.equal(payload.slug, 'people/alice');
+    assert.equal(payload.title, 'Alice Example');
+    assert.equal(payload.type, 'people');
+    assert.equal(payload.path, 'people/alice.md');
+    assert.match(payload.summary, /Works on/);
+    assert.equal(payload.frontmatter.title, 'Alice Example');
+    assert.equal(payload.links.outgoing.some((link) => link.slug === 'projects/relay'), true);
+    assert.equal(payload.links.backlinks.some((link) => link.slug === 'projects/relay'), true);
+    assert.match(payload.updated_at, /^\d{4}-\d{2}-\d{2}T/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
