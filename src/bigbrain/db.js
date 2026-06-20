@@ -590,14 +590,16 @@ async function openPostgresDatabase(config) {
   const envName = config.databaseUrlEnv || 'DATABASE_URL';
   const connectionString = process.env[envName];
   if (!connectionString) throw new Error(`Postgres storage requires ${envName} to be set.`);
-  const { Client } = await import('pg');
-  const client = new Client({ connectionString });
-  await client.connect();
+  const { Pool } = await import('pg');
+  const pool = new Pool({
+    connectionString,
+    max: Number(process.env.BIGBRAIN_PG_POOL_MAX || 8),
+  });
   const db = {
     backend: 'postgres',
-    raw: client,
-    query: (text, params) => client.query(text, params),
-    close: () => client.end(),
+    raw: pool,
+    query: (text, params) => pool.query(text, params),
+    close: () => pool.end(),
   };
   await initializePostgresSchema(db);
   return db;
