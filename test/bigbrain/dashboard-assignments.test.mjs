@@ -76,6 +76,10 @@ assignees: [people/hani, people/unknown]
 
 Needs sorting.
 `);
+    await writeMarkdown(fixture.brainHome, 'inbox/filing.md', `# Inbox Filing
+
+Guidance for inbox handling.
+`);
     const config = await loadConfig({ configPath: fixture.configPath });
     db = await openDatabase(config);
     await upsertMember(db, {
@@ -86,6 +90,7 @@ Needs sorting.
 
     const payload = await buildInboxPayload(config, db, new URL('/api/inbox?assignee=people/hani', 'http://127.0.0.1'));
     assert.equal(payload.items.length, 1);
+    assert.deepEqual(payload.items.map((item) => item.slug), ['inbox/raw-note']);
     assert.deepEqual(payload.items[0].assignees.map((member) => member.person_slug), ['people/hani']);
     assert.deepEqual(payload.items[0].invalid_assignees, ['people/unknown']);
 

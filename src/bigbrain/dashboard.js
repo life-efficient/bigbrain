@@ -613,6 +613,7 @@ export async function buildInboxPayload(config, db = null, requestUrl = new URL(
   const hasAssigneeFilter = requestUrl.searchParams.has('assignee');
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+    if (entry.name.toLowerCase() === 'filing.md') continue;
     const fullPath = path.join(inboxDir, entry.name);
     const raw = await fs.readFile(fullPath, 'utf8');
     const slug = `inbox/${entry.name.replace(/\.md$/, '')}`;
