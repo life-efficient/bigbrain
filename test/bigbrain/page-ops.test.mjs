@@ -28,7 +28,7 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
       config,
       pagePath: 'people/jordan-lee',
       title: 'Jordan Lee',
-      body: 'Jordan Lee is a partner contact for Example Brain.',
+      body: 'Jordan Lee is a example contact for Example Brain.',
       timelineEntry: 'Created from MCP contribution.',
       frontmatter: { tags: ['example-brain', 'person'] },
     });
@@ -41,11 +41,11 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
     const updated = await updateBrainPage({
       config,
       pagePath: 'people/jordan-lee.md',
-      body: 'Jordan Lee is the current Example Brain partner contact.',
+      body: 'Jordan Lee is the current Example Brain example contact.',
       timelineEntry: 'Updated current role from team contribution.',
     });
 
-    assert.match(updated.body, /current Example Brain partner contact/);
+    assert.match(updated.body, /current Example Brain example contact/);
     assert.match(updated.timeline, /Created from MCP contribution/);
     assert.match(updated.timeline, /Updated current role from team contribution/);
 
@@ -53,7 +53,7 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
     const db = await openDatabase(config);
     const record = await getPageRecord(db, 'people/jordan-lee');
     assert.equal(record.title, 'Jordan Lee');
-    assert.match(record.compiled_truth, /current Example Brain partner contact/);
+    assert.match(record.compiled_truth, /current Example Brain example contact/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -71,7 +71,7 @@ test('page ops create raw files with associated brain pages', async () => {
       mimeType: 'application/pdf',
       pagePath: 'sources/example-deck',
       title: 'Example Brain Deck',
-      body: 'Source deck for the Example Brain programme.',
+      body: 'Source deck for the Example Brain program.',
       timelineEntry: 'Uploaded source deck and created page.',
       frontmatter: { tags: ['example-brain', 'source'] },
     });

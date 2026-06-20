@@ -8,7 +8,7 @@ const DEFAULT_RULES = {
   organizations: 'One page per institution, government body, university, vendor, company, advisory group, or other organization.',
   companies: 'One page per company or organization.',
   meetings: 'Specific meetings, calls, meeting prep, and transcripts.',
-  initiatives: 'Active named workstreams or programmes.',
+  initiatives: 'Active named workstreams or programs.',
   deliverables: 'Concrete outputs such as reports, toolkits, course materials, workshop packs, declarations, episodes, calls, releases, and drafts.',
   concepts: 'Reusable concepts, frameworks, pillar notes, strategy, and mental models.',
   ops: 'Operating material such as roadmaps, tasks, contribution rules, server notes, MCP notes, and cross-workstream coordination.',

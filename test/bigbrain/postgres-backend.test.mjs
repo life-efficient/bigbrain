@@ -20,7 +20,7 @@ title: Alice
 ---
 # Alice
 
-Works on Example Brain partnerships and Postgres persistence.
+Works on Example Brain example partnerships and Postgres persistence.
 `);
 
     const config = await postgresConfig(fixture);
@@ -35,7 +35,7 @@ Works on Example Brain partnerships and Postgres persistence.
     const db = await openDatabase(config);
     assert.deepEqual(await listPageSlugs(db), ['people/alice']);
     assert.equal((await allEmbeddings(db)).length, 1);
-    const lexical = await searchBrain({ db, config, query: 'Example Brain partnerships', apiKey: null });
+    const lexical = await searchBrain({ db, config, query: 'Example Brain example partnerships', apiKey: null });
     assert.equal(lexical.fused[0].slug, 'people/alice');
     const semantic = await semanticSearch(db, [0.1, 0.2, 0.3], 5);
     assert.equal(semantic[0].slug, 'people/alice');
