@@ -21,12 +21,9 @@ bigbrain --help
 
 ## Install skills
 
-BigBrain skills are provided from this repo under `skills/`. Install those
-directories into the user's real active skills directory exactly as written:
-
-- `skills/bigbrain-maintain/`
-- `skills/bigbrain-query/`
-- `skills/task-refresh/`
+BigBrain skills are provided from this repo under `skills/`. Install every
+direct child directory that contains a `SKILL.md` file into the user's real
+active skills directory exactly as written.
 
 First determine the active skills directory for the current harness. Common
 locations are:
@@ -40,10 +37,18 @@ repo remain the source of truth:
 
 ```bash
 repo_root="$(pwd)"
-mkdir -p ~/.agents/skills
-ln -sfn "$repo_root/skills/bigbrain-maintain" ~/.agents/skills/bigbrain-maintain
-ln -sfn "$repo_root/skills/bigbrain-query" ~/.agents/skills/bigbrain-query
-ln -sfn "$repo_root/skills/task-refresh" ~/.agents/skills/task-refresh
+# Set this to the active harness directory, for example:
+#   "$HOME/.agents/skills"
+#   "$HOME/.codex/skills"
+skills_root="$HOME/.agents/skills"
+
+mkdir -p "$skills_root"
+find "$repo_root/skills" -mindepth 2 -maxdepth 2 -name SKILL.md -print \
+  | while IFS= read -r skill_file; do
+  skill_dir="$(dirname "$skill_file")"
+  skill_id="$(basename "$skill_dir")"
+  ln -sfn "$skill_dir" "$skills_root/$skill_id"
+done
 ```
 
 If the harness does not support symlinks, copy the directories exactly. Do not

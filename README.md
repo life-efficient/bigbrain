@@ -1,18 +1,46 @@
 # bigbrain
 
-`bigbrain` is a distributable personal knowledge runtime and knowledge service
-for agents.
+`bigbrain` is a local-first knowledge runtime for agents and humans working
+against the same markdown brain.
 
-The code lives in this repo. The actual brain pages live in a selected
-markdown brain home. The SQLite index, config, and runtime state live outside
-that repo under a per-brain directory in your home folder.
+It exists to make durable memory practical: agents can add, search, query,
+validate, and refresh a git-backed knowledge base without turning the knowledge
+base into application state. Markdown and git stay canonical. BigBrain provides
+the runtime layer around that corpus: indexing, retrieval, health checks, task
+refresh, MCP access, automations, and a dashboard.
 
-BigBrain is intentionally a place agents visit when they need durable memory,
-not the place the agent itself has to live. Codex, Relay, Claude, local scripts,
-hosted MCP clients, or other agent runtimes should be able to consult and update
-the same brain through the CLI, dashboard, MCP, or future HTTP surfaces.
+The code lives in this repo. The actual brain pages live in a selected markdown
+brain home. Runtime state, config, and indexes live outside this source repo,
+normally under the selected brain home at `.bigbrain-state/`.
 
-The goal is to keep the useful parts of a personal operating stack:
+## Quick Start
+
+```bash
+cd /path/to/bigbrain
+npm link
+bigbrain init /path/to/brain-home
+bigbrain sync --json
+bigbrain query "what should I know about this project?"
+```
+
+Pass `--brain-home /path/to/brain-home` when targeting a non-default brain.
+
+## Agent Setup
+
+Agent and automation setup lives in:
+
+- [`INSTALL_FOR_AGENTS.md`](./INSTALL_FOR_AGENTS.md)
+- [`skills/RESOLVER.md`](./skills/RESOLVER.md)
+
+At a high level:
+
+1. Install the global CLI with `npm link`.
+2. Install all bundled skills from `skills/` into the active agent skills
+   directory.
+3. Select or initialize a brain home.
+4. Run `bigbrain sync --json` and `bigbrain health --json`.
+
+## Features
 
 - MECE markdown file structure
 - linked database
@@ -23,12 +51,9 @@ The goal is to keep the useful parts of a personal operating stack:
 - a scoped CLI that targets an external brain home
 - a lightweight dashboard
 - OpenAI-native embeddings, grounded query, and enrichment defaults
-
-BigBrain should stay smaller and sharper than a full agent platform. It is not
-an autonomous worker swarm, a general agent host, or a second operating system.
-The product boundary is: markdown and git as canonical truth, a rebuildable
-database/index as runtime state, and a polished cockpit for inspecting what
-agents and automations are doing with the brain.
+- MCP server mode for hosted or shared brains
+- OAuth allowlist support for team MCP access
+- retrieval evals for checking search quality changes
 
 ## Brain Model
 
@@ -77,21 +102,6 @@ meeting page across the full lifecycle:
 For meetings, `---` and `## Timeline` are optional. The prep workflow should
 update the same meeting page that later receives ingested meeting outcomes.
 
-## Current Runtime
-
-Implemented foundation:
-
-- external brain-home initialization
-- external config and SQLite index under `<brain-home>/.bigbrain-state/`
-- page CRUD against the brain home
-- lexical search plus optional OpenAI-backed semantic/query flows
-- link extraction and backlinks
-- migration from an existing `brain`-style corpus
-- health checks
-- schema/filing guidance
-- existing task refresh adapted to the new runtime model
-- lightweight built-in dashboard
-
 ## Operating Modes
 
 BigBrain should support the same brain model across a few deployment shapes:
@@ -107,10 +117,10 @@ BigBrain should support the same brain model across a few deployment shapes:
   agent runtime lives elsewhere.
 
 The database is service state, not the source of truth for authored knowledge.
-For hosted brains such as Example Brain, markdown in git remains canonical. Postgres
-can always be rebuilt from the markdown repo, but mutable runtime state such as
-OAuth clients, grants, sync runs, embedding rows, and audit logs should persist
-outside the app container.
+For hosted brains such as Example Brain, markdown in git remains canonical.
+Postgres can always be rebuilt from the markdown repo, but mutable runtime state
+such as OAuth clients, grants, sync runs, embedding rows, and audit logs should
+persist outside the app container.
 
 ## Architecture
 
@@ -170,8 +180,6 @@ Machine-local BigBrain secrets live outside the source repo and brain home in
 does not override variables already set in the process environment. Put
 `OPENAI_API_KEY=...` there to enable embeddings, semantic search, and generated
 answers.
-
-For agent setup, see [`INSTALL_FOR_AGENTS.md`](./INSTALL_FOR_AGENTS.md).
 
 ## Commands
 
