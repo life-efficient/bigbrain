@@ -5,6 +5,7 @@ import { initializeBrainHome, loadConfig, loadState, loadUserEnv, persistState, 
 import { dbDoctor, openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
 import { runHealthCheck } from './health.js';
 import { fullPathFromSlug } from './markdown.js';
+import { listMembers, upsertMember } from './members.js';
 import { startMcpServer } from './mcp-server.js';
 import { migrateBrain } from './migrate.js';
 import { listRecentFiles } from './recent.js';
@@ -34,6 +35,8 @@ export async function runCli(argv) {
     case 'schema': return handleSchema(global);
     case 'file': return handleFile(args, global);
     case 'refresh-tasks': return handleRefreshTasks(global);
+    case 'tasks': return handleTasks(args, global);
+    case 'members': return handleMembers(args, global);
     case 'eval': return handleEval(args, global);
     case 'dashboard': return handleDashboard(args, global);
     case 'mcp': return handleMcp(args, global);
@@ -218,6 +221,52 @@ async function handleRefreshTasks(global) {
   const config = await loadRuntimeConfig(global);
   const result = await runTaskRefresh({ configPath: config.configPath, statePath: config.statePath });
   output(global, result, result.summary);
+}
+
+async function handleTasks(args, global) {
+  const config = await loadRuntimeConfig(global);
+  const db = await openDatabase(config);
+  const { buildTasksPayload } = await import('./dashboard.js');
+  const url = new URL('/api/tasks', 'http://127.0.0.1');
+  const assignee = argValue(args, '--assignee');
+  if (assignee) url.searchParams.set('assignee', assignee);
+  const result = await buildTasksPayload(config, db, url);
+  await db.close?.();
+  const openItems = result.sections.flatMap((section) =>
+    section.items
+      .filter((item) => !item.completed)
+      .map((item) => ({ section: section.heading, item })),
+  );
+  output(global, result, openItems.length
+    ? openItems.map(({ section, item }) => `${section}: ${item.title || item.markdown}`).join('\n')
+    : 'No open tasks.');
+}
+
+async function handleMembers(args, global) {
+  const config = await loadRuntimeConfig(global);
+  const db = await openDatabase(config);
+  try {
+    if (args[0] === 'add') {
+      const email = args[1];
+      const personSlug = args[2];
+      if (!email || !personSlug) throw new Error('members add requires <email> <people/slug>.');
+      const member = await upsertMember(db, {
+        email,
+        person_slug: personSlug,
+        name: argValue(args, '--name') || email,
+        role: argValue(args, '--role') || 'member',
+        status: argValue(args, '--status') || 'active',
+      });
+      output(global, member, `Added ${member.email} as ${member.person_slug}.`);
+      return;
+    }
+    const members = await listMembers(db, { status: argValue(args, '--status') || null });
+    output(global, members, members.length
+      ? members.map((member) => `${member.person_slug}  ${member.email}  ${member.status}  ${member.role}`).join('\n')
+      : 'No members.');
+  } finally {
+    await db.close?.();
+  }
 }
 
 async function handleEval(args, global) {
@@ -430,6 +479,9 @@ Commands:
   schema
   file <path-or-description>
   refresh-tasks
+  tasks [--assignee people/name]
+  members [--status active|inactive|invited]
+  members add <email> <people/slug> [--name NAME] [--role owner|member|viewer] [--status active|inactive|invited]
   eval retrieval [--mode conservative|balanced|tokenmax] [--limit N] [--cases PATH] [--private] [--redact]
   eval export [--cases PATH] [--mode MODE] [--limit N] [--redact]
   eval replay --against baseline.ndjson [--mode MODE] [--limit N]

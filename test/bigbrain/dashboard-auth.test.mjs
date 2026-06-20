@@ -6,7 +6,9 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
+import { openDatabase } from '../../src/bigbrain/db.js';
 import { startDashboard } from '../../src/bigbrain/dashboard.js';
+import { upsertMember } from '../../src/bigbrain/members.js';
 
 test('hosted dashboard uses OAuth allowlist sessions', async () => {
   const fixture = await createFixture('bigbrain-dashboard-oauth-');
@@ -78,6 +80,47 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
     ), true);
   } finally {
     if (server) await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('hosted dashboard can use active members as the OAuth allowlist', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-member-oauth-');
+  let db;
+  let server;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    db = await openDatabase(config);
+    await upsertMember(db, {
+      email: 'teammate@example.com',
+      name: 'Team Mate',
+      person_slug: 'people/team-mate',
+    });
+    server = await startDashboard(config, {
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: {
+        mode: 'oauth_allowlist',
+        authToken: null,
+        publicUrl: 'https://brain.example.test',
+        provider: 'google',
+        googleClientId: 'client-id',
+        googleClientSecret: 'client-secret',
+        allowedEmails: [],
+        allowedDomains: [],
+        tokenStorePath: path.join(fixture.rootDir, 'tokens.json'),
+        allowSharedToken: false,
+        serviceName: 'Example Brain Cortex',
+        appName: 'Example Brain',
+      },
+    });
+
+    const start = await fetch(`${serverUrl(server)}/auth/start`, { redirect: 'manual' });
+    assert.equal(start.status, 302);
+    assert.match(start.headers.get('location'), /^https:\/\/accounts\.google\.com\//);
+  } finally {
+    if (server) await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await db?.close?.();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
 });

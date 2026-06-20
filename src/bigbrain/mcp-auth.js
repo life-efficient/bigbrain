@@ -30,6 +30,7 @@ export function buildAuthConfig({
     allowedDomains,
     tokenStorePath: env.BIGBRAIN_MCP_TOKEN_STORE || '',
     tokenStore: null,
+    memberLookup: null,
     allowSharedToken: env.BIGBRAIN_MCP_ALLOW_SHARED_TOKEN === '1',
     serviceName: env.BIGBRAIN_MCP_SERVICE_NAME || 'BigBrain MCP',
     appName: env.BIGBRAIN_MCP_APP_NAME || env.BIGBRAIN_MCP_SERVICE_NAME || 'BigBrain',
@@ -96,8 +97,8 @@ export function assertOAuthConfigured(authConfig) {
   if (authConfig.provider !== 'google') throw new Error(`Unsupported OAuth provider: ${authConfig.provider}`);
   if (!authConfig.googleClientId) throw new Error('BIGBRAIN_MCP_GOOGLE_CLIENT_ID or GOOGLE_CLIENT_ID is required.');
   if (!authConfig.googleClientSecret) throw new Error('BIGBRAIN_MCP_GOOGLE_CLIENT_SECRET or GOOGLE_CLIENT_SECRET is required.');
-  if (!authConfig.allowedEmails.length && !authConfig.allowedDomains.length) {
-    throw new Error('Set BIGBRAIN_MCP_ALLOWED_EMAILS or BIGBRAIN_MCP_ALLOWED_DOMAINS before enabling OAuth.');
+  if (!authConfig.allowedEmails.length && !authConfig.allowedDomains.length && !authConfig.memberLookup) {
+    throw new Error('Set BIGBRAIN_MCP_ALLOWED_EMAILS, BIGBRAIN_MCP_ALLOWED_DOMAINS, or configure a member lookup before enabling OAuth.');
   }
   if (!authConfig.tokenStorePath && !authConfig.tokenStore) {
     throw new Error('BIGBRAIN_MCP_TOKEN_STORE is required for OAuth auth unless a database token store is configured.');
@@ -242,7 +243,7 @@ export async function completeOAuthCallback(authConfig, { code, state }) {
   const profile = await fetchGoogleProfile(authConfig, code);
   const email = String(profile.email || '').toLowerCase();
   if (!email || profile.email_verified === false) throw new Error('Google account email is not verified.');
-  if (!isEmailAllowed(authConfig, email)) throw new Error(`${email} is not allowed to access this brain.`);
+  if (!await isEmailAllowed(authConfig, email)) throw new Error(`${email} is not allowed to access this brain.`);
 
   if (stateRecord.flow === 'agent_oauth') {
     const authCode = `${CODE_PREFIX}${randomToken(24)}`;
@@ -405,10 +406,11 @@ async function fetchGoogleProfile(authConfig, code) {
   return userInfo.json();
 }
 
-function isEmailAllowed(authConfig, email) {
+async function isEmailAllowed(authConfig, email) {
   if (authConfig.allowedEmails.includes(email)) return true;
   const domain = email.split('@')[1] || '';
-  return authConfig.allowedDomains.includes(domain);
+  if (authConfig.allowedDomains.includes(domain)) return true;
+  return Boolean(await authConfig.memberLookup?.(email));
 }
 
 async function readTokenStore(authConfig) {

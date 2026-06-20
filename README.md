@@ -139,11 +139,40 @@ Running `bigbrain init /path/to/home` creates:
 
 - the canonical top-level page directories
 - `ops/tasks.md`
+- `tasks/` for assignable task pages
 - `<brain-home>/.bigbrain-state/config.json`
 - `<brain-home>/.bigbrain-state/state.json`
 - `<brain-home>/.bigbrain-state/bigbrain.sqlite`
 
 An example config shape is in [`bigbrain.config.example.json`](./bigbrain.config.example.json).
+
+## Members And Assignments
+
+Brain `people/*.md` pages can describe anyone. Assignable work is restricted to
+active members in the runtime `members` table. A member maps an OAuth/email
+identity to a canonical person page:
+
+```sh
+bigbrain members add hani@example.com people/hani --name Hani --role owner
+```
+
+Task pages live under `tasks/*.md` and use frontmatter for status and
+assignment:
+
+```yaml
+---
+title: Follow up on proposal
+status: open
+priority: p1
+assignees: [people/hani]
+source: [meetings/proposal-review]
+---
+```
+
+The dashboard and `bigbrain tasks --assignee people/hani` only resolve
+assignees that match active members. External people can still be linked in
+notes, sources, or stakeholder fields; they are not assignable until they are
+added as members.
 
 ## Install
 

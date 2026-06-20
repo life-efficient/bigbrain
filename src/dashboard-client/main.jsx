@@ -68,6 +68,7 @@ function DashboardApp() {
   const [preview, setPreview] = useState(null);
   const [healthOpen, setHealthOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [assigneeFilter, setAssigneeFilter] = useState('');
   const visualizerRef = useRef(null);
   const healthMenuRef = useRef(null);
   const settingsMenuRef = useRef(null);
@@ -77,10 +78,11 @@ function DashboardApp() {
 
     async function load() {
       try {
+        const assigneeQuery = assigneeFilter ? `?${new URLSearchParams({ assignee: assigneeFilter }).toString()}` : '';
         const [schema, tasks, inbox, recent, health, graph] = await Promise.all([
           fetchJson('/api/schema'),
-          fetchJson('/api/tasks'),
-          fetchJson('/api/inbox'),
+          fetchJson(`/api/tasks${assigneeQuery}`),
+          fetchJson(`/api/inbox${assigneeQuery}`),
           fetchJson('/api/recent'),
           fetchJson('/api/health'),
           fetchJson('/api/graph'),
@@ -101,7 +103,7 @@ function DashboardApp() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [assigneeFilter]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) {
@@ -234,6 +236,7 @@ function DashboardApp() {
   const { schema, tasks, inbox, recent, health, graph } = state.data;
   const inboxItems = Array.isArray(inbox?.items) ? inbox.items : [];
   const taskSections = Array.isArray(tasks?.sections) ? tasks.sections : [];
+  const members = Array.isArray(tasks?.members) ? tasks.members : Array.isArray(inbox?.members) ? inbox.members : [];
   const healthFindingCount = Number.isFinite(health?.finding_count) ? health.finding_count : 0;
   const healthFindings = Array.isArray(health?.findings)
     ? health.findings
@@ -365,6 +368,7 @@ function DashboardApp() {
           <div className={`view-stage ${view === 'graph' ? 'view-stage-graph' : 'view-stage-list'}`}>
             {view === 'inbox' ? (
               <div className="list-page-card standalone-list-region">
+                <AssigneeFilter members={members} value={assigneeFilter} onChange={setAssigneeFilter} />
                 <div className="task-section">
                   {inboxItems.map((item) => (
                     <button
@@ -377,6 +381,7 @@ function DashboardApp() {
                         <strong>{item.title}</strong>
                         <span className="meta">{item.slug}</span>
                       </div>
+                      <AssigneePills assignees={item.assignees} invalidAssignees={item.invalid_assignees} />
                       <div className="inbox-card-summary">
                         <MarkdownDocument
                           markdown={stripSourceReferences(item.summary || '')}
@@ -393,12 +398,14 @@ function DashboardApp() {
 
             {view === 'tasks' ? (
               <div className="list-page-card standalone-list-region">
+                <AssigneeFilter members={members} value={assigneeFilter} onChange={setAssigneeFilter} />
                 <div className="task-section">
                   {taskSections.map((section) => (
                     <div key={section.heading} className="task-group">
                       <h3>{section.heading}</h3>
                       {section.items.map((item, index) => (
                         <div key={`${section.heading}:${index}`} className={`task ${item.completed ? 'done' : ''}`}>
+                          <AssigneePills assignees={item.assignees} invalidAssignees={item.invalid_assignees} />
                           <MarkdownDocument
                             markdown={stripSourceReferences(item.markdown)}
                             sourceSlug={tasks.slug}
@@ -512,6 +519,47 @@ function isTypingTarget(target) {
   }
   const tagName = target.tagName;
   return target.isContentEditable || tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
+}
+
+function AssigneeFilter({ members, value, onChange }) {
+  if (!members.length) return null;
+  return (
+    <div className="filter-bar" aria-label="Assignee filter">
+      <button
+        type="button"
+        className={`filter-chip ${value === '' ? 'active' : ''}`}
+        onClick={() => onChange('')}
+      >
+        All
+      </button>
+      {members.map((member) => (
+        <button
+          key={member.person_slug}
+          type="button"
+          className={`filter-chip ${value === member.person_slug ? 'active' : ''}`}
+          onClick={() => onChange(member.person_slug)}
+        >
+          {member.name || member.person_slug}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AssigneePills({ assignees, invalidAssignees }) {
+  const valid = Array.isArray(assignees) ? assignees : [];
+  const invalid = Array.isArray(invalidAssignees) ? invalidAssignees : [];
+  if (!valid.length && !invalid.length) return null;
+  return (
+    <div className="assignee-row">
+      {valid.map((member) => (
+        <span key={member.person_slug} className="assignee-pill">{member.name || member.person_slug}</span>
+      ))}
+      {invalid.map((slug) => (
+        <span key={slug} className="assignee-pill invalid">{slug}</span>
+      ))}
+    </div>
+  );
 }
 
 const GraphPanel = memo(function GraphPanel({

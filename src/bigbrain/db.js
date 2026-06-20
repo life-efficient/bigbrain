@@ -77,6 +77,18 @@ export function initializeSqliteSchema(db) {
       details_json TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS members (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      person_slug TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'active',
+      role TEXT NOT NULL DEFAULT 'member',
+      oauth_provider TEXT,
+      oauth_subject TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
     CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(
       slug UNINDEXED,
       title,
@@ -188,6 +200,18 @@ export async function initializePostgresSchema(db) {
       action TEXT NOT NULL,
       details_json JSONB NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    CREATE TABLE IF NOT EXISTS members (
+      id BIGSERIAL PRIMARY KEY,
+      email TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      person_slug TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'active',
+      role TEXT NOT NULL DEFAULT 'member',
+      oauth_provider TEXT,
+      oauth_subject TEXT,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
     );
     CREATE INDEX IF NOT EXISTS pages_slug_idx ON pages (slug);
     CREATE INDEX IF NOT EXISTS links_from_slug_idx ON links (from_slug);

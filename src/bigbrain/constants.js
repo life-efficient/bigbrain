@@ -24,6 +24,7 @@ export const CANONICAL_SCHEMA_DIRS = [
   'writing',
   'sources',
   'inbox',
+  'tasks',
   'archive',
   'dreams',
   'ops',

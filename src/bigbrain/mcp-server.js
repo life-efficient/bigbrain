@@ -36,6 +36,7 @@ import {
   renderOAuthCompletePage,
 } from './mcp-auth.js';
 import { createMcpAuthStore } from './mcp-auth-store.js';
+import { findActiveMemberByEmail } from './members.js';
 
 const DEFAULT_MCP_PROTOCOL_VERSION = '2024-11-05';
 const execFileAsync = promisify(execFile);
@@ -51,6 +52,11 @@ export async function startMcpServer({
   gitBackupIntervalMs = Number(process.env.BIGBRAIN_MCP_GIT_BACKUP_INTERVAL_MS || 300000),
 } = {}) {
   if (!authConfig.tokenStore) authConfig.tokenStore = await createMcpAuthStore(config, authConfig);
+  let memberDb = null;
+  if (authRoutesEnabled(authConfig) && !authConfig.memberLookup) {
+    memberDb = await openDatabase(config);
+    authConfig.memberLookup = (email) => findActiveMemberByEmail(memberDb, email);
+  }
   if (authRoutesEnabled(authConfig)) assertOAuthConfigured(authConfig);
   await syncAndPersist(config);
   const syncTimer = syncIntervalMs > 0
@@ -158,7 +164,18 @@ export async function startMcpServer({
     close: () => new Promise((resolve, reject) => {
       if (syncTimer) clearInterval(syncTimer);
       if (gitBackupTimer) clearInterval(gitBackupTimer);
-      server.close((error) => error ? reject(error) : resolve());
+      server.close(async (error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        try {
+          await memberDb?.close?.();
+          resolve();
+        } catch (closeError) {
+          reject(closeError);
+        }
+      });
     }),
   };
 }

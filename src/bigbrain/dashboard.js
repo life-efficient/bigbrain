@@ -8,6 +8,7 @@ import { build } from 'esbuild';
 import { openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
 import { runHealthCheck } from './health.js';
 import { fullPathFromSlug, parseMarkdownPage, resolveMarkdownLink, slugFromPath } from './markdown.js';
+import { findActiveMemberByEmail, findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug } from './members.js';
 import {
   authRoutesEnabled,
   assertOAuthConfigured,
@@ -39,12 +40,14 @@ export async function startDashboard(config, {
   const authEnabled = authRoutesEnabled(authConfig);
   if (authEnabled) {
     if (!authConfig.tokenStore) authConfig.tokenStore = await createMcpAuthStore(config, authConfig);
+    if (!authConfig.memberLookup) authConfig.memberLookup = (email) => findActiveMemberByEmail(db, email);
     assertOAuthConfigured(authConfig);
   }
 
   const server = http.createServer(async (req, res) => {
     try {
       const requestUrl = new URL(req.url || '/', 'http://127.0.0.1');
+      let actor = null;
       if (authEnabled && requestUrl.pathname === '/auth/start') {
         const location = await createDashboardOAuthStart(authConfig, req.url || '/auth/start');
         res.writeHead(302, { location });
@@ -99,6 +102,7 @@ export async function startDashboard(config, {
           res.end(authorization.message || 'Unauthorized');
           return;
         }
+        actor = authorization.actor || null;
       }
       if (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html') {
         res.writeHead(200, {
@@ -125,8 +129,8 @@ export async function startDashboard(config, {
         return;
       }
       if (requestUrl.pathname === '/api/schema') return json(res, { markdown: renderSchemaMarkdown() });
-      if (requestUrl.pathname === '/api/tasks') return json(res, await buildTasksPayload(config));
-      if (requestUrl.pathname === '/api/inbox') return json(res, await buildInboxPayload(config));
+      if (requestUrl.pathname === '/api/tasks') return json(res, await buildTasksPayload(config, db, requestUrl, { actor }));
+      if (requestUrl.pathname === '/api/inbox') return json(res, await buildInboxPayload(config, db, requestUrl, { actor }));
       if (requestUrl.pathname === '/api/recent') return json(res, await buildRecentPayload(db));
       if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db));
       if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
@@ -439,11 +443,17 @@ function renderAppHtml() {
       .inbox-card-summary .tailwind-prose ol,
       .inbox-card-summary .tailwind-prose blockquote { margin: 0 0 0.45em; }
       .task-section, .inbox-list, .recent-list, .health-list { display: grid; gap: 12px; }
+      .filter-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 14px; }
+      .filter-chip { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; min-height: 32px; padding: 7px 11px; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; }
+      .filter-chip.active { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.09); }
       .task-section-compact .task { padding: 10px 12px; }
       .task-group { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
       .task-group:first-child { border-top: 0; padding-top: 0; }
       .task { padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid rgba(148,163,184,0.16); line-height: 1.45; }
       .task.done { opacity: 0.6; }
+      .assignee-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 9px; }
+      .assignee-pill { display: inline-flex; align-items: center; min-height: 22px; padding: 3px 8px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.18); background: rgba(255,255,255,0.05); color: var(--muted); font-size: 11px; font-weight: 700; }
+      .assignee-pill.invalid { color: #fecaca; border-color: rgba(252,165,165,0.34); background: rgba(127,29,29,0.2); }
       .meta { font-size: 12px; color: var(--muted); }
       .inbox-item, .recent-item, .health-item { padding: 14px; border-radius: 14px; background: var(--surface); border: 1px solid rgba(148,163,184,0.16); }
       .recent-item strong, .inbox-item strong { display: block; margin-bottom: 6px; }
@@ -525,7 +535,40 @@ function renderAppHtml() {
 </html>`;
 }
 
-async function buildTasksPayload(config) {
+export async function buildTasksPayload(config, db = null, requestUrl = new URL('/api/tasks', 'http://127.0.0.1'), { actor = null } = {}) {
+  const taskPages = await readTaskPages(config);
+  if (taskPages.length > 0) {
+    const activeMembers = db ? await listActiveMembers(db) : [];
+    const activeMemberMap = memberMapByPersonSlug(activeMembers);
+    const requestedAssignee = await resolveRequestedAssignee(db, requestUrl, actor);
+    const hasAssigneeFilter = requestUrl.searchParams.has('assignee');
+    const filteredPages = hasAssigneeFilter
+      ? requestedAssignee
+        ? taskPages.filter((task) => task.assignee_slugs.includes(requestedAssignee.person_slug))
+        : []
+      : taskPages;
+    const sections = groupTaskPages(filteredPages, activeMemberMap);
+    const openItems = sections.flatMap((section) => section.items).filter((item) => !item.completed);
+    return {
+      slug: 'tasks',
+      markdown: '',
+      source: 'task_pages',
+      members: activeMembers,
+      filters: {
+        assignee: requestedAssignee?.person_slug || null,
+        actor_email: actor?.email || null,
+      },
+      sections,
+      meta: {
+        open_tasks: openItems.length,
+        task_pages: taskPages.length,
+        invalid_assignments: sections
+          .flatMap((section) => section.items)
+          .reduce((count, item) => count + item.invalid_assignees.length, 0),
+      },
+    };
+  }
+
   const markdown = await fs.readFile(config.tasksFile, 'utf8');
   const slug = slugFromPath(config.brainDir, config.tasksFile);
   const sections = [];
@@ -548,34 +591,183 @@ async function buildTasksPayload(config) {
   return {
     slug,
     markdown,
+    source: 'legacy_tasks_file',
+    members: db ? await listActiveMembers(db) : [],
+    filters: { assignee: null, actor_email: actor?.email || null },
     sections,
     meta: {
       open_tasks: sections.flatMap((section) => section.items).filter((item) => !item.completed).length,
+      task_pages: 0,
+      invalid_assignments: 0,
     },
   };
 }
 
-async function buildInboxPayload(config) {
+export async function buildInboxPayload(config, db = null, requestUrl = new URL('/api/inbox', 'http://127.0.0.1'), { actor = null } = {}) {
   const inboxDir = path.join(config.brainDir, 'inbox');
   const entries = await fs.readdir(inboxDir, { withFileTypes: true }).catch(() => []);
   const items = [];
+  const activeMembers = db ? await listActiveMembers(db) : [];
+  const activeMemberMap = memberMapByPersonSlug(activeMembers);
+  const requestedAssignee = await resolveRequestedAssignee(db, requestUrl, actor);
+  const hasAssigneeFilter = requestUrl.searchParams.has('assignee');
   for (const entry of entries) {
     if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
     const fullPath = path.join(inboxDir, entry.name);
     const raw = await fs.readFile(fullPath, 'utf8');
     const slug = `inbox/${entry.name.replace(/\.md$/, '')}`;
     const parsed = parseMarkdownPage(raw, slug);
+    const assigneeSlugs = normalizeSlugList(parsed.frontmatter.assignees);
+    if (hasAssigneeFilter && (!requestedAssignee || !assigneeSlugs.includes(requestedAssignee.person_slug))) continue;
     const stat = await fs.stat(fullPath);
     items.push({
       slug,
       title: parsed.title,
       summary: extractInboxPreview(parsed),
       markdown: parsed.bodyContentMarkdown,
+      status: normalizeStatus(parsed.frontmatter.status, 'triage'),
+      assignees: resolveAssignees(assigneeSlugs, activeMemberMap),
+      invalid_assignees: assigneeSlugs.filter((assignee) => !activeMemberMap.has(assignee)),
       updated_at: stat.mtime.toISOString(),
     });
   }
   items.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-  return { items };
+  return {
+    members: activeMembers,
+    filters: {
+      assignee: requestedAssignee?.person_slug || null,
+      actor_email: actor?.email || null,
+    },
+    items,
+  };
+}
+
+async function readTaskPages(config) {
+  const taskDir = path.join(config.brainDir, 'tasks');
+  const files = await listMarkdownFiles(taskDir).catch(() => []);
+  const pages = [];
+  for (const fullPath of files) {
+    const raw = await fs.readFile(fullPath, 'utf8');
+    const slug = slugFromPath(config.brainDir, fullPath);
+    const parsed = parseMarkdownPage(raw, slug);
+    const stat = await fs.stat(fullPath);
+    const status = normalizeStatus(parsed.frontmatter.status, 'open');
+    pages.push({
+      slug,
+      title: parsed.title,
+      markdown: parsed.bodyContentMarkdown,
+      status,
+      completed: status === 'done' || status === 'archived',
+      priority: normalizePriority(parsed.frontmatter.priority),
+      due: normalizeDateValue(parsed.frontmatter.due),
+      assignee_slugs: normalizeSlugList(parsed.frontmatter.assignees),
+      source_slugs: normalizeSlugList(parsed.frontmatter.source),
+      updated_at: stat.mtime.toISOString(),
+    });
+  }
+  return pages.sort(compareTasks);
+}
+
+async function listMarkdownFiles(dir) {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const files = [];
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...await listMarkdownFiles(fullPath));
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      files.push(fullPath);
+    }
+  }
+  return files;
+}
+
+function groupTaskPages(taskPages, activeMemberMap) {
+  const headings = [
+    ['open', 'Open'],
+    ['waiting', 'Waiting'],
+    ['blocked', 'Blocked'],
+    ['done', 'Done'],
+    ['archived', 'Archived'],
+  ];
+  return headings
+    .map(([status, heading]) => ({
+      heading,
+      items: taskPages
+        .filter((task) => task.status === status)
+        .map((task) => ({
+          slug: task.slug,
+          completed: task.completed,
+          markdown: task.title,
+          title: task.title,
+          status: task.status,
+          priority: task.priority,
+          due: task.due,
+          assignees: resolveAssignees(task.assignee_slugs, activeMemberMap),
+          invalid_assignees: task.assignee_slugs.filter((assignee) => !activeMemberMap.has(assignee)),
+          source_slugs: task.source_slugs,
+          updated_at: task.updated_at,
+        })),
+    }))
+    .filter((section) => section.items.length > 0);
+}
+
+async function resolveRequestedAssignee(db, requestUrl, actor) {
+  const requested = requestUrl.searchParams.get('assignee')?.trim();
+  if (requested && requested !== 'me') {
+    return db ? findActiveMemberByPersonSlug(db, requested) : null;
+  }
+  if (requested === 'me' && db && actor?.email) {
+    return findActiveMemberByEmail(db, actor.email);
+  }
+  return null;
+}
+
+function resolveAssignees(assigneeSlugs, activeMemberMap) {
+  return assigneeSlugs
+    .map((assignee) => activeMemberMap.get(assignee))
+    .filter(Boolean);
+}
+
+function normalizeSlugList(value) {
+  const values = Array.isArray(value)
+    ? value
+    : String(value || '').split(',');
+  return values
+    .map((entry) => String(entry).trim().replace(/^['"]|['"]$/g, '').replace(/\.md$/i, ''))
+    .filter(Boolean);
+}
+
+function normalizeStatus(value, fallback) {
+  const normalized = String(value || fallback).trim().toLowerCase();
+  return ['open', 'waiting', 'blocked', 'done', 'archived', 'triage', 'assigned', 'converted'].includes(normalized)
+    ? normalized
+    : fallback;
+}
+
+function normalizePriority(value) {
+  const normalized = String(value || 'p3').trim().toLowerCase();
+  return ['p0', 'p1', 'p2', 'p3'].includes(normalized) ? normalized : 'p3';
+}
+
+function normalizeDateValue(value) {
+  const text = String(value || '').trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : null;
+}
+
+function compareTasks(a, b) {
+  return priorityRank(a.priority) - priorityRank(b.priority)
+    || dueSortValue(a.due) - dueSortValue(b.due)
+    || b.updated_at.localeCompare(a.updated_at)
+    || a.slug.localeCompare(b.slug);
+}
+
+function priorityRank(priority) {
+  return { p0: 0, p1: 1, p2: 2, p3: 3 }[priority] ?? 3;
+}
+
+function dueSortValue(due) {
+  return due ? Date.parse(`${due}T00:00:00Z`) : Number.MAX_SAFE_INTEGER;
 }
 
 function extractInboxPreview(parsed) {

@@ -142,7 +142,16 @@ deployments. When the BigBrain config uses `storage_backend: "postgres"`, OAuth
 client, state, code, and token records are stored in Postgres instead.
 
 At least one of `BIGBRAIN_MCP_ALLOWED_EMAILS` or
-`BIGBRAIN_MCP_ALLOWED_DOMAINS` must be set.
+`BIGBRAIN_MCP_ALLOWED_DOMAINS` must be set, unless active members have already
+been created in the hosted brain database. Members are the durable allowlist
+model for hosted brains:
+
+```sh
+bigbrain --config /path/to/config.json members add alice@example.com people/alice --name Alice
+```
+
+Each member links an authenticated email to a canonical `people/<slug>` page.
+Only active members can be assigned tasks or inbox items.
 
 Create a Google OAuth client with this redirect URI:
 
