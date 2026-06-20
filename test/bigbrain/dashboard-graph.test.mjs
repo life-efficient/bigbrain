@@ -45,7 +45,9 @@ test('dashboard page payload includes file explorer metadata and nearby links', 
       '---',
       '# Alice Example',
       '',
-      'Works on [Relay](../projects/relay.md).',
+      'Works on [Relay](../projects/relay.md) with a long operational summary that should remain visible in the page reader instead of being cut at an arbitrary character limit because the sidecar can scroll naturally.',
+      '',
+      'This second sentence should also remain visible so the reader preview does not look accidentally truncated.',
       '',
       '---',
       '',
@@ -67,6 +69,7 @@ test('dashboard page payload includes file explorer metadata and nearby links', 
     assert.equal(payload.type, 'people');
     assert.equal(payload.path, 'people/alice.md');
     assert.match(payload.summary, /Works on/);
+    assert.match(payload.summary, /second sentence should also remain visible/);
     assert.equal(payload.frontmatter.title, 'Alice Example');
     assert.equal(payload.links.outgoing.some((link) => link.slug === 'projects/relay'), true);
     assert.equal(payload.links.backlinks.some((link) => link.slug === 'projects/relay'), true);

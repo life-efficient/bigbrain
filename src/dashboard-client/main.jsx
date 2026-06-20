@@ -627,6 +627,7 @@ function AssigneePills({ assignees, invalidAssignees }) {
 function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen }) {
   const type = preview?.type || preview?.slug?.split('/')[0] || 'page';
   const updatedLabel = formatDateTime(preview?.updated_at);
+  const pathLabel = preview?.path || preview?.slug || preview?.href || '';
   const summary = typeof preview?.summary === 'string' ? preview.summary.trim() : '';
   const outgoing = Array.isArray(preview?.links?.outgoing) ? preview.links.outgoing : [];
   const backlinks = Array.isArray(preview?.links?.backlinks) ? preview.links.backlinks : [];
@@ -642,6 +643,7 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen }) {
                 <span className="sidecar-chip strong">{type}</span>
                 {updatedLabel ? <span className="sidecar-chip">{updatedLabel}</span> : null}
               </div>
+              {pathLabel ? <div className="meta">{pathLabel}</div> : null}
             </div>
             <button type="button" className="graph-button" onClick={onClose}>
               Close

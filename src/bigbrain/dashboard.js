@@ -1000,19 +1000,30 @@ function resolveBrainMarkdownPath(brainDir, slug) {
 
 function extractPageReaderSummary(parsed) {
   const titlePattern = new RegExp(`^#\\s+${escapeRegExp(parsed.title)}\\s*$`, 'i');
-  const text = parsed.compiledTruth
-    .split('\n')
-    .map((line) => line.trim().replace(/^>\s*/, ''))
-    .filter((line) => line && line !== '---' && !titlePattern.test(line) && !/^#{1,6}\s/.test(line))
-    .join(' ')
+  const blocks = [];
+  let current = [];
+  for (const rawLine of parsed.compiledTruth.split('\n')) {
+    const line = rawLine.trim().replace(/^>\s*/, '');
+    if (!line || line === '---' || titlePattern.test(line) || /^#{1,6}\s/.test(line)) {
+      flushSummaryBlock(blocks, current);
+      current = [];
+      if (blocks.length >= 2) break;
+      continue;
+    }
+    current.push(line);
+  }
+  flushSummaryBlock(blocks, current);
+  return blocks.slice(0, 2).join('\n\n').trim();
+}
+
+function flushSummaryBlock(blocks, lines) {
+  if (!lines.length) return;
+  const cleaned = stripSourceReferences(lines.join(' '))
     .replace(/\*\*/g, '')
     .replace(/\s+/g, ' ')
-    .trim();
-  const cleaned = stripSourceReferences(text)
     .replace(/\s+-\s+(?:Role|Timezone|WhatsApp|Assistant preference|Physical location):.*$/i, '')
     .trim();
-  const sentences = cleaned.match(/[^.!?]+[.!?]+/g);
-  return (sentences ? sentences.slice(0, 2).join(' ') : cleaned).slice(0, 240).trim();
+  if (cleaned) blocks.push(cleaned);
 }
 
 function escapeRegExp(value) {
