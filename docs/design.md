@@ -225,7 +225,8 @@ This is the right place for:
 - source PDFs and decks
 - generated diagrams and images
 - spreadsheets and models
-- sendable outward-facing deliverables
+- deliverable-owned raw files, filed beside the deliverable page rather than
+  under sources
 
 Use `sources/.raw/` for evidence-first uploads whose subject has not yet become
 another canonical entity. The active brain's `filing_rules` output is the

@@ -79,13 +79,16 @@ Use `create_raw_file` to upload a remote file without a markdown page,
 brain page in the same call, `read_raw_file` to download the raw bytes as
 base64, and `update_raw_file` to replace the bytes of an existing upload.
 
-The tool `create_raw_file_with_page` writes a raw source file and its
-corresponding markdown brain page together.
+The tool `create_raw_file_with_page` writes a raw file and its corresponding
+markdown brain page together.
 
 Required fields:
 
-- `path` or `raw_path`: destination under `<collection>/.raw/<file>`, for example
-  `sources/.raw/example-deck.pdf`.
+- `path` or `raw_path`: destination under `<collection>/.raw/<file>`, for
+  example `sources/.raw/evidence-deck/evidence-deck.pdf` for an evidence-first
+  upload or `deliverables/.raw/partner-brief/partner-brief.pdf` for a
+  deliverable-owned upload. Follow the selected brain's `filing_rules`; choose
+  the collection by the artifact's role, not only its file type.
 - `raw_content_base64` or `raw_content_text`: provide exactly one. Use base64
   for PDFs and other binary files.
 - `page_path`, `title`, `body`, `timeline_entry`: the markdown brain page to
@@ -117,8 +120,8 @@ Example:
 node scripts/prepare-raw-upload.mjs \
   --call \
   --mcp-name icaire \
-  --file ./deck.pptx \
-  --raw-path sources/.raw/deck/deck.pptx
+  --file ./evidence-deck.pptx \
+  --raw-path sources/.raw/evidence-deck/evidence-deck.pptx
 ```
 
 Raw reads return `content_base64` so binary files can round-trip safely. The

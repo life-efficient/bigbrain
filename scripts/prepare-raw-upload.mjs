@@ -206,7 +206,7 @@ function inferMimeType(filePath) {
 
 function printUsage() {
   process.stderr.write(`Usage:
-  node scripts/prepare-raw-upload.mjs --file ./deck.pptx --raw-path sources/.raw/deck/deck.pptx
+  node scripts/prepare-raw-upload.mjs --file ./evidence-deck.pptx --raw-path sources/.raw/evidence-deck/evidence-deck.pptx
 
 Options:
   --file <path>              Local file to encode.
