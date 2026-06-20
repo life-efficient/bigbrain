@@ -150,6 +150,52 @@ test('page ops support raw file CRUD without indexing raw files', async () => {
   }
 });
 
+test('page ops reject raw files over the configured decoded size limit before writing', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-raw-limit-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    config.rawFileMaxBytes = 10;
+
+    await assert.rejects(() => createRawFile({
+      config,
+      rawPath: 'sources/.raw/uploads/too-large.txt',
+      rawContentText: 'this is too large',
+      mimeType: 'text/plain',
+    }), /Raw file is too large: 17 bytes exceeds the configured limit of 10 bytes/);
+
+    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'sources', '.raw', 'uploads', 'too-large.txt')), /ENOENT/);
+
+    await assert.rejects(() => createRawFileWithPage({
+      config,
+      rawPath: 'sources/.raw/uploads/too-large.pdf',
+      rawContentBase64: Buffer.from('also too large', 'utf8').toString('base64'),
+      pagePath: 'sources/too-large',
+      title: 'Too Large',
+      body: 'This page should not be written.',
+      timelineEntry: 'Attempted oversized upload.',
+    }), /Raw file is too large/);
+
+    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'sources', '.raw', 'uploads', 'too-large.pdf')), /ENOENT/);
+    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'sources', 'too-large.md')), /ENOENT/);
+
+    await createRawFile({
+      config,
+      rawPath: 'sources/.raw/uploads/existing.txt',
+      rawContentText: 'small',
+      mimeType: 'text/plain',
+    });
+    await assert.rejects(() => updateRawFile({
+      config,
+      rawPath: 'sources/.raw/uploads/existing.txt',
+      rawContentText: 'replacement is too large',
+      mimeType: 'text/plain',
+    }), /Raw file is too large/);
+    assert.equal(await fs.readFile(path.join(fixture.brainHome, 'sources', '.raw', 'uploads', 'existing.txt'), 'utf8'), 'small');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('page ops list filters hidden runtime state and reject path escapes', async () => {
   const fixture = await createFixture('bigbrain-page-ops-safety-');
   try {

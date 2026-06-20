@@ -277,6 +277,61 @@ test('MCP server supports raw file CRUD tools', async () => {
   }
 });
 
+test('MCP server rejects oversized raw uploads and oversized request bodies', async () => {
+  const fixture = await createFixture('bigbrain-mcp-raw-limit-');
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    config.rawFileMaxBytes = 10;
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'secret',
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const oversizedRaw = await rpc(running.url, 'tools/call', {
+      name: 'create_raw_file',
+      arguments: {
+        path: 'sources/.raw/too-large.txt',
+        raw_content_text: 'this is too large',
+        mime_type: 'text/plain',
+      },
+    }, 'secret');
+    assert.match(oversizedRaw.error.message, /Raw file is too large/);
+    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'sources', '.raw', 'too-large.txt')), /ENOENT/);
+
+    const response = await fetch(running.url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer secret',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 99,
+        method: 'tools/call',
+        params: {
+          name: 'create_raw_file',
+          arguments: {
+            path: 'sources/.raw/request-too-large.txt',
+            raw_content_text: 'x'.repeat(1_100_000),
+          },
+        },
+      }),
+    });
+    assert.equal(response.status, 413);
+    const payload = await response.json();
+    assert.equal(payload.error.code, -32013);
+    assert.match(payload.error.message, /MCP request body is too large/);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('MCP server uploads raw files with associated brain pages', async () => {
   const fixture = await createFixture('bigbrain-mcp-raw-');
   let running;

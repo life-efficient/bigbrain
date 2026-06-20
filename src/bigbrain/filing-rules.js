@@ -26,6 +26,7 @@ export async function filingRulesForBrain({ config }) {
       'For uploads such as PDFs, decks, screenshots, spreadsheets, and transcripts, create a markdown page and raw file together when the raw file has brain value.',
       'Place the raw file under the same collection as the markdown page it supports.',
       'Use sources/.raw for evidence-first uploads whose subject has not yet become another canonical entity.',
+      'Raw uploads are limited to the configured raw_file_max_bytes value, 25 MiB by default; compress oversized files or store a summary/link instead.',
     ],
     examples: [
       {

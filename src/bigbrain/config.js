@@ -12,6 +12,7 @@ import {
   DEFAULT_FRESHNESS_INPUTS,
   DEFAULT_POINTER_PATH,
   DEFAULT_QUERY_MODEL,
+  DEFAULT_RAW_FILE_MAX_BYTES,
   DEFAULT_STATE_ROOT,
   LEGACY_META_DIRNAME,
   STATE_FILENAME,
@@ -122,6 +123,7 @@ export function buildDefaultConfig(brainHome, env = process.env) {
     lookback_fallback: '24h',
     include_globs: ['**/*.md'],
     exclude_globs: ['.git/**', 'archive/**', '.raw/**', '**/README.md', '**/FILING.md'],
+    raw_file_max_bytes: normalizePositiveInteger(env.BIGBRAIN_RAW_FILE_MAX_BYTES, DEFAULT_RAW_FILE_MAX_BYTES, 'BIGBRAIN_RAW_FILE_MAX_BYTES'),
   };
 }
 
@@ -173,6 +175,7 @@ export async function loadConfig(input = null) {
     lookbackFallback: typeof raw.lookback_fallback === 'string' && raw.lookback_fallback.trim() ? raw.lookback_fallback.trim() : '24h',
     includeGlobs: normalizeStringArray(raw.include_globs, derivedDefault.include_globs, 'include_globs'),
     excludeGlobs: normalizeStringArray(raw.exclude_globs, derivedDefault.exclude_globs, 'exclude_globs'),
+    rawFileMaxBytes: normalizePositiveInteger(raw.raw_file_max_bytes ?? derivedDefault.raw_file_max_bytes, derivedDefault.raw_file_max_bytes, 'raw_file_max_bytes'),
   };
 
   await requireExistingDirectory(config.brainDir, `Configured brain directory not found: ${config.brainDir}`);

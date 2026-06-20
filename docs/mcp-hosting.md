@@ -97,6 +97,13 @@ field and a `## Source File` link back to the raw upload. Raw files under
 `.raw/` stay out of the indexed page graph; the associated markdown page is the
 searchable surface.
 
+Raw uploads are limited to 25 MiB decoded bytes by default so git-backed brains
+do not accept files likely to break backup or sync. The limit can be changed
+with `raw_file_max_bytes` in the brain config or `BIGBRAIN_RAW_FILE_MAX_BYTES`
+in the server environment. Compress oversized PDFs/images/decks before upload,
+or store a summary and external link in the brain instead of committing the raw
+file.
+
 ## Auth Modes
 
 BigBrain MCP supports these auth modes:

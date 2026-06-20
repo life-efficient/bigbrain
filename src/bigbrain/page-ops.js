@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
+import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
 import { parseMarkdownPage } from './markdown.js';
 
 export const DEFAULT_COLLECTIONS = [
@@ -115,6 +116,7 @@ export async function createRawFileWithPage({
   if (await exists(pageFullPath)) throw new Error(`Page already exists: ${pageRelative}`);
 
   const rawBytes = decodeRawContent({ rawContentBase64, rawContentText });
+  assertRawFileSize(rawBytes, config);
   const rawLink = path.posix.relative(path.posix.dirname(pageRelative), rawRelative) || path.posix.basename(rawRelative);
   const pageBody = appendRawFileSection(requireNonEmpty(body, 'body'), rawRelative, rawLink);
 
@@ -158,6 +160,7 @@ export async function createRawFile({
   const rawFullPath = safeBrainPath(config.brainDir, rawRelative);
   if (await exists(rawFullPath)) throw new Error(`Raw file already exists: ${rawRelative}`);
   const rawBytes = decodeRawContent({ rawContentBase64, rawContentText });
+  assertRawFileSize(rawBytes, config);
   await fs.mkdir(path.dirname(rawFullPath), { recursive: true });
   await fs.writeFile(rawFullPath, rawBytes);
   return rawFileMetadata(config, rawRelative, { mimeType });
@@ -187,6 +190,7 @@ export async function updateRawFile({
   const stats = await fs.stat(rawFullPath);
   if (!stats.isFile()) throw new Error(`Raw file is not a file: ${rawRelative}`);
   const rawBytes = decodeRawContent({ rawContentBase64, rawContentText });
+  assertRawFileSize(rawBytes, config);
   await fs.writeFile(rawFullPath, rawBytes);
   return rawFileMetadata(config, rawRelative, { mimeType });
 }
@@ -366,6 +370,25 @@ function decodeRawContent({ rawContentBase64, rawContentText }) {
   if (hasBase64 === hasText) throw new Error('Provide exactly one of raw_content_base64 or raw_content_text.');
   if (hasBase64) return Buffer.from(rawContentBase64, 'base64');
   return Buffer.from(rawContentText, 'utf8');
+}
+
+function assertRawFileSize(rawBytes, config) {
+  const limit = normalizeRawFileMaxBytes(config?.rawFileMaxBytes);
+  if (rawBytes.length <= limit) return;
+  throw new Error(
+    `Raw file is too large: ${formatBytes(rawBytes.length)} exceeds the configured limit of ${formatBytes(limit)}. `
+    + 'Compress the file before upload, store only a summary/link in the brain, or raise raw_file_max_bytes/BIGBRAIN_RAW_FILE_MAX_BYTES only if the git backup can handle it.',
+  );
+}
+
+function normalizeRawFileMaxBytes(value) {
+  return Number.isInteger(value) && value > 0 ? value : DEFAULT_RAW_FILE_MAX_BYTES;
+}
+
+function formatBytes(bytes) {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+  return `${bytes} bytes`;
 }
 
 function formatTimelineEntry(entry, date) {

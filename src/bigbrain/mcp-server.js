@@ -3,6 +3,7 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
+import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
 import { persistState } from './config.js';
 import {
   createDashboardRequestHandler,
@@ -151,7 +152,7 @@ export async function startMcpServer({
         });
       }
 
-      const payload = JSON.parse(await readRequestBody(request));
+      const payload = JSON.parse(await readRequestBody(request, { maxBytes: mcpRequestMaxBytes(config) }));
       const result = Array.isArray(payload)
         ? (await Promise.all(payload.map((message) => handleJsonRpcMessage({ config, message, gitBackupEnabled, actor: authorization.actor })))).filter(Boolean)
         : await handleJsonRpcMessage({ config, message: payload, gitBackupEnabled, actor: authorization.actor });
@@ -160,6 +161,9 @@ export async function startMcpServer({
       }
       return sendJson(response, 200, result);
     } catch (error) {
+      if (error instanceof HttpError) {
+        return sendJson(response, error.statusCode, jsonRpcError(null, error.rpcCode, error.message));
+      }
       return sendJson(response, 500, jsonRpcError(null, -32603, error instanceof Error ? error.message : String(error)));
     }
   });
@@ -658,7 +662,7 @@ function toolDefinitions() {
     },
     {
       name: 'create_raw_file',
-      description: 'Create one raw file under <collection>/.raw/<file> without creating a markdown page.',
+      description: 'Create one raw file under <collection>/.raw/<file> without creating a markdown page. Raw uploads are size-limited to protect git-backed sync.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -687,7 +691,7 @@ function toolDefinitions() {
     },
     {
       name: 'create_raw_file_with_page',
-      description: 'Upload a raw file under <collection>/.raw/<file> and create the corresponding markdown brain page in one call.',
+      description: 'Upload a raw file under <collection>/.raw/<file> and create the corresponding markdown brain page in one call. Raw uploads are size-limited to protect git-backed sync.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -706,7 +710,7 @@ function toolDefinitions() {
     },
     {
       name: 'update_raw_file',
-      description: 'Replace the bytes of one existing raw file under .raw.',
+      description: 'Replace the bytes of one existing raw file under .raw. Raw uploads are size-limited to protect git-backed sync.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -839,10 +843,39 @@ function isProtectedResourceMetadataPath(pathname) {
     || pathname === '/.well-known/oauth-protected-resource/api/mcp';
 }
 
-async function readRequestBody(request) {
+async function readRequestBody(request, { maxBytes = null } = {}) {
   const chunks = [];
-  for await (const chunk of request) chunks.push(chunk);
+  let total = 0;
+  for await (const chunk of request) {
+    total += chunk.length;
+    if (maxBytes && total > maxBytes) {
+      throw new HttpError(413, -32013, `MCP request body is too large: ${formatBytes(total)} exceeds the configured request limit of ${formatBytes(maxBytes)}.`);
+    }
+    chunks.push(chunk);
+  }
   return Buffer.concat(chunks).toString('utf8');
+}
+
+function mcpRequestMaxBytes(config) {
+  const rawLimit = Number.isInteger(config?.rawFileMaxBytes) && config.rawFileMaxBytes > 0
+    ? config.rawFileMaxBytes
+    : DEFAULT_RAW_FILE_MAX_BYTES;
+  return Math.ceil(rawLimit * 1.5) + 1024 * 1024;
+}
+
+class HttpError extends Error {
+  constructor(statusCode, rpcCode, message) {
+    super(message);
+    this.name = 'HttpError';
+    this.statusCode = statusCode;
+    this.rpcCode = rpcCode;
+  }
+}
+
+function formatBytes(bytes) {
+  if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+  return `${bytes} bytes`;
 }
 
 function requireString(value, name) {
