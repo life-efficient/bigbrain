@@ -62,7 +62,7 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
       headers: { cookie: `bigbrain_dashboard_session=${sessionToken}` },
     });
     assert.equal(authenticated.status, 200);
-    assert.match(await authenticated.text(), /<title>bigbrain dashboard<\/title>/);
+    assert.match(await authenticated.text(), /<title>Dashboard<\/title>/);
 
     const health = await fetch(`${url}/api/health`, {
       headers: { cookie: `bigbrain_dashboard_session=${sessionToken}` },

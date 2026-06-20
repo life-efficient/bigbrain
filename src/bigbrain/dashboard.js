@@ -229,7 +229,7 @@ function renderAppHtml() {
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <link rel="icon" type="image/png" sizes="32x32" href="/assets/favicon-32.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/assets/apple-touch-icon.png" />
-    <title>bigbrain dashboard</title>
+    <title>Dashboard</title>
     <style>
       :root {
         --bg: #18181b;
@@ -410,6 +410,8 @@ function renderAppHtml() {
       .list-scroll-region { flex: 1; min-height: 0; overflow: auto; padding-right: 4px; }
       .standalone-list-region { height: 100%; overflow: auto; padding-right: 4px; }
       .loading-card { min-height: 180px; display: grid; gap: 10px; align-content: center; }
+      .fallback-main { padding: 24px; display: grid; place-items: center; background: var(--bg); }
+      .fallback-main .loading-card { width: min(620px, calc(100vw - 48px)); }
       .splash-main { padding: 0; display: grid; place-items: center; background: var(--bg); }
       .splash-stage {
         width: min(520px, calc(100vw - 48px));

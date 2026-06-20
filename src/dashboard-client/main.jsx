@@ -32,9 +32,9 @@ class DashboardErrorBoundary extends React.Component {
   render() {
     if (this.state.error) {
       return (
-        <main>
+        <main className="fallback-main">
           <section className="card loading-card error-card">
-            <h1>bigbrain</h1>
+            <h1>Dashboard unavailable</h1>
             <p>The dashboard hit a frontend error.</p>
             <div className="error-actions">
               <button
@@ -224,9 +224,9 @@ function DashboardApp() {
 
   if (state.status === 'error') {
     return (
-      <main>
-        <section className="card loading-card">
-          <h1>bigbrain</h1>
+      <main className="fallback-main">
+        <section className="card loading-card error-card">
+          <h1>Dashboard unavailable</h1>
           <p>{state.error}</p>
         </section>
       </main>
