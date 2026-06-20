@@ -188,6 +188,22 @@ function DashboardApp() {
   }, [preview, healthOpen]);
 
   useEffect(() => {
+    if (!preview) return undefined;
+
+    function handlePointerDown(event) {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('.sidecar-panel')) return;
+      setPreview(null);
+      setActiveGraphSlug(null);
+    }
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+    };
+  }, [preview]);
+
+  useEffect(() => {
     function handleKeydown(event) {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
         return;
