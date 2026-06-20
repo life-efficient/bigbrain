@@ -376,14 +376,14 @@ export async function getPagesBySlugs(db, slugs) {
   if (slugs.length === 0) return [];
   if (db.backend === 'postgres') {
     return (await db.query(`
-      SELECT slug, title, type, summary, compiled_truth
+      SELECT slug, title, type, summary, compiled_truth, frontmatter_json
       FROM pages
       WHERE slug = ANY($1::text[])
     `, [slugs])).rows;
   }
   const placeholders = slugs.map(() => '?').join(', ');
   return unwrapSqlite(db).prepare(`
-    SELECT slug, title, type, summary, compiled_truth
+    SELECT slug, title, type, summary, compiled_truth, frontmatter_json
     FROM pages
     WHERE slug IN (${placeholders})
   `).all(...slugs);
@@ -411,7 +411,7 @@ export async function lexicalSearch(db, query, limit = 10) {
       WITH search AS (
         SELECT websearch_to_tsquery('simple', $1) AS q
       )
-      SELECT p.slug, p.title, p.type, p.summary,
+      SELECT p.slug, p.title, p.type, p.summary, p.frontmatter_json,
              ts_headline('simple', p.compiled_truth, search.q, 'StartSel=[, StopSel=], MaxWords=20, MinWords=5') AS snippet,
              ts_rank_cd(
                to_tsvector('simple', p.title || ' ' || p.summary || ' ' || p.compiled_truth || ' ' || p.timeline || ' ' || p.body_text),
@@ -425,7 +425,7 @@ export async function lexicalSearch(db, query, limit = 10) {
     return result.rows;
   }
   return unwrapSqlite(db).prepare(`
-    SELECT p.slug, p.title, p.type, p.summary,
+    SELECT p.slug, p.title, p.type, p.summary, p.frontmatter_json,
            snippet(pages_fts, 3, '[', ']', ' … ', 10) AS snippet,
            bm25(pages_fts) AS lexical_score
     FROM pages_fts
@@ -440,6 +440,7 @@ export async function semanticSearch(db, queryVector, limit = 10) {
   if (db.backend !== 'postgres') return null;
   const result = await db.query(`
     SELECT e.page_slug,
+           e.chunk_id,
            e.chunk_text,
            e.embedding_model,
            p.slug,
@@ -459,16 +460,18 @@ export async function semanticSearch(db, queryVector, limit = 10) {
     type: row.type ?? null,
     summary: row.summary ?? '',
     snippet: row.chunk_text.slice(0, 240),
+    chunk_id: row.chunk_id,
+    chunk_text: row.chunk_text,
     semantic_score: Number(row.semantic_score),
   }));
 }
 
 export async function allEmbeddings(db) {
   if (db.backend === 'postgres') {
-    const rows = (await db.query('SELECT page_slug, chunk_text, embedding_model, embedding_json FROM embeddings')).rows;
+    const rows = (await db.query('SELECT page_slug, chunk_id, chunk_text, embedding_model, embedding_json FROM embeddings')).rows;
     return rows.map((row) => ({ ...row, embedding_json: JSON.stringify(row.embedding_json) }));
   }
-  return unwrapSqlite(db).prepare('SELECT page_slug, chunk_text, embedding_model, embedding_json FROM embeddings').all();
+  return unwrapSqlite(db).prepare('SELECT page_slug, chunk_id, chunk_text, embedding_model, embedding_json FROM embeddings').all();
 }
 
 export async function clearHealthFindings(db) {

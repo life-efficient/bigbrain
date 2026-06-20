@@ -87,6 +87,50 @@ export async function answerQuestion({ model, apiKey, question, context }) {
   return extractOutputText(payload) || null;
 }
 
+export async function rerankSearchResults({ model, apiKey, query, results }) {
+  if (!apiKey || !Array.isArray(results) || results.length === 0) return [];
+  const candidates = results.slice(0, 30).map((result, index) => ({
+    index,
+    slug: result.slug,
+    title: result.title || result.slug,
+    summary: result.summary || '',
+    snippet: result.snippet || '',
+  }));
+  const response = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model,
+      input: [
+        {
+          role: 'system',
+          content: [{
+            type: 'input_text',
+            text: [
+              'Score each candidate for relevance to the search query.',
+              'Return only JSON shaped as {"scores":[{"index":0,"score":0.0}]}',
+              'Scores must be numbers from 0 to 1. Include every candidate index once.',
+            ].join(' '),
+          }],
+        },
+        {
+          role: 'user',
+          content: [{
+            type: 'input_text',
+            text: JSON.stringify({ query: sanitizeQueryForPrompt(query), candidates }),
+          }],
+        },
+      ],
+    }),
+  });
+  if (!response.ok) throw new Error(`OpenAI rerank failed: ${response.status} ${await response.text()}`);
+  const payload = await response.json();
+  return parseRerankOutput(extractOutputText(payload), candidates.length);
+}
+
 function extractOutputText(payload) {
   if (typeof payload?.output_text === 'string' && payload.output_text.length > 0) return payload.output_text;
   return payload?.output
@@ -110,6 +154,34 @@ function parseExpansionOutput(text) {
       return [];
     }
   }
+}
+
+function parseRerankOutput(text, candidateCount) {
+  if (!text) return [];
+  let parsed = null;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) return [];
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch {
+      return [];
+    }
+  }
+  const rawScores = Array.isArray(parsed?.scores) ? parsed.scores : [];
+  const output = [];
+  const seen = new Set();
+  for (const item of rawScores) {
+    const index = Number(item?.index);
+    const score = Number(item?.score);
+    if (!Number.isInteger(index) || index < 0 || index >= candidateCount || seen.has(index)) continue;
+    if (!Number.isFinite(score)) continue;
+    seen.add(index);
+    output.push({ index, score: Math.max(0, Math.min(1, score)) });
+  }
+  return output;
 }
 
 function dedupeQueries(queries) {

@@ -9,7 +9,7 @@ import { startMcpServer } from './mcp-server.js';
 import { migrateBrain } from './migrate.js';
 import { listRecentFiles } from './recent.js';
 import { renderSchemaMarkdown, recommendFolderForInput, schemaDescription } from './schema.js';
-import { queryBrain, searchBrain } from './search.js';
+import { queryBrain, searchBrain, searchModesReport } from './search.js';
 import { syncBrain } from './sync.js';
 import { runTaskRefresh } from './task-refresh.js';
 import { resolveWindow } from './time.js';
@@ -103,25 +103,47 @@ async function handlePut(args, global) {
 }
 
 async function handleSearch(args, global) {
-  const query = args.join(' ').trim();
+  if (args[0] === 'modes') {
+    const report = searchModesReport(argValue(args, '--mode') || undefined);
+    output(global, report, renderSearchModesText(report));
+    return;
+  }
+  const options = parseSearchArgs(args);
+  const query = options.positionals.join(' ').trim();
   if (!query) throw new Error('search requires a query string.');
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
-  const result = await searchBrain({ db, config, query });
+  const result = await searchBrain({
+    db,
+    config,
+    query,
+    limit: options.limit,
+    mode: options.mode,
+    explain: options.explain,
+  });
   await db.close?.();
-  output(global, result, renderWarningText(result.warnings, renderSearchText(result.fused)));
+  output(global, result, renderWarningText(result.warnings, renderSearchText(result.fused, options.explain)));
 }
 
 async function handleQuery(args, global) {
-  const question = args.join(' ').trim();
+  const options = parseSearchArgs(args);
+  const question = options.positionals.join(' ').trim();
   if (!question) throw new Error('query requires a question.');
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
-  const result = await queryBrain({ db, config, question });
+  const result = await queryBrain({
+    db,
+    config,
+    question,
+    limit: options.limit ?? 6,
+    mode: options.mode,
+    explain: options.explain,
+    expand: options.expand,
+  });
   await db.close?.();
   const text = result.answer
-    ? `${result.answer}\n\nSources:\n${renderSearchText(result.search.fused)}`
-    : `No OpenAI answer generated.\n\nRetrieved:\n${renderSearchText(result.search.fused)}`;
+    ? `${result.answer}\n\nSources:\n${renderSearchText(result.search.fused, options.explain)}`
+    : `No OpenAI answer generated.\n\nRetrieved:\n${renderSearchText(result.search.fused, options.explain)}`;
   output(global, result, renderWarningText(result.warnings, text));
 }
 
@@ -264,8 +286,9 @@ Commands:
   list [--type TYPE]
   get <slug>
   put <slug>           (reads markdown from stdin)
-  search <query>
-  query <question>
+  search <query> [--limit N] [--mode conservative|balanced|tokenmax] [--explain]
+  search modes [--json]
+  query <question> [--limit N] [--mode conservative|balanced|tokenmax] [--explain] [--no-expand]
   links <slug>
   backlinks <slug>
   recent [--since 24h] [--until ISO]
@@ -307,9 +330,60 @@ function renderRecentText(report) {
   return report.files.map((file) => `${file.mtime}  ${file.category.padEnd(10)}  ${file.relative_path}`).join('\n');
 }
 
-function renderSearchText(rows) {
+function renderSearchText(rows, explain = false) {
   if (!rows.length) return 'No results.';
-  return rows.map((row) => `${row.slug}\n  ${row.snippet || row.summary || ''}`).join('\n');
+  return rows.map((row) => {
+    const lines = [`${row.slug}`, `  ${row.snippet || row.summary || ''}`];
+    if (explain) {
+      lines.push(`  score=${formatNumber(row.score)} evidence=${row.evidence || 'n/a'} create_safety=${row.create_safety || 'n/a'}`);
+      if (row.rerank_score !== undefined) lines.push(`  rerank_score=${formatNumber(row.rerank_score)}`);
+      if (Array.isArray(row.boosts) && row.boosts.length > 0) {
+        lines.push(`  boosts=${row.boosts.map((boost) => boost.type).join(',')}`);
+      }
+    }
+    return lines.join('\n');
+  }).join('\n');
+}
+
+function renderSearchModesText(report) {
+  return [
+    `Default mode: ${report.default_mode}`,
+    `Active mode: ${report.active_mode}`,
+    '',
+    ...Object.entries(report.bundles).map(([mode, bundle]) => (
+      `${mode}: limit=${bundle.searchLimit}, expansion=${bundle.expansion}, rerank=${bundle.rerank}, tokenBudget=${bundle.tokenBudget ?? 'none'}`
+    )),
+  ].join('\n');
+}
+
+function parseSearchArgs(args) {
+  const options = { positionals: [], limit: null, mode: undefined, explain: false, expand: undefined };
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--limit') {
+      options.limit = Number(args[++index]);
+      continue;
+    }
+    if (arg === '--mode') {
+      options.mode = args[++index];
+      continue;
+    }
+    if (arg === '--explain') {
+      options.explain = true;
+      continue;
+    }
+    if (arg === '--no-expand') {
+      options.expand = false;
+      continue;
+    }
+    options.positionals.push(arg);
+  }
+  return options;
+}
+
+function formatNumber(value) {
+  const number = Number(value);
+  return Number.isFinite(number) ? number.toFixed(3) : 'n/a';
 }
 
 function renderWarningText(warnings, text) {

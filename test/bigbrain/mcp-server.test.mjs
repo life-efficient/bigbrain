@@ -74,6 +74,57 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
   }
 });
 
+test('MCP search/query tools expose GBrain-style retrieval parameters', async () => {
+  const fixture = await createFixture('bigbrain-mcp-search-query-');
+  let running;
+  const originalApiKey = process.env.OPENAI_API_KEY;
+  try {
+    delete process.env.OPENAI_API_KEY;
+    await fs.mkdir(path.join(fixture.brainHome, 'people'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'people', 'mcp-query.md'), `---
+title: MCP Query
+---
+# MCP Query
+
+MCP query retrieval target.
+`, 'utf8');
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'secret',
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const listed = await rpc(running.url, 'tools/list', {}, 'secret');
+    const search = listed.result.tools.find((tool) => tool.name === 'search');
+    const query = listed.result.tools.find((tool) => tool.name === 'query');
+    assert.deepEqual(search.inputSchema.properties.mode.enum, ['conservative', 'balanced', 'tokenmax']);
+    assert.equal(search.inputSchema.properties.explain.type, 'boolean');
+    assert.equal(query.inputSchema.properties.query.type, 'string');
+    assert.equal(query.inputSchema.required, undefined);
+
+    const queried = await rpc(running.url, 'tools/call', {
+      name: 'query',
+      arguments: {
+        query: 'MCP query retrieval target',
+        mode: 'conservative',
+        explain: true,
+      },
+    }, 'secret');
+    assert.equal(queried.error, undefined, queried.error?.message);
+    assert.equal(queried.result.structuredContent.search.fused[0].slug, 'people/mcp-query');
+    assert.equal(queried.result.structuredContent.search.fused[0].evidence.length > 0, true);
+  } finally {
+    if (originalApiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalApiKey;
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('MCP server exposes brain-specific filing rules for harness routing', async () => {
   const fixture = await createFixture('bigbrain-mcp-filing-rules-');
   let running;

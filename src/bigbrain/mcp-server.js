@@ -301,18 +301,35 @@ async function toolSearch(config, args) {
   const limit = normalizeLimit(args.limit, 10);
   const db = await openDatabase(config);
   try {
-    return await searchBrain({ db, config, query, limit });
+    return await searchBrain({
+      db,
+      config,
+      query,
+      limit,
+      mode: args.mode,
+      explain: args.explain === true,
+    });
   } finally {
     await db.close?.();
   }
 }
 
 async function toolQuery(config, args) {
-  const question = requireString(args.question, 'question');
+  const question = args.question !== undefined
+    ? requireString(args.question, 'question')
+    : requireString(args.query, 'query');
   const limit = normalizeLimit(args.limit, 6);
   const db = await openDatabase(config);
   try {
-    return await queryBrain({ db, config, question, limit });
+    return await queryBrain({
+      db,
+      config,
+      question,
+      limit,
+      mode: args.mode,
+      explain: args.explain === true,
+      expand: typeof args.expand === 'boolean' ? args.expand : undefined,
+    });
   } finally {
     await db.close?.();
   }
@@ -371,6 +388,8 @@ function toolDefinitions() {
         properties: {
           query: { type: 'string' },
           limit: { type: 'number' },
+          mode: { type: 'string', enum: ['conservative', 'balanced', 'tokenmax'] },
+          explain: { type: 'boolean' },
         },
         required: ['query'],
       },
@@ -382,9 +401,12 @@ function toolDefinitions() {
         type: 'object',
         properties: {
           question: { type: 'string' },
+          query: { type: 'string' },
           limit: { type: 'number' },
+          mode: { type: 'string', enum: ['conservative', 'balanced', 'tokenmax'] },
+          explain: { type: 'boolean' },
+          expand: { type: 'boolean' },
         },
-        required: ['question'],
       },
     },
     {

@@ -9,7 +9,7 @@ import { configPathForBrainHome, initializeBrainHome, loadConfig, loadUserEnv, m
 import { openDatabase } from '../../src/bigbrain/db.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
-import { boostResultsForQuery, classifyQueryIntent, formatAnswerContext, fuseResults, queryBrain, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
+import { boostResultsForQuery, classifyQueryIntent, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
 import { renderSchemaMarkdown, recommendFolderForInput } from '../../src/bigbrain/schema.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -132,6 +132,16 @@ Explicit config path page.
   } finally {
     await fs.rm(rootDir, { recursive: true, force: true });
   }
+});
+
+test('CLI reports search mode bundles', async () => {
+  const result = await runNode(['./bin/bigbrain.js', 'search', 'modes', '--json'], { cwd: process.cwd() });
+  assert.equal(result.code, 0, result.stderr);
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.default_mode, 'balanced');
+  assert.equal(report.active_mode, 'balanced');
+  assert.equal(report.bundles.balanced.rerank, true);
+  assert.equal(report.bundles.tokenmax.expansion, true);
 });
 
 test('folder recommendation routes personal operating preferences to personal-protocol', () => {
@@ -311,6 +321,114 @@ Alex Rivera is the founder of ExampleCo.
     const result = await searchBrain({ db, config, query: 'Alex Rivera', apiKey: 'test-key' });
     assert.equal(result.fused[0].slug, 'people/alex-rivera');
     assert.match(result.warnings.join('\n'), /semantic search skipped because the index has no embeddings/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('search defaults to balanced mode and applies mocked OpenAI reranking', async () => {
+  const fixture = await createFixture('bigbrain-search-rerank-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'projects/alpha.md', `---
+title: Alpha Result
+---
+# Alpha Result
+
+shared retrieval target
+`);
+    await writeMarkdown(fixture.brainHome, 'projects/beta.md', `---
+title: Beta Result
+---
+# Beta Result
+
+shared retrieval target
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const result = await searchBrain({
+      db,
+      config,
+      query: 'shared retrieval target',
+      apiKey: 'test-key',
+      explain: true,
+      reranker: async ({ results }) => results.map((row, index) => ({
+        index,
+        score: row.slug === 'projects/beta' ? 1 : 0.1,
+      })),
+    });
+    assert.equal(DEFAULT_SEARCH_MODE, 'balanced');
+    assert.equal(result.mode, 'balanced');
+    assert.equal(result.fused[0].slug, 'projects/beta');
+    assert.equal(result.fused[0].rerank_score, 1);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('tokenmax mode enables query expansion', async () => {
+  const fixture = await createFixture('bigbrain-search-tokenmax-expansion-');
+  const originalFetch = globalThis.fetch;
+  try {
+    await writeMarkdown(fixture.brainHome, 'ops/current-priorities.md', `---
+title: Current Priorities
+---
+# Current Priorities
+
+Next on my TODO list is retrieval quality and MCP query behavior.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    globalThis.fetch = async () => ({
+      ok: true,
+      json: async () => ({ output_text: '["retrieval quality priorities","MCP query behavior"]' }),
+    });
+
+    const db = await openDatabase(config);
+    const result = await searchBrain({
+      db,
+      config,
+      query: "What's next on my TODO list?",
+      apiKey: 'test-key',
+      mode: 'tokenmax',
+      reranker: async ({ results }) => results.map((row, index) => ({ index, score: 1 - (index * 0.01) })),
+    });
+    assert.equal(result.mode, 'tokenmax');
+    assert.equal(result.expanded, true);
+    assert.equal(result.queries.length, 3);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('search matches frontmatter aliases and stamps create safety', async () => {
+  const fixture = await createFixture('bigbrain-search-alias-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'concepts/mingtang.md', `---
+title: Mingtang
+aliases: [Hall of Light]
+---
+# Mingtang
+
+Canonical concept page for the hall.
+`);
+    await writeMarkdown(fixture.brainHome, 'notes/hall-of-light-mention.md', `---
+title: Hall of Light Mention
+---
+# Hall of Light Mention
+
+A passing note that mentions Hall of Light.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const result = await searchBrain({ db, config, query: 'Hall of Light', apiKey: null, mode: 'conservative', explain: true });
+    assert.equal(result.fused[0].slug, 'concepts/mingtang');
+    assert.equal(result.fused[0].evidence, 'alias_hit');
+    assert.equal(result.fused[0].create_safety, 'exists');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
