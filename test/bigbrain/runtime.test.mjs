@@ -159,6 +159,47 @@ test('CLI runs deterministic retrieval evals', async () => {
   assert.equal(report.metrics.hit_at_1, report.case_count);
 });
 
+test('CLI retrieval eval can load private cases outside the repo', async () => {
+  const fixture = await createFixture('bigbrain-private-eval-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/private-eval.md', `---
+title: Private Eval
+---
+# Private Eval
+
+Private eval retrieval target.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const casesPath = path.join(fixture.rootDir, 'private-cases.json');
+    await fs.writeFile(casesPath, `${JSON.stringify([
+      {
+        id: 'private-target',
+        query: 'Private Eval',
+        expected_slug: 'people/private-eval',
+      },
+    ], null, 2)}\n`, 'utf8');
+
+    const result = await runNode([
+      './bin/bigbrain.js',
+      '--config',
+      fixture.configPath,
+      'eval',
+      'retrieval',
+      '--cases',
+      casesPath,
+      '--json',
+    ], { cwd: process.cwd() });
+    assert.equal(result.code, 0, result.stderr);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.case_source, 'external');
+    assert.equal(report.metrics.hit_at_1, 1);
+    assert.equal(report.results[0].expected_slug, 'people/private-eval');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('folder recommendation routes personal operating preferences to personal-protocol', () => {
   const result = recommendFolderForInput('Calendar organization preference for travel days');
   assert.equal(result.folder, 'personal-protocol');

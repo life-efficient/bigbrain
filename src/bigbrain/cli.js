@@ -223,11 +223,24 @@ async function handleRefreshTasks(global) {
 async function handleEval(args, global) {
   const subcommand = args[0];
   if (subcommand !== 'retrieval') throw new Error('eval requires "retrieval".');
-  const { runRetrievalEval, renderRetrievalEvalText } = await import('./eval-retrieval.js');
-  const report = await runRetrievalEval({
+  const {
+    loadRetrievalEvalCases,
+    runRetrievalEval,
+    runRetrievalEvalOnConfig,
+    renderRetrievalEvalText,
+  } = await import('./eval-retrieval.js');
+  const casesPath = argValue(args, '--cases');
+  const common = {
     mode: argValue(args, '--mode') || undefined,
     limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : undefined,
-  });
+  };
+  const report = casesPath
+    ? await runRetrievalEvalOnConfig({
+      config: await loadRuntimeConfig(global),
+      cases: await loadRetrievalEvalCases(casesPath),
+      ...common,
+    })
+    : await runRetrievalEval(common);
   output(global, report, renderRetrievalEvalText(report));
 }
 
@@ -311,7 +324,7 @@ Commands:
   schema
   file <path-or-description>
   refresh-tasks
-  eval retrieval [--mode conservative|balanced|tokenmax] [--limit N]
+  eval retrieval [--mode conservative|balanced|tokenmax] [--limit N] [--cases PATH]
   dashboard [--port N]
   mcp [--host HOST] [--port N]
 

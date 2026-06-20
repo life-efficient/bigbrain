@@ -196,6 +196,66 @@ export async function runRetrievalEval({
   }
 }
 
+export async function runRetrievalEvalOnConfig({
+  config,
+  mode = 'conservative',
+  limit = DEFAULT_LIMIT,
+  apiKey = null,
+  cases,
+}) {
+  const normalizedCases = validateCases(cases);
+  const db = await openDatabase(config);
+  try {
+    const results = [];
+    for (const testCase of normalizedCases) {
+      const search = await searchBrain({
+        db,
+        config,
+        query: testCase.query,
+        limit,
+        mode,
+        apiKey,
+        explain: true,
+      });
+      const slugs = search.fused.map((row) => row.slug);
+      const acceptable = [testCase.expected_slug, ...(testCase.acceptable_slugs ?? [])].filter(Boolean);
+      const ranks = acceptable
+        .map((slug) => slugs.indexOf(slug))
+        .filter((rank) => rank >= 0);
+      const bestRank = ranks.length ? Math.min(...ranks) : -1;
+      results.push({
+        id: testCase.id,
+        query: testCase.query,
+        expected_slug: testCase.expected_slug,
+        acceptable_slugs: testCase.acceptable_slugs ?? [],
+        top_slug: slugs[0] ?? null,
+        rank: bestRank >= 0 ? bestRank + 1 : null,
+        hit_at_1: bestRank === 0,
+        hit_at_3: bestRank >= 0 && bestRank < 3,
+        result_slugs: slugs,
+        warnings: search.warnings,
+      });
+    }
+    return buildEvalReport({ mode, limit, results, caseSource: 'external' });
+  } finally {
+    await db.close?.();
+  }
+}
+
+export async function loadRetrievalEvalCases(filePath) {
+  const raw = await fs.readFile(path.resolve(filePath), 'utf8');
+  const trimmed = raw.trim();
+  if (!trimmed) throw new Error(`Retrieval eval cases file is empty: ${filePath}`);
+  if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+    const parsed = JSON.parse(trimmed);
+    return validateCases(Array.isArray(parsed) ? parsed : parsed.cases);
+  }
+  return validateCases(trimmed
+    .split('\n')
+    .filter((line) => line.trim() && !line.trim().startsWith('#'))
+    .map((line) => JSON.parse(line)));
+}
+
 export function renderRetrievalEvalText(report) {
   const lines = [
     `Retrieval eval (${report.mode}, limit ${report.limit})`,
@@ -212,13 +272,14 @@ export function renderRetrievalEvalText(report) {
   return lines.join('\n');
 }
 
-function buildEvalReport({ mode, limit, results }) {
+function buildEvalReport({ mode, limit, results, caseSource = 'fixture' }) {
   const hitAt1 = results.filter((result) => result.hit_at_1).length;
   const hitAt3 = results.filter((result) => result.hit_at_3).length;
   return {
     schema_version: 1,
     mode,
     limit,
+    case_source: caseSource,
     case_count: results.length,
     metrics: {
       hit_at_1: hitAt1,
@@ -228,6 +289,30 @@ function buildEvalReport({ mode, limit, results }) {
     },
     results,
   };
+}
+
+function validateCases(cases) {
+  if (!Array.isArray(cases) || cases.length === 0) throw new Error('Retrieval eval requires at least one case.');
+  return cases.map((testCase, index) => {
+    if (!testCase || typeof testCase !== 'object') throw new Error(`Invalid retrieval eval case at index ${index}.`);
+    const id = typeof testCase.id === 'string' && testCase.id.trim() ? testCase.id.trim() : `case-${index + 1}`;
+    const query = requireCaseString(testCase.query, `case ${id} query`);
+    const expectedSlug = requireCaseString(testCase.expected_slug, `case ${id} expected_slug`);
+    const acceptableSlugs = Array.isArray(testCase.acceptable_slugs)
+      ? testCase.acceptable_slugs.filter((slug) => typeof slug === 'string' && slug.trim()).map((slug) => slug.trim())
+      : [];
+    return {
+      id,
+      query,
+      expected_slug: expectedSlug,
+      acceptable_slugs: acceptableSlugs,
+    };
+  });
+}
+
+function requireCaseString(value, label) {
+  if (typeof value !== 'string' || !value.trim()) throw new Error(`Missing ${label}.`);
+  return value.trim();
 }
 
 function formatPct(value) {
