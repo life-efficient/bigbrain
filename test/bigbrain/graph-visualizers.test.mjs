@@ -6,7 +6,7 @@ import {
   buildNeuralMeshLayout,
   buildSignalBloomLayout,
 } from '../../src/dashboard-client/graph/shared.js';
-import { getUpdatedNodeColor } from '../../src/dashboard-client/graph/colors.js';
+import { getGraphNodeColor, getUpdatedNodeColor } from '../../src/dashboard-client/graph/colors.js';
 import { resolveThemeMode } from '../../src/dashboard-client/graph/theme.js';
 
 test('resolveThemeMode respects auto and manual modes', () => {
@@ -27,6 +27,13 @@ test('updated node colors use acid green on a five-day eased scale', () => {
   assert.match(midpoint, /^#[0-9A-F]{6}$/);
   assert.notEqual(midpoint, '#00FF66');
   assert.notEqual(midpoint, '#FFFFFF');
+});
+
+test('none graph color mode leaves node color unmodified', () => {
+  assert.equal(getGraphNodeColor({
+    type: 'projects',
+    updated_at: '2026-06-21T12:00:00.000Z',
+  }, 'none'), null);
 });
 
 test('graph layouts safely handle empty and single-node graphs', () => {

@@ -299,6 +299,12 @@ function NodeLayer({
 function renderNodeShape(node, nodeStyle, theme, emphasized, colorMode) {
   const hitRadius = Math.max(14, node.radius * 2.9);
   const nodeColor = getGraphNodeColor(node, colorMode);
+  const outerStroke = nodeColor || theme.graphNodeStroke;
+  const innerStroke = nodeColor || theme.graphGrid;
+  const centerFill = nodeColor || theme.accentStrong;
+  const innerOpacity = nodeColor
+    ? (emphasized ? '0.62' : '0.38')
+    : (emphasized ? '0.82' : '0.52');
   if (nodeStyle === 'diamond') {
     const outer = node.radius * 2.2;
     const inner = Math.max(1.8, node.radius * 0.38);
@@ -318,7 +324,7 @@ function renderNodeShape(node, nodeStyle, theme, emphasized, colorMode) {
           width={outer}
           height={outer}
           fill="none"
-          stroke={theme.graphNodeStroke}
+          stroke={outerStroke}
           strokeWidth={emphasized ? '1.5' : '1'}
           transform={`rotate(45 ${node.x} ${node.y})`}
         />
@@ -328,12 +334,12 @@ function renderNodeShape(node, nodeStyle, theme, emphasized, colorMode) {
           width={outer * 0.68}
           height={outer * 0.68}
           fill="none"
-          stroke={theme.graphGrid}
+          stroke={innerStroke}
           strokeWidth="1"
           transform={`rotate(45 ${node.x} ${node.y})`}
-          opacity={emphasized ? '0.82' : '0.52'}
+          opacity={innerOpacity}
         />
-        <circle cx={node.x} cy={node.y} r={inner} fill={nodeColor} />
+        <circle cx={node.x} cy={node.y} r={inner} fill={centerFill} />
       </>
     );
   }
@@ -351,9 +357,9 @@ function renderNodeShape(node, nodeStyle, theme, emphasized, colorMode) {
           fillOpacity="0.001"
           stroke="none"
         />
-        <path d={d} fill="none" stroke={theme.graphNodeStroke} strokeWidth={emphasized ? '1.5' : '1'} />
-        <path d={buildHexPath(node.x, node.y, side * 0.72)} fill="none" stroke={theme.graphGrid} strokeWidth="1" opacity={emphasized ? '0.64' : '0.34'} />
-        <circle cx={node.x} cy={node.y} r={Math.max(1.8, node.radius * 0.32)} fill={nodeColor} />
+        <path d={d} fill="none" stroke={outerStroke} strokeWidth={emphasized ? '1.5' : '1'} />
+        <path d={buildHexPath(node.x, node.y, side * 0.72)} fill="none" stroke={innerStroke} strokeWidth="1" opacity={nodeColor ? (emphasized ? '0.56' : '0.32') : (emphasized ? '0.64' : '0.34')} />
+        <circle cx={node.x} cy={node.y} r={Math.max(1.8, node.radius * 0.32)} fill={centerFill} />
       </>
     );
   }
@@ -373,7 +379,7 @@ function renderNodeShape(node, nodeStyle, theme, emphasized, colorMode) {
         cy={node.y}
         r={node.radius * 1.55}
         fill="none"
-        stroke={theme.graphNodeStroke}
+        stroke={outerStroke}
         strokeWidth={emphasized ? '1.5' : '1'}
       />
       <circle
@@ -381,11 +387,11 @@ function renderNodeShape(node, nodeStyle, theme, emphasized, colorMode) {
         cy={node.y}
         r={node.radius * 0.96}
         fill="none"
-        stroke={theme.graphGrid}
+        stroke={innerStroke}
         strokeWidth="1"
-        opacity={emphasized ? '0.78' : '0.48'}
+        opacity={nodeColor ? (emphasized ? '0.58' : '0.34') : (emphasized ? '0.78' : '0.48')}
       />
-      <circle cx={node.x} cy={node.y} r={Math.max(1.8, node.radius * 0.4)} fill={nodeColor} />
+      <circle cx={node.x} cy={node.y} r={Math.max(1.8, node.radius * 0.4)} fill={centerFill} />
     </>
   );
 }

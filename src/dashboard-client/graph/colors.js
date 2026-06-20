@@ -17,6 +17,9 @@ export const GRAPH_UPDATED_OLD_COLOR = '#FFFFFF';
 export const GRAPH_UPDATED_SCALE_DAYS = 5;
 
 export function getGraphNodeColor(node, colorMode = 'updated') {
+  if (colorMode === 'none') {
+    return null;
+  }
   if (colorMode === 'type') {
     return TYPE_COLORS[node?.type] || GRAPH_UPDATED_OLD_COLOR;
   }

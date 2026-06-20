@@ -57,7 +57,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
           title: `${node.title} (${node.type})`,
           group: node.type,
           value: Math.max(8, node.degree || 1),
-          color: resolveNodeNetworkColor(node, colorMode, theme),
+          ...(colorMode === 'none' ? {} : { color: resolveNodeNetworkColor(node, colorMode, theme) }),
         })),
         edges: graph.edges.map((edge) => ({
           from: edge.source,
