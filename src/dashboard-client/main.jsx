@@ -615,7 +615,7 @@ const GraphPanel = memo(function GraphPanel({
   }, [graph, graphNodes, selectedPageTypes.length, selectedTypeSet]);
   const isCustomRenderer = visualizerId === 'custom';
   const visibleControls = Array.isArray(visualizer.controls)
-    ? visualizer.controls.filter((control) => !['zoomIn', 'zoomOut', 'resetView'].includes(control))
+    ? visualizer.controls.filter((control) => control === 'resetView')
     : [];
 
   useEffect(() => {

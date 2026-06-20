@@ -4,7 +4,7 @@ import { VisNetworkVisualizer } from './vis-network-visualizer.jsx';
 export const GRAPH_CONTROL_LABELS = {
   zoomIn: 'Zoom in',
   zoomOut: 'Zoom out',
-  resetView: 'Reset',
+  resetView: 'Reset view',
 };
 
 export const GRAPH_DEFAULTS = {
