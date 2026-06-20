@@ -1,10 +1,5 @@
 # TODO
 
-## Roadmap
-
-- Split the largest runtime modules into clearer command, storage, search,
-  MCP, and automation packages once the current CLI/MCP contracts stabilize.
-
 ## Hosted Brain Service
 
 - Persist sync run history and write MCP audit log entries through the Postgres
@@ -21,17 +16,32 @@
 
 ## Search And Query
 
-- Preserve winning chunk metadata in fused results: `chunk_id`, chunk score,
-  chunk source/type, and enough context to explain why a page ranked.
-- Add compiled-truth-aware deduplication after chunk source/type metadata is in
-  the embeddings table, so repeated body chunks do not outrank canonical truth.
-- Add a final score pass after RRF that combines normalized lexical score,
-  cosine similarity, exact-match boosts, and intent weights in an inspectable
-  way.
-- Add recency and salience boosts after effective dates and page/activity
-  metadata are indexed.
-- Add backlink-aware boosts using the existing indexed link graph, with tests
-  that prove canonical pages beat isolated mentions.
+- Adapt GBrain's retrieval architecture as the reference model for BigBrain:
+  vector search, BM25/lexical search, RRF fusion, typed graph traversal,
+  source-aware ranking, reranking, token-budget enforcement, and final
+  per-page deduplication. Reference:
+  https://github.com/garrytan/gbrain/blob/master/docs/architecture/RETRIEVAL.md
+- Port the GBrain explainability contract into BigBrain search results:
+  preserve `chunk_id`, chunk/page score, source/type, boost attribution,
+  evidence tag, and enough context to explain why a page ranked.
+- Add GBrain-style best-chunk-per-page pooling before result limits, so one
+  page with many weak chunks cannot crowd out stronger pages and each page
+  surfaces on its strongest evidence.
+- Add title and alias matching based on GBrain's named-thing retrieval model:
+  title-phrase boosts, alias lookup/projection, evidence tags, and duplicate
+  creation safety hints.
+- Add deterministic intent-aware query routing like GBrain's entity, temporal,
+  event, and general query classes; use it to select graph, timeline, source,
+  and ranking behavior without an LLM call.
+- Implement multi-query expansion in the GBrain style: optional by search mode
+  or detail level, 2-3 LLM-generated query variants, each run through the full
+  hybrid stack and merged via RRF rather than as a blanket default.
+- Add GBrain-inspired source-aware ranking so curated folders and canonical
+  pages outrank bulk or noisy sources, with temporal queries able to bypass
+  normal source demotion when freshness matters.
+- Add graph-aware ranking only after the graph/eval harness can prove the lift:
+  typed-edge traversal, backlink/adjacency signals, and tests that relationship
+  queries beat vector-only results.
 - Persist query-result telemetry so ranking changes can be judged against real
   queries instead of only spot checks.
 - Add a small semantic-query cache keyed by query text, model, index revision,
@@ -40,9 +50,6 @@
   slugs and refuse when retrieved context is insufficient.
 - Promote the existing search regression cases into a repeatable retrieval eval
   harness that reports top-hit, top-3, noise, and answer-usefulness metrics.
-- Decide whether LLM query expansion should remain automatic, become
-  intent-first, or require an explicit flag; tests already cover the current
-  auto-expansion heuristics.
 
 ## Data Model
 
@@ -71,10 +78,6 @@
   and reversed.
 - Add agent-readable install and operations docs for deploying, connecting,
   rotating secrets, restoring, reindexing, and migrating.
-- Keep schema/type behavior simple and tied to BigBrain's typed folders rather
-  than adopting a complex schema-pack system prematurely.
-- Keep maintenance jobs explicit, scheduled, and inspectable rather than adding
-  always-on autonomous worker loops.
 
 ## Open Design Decisions
 
