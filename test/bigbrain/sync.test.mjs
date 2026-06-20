@@ -305,6 +305,7 @@ Original company note.
       pages_embedded: 2,
       embedding_chunks_created: 2,
       pages_embedding_failed: 0,
+      pages_embedding_skipped_by_guard: 0,
     });
     assert.equal(calls.length, 2);
     assert.equal(calls[0].texts.length, 1);
@@ -330,9 +331,156 @@ Updated person note.
     assert.equal(thirdSync.embedding_chunks_generated, 1);
     assert.equal(thirdSync.outstanding_work.pages_needing_embeddings, 0);
     assert.equal(thirdSync.run_work.pages_embedded, 1);
+    assert.deepEqual(thirdSync.embedding_selection, {
+      pages_scanned: 2,
+      pages_unchanged: 1,
+      pages_missing_embeddings: 0,
+      pages_model_changed: 0,
+      pages_content_changed: 1,
+      pages_selected_for_embedding: 1,
+    });
     assert.equal(calls.length, 3);
     assert.equal(calls[2].texts.length, 1);
     assert.match(calls[2].texts[0], /Updated person note/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('sync embeds only changed, added, and moved pages after an initial pass', async () => {
+  const fixture = await createFixture('bigbrain-sync-incremental-embeddings-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
+title: Alice
+---
+# Alice
+
+Stable person note.
+`);
+    await writeMarkdown(fixture.brainHome, 'companies/acme.md', `---
+title: Acme
+---
+# Acme
+
+Stable company note.
+`);
+    await writeMarkdown(fixture.brainHome, 'projects/old-report.md', `---
+title: Old Report
+---
+# Old Report
+
+Report content.
+`);
+    await writeMarkdown(fixture.brainHome, 'ideas/remove-me.md', `---
+title: Remove Me
+---
+# Remove Me
+
+Temporary idea.
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const calls = [];
+    const embedder = async (texts) => {
+      calls.push(texts);
+      return texts.map((_, index) => [index + 0.1, index + 0.2]);
+    };
+
+    const first = await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(first.run_work.pages_embedded, 4);
+    assert.equal(calls.length, 4);
+
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
+title: Alice
+---
+# Alice
+
+Changed person note.
+`);
+    await fs.rename(
+      path.join(fixture.brainHome, 'projects', 'old-report.md'),
+      path.join(fixture.brainHome, 'projects', 'new-report.md'),
+    );
+    await fs.rm(path.join(fixture.brainHome, 'ideas', 'remove-me.md'));
+    await writeMarkdown(fixture.brainHome, 'sources/new-source.md', `---
+title: New Source
+---
+# New Source
+
+New source evidence.
+`);
+
+    const second = await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(second.run_work.pages_embedded, 3);
+    assert.equal(second.embedding_chunks_generated, 3);
+    assert.deepEqual(second.embedding_selection, {
+      pages_scanned: 4,
+      pages_unchanged: 1,
+      pages_missing_embeddings: 2,
+      pages_model_changed: 0,
+      pages_content_changed: 1,
+      pages_selected_for_embedding: 3,
+    });
+    assert.equal(calls.length, 7);
+    const embeddedTexts = calls.slice(4).flat().join('\n');
+    assert.match(embeddedTexts, /Changed person note/);
+    assert.match(embeddedTexts, /New Source/);
+    assert.match(embeddedTexts, /Old Report|Report content/);
+    assert.doesNotMatch(embeddedTexts, /Stable company note/);
+    assert.doesNotMatch(embeddedTexts, /Temporary idea/);
+
+    const db = await openDatabase(config);
+    assert.deepEqual(await listPageSlugs(db), [
+      'companies/acme',
+      'people/alice',
+      'projects/new-report',
+      'sources/new-source',
+    ]);
+    const embeddings = await allEmbeddings(db);
+    assert.equal(embeddings.some((row) => row.page_slug === 'ideas/remove-me'), false);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('sync skips embedding generation when pending pages exceed the configured guard', async () => {
+  const fixture = await createFixture('bigbrain-sync-embedding-guard-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
+title: Alice
+---
+# Alice
+
+Person note.
+`);
+    await writeMarkdown(fixture.brainHome, 'companies/acme.md', `---
+title: Acme
+---
+# Acme
+
+Company note.
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    config.maxEmbeddingPagesPerSync = 1;
+    const calls = [];
+    const embedder = async (texts) => {
+      calls.push(texts);
+      return texts.map(() => [0.1, 0.2]);
+    };
+
+    const result = await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(calls.length, 0);
+    assert.equal(result.embedding_guard.triggered, true);
+    assert.equal(result.embedding_guard.skipped_pages, 2);
+    assert.equal(result.run_work.pages_embedded, 0);
+    assert.equal(result.run_work.pages_embedding_skipped_by_guard, 2);
+    assert.equal(result.outstanding_work.pages_needing_embeddings, 2);
+    assert.match(result.warnings.join('\n'), /Skipped embedding generation/);
+
+    const db = await openDatabase(config);
+    assert.deepEqual(await listPageSlugs(db), ['companies/acme', 'people/alice']);
+    assert.equal((await allEmbeddings(db)).length, 0);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -420,6 +568,7 @@ Short company note.
       pages_embedded: 1,
       embedding_chunks_created: 1,
       pages_embedding_failed: 1,
+      pages_embedding_skipped_by_guard: 0,
     });
 
     const db = await openDatabase(config);

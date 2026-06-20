@@ -137,6 +137,15 @@ in the server environment. Compress oversized PDFs/images/decks before upload,
 or store a summary and external link in the brain instead of committing the raw
 file.
 
+Hosted sync is embedding-incremental. It refreshes embeddings only for pages
+whose embedding row is missing, whose embedding model changed, or whose content
+hash changed. The sync report includes `embedding_selection` and
+`embedding_guard` so operators can see why pages were selected. To prevent an
+accidental full-brain embedding backfill, sync skips embedding calls when the
+selected page count exceeds `max_embedding_pages_per_sync` (default 1000), or
+the `BIGBRAIN_MAX_EMBEDDING_PAGES_PER_SYNC` environment override. Raise that
+cap only for intentional backfills.
+
 ## Auth Modes
 
 BigBrain MCP supports these auth modes:

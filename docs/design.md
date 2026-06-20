@@ -574,6 +574,16 @@ work completed during the current run. Legacy top-level fields such as
 `embedding_chunks_generated`, `embedding_pages_failed`, and
 `embedding_failures` remain for compatibility.
 
+Embedding generation is incremental and guarded. Each page is selected for
+embedding only when the stored embedding row is missing, the embedding model
+changed, or the page content hash changed. The `embedding_selection` report
+breaks those reasons out explicitly. To avoid accidentally re-embedding a huge
+brain after a database reset or model mismatch, sync skips embedding generation
+when the selected page count is above `max_embedding_pages_per_sync` while still
+updating page and link indexes. Deliberate backfills should raise
+`max_embedding_pages_per_sync` or `BIGBRAIN_MAX_EMBEDDING_PAGES_PER_SYNC` for
+that run.
+
 ## Dashboard
 
 The web surface should stay lightweight, polished, and operational.

@@ -10,6 +10,7 @@ import {
   DEFAULT_DASHBOARD_PORT,
   DEFAULT_EMBEDDING_MODEL,
   DEFAULT_FRESHNESS_INPUTS,
+  DEFAULT_MAX_EMBEDDING_PAGES_PER_SYNC,
   DEFAULT_POINTER_PATH,
   DEFAULT_QUERY_MODEL,
   DEFAULT_RAW_FILE_MAX_BYTES,
@@ -124,6 +125,11 @@ export function buildDefaultConfig(brainHome, env = process.env) {
     include_globs: ['**/*.md'],
     exclude_globs: ['.git/**', 'archive/**', '.raw/**', '**/README.md', '**/FILING.md'],
     raw_file_max_bytes: normalizePositiveInteger(env.BIGBRAIN_RAW_FILE_MAX_BYTES, DEFAULT_RAW_FILE_MAX_BYTES, 'BIGBRAIN_RAW_FILE_MAX_BYTES'),
+    max_embedding_pages_per_sync: normalizePositiveInteger(
+      env.BIGBRAIN_MAX_EMBEDDING_PAGES_PER_SYNC === undefined ? undefined : Number(env.BIGBRAIN_MAX_EMBEDDING_PAGES_PER_SYNC),
+      DEFAULT_MAX_EMBEDDING_PAGES_PER_SYNC,
+      'BIGBRAIN_MAX_EMBEDDING_PAGES_PER_SYNC',
+    ),
   };
 }
 
@@ -176,6 +182,11 @@ export async function loadConfig(input = null) {
     includeGlobs: normalizeStringArray(raw.include_globs, derivedDefault.include_globs, 'include_globs'),
     excludeGlobs: normalizeStringArray(raw.exclude_globs, derivedDefault.exclude_globs, 'exclude_globs'),
     rawFileMaxBytes: normalizePositiveInteger(raw.raw_file_max_bytes ?? derivedDefault.raw_file_max_bytes, derivedDefault.raw_file_max_bytes, 'raw_file_max_bytes'),
+    maxEmbeddingPagesPerSync: normalizePositiveInteger(
+      raw.max_embedding_pages_per_sync ?? derivedDefault.max_embedding_pages_per_sync,
+      derivedDefault.max_embedding_pages_per_sync,
+      'max_embedding_pages_per_sync',
+    ),
   };
 
   await requireExistingDirectory(config.brainDir, `Configured brain directory not found: ${config.brainDir}`);

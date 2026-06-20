@@ -33,12 +33,39 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
   for (const page of pages) await replacePageIndex(db, page);
   for (const page of pages) await replaceLinksForPage(db, page.slug, page.links, knownSlugs);
 
+  const embeddingSelection = {
+    pages_scanned: pages.length,
+    pages_unchanged: 0,
+    pages_missing_embeddings: 0,
+    pages_model_changed: 0,
+    pages_content_changed: 0,
+    pages_selected_for_embedding: 0,
+  };
   const pagesNeedingEmbeddings = [];
   for (const page of pages) {
-    if (await shouldRefreshEmbedding(db, page, config.openaiEmbeddingModel)) pagesNeedingEmbeddings.push(page);
+    const refresh = await embeddingRefreshStatus(db, page, config.openaiEmbeddingModel);
+    if (!refresh.needsRefresh) {
+      embeddingSelection.pages_unchanged += 1;
+      continue;
+    }
+    if (refresh.reason === 'missing') embeddingSelection.pages_missing_embeddings += 1;
+    if (refresh.reason === 'model_changed') embeddingSelection.pages_model_changed += 1;
+    if (refresh.reason === 'content_changed') embeddingSelection.pages_content_changed += 1;
+    pagesNeedingEmbeddings.push(page);
   }
+  embeddingSelection.pages_selected_for_embedding = pagesNeedingEmbeddings.length;
   const embeddingChunksNeeded = pagesNeedingEmbeddings.reduce((sum, page) => sum + chunkPageForEmbedding(page).length, 0);
-  const pagesAttemptedForEmbedding = apiKey ? pagesNeedingEmbeddings : [];
+  const maxEmbeddingPagesPerSync = Number.isInteger(config.maxEmbeddingPagesPerSync) && config.maxEmbeddingPagesPerSync > 0
+    ? config.maxEmbeddingPagesPerSync
+    : Number.POSITIVE_INFINITY;
+  const embeddingBatchGuardTriggered = Boolean(apiKey && pagesNeedingEmbeddings.length > maxEmbeddingPagesPerSync);
+  const warnings = [];
+  if (embeddingBatchGuardTriggered) {
+    warnings.push(
+      `Skipped embedding generation: ${pagesNeedingEmbeddings.length} page(s) need embeddings, above max_embedding_pages_per_sync=${maxEmbeddingPagesPerSync}. Raise the cap intentionally for a backfill.`,
+    );
+  }
+  const pagesAttemptedForEmbedding = apiKey && !embeddingBatchGuardTriggered ? pagesNeedingEmbeddings : [];
 
   let embeddingChunksGenerated = 0;
   const embeddingFailures = [];
@@ -69,10 +96,10 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
 
   const pagesWithFailedEmbeddings = embeddingFailures.length;
   const pagesWithGeneratedEmbeddings = pagesAttemptedForEmbedding.length - pagesWithFailedEmbeddings;
-  const outstandingPagesNeedingEmbeddings = apiKey
+  const outstandingPagesNeedingEmbeddings = apiKey && !embeddingBatchGuardTriggered
     ? pagesWithFailedEmbeddings
     : pagesNeedingEmbeddings.length;
-  const outstandingEmbeddingChunks = apiKey
+  const outstandingEmbeddingChunks = apiKey && !embeddingBatchGuardTriggered
     ? embeddingFailures.reduce((sum, failure) => sum + failure.chunk_count, 0)
     : embeddingChunksNeeded;
 
@@ -83,7 +110,15 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
     embedding_chunks_generated: embeddingChunksGenerated,
     embedding_pages_failed: pagesWithFailedEmbeddings,
     embedding_failures: embeddingFailures,
+    warnings,
     used_embedding_model: apiKey ? config.openaiEmbeddingModel : null,
+    embedding_selection: embeddingSelection,
+    embedding_guard: {
+      max_embedding_pages_per_sync: Number.isFinite(maxEmbeddingPagesPerSync) ? maxEmbeddingPagesPerSync : null,
+      triggered: embeddingBatchGuardTriggered,
+      skipped_pages: embeddingBatchGuardTriggered ? pagesNeedingEmbeddings.length : 0,
+      skipped_chunks: embeddingBatchGuardTriggered ? embeddingChunksNeeded : 0,
+    },
     index_totals_after_sync: {
       pages: pages.length,
       links: pages.reduce((sum, page) => sum + page.links.length, 0),
@@ -98,6 +133,7 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
       pages_embedded: pagesWithGeneratedEmbeddings,
       embedding_chunks_created: embeddingChunksGenerated,
       pages_embedding_failed: pagesWithFailedEmbeddings,
+      pages_embedding_skipped_by_guard: embeddingBatchGuardTriggered ? pagesNeedingEmbeddings.length : 0,
     },
   };
   await db.close?.();
@@ -123,11 +159,12 @@ function chunkPageForEmbedding(page) {
   return chunks;
 }
 
-async function shouldRefreshEmbedding(db, page, model) {
+async function embeddingRefreshStatus(db, page, model) {
   const existing = await getEmbeddingRecord(db, page.slug);
-  if (!existing) return true;
-  if (existing.embedding_model !== model) return true;
-  return existing.content_hash !== page.contentHash;
+  if (!existing) return { needsRefresh: true, reason: 'missing' };
+  if (existing.embedding_model !== model) return { needsRefresh: true, reason: 'model_changed' };
+  if (existing.content_hash !== page.contentHash) return { needsRefresh: true, reason: 'content_changed' };
+  return { needsRefresh: false, reason: 'up_to_date' };
 }
 
 async function collectMarkdownFiles(config) {
