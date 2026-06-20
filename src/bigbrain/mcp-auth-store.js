@@ -32,6 +32,14 @@ export class FileMcpAuthStore {
     await fs.mkdir(path.dirname(this.tokenStorePath), { recursive: true });
     await fs.writeFile(this.tokenStorePath, `${JSON.stringify(normalizeStore(store), null, 2)}\n`, { mode: 0o600 });
   }
+
+  async touchToken(tokenHash, lastUsedAt) {
+    const store = await this.read();
+    const token = store.tokens.find((entry) => entry.token_hash === tokenHash);
+    if (!token) return;
+    token.last_used_at = lastUsedAt;
+    await this.write(store);
+  }
 }
 
 export class PostgresMcpAuthStore {
@@ -55,32 +63,33 @@ export class PostgresMcpAuthStore {
 
   async write(store) {
     const normalized = normalizeStore(store);
-    await this.db.query('BEGIN');
+    const dbClient = await this.transactionClient();
     try {
-      await this.db.query('DELETE FROM mcp_oauth_tokens');
-      await this.db.query('DELETE FROM mcp_oauth_states');
-      await this.db.query('DELETE FROM mcp_oauth_clients');
-      await this.db.query('DELETE FROM mcp_oauth_codes');
-      for (const client of normalized.clients) {
-        await this.db.query(`
+      await dbClient.query('BEGIN');
+      await dbClient.query('DELETE FROM mcp_oauth_tokens');
+      await dbClient.query('DELETE FROM mcp_oauth_states');
+      await dbClient.query('DELETE FROM mcp_oauth_clients');
+      await dbClient.query('DELETE FROM mcp_oauth_codes');
+      for (const oauthClient of normalized.clients) {
+        await dbClient.query(`
           INSERT INTO mcp_oauth_clients (client_id, client_json, created_at)
           VALUES ($1,$2,$3)
-        `, [client.client_id, JSON.stringify(client), client.created_at || new Date().toISOString()]);
+        `, [oauthClient.client_id, JSON.stringify(oauthClient), oauthClient.created_at || new Date().toISOString()]);
       }
       for (const state of normalized.states) {
-        await this.db.query(`
+        await dbClient.query(`
           INSERT INTO mcp_oauth_states (state_hash, state_json, expires_at, created_at)
           VALUES ($1,$2,$3,$4)
         `, [state.state_hash, JSON.stringify(state), state.expires_at, state.created_at || new Date().toISOString()]);
       }
       for (const code of normalized.codes) {
-        await this.db.query(`
+        await dbClient.query(`
           INSERT INTO mcp_oauth_codes (code_hash, code_json, expires_at, created_at)
           VALUES ($1,$2,$3,$4)
         `, [code.code_hash, JSON.stringify(code), code.expires_at, code.created_at || new Date().toISOString()]);
       }
       for (const token of normalized.tokens) {
-        await this.db.query(`
+        await dbClient.query(`
           INSERT INTO mcp_oauth_tokens (token_hash, token_json, email, created_at, last_used_at, revoked_at)
           VALUES ($1,$2,$3,$4,$5,$6)
         `, [
@@ -92,11 +101,27 @@ export class PostgresMcpAuthStore {
           token.revoked_at || null,
         ]);
       }
-      await this.db.query('COMMIT');
+      await dbClient.query('COMMIT');
     } catch (error) {
-      await this.db.query('ROLLBACK');
+      await dbClient.query('ROLLBACK');
       throw error;
+    } finally {
+      dbClient.release?.();
     }
+  }
+
+  async touchToken(tokenHash, lastUsedAt) {
+    await this.db.query(`
+      UPDATE mcp_oauth_tokens
+      SET last_used_at = $2,
+          token_json = jsonb_set(token_json, '{last_used_at}', to_jsonb($2::text), true)
+      WHERE token_hash = $1
+    `, [tokenHash, lastUsedAt]);
+  }
+
+  async transactionClient() {
+    if (this.db.raw?.connect) return this.db.raw.connect();
+    return { query: (text, params) => this.db.query(text, params) };
   }
 
   async pruneExpired() {

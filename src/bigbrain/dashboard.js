@@ -163,6 +163,7 @@ export async function createDashboardRequestHandler(config, {
       res.writeHead(404);
       res.end('Not found');
     } catch (error) {
+      console.error(`Dashboard request failed: ${req.url || '/'}: ${error instanceof Error ? error.stack || error.message : String(error)}`);
       res.writeHead(500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
     }

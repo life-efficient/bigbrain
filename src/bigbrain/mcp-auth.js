@@ -56,8 +56,7 @@ export async function authorizeMcpRequest(request, authConfig) {
     const tokenHash = hashToken(token);
     const record = store.tokens.find((entry) => entry.token_hash === tokenHash && !entry.revoked_at);
     if (!record) return { ok: false, status: 401, message: 'Unauthorized' };
-    record.last_used_at = new Date().toISOString();
-    await writeTokenStore(authConfig, store);
+    await touchTokenStore(authConfig, tokenHash, new Date().toISOString(), store);
     return { ok: true, actor: { email: record.email, name: record.name || record.email } };
   }
 
@@ -83,8 +82,7 @@ export async function authorizeDashboardRequest(request, authConfig) {
     && (!entry.expires_at || new Date(entry.expires_at) > now)
   );
   if (!record) return { ok: false, status: 302, location: '/auth/start', clearCookie: true };
-  record.last_used_at = new Date().toISOString();
-  await writeTokenStore(authConfig, store);
+  await touchTokenStore(authConfig, tokenHash, new Date().toISOString(), store);
   return { ok: true, actor: { email: record.email, name: record.name || record.email } };
 }
 
@@ -425,6 +423,15 @@ async function writeTokenStore(authConfig, store) {
   if (!authConfig.tokenStorePath) return;
   const { FileMcpAuthStore } = await import('./mcp-auth-store.js');
   return new FileMcpAuthStore(authConfig.tokenStorePath).write(store);
+}
+
+async function touchTokenStore(authConfig, tokenHash, lastUsedAt, store) {
+  if (authConfig.tokenStore?.touchToken) {
+    return authConfig.tokenStore.touchToken(tokenHash, lastUsedAt);
+  }
+  const record = store.tokens.find((entry) => entry.token_hash === tokenHash);
+  if (record) record.last_used_at = lastUsedAt;
+  return writeTokenStore(authConfig, store);
 }
 
 function pruneStore(store) {
