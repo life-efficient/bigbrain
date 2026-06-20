@@ -100,6 +100,51 @@ It currently covers:
 The fixtures are intentionally minimal and non-sensitive, but the query shapes
 are meant to resemble real usage rather than placeholder nonsense.
 
+### Retrieval eval harness
+
+The CLI also exposes a GBrain-style retrieval eval harness through
+`bigbrain eval`.
+
+The built-in `bigbrain eval retrieval` suite uses synthetic fixtures and covers:
+
+- `title-substring`
+- `generic-to-named`
+- `alias-synonym`
+- `multi-chunk-dilution`
+- `short-vs-rich`
+- `graph-relationship`
+- `hard-negative`
+
+The report includes Hit@1, Hit@3, MRR, recall@k, hard-negative cleanliness,
+per-family summaries, gates, warnings, and a single metric glossary block in
+JSON output.
+
+Private real-brain cases must stay outside the repo. By default,
+`bigbrain eval retrieval --private` reads:
+
+```text
+~/.config/bigbrain/evals/retrieval-cases.jsonl
+```
+
+An explicit file can be passed with `--cases`. Case files can be JSON or JSONL
+and support both the older `expected_slug`/`acceptable_slugs` shape and the
+newer `family`, `relevant_slugs`, and `forbidden_slugs` fields. Private cases
+warn by default; `--fail-on-private-regression` promotes private gate failures
+to command failures. `--redact` removes query text and replaces slugs with
+opaque stable IDs in reports.
+
+Baseline replay and mode comparison are available through:
+
+```bash
+bigbrain eval export --private > baseline.ndjson
+bigbrain eval replay --against baseline.ndjson
+bigbrain eval compare --private --modes conservative,balanced,tokenmax
+```
+
+Replay reports mean Jaccard@k, top-1 stability, moved queries, and latency
+deltas where available. Compare reports summarize the same retrieval metrics
+across modes and can render Markdown with `--markdown`.
+
 ### What is deliberately not ported yet
 
 `bigbrain` now stores multiple embedding chunks per page during sync, but it

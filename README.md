@@ -180,6 +180,10 @@ bigbrain init /path/to/brain-home
 bigbrain sync
 bigbrain search "query terms"
 bigbrain query "grounded question"
+bigbrain eval retrieval
+bigbrain eval export
+bigbrain eval replay --against baseline.ndjson
+bigbrain eval compare
 bigbrain health
 bigbrain schema
 bigbrain dashboard
@@ -202,6 +206,82 @@ Task refresh still works:
 
 ```bash
 bigbrain refresh-tasks --json
+```
+
+## Retrieval Evals
+
+BigBrain includes a GBrain-style retrieval eval suite for checking whether
+ranking changes improve or damage source selection.
+
+The built-in suite uses synthetic, non-sensitive fixtures and covers these
+families:
+
+- `title-substring`
+- `generic-to-named`
+- `alias-synonym`
+- `multi-chunk-dilution`
+- `short-vs-rich`
+- `graph-relationship`
+- `hard-negative`
+
+Run the public synthetic quality suite:
+
+```bash
+bigbrain eval retrieval
+bigbrain eval retrieval --json
+```
+
+Reports include Hit@1, Hit@3, MRR, recall@k, hard-negative cleanliness,
+per-family summaries, gates, warnings, and one `_meta.metric_glossary` block in
+JSON output.
+
+Private real-brain cases should live outside this repo. The default private
+case path is:
+
+```text
+~/.config/bigbrain/evals/retrieval-cases.jsonl
+```
+
+Run private cases:
+
+```bash
+bigbrain eval retrieval --private
+bigbrain eval retrieval --cases /path/to/cases.jsonl
+```
+
+Private cases warn by default. Use `--fail-on-private-regression` when a
+private suite should fail the command. Use `--redact` when generating shareable
+reports; it removes query text and replaces slugs with stable opaque IDs.
+
+Case files can be JSON or JSONL. Existing fields remain compatible:
+
+```json
+{
+  "id": "private-target",
+  "family": "title-substring",
+  "query": "Private Eval",
+  "expected_slug": "people/private-eval",
+  "acceptable_slugs": [],
+  "relevant_slugs": ["people/private-eval"],
+  "forbidden_slugs": []
+}
+```
+
+Export and replay baselines:
+
+```bash
+bigbrain eval export --private > baseline.ndjson
+bigbrain eval replay --against baseline.ndjson
+```
+
+Replay reports mean Jaccard@k, top-1 stability, moved queries, and latency
+deltas where available.
+
+Compare modes:
+
+```bash
+bigbrain eval compare --private --modes conservative,balanced,tokenmax
+bigbrain eval compare --private --markdown
 ```
 
 ## Tests
