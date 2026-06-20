@@ -7,6 +7,7 @@ import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { openDatabase, getPageRecord } from '../../src/bigbrain/db.js';
+import { upsertMember } from '../../src/bigbrain/members.js';
 import { startMcpServer } from '../../src/bigbrain/mcp-server.js';
 
 test('MCP server lists tools and writes pages through tools/call', async () => {
@@ -465,6 +466,125 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
 
     const stored = JSON.parse(await fs.readFile(tokenStorePath, 'utf8'));
     assert.match(stored.tokens[0].last_used_at, /^\d{4}-\d{2}-\d{2}T/);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('MCP task tools resolve the authenticated member and manage task pages', async () => {
+  const fixture = await createFixture('bigbrain-mcp-tasks-');
+  const token = 'bbmcp_task-token';
+  const tokenStorePath = path.join(fixture.rootDir, 'tokens.json');
+  await fs.writeFile(tokenStorePath, `${JSON.stringify({
+    tokens: [{
+      token_hash: hashToken(token),
+      email: 'teammate@example.com',
+      name: 'Team Mate',
+      provider: 'google',
+      created_at: new Date().toISOString(),
+      last_used_at: null,
+      revoked_at: null,
+    }],
+    states: [],
+    clients: [],
+    codes: [],
+  }, null, 2)}\n`);
+
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const db = await openDatabase(config);
+    await upsertMember(db, {
+      email: 'teammate@example.com',
+      name: 'Team Mate',
+      person_slug: 'people/team-mate',
+      role: 'member',
+    });
+    await upsertMember(db, {
+      email: 'inactive@example.com',
+      name: 'Inactive',
+      person_slug: 'people/inactive',
+      status: 'inactive',
+    });
+    await db.close?.();
+
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: {
+        mode: 'oauth_allowlist',
+        authToken: null,
+        publicUrl: 'https://brain.example.test',
+        provider: 'google',
+        googleClientId: 'client-id',
+        googleClientSecret: 'client-secret',
+        allowedEmails: ['teammate@example.com'],
+        allowedDomains: [],
+        tokenStorePath,
+        allowSharedToken: false,
+        serviceName: 'Example Brain Cortex',
+        appName: 'Example Brain',
+      },
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const listed = await rpc(running.url, 'tools/list', {}, token);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'me'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks/list'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks_list'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'members/list'), true);
+
+    const me = await rpc(running.url, 'tools/call', { name: 'me', arguments: {} }, token);
+    assert.equal(me.result.structuredContent.actor.email, 'teammate@example.com');
+    assert.equal(me.result.structuredContent.member.person_slug, 'people/team-mate');
+
+    const members = await rpc(running.url, 'tools/call', { name: 'members/list', arguments: {} }, token);
+    assert.deepEqual(members.result.structuredContent.map((member) => member.person_slug), ['people/team-mate']);
+
+    const created = await rpc(running.url, 'tools/call', {
+      name: 'tasks/create',
+      arguments: {
+        title: 'Draft ICAIRE update',
+        body: 'Prepare the weekly ICAIRE progress update.',
+        assignees: ['me'],
+        priority: 'p1',
+        source: ['initiatives/gfeai-2026'],
+        timeline_entry: 'Task created in MCP task test.',
+      },
+    }, token);
+    assert.equal(created.result.structuredContent.slug, 'tasks/draft-icaire-update');
+    assert.equal(created.result.structuredContent.assignees[0].person_slug, 'people/team-mate');
+
+    const mine = await rpc(running.url, 'tools/call', {
+      name: 'tasks/list',
+      arguments: { assignee: 'me', status: 'open' },
+    }, token);
+    assert.deepEqual(mine.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
+
+    const updated = await rpc(running.url, 'tools/call', {
+      name: 'tasks/update',
+      arguments: {
+        path: 'tasks/draft-icaire-update',
+        status: 'done',
+        timeline_entry: 'Marked complete in MCP task test.',
+      },
+    }, token);
+    assert.equal(updated.result.structuredContent.status, 'done');
+    assert.match(updated.result.structuredContent.timeline, /Marked complete in MCP task test\. \(via teammate@example\.com\)/);
+
+    const rejected = await rpc(running.url, 'tools/call', {
+      name: 'tasks/create',
+      arguments: {
+        title: 'Bad assignment',
+        body: 'Should not be created.',
+        assignees: ['people/inactive'],
+      },
+    }, token);
+    assert.equal(rejected.result, undefined);
+    assert.match(rejected.error.message, /not an active member/);
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

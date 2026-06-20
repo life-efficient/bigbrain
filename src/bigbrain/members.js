@@ -31,6 +31,11 @@ export async function findActiveMemberByPersonSlug(db, personSlug) {
   return row ? normalizeMember(row) : null;
 }
 
+export async function resolveActorMember(db, actor) {
+  if (!actor?.email) return null;
+  return findActiveMemberByEmail(db, actor.email);
+}
+
 export async function upsertMember(db, member) {
   const normalized = normalizeMemberInput(member);
   const now = new Date().toISOString();

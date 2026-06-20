@@ -36,7 +36,8 @@ import {
   renderOAuthCompletePage,
 } from './mcp-auth.js';
 import { createMcpAuthStore } from './mcp-auth-store.js';
-import { findActiveMemberByEmail } from './members.js';
+import { findActiveMemberByEmail, listMembers, resolveActorMember } from './members.js';
+import { createTaskPage, listTaskPages, updateTaskPage } from './task-ops.js';
 
 const DEFAULT_MCP_PROTOCOL_VERSION = '2024-11-05';
 const execFileAsync = promisify(execFile);
@@ -210,6 +211,26 @@ async function callTool({ config, params, gitBackupEnabled, actor }) {
   const name = params.name;
   const args = params.arguments || {};
   switch (name) {
+    case 'me':
+      return toolJson(await toolMe(config, actor));
+    case 'members/list':
+    case 'members_list':
+      return toolJson(await toolMembersList(config, args));
+    case 'tasks/list':
+    case 'tasks_list':
+      return toolJson(await toolTasksList(config, args, actor));
+    case 'tasks/create':
+    case 'tasks_create': {
+      const task = await toolTasksCreate(config, args, actor);
+      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      return toolJson(task);
+    }
+    case 'tasks/update':
+    case 'tasks_update': {
+      const task = await toolTasksUpdate(config, args, actor);
+      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      return toolJson(task);
+    }
     case 'search':
       return toolJson(await toolSearch(config, args));
     case 'query':
@@ -313,6 +334,87 @@ async function postWriteMaintenance(config, gitBackupEnabled, actor) {
   }
 }
 
+async function toolMe(config, actor) {
+  const db = await openDatabase(config);
+  try {
+    const member = await resolveActorMember(db, actor);
+    return {
+      actor: actor || null,
+      member,
+      person_slug: member?.person_slug || null,
+      authenticated: Boolean(actor?.email),
+    };
+  } finally {
+    await db.close?.();
+  }
+}
+
+async function toolMembersList(config, args) {
+  const db = await openDatabase(config);
+  try {
+    return await listMembers(db, { status: args.status || 'active' });
+  } finally {
+    await db.close?.();
+  }
+}
+
+async function toolTasksList(config, args, actor) {
+  const db = await openDatabase(config);
+  try {
+    return await listTaskPages({
+      config,
+      db,
+      assignee: args.assignee || null,
+      status: args.status || null,
+      priority: args.priority || null,
+      actor,
+    });
+  } finally {
+    await db.close?.();
+  }
+}
+
+async function toolTasksCreate(config, args, actor) {
+  const db = await openDatabase(config);
+  try {
+    return await createTaskPage({
+      config,
+      db,
+      title: args.title,
+      body: args.body,
+      assignees: args.assignees || [],
+      status: args.status || 'open',
+      priority: args.priority || 'p3',
+      source: args.source || [],
+      path: args.path || null,
+      timelineEntry: timelineWithActor(args.timeline_entry || 'Task created through MCP.', actor),
+      actor,
+    });
+  } finally {
+    await db.close?.();
+  }
+}
+
+async function toolTasksUpdate(config, args, actor) {
+  const db = await openDatabase(config);
+  try {
+    return await updateTaskPage({
+      config,
+      db,
+      path: args.path,
+      body: args.body,
+      status: args.status,
+      priority: args.priority,
+      assignees: args.assignees,
+      source: args.source,
+      timelineEntry: timelineWithActor(args.timeline_entry || 'Task updated through MCP.', actor),
+      actor,
+    });
+  } finally {
+    await db.close?.();
+  }
+}
+
 async function toolSearch(config, args) {
   const query = requireString(args.query, 'query');
   const limit = normalizeLimit(args.limit, 10);
@@ -397,6 +499,54 @@ async function git(cwd, args) {
 
 function toolDefinitions() {
   return [
+    {
+      name: 'me',
+      description: 'Return the authenticated MCP actor and the matching active BigBrain member, if one exists.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    {
+      name: 'members/list',
+      description: 'List BigBrain members who can authenticate and be assigned tasks.',
+      inputSchema: membersListSchema(),
+    },
+    {
+      name: 'members_list',
+      description: 'Alias for members/list for clients that do not support slash tool names.',
+      inputSchema: membersListSchema(),
+    },
+    {
+      name: 'tasks/list',
+      description: 'List task pages under tasks/, optionally filtered by assignee, status, or priority. Use assignee=me for the authenticated member.',
+      inputSchema: tasksListSchema(),
+    },
+    {
+      name: 'tasks_list',
+      description: 'Alias for tasks/list for clients that do not support slash tool names.',
+      inputSchema: tasksListSchema(),
+    },
+    {
+      name: 'tasks/create',
+      description: 'Create one member-assigned task page under tasks/. Assignees must be active members; assignees may include me.',
+      inputSchema: taskWriteSchema({ requireBody: true }),
+    },
+    {
+      name: 'tasks_create',
+      description: 'Alias for tasks/create for clients that do not support slash tool names.',
+      inputSchema: taskWriteSchema({ requireBody: true }),
+    },
+    {
+      name: 'tasks/update',
+      description: 'Update one task page under tasks/, including status, priority, assignees, source, body, and timeline.',
+      inputSchema: taskWriteSchema({ update: true }),
+    },
+    {
+      name: 'tasks_update',
+      description: 'Alias for tasks/update for clients that do not support slash tool names.',
+      inputSchema: taskWriteSchema({ update: true }),
+    },
     {
       name: 'search',
       description: 'Search the selected BigBrain brain using lexical and semantic retrieval when embeddings are available.',
@@ -569,6 +719,43 @@ function toolDefinitions() {
       },
     },
   ];
+}
+
+function membersListSchema() {
+  return {
+    type: 'object',
+    properties: {
+      status: { type: 'string', enum: ['active', 'inactive', 'invited'] },
+    },
+  };
+}
+
+function tasksListSchema() {
+  return {
+    type: 'object',
+    properties: {
+      assignee: { type: 'string', description: 'Active member person slug such as people/hani, or me for the authenticated member.' },
+      status: { type: 'string', enum: ['open', 'waiting', 'blocked', 'done', 'archived'] },
+      priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
+    },
+  };
+}
+
+function taskWriteSchema({ requireBody = false, update = false } = {}) {
+  return {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: update ? 'Existing task path under tasks/.' : 'Optional destination path under tasks/.' },
+      title: { type: 'string' },
+      body: { type: 'string' },
+      status: { type: 'string', enum: ['open', 'waiting', 'blocked', 'done', 'archived'] },
+      priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
+      assignees: { type: 'array', items: { type: 'string' }, description: 'Active member person slugs, or me for the authenticated member.' },
+      source: { type: 'array', items: { type: 'string' }, description: 'Related brain slugs such as meetings/example or initiatives/example.' },
+      timeline_entry: { type: 'string' },
+    },
+    required: update ? ['path'] : requireBody ? ['title', 'body'] : ['title'],
+  };
 }
 
 function jsonRpcResult(id, result) {
