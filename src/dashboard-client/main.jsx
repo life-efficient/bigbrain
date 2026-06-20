@@ -621,7 +621,7 @@ function isTypingTarget(target) {
 }
 
 function AssigneeFilter({ members, value, onChange }) {
-  if (!members.length) return null;
+  const hasMemberOptions = members.length > 0;
   return (
     <div className="filter-bar" aria-label="Assignee filter">
       <label className="filter-label" htmlFor="assignee-filter">Member</label>
@@ -632,11 +632,11 @@ function AssigneeFilter({ members, value, onChange }) {
         onChange={(event) => onChange(event.target.value)}
       >
         <option value="">All members</option>
-        {members.map((member) => (
+        {hasMemberOptions ? members.map((member) => (
           <option key={member.person_slug} value={member.person_slug}>
             {member.name || member.person_slug}
           </option>
-        ))}
+        )) : null}
       </select>
     </div>
   );
