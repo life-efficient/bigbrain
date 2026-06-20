@@ -109,6 +109,14 @@ BigBrain MCP supports these auth modes:
 
 Hosted deployments should use `oauth_allowlist`.
 
+The dashboard can use the same `oauth_allowlist` configuration. Local dashboard
+use stays unauthenticated on `127.0.0.1` by default; hosted dashboard deployments
+should bind explicitly and rely on the Google allowlist session:
+
+```sh
+bigbrain --config /path/to/config.json dashboard --host 0.0.0.0 --port "$PORT"
+```
+
 The current file-backed token store is acceptable for local development or
 small persistent-volume deployments. The target hosted model should store token
 hashes, OAuth grants, sessions, and client metadata in the persistent database
@@ -153,16 +161,18 @@ Then send teammates to:
 https://your-service.example.com/connect
 ```
 
-They sign in with Google. If their email is allowlisted, BigBrain shows a
-personal MCP token and a Codex config snippet:
+For dashboard deployments, send teammates to the service root. They sign in
+with Google and receive a secure dashboard session cookie if their email is
+allowlisted.
+
+For MCP deployments, `/connect` shows a Codex config snippet:
 
 ```toml
 [mcp_servers.example-brain-cortex]
 url = "https://your-service.example.com/mcp"
-headers = { Authorization = "Bearer bbmcp_..." }
 ```
 
-The token is shown once. Store only the hashed token in
+OAuth access and dashboard session tokens are stored as hashes in
 `BIGBRAIN_MCP_TOKEN_STORE` or, for hosted deployments, the database-backed token
 store.
 
@@ -181,6 +191,8 @@ the write came from an OAuth user.
 
 - `/health` returns only `{ "ok": true }`.
 - `/mcp` requires auth unless `BIGBRAIN_MCP_AUTH_MODE=none`.
+- Hosted `dashboard` requires `BIGBRAIN_MCP_AUTH_MODE=oauth_allowlist`; local
+  dashboard remains unauthenticated unless OAuth is configured.
 - `/connect`, `/auth/start`, and `/auth/callback` are enabled only in
   `oauth_allowlist` mode.
 - Keep token/session state on persistent storage. Prefer the database-backed

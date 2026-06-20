@@ -4,8 +4,11 @@ const DEFAULT_PROVIDER = 'google';
 const CLIENT_ID_PREFIX = 'bbmcp_client_';
 const CODE_PREFIX = 'bbmcp_code_';
 const ACCESS_TOKEN_PREFIX = 'bbmcp_';
+const DASHBOARD_SESSION_PREFIX = 'bbdash_';
 const AUTH_CODE_TTL_MS = 5 * 60 * 1000;
+const DASHBOARD_SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const SCOPES = ['brain:read', 'brain:write'];
+const DASHBOARD_SCOPE = 'dashboard:read';
 
 export function buildAuthConfig({
   env = process.env,
@@ -58,6 +61,30 @@ export async function authorizeMcpRequest(request, authConfig) {
   }
 
   return { ok: false, status: 500, message: `Unsupported auth mode: ${authConfig.mode}` };
+}
+
+export async function authorizeDashboardRequest(request, authConfig) {
+  if (authConfig.mode === 'none') return { ok: true, actor: null };
+  if (authConfig.mode !== 'oauth_allowlist') {
+    return { ok: false, status: 403, message: 'Dashboard OAuth requires BIGBRAIN_MCP_AUTH_MODE=oauth_allowlist.' };
+  }
+
+  const token = cookieValue(request.headers.cookie || '', 'bigbrain_dashboard_session');
+  if (!token) return { ok: false, status: 302, location: '/auth/start' };
+
+  const store = await readTokenStore(authConfig);
+  const tokenHash = hashToken(token);
+  const now = new Date();
+  const record = store.tokens.find((entry) =>
+    entry.token_hash === tokenHash
+    && !entry.revoked_at
+    && entry.scope === DASHBOARD_SCOPE
+    && (!entry.expires_at || new Date(entry.expires_at) > now)
+  );
+  if (!record) return { ok: false, status: 302, location: '/auth/start', clearCookie: true };
+  record.last_used_at = new Date().toISOString();
+  await writeTokenStore(authConfig, store);
+  return { ok: true, actor: { email: record.email, name: record.name || record.email } };
 }
 
 export function authRoutesEnabled(authConfig) {
@@ -175,6 +202,32 @@ export async function createAgentOAuthStart(authConfig, requestUrl) {
   return google.toString();
 }
 
+export async function createDashboardOAuthStart(authConfig, requestUrl) {
+  assertOAuthConfigured(authConfig);
+  const url = new URL(requestUrl, authConfig.publicUrl);
+  const redirectPath = normalizeRedirectPath(url.searchParams.get('redirect') || '/');
+  const googleState = randomToken(24);
+  const store = await readTokenStore(authConfig);
+  store.states.push({
+    flow: 'dashboard_oauth',
+    state_hash: hashToken(googleState),
+    created_at: new Date().toISOString(),
+    expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    redirect_path: redirectPath,
+  });
+  pruneStore(store);
+  await writeTokenStore(authConfig, store);
+
+  const google = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  google.searchParams.set('client_id', authConfig.googleClientId);
+  google.searchParams.set('redirect_uri', callbackUrl(authConfig));
+  google.searchParams.set('response_type', 'code');
+  google.searchParams.set('scope', 'openid email profile');
+  google.searchParams.set('state', googleState);
+  google.searchParams.set('prompt', 'select_account');
+  return google.toString();
+}
+
 export async function completeOAuthCallback(authConfig, { code, state }) {
   assertOAuthConfigured(authConfig);
   if (!code || !state) throw new Error('Missing OAuth code or state.');
@@ -209,6 +262,29 @@ export async function completeOAuthCallback(authConfig, { code, state }) {
       redirect_uri: stateRecord.redirect_uri,
       code: authCode,
       state: stateRecord.original_state,
+    };
+  }
+
+  if (stateRecord.flow === 'dashboard_oauth') {
+    const token = `${DASHBOARD_SESSION_PREFIX}${randomToken(32)}`;
+    store.tokens.push({
+      token_hash: hashToken(token),
+      email,
+      name: profile.name || email,
+      provider: 'google',
+      created_at: new Date().toISOString(),
+      last_used_at: null,
+      revoked_at: null,
+      scope: DASHBOARD_SCOPE,
+      expires_at: new Date(Date.now() + DASHBOARD_SESSION_TTL_MS).toISOString(),
+    });
+    pruneStore(store);
+    await writeTokenStore(authConfig, store);
+    return {
+      dashboard_session_token: token,
+      redirect_path: normalizeRedirectPath(stateRecord.redirect_path || '/'),
+      email,
+      name: profile.name || email,
     };
   }
 
@@ -358,6 +434,21 @@ function pruneStore(store) {
 function bearerToken(request) {
   const authorization = request.headers.authorization || '';
   return authorization.startsWith('Bearer ') ? authorization.slice('Bearer '.length) : '';
+}
+
+function cookieValue(cookieHeader, name) {
+  const cookies = String(cookieHeader || '').split(';');
+  for (const cookie of cookies) {
+    const [rawName, ...rawValue] = cookie.trim().split('=');
+    if (rawName === name) return decodeURIComponent(rawValue.join('='));
+  }
+  return '';
+}
+
+function normalizeRedirectPath(value) {
+  const path = String(value || '/').trim();
+  if (!path.startsWith('/') || path.startsWith('//')) return '/';
+  return path;
 }
 
 function hashToken(token) {

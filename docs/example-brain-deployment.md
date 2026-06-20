@@ -84,14 +84,22 @@ that the app is disposable and Postgres has a persistent volume.
 2. Ensure the BigBrain config points at the Example Brain `cortex` directory and uses
    `storage_backend: "postgres"`.
 3. Start Postgres.
-4. Start BigBrain MCP:
+4. Start BigBrain MCP or the dashboard:
 
 ```sh
 bigbrain --config /path/to/config.json mcp --host 0.0.0.0 --port "$PORT"
 ```
 
+```sh
+bigbrain --config /path/to/config.json dashboard --host 0.0.0.0 --port "$PORT"
+```
+
+Use one process per public service unless the deployment wrapper fronts both on
+separate ports.
+
 5. Run `bigbrain db doctor` and `bigbrain sync --json`.
-6. Send teammates to `/connect` for OAuth-backed MCP connection.
+6. Send teammates to `/connect` for OAuth-backed MCP connection, or to `/` for
+   the OAuth-backed dashboard.
 
 ## Migration Later
 

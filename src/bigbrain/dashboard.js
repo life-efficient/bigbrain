@@ -8,6 +8,16 @@ import { build } from 'esbuild';
 import { openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
 import { runHealthCheck } from './health.js';
 import { fullPathFromSlug, parseMarkdownPage, resolveMarkdownLink, slugFromPath } from './markdown.js';
+import {
+  authRoutesEnabled,
+  assertOAuthConfigured,
+  authorizeDashboardRequest,
+  buildAuthConfig,
+  completeOAuthCallback,
+  createDashboardOAuthStart,
+  renderAuthErrorPage,
+} from './mcp-auth.js';
+import { createMcpAuthStore } from './mcp-auth-store.js';
 import { renderSchemaMarkdown } from './schema.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
@@ -19,13 +29,77 @@ const faviconPath = path.join(dashboardIconDir, 'favicon.ico');
 const faviconPngPath = path.join(dashboardIconDir, 'favicon-32.png');
 const appleTouchIconPath = path.join(dashboardIconDir, 'apple-touch-icon.png');
 
-export async function startDashboard(config, { port = config.dashboardPort } = {}) {
+export async function startDashboard(config, {
+  host = '127.0.0.1',
+  port = config.dashboardPort,
+  authConfig = buildAuthConfig(),
+} = {}) {
   const db = await openDatabase(config);
   const clientAssetPath = await ensureDashboardAssets(config);
+  const authEnabled = authRoutesEnabled(authConfig);
+  if (authEnabled) {
+    if (!authConfig.tokenStore) authConfig.tokenStore = await createMcpAuthStore(config, authConfig);
+    assertOAuthConfigured(authConfig);
+  }
 
   const server = http.createServer(async (req, res) => {
     try {
       const requestUrl = new URL(req.url || '/', 'http://127.0.0.1');
+      if (authEnabled && requestUrl.pathname === '/auth/start') {
+        const location = await createDashboardOAuthStart(authConfig, req.url || '/auth/start');
+        res.writeHead(302, { location });
+        res.end();
+        return;
+      }
+      if (authEnabled && requestUrl.pathname === '/auth/callback') {
+        try {
+          const issued = await completeOAuthCallback(authConfig, {
+            code: requestUrl.searchParams.get('code'),
+            state: requestUrl.searchParams.get('state'),
+          });
+          if (!issued.dashboard_session_token) {
+            res.writeHead(302, { location: '/' });
+            res.end();
+            return;
+          }
+          res.writeHead(302, {
+            location: issued.redirect_path || '/',
+            'set-cookie': dashboardSessionCookie(issued.dashboard_session_token, authConfig),
+          });
+          res.end();
+          return;
+        } catch (error) {
+          res.writeHead(403, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(renderAuthErrorPage(authConfig, error instanceof Error ? error.message : String(error)));
+          return;
+        }
+      }
+      if (authEnabled && requestUrl.pathname === '/auth/logout') {
+        res.writeHead(302, {
+          location: '/auth/start',
+          'set-cookie': clearDashboardSessionCookie(),
+        });
+        res.end();
+        return;
+      }
+      if (authEnabled && requestUrl.pathname !== '/favicon.ico' && !requestUrl.pathname.startsWith('/assets/')) {
+        const authorization = await authorizeDashboardRequest(req, authConfig);
+        if (!authorization.ok) {
+          const headers = {};
+          if (authorization.clearCookie) headers['set-cookie'] = clearDashboardSessionCookie();
+          if (authorization.status === 302) {
+            const next = new URL('/auth/start', authConfig.publicUrl || 'http://127.0.0.1');
+            next.searchParams.set('redirect', `${requestUrl.pathname}${requestUrl.search}`);
+            headers.location = next.pathname + next.search;
+            res.writeHead(302, headers);
+            res.end();
+            return;
+          }
+          res.writeHead(authorization.status || 401, { 'Content-Type': 'text/plain; charset=utf-8', ...headers });
+          res.end(authorization.message || 'Unauthorized');
+          return;
+        }
+      }
       if (requestUrl.pathname === '/' || requestUrl.pathname === '/index.html') {
         res.writeHead(200, {
           'Content-Type': 'text/html; charset=utf-8',
@@ -65,7 +139,13 @@ export async function startDashboard(config, { port = config.dashboardPort } = {
       res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
     }
   });
-  await new Promise((resolve) => server.listen(port, '127.0.0.1', resolve));
+  await new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, host, () => {
+      server.off('error', reject);
+      resolve();
+    });
+  });
   return server;
 }
 
@@ -98,6 +178,15 @@ async function serveFile(res, filePath, contentType) {
 function json(res, value) {
   res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(value, null, 2));
+}
+
+function dashboardSessionCookie(token, authConfig) {
+  const secure = authConfig.publicUrl?.startsWith('https://') ? '; Secure' : '';
+  return `bigbrain_dashboard_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${14 * 24 * 60 * 60}${secure}`;
+}
+
+function clearDashboardSessionCookie() {
+  return 'bigbrain_dashboard_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0';
 }
 
 function renderAppHtml() {

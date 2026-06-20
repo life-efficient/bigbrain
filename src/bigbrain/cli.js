@@ -352,9 +352,10 @@ async function loadEvalCasesForRealBrain({
 async function handleDashboard(args, global) {
   const config = await loadRuntimeConfig(global);
   const port = Number(argValue(args, '--port') || config.dashboardPort);
+  const host = argValue(args, '--host') || process.env.HOST || '127.0.0.1';
   const { startDashboard } = await import('./dashboard.js');
-  await startDashboard(config, { port });
-  console.log(`Dashboard running at http://127.0.0.1:${port}`);
+  await startDashboard(config, { host, port });
+  console.log(`Dashboard running at http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${port}`);
 }
 
 async function handleMcp(args, global) {
@@ -433,7 +434,7 @@ Commands:
   eval export [--cases PATH] [--mode MODE] [--limit N] [--redact]
   eval replay --against baseline.ndjson [--mode MODE] [--limit N]
   eval compare [--cases PATH] [--modes conservative,balanced,tokenmax] [--markdown]
-  dashboard [--port N]
+  dashboard [--host HOST] [--port N]
   mcp [--host HOST] [--port N]
 
 Global options:
