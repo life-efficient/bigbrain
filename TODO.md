@@ -8,10 +8,9 @@
 
 ## Hosted Brain Service
 
-- Add a generic Postgres storage adapter behind `DATABASE_URL`, with pgvector
-  support for embeddings.
-- Store hosted MCP OAuth clients, grants, sessions, token hashes, sync runs,
-  embeddings, and audit logs in durable storage rather than app-container files.
+- Persist sync run history and write MCP audit log entries through the Postgres
+  backend; OAuth client/state/code/token records and embeddings are already
+  database-backed for hosted deployments.
 - Define remote-safe MCP tools separately from admin/maintenance tools.
 - Add a bundled deployment recipe for app + local Postgres/pgvector so a shared
   brain can run without a separate managed Supabase project.
