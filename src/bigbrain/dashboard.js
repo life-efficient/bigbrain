@@ -632,6 +632,7 @@ function renderAppHtml() {
       .sidecar-summary .tailwind-prose ol,
       .sidecar-summary .tailwind-prose blockquote { margin: 0 0 0.4em; }
       .sidecar-summary .tailwind-prose p:empty { display: none; }
+      .sidecar-summary .tailwind-prose p:has(> br.ProseMirror-trailingBreak:only-child) { display: none; }
       .sidecar-summary .tailwind-prose > *:last-child { margin-bottom: 0; }
       .sidecar-summary .tailwind-prose h1,
       .sidecar-summary .tailwind-prose h2,
