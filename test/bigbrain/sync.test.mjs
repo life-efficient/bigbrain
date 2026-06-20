@@ -5,9 +5,65 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { allEmbeddings, listPageSlugs, openDatabase } from '../../src/bigbrain/db.js';
+import { allEmbeddings, getPageRecord, listPageSlugs, openDatabase } from '../../src/bigbrain/db.js';
 import { searchBrain } from '../../src/bigbrain/search.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
+
+test('sync stores page updated_at from file mtime, not index time', async () => {
+  const fixture = await createFixture('bigbrain-sync-updated-at-');
+  try {
+    const relativePath = 'projects/old-project.md';
+    const fullPath = await writeMarkdown(fixture.brainHome, relativePath, `---
+title: Old Project
+---
+# Old Project
+
+Stable page.
+`);
+    const oldDate = new Date('2026-01-02T03:04:05.000Z');
+    await fs.utimes(fullPath, oldDate, oldDate);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const row = await getPageRecord(db, 'projects/old-project');
+    assert.equal(row.updated_at, oldDate.toISOString());
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('sync prefers latest timeline date for page updated_at when available', async () => {
+  const fixture = await createFixture('bigbrain-sync-timeline-updated-at-');
+  try {
+    const fullPath = await writeMarkdown(fixture.brainHome, 'projects/timeline-project.md', `---
+title: Timeline Project
+---
+# Timeline Project
+
+Stable page.
+
+---
+
+## Timeline
+
+- **2026-02-03** | Early note.
+- **2026-04-05** | Later note.
+`);
+    const oldDate = new Date('2026-01-02T03:04:05.000Z');
+    await fs.utimes(fullPath, oldDate, oldDate);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const row = await getPageRecord(db, 'projects/timeline-project');
+    assert.equal(row.updated_at, '2026-04-05T00:00:00.000Z');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
 
 test('sync removes stale index rows after a page rename', async () => {
   const fixture = await createFixture('bigbrain-sync-rename-');
@@ -352,4 +408,5 @@ async function writeMarkdown(brainHome, relativePath, content) {
   const fullPath = path.join(brainHome, relativePath);
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.writeFile(fullPath, content, 'utf8');
+  return fullPath;
 }

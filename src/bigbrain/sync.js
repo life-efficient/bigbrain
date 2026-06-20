@@ -15,9 +15,11 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
 
   for (const fullPath of files) {
     const slug = slugFromPath(config.brainDir, fullPath);
+    const fileStat = await fs.stat(fullPath);
     const raw = await fs.readFile(fullPath, 'utf8');
     const parsed = parseMarkdownPage(raw, slug);
     parsed.path = fullPath;
+    parsed.updatedAt = latestTimelineDate(parsed.timeline) || fileStat.mtime.toISOString();
     parsed.contentHash = sha256(raw);
     parsed.links = extractLinks(raw, slug);
     knownSlugs.add(slug);
@@ -159,4 +161,11 @@ async function walk(rootDir, onFile, relativeDir = '') {
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
+}
+
+function latestTimelineDate(timeline) {
+  if (!timeline) return null;
+  const matches = [...String(timeline).matchAll(/\b(20\d{2}-\d{2}-\d{2})\b/g)];
+  const latest = matches.map((match) => match[1]).sort().at(-1);
+  return latest ? `${latest}T00:00:00.000Z` : null;
 }

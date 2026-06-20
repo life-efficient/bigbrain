@@ -223,6 +223,7 @@ export async function initializePostgresSchema(db) {
 export async function replacePageIndex(db, page) {
   if (db.backend === 'postgres') {
     const now = new Date().toISOString();
+    const updatedAt = page.updatedAt || now;
     await db.query(`
       INSERT INTO pages (
         slug, path, type, title, summary, frontmatter_json, compiled_truth, timeline,
@@ -253,7 +254,7 @@ export async function replacePageIndex(db, page) {
       page.bodyMarkdown,
       page.bodyText,
       page.contentHash,
-      now,
+      updatedAt,
       now,
     ]);
     return;
@@ -261,6 +262,7 @@ export async function replacePageIndex(db, page) {
 
   const raw = unwrapSqlite(db);
   const now = new Date().toISOString();
+  const updatedAt = page.updatedAt || now;
   raw.prepare(`
     INSERT INTO pages (
       slug, path, type, title, summary, frontmatter_json, compiled_truth, timeline,
@@ -291,7 +293,7 @@ export async function replacePageIndex(db, page) {
     page.bodyMarkdown,
     page.bodyText,
     page.contentHash,
-    now,
+    updatedAt,
     now,
   );
 
