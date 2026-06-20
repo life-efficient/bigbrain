@@ -160,6 +160,9 @@ export async function createDashboardRequestHandler(config, {
       if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
       if (requestUrl.pathname === '/api/page') return json(res, await buildPagePayload(config, db, requestUrl));
       if (requestUrl.pathname === '/api/preview') return json(res, await buildPreviewPayload(config, db, requestUrl));
+      if (requestUrl.pathname === '/api/explorer/tree') return json(res, await buildExplorerTreePayload(config));
+      if (requestUrl.pathname === '/api/explorer/file') return json(res, await buildExplorerFilePayload(config, requestUrl));
+      if (requestUrl.pathname === '/api/explorer/blob') return serveExplorerBlob(config, res, requestUrl);
       res.writeHead(404);
       res.end('Not found');
     } catch (error) {
@@ -194,6 +197,28 @@ async function serveFile(res, filePath, contentType) {
     'Cache-Control': 'no-store',
   });
   res.end(body);
+}
+
+async function serveExplorerBlob(config, res, requestUrl) {
+  const relativePath = normalizeExplorerPath(requestUrl.searchParams.get('path') || '');
+  const fullPath = safeExplorerPath(config.brainDir, relativePath);
+  const stats = await fs.stat(fullPath);
+  if (!stats.isFile()) throw new Error(`Explorer blob path is not a file: ${relativePath}`);
+  const mimeType = mimeTypeForPath(relativePath);
+  res.writeHead(200, {
+    'Content-Type': mimeType,
+    'Content-Length': stats.size,
+    'Cache-Control': 'no-store',
+    'Content-Disposition': `inline; filename="${path.basename(relativePath).replace(/"/g, '')}"`,
+  });
+  const { createReadStream } = await import('node:fs');
+  await new Promise((resolve, reject) => {
+    const stream = createReadStream(fullPath);
+    stream.once('error', reject);
+    res.once('error', reject);
+    res.once('finish', resolve);
+    stream.pipe(res);
+  });
 }
 
 function json(res, value) {
@@ -575,6 +600,29 @@ function renderAppHtml() {
       .health-item.medium { border-color: rgba(188,123,77,0.35); }
       .card-copy { margin-top: 8px; line-height: 1.5; color: var(--ink); }
       .schema { white-space: pre-wrap; font-size: 12px; line-height: 1.5; max-height: 360px; overflow: auto; }
+      .explorer-shell { height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(220px, 310px) minmax(0, 1fr); border: 1px solid var(--line); background: var(--panel); overflow: hidden; }
+      .explorer-tree { min-height: 0; overflow: auto; border-right: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 92%, #000 8%); padding: 8px 0 12px; }
+      .explorer-tree-head { height: 32px; display: flex; align-items: center; padding: 0 12px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+      .explorer-row { width: 100%; min-width: 0; height: 26px; padding: 0 10px 0 calc(10px + var(--depth, 0) * 14px); border: 0; background: transparent; color: var(--muted); display: grid; grid-template-columns: 14px 18px minmax(0, 1fr); align-items: center; gap: 4px; text-align: left; font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; }
+      .explorer-row:hover { background: rgba(255,255,255,0.05); color: var(--ink); }
+      .explorer-row.selected { background: rgba(125,211,252,0.12); color: var(--ink); }
+      .explorer-twist { color: var(--muted); font-size: 13px; text-align: center; }
+      .explorer-glyph { width: 18px; height: 18px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); background: rgba(255,255,255,0.045); font-size: 10px; font-weight: 800; }
+      .explorer-glyph.folder { color: var(--accent-strong); background: rgba(125,211,252,0.10); }
+      .explorer-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .explorer-viewer { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg); }
+      .explorer-viewer.empty { place-items: center; display: grid; }
+      .explorer-viewer-head { min-width: 0; min-height: 48px; padding: 10px 14px; border-bottom: 1px solid var(--line); display: grid; align-content: center; gap: 3px; }
+      .explorer-viewer-head strong,
+      .explorer-viewer-head .meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .explorer-viewer-body { min-height: 0; overflow: auto; padding: 18px 20px; }
+      .explorer-viewer-body .markdown-shell { max-width: 920px; }
+      .explorer-text-preview { margin: 0; min-height: 100%; white-space: pre-wrap; word-break: break-word; background: transparent; color: var(--ink); font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .explorer-media-frame { height: 100%; min-height: 0; display: grid; place-items: center; }
+      .explorer-media-frame img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+      .explorer-pdf-frame { width: 100%; height: 100%; min-height: 640px; border: 0; background: #fff; }
+      .explorer-unsupported { height: 100%; display: grid; place-items: center; align-content: center; gap: 14px; }
+      .explorer-open-blob { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
       .markdown-shell { color: var(--ink); }
       .empty-copy { color: var(--muted); font-size: 14px; }
       .tailwind-prose { color: var(--ink); font-size: 14px; line-height: 1.7; }
@@ -968,6 +1016,41 @@ async function buildPreviewPayload(config, db, requestUrl) {
   return buildPagePayloadForSlug(config, db, slug);
 }
 
+export async function buildExplorerTreePayload(config) {
+  const root = await explorerEntryForPath(config.brainDir, config.brainDir, true);
+  return {
+    root,
+    meta: {
+      root_path: config.brainDir,
+    },
+  };
+}
+
+export async function buildExplorerFilePayload(config, requestUrl) {
+  const relativePath = normalizeExplorerPath(requestUrl.searchParams.get('path') || '');
+  const fullPath = safeExplorerPath(config.brainDir, relativePath);
+  const stats = await fs.stat(fullPath);
+  if (!stats.isFile()) throw new Error(`Explorer path is not a file: ${relativePath}`);
+  const mimeType = mimeTypeForPath(relativePath);
+  const kind = viewerKindForMime(mimeType, relativePath);
+  const payload = {
+    path: relativePath,
+    name: path.basename(relativePath),
+    kind,
+    mime_type: mimeType,
+    size: stats.size,
+    updated_at: stats.mtime.toISOString(),
+    blob_url: `/api/explorer/blob?${new URLSearchParams({ path: relativePath }).toString()}`,
+  };
+  if (kind === 'markdown' || kind === 'text') {
+    if (stats.size > 1024 * 1024) {
+      return { ...payload, kind: 'unsupported', reason: 'Text preview is limited to files under 1 MB.' };
+    }
+    return { ...payload, text: await fs.readFile(fullPath, 'utf8') };
+  }
+  return payload;
+}
+
 export async function buildPagePayload(config, db, requestUrl) {
   const slug = requestUrl.searchParams.get('slug')?.trim();
   if (!slug) throw new Error('Page lookup requires slug.');
@@ -1043,6 +1126,99 @@ function flushSummaryBlock(blocks, lines) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+async function explorerEntryForPath(root, fullPath, includeChildren = false) {
+  const stats = await fs.stat(fullPath);
+  const relativePath = path.relative(root, fullPath).split(path.sep).join('/');
+  const name = relativePath ? path.basename(relativePath) : 'brain';
+  const entry = {
+    name,
+    path: relativePath,
+    type: stats.isDirectory() ? 'directory' : 'file',
+    size: stats.isFile() ? stats.size : null,
+    updated_at: stats.mtime.toISOString(),
+    kind: stats.isFile() ? viewerKindForMime(mimeTypeForPath(relativePath), relativePath) : null,
+  };
+  if (!stats.isDirectory() || !includeChildren) return entry;
+  const dirents = await fs.readdir(fullPath, { withFileTypes: true });
+  const children = [];
+  for (const dirent of dirents) {
+    const childFullPath = path.join(fullPath, dirent.name);
+    const childRelative = path.relative(root, childFullPath).split(path.sep).join('/');
+    if (shouldSkipExplorerPath(childRelative, dirent)) continue;
+    children.push(await explorerEntryForPath(root, childFullPath, true));
+  }
+  children.sort(compareExplorerEntries);
+  return { ...entry, children };
+}
+
+function shouldSkipExplorerPath(relativePath, dirent) {
+  const normalized = String(relativePath || '').replace(/\\/g, '/');
+  if (!normalized) return false;
+  if (normalized === '.git' || normalized.startsWith('.git/')) return true;
+  if (normalized === '.bigbrain' || normalized.startsWith('.bigbrain/')) return true;
+  if (normalized === '.bigbrain-state' || normalized.startsWith('.bigbrain-state/')) return true;
+  if (dirent.name.startsWith('.') && dirent.name !== '.raw') return true;
+  return false;
+}
+
+function compareExplorerEntries(a, b) {
+  if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+  return a.name.localeCompare(b.name, undefined, { sensitivity: 'base', numeric: true });
+}
+
+function normalizeExplorerPath(input) {
+  const trimmed = String(input || '').trim().replace(/\\/g, '/').replace(/^\/+/, '');
+  if (!trimmed) throw new Error('Explorer path is required.');
+  const normalized = path.posix.normalize(trimmed);
+  if (normalized === '.' || normalized.startsWith('../') || path.posix.isAbsolute(normalized)) {
+    throw new Error(`Invalid explorer path: ${input}`);
+  }
+  if (normalized.split('/').some((part) => !part || part === '.' || part === '..')) {
+    throw new Error(`Invalid explorer path: ${input}`);
+  }
+  return normalized;
+}
+
+function safeExplorerPath(brainDir, relativePath) {
+  const fullPath = path.resolve(brainDir, relativePath);
+  const root = path.resolve(brainDir);
+  if (fullPath !== root && !fullPath.startsWith(`${root}${path.sep}`)) {
+    throw new Error(`Path escapes brain root: ${relativePath}`);
+  }
+  return fullPath;
+}
+
+function viewerKindForMime(mimeType, relativePath) {
+  const extension = path.extname(relativePath).toLowerCase();
+  if (extension === '.md' || extension === '.markdown') return 'markdown';
+  if (mimeType === 'application/pdf') return 'pdf';
+  if (mimeType.startsWith('image/')) return 'image';
+  if (mimeType.startsWith('text/') || ['.json', '.csv', '.yaml', '.yml', '.log'].includes(extension)) return 'text';
+  return 'unsupported';
+}
+
+function mimeTypeForPath(relativePath) {
+  const extension = path.extname(relativePath).toLowerCase();
+  return {
+    '.md': 'text/markdown; charset=utf-8',
+    '.markdown': 'text/markdown; charset=utf-8',
+    '.txt': 'text/plain; charset=utf-8',
+    '.json': 'application/json; charset=utf-8',
+    '.csv': 'text/csv; charset=utf-8',
+    '.yaml': 'text/yaml; charset=utf-8',
+    '.yml': 'text/yaml; charset=utf-8',
+    '.log': 'text/plain; charset=utf-8',
+    '.pdf': 'application/pdf',
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.gif': 'image/gif',
+    '.webp': 'image/webp',
+    '.svg': 'image/svg+xml',
+    '.heic': 'image/heic',
+  }[extension] || 'application/octet-stream';
 }
 
 function stripSourceReferences(value) {

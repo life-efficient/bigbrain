@@ -6,7 +6,12 @@ import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { openDatabase } from '../../src/bigbrain/db.js';
-import { buildGraphPayload, buildPagePayload } from '../../src/bigbrain/dashboard.js';
+import {
+  buildExplorerFilePayload,
+  buildExplorerTreePayload,
+  buildGraphPayload,
+  buildPagePayload,
+} from '../../src/bigbrain/dashboard.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
 test('dashboard graph excludes root infrastructure files from nodes and types', async () => {
@@ -80,6 +85,44 @@ test('dashboard page payload includes file explorer metadata and nearby links', 
   }
 });
 
+test('dashboard explorer includes raw folders and classifies obvious file previews', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-explorer-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', '# Alice\n\nHas files.\n');
+    await writeFile(fixture.brainHome, 'sources/.raw/deck.pdf', Buffer.from('%PDF-1.4\n%%EOF\n', 'utf8'));
+    await writeFile(fixture.brainHome, 'sources/.raw/chart.png', Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    await writeFile(fixture.brainHome, 'sources/.raw/notes.txt', 'plain notes');
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const tree = await buildExplorerTreePayload(config);
+    const sources = tree.root.children.find((entry) => entry.name === 'sources');
+    const raw = sources.children.find((entry) => entry.name === '.raw');
+    assert.equal(raw.type, 'directory');
+    assert.deepEqual(raw.children.map((entry) => [entry.name, entry.kind]), [
+      ['chart.png', 'image'],
+      ['deck.pdf', 'pdf'],
+      ['notes.txt', 'text'],
+    ]);
+
+    const markdown = await buildExplorerFilePayload(
+      config,
+      new URL('/api/explorer/file?path=people/alice.md', 'http://127.0.0.1'),
+    );
+    assert.equal(markdown.kind, 'markdown');
+    assert.match(markdown.text, /# Alice/);
+
+    const image = await buildExplorerFilePayload(
+      config,
+      new URL('/api/explorer/file?path=sources/.raw/chart.png', 'http://127.0.0.1'),
+    );
+    assert.equal(image.kind, 'image');
+    assert.equal(image.mime_type, 'image/png');
+    assert.match(image.blob_url, /sources%2F.raw%2Fchart.png/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function createFixture(prefix) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   const pointerPath = path.join(rootDir, 'pointer');
@@ -92,7 +135,11 @@ async function createFixture(prefix) {
 }
 
 async function writeMarkdown(brainHome, relativePath, content) {
+  return writeFile(brainHome, relativePath, content);
+}
+
+async function writeFile(brainHome, relativePath, content) {
   const fullPath = path.join(brainHome, relativePath);
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
-  await fs.writeFile(fullPath, content, 'utf8');
+  await fs.writeFile(fullPath, content);
 }

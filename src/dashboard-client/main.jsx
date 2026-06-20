@@ -82,19 +82,20 @@ function DashboardApp() {
     async function load() {
       try {
         const assigneeQuery = assigneeFilter ? `?${new URLSearchParams({ assignee: assigneeFilter }).toString()}` : '';
-        const [schema, tasks, inbox, recent, health, graph] = await Promise.all([
+        const [schema, tasks, inbox, recent, health, graph, explorer] = await Promise.all([
           fetchJson('/api/schema'),
           fetchJson(`/api/tasks${assigneeQuery}`),
           fetchJson(`/api/inbox${assigneeQuery}`),
           fetchJson('/api/recent'),
           fetchJson('/api/health'),
           fetchJson('/api/graph'),
+          fetchJson('/api/explorer/tree'),
         ]);
         if (cancelled) return;
         setState({
           status: 'ready',
           error: null,
-          data: { schema, tasks, inbox, recent, health, graph },
+          data: { schema, tasks, inbox, recent, health, graph, explorer },
         });
       } catch (error) {
         if (cancelled) return;
@@ -191,6 +192,9 @@ function DashboardApp() {
       } else if (key === 'g') {
         event.preventDefault();
         setView('graph');
+      } else if (key === 'e') {
+        event.preventDefault();
+        setView('explorer');
       }
     }
 
@@ -238,7 +242,7 @@ function DashboardApp() {
     );
   }
 
-  const { schema, tasks, inbox, recent, health, graph } = state.data;
+  const { schema, tasks, inbox, recent, health, graph, explorer } = state.data;
   const inboxItems = Array.isArray(inbox?.items) ? inbox.items : [];
   const taskSections = Array.isArray(tasks?.sections) ? tasks.sections : [];
   const members = Array.isArray(tasks?.members) ? tasks.members : Array.isArray(inbox?.members) ? inbox.members : [];
@@ -254,6 +258,7 @@ function DashboardApp() {
     { id: 'inbox', label: 'Inbox', count: inboxItems.length, shortcut: 'I' },
     { id: 'tasks', label: 'Tasks', count: Number.isFinite(tasks?.meta?.open_tasks) ? tasks.meta.open_tasks : 0, shortcut: 'T' },
     { id: 'graph', label: 'Graph', shortcut: 'G' },
+    { id: 'explorer', label: 'Explorer', shortcut: 'E' },
   ];
 
   async function openPreview({ href, sourceSlug }) {
@@ -372,7 +377,7 @@ function DashboardApp() {
             </div>
           </div>
 
-          <div className={`view-stage ${view === 'graph' ? 'view-stage-graph' : 'view-stage-list'}`}>
+          <div className={`view-stage ${view === 'graph' || view === 'explorer' ? 'view-stage-graph' : 'view-stage-list'}`}>
             {view === 'inbox' ? (
               <div className="list-page-card standalone-list-region">
                 <AssigneeFilter members={members} value={assigneeFilter} onChange={setAssigneeFilter} />
@@ -445,6 +450,13 @@ function DashboardApp() {
                 activeSlug={activeGraphSlug}
                 onActiveSlugChange={setActiveGraphSlug}
                 onNodeOpen={handleGraphNodeOpen}
+              />
+            ) : null}
+
+            {view === 'explorer' ? (
+              <ExplorerPanel
+                explorer={explorer}
+                onRelativeLinkClick={openPreview}
               />
             ) : null}
           </div>
@@ -707,6 +719,177 @@ function PageLinkSection({ title, links, onPageOpen }) {
       </div>
     </div>
   );
+}
+
+function ExplorerPanel({ explorer, onRelativeLinkClick }) {
+  const root = explorer?.root;
+  const [openPaths, setOpenPaths] = useState(() => new Set(['']));
+  const [selectedPath, setSelectedPath] = useState('');
+  const [fileState, setFileState] = useState({ status: 'idle', file: null, error: null });
+
+  const openFile = useEffectEvent(async (entry) => {
+    if (!entry?.path || entry.type !== 'file') return;
+    setSelectedPath(entry.path);
+    setFileState({ status: 'loading', file: { path: entry.path, name: entry.name, kind: entry.kind }, error: null });
+    try {
+      const data = await fetchJson(`/api/explorer/file?${new URLSearchParams({ path: entry.path }).toString()}`);
+      setFileState({ status: 'ready', file: data, error: null });
+    } catch (error) {
+      setFileState({ status: 'error', file: { path: entry.path, name: entry.name }, error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
+  function toggleDirectory(pathValue) {
+    setOpenPaths((current) => {
+      const next = new Set(current);
+      if (next.has(pathValue)) {
+        next.delete(pathValue);
+      } else {
+        next.add(pathValue);
+      }
+      return next;
+    });
+  }
+
+  if (!root) {
+    return (
+      <section className="explorer-shell">
+        <div className="empty-copy">Explorer unavailable.</div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="explorer-shell">
+      <div className="explorer-tree" aria-label="Brain file explorer">
+        <div className="explorer-tree-head">Explorer</div>
+        <ExplorerTreeNode
+          node={root}
+          depth={0}
+          openPaths={openPaths}
+          selectedPath={selectedPath}
+          onToggle={toggleDirectory}
+          onOpenFile={openFile}
+        />
+      </div>
+      <ExplorerViewer
+        fileState={fileState}
+        onRelativeLinkClick={onRelativeLinkClick}
+      />
+    </section>
+  );
+}
+
+function ExplorerTreeNode({ node, depth, openPaths, selectedPath, onToggle, onOpenFile }) {
+  const isDirectory = node.type === 'directory';
+  const isOpen = isDirectory && openPaths.has(node.path || '');
+  const isSelected = !isDirectory && selectedPath === node.path;
+  const children = Array.isArray(node.children) ? node.children : [];
+  const label = node.path ? node.name : 'brain';
+  return (
+    <div className="explorer-node">
+      <button
+        type="button"
+        className={`explorer-row ${isSelected ? 'selected' : ''}`}
+        style={{ '--depth': depth }}
+        onClick={() => {
+          if (isDirectory) {
+            onToggle(node.path || '');
+          } else {
+            onOpenFile(node);
+          }
+        }}
+      >
+        <span className="explorer-twist">{isDirectory ? (isOpen ? '⌄' : '›') : ''}</span>
+        <span className={`explorer-glyph ${isDirectory ? 'folder' : ''}`}>{isDirectory ? '▣' : fileGlyph(node)}</span>
+        <span className="explorer-label">{label}</span>
+      </button>
+      {isDirectory && isOpen ? (
+        <div className="explorer-children">
+          {children.map((child) => (
+            <ExplorerTreeNode
+              key={child.path || child.name}
+              node={child}
+              depth={depth + 1}
+              openPaths={openPaths}
+              selectedPath={selectedPath}
+              onToggle={onToggle}
+              onOpenFile={onOpenFile}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function ExplorerViewer({ fileState, onRelativeLinkClick }) {
+  const file = fileState.file;
+  if (fileState.status === 'idle') {
+    return (
+      <div className="explorer-viewer empty">
+        <div className="empty-copy">Select a file to preview.</div>
+      </div>
+    );
+  }
+  if (fileState.status === 'loading') {
+    return (
+      <div className="explorer-viewer empty">
+        <div className="empty-copy">Opening {file?.path}…</div>
+      </div>
+    );
+  }
+  if (fileState.status === 'error') {
+    return (
+      <div className="explorer-viewer empty">
+        <div className="empty-copy">{fileState.error}</div>
+      </div>
+    );
+  }
+  const sourceSlug = file.path?.endsWith('.md') ? file.path.replace(/\.md$/i, '') : '';
+  return (
+    <div className="explorer-viewer">
+      <div className="explorer-viewer-head">
+        <strong>{file.name || file.path}</strong>
+        <span className="meta">{file.path}</span>
+      </div>
+      <div className="explorer-viewer-body">
+        {file.kind === 'markdown' ? (
+          <MarkdownDocument
+            markdown={file.text || ''}
+            sourceSlug={sourceSlug}
+            onRelativeLinkClick={onRelativeLinkClick}
+            emptyLabel="This file is empty."
+          />
+        ) : null}
+        {file.kind === 'text' ? (
+          <pre className="explorer-text-preview">{file.text || ''}</pre>
+        ) : null}
+        {file.kind === 'image' ? (
+          <div className="explorer-media-frame">
+            <img src={file.blob_url} alt={file.name || file.path} />
+          </div>
+        ) : null}
+        {file.kind === 'pdf' ? (
+          <iframe className="explorer-pdf-frame" title={file.name || file.path} src={file.blob_url} />
+        ) : null}
+        {file.kind === 'unsupported' ? (
+          <div className="explorer-unsupported">
+            <div className="empty-copy">{file.reason || 'No inline preview is available for this file type.'}</div>
+            <a className="graph-button explorer-open-blob" href={file.blob_url} target="_blank" rel="noreferrer">Open file</a>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function fileGlyph(node) {
+  if (node.kind === 'markdown') return 'M';
+  if (node.kind === 'pdf') return 'P';
+  if (node.kind === 'image') return 'I';
+  if (node.kind === 'text') return 'T';
+  return '•';
 }
 
 const GraphPanel = memo(function GraphPanel({
