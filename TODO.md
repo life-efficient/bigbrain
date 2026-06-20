@@ -14,6 +14,18 @@
   bundled Postgres, and remote Postgres; markdown import and sqlite-to-postgres
   migration already exist.
 
+## Raw File Storage
+
+- Change the raw-file convention to flat files directly under each collection
+  sidecar, using `<collection>/.raw/<filename>` instead of
+  `<collection>/.raw/<page-slug>/<filename>` for new uploads.
+- Update filing rules, schema guidance, MCP tool descriptions, ingest skills,
+  docs, and tests so agents consistently create flat `.raw` paths and link them
+  from the canonical markdown page.
+- Add a migration/health-check path that finds existing nested `.raw`
+  directories, moves files to collision-safe flat names, and rewrites
+  frontmatter plus markdown links that point at the old nested locations.
+
 ## Search And Query
 
 - Adapt GBrain's retrieval architecture as the reference model for BigBrain:
