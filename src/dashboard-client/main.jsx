@@ -218,12 +218,7 @@ function DashboardApp() {
 
   if (state.status === 'loading') {
     return (
-      <main>
-        <section className="card loading-card">
-          <h1>bigbrain</h1>
-          <p>Loading dashboard data…</p>
-        </section>
-      </main>
+      <LoadingSplash />
     );
   }
 
@@ -462,6 +457,63 @@ async function fetchJson(url) {
     throw new Error(`${url} failed with ${response.status}`);
   }
   return response.json();
+}
+
+function LoadingSplash() {
+  const nodes = useMemo(() => [
+    { x: 23, y: 42, r: 3 },
+    { x: 35, y: 28, r: 2.4 },
+    { x: 43, y: 54, r: 2.8 },
+    { x: 55, y: 35, r: 3.2 },
+    { x: 66, y: 49, r: 2.5 },
+    { x: 76, y: 31, r: 2.2 },
+  ], []);
+  const edges = [
+    [0, 1],
+    [0, 2],
+    [1, 3],
+    [2, 3],
+    [3, 4],
+    [4, 5],
+  ];
+
+  return (
+    <main className="splash-main" aria-busy="true">
+      <section className="splash-stage" aria-label="Loading dashboard">
+        <div className="splash-mark" aria-hidden="true">
+          <img src="/assets/apple-touch-icon.png" alt="" />
+          <svg viewBox="0 0 100 76" className="splash-graph">
+            <rect x="1" y="1" width="98" height="74" rx="18" />
+            {edges.map(([from, to]) => (
+              <line
+                key={`${from}:${to}`}
+                x1={nodes[from].x}
+                y1={nodes[from].y}
+                x2={nodes[to].x}
+                y2={nodes[to].y}
+              />
+            ))}
+            {nodes.map((node, index) => (
+              <circle
+                key={index}
+                cx={node.x}
+                cy={node.y}
+                r={node.r}
+                style={{ animationDelay: `${index * 120}ms` }}
+              />
+            ))}
+          </svg>
+        </div>
+        <div className="splash-copy">
+          <div className="splash-kicker">Opening brain</div>
+          <div className="splash-status">Loading graph, tasks, and recent changes</div>
+        </div>
+        <div className="splash-progress" aria-hidden="true">
+          <span />
+        </div>
+      </section>
+    </main>
+  );
 }
 
 function formatHealthMeta(item) {

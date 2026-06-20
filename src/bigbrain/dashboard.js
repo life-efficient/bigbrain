@@ -383,6 +383,90 @@ function renderAppHtml() {
       .list-scroll-region { flex: 1; min-height: 0; overflow: auto; padding-right: 4px; }
       .standalone-list-region { height: 100%; overflow: auto; padding-right: 4px; }
       .loading-card { min-height: 180px; display: grid; gap: 10px; align-content: center; }
+      .splash-main { padding: 0; display: grid; place-items: center; background: var(--bg); }
+      .splash-stage {
+        width: min(520px, calc(100vw - 48px));
+        min-height: 360px;
+        display: grid;
+        place-items: center;
+        align-content: center;
+        gap: 22px;
+        padding: 36px;
+      }
+      .splash-mark {
+        position: relative;
+        width: min(260px, 68vw);
+        aspect-ratio: 1.22;
+        display: grid;
+        place-items: center;
+      }
+      .splash-mark::before {
+        content: "";
+        position: absolute;
+        inset: 12%;
+        border: 1px solid rgba(255,255,255,0.12);
+        border-radius: 999px;
+        transform: rotate(-12deg);
+        animation: splash-orbit 3.8s ease-in-out infinite;
+      }
+      .splash-mark img {
+        position: relative;
+        z-index: 2;
+        width: 74px;
+        height: 74px;
+        border-radius: 18px;
+        box-shadow: 0 18px 44px rgba(0,0,0,0.34);
+      }
+      .splash-graph {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        color: var(--ink);
+        opacity: 0.92;
+      }
+      .splash-graph rect {
+        fill: rgba(255,255,255,0.018);
+        stroke: rgba(255,255,255,0.1);
+      }
+      .splash-graph line {
+        stroke: rgba(255,255,255,0.18);
+        stroke-width: 0.55;
+      }
+      .splash-graph circle {
+        fill: currentColor;
+        transform-origin: center;
+        animation: splash-node 1.8s ease-in-out infinite;
+      }
+      .splash-copy {
+        display: grid;
+        gap: 7px;
+        text-align: center;
+      }
+      .splash-kicker {
+        color: var(--ink);
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .splash-status {
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .splash-progress {
+        width: min(260px, 68vw);
+        height: 3px;
+        border-radius: 999px;
+        overflow: hidden;
+        background: rgba(255,255,255,0.08);
+      }
+      .splash-progress span {
+        display: block;
+        width: 42%;
+        height: 100%;
+        border-radius: inherit;
+        background: rgba(255,255,255,0.86);
+        animation: splash-progress 1.5s ease-in-out infinite;
+      }
       .error-card { max-width: min(820px, 100%); }
       .error-actions { display: flex; gap: 10px; margin-top: 6px; }
       .error-details { margin: 0; max-height: 320px; overflow: auto; border-radius: 14px; border: 1px solid var(--line); background: var(--pre-bg); color: var(--pre-ink); padding: 14px 16px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
@@ -524,6 +608,18 @@ function renderAppHtml() {
       @keyframes graph-pulse {
         from { stroke-dashoffset: 0; }
         to { stroke-dashoffset: -46; }
+      }
+      @keyframes splash-node {
+        0%, 100% { opacity: 0.36; transform: scale(0.92); }
+        45% { opacity: 1; transform: scale(1.22); }
+      }
+      @keyframes splash-progress {
+        0% { transform: translateX(-115%); }
+        55%, 100% { transform: translateX(255%); }
+      }
+      @keyframes splash-orbit {
+        0%, 100% { transform: rotate(-12deg) scale(1); opacity: 0.52; }
+        50% { transform: rotate(8deg) scale(1.05); opacity: 0.86; }
       }
       @media (max-width: 1100px) {
         .split { grid-template-columns: 1fr; }
