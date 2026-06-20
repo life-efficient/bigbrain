@@ -6,7 +6,7 @@ import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { allEmbeddings, dbDoctor, getPageRecord, listPageSlugs, openDatabase, semanticSearch } from '../../src/bigbrain/db.js';
-import { createMcpAuthStore } from '../../src/bigbrain/mcp-auth-store.js';
+import { createMcpAuthStore, PostgresMcpAuthStore } from '../../src/bigbrain/mcp-auth-store.js';
 import { migrateSqliteToPostgres } from '../../src/bigbrain/postgres-migrate.js';
 import { searchBrain } from '../../src/bigbrain/search.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
@@ -101,6 +101,25 @@ test('postgres auth store persists OAuth records', async (t) => {
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
+});
+
+test('postgres auth store updates token last_used_at without reusing typed parameters', async () => {
+  const calls = [];
+  const store = new PostgresMcpAuthStore({
+    query: async (text, params = []) => {
+      calls.push({ text, params });
+      return { rows: [] };
+    },
+  });
+  await store.touchToken('token-hash', '2026-06-20T21:30:00.000Z');
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].params, [
+    'token-hash',
+    '2026-06-20T21:30:00.000Z',
+    '2026-06-20T21:30:00.000Z',
+  ]);
+  assert.match(calls[0].text, /last_used_at = \$2/);
+  assert.match(calls[0].text, /to_jsonb\(\$3::text\)/);
 });
 
 test('sqlite-to-postgres migration copies indexed rows', async (t) => {

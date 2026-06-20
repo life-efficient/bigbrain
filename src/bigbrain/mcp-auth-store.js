@@ -114,9 +114,9 @@ export class PostgresMcpAuthStore {
     await this.db.query(`
       UPDATE mcp_oauth_tokens
       SET last_used_at = $2,
-          token_json = jsonb_set(token_json, '{last_used_at}', to_jsonb($2::text), true)
+          token_json = jsonb_set(token_json, '{last_used_at}', to_jsonb($3::text), true)
       WHERE token_hash = $1
-    `, [tokenHash, lastUsedAt]);
+    `, [tokenHash, lastUsedAt, lastUsedAt]);
   }
 
   async transactionClient() {
