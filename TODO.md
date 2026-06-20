@@ -48,8 +48,8 @@
   and embedding model to reduce repeated embedding work.
 - Add answer-grounding tests that assert generated `query` answers cite source
   slugs and refuse when retrieved context is insufficient.
-- Promote the existing search regression cases into a repeatable retrieval eval
-  harness that reports top-hit, top-3, noise, and answer-usefulness metrics.
+- Extend the built-in retrieval eval harness beyond top-hit/top-3 fixture
+  checks with noise and answer-usefulness metrics.
 
 ## Data Model
 
@@ -60,11 +60,12 @@
 
 ## Evaluation
 
-- Add a `bigbrain eval retrieval` command or script that runs the fixed fixture
-  brain, scores saved query cases, and emits JSON plus a compact text summary.
+- Add real-brain saved query case support for `bigbrain eval retrieval`, so
+  project-specific misses can be replayed without hard-coding private data in
+  the repo.
 - Cover citations, time-sensitive questions, people/company/deal lookups,
   project overviews, recent-mention searches, and questions that should refuse
-  when the brain lacks evidence.
+  when the brain lacks evidence in the eval suite.
 - Require the eval harness before and after ranking changes so search work does
   not drift into unmeasured tweaks.
 

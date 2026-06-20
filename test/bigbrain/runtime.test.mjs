@@ -144,6 +144,21 @@ test('CLI reports search mode bundles', async () => {
   assert.equal(report.bundles.tokenmax.expansion, true);
 });
 
+test('CLI runs deterministic retrieval evals', async () => {
+  const text = await runNode(['./bin/bigbrain.js', 'eval', 'retrieval'], { cwd: process.cwd() });
+  assert.equal(text.code, 0, text.stderr);
+  assert.match(text.stdout, /Retrieval eval \(conservative, limit 5\)/);
+  assert.match(text.stdout, /Hit@1:/);
+
+  const json = await runNode(['./bin/bigbrain.js', 'eval', 'retrieval', '--json'], { cwd: process.cwd() });
+  assert.equal(json.code, 0, json.stderr);
+  const report = JSON.parse(json.stdout);
+  assert.equal(report.schema_version, 1);
+  assert.equal(report.mode, 'conservative');
+  assert.equal(report.case_count >= 8, true);
+  assert.equal(report.metrics.hit_at_1, report.case_count);
+});
+
 test('folder recommendation routes personal operating preferences to personal-protocol', () => {
   const result = recommendFolderForInput('Calendar organization preference for travel days');
   assert.equal(result.folder, 'personal-protocol');

@@ -34,6 +34,7 @@ export async function runCli(argv) {
     case 'schema': return handleSchema(global);
     case 'file': return handleFile(args, global);
     case 'refresh-tasks': return handleRefreshTasks(global);
+    case 'eval': return handleEval(args, global);
     case 'dashboard': return handleDashboard(args, global);
     case 'mcp': return handleMcp(args, global);
     case '--help':
@@ -219,6 +220,17 @@ async function handleRefreshTasks(global) {
   output(global, result, result.summary);
 }
 
+async function handleEval(args, global) {
+  const subcommand = args[0];
+  if (subcommand !== 'retrieval') throw new Error('eval requires "retrieval".');
+  const { runRetrievalEval, renderRetrievalEvalText } = await import('./eval-retrieval.js');
+  const report = await runRetrievalEval({
+    mode: argValue(args, '--mode') || undefined,
+    limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : undefined,
+  });
+  output(global, report, renderRetrievalEvalText(report));
+}
+
 async function handleDashboard(args, global) {
   const config = await loadRuntimeConfig(global);
   const port = Number(argValue(args, '--port') || config.dashboardPort);
@@ -299,6 +311,7 @@ Commands:
   schema
   file <path-or-description>
   refresh-tasks
+  eval retrieval [--mode conservative|balanced|tokenmax] [--limit N]
   dashboard [--port N]
   mcp [--host HOST] [--port N]
 
