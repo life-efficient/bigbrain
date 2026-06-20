@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Meeting Ingest"
-  short_description: "Update the canonical meeting page and preserve raw meeting artifacts"
-  default_prompt: "Use BigBrain: Meeting Ingest to update the canonical meeting page, preserve prep, attach raw meeting artifacts, and sync the index."
+  short_description: "Update the canonical meeting page and preserve raw meeting attachments"
+  default_prompt: "Use BigBrain: Meeting Ingest to update the canonical meeting page, preserve prep, attach raw meeting attachments under the filing_rules path, and sync the index."

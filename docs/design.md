@@ -188,7 +188,6 @@ The top-level structure should stay intentionally small:
 - `archive/`
 - `dreams/`
 - `ops/`
-- `.artifacts/`
 
 Repo documentation pages such as directory `README.md` files are not canonical
 brain pages and should stay outside the indexed graph.
@@ -212,13 +211,12 @@ Generic canonical pages should use:
 5. `---`
 6. Append-only timeline / evidence log
 
-Artifacts should not be forced into canonical page directories. Instead, keep
-them in a top-level attachment store:
+Raw attachments should not be forced into page schema. Instead, keep them under
+the same collection as the markdown page they support:
 
 ```text
-.artifacts/<artifact-slug>/
-  artifact.md
-  <raw-files...>
+<collection>/<page-slug>.md
+<collection>/.raw/<page-slug>/<raw-files...>
 ```
 
 This is the right place for:
@@ -229,8 +227,9 @@ This is the right place for:
 - spreadsheets and models
 - sendable outward-facing deliverables
 
-The artifact store is deliberately neutral about "input" versus "output"
-because a generated output may later become a reused input.
+Use `sources/.raw/` for evidence-first uploads whose subject has not yet become
+another canonical entity. The active brain's `filing_rules` output is the
+operational source of truth for exact paths.
 
 ## Meeting Lifecycle Model
 
@@ -238,7 +237,7 @@ Meetings should use one canonical page across the full lifecycle:
 
 - prep before the meeting
 - summary and decisions after the meeting
-- attached transcript dumps or other supporting files under `.artifacts/`
+- attached transcript dumps or other supporting files under `meetings/.raw/`
 
 The meeting page format is intentionally lighter than the generic entity-page
 schema. A meeting page may include:
@@ -255,47 +254,42 @@ schema. A meeting page may include:
 For meetings, `---` and `## Timeline` are optional rather than required.
 
 Raw transcript dumps should not be forced into page schema; they belong under
-`.artifacts/`.
+the meeting collection `.raw/` folder.
 
-## Artifact Shape
+## Raw Attachment Shape
 
-Artifacts live outside the canonical page directories:
+Raw attachments live outside the indexed page graph:
 
 ```text
-.artifacts/<artifact-slug>/
-  artifact.md
-  <raw-files...>
+<collection>/<page-slug>.md
+<collection>/.raw/<page-slug>/<raw-files...>
 ```
 
-`artifact.md` is a lightweight companion page, not a full entity page. It
-should usually include:
+The markdown page is the searchable context surface. It should usually include:
 
 1. YAML frontmatter
-2. Short description of what the artifact is
-3. Parent page references
-4. Optional timeline when iteration or reuse history matters
+2. Short description of what the source is
+3. A link to the raw attachment
+4. Optional timeline when provenance or reuse history matters
 
 Suggested frontmatter:
 
 ```yaml
-type: artifact
+type: source
 title: ExampleCo Advisory Contract Draft v1
-parents:
-  - deals/exampleco-advisory-arrangement
-files:
-  - contract-draft-v1.pdf
+raw_file: deals/.raw/exampleco-advisory-arrangement/contract-draft-v1.pdf
 kind: contract
 created: 2026-05-19
 ```
 
 The canonical graph is bidirectional:
 
-- brain pages link outward to artifacts
-- `artifact.md` records one or more `parents:` back to canonical pages
+- brain pages link outward to raw attachments
+- raw attachments remain associated through page links and `raw_file` frontmatter
 
-Artifacts may contain both upstream inputs and generated outputs. That semantic
-distinction is intentionally not hard-coded at the storage layer because an
-output may become a future input.
+Raw attachments may contain both upstream inputs and generated outputs. That
+semantic distinction is intentionally not hard-coded at the storage layer
+because an output may become a future input.
 
 ## Filing Rules
 
@@ -303,7 +297,7 @@ output may become a future input.
 - Use cross-links instead of duplicate pages.
 - Use `inbox/` when a page does not clearly fit yet.
 - Do not store attached files directly in entity directories; place them under
-  `.artifacts/` and reference them from canonical pages.
+  per-collection `.raw/` directories and reference them from canonical pages.
 - Repo documentation pages such as directory `README.md` files are not part of
   the canonical brain graph and should be excluded from indexing and strict
   page validation.
@@ -387,7 +381,7 @@ The database should stay narrow and derived from the markdown layer.
 - `conversation_ingests`
 - `tasks_index`
 - `graph_cache`
-- `artifacts`
+- `raw_attachments`
 - `oauth_clients`
 - `oauth_grants`
 - `oauth_sessions`
@@ -447,15 +441,14 @@ Relative links in markdown are core to the system.
 - standard relative markdown links
 - path-based resolution into canonical slugs
 - backlinks computed from the indexed `links` table
-- artifact-link detection for paths under `.artifacts/`
+- raw attachment-link detection for paths under `.raw/`
 
 There are two distinct link classes:
 
 - page links: canonical brain page to canonical brain page
-- artifact links: canonical brain page to attached artifact files or
-  `.artifacts/*/artifact.md`
+- raw attachment links: canonical brain page to attached raw files under `.raw/`
 
-Artifact links should not be treated as unresolved graph-page links.
+Raw attachment links should not be treated as unresolved graph-page links.
 
 Required maintenance flows:
 
@@ -463,9 +456,8 @@ Required maintenance flows:
 - detect unresolved slugs
 - detect missing reciprocal reference opportunities
 - optionally rewrite moved links during file moves or migrations
-- detect orphaned artifacts with no remaining parent references
-- verify consistency between page-authored artifact links and
-  `artifact.md` `parents:` metadata
+- detect orphaned raw attachments with no remaining page references
+- verify consistency between page-authored raw links and `raw_file` frontmatter
 
 ## Automations
 

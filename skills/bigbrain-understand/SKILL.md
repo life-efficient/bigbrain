@@ -3,7 +3,7 @@ name: "BigBrain: Understand"
 version: 1.0.0
 description: |
   Explain how BigBrain is structured and how to use it. Use when the user asks
-  where something belongs, what page shape to use, how artifacts work, how
+  where something belongs, what page shape to use, how raw attachments work, how
   meetings should be modeled, or which BigBrain skill should handle a task.
 triggers:
   - "understand BigBrain"
@@ -20,7 +20,7 @@ mutating: false
 # BigBrain: Understand
 
 Use this skill as the orientation layer for BigBrain. It explains the model,
-the folder structure, the page shapes, the artifact rules, and the next skill
+the folder structure, the page shapes, the raw attachment rules, and the next skill
 to use.
 
 ## Contract
@@ -28,7 +28,7 @@ to use.
 This skill guarantees:
 - Explain the BigBrain brain-home model before giving advice
 - Ground filing and page-shape advice in the live BigBrain schema
-- Distinguish canonical pages from `.artifacts/`
+- Distinguish canonical pages from raw attachments under `.raw/`
 - Distinguish meetings from generic entity pages
 - Route the user to a more specific BigBrain skill when one clearly applies
 
@@ -39,7 +39,8 @@ This skill guarantees:
 2. If the question is about filing or page shape, explain:
    - canonical directories such as `people/`, `companies/`, `projects/`, `concepts/`, `meetings/`, and `ops/`
    - `inbox/` as the default holding area when the canonical home is unclear
-   - `.artifacts/` for raw files and generated outputs
+   - per-collection `.raw/` folders for raw files and generated outputs
+   - `filing_rules` as the operational source of truth for the active brain
 3. If the question is about a specific item, classify it by primary subject:
    - person -> `people/`
    - company -> `companies/`
@@ -56,16 +57,16 @@ This skill guarantees:
    - updating people or company pages -> `BigBrain: Enrich`
    - maintenance or repairs -> `BigBrain: Maintain`
    - task-list reconciliation -> `BigBrain: Task Refresh`
-5. If the user is unsure whether something is a page or an artifact, explain:
+5. If the user is unsure whether something is a page or raw attachment, explain:
    - canonical page for durable authored knowledge
-   - artifact for supporting raw inputs or generated deliverables attached to one or more pages
+   - raw attachment for supporting source inputs or generated deliverables attached to one or more pages
 
 ## Quality Rules
 
 - File by primary subject, not by source or format
 - Prefer cross-links over duplicate pages
 - Use the same meeting page across prep and post-meeting updates
-- Keep raw transcripts, decks, PDFs, and other attached files under `.artifacts/`
+- Keep raw transcripts, decks, PDFs, and other attached files under the `.raw/` path specified by `filing_rules`
 - When in doubt, recommend `inbox/` rather than forcing a low-confidence filing decision
 
 ## Output

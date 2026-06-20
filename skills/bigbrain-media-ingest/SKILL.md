@@ -4,7 +4,7 @@ version: 1.0.0
 description: |
   Ingest audio, video, podcast, or mixed-media material into BigBrain. Use when
   the source includes transcript-like content, time-based media, or other rich
-  files that should be preserved as artifacts while distilled into a canonical page.
+  files that should be preserved as raw attachments while distilled into a canonical page.
 triggers:
   - "media ingest"
   - "ingest this video"
@@ -24,9 +24,9 @@ important and should remain attached to a canonical page.
 ## Contract
 
 This skill guarantees:
-- Treat the media file or transcript as an artifact, not the canonical page itself
+- Treat the media file or transcript as a raw attachment, not the canonical page itself
 - Distill the source into a concise canonical page update
-- Preserve transcript-like raw support under `.artifacts/`
+- Preserve transcript-like raw support under the `.raw/` path specified by `filing_rules`
 - Capture notable sections, themes, and follow-on implications
 - Re-sync the index after the write path completes
 
@@ -41,7 +41,8 @@ This skill guarantees:
    - notable sections or timestamps when available
    - people, companies, or projects that materially matter
 4. Preserve the source:
-   - transcript, recording, or supporting files under `.artifacts/<artifact-slug>/`
+   - transcript, recording, or supporting files under `<collection>/.raw/<page-slug>/`
+   - call `filing_rules` first when using an MCP or remote brain connector
 5. Update the canonical page with durable knowledge rather than transcript sprawl
 6. Re-index:
    - `bigbrain sync --json`
@@ -57,6 +58,6 @@ This skill guarantees:
 
 Report:
 - canonical page updated or created
-- raw media artifacts preserved
+- raw media attachments preserved
 - major themes captured
 - whether follow-on enrichment is recommended

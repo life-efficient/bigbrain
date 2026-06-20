@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Document Ingest"
   short_description: "Turn a document into the right canonical page plus preserved raw support"
-  default_prompt: "Use BigBrain: Document Ingest to file document-derived knowledge by primary subject, preserve raw artifacts, update the canonical page, and sync the index."
+  default_prompt: "Use BigBrain: Document Ingest to file document-derived knowledge by primary subject, preserve raw attachments under the filing_rules path, update the canonical page, and sync the index."

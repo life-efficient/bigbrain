@@ -61,13 +61,14 @@ At a high level:
 
 - canonical brain pages under typed top-level directories like `people/`,
   `companies/`, `deals/`, `meetings/`, and `projects/`
-- attached artifacts under a top-level `.artifacts/` directory
+- attached raw files under per-collection `.raw/` directories
 
-Canonical pages are the authored knowledge graph. Artifacts are attached raw
+Canonical pages are the authored knowledge graph. Raw files are attached source
 files or generated outputs that should stay retrievable but are not themselves
-expected to conform to page schema.
+expected to conform to page schema. The markdown page remains the searchable
+surface; raw files stay out of the indexed page graph.
 
-Examples of artifacts:
+Examples of raw attachments:
 
 - transcript dumps
 - source decks and PDFs
@@ -75,17 +76,18 @@ Examples of artifacts:
 - spreadsheets and financial models
 - sendable proposals, contracts, and briefs
 
-Artifacts may have one or more parent brain pages. The default shape is:
+Raw attachments live under the same collection as the markdown page they
+support. The default shape is:
 
 ```text
-.artifacts/<artifact-slug>/
-  artifact.md
-  <raw-files...>
+<collection>/<page-slug>.md
+<collection>/.raw/<page-slug>/<raw-files...>
 ```
 
-The `artifact.md` companion is the indexable metadata and context surface for
-the artifact. Brain pages link out to artifacts, and `artifact.md` records its
-parent page slugs so attachment is explicitly bidirectional.
+Use `sources/.raw/` for evidence-first uploads whose subject has not yet become
+another canonical entity. The `filing_rules` tool is the operational source of
+truth for the active brain; older `.artifacts/` directories are legacy unless a
+specific brain's filing rules explicitly require them.
 
 Repo documentation pages such as `README.md` files are not canonical brain
 pages and should be ignored by indexing and schema validation.
