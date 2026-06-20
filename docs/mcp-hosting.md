@@ -104,11 +104,22 @@ Do not add a server-side `local_filepath` field for remote MCP uploads. A path
 such as `/Users/alice/report.pdf` exists on the client machine, not on the
 hosted MCP server, and remote servers must not read arbitrary client paths. If a
 client surface makes large base64 arguments awkward, use
-`scripts/prepare-raw-upload.mjs` to prepare the MCP tool arguments from a local
-file, then submit those arguments through the authenticated MCP client. This is
-a convenience fallback for payload preparation; it must still call the MCP raw
-upload tool so indexing, timeline, sync, and backup behavior are preserved.
+`scripts/prepare-raw-upload.mjs` with `--call --mcp-name <name>` to read the
+local file, encode it, submit it through the authenticated Codex MCP credential,
+and verify the uploaded bytes with `list_raw_files` and `read_raw_file`.
+Without `--call`, the helper prints the MCP tool name, arguments, source byte
+count, and SHA-256 so another authenticated MCP client can submit the request.
 Direct git pushes to the backing brain repo are not an ingestion substitute.
+
+Example:
+
+```sh
+node scripts/prepare-raw-upload.mjs \
+  --call \
+  --mcp-name icaire \
+  --file ./deck.pptx \
+  --raw-path sources/.raw/deck/deck.pptx
+```
 
 Raw reads return `content_base64` so binary files can round-trip safely. The
 generated page from `create_raw_file_with_page` gets a `raw_file` frontmatter
