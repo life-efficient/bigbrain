@@ -4,7 +4,7 @@ version: 1.0.0
 description: |
   Route new material into BigBrain. Use when the user wants to save something
   to the brain, process a meeting, ingest a document, capture a conversation
-  insight, or preserve media with the right page and artifact shape.
+  insight, or preserve media with the right page and raw/source shape.
 triggers:
   - "ingest this"
   - "save this to BigBrain"
@@ -28,7 +28,8 @@ aligned with the BigBrain model.
 This skill guarantees:
 - Choose the narrowest fitting ingest subroute instead of using one generic path for everything
 - File new knowledge by primary subject, not by source or format
-- Preserve raw supporting material under `.artifacts/` when applicable
+- Read and follow the target brain's filing rules before writing through MCP or another remote brain interface
+- Preserve raw supporting material according to those filing rules
 - Update an existing canonical page when one already exists
 - Re-sync the index after meaningful brain changes
 
@@ -46,13 +47,15 @@ Choose the first matching route:
    - use `BigBrain: Conversation Ingest`
 5. If multiple routes apply:
    - prefer the highest-signal source
-   - preserve all raw inputs as artifacts or source notes
+   - preserve all raw inputs according to the target brain's filing rules
 
 ## Shared Ingest Rules
 
+- Before any MCP or remote brain write, call `filing_rules` and use the paths and tools it specifies
 - Check whether the target page already exists before creating a new one
 - Use one canonical page for the enduring knowledge
-- Use `.artifacts/` for transcript dumps, decks, PDFs, images, audio, and generated outputs
+- Use `.raw/` and raw-file tools when the filing rules require raw source preservation there
+- Use `.artifacts/` only when the target brain's filing rules or local brain structure explicitly call for artifacts
 - Prefer updating compiled truth above the separator and appending evidence below it
 - Run `bigbrain sync --json` after the write path completes
 
@@ -60,6 +63,7 @@ Choose the first matching route:
 
 - Do not create duplicate pages when a canonical page already exists
 - Do not file raw attachments directly inside entity directories
+- Do not assume a generic raw-material folder when a brain publishes filing rules
 - Do not dump raw source text into canonical pages when an artifact is the right container
 - Do not create a new specialized route on the fly when one of the existing subroutes already fits
 
@@ -68,6 +72,6 @@ Choose the first matching route:
 Report:
 - chosen ingest route
 - canonical page updated or created
-- artifacts preserved, if any
+- raw files or artifacts preserved, if any
 - whether sync completed
 - whether follow-on enrichment is recommended

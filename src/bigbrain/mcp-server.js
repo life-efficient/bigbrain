@@ -340,6 +340,7 @@ async function backupGitChanges(config, message) {
   if (!staged.stdout.trim()) return { committed: false, pushed: false };
 
   await git(repoRoot, ['commit', '-m', message]);
+  await git(repoRoot, ['pull', '--rebase', '--autostash']);
   await git(repoRoot, ['push']);
   return { committed: true, pushed: true };
 }

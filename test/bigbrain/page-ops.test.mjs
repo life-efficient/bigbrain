@@ -224,6 +224,7 @@ Current body.
     assert.match(updated.markdown, /tags:\n  - example-brain\n  - person\n---/);
     assert.match(updated.markdown, /# Alice\n\nUpdated body\./);
     assert.match(updated.timeline, /Updated from MCP/);
+    assert.equal((updated.markdown.match(/^## Timeline$/gm) || []).length, 1);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

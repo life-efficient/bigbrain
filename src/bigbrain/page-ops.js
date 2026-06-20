@@ -339,7 +339,14 @@ function formatYamlValue(value) {
 
 function appendTimelineEntry(timeline, entry, date) {
   const formatted = formatTimelineEntry(entry, date);
-  return [timeline.trim(), formatted].filter(Boolean).join('\n');
+  return [normalizeTimelineEntries(timeline), formatted].filter(Boolean).join('\n');
+}
+
+function normalizeTimelineEntries(timeline) {
+  return String(timeline || '')
+    .trim()
+    .replace(/^##\s+Timeline\s*/i, '')
+    .trim();
 }
 
 function appendRawFileSection(body, rawRelative, rawLink) {
