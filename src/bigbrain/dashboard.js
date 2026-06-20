@@ -651,6 +651,11 @@ function renderAppHtml() {
       .explorer-media-frame img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
       .explorer-pdf-frame { width: 100%; height: 100%; min-height: 640px; border: 0; background: #fff; }
       .explorer-unsupported { height: 100%; display: grid; place-items: center; align-content: center; gap: 14px; }
+      .explorer-document-preview { min-height: 100%; display: grid; place-items: center; align-content: center; gap: 16px; text-align: center; }
+      .explorer-document-icon { width: 64px; height: 64px; border-radius: 18px; display: inline-flex; align-items: center; justify-content: center; background: rgba(125,211,252,0.12); color: var(--accent-strong); font-size: 20px; font-weight: 800; }
+      .explorer-document-copy { display: grid; gap: 7px; max-width: 460px; }
+      .explorer-document-copy h3 { margin: 0; font-size: 18px; }
+      .explorer-document-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
       .explorer-open-blob { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
       .markdown-shell { color: var(--ink); }
       .empty-copy { color: var(--muted); font-size: 14px; }
@@ -1242,9 +1247,16 @@ function viewerKindForMime(mimeType, relativePath) {
   const extension = path.extname(relativePath).toLowerCase();
   if (extension === '.md' || extension === '.markdown') return 'markdown';
   if (mimeType === 'application/pdf') return 'pdf';
+  if (isPresentationFile(mimeType, extension)) return 'presentation';
   if (mimeType.startsWith('image/')) return 'image';
   if (mimeType.startsWith('text/') || ['.json', '.csv', '.yaml', '.yml', '.log'].includes(extension)) return 'text';
   return 'unsupported';
+}
+
+function isPresentationFile(mimeType, extension) {
+  return ['.ppt', '.pptx'].includes(extension)
+    || mimeType === 'application/vnd.ms-powerpoint'
+    || mimeType === 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
 }
 
 function mimeTypeForPath(relativePath) {
@@ -1259,6 +1271,8 @@ function mimeTypeForPath(relativePath) {
     '.yml': 'text/yaml; charset=utf-8',
     '.log': 'text/plain; charset=utf-8',
     '.pdf': 'application/pdf',
+    '.ppt': 'application/vnd.ms-powerpoint',
+    '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
     '.png': 'image/png',
     '.jpg': 'image/jpeg',
     '.jpeg': 'image/jpeg',

@@ -1018,6 +1018,17 @@ function ExplorerViewer({ fileState, onRelativeLinkClick }) {
         {file.kind === 'pdf' ? (
           <iframe className="explorer-pdf-frame" title={file.name || file.path} src={file.blob_url} />
         ) : null}
+        {file.kind === 'presentation' ? (
+          <div className="explorer-document-preview">
+            <div className="explorer-document-icon">PPT</div>
+            <div className="explorer-document-copy">
+              <h3>Presentation file</h3>
+              <p>Inline slide rendering is not available in the explorer yet. Open or download the presentation to view the slides.</p>
+              <p>{formatFileSize(file.size)} · {file.mime_type}</p>
+            </div>
+            <a className="graph-button explorer-open-blob" href={file.blob_url} target="_blank" rel="noreferrer">Open presentation</a>
+          </div>
+        ) : null}
         {file.kind === 'unsupported' ? (
           <div className="explorer-unsupported">
             <div className="empty-copy">{file.reason || 'No inline preview is available for this file type.'}</div>
@@ -1032,9 +1043,17 @@ function ExplorerViewer({ fileState, onRelativeLinkClick }) {
 function fileGlyph(node) {
   if (node.kind === 'markdown') return 'M';
   if (node.kind === 'pdf') return 'P';
+  if (node.kind === 'presentation') return 'S';
   if (node.kind === 'image') return 'I';
   if (node.kind === 'text') return 'T';
   return '•';
+}
+
+function formatFileSize(size) {
+  if (!Number.isFinite(size) || size < 0) return 'Unknown size';
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function clamp(value, min, max) {

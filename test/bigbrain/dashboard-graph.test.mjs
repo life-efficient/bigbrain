@@ -90,6 +90,7 @@ test('dashboard explorer includes raw folders and classifies obvious file previe
   try {
     await writeMarkdown(fixture.brainHome, 'people/alice.md', '# Alice\n\nHas files.\n');
     await writeFile(fixture.brainHome, 'sources/.raw/deck.pdf', Buffer.from('%PDF-1.4\n%%EOF\n', 'utf8'));
+    await writeFile(fixture.brainHome, 'sources/.raw/slides.pptx', Buffer.from('PK\x03\x04fake pptx fixture', 'binary'));
     await writeFile(fixture.brainHome, 'sources/.raw/chart.png', Buffer.from([0x89, 0x50, 0x4e, 0x47]));
     await writeFile(fixture.brainHome, 'sources/.raw/notes.txt', 'plain notes');
 
@@ -102,6 +103,7 @@ test('dashboard explorer includes raw folders and classifies obvious file previe
       ['chart.png', 'image'],
       ['deck.pdf', 'pdf'],
       ['notes.txt', 'text'],
+      ['slides.pptx', 'presentation'],
     ]);
 
     const markdown = await buildExplorerFilePayload(
@@ -118,6 +120,14 @@ test('dashboard explorer includes raw folders and classifies obvious file previe
     assert.equal(image.kind, 'image');
     assert.equal(image.mime_type, 'image/png');
     assert.match(image.blob_url, /sources%2F.raw%2Fchart.png/);
+
+    const presentation = await buildExplorerFilePayload(
+      config,
+      new URL('/api/explorer/file?path=sources/.raw/slides.pptx', 'http://127.0.0.1'),
+    );
+    assert.equal(presentation.kind, 'presentation');
+    assert.equal(presentation.mime_type, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
+    assert.match(presentation.blob_url, /sources%2F.raw%2Fslides.pptx/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
