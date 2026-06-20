@@ -1,5 +1,6 @@
 import React, { memo, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import * as SelectPrimitive from '@radix-ui/react-select';
 
 import { TYPE_ORDER } from './graph/colors.js';
 import {
@@ -14,6 +15,7 @@ import {
 } from './graph/registry.jsx';
 import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
+import { resolveExplorerLinkPath } from './explorer-links.js';
 import { MarkdownDocument } from './markdown.jsx';
 
 class DashboardErrorBoundary extends React.Component {
@@ -72,6 +74,7 @@ function DashboardApp() {
   const [healthOpen, setHealthOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [assigneeFilter, setAssigneeFilter] = useState('');
+  const [assigneeLoading, setAssigneeLoading] = useState(false);
   const defaultAssigneeAppliedRef = useRef(false);
   const visualizerRef = useRef(null);
   const healthMenuRef = useRef(null);
@@ -81,6 +84,7 @@ function DashboardApp() {
     let cancelled = false;
 
     async function load() {
+      setAssigneeLoading(true);
       try {
         const assigneeQuery = assigneeFilter ? `?${new URLSearchParams({ assignee: assigneeFilter }).toString()}` : '';
         const [schema, tasks, inbox, recent, health, graph, explorer] = await Promise.all([
@@ -100,6 +104,7 @@ function DashboardApp() {
           return;
         }
         defaultAssigneeAppliedRef.current = true;
+        setAssigneeLoading(false);
         setState({
           status: 'ready',
           error: null,
@@ -107,6 +112,7 @@ function DashboardApp() {
         });
       } catch (error) {
         if (cancelled) return;
+        setAssigneeLoading(false);
         setState({ status: 'error', error: String(error), data: null });
       }
     }
@@ -300,6 +306,12 @@ function DashboardApp() {
     callback();
   }
 
+  function handleAssigneeFilterChange(nextAssignee) {
+    if (nextAssignee === assigneeFilter) return;
+    setAssigneeLoading(true);
+    setAssigneeFilter(nextAssignee);
+  }
+
   const resolvedTheme = resolveThemeMode(themeMode, prefersDark);
 
   return (
@@ -392,9 +404,9 @@ function DashboardApp() {
           <div className={`view-stage ${view === 'graph' || view === 'explorer' ? 'view-stage-graph' : 'view-stage-list'}`}>
             {view === 'inbox' ? (
               <div className="list-page-card standalone-list-region">
-                <AssigneeFilter members={members} value={assigneeFilter} onChange={setAssigneeFilter} />
+                <AssigneeFilter members={members} value={assigneeFilter} onChange={handleAssigneeFilterChange} disabled={assigneeLoading} />
                 <div className="task-section">
-                  {inboxItems.map((item) => (
+                  {assigneeLoading ? <ListLoadingState label="Loading inbox" /> : inboxItems.map((item) => (
                     <div
                       key={item.slug}
                       className="task inbox-task-button"
@@ -424,9 +436,9 @@ function DashboardApp() {
 
             {view === 'tasks' ? (
               <div className="list-page-card standalone-list-region">
-                <AssigneeFilter members={members} value={assigneeFilter} onChange={setAssigneeFilter} />
+                <AssigneeFilter members={members} value={assigneeFilter} onChange={handleAssigneeFilterChange} disabled={assigneeLoading} />
                 <div className="task-section">
-                  {taskSections.map((section) => (
+                  {assigneeLoading ? <ListLoadingState label="Loading tasks" /> : taskSections.map((section) => (
                     <div key={section.heading} className="task-group">
                       <h3>{section.heading}</h3>
                       {section.items.map((item, index) => (
@@ -477,7 +489,6 @@ function DashboardApp() {
             {view === 'explorer' ? (
               <ExplorerPanel
                 explorer={explorer}
-                onRelativeLinkClick={openPreview}
               />
             ) : null}
           </div>
@@ -620,24 +631,56 @@ function isTypingTarget(target) {
   return target.isContentEditable || tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
 }
 
-function AssigneeFilter({ members, value, onChange }) {
-  const hasMemberOptions = members.length > 0;
+const ALL_MEMBERS_VALUE = '__all_members__';
+
+function AssigneeFilter({ members, value, onChange, disabled = false }) {
+  const selectedValue = value || ALL_MEMBERS_VALUE;
   return (
     <div className="filter-bar" aria-label="Assignee filter">
-      <label className="filter-label" htmlFor="assignee-filter">Member</label>
-      <select
-        id="assignee-filter"
-        className="filter-select"
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+      <span className="filter-label" id="assignee-filter-label">Member</span>
+      <SelectPrimitive.Root
+        value={selectedValue}
+        onValueChange={(nextValue) => onChange(nextValue === ALL_MEMBERS_VALUE ? '' : nextValue)}
+        disabled={disabled}
       >
-        <option value="">All members</option>
-        {hasMemberOptions ? members.map((member) => (
-          <option key={member.person_slug} value={member.person_slug}>
-            {member.name || member.person_slug}
-          </option>
-        )) : null}
-      </select>
+        <SelectPrimitive.Trigger
+          className="shadcn-select-trigger"
+          aria-labelledby="assignee-filter-label"
+        >
+          <SelectPrimitive.Value />
+          <SelectPrimitive.Icon className="shadcn-select-icon" aria-hidden="true">⌄</SelectPrimitive.Icon>
+        </SelectPrimitive.Trigger>
+        <SelectPrimitive.Portal>
+          <SelectPrimitive.Content className="shadcn-select-content" position="popper" sideOffset={6}>
+            <SelectPrimitive.Viewport className="shadcn-select-viewport">
+              <SelectItem value={ALL_MEMBERS_VALUE}>All members</SelectItem>
+              {members.map((member) => (
+                <SelectItem key={member.person_slug} value={member.person_slug}>
+                  {member.name || member.person_slug}
+                </SelectItem>
+              ))}
+            </SelectPrimitive.Viewport>
+          </SelectPrimitive.Content>
+        </SelectPrimitive.Portal>
+      </SelectPrimitive.Root>
+    </div>
+  );
+}
+
+function SelectItem({ value, children }) {
+  return (
+    <SelectPrimitive.Item className="shadcn-select-item" value={value}>
+      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+      <SelectPrimitive.ItemIndicator className="shadcn-select-check" aria-hidden="true">✓</SelectPrimitive.ItemIndicator>
+    </SelectPrimitive.Item>
+  );
+}
+
+function ListLoadingState({ label }) {
+  return (
+    <div className="list-loading-state" role="status" aria-live="polite">
+      <span className="loading-spinner" aria-hidden="true" />
+      <span>{label}</span>
     </div>
   );
 }
@@ -739,23 +782,48 @@ function PageLinkSection({ title, links, onPageOpen }) {
   );
 }
 
-function ExplorerPanel({ explorer, onRelativeLinkClick }) {
+function ExplorerPanel({ explorer }) {
   const root = explorer?.root;
   const [openPaths, setOpenPaths] = useState(() => new Set(['']));
   const [selectedPath, setSelectedPath] = useState('');
   const [fileState, setFileState] = useState({ status: 'idle', file: null, error: null });
 
-  const openFile = useEffectEvent(async (entry) => {
-    if (!entry?.path || entry.type !== 'file') return;
-    setSelectedPath(entry.path);
-    setFileState({ status: 'loading', file: { path: entry.path, name: entry.name, kind: entry.kind }, error: null });
+  const openFilePath = useEffectEvent(async (filePath, fallback = {}) => {
+    if (!filePath) return;
+    const name = fallback.name || filePath.split('/').pop() || filePath;
+    setSelectedPath(filePath);
+    expandParentDirectories(filePath);
+    setFileState({ status: 'loading', file: { path: filePath, name, kind: fallback.kind }, error: null });
     try {
-      const data = await fetchJson(`/api/explorer/file?${new URLSearchParams({ path: entry.path }).toString()}`);
+      const data = await fetchJson(`/api/explorer/file?${new URLSearchParams({ path: filePath }).toString()}`);
       setFileState({ status: 'ready', file: data, error: null });
     } catch (error) {
-      setFileState({ status: 'error', file: { path: entry.path, name: entry.name }, error: error instanceof Error ? error.message : String(error) });
+      setFileState({ status: 'error', file: { path: filePath, name }, error: error instanceof Error ? error.message : String(error) });
     }
   });
+
+  const openFile = useEffectEvent((entry) => {
+    if (!entry?.path || entry.type !== 'file') return;
+    openFilePath(entry.path, { name: entry.name, kind: entry.kind });
+  });
+
+  const openExplorerLink = useEffectEvent(({ href, sourcePath }) => {
+    const filePath = resolveExplorerLinkPath(sourcePath, href);
+    if (!filePath) return;
+    openFilePath(filePath);
+  });
+
+  function expandParentDirectories(filePath) {
+    const parts = filePath.split('/').filter(Boolean);
+    setOpenPaths((current) => {
+      const next = new Set(current);
+      next.add('');
+      for (let index = 1; index < parts.length; index += 1) {
+        next.add(parts.slice(0, index).join('/'));
+      }
+      return next;
+    });
+  }
 
   function toggleDirectory(pathValue) {
     setOpenPaths((current) => {
@@ -792,7 +860,7 @@ function ExplorerPanel({ explorer, onRelativeLinkClick }) {
       </div>
       <ExplorerViewer
         fileState={fileState}
-        onRelativeLinkClick={onRelativeLinkClick}
+        onRelativeLinkClick={openExplorerLink}
       />
     </section>
   );
@@ -876,7 +944,7 @@ function ExplorerViewer({ fileState, onRelativeLinkClick }) {
           <MarkdownDocument
             markdown={file.text || ''}
             sourceSlug={sourceSlug}
-            onRelativeLinkClick={onRelativeLinkClick}
+            onRelativeLinkClick={({ href }) => onRelativeLinkClick?.({ href, sourcePath: file.path })}
             emptyLabel="This file is empty."
           />
         ) : null}
