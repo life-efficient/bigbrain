@@ -13,7 +13,6 @@
     "recent": "node ./bin/bigbrain.js recent",
     "sync": "node ./bin/bigbrain.js sync",
     "schema": "node ./bin/bigbrain.js schema",
-    "refresh-tasks": "node ./scripts/refresh-tasks.mjs",
     "desktop:dev": "node electron/dev-launcher.cjs",
     "desktop:dist": "electron-builder --mac dmg zip",
     "desktop:dir": "electron-builder --mac dir",

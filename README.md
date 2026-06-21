@@ -141,8 +141,7 @@ See:
 Running `bigbrain init /path/to/home` creates:
 
 - the canonical top-level page directories
-- `ops/tasks.md`
-- `tasks/` for assignable task pages
+- `tasks/` for page-backed task records
 - `<brain-home>/.bigbrain-state/config.json`
 - `<brain-home>/.bigbrain-state/state.json`
 - `<brain-home>/.bigbrain-state/bigbrain.sqlite`
@@ -203,9 +202,8 @@ as an explicit override for tests or unusual deployments; when set, it can hold
 multiple brain runtimes under hashed subdirectories.
 
 Automation run markers should live beside the runtime state under
-`.bigbrain-state/automation-runs/` with names such as `nightly-maintenance/` or
-`hourly-task-refresh/`. Do not write runtime state into the BigBrain source
-repo.
+`.bigbrain-state/automation-runs/` with names such as `nightly-maintenance/`.
+Do not write runtime state into the BigBrain source repo.
 
 Machine-local BigBrain secrets live outside the source repo and brain home in
 `${HOME}/.config/bigbrain/.env`. The CLI loads that file before commands run and
@@ -242,11 +240,9 @@ completed during this run. Legacy top-level fields such as `indexed_pages`,
 `indexed_links`, `embeddings_generated`, and `embedding_chunks_generated` remain
 available for compatibility.
 
-Task refresh still works:
-
-```bash
-bigbrain refresh-tasks --json
-```
+Tasks are authored as individual markdown pages under `tasks/*.md`. The old
+single-file `ops/tasks.md` refresh workflow is deprecated and no longer exposed
+by the CLI.
 
 ## Retrieval Evals
 

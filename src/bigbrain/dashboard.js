@@ -788,74 +788,35 @@ function renderAppHtml() {
 
 export async function buildTasksPayload(config, db = null, requestUrl = new URL('/api/tasks', 'http://127.0.0.1'), { actor = null } = {}) {
   const taskPages = await readTaskPages(config);
-  if (taskPages.length > 0) {
-    const activeMembers = db ? await listActiveMembers(db) : [];
-    const activeMemberMap = memberMapByPersonSlug(activeMembers);
-    const currentMember = await resolveCurrentMember(db, actor);
-    const requestedAssignee = await resolveRequestedAssignee(db, requestUrl, actor);
-    const hasAssigneeFilter = requestUrl.searchParams.has('assignee');
-    const filteredPages = hasAssigneeFilter
-      ? requestedAssignee
-        ? taskPages.filter((task) => task.assignee_slugs.includes(requestedAssignee.person_slug))
-        : []
-      : taskPages;
-    const sections = groupTaskPages(filteredPages, activeMemberMap);
-    const openItems = sections.flatMap((section) => section.items).filter((item) => !item.completed);
-    return {
-      slug: 'tasks',
-      markdown: '',
-      source: 'task_pages',
-      members: activeMembers,
-      filters: {
-        assignee: requestedAssignee?.person_slug || null,
-        actor_email: actor?.email || null,
-        current_member: currentMember,
-      },
-      sections,
-      meta: {
-        open_tasks: openItems.length,
-        task_pages: taskPages.length,
-        invalid_assignments: sections
-          .flatMap((section) => section.items)
-          .reduce((count, item) => count + item.invalid_assignees.length, 0),
-      },
-    };
-  }
-
-  const markdown = await fs.readFile(config.tasksFile, 'utf8');
-  const slug = slugFromPath(config.brainDir, config.tasksFile);
-  const sections = [];
-  let current = null;
-  for (const line of markdown.split('\n')) {
-    const heading = /^##\s+(.*)$/.exec(line);
-    if (heading) {
-      current = { heading: heading[1].trim(), items: [] };
-      sections.push(current);
-      continue;
-    }
-    const task = /^- \[([ xX])\] (.*)$/.exec(line);
-    if (task && current) {
-      current.items.push({
-        completed: task[1].toLowerCase() === 'x',
-        markdown: task[2].trim(),
-      });
-    }
-  }
+  const activeMembers = db ? await listActiveMembers(db) : [];
+  const activeMemberMap = memberMapByPersonSlug(activeMembers);
+  const currentMember = await resolveCurrentMember(db, actor);
+  const requestedAssignee = await resolveRequestedAssignee(db, requestUrl, actor);
+  const hasAssigneeFilter = requestUrl.searchParams.has('assignee');
+  const filteredPages = hasAssigneeFilter
+    ? requestedAssignee
+      ? taskPages.filter((task) => task.assignee_slugs.includes(requestedAssignee.person_slug))
+      : []
+    : taskPages;
+  const sections = groupTaskPages(filteredPages, activeMemberMap);
+  const openItems = sections.flatMap((section) => section.items).filter((item) => !item.completed);
   return {
-    slug,
-    markdown,
-    source: 'legacy_tasks_file',
-    members: db ? await listActiveMembers(db) : [],
+    slug: 'tasks',
+    markdown: '',
+    source: 'task_pages',
+    members: activeMembers,
     filters: {
-      assignee: null,
+      assignee: requestedAssignee?.person_slug || null,
       actor_email: actor?.email || null,
-      current_member: await resolveCurrentMember(db, actor),
+      current_member: currentMember,
     },
     sections,
     meta: {
-      open_tasks: sections.flatMap((section) => section.items).filter((item) => !item.completed).length,
-      task_pages: 0,
-      invalid_assignments: 0,
+      open_tasks: openItems.length,
+      task_pages: taskPages.length,
+      invalid_assignments: sections
+        .flatMap((section) => section.items)
+        .reduce((count, item) => count + item.invalid_assignees.length, 0),
     },
   };
 }

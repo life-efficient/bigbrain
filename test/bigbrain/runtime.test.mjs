@@ -25,7 +25,7 @@ test('init creates an external brain home with runtime state under the home-leve
     assert.equal(result.configPath, configPathForBrainHome(brainHome, env));
     await fs.stat(path.join(metaDirForBrainHome(brainHome, env), 'config.json'));
     await fs.stat(path.join(metaDirForBrainHome(brainHome, env), 'state.json'));
-    await fs.stat(path.join(brainHome, 'ops/tasks.md'));
+    await fs.stat(path.join(brainHome, 'tasks'));
     await fs.stat(path.join(brainHome, 'personal-protocol'));
     await assert.rejects(fs.stat(path.join(brainHome, '.bigbrain', 'config.json')));
   } finally {
@@ -103,11 +103,9 @@ test('CLI commands honor explicit --config paths', async () => {
   try {
     const brainHome = path.join(rootDir, 'brain-home');
     const runtimeDir = path.join(rootDir, 'runtime');
-    const tasksFile = path.join(runtimeDir, 'tasks.md');
     const configPath = path.join(runtimeDir, 'config.json');
     await fs.mkdir(path.join(brainHome, 'people'), { recursive: true });
     await fs.mkdir(runtimeDir, { recursive: true });
-    await fs.writeFile(tasksFile, '# Tasks\n', 'utf8');
     await fs.writeFile(path.join(brainHome, 'people', 'cli-config.md'), `---
 title: CLI Config
 ---
@@ -117,7 +115,6 @@ Explicit config path page.
 `, 'utf8');
     await fs.writeFile(configPath, `${JSON.stringify({
       brain_dir: brainHome,
-      tasks_file: tasksFile,
       sqlite_path: path.join(runtimeDir, 'bigbrain.sqlite'),
       include_globs: ['**/*.md'],
       exclude_globs: [],

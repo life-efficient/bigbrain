@@ -59,7 +59,7 @@ This skill guarantees:
    - link the meeting page to the artifact
 6. Identify follow-on updates:
    - pages that gained new durable facts
-   - tasks that should later be reconciled into `ops/tasks.md`
+   - tasks that should be created or updated as individual `tasks/*.md` pages
 7. Re-index:
    - `bigbrain sync --json`
 

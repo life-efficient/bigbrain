@@ -4,13 +4,13 @@ import path from 'node:path';
 export async function listRecentFiles(config, window, { now = new Date() } = {}) {
   const files = [];
   const brainDir = path.resolve(config.brainDir);
-  const tasksFile = path.resolve(config.tasksFile);
+  const legacyTasksFile = config.tasksFile ? path.resolve(config.tasksFile) : null;
 
   await walkDirectory(brainDir, '', async (fullPath, relativePath) => {
     const normalizedRelative = toPosixPath(relativePath);
     if (!normalizedRelative.endsWith('.md')) return;
     if (!matchesIncludeGlobs(normalizedRelative, config.includeGlobs)) return;
-    if (isExcluded(fullPath, normalizedRelative, config.excludeGlobs, tasksFile)) return;
+    if (isExcluded(fullPath, normalizedRelative, config.excludeGlobs, legacyTasksFile)) return;
 
     const fileStat = await stat(fullPath);
     const mtimeMs = fileStat.mtime.getTime();
@@ -71,9 +71,9 @@ function matchesIncludeGlobs(relativePath, includeGlobs) {
   });
 }
 
-function isExcluded(fullPath, relativePath, excludeGlobs, tasksFile) {
+function isExcluded(fullPath, relativePath, excludeGlobs, legacyTasksFile) {
   const normalizedFull = path.resolve(fullPath);
-  if (normalizedFull === tasksFile) return true;
+  if (legacyTasksFile && normalizedFull === legacyTasksFile) return true;
 
   for (const pattern of excludeGlobs) {
     if (path.isAbsolute(pattern) && path.resolve(pattern) === normalizedFull) return true;

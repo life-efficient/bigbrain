@@ -44,13 +44,13 @@ test('health flags active skill definitions that drift from repo skills', async 
     const templateDir = path.join(fixture.rootDir, 'skills');
     const activeDir = path.join(fixture.rootDir, '.agents', 'skills');
 
-    await writeSkill(templateDir, 'task-refresh', {
-      skill: '---\nname: "BigBrain: Task Refresh"\n---\n# BigBrain: Task Refresh\n',
-      agent: 'interface:\n  display_name: "BigBrain: Task Refresh"\n',
+    await writeSkill(templateDir, 'bigbrain-query', {
+      skill: '---\nname: "BigBrain: Query"\n---\n# BigBrain: Query\n',
+      agent: 'interface:\n  display_name: "BigBrain: Query"\n',
     });
-    await writeSkill(activeDir, 'task-refresh', {
-      skill: '---\nname: task-refresh\n---\n# Task Refresh\n',
-      agent: 'interface:\n  display_name: "Task Refresh"\n',
+    await writeSkill(activeDir, 'bigbrain-query', {
+      skill: '---\nname: bigbrain-query\n---\n# Query\n',
+      agent: 'interface:\n  display_name: "Query"\n',
     });
 
     const report = await runHealthCheck(config, {
@@ -63,7 +63,7 @@ test('health flags active skill definitions that drift from repo skills', async 
 
     assert.equal(report.skill_template_status.mismatch_count, 1);
     assert.equal(Boolean(finding), true);
-    assert.equal(finding.details.id, 'task-refresh');
+    assert.equal(finding.details.id, 'bigbrain-query');
     assert.equal(finding.details.status, 'mismatch');
     assert.deepEqual(finding.details.changed, ['SKILL.md', 'agents/openai.yaml']);
   } finally {

@@ -493,8 +493,9 @@ Automations should be narrow, explicit, idempotent, and inspectable.
   - repair safe cases
   - emit findings when confidence is low
 
-- `refresh-tasks`
-  - already seeded in the current repo
+- page-backed task maintenance
+  - tasks live as individual `tasks/*.md` pages with frontmatter status,
+    priority, source, and assignees
 
 - `freshness`
   - inspect recent conversations, meetings, or file changes
@@ -653,7 +654,7 @@ It should be concise and operational.
 
 - `ingest`
 - `enrich`
-- improved `refresh-tasks`
+- page-backed task workflows
 - freshness automation
 
 ### Milestone 5: visibility

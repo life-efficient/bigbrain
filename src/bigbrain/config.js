@@ -112,7 +112,6 @@ export function buildDefaultConfig(brainHome, env = process.env) {
   const resolvedBrainHome = path.resolve(brainHome);
   return {
     brain_dir: resolvedBrainHome,
-    tasks_file: path.join(resolvedBrainHome, 'ops', 'tasks.md'),
     schema_dirs: [...CANONICAL_SCHEMA_DIRS],
     storage_backend: 'sqlite',
     database_url_env: 'DATABASE_URL',
@@ -143,7 +142,6 @@ export async function initializeBrainHome(brainHome, { env = process.env } = {})
   for (const dir of config.schema_dirs) {
     await fs.mkdir(path.join(resolvedBrainHome, dir), { recursive: true });
   }
-  await writeIfMissing(config.tasks_file, defaultTasksMarkdown());
   await writeIfMissing(configPathForBrainHome(resolvedBrainHome, env), `${JSON.stringify(configFileDefaults(config), null, 2)}\n`);
   await writeIfMissing(statePathForBrainHome(resolvedBrainHome, env), `${JSON.stringify(defaultState(), null, 2)}\n`);
   await reconcileConfigFile(configPathForBrainHome(resolvedBrainHome, env), config);
@@ -169,7 +167,7 @@ export async function loadConfig(input = null) {
     statePath: path.join(path.dirname(configPath), STATE_FILENAME),
     metaDir: path.dirname(configPath),
     brainDir: requireAbsoluteString(raw.brain_dir, 'brain_dir'),
-    tasksFile: resolveConfigPathValue(raw.tasks_file ?? derivedDefault.tasks_file, brainHome, 'tasks_file'),
+    tasksFile: raw.tasks_file ? resolveConfigPathValue(raw.tasks_file, brainHome, 'tasks_file') : null,
     schemaDirs: normalizeStringArray(raw.schema_dirs, derivedDefault.schema_dirs, 'schema_dirs'),
     storageBackend: normalizeStorageBackend(raw.storage_backend ?? derivedDefault.storage_backend),
     databaseUrlEnv: requireNonEmptyString(raw.database_url_env ?? derivedDefault.database_url_env, 'database_url_env'),
@@ -190,7 +188,9 @@ export async function loadConfig(input = null) {
   };
 
   await requireExistingDirectory(config.brainDir, `Configured brain directory not found: ${config.brainDir}`);
-  await requireExistingFile(config.tasksFile, `Configured tasks file not found: ${config.tasksFile}`);
+  if (config.tasksFile) {
+    await requireExistingFile(config.tasksFile, `Configured legacy tasks file not found: ${config.tasksFile}`);
+  }
   return config;
 }
 
@@ -279,14 +279,13 @@ async function reconcileConfigFile(configPath, desiredConfig) {
     ...current,
     brain_dir: desiredConfig.brain_dir,
   };
-  if (current.tasks_file && path.resolve(current.tasks_file) === desiredConfig.tasks_file) delete next.tasks_file;
   if (current.sqlite_path && path.resolve(current.sqlite_path) === desiredConfig.sqlite_path) delete next.sqlite_path;
   if (JSON.stringify(next) === JSON.stringify(current)) return;
   await fs.writeFile(configPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
 }
 
 function configFileDefaults(config) {
-  const { tasks_file: _tasksFile, sqlite_path: _sqlitePath, ...stored } = config;
+  const { sqlite_path: _sqlitePath, ...stored } = config;
   return stored;
 }
 
@@ -312,17 +311,6 @@ function defaultState() {
     last_run_summary: null,
     last_seen_files: [],
   };
-}
-
-function defaultTasksMarkdown() {
-  return `# Tasks
-
-## P1 — Today
-
-## P2 — This Week
-
-## P3 — Backlog
-`;
 }
 
 async function readJsonFile(filePath, label) {

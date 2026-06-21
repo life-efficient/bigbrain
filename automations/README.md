@@ -30,7 +30,7 @@ brain_home="/path/to/brain-home"
 bigbrain_repo="$repo_root"
 
 mkdir -p "$automation_root"
-for id in bigbrain-check-update bigbrain-hourly-task-refresh bigbrain-nightly-maintenance; do
+for id in bigbrain-check-update bigbrain-nightly-maintenance; do
   rm -rf "$automation_root/$id"
   cp -R "$repo_root/automations/$id" "$automation_root/$id"
   perl -0pi -e "s#<brain-home>#$brain_home#g" "$automation_root/$id/automation.toml"

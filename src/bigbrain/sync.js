@@ -170,13 +170,13 @@ async function embeddingRefreshStatus(db, page, model) {
 async function collectMarkdownFiles(config) {
   const files = [];
   const brainDir = path.resolve(config.brainDir);
-  const tasksFile = path.resolve(config.tasksFile);
+  const legacyTasksFile = config.tasksFile ? path.resolve(config.tasksFile) : null;
 
   await walk(brainDir, async (fullPath, relative) => {
     const normalizedRelative = relative.split(path.sep).join('/');
     if (!normalizedRelative.endsWith('.md')) return;
     if (!matchesIncludeGlobs(normalizedRelative, config.includeGlobs)) return;
-    if (isExcludedPath(fullPath, normalizedRelative, config.excludeGlobs, tasksFile)) return;
+    if (isExcludedPath(fullPath, normalizedRelative, config.excludeGlobs, legacyTasksFile)) return;
     files.push(fullPath);
   });
   return files;

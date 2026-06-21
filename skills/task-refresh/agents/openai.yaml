@@ -1,4 +1,0 @@
-interface:
-  display_name: "BigBrain: Task Refresh"
-  short_description: "Update the task list based on recent BigBrain note changes"
-  default_prompt: "Use BigBrain: Task Refresh to review recent BigBrain note changes and update ops/tasks.md to match."

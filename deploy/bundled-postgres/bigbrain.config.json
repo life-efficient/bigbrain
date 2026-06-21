@@ -1,6 +1,5 @@
 {
   "brain_dir": "/brain",
-  "tasks_file": "/brain/ops/tasks.md",
   "schema_dirs": [
     "people",
     "companies",

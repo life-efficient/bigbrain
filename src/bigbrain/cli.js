@@ -12,7 +12,6 @@ import { listRecentFiles } from './recent.js';
 import { renderSchemaMarkdown, recommendFolderForInput, schemaDescription } from './schema.js';
 import { queryBrain, searchBrain, searchModesReport } from './search.js';
 import { syncBrain } from './sync.js';
-import { runTaskRefresh } from './task-refresh.js';
 import { resolveWindow } from './time.js';
 
 export async function runCli(argv) {
@@ -34,7 +33,6 @@ export async function runCli(argv) {
     case 'db': return handleDb(args, global);
     case 'schema': return handleSchema(global);
     case 'file': return handleFile(args, global);
-    case 'refresh-tasks': return handleRefreshTasks(global);
     case 'tasks': return handleTasks(args, global);
     case 'members': return handleMembers(args, global);
     case 'eval': return handleEval(args, global);
@@ -215,12 +213,6 @@ async function handleFile(args, global) {
   if (!input) throw new Error('file requires a path or description.');
   const recommendation = recommendFolderForInput(input);
   output(global, recommendation, `File this at ${recommendation.relative_path} because ${recommendation.reason}.`);
-}
-
-async function handleRefreshTasks(global) {
-  const config = await loadRuntimeConfig(global);
-  const result = await runTaskRefresh({ configPath: config.configPath, statePath: config.statePath });
-  output(global, result, result.summary);
 }
 
 async function handleTasks(args, global) {
@@ -478,7 +470,6 @@ Commands:
   db migrate sqlite-to-postgres
   schema
   file <path-or-description>
-  refresh-tasks
   tasks [--assignee people/name]
   members [--status active|inactive|invited]
   members add <email> <people/slug> [--name NAME] [--role owner|member|viewer] [--status active|inactive|invited]

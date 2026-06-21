@@ -8,7 +8,7 @@ import { initializeBrainHome, loadConfig, loadState, metaDirForBrainHome } from 
 import { listRecentFiles } from '../../src/bigbrain/recent.js';
 import { resolveWindow } from '../../src/bigbrain/time.js';
 
-test('recent listing excludes tasks file and .raw paths and sorts newest first', async () => {
+test('recent listing excludes .raw paths and sorts newest first', async () => {
   const fixture = await createFixture();
   try {
     const now = new Date('2026-05-18T12:00:00.000Z');
@@ -18,7 +18,6 @@ test('recent listing excludes tasks file and .raw paths and sorts newest first',
 
     await setMtime(path.join(fixture.brainHome, 'meetings/client-sync.md'), '2026-05-18T11:30:00.000Z');
     await setMtime(path.join(fixture.brainHome, 'projects/new-launch.md'), '2026-05-18T11:45:00.000Z');
-    await setMtime(path.join(fixture.brainHome, 'ops/tasks.md'), '2026-05-18T11:50:00.000Z');
     await setMtime(path.join(fixture.brainHome, 'meetings/.raw/transcript.md'), '2026-05-18T11:40:00.000Z');
 
     const config = await loadConfig({ configPath: fixture.configPath });

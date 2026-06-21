@@ -39,12 +39,7 @@ Use only these built-in repair paths unless the user asks for deeper edits:
    - Run `node ./bin/bigbrain.js sync --json`
    - Re-run `node ./bin/bigbrain.js health --json`
 
-2. Task freshness only:
-   - Run `node ./bin/bigbrain.js recent --json`
-   - If recent note movement suggests `ops/tasks.md` is stale, run
-     `node ./bin/bigbrain.js refresh-tasks --json`
-
-3. Obvious page-shape fixes:
+2. Obvious page-shape fixes:
    - If a finding points to a single page and the correction is obvious from the
      page shape rules, apply the smallest safe edit, then re-run health
    - Safe examples: restoring missing required meeting headings, adding missing
@@ -68,7 +63,6 @@ Do not keep digging once one of these is true:
 2. Classify findings:
    - no findings -> exit cleanly
    - likely index freshness problem -> `sync`, then re-run health
-   - likely stale task view -> inspect `recent`, then `refresh-tasks` if needed
    - deterministic page-shape problem -> patch the affected page, then re-run
      health
 3. Stop after one bounded remediation loop unless the next action is still

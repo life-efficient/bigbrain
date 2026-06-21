@@ -22,8 +22,7 @@ From this directory:
 
 ```sh
 cp .env.example .env
-mkdir -p brain/ops
-touch brain/ops/tasks.md
+mkdir -p brain/tasks
 docker compose --env-file .env up --build -d postgres
 ./scripts/db-doctor.sh
 docker compose --env-file .env up --build -d app
@@ -35,8 +34,8 @@ If your Docker install uses the older `docker-compose` command, use that in the
 manual `up` commands. The helper scripts detect either command.
 
 For a real brain, set `BIGBRAIN_MARKDOWN_REPO=/absolute/path/to/brain` in
-`.env`. The mounted repo must contain `ops/tasks.md`, and the template config
-expects the brain root to be `/brain` inside the container.
+`.env`. Task records should live as individual markdown pages under `tasks/`.
+The template config expects the brain root to be `/brain` inside the container.
 
 The MCP service listens on `BIGBRAIN_SERVICE_PORT` and exposes:
 
