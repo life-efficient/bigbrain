@@ -21,13 +21,14 @@ Where should BigBrain run?
 
 Ask this only if the brain folder is not obvious from the workspace or existing
 BigBrain config. If asking, use "server" instead of "computer" when the user
-requested server mode, and replace `<default expected location>` with the
-discovered default location:
+requested server mode. Use the path in
+`~/.config/bigbrain/default-brain-home` as the default expected location when
+that file exists:
 
 ```text
 Where on your computer should I store the brain?
 
-1. The default (<default expected location>) (recommended)
+1. The default (<path from ~/.config/bigbrain/default-brain-home>) (recommended)
 2. Somewhere else (tell me where)
 ```
 
