@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Release"
+  short_description: "Prepare, tag, and publish BigBrain semver releases"
+  default_prompt: "Use BigBrain: Release to verify the changelog, run tests, tag the release, push main and tags, and publish release notes with agent update actions."

@@ -21,6 +21,8 @@ actions` section for agents maintaining local installs and hosted brains.
   - `bigbrain-fanout-tasks`
   - `bigbrain-roadmap-tasks`
   - `bigbrain-refresh-tasks`
+- BigBrain release skill:
+  - `bigbrain-release`
 - Setup guidance that asks whether to back up the brain to GitHub, strongly
   recommends a private GitHub backup, and uses GitHub MCP when accepted.
 - Task schema documentation in `README.md`, `bigbrain schema`, and MCP
@@ -50,6 +52,7 @@ actions` section for agents maintaining local installs and hosted brains.
   - `bigbrain-fanout-tasks`
   - `bigbrain-roadmap-tasks`
   - `bigbrain-refresh-tasks`
+  - `bigbrain-release`
   - refreshed `bigbrain-setup`
 - Install or refresh bundled automation templates from `automations/`; do not
   reinstall any removed hourly task-refresh automation.
