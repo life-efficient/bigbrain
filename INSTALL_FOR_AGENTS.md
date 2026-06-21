@@ -252,7 +252,7 @@ brain_home="/path/to/brain-home"
 bigbrain_repo="$repo_root"
 
 mkdir -p "$automation_root"
-for id in bigbrain-check-update bigbrain-frequent-sync bigbrain-git-backup bigbrain-hourly-task-refresh bigbrain-nightly-maintenance; do
+for id in bigbrain-check-update bigbrain-hourly-task-refresh bigbrain-nightly-maintenance; do
   rm -rf "$automation_root/$id"
   cp -R "$repo_root/automations/$id" "$automation_root/$id"
   perl -0pi -e "s#<brain-home>#$brain_home#g" "$automation_root/$id/automation.toml"
@@ -265,26 +265,6 @@ real cwd. Do not commit those installed files back to the BigBrain repo.
 `bigbrain health --json` ignores install-local `cwds`, `created_at`, and
 `updated_at` when checking the active install against the repo templates.
 
-## Git backup authentication
-
-The `bigbrain-git-backup` automation uses the brain repo's normal Git remote.
-Set up non-interactive Git authentication outside both repositories. Acceptable
-places include the GitHub CLI credential store, the platform keychain, the SSH
-agent, global Git config, or an ignored file under the agent runtime directory.
-
-Do not store tokens, SSH keys, `.netrc` files, generated credential files, or
-absolute personal credential-helper paths in either the BigBrain repo or the
-brain repo. If a helper file is necessary, keep it outside the repos, for
-example under:
-
-```text
-${CODEX_HOME:-$HOME/.codex}/automations/bigbrain-git-backup/
-```
-
-Before relying on the automation, verify the remote can be read without a
-prompt:
-
-```bash
-GIT_TERMINAL_PROMPT=0 git -C "$brain_home" ls-remote origin HEAD
-GIT_TERMINAL_PROMPT=0 git -C "$brain_home" pull --rebase --autostash
-```
+The old scheduled sync and Git backup automations are intentionally not
+installed here. The local event-driven MCP service handles sync/index freshness
+and Git backup for local brains.

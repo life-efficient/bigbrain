@@ -466,7 +466,7 @@ Required maintenance flows:
 
 Automations should be narrow, explicit, idempotent, and inspectable.
 
-### Required automations
+### Event-driven local service
 
 - `sync`
   - detect changed files
@@ -476,6 +476,12 @@ Automations should be narrow, explicit, idempotent, and inspectable.
   - refresh embeddings for changed content
   - split oversized page content into compiled-truth chunks before embedding
   - report per-page embedding failures without aborting page and link indexing
+
+- `git-backup`
+  - commit and push brain changes through the local MCP service after writes
+  - avoid scheduled polling when no content changed
+
+### Required automations
 
 - `fix-citations`
   - find malformed or missing source attribution patterns
