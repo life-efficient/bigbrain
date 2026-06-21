@@ -5,19 +5,20 @@ such as `bigbrain sync --json` from any working directory.
 
 ## Ask before setup
 
-Ask the user only for choices that change the installation:
+Ask the user only for choices that change the installation. Use the recommended
+option when the user does not have a preference:
 
-- Is this a local setup, a remote/server setup, or a thin-client setup against
-  an existing hosted BigBrain?
-- What brain home should BigBrain target? For local setup, ask for the local
-  markdown brain path if it is not obvious from the workspace, and use the
-  default local SQLite runtime state unless the user asks for a database.
-- For a remote/server setup, should runtime state use Supabase, another
-  Postgres/pgvector database, or a local development database?
-- If remote/server, is the brain personal or shared? If shared, ask which
-  access model to configure, such as OAuth allowlist or another team gate.
-- Where should the OpenAI API key come from? Use an existing environment
-  variable when present; otherwise ask whether to put it in
+- Where should BigBrain run? Recommended: on this computer. Other options:
+  on a server, or connect to an already-hosted BigBrain.
+- Which brain folder should BigBrain use? Ask only if the folder is not obvious
+  from the workspace.
+- If a server database is needed, where should it live? Recommended: local
+  development database. Other options: Supabase or another hosted Postgres
+  database.
+- Who can use this brain? Recommended: private. If the user wants a shared
+  brain, ask who should have access.
+- How should BigBrain get the OpenAI API key? Recommended: use the existing
+  key if one is already configured. Otherwise ask whether to save it in
   `${HOME}/.config/bigbrain/.env`, a deployment secret store, or another
   user-approved secret location.
 
