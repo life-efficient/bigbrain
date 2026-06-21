@@ -2,29 +2,31 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { deletePageIndex, getEmbeddingRecord, listPageSlugs, openDatabase, replaceEmbeddingsForPage, replaceLinksForPage, replacePageIndex } from './db.js';
+import { deletePageIndex, getEmbeddingRecord, insertSyncRun, listPageSlugs, openDatabase, replaceEmbeddingsForPage, replaceLinksForPage, replacePageIndex } from './db.js';
 import { isExcludedPath, matchesIncludeGlobs, shouldSkipSystemPath } from './file-selection.js';
 import { embedTexts } from './openai.js';
 import { extractLinks, parseMarkdownPage, slugFromPath } from './markdown.js';
 
 export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, embedder = embedTexts } = {}) {
+  const startedAt = new Date().toISOString();
   const db = await openDatabase(config);
-  const files = await collectMarkdownFiles(config);
-  const knownSlugs = new Set();
-  const pages = [];
+  try {
+    const files = await collectMarkdownFiles(config);
+    const knownSlugs = new Set();
+    const pages = [];
 
-  for (const fullPath of files) {
-    const slug = slugFromPath(config.brainDir, fullPath);
-    const fileStat = await fs.stat(fullPath);
-    const raw = await fs.readFile(fullPath, 'utf8');
-    const parsed = parseMarkdownPage(raw, slug);
-    parsed.path = fullPath;
-    parsed.updatedAt = latestTimelineDate(parsed.timeline) || fileStat.mtime.toISOString();
-    parsed.contentHash = sha256(raw);
-    parsed.links = extractLinks(raw, slug);
-    knownSlugs.add(slug);
-    pages.push(parsed);
-  }
+    for (const fullPath of files) {
+      const slug = slugFromPath(config.brainDir, fullPath);
+      const fileStat = await fs.stat(fullPath);
+      const raw = await fs.readFile(fullPath, 'utf8');
+      const parsed = parseMarkdownPage(raw, slug);
+      parsed.path = fullPath;
+      parsed.updatedAt = latestTimelineDate(parsed.timeline) || fileStat.mtime.toISOString();
+      parsed.contentHash = sha256(raw);
+      parsed.links = extractLinks(raw, slug);
+      knownSlugs.add(slug);
+      pages.push(parsed);
+    }
 
   for (const indexedSlug of await listPageSlugs(db)) {
     if (!knownSlugs.has(indexedSlug)) await deletePageIndex(db, indexedSlug);
@@ -136,8 +138,25 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
       pages_embedding_skipped_by_guard: embeddingBatchGuardTriggered ? pagesNeedingEmbeddings.length : 0,
     },
   };
-  await db.close?.();
-  return report;
+    await insertSyncRun(db, {
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      status: pagesWithFailedEmbeddings > 0 ? 'partial_success' : 'success',
+      report,
+    });
+    return report;
+  } catch (error) {
+    await insertSyncRun(db, {
+      startedAt,
+      finishedAt: new Date().toISOString(),
+      status: 'error',
+      report: {},
+      error: error instanceof Error ? error.message : String(error),
+    }).catch(() => {});
+    throw error;
+  } finally {
+    await db.close?.();
+  }
 }
 
 const MAX_EMBEDDING_CHUNK_WORDS = 1500;

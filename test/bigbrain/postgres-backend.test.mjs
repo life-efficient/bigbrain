@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { allEmbeddings, dbDoctor, getPageRecord, listPageSlugs, openDatabase, semanticSearch } from '../../src/bigbrain/db.js';
+import { allEmbeddings, dbDoctor, getPageRecord, insertMcpAuditLog, listMcpAuditLog, listPageSlugs, listSyncRuns, openDatabase, semanticSearch } from '../../src/bigbrain/db.js';
 import { createMcpAuthStore, PostgresMcpAuthStore } from '../../src/bigbrain/mcp-auth-store.js';
 import { migrateSqliteToPostgres } from '../../src/bigbrain/postgres-migrate.js';
 import { searchBrain } from '../../src/bigbrain/search.js';
@@ -33,12 +33,45 @@ Works on Example Brain example partnerships and Postgres persistence.
     assert.equal(second.embedding_chunks_generated, 0);
 
     const db = await openDatabase(config);
+    const runs = await listSyncRuns(db);
+    assert.equal(runs.length, 2);
+    assert.equal(runs[0].status, 'success');
+    assert.deepEqual(JSON.parse(runs[0].report_json).index_totals_after_sync, { pages: 1, links: 0 });
     assert.deepEqual(await listPageSlugs(db), ['people/alice']);
     assert.equal((await allEmbeddings(db)).length, 1);
     const lexical = await searchBrain({ db, config, query: 'Example Brain example partnerships', apiKey: null });
     assert.equal(lexical.fused[0].slug, 'people/alice');
     const semantic = await semanticSearch(db, [0.1, 0.2, 0.3], 5);
     assert.equal(semantic[0].slug, 'people/alice');
+    await db.close?.();
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('postgres backend stores MCP audit log entries', async (t) => {
+  const fixture = await createFixture('bigbrain-postgres-audit-', t);
+  if (!fixture) return;
+  try {
+    const config = await postgresConfig(fixture);
+    const db = await openDatabase(config);
+    await insertMcpAuditLog(db, {
+      actorEmail: 'alice@example.com',
+      action: 'mcp.tool.create_page',
+      details: {
+        status: 'success',
+        tool_name: 'create_page',
+        arguments: { path: 'people/alice', body: { redacted: true, length: 12 } },
+      },
+      createdAt: '2026-06-21T10:00:00.000Z',
+    });
+
+    const rows = await listMcpAuditLog(db);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].actor_email, 'alice@example.com');
+    assert.equal(rows[0].action, 'mcp.tool.create_page');
+    assert.equal(rows[0].created_at, '2026-06-21T10:00:00.000Z');
+    assert.deepEqual(JSON.parse(rows[0].details_json).arguments.body, { redacted: true, length: 12 });
     await db.close?.();
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
@@ -142,12 +175,22 @@ Migration source page.
       apiKey: 'test-key',
       embedder: async (texts) => texts.map(() => [0.4, 0.5, 0.6]),
     });
+    const sqliteDb = await openDatabase(sqliteConfig);
+    await insertMcpAuditLog(sqliteDb, {
+      actorEmail: 'alice@example.com',
+      action: 'mcp.tool.create_page',
+      details: { status: 'success' },
+      createdAt: '2026-06-21T10:00:00.000Z',
+    });
+    await sqliteDb.close?.();
     rawConfig.database_url_env = 'TEST_DATABASE_URL';
     await fs.writeFile(fixture.configPath, `${JSON.stringify(rawConfig, null, 2)}\n`, 'utf8');
 
     const report = await migrateSqliteToPostgres(await loadConfig({ configPath: fixture.configPath }));
     assert.equal(report.pages, 1);
     assert.equal(report.embeddings, 1);
+    assert.equal(report.sync_runs, 1);
+    assert.equal(report.mcp_audit_log_entries, 1);
 
     rawConfig.storage_backend = 'postgres';
     await fs.writeFile(fixture.configPath, `${JSON.stringify(rawConfig, null, 2)}\n`, 'utf8');
@@ -195,10 +238,12 @@ async function postgresConfig(fixture) {
 }
 
 async function clearPostgres(db) {
+  await db.query('DELETE FROM mcp_audit_log');
   await db.query('DELETE FROM mcp_oauth_tokens');
   await db.query('DELETE FROM mcp_oauth_codes');
   await db.query('DELETE FROM mcp_oauth_states');
   await db.query('DELETE FROM mcp_oauth_clients');
+  await db.query('DELETE FROM sync_runs');
   await db.query('DELETE FROM health_findings');
   await db.query('DELETE FROM activity_log');
   await db.query('DELETE FROM embeddings');

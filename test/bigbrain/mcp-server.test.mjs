@@ -6,7 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { openDatabase, getPageRecord } from '../../src/bigbrain/db.js';
+import { getPageRecord, listMcpAuditLog, openDatabase } from '../../src/bigbrain/db.js';
 import { upsertMember } from '../../src/bigbrain/members.js';
 import { startMcpServer } from '../../src/bigbrain/mcp-server.js';
 
@@ -69,6 +69,15 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     const record = await getPageRecord(db, 'people/mcp-test');
     assert.equal(record.title, 'MCP Test');
     assert.match(record.compiled_truth, /Created through the MCP server/);
+    const auditRows = await listMcpAuditLog(db);
+    const createdAudit = auditRows.find((row) => row.action === 'mcp.tool.create_page');
+    assert.equal(createdAudit.actor_email, null);
+    const details = JSON.parse(createdAudit.details_json);
+    assert.equal(details.status, 'success');
+    assert.equal(details.arguments.path, 'people/mcp-test');
+    assert.deepEqual(details.arguments.body, { redacted: true, length: 'Created through the MCP server.'.length });
+    assert.equal(JSON.stringify(details.arguments).includes('Created through the MCP server'), false);
+    await db.close?.();
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

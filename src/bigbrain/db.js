@@ -62,6 +62,21 @@ export function initializeSqliteSchema(db) {
       timestamp TEXT NOT NULL,
       details_json TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS sync_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      started_at TEXT NOT NULL,
+      finished_at TEXT NOT NULL,
+      status TEXT NOT NULL,
+      report_json TEXT NOT NULL,
+      error TEXT
+    );
+    CREATE TABLE IF NOT EXISTS mcp_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      actor_email TEXT,
+      action TEXT NOT NULL,
+      details_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS automation_state (
       name TEXT PRIMARY KEY,
       last_run_at TEXT,
@@ -201,6 +216,14 @@ export async function initializePostgresSchema(db) {
       details_json JSONB NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    CREATE TABLE IF NOT EXISTS sync_runs (
+      id BIGSERIAL PRIMARY KEY,
+      started_at TIMESTAMPTZ NOT NULL,
+      finished_at TIMESTAMPTZ NOT NULL,
+      status TEXT NOT NULL,
+      report_json JSONB NOT NULL,
+      error TEXT
+    );
     CREATE TABLE IF NOT EXISTS members (
       id BIGSERIAL PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
@@ -217,6 +240,8 @@ export async function initializePostgresSchema(db) {
     CREATE INDEX IF NOT EXISTS links_from_slug_idx ON links (from_slug);
     CREATE INDEX IF NOT EXISTS links_to_slug_idx ON links (to_slug);
     CREATE INDEX IF NOT EXISTS embeddings_page_slug_idx ON embeddings (page_slug);
+    CREATE INDEX IF NOT EXISTS sync_runs_finished_at_idx ON sync_runs (finished_at DESC);
+    CREATE INDEX IF NOT EXISTS mcp_audit_log_created_at_idx ON mcp_audit_log (created_at DESC);
   `);
 }
 
@@ -566,17 +591,93 @@ export async function listHealthFindings(db) {
   return unwrapSqlite(db).prepare('SELECT finding_type, severity, page_slug, details_json, created_at FROM health_findings ORDER BY severity DESC, finding_type, page_slug').all();
 }
 
+export async function insertSyncRun(db, { startedAt, finishedAt, status, report = {}, error = null }) {
+  const started = startedAt || new Date().toISOString();
+  const finished = finishedAt || new Date().toISOString();
+  if (db.backend === 'postgres') {
+    await db.query(`
+      INSERT INTO sync_runs (started_at, finished_at, status, report_json, error)
+      VALUES ($1,$2,$3,$4,$5)
+    `, [started, finished, status, JSON.stringify(report || {}), error]);
+    return;
+  }
+  unwrapSqlite(db).prepare('INSERT INTO sync_runs (started_at, finished_at, status, report_json, error) VALUES (?, ?, ?, ?, ?)')
+    .run(started, finished, status, JSON.stringify(report || {}), error);
+}
+
+export async function listSyncRuns(db, { limit = 20 } = {}) {
+  const boundedLimit = normalizeLimit(limit, 20);
+  if (db.backend === 'postgres') {
+    return (await db.query(`
+      SELECT id, started_at, finished_at, status, report_json, error
+      FROM sync_runs
+      ORDER BY finished_at DESC, id DESC
+      LIMIT $1
+    `, [boundedLimit])).rows.map((row) => ({
+      ...row,
+      started_at: normalizeTimestamp(row.started_at),
+      finished_at: normalizeTimestamp(row.finished_at),
+      report_json: JSON.stringify(row.report_json ?? {}),
+    }));
+  }
+  return unwrapSqlite(db).prepare(`
+    SELECT id, started_at, finished_at, status, report_json, error
+    FROM sync_runs
+    ORDER BY finished_at DESC, id DESC
+    LIMIT ?
+  `).all(boundedLimit);
+}
+
+export async function insertMcpAuditLog(db, { actorEmail = null, action, details = {}, createdAt = null }) {
+  const created = createdAt || new Date().toISOString();
+  if (db.backend === 'postgres') {
+    await db.query(`
+      INSERT INTO mcp_audit_log (actor_email, action, details_json, created_at)
+      VALUES ($1,$2,$3,$4)
+    `, [actorEmail, action, JSON.stringify(details || {}), created]);
+    return;
+  }
+  unwrapSqlite(db).prepare('INSERT INTO mcp_audit_log (actor_email, action, details_json, created_at) VALUES (?, ?, ?, ?)')
+    .run(actorEmail, action, JSON.stringify(details || {}), created);
+}
+
+export async function listMcpAuditLog(db, { limit = 20 } = {}) {
+  const boundedLimit = normalizeLimit(limit, 20);
+  if (db.backend === 'postgres') {
+    return (await db.query(`
+      SELECT id, actor_email, action, details_json, created_at
+      FROM mcp_audit_log
+      ORDER BY created_at DESC, id DESC
+      LIMIT $1
+    `, [boundedLimit])).rows.map((row) => ({
+      ...row,
+      created_at: normalizeTimestamp(row.created_at),
+      details_json: JSON.stringify(row.details_json ?? {}),
+    }));
+  }
+  return unwrapSqlite(db).prepare(`
+    SELECT id, actor_email, action, details_json, created_at
+    FROM mcp_audit_log
+    ORDER BY created_at DESC, id DESC
+    LIMIT ?
+  `).all(boundedLimit);
+}
+
 export async function dbDoctor(config) {
   const db = await openDatabase(config);
   if (db.backend === 'sqlite') {
-    return {
+    const report = {
       backend: 'sqlite',
       ok: true,
       sqlite_path: config.sqlitePath,
       page_count: (await listPageSlugs(db)).length,
       embedding_count: (await allEmbeddings(db)).length,
+      sync_run_count: (await listSyncRuns(db, { limit: 100 })).length,
+      audit_log_count: (await listMcpAuditLog(db, { limit: 100 })).length,
       warnings: [],
     };
+    await db.close?.();
+    return report;
   }
   const extension = await db.query("SELECT extname FROM pg_extension WHERE extname = 'vector'");
   const counts = await db.query(`
@@ -584,12 +685,16 @@ export async function dbDoctor(config) {
       (SELECT count(*)::int FROM pages) AS page_count,
       (SELECT count(*)::int FROM links) AS link_count,
       (SELECT count(*)::int FROM embeddings) AS embedding_count,
+      (SELECT count(*)::int FROM sync_runs) AS sync_run_count,
+      (SELECT count(*)::int FROM mcp_audit_log) AS audit_log_count,
       (SELECT count(*)::int FROM mcp_oauth_tokens) AS token_count
   `).catch(async () => db.query(`
     SELECT
       (SELECT count(*)::int FROM pages) AS page_count,
       (SELECT count(*)::int FROM links) AS link_count,
       (SELECT count(*)::int FROM embeddings) AS embedding_count,
+      0 AS sync_run_count,
+      0 AS audit_log_count,
       0 AS token_count
   `));
   const report = {
@@ -599,6 +704,8 @@ export async function dbDoctor(config) {
     page_count: counts.rows[0].page_count,
     link_count: counts.rows[0].link_count,
     embedding_count: counts.rows[0].embedding_count,
+    sync_run_count: counts.rows[0].sync_run_count,
+    audit_log_count: counts.rows[0].audit_log_count,
     token_count: counts.rows[0].token_count,
     warnings: extension.rows.length === 1 ? [] : ['pgvector extension is not installed.'],
   };
@@ -659,4 +766,10 @@ function normalizePageRecord(row) {
 function normalizeTimestamp(value) {
   if (value instanceof Date) return value.toISOString();
   return value;
+}
+
+function normalizeLimit(value, fallback) {
+  const number = Number(value || fallback);
+  if (!Number.isFinite(number) || number <= 0) return fallback;
+  return Math.min(Math.floor(number), 100);
 }

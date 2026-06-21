@@ -9,7 +9,7 @@ import {
   createDashboardRequestHandler,
   dashboardSessionCookie,
 } from './dashboard.js';
-import { openDatabase } from './db.js';
+import { insertMcpAuditLog, openDatabase } from './db.js';
 import { filingRulesForBrain } from './filing-rules.js';
 import {
   createBrainPage,
@@ -242,6 +242,23 @@ async function callTool({ config, params, gitBackupEnabled, actor, authConfig })
   const name = params.name;
   const args = params.arguments || {};
   assertToolAllowed(name, actor);
+  try {
+    const result = await executeToolCall({ config, name, args, gitBackupEnabled, actor, authConfig });
+    await auditMcpToolCall(config, { actor, name, args, status: 'success' });
+    return result;
+  } catch (error) {
+    await auditMcpToolCall(config, {
+      actor,
+      name,
+      args,
+      status: 'error',
+      error: error instanceof Error ? error.message : String(error),
+    }).catch(() => {});
+    throw error;
+  }
+}
+
+async function executeToolCall({ config, name, args, gitBackupEnabled, actor, authConfig }) {
   switch (name) {
     case 'me':
       return toolJson(await toolMe(config, actor, authConfig));
@@ -366,6 +383,47 @@ async function callTool({ config, params, gitBackupEnabled, actor, authConfig })
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
+}
+
+async function auditMcpToolCall(config, { actor, name, args, status, error = null }) {
+  const db = await openDatabase(config);
+  try {
+    await insertMcpAuditLog(db, {
+      actorEmail: actor?.email || null,
+      action: `mcp.tool.${name || 'unknown'}`,
+      details: {
+        status,
+        tool_name: name || null,
+        arguments: sanitizeAuditArguments(args),
+        error,
+      },
+    });
+  } finally {
+    await db.close?.();
+  }
+}
+
+function sanitizeAuditArguments(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  const sanitized = {};
+  for (const [key, entry] of Object.entries(value)) {
+    if (key === 'raw_content_base64' || key === 'raw_content_text' || key === 'body') {
+      sanitized[key] = redactedAuditValue(entry);
+      continue;
+    }
+    if (key === 'frontmatter' && entry && typeof entry === 'object' && !Array.isArray(entry)) {
+      sanitized[key] = Object.keys(entry).sort();
+      continue;
+    }
+    sanitized[key] = entry;
+  }
+  return sanitized;
+}
+
+function redactedAuditValue(value) {
+  if (value === undefined) return undefined;
+  const length = typeof value === 'string' ? value.length : JSON.stringify(value ?? '').length;
+  return { redacted: true, length };
 }
 
 async function postWriteMaintenance(config, gitBackupEnabled, actor) {

@@ -73,6 +73,26 @@ export async function migrateSqliteToPostgres(config) {
       `, [finding.finding_type, finding.severity, finding.page_slug, finding.details_json || '{}', finding.created_at]);
     }
 
+    const syncRuns = tableExists(sqlite, 'sync_runs')
+      ? sqlite.prepare('SELECT * FROM sync_runs ORDER BY id').all()
+      : [];
+    for (const run of syncRuns) {
+      await postgres.query(`
+        INSERT INTO sync_runs (started_at, finished_at, status, report_json, error)
+        VALUES ($1,$2,$3,$4,$5)
+      `, [run.started_at, run.finished_at, run.status, run.report_json || '{}', run.error]);
+    }
+
+    const auditRows = tableExists(sqlite, 'mcp_audit_log')
+      ? sqlite.prepare('SELECT * FROM mcp_audit_log ORDER BY id').all()
+      : [];
+    for (const audit of auditRows) {
+      await postgres.query(`
+        INSERT INTO mcp_audit_log (actor_email, action, details_json, created_at)
+        VALUES ($1,$2,$3,$4)
+      `, [audit.actor_email, audit.action, audit.details_json || '{}', audit.created_at]);
+    }
+
     await postgres.query('COMMIT');
     return {
       backend: 'postgres',
@@ -82,6 +102,8 @@ export async function migrateSqliteToPostgres(config) {
       sources: sources.length,
       embeddings: embeddings.length,
       health_findings: findings.length,
+      sync_runs: syncRuns.length,
+      mcp_audit_log_entries: auditRows.length,
     };
   } catch (error) {
     await postgres.query('ROLLBACK');
@@ -93,6 +115,8 @@ export async function migrateSqliteToPostgres(config) {
 }
 
 async function clearPostgresIndex(db) {
+  await db.query('DELETE FROM mcp_audit_log');
+  await db.query('DELETE FROM sync_runs');
   await db.query('DELETE FROM health_findings');
   await db.query('DELETE FROM activity_log');
   await db.query('DELETE FROM embeddings');
@@ -103,4 +127,8 @@ async function clearPostgresIndex(db) {
 
 function vectorLiteral(vector) {
   return `[${vector.map((value) => Number(value)).join(',')}]`;
+}
+
+function tableExists(db, name) {
+  return Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
 }

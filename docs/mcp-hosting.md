@@ -212,7 +212,9 @@ BIGBRAIN_MCP_GOOGLE_CLIENT_SECRET=...
 
 Set `BIGBRAIN_MCP_TOKEN_STORE` only for file-backed SQLite or persistent-volume
 deployments. When the BigBrain config uses `storage_backend: "postgres"`, OAuth
-client, state, code, and token records are stored in Postgres instead.
+client, state, code, and token records are stored in Postgres instead. Sync run
+history and MCP audit log entries are also written to Postgres in this mode, so
+redeploys do not lose hosted operational history.
 
 At least one of `BIGBRAIN_MCP_ALLOWED_EMAILS` or
 `BIGBRAIN_MCP_ALLOWED_DOMAINS` must be set, unless active members have already

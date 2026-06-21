@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { allEmbeddings, getPageRecord, listPageSlugs, openDatabase, replacePageIndex } from '../../src/bigbrain/db.js';
+import { allEmbeddings, getPageRecord, listPageSlugs, listSyncRuns, openDatabase, replacePageIndex } from '../../src/bigbrain/db.js';
 import { searchBrain } from '../../src/bigbrain/search.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -29,6 +29,34 @@ Stable page.
     const db = await openDatabase(config);
     const row = await getPageRecord(db, 'projects/old-project');
     assert.equal(row.updated_at, oldDate.toISOString());
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('sync persists run history with the sync report', async () => {
+  const fixture = await createFixture('bigbrain-sync-run-history-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'projects/run-history.md', `---
+title: Run History
+---
+# Run History
+
+Sync run history test page.
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const report = await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const runs = await listSyncRuns(db);
+    assert.equal(runs.length, 1);
+    assert.equal(runs[0].status, 'success');
+    assert.equal(runs[0].error, null);
+    const storedReport = JSON.parse(runs[0].report_json);
+    assert.deepEqual(storedReport.index_totals_after_sync, report.index_totals_after_sync);
+    assert.equal(storedReport.run_work.pages_embedded, 0);
+    await db.close?.();
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
