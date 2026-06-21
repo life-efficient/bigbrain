@@ -1,5 +1,12 @@
 # bigbrain
 
+Copy this into a new agent thread before asking it to install or set up
+BigBrain:
+
+```text
+Install and set up BigBrain by following https://github.com/life-efficient/bigbrain/blob/main/INSTALL_FOR_AGENTS.md. Ask me only for setup choices that matter, including whether this is local or remote, whether a remote setup should use Supabase or another Postgres database, whether a remote brain is shared, and where the OpenAI API key should come from.
+```
+
 `bigbrain` is a local-first knowledge runtime for agents and humans working
 against the same markdown brain.
 
@@ -27,18 +34,8 @@ Pass `--brain-home /path/to/brain-home` when targeting a non-default brain.
 
 ## Agent Setup
 
-Agent and automation setup lives in:
-
-- [`INSTALL_FOR_AGENTS.md`](./INSTALL_FOR_AGENTS.md)
-- [`skills/RESOLVER.md`](./skills/RESOLVER.md)
-
-At a high level:
-
-1. Install the global CLI with `npm link`.
-2. Install all bundled skills from `skills/` into the active agent skills
-   directory.
-3. Select or initialize a brain home.
-4. Run `bigbrain sync --json` and `bigbrain health --json`.
+Agent setup lives in [`INSTALL_FOR_AGENTS.md`](./INSTALL_FOR_AGENTS.md).
+Skill routing lives in [`skills/RESOLVER.md`](./skills/RESOLVER.md).
 
 ## Features
 

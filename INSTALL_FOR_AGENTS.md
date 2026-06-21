@@ -3,6 +3,28 @@
 BigBrain is expected to be a global CLI. Agents should be able to run commands
 such as `bigbrain sync --json` from any working directory.
 
+## Ask before setup
+
+Ask the user only for choices that change the installation:
+
+- Is this a local setup, a remote/server setup, or a thin-client setup against
+  an existing hosted BigBrain?
+- What brain home should BigBrain target? For local setup, ask for the local
+  markdown brain path if it is not obvious from the workspace, and use the
+  default local SQLite runtime state unless the user asks for a database.
+- For a remote/server setup, should runtime state use Supabase, another
+  Postgres/pgvector database, or a local development database?
+- If remote/server, is the brain personal or shared? If shared, ask which
+  access model to configure, such as OAuth allowlist or another team gate.
+- Where should the OpenAI API key come from? Use an existing environment
+  variable when present; otherwise ask whether to put it in
+  `${HOME}/.config/bigbrain/.env`, a deployment secret store, or another
+  user-approved secret location.
+
+Do not ask for values that can be discovered safely from the repo, current
+environment, or existing BigBrain config. Never write secrets into this source
+repo or the markdown brain repo.
+
 ## One-time setup
 
 From the BigBrain repo:
