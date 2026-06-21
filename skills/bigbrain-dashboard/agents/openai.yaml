@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Dashboard"
+  short_description: "Open the BigBrain desktop dashboard app"
+  default_prompt: "Use $bigbrain-dashboard to open the BigBrain desktop app and verify it is running."
