@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Enrich Tasks"
+  short_description: "Clarify underspecified BigBrain tasks"
+  default_prompt: "Use $bigbrain-enrich-tasks to find underspecified BigBrain tasks, ask focused clarification questions, and update them once answered."

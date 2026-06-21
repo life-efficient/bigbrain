@@ -716,7 +716,11 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     assert.equal(listed.result.tools.some((tool) => tool.name === 'me'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks/list'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks_list'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks/enrich'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks_enrich'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'members/list'), true);
+    const enrichTool = listed.result.tools.find((tool) => tool.name === 'tasks/enrich');
+    assert.equal(enrichTool.inputSchema.properties.question_limit.type, 'number');
 
     const me = await rpc(running.url, 'tools/call', { name: 'me', arguments: {} }, token);
     assert.equal(me.result.structuredContent.actor.email, 'teammate@example.com');
@@ -772,6 +776,44 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     }, token);
     assert.equal(rejected.result, undefined);
     assert.match(rejected.error.message, /not an active member/);
+
+    await fs.mkdir(path.join(fixture.brainHome, 'initiatives'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'initiatives', 'gfeai-2026.md'), `---
+title: GFEAI 2026
+---
+# GFEAI 2026
+
+Weekly ICAIRE updates should summarize progress, decisions, blockers, and next commitments.
+`, 'utf8');
+
+    const thin = await rpc(running.url, 'tools/call', {
+      name: 'tasks/create',
+      arguments: {
+        title: 'Follow up',
+        body: 'Ask about it.',
+        assignees: ['me'],
+        priority: 'p2',
+        source: ['initiatives/gfeai-2026'],
+        timeline_entry: 'Created thin task in MCP enrichment test.',
+      },
+    }, token);
+    assert.equal(thin.error, undefined, thin.error?.message);
+
+    const enrichment = await rpc(running.url, 'tools/call', {
+      name: 'tasks/enrich',
+      arguments: {
+        path: 'tasks/follow-up',
+        question_limit: 3,
+      },
+    }, token);
+    assert.equal(enrichment.error, undefined, enrichment.error?.message);
+    assert.equal(enrichment.result.structuredContent.candidates.length, 1);
+    const candidate = enrichment.result.structuredContent.candidates[0];
+    assert.equal(candidate.task.slug, 'tasks/follow-up');
+    assert.equal(candidate.issues.some((issue) => issue.code === 'thin_body'), true);
+    assert.equal(candidate.issues.some((issue) => issue.code === 'vague_title'), true);
+    assert.equal(candidate.questions.length <= 3, true);
+    assert.equal(candidate.related_context[0].slug, 'initiatives/gfeai-2026');
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
