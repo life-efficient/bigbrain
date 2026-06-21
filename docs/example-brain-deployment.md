@@ -44,7 +44,10 @@ and token hashes in Postgres.
 
 ## Local Network Shape
 
-Use Docker Compose or an equivalent process manager:
+Use the checked-in template at
+[`deploy/bundled-postgres`](../deploy/bundled-postgres) for a runnable Docker
+Compose setup with Postgres, app health checks, `db doctor`, `health`, and
+`sync` scripts. The shape is:
 
 ```yaml
 services:

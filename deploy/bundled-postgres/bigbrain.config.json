@@ -1,0 +1,29 @@
+{
+  "brain_dir": "/brain",
+  "tasks_file": "/brain/ops/tasks.md",
+  "schema_dirs": [
+    "people",
+    "companies",
+    "meetings",
+    "deals",
+    "concepts",
+    "projects",
+    "ops"
+  ],
+  "storage_backend": "postgres",
+  "database_url_env": "DATABASE_URL",
+  "openai_embedding_model": "text-embedding-3-small",
+  "openai_query_model": "gpt-4.1-mini",
+  "dashboard_port": 3334,
+  "lookback_fallback": "24h",
+  "include_globs": [
+    "**/*.md"
+  ],
+  "exclude_globs": [
+    ".git/**",
+    "archive/**",
+    ".raw/**",
+    "**/README.md",
+    "**/FILING.md"
+  ]
+}

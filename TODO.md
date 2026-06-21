@@ -8,8 +8,6 @@
 - Add a tool policy layer for hosted MCP that separates read-only tools,
   append/create tools, destructive raw-file updates/deletes, git backup, and
   maintenance/admin operations by auth mode or scope.
-- Turn the documented bundled app + local Postgres/pgvector deployment shape
-  into a checked-in runnable template with health-check and `db doctor` steps.
 - Add export/import commands for moving runtime state between local SQLite,
   bundled Postgres, and remote Postgres; markdown import and sqlite-to-postgres
   migration already exist.
