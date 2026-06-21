@@ -81,8 +81,12 @@ support. The default shape is:
 
 ```text
 <collection>/<page-slug>.md
-<collection>/.raw/<page-slug>/<raw-files...>
+<collection>/.raw/<filename>
 ```
+
+Do not nest page-slug folders or any other folders inside `.raw`; use
+collision-safe filenames such as `meeting-slug-transcript.txt` or
+`report-slug-final.pdf`.
 
 Use `sources/.raw/` for evidence-first uploads whose subject has not yet become
 another canonical entity. The `filing_rules` tool is the operational source of

@@ -42,7 +42,7 @@ This skill guarantees:
    - key facts or sections
    - notable open threads or implications
 4. Preserve the original file when useful:
-   - store it under `<collection>/.raw/<page-slug>/`
+   - store it under `<collection>/.raw/<filename>`
    - call `filing_rules` first when using an MCP or remote brain connector
    - link the canonical page to the raw attachment
 5. Update or create the canonical page

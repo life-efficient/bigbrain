@@ -216,7 +216,7 @@ the same collection as the markdown page they support:
 
 ```text
 <collection>/<page-slug>.md
-<collection>/.raw/<page-slug>/<raw-files...>
+<collection>/.raw/<filename>
 ```
 
 This is the right place for:
@@ -231,6 +231,8 @@ This is the right place for:
 Use `sources/.raw/` for evidence-first uploads whose subject has not yet become
 another canonical entity. The active brain's `filing_rules` output is the
 operational source of truth for exact paths.
+Do not nest page-slug folders or any other folders inside `.raw`; use
+collision-safe filenames.
 
 ## Meeting Lifecycle Model
 
@@ -263,7 +265,7 @@ Raw attachments live outside the indexed page graph:
 
 ```text
 <collection>/<page-slug>.md
-<collection>/.raw/<page-slug>/<raw-files...>
+<collection>/.raw/<filename>
 ```
 
 The markdown page is the searchable context surface. It should usually include:
@@ -278,7 +280,7 @@ Suggested frontmatter:
 ```yaml
 type: source
 title: ExampleCo Advisory Contract Draft v1
-raw_file: deals/.raw/exampleco-advisory-arrangement/contract-draft-v1.pdf
+raw_file: deals/.raw/exampleco-advisory-arrangement-contract-draft-v1.pdf
 kind: contract
 created: 2026-05-19
 ```

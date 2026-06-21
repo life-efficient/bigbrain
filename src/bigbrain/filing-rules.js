@@ -19,27 +19,28 @@ export async function filingRulesForBrain({ config }) {
   const sharedGuidance = await readSharedGuidance(config.brainDir);
   const collections = await readCollections(config.brainDir);
   const rawFileRules = {
-    pattern: '<collection>/.raw/<file-or-folder>/<filename>',
+    pattern: '<collection>/.raw/<filename>',
     create_with_page_tool: 'create_raw_file_with_page',
     guidance: [
       'Raw files are attachments, not canonical brain pages.',
       'For uploads such as PDFs, decks, screenshots, spreadsheets, and transcripts, create a markdown page and raw file together when the raw file has brain value.',
-      'Place the raw file under the same collection as the markdown page it supports, choosing the collection by artifact role rather than file type.',
+      'Place the raw file directly under the same collection .raw folder as the markdown page it supports, choosing the collection by artifact role rather than file type.',
+      'Do not create page-slug folders or other nested folders inside .raw; make filenames collision-safe instead.',
       'Use sources/.raw for evidence-first uploads whose subject has not yet become another canonical entity.',
       'Use deliverables/.raw when the raw file is an owned output being reviewed, sent, published, presented, or maintained as the deliverable itself.',
       'Raw uploads are limited to the configured raw_file_max_bytes value, 25 MiB by default; compress oversized files or store a summary/link instead.',
     ],
     examples: [
       {
-        raw_path: 'sources/.raw/example-evidence-deck/example-evidence-deck.pdf',
+        raw_path: 'sources/.raw/example-evidence-deck.pdf',
         page_path: 'sources/example-evidence-deck',
       },
       {
-        raw_path: 'deliverables/.raw/example-partner-brief/example-partner-brief.pdf',
+        raw_path: 'deliverables/.raw/example-partner-brief.pdf',
         page_path: 'deliverables/example-partner-brief',
       },
       {
-        raw_path: 'meetings/.raw/unesco-workshop-sync/transcript.txt',
+        raw_path: 'meetings/.raw/unesco-workshop-sync-transcript.txt',
         page_path: 'meetings/unesco-workshop-sync',
       },
     ],

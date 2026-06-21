@@ -84,11 +84,12 @@ markdown brain page together.
 
 Required fields:
 
-- `path` or `raw_path`: destination under `<collection>/.raw/<file>`, for
-  example `sources/.raw/evidence-deck/evidence-deck.pdf` for an evidence-first
-  upload or `deliverables/.raw/partner-brief/partner-brief.pdf` for a
-  deliverable-owned upload. Follow the selected brain's `filing_rules`; choose
-  the collection by the artifact's role, not only its file type.
+- `path` or `raw_path`: destination under `<collection>/.raw/<filename>`, for
+  example `sources/.raw/evidence-deck.pdf` for an evidence-first upload or
+  `deliverables/.raw/partner-brief.pdf` for a deliverable-owned upload. Follow
+  the selected brain's `filing_rules`; choose the collection by the artifact's
+  role, not only its file type. Do not nest page-slug folders or any other
+  folders inside `.raw`; use collision-safe filenames.
 - `raw_content_base64` or `raw_content_text`: provide exactly one. Use base64
   for PDFs and other binary files.
 - `page_path`, `title`, `body`, `timeline_entry`: the markdown brain page to
@@ -121,7 +122,7 @@ node scripts/prepare-raw-upload.mjs \
   --call \
   --mcp-name icaire \
   --file ./evidence-deck.pptx \
-  --raw-path sources/.raw/evidence-deck/evidence-deck.pptx
+  --raw-path sources/.raw/evidence-deck.pptx
 ```
 
 Raw reads return `content_base64` so binary files can round-trip safely. The

@@ -101,20 +101,20 @@ test('page ops support raw file CRUD without indexing raw files', async () => {
     const config = await loadConfig({ configPath: fixture.configPath });
     const created = await createRawFile({
       config,
-      rawPath: 'sources/.raw/uploads/source.txt',
+      rawPath: 'sources/.raw/uploads-source.txt',
       rawContentText: 'initial raw text',
       mimeType: 'text/plain',
     });
 
-    assert.equal(created.path, 'sources/.raw/uploads/source.txt');
+    assert.equal(created.path, 'sources/.raw/uploads-source.txt');
     assert.equal(created.size, 'initial raw text'.length);
 
-    const readInitial = await readRawFile({ config, rawPath: 'sources/.raw/uploads/source.txt' });
+    const readInitial = await readRawFile({ config, rawPath: 'sources/.raw/uploads-source.txt' });
     assert.equal(Buffer.from(readInitial.content_base64, 'base64').toString('utf8'), 'initial raw text');
 
     const updated = await updateRawFile({
       config,
-      rawPath: 'sources/.raw/uploads/source.txt',
+      rawPath: 'sources/.raw/uploads-source.txt',
       rawContentText: 'updated raw text',
       mimeType: 'text/plain',
     });
@@ -129,22 +129,40 @@ test('page ops support raw file CRUD without indexing raw files', async () => {
     const allRaw = await listRawFiles({ config });
     assert.deepEqual(allRaw.map((entry) => entry.path), [
       'meetings/.raw/transcript.txt',
-      'sources/.raw/uploads/source.txt',
+      'sources/.raw/uploads-source.txt',
     ]);
 
     const sourcesRaw = await listRawFiles({ config, rawPath: 'sources/.raw', recursive: false });
-    assert.deepEqual(sourcesRaw.map((entry) => entry.path), []);
+    assert.deepEqual(sourcesRaw.map((entry) => entry.path), ['sources/.raw/uploads-source.txt']);
 
-    const nestedSourcesRaw = await listRawFiles({ config, rawPath: 'sources/.raw', recursive: true });
-    assert.deepEqual(nestedSourcesRaw.map((entry) => entry.path), ['sources/.raw/uploads/source.txt']);
-
-    const deleted = await deleteRawFile({ config, rawPath: 'sources/.raw/uploads/source.txt' });
-    assert.deepEqual(deleted, { path: 'sources/.raw/uploads/source.txt', deleted: true });
-    await assert.rejects(() => readRawFile({ config, rawPath: 'sources/.raw/uploads/source.txt' }), /ENOENT/);
+    const deleted = await deleteRawFile({ config, rawPath: 'sources/.raw/uploads-source.txt' });
+    assert.deepEqual(deleted, { path: 'sources/.raw/uploads-source.txt', deleted: true });
+    await assert.rejects(() => readRawFile({ config, rawPath: 'sources/.raw/uploads-source.txt' }), /ENOENT/);
 
     await syncBrain({ config, apiKey: null });
     const db = await openDatabase(config);
     assert.equal(await getPageRecord(db, 'meetings/.raw/transcript.txt'), undefined);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page ops reject nested raw file paths', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-raw-nested-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await assert.rejects(
+      () => createRawFile({
+        config,
+        rawPath: 'sources/.raw/uploads/source.txt',
+        rawContentText: 'nested raw text',
+      }),
+      /Raw file path must use <collection>\/\.raw\/<file>/,
+    );
+    await assert.rejects(
+      () => listRawFiles({ config, rawPath: 'sources/.raw/uploads/source.txt', recursive: true }),
+      /Raw file list path must use <collection>\/\.raw/,
+    );
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -158,16 +176,16 @@ test('page ops reject raw files over the configured decoded size limit before wr
 
     await assert.rejects(() => createRawFile({
       config,
-      rawPath: 'sources/.raw/uploads/too-large.txt',
+      rawPath: 'sources/.raw/uploads-too-large.txt',
       rawContentText: 'this is too large',
       mimeType: 'text/plain',
     }), /Raw file is too large: 17 bytes exceeds the configured limit of 10 bytes/);
 
-    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'sources', '.raw', 'uploads', 'too-large.txt')), /ENOENT/);
+    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'sources', '.raw', 'uploads-too-large.txt')), /ENOENT/);
 
     await assert.rejects(() => createRawFileWithPage({
       config,
-      rawPath: 'sources/.raw/uploads/too-large.pdf',
+      rawPath: 'sources/.raw/uploads-too-large.pdf',
       rawContentBase64: Buffer.from('also too large', 'utf8').toString('base64'),
       pagePath: 'sources/too-large',
       title: 'Too Large',
@@ -175,22 +193,22 @@ test('page ops reject raw files over the configured decoded size limit before wr
       timelineEntry: 'Attempted oversized upload.',
     }), /Raw file is too large/);
 
-    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'sources', '.raw', 'uploads', 'too-large.pdf')), /ENOENT/);
+    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'sources', '.raw', 'uploads-too-large.pdf')), /ENOENT/);
     await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'sources', 'too-large.md')), /ENOENT/);
 
     await createRawFile({
       config,
-      rawPath: 'sources/.raw/uploads/existing.txt',
+      rawPath: 'sources/.raw/uploads-existing.txt',
       rawContentText: 'small',
       mimeType: 'text/plain',
     });
     await assert.rejects(() => updateRawFile({
       config,
-      rawPath: 'sources/.raw/uploads/existing.txt',
+      rawPath: 'sources/.raw/uploads-existing.txt',
       rawContentText: 'replacement is too large',
       mimeType: 'text/plain',
     }), /Raw file is too large/);
-    assert.equal(await fs.readFile(path.join(fixture.brainHome, 'sources', '.raw', 'uploads', 'existing.txt'), 'utf8'), 'small');
+    assert.equal(await fs.readFile(path.join(fixture.brainHome, 'sources', '.raw', 'uploads-existing.txt'), 'utf8'), 'small');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

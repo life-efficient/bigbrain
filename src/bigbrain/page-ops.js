@@ -257,7 +257,7 @@ export function normalizeRawPath(input) {
     throw new Error(`Invalid raw file path: ${input}`);
   }
   const parts = normalized.split('/');
-  if (parts.length < 3 || parts[1] !== '.raw') {
+  if (parts.length !== 3 || parts[1] !== '.raw') {
     throw new Error('Raw file path must use <collection>/.raw/<file>.');
   }
   if (parts.some((part, index) => !part || part === '.' || part === '..' || (part.startsWith('.') && index !== 1))) {
@@ -274,7 +274,9 @@ export function normalizeRawListPath(input = '') {
     throw new Error(`Invalid raw file list path: ${input}`);
   }
   const parts = normalized.split('/');
-  if (!parts.includes('.raw')) throw new Error('Raw file list path must include a .raw folder.');
+  if (parts[1] !== '.raw' || parts.length > 3) {
+    throw new Error('Raw file list path must use <collection>/.raw or <collection>/.raw/<file>.');
+  }
   if (parts.some((part, index) => !part || part === '.' || part === '..' || (part.startsWith('.') && part !== '.raw'))) {
     throw new Error(`Invalid raw file list path: ${input}`);
   }

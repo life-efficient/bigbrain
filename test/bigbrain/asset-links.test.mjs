@@ -11,14 +11,14 @@ import { syncBrain } from '../../src/bigbrain/sync.js';
 test('health accepts existing asset links and flags missing asset links', async () => {
   const fixture = await createFixture('bigbrain-asset-links-');
   try {
-    await writeFile(path.join(fixture.brainHome, 'concepts', '.raw', 'deck', 'poster.png'), 'png');
+    await writeFile(path.join(fixture.brainHome, 'concepts', '.raw', 'deck-poster.png'), 'png');
     await writeMarkdown(fixture.brainHome, 'concepts/deck.md', `---
 title: Deck
 ---
 # Deck
 
-- Existing asset: [poster](.raw/deck/poster.png)
-- Missing asset: [transcript](.raw/deck/transcript.txt)
+- Existing asset: [poster](.raw/deck-poster.png)
+- Missing asset: [transcript](.raw/deck-transcript.txt)
 ---
 ## Timeline
 - **2026-05-19** | Added.
@@ -31,8 +31,36 @@ title: Deck
     const unresolved = report.findings.filter((finding) => finding.finding_type === 'unresolved_link');
     assert.equal(unresolved.length, 1);
     assert.equal(unresolved[0].page_slug, 'concepts/deck');
-    assert.equal(unresolved[0].details.target_slug, 'concepts/.raw/deck/transcript.txt');
+    assert.equal(unresolved[0].details.target_slug, 'concepts/.raw/deck-transcript.txt');
     assert.equal(unresolved[0].details.link_kind, 'asset');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('health flags nested raw file paths', async () => {
+  const fixture = await createFixture('bigbrain-nested-raw-health-');
+  try {
+    await writeFile(path.join(fixture.brainHome, 'concepts', '.raw', 'deck', 'poster.png'), 'png');
+    await writeMarkdown(fixture.brainHome, 'concepts/deck.md', `---
+title: Deck
+---
+# Deck
+
+Nested raw fixture.
+---
+## Timeline
+- **2026-05-19** | Added.
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const report = await runHealthCheck(config);
+
+    const nested = report.findings.filter((finding) => finding.finding_type === 'nested_raw_file_path');
+    assert.equal(nested.length, 1);
+    assert.equal(nested[0].details.path, 'concepts/.raw/deck/poster.png');
+    assert.equal(nested[0].details.expected_shape, '<collection>/.raw/<filename>');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

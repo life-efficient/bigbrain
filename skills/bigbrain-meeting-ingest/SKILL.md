@@ -53,7 +53,7 @@ This skill guarantees:
    - write or refresh `## Action Items`
    - write or refresh `## Discussion Notes`
 5. If the raw transcript, deck, or notes should stay accessible:
-   - attach them at the raw path required by the filing rules, for example `meetings/.raw/<meeting-slug>/transcript.txt`
+   - attach them at the raw path required by the filing rules, for example `meetings/.raw/<meeting-slug>-transcript.txt`
    - use `create_raw_file_with_page` when creating the meeting page and raw transcript together
    - use `create_raw_file` plus a page link and timeline entry when adding raw material to an existing page
    - link the meeting page to the artifact

@@ -642,7 +642,7 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'Optional .raw path prefix such as sources/.raw or sources/.raw/deck.' },
+          path: { type: 'string', description: 'Optional .raw path prefix such as sources/.raw or sources/.raw/deck.pdf.' },
           recursive: { type: 'boolean' },
           limit: { type: 'number' },
           order_by: { type: 'string', enum: ['updated_at', 'created_at', 'alphanumeric'] },
@@ -662,7 +662,7 @@ function toolDefinitions() {
     },
     {
       name: 'create_raw_file',
-      description: 'Create one raw file under <collection>/.raw/<file> without creating a markdown page. Raw uploads are size-limited to protect git-backed sync.',
+      description: 'Create one raw file under <collection>/.raw/<filename> without creating a markdown page. Do not nest folders inside .raw. Raw uploads are size-limited to protect git-backed sync.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -691,11 +691,11 @@ function toolDefinitions() {
     },
     {
       name: 'create_raw_file_with_page',
-      description: 'Upload a raw file under <collection>/.raw/<file> and create the corresponding markdown brain page in one call. Raw uploads are size-limited to protect git-backed sync.',
+      description: 'Upload a raw file under <collection>/.raw/<filename> and create the corresponding markdown brain page in one call. Do not nest folders inside .raw. Raw uploads are size-limited to protect git-backed sync.',
       inputSchema: {
         type: 'object',
         properties: {
-          raw_path: { type: 'string', description: 'Destination such as sources/.raw/deck.pdf or meetings/.raw/call/transcript.txt.' },
+          raw_path: { type: 'string', description: 'Destination such as sources/.raw/deck.pdf or meetings/.raw/call-transcript.txt.' },
           raw_content_base64: { type: 'string', description: 'Base64 encoded raw bytes. Use this for PDFs, images, and other binary files.' },
           raw_content_text: { type: 'string', description: 'Plain text raw content. Use exactly one of raw_content_base64 or raw_content_text.' },
           mime_type: { type: 'string' },

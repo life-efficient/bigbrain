@@ -69,6 +69,17 @@ export async function runHealthCheck(config, {
     }
   }
 
+  for (const rawPath of await detectNestedRawFiles(config.brainDir)) {
+    await insertHealthFinding(db, {
+      findingType: 'nested_raw_file_path',
+      severity: 'medium',
+      details: {
+        path: rawPath,
+        expected_shape: '<collection>/.raw/<filename>',
+      },
+    });
+  }
+
   const gitStatus = await detectGitStatus(config.brainDir);
   if (gitStatus) {
     await insertHealthFinding(db, {
@@ -141,7 +152,34 @@ export async function runHealthCheck(config, {
 function severityForFinding(findingType) {
   if (findingType === 'missing_frontmatter' || findingType === 'missing_separator') return 'medium';
   if (findingType === 'missing_meeting_heading' || findingType === 'invalid_meeting_prep_heading' || findingType === 'invalid_meeting_prep_structure') return 'medium';
+  if (findingType === 'nested_raw_file_path') return 'medium';
   return 'low';
+}
+
+async function detectNestedRawFiles(brainDir) {
+  const nested = [];
+  await walkForNestedRawFiles(brainDir, brainDir, nested);
+  nested.sort();
+  return nested;
+}
+
+async function walkForNestedRawFiles(root, current, nested) {
+  const dirents = await fs.readdir(current, { withFileTypes: true }).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  for (const dirent of dirents) {
+    if (dirent.name === '.git' || dirent.name === '.bigbrain' || dirent.name === '.bigbrain-state' || dirent.name === 'node_modules') continue;
+    const fullPath = path.join(current, dirent.name);
+    const relative = path.relative(root, fullPath).split(path.sep).join('/');
+    if (dirent.isDirectory()) {
+      await walkForNestedRawFiles(root, fullPath, nested);
+      continue;
+    }
+    const parts = relative.split('/');
+    const rawIndex = parts.indexOf('.raw');
+    if (rawIndex >= 0 && parts.length - rawIndex > 2) nested.push(relative);
+  }
 }
 
 async function detectGitStatus(brainDir) {

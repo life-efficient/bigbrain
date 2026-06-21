@@ -41,7 +41,7 @@ This skill guarantees:
    - notable sections or timestamps when available
    - people, companies, or projects that materially matter
 4. Preserve the source:
-   - transcript, recording, or supporting files under `<collection>/.raw/<page-slug>/`
+   - transcript, recording, or supporting files under `<collection>/.raw/<filename>`
    - call `filing_rules` first when using an MCP or remote brain connector
 5. Update the canonical page with durable knowledge rather than transcript sprawl
 6. Re-index:
