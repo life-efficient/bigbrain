@@ -19,8 +19,9 @@ This skill guarantees:
 - Ask focused onboarding questions instead of dumping a long form on the user
 - Prefer the active BigBrain filing rules and page shapes over generic guesses
 - Create or update starter pages for the user's work, people, companies,
-  projects, concepts, preferences, and open loops
+  projects, concepts, and source material
 - Preserve uncertainty as notes or open questions instead of inventing facts
+- End by filing all gathered information into the brain appropriately
 - Sync the index after meaningful writes
 
 ## Before Asking
@@ -81,26 +82,7 @@ Which people or organizations should this brain know about first?
 Create or update `people/` and `companies/` pages only for entities with enough
 durable signal. Ask one follow-up if the relationship or relevance is unclear.
 
-4. Decisions and preferences:
-
-```text
-What standing preferences, rules, or decisions should agents follow when they
-work with you?
-```
-
-Put durable operating preferences in the brain's preferred protocol or personal
-guidance area. Do not mix personal preferences into unrelated project pages.
-
-5. Open loops:
-
-```text
-What open tasks, questions, or follow-ups should not be forgotten?
-```
-
-Create task pages or update `ops/tasks.md` according to the active brain's task
-conventions. Keep vague items as open questions until they are actionable.
-
-6. Source material:
+4. Source material:
 
 ```text
 Do you already have notes, documents, transcripts, or links that should seed the
@@ -113,6 +95,10 @@ brain?
 
 Route supplied material through the relevant BigBrain ingest skill instead of
 folding complex documents into this onboarding flow.
+
+After the final question, file all gathered information into the brain
+appropriately before ending the interaction. Then thank the user and tell them
+they can add more information like this at any time.
 
 ## Writing Guidance
 
@@ -139,6 +125,7 @@ After meaningful writes:
 Report:
 - questions completed
 - pages created or updated
-- tasks or open questions added
+- source material routed or noted
 - any answers intentionally left unwritten
 - sync result and one retrieval proof
+- closing message thanked the user and invited future additions
