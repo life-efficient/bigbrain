@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Setup"
-  short_description: "Initialize BigBrain, start local MCP, and verify runtime health"
-  default_prompt: "Use BigBrain: Setup to initialize a brain home, start the local always-on MCP service, verify health and sync, optionally migrate markdown, and prove retrieval works."
+  short_description: "Initialize BigBrain, configure backup, start local MCP, and verify runtime health"
+  default_prompt: "Use BigBrain: Setup to initialize a brain home, ask about strongly recommended GitHub backup, configure backup through GitHub MCP when accepted, start the local always-on MCP service, verify health and sync, optionally migrate markdown, and prove retrieval works."

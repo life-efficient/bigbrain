@@ -19,6 +19,18 @@ Where should BigBrain run?
 3. Connect to an already-hosted BigBrain
 ```
 
+Ask this before creating or selecting a local brain folder:
+
+```text
+Do you want to back up this brain to GitHub?
+
+1. Yes, create or connect a private GitHub backup (recommended; STRONGLY RECOMMENDED: everything in your brain could be lost if you delete the folder or lose access to your device)
+2. No, keep it only on this device
+```
+
+If the user chooses no, repeat the warning once in the final setup summary and
+do not configure a GitHub remote.
+
 Ask this only if the brain folder is not obvious from the workspace or existing
 BigBrain config. If asking, use "server" instead of "computer" when the user
 requested server mode. Use the path in
@@ -141,6 +153,74 @@ automation commands:
 bigbrain init /path/to/brain-home
 ```
 
+## GitHub backup
+
+If the user chooses GitHub backup, configure it before finishing local setup.
+The backup should be a private GitHub repository unless the user explicitly asks
+for a public one.
+
+Use the user's GitHub account through the GitHub MCP server:
+
+1. Check whether the GitHub MCP server is already configured:
+
+   ```bash
+   codex mcp list
+   ```
+
+2. If no `github` server is configured, add the official remote GitHub MCP
+   server to `~/.codex/config.toml`:
+
+   ```toml
+   [mcp_servers.github]
+   url = "https://api.githubcopilot.com/mcp/"
+   enabled = true
+   ```
+
+3. Run `codex mcp list` again. If GitHub is not logged in, run:
+
+   ```bash
+   codex mcp login github
+   ```
+
+4. If the user does not have a GitHub account, stop and have them create one at
+   `https://github.com/signup`, then continue the MCP login after they confirm
+   the account exists.
+
+5. Verify the GitHub MCP tools are callable in a fresh agent session. Use a
+   harmless read first, such as checking the authenticated account or listing
+   repositories.
+
+6. Create a new private repository through GitHub MCP, or use the existing
+   GitHub repository the user names. Prefer a clear repo name such as
+   `brain`, `bigbrain-home`, or the user's chosen brain name.
+
+7. Initialize git in the brain home if needed, set the GitHub repository as
+   `origin`, commit the current brain contents, and push:
+
+   ```bash
+   cd /path/to/brain-home
+   git init
+   git branch -M main
+   git remote get-url origin >/dev/null 2>&1 \
+     && git remote set-url origin https://github.com/<owner>/<repo>.git \
+     || git remote add origin https://github.com/<owner>/<repo>.git
+   git add -A
+   git commit -m "Initialize BigBrain backup"
+   git push -u origin main
+   ```
+
+8. Run a no-op backup check after the local MCP service is installed:
+
+   ```bash
+   git status --short
+   ```
+
+The local BigBrain MCP service is configured with git backup enabled. Once the
+brain is a git repository with a working GitHub remote, the service can commit
+and push future brain changes. If GitHub MCP setup, repository creation, or push
+authentication fails, report that backup is not complete and do not claim the
+brain is protected.
+
 ## Automation sync command
 
 Use the global CLI directly:
@@ -252,7 +332,7 @@ brain_home="/path/to/brain-home"
 bigbrain_repo="$repo_root"
 
 mkdir -p "$automation_root"
-for id in bigbrain-check-update bigbrain-hourly-task-refresh bigbrain-nightly-maintenance; do
+for id in bigbrain-check-update bigbrain-nightly-maintenance; do
   rm -rf "$automation_root/$id"
   cp -R "$repo_root/automations/$id" "$automation_root/$id"
   perl -0pi -e "s#<brain-home>#$brain_home#g" "$automation_root/$id/automation.toml"
