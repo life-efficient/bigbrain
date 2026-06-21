@@ -7,8 +7,9 @@ directory, usually under `$CODEX_HOME/automations` or `~/.codex/automations`.
 Keep this repo directory as the source of truth for prompts, schedules, models,
 and execution settings.
 
-`cwds = ["<brain-home>"]` is a portable placeholder. The active installed
-automation should replace it with the local brain home path for that machine.
+`cwds = ["<brain-home>"]` and `cwds = ["<bigbrain-repo>"]` are portable
+placeholders. The active installed automation should replace them with the local
+brain home path or BigBrain source repo path for that machine.
 `bigbrain health --json` compares active automations against these templates
 while ignoring install-local `cwds`, `created_at`, and `updated_at` fields.
 
@@ -26,17 +27,19 @@ automation directory and replace only the placeholder cwd:
 repo_root="$(pwd)"
 automation_root="${CODEX_HOME:-$HOME/.codex}/automations"
 brain_home="/path/to/brain-home"
+bigbrain_repo="$repo_root"
 
 mkdir -p "$automation_root"
-for id in bigbrain-frequent-sync bigbrain-git-backup bigbrain-hourly-task-refresh bigbrain-nightly-maintenance; do
+for id in bigbrain-check-update bigbrain-frequent-sync bigbrain-git-backup bigbrain-hourly-task-refresh bigbrain-nightly-maintenance; do
   rm -rf "$automation_root/$id"
   cp -R "$repo_root/automations/$id" "$automation_root/$id"
   perl -0pi -e "s#<brain-home>#$brain_home#g" "$automation_root/$id/automation.toml"
+  perl -0pi -e "s#<bigbrain-repo>#$bigbrain_repo#g" "$automation_root/$id/automation.toml"
 done
 ```
 
-Keep the resulting `cwds = ["/path/to/brain-home"]` entries in the active
-install only. Do not copy those machine-specific files back into this repo.
+Keep the resulting local `cwds` entries in the active install only. Do not copy
+those machine-specific files back into this repo.
 
 ## Git backup auth
 

@@ -117,8 +117,8 @@ done
 ```
 
 If the harness does not support symlinks, copy the directories exactly. Do not
-rewrite the skill contents. Skill names in `SKILL.md` frontmatter use quoted
-`BigBrain: ...` values so the colon remains valid YAML.
+rewrite the skill contents. Some legacy skill names in `SKILL.md` frontmatter
+use quoted `BigBrain: ...` values so the colon remains valid YAML.
 
 ## Brain selection
 
@@ -185,22 +185,26 @@ templates, not the active local install. The templates intentionally use:
 
 ```toml
 cwds = ["<brain-home>"]
+cwds = ["<bigbrain-repo>"]
 ```
 
 When installing them into the agent runtime, copy the automation directories to
-`${CODEX_HOME:-$HOME/.codex}/automations` and replace `<brain-home>` with the
-real local brain path in the installed copy only:
+`${CODEX_HOME:-$HOME/.codex}/automations`, replace `<brain-home>` with the
+real local brain path, and replace `<bigbrain-repo>` with the local BigBrain
+source repo path in the installed copy only:
 
 ```bash
 repo_root="$(pwd)"
 automation_root="${CODEX_HOME:-$HOME/.codex}/automations"
 brain_home="/path/to/brain-home"
+bigbrain_repo="$repo_root"
 
 mkdir -p "$automation_root"
-for id in bigbrain-frequent-sync bigbrain-git-backup bigbrain-hourly-task-refresh bigbrain-nightly-maintenance; do
+for id in bigbrain-check-update bigbrain-frequent-sync bigbrain-git-backup bigbrain-hourly-task-refresh bigbrain-nightly-maintenance; do
   rm -rf "$automation_root/$id"
   cp -R "$repo_root/automations/$id" "$automation_root/$id"
   perl -0pi -e "s#<brain-home>#$brain_home#g" "$automation_root/$id/automation.toml"
+  perl -0pi -e "s#<bigbrain-repo>#$bigbrain_repo#g" "$automation_root/$id/automation.toml"
 done
 ```
 

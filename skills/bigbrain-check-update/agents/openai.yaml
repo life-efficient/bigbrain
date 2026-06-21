@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Check Update"
+  short_description: "Check for BigBrain updates, pull them, and verify the install"
+  default_prompt: "Use $bigbrain-check-update to check whether BigBrain has an update, pull it if available, and verify it still works."
