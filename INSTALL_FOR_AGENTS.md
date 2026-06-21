@@ -29,7 +29,7 @@ when possible:
 ```text
 Where on your computer should I store the brain?
 
-1. The default path from ~/.config/bigbrain/default-brain-home, using ~ when possible (recommended)
+1. The default (`~/.config/bigbrain/default-brain-home`) (recommended)
 2. Somewhere else (tell me where)
 ```
 
