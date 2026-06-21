@@ -16,4 +16,5 @@
 | Answer questions using the selected BigBrain brain home with cited source slugs | `skills/bigbrain-query/SKILL.md` |
 | Fan out concise handoff prompts from BigBrain task pages exposed through MCP | `skills/bigbrain-fanout-tasks/SKILL.md` |
 | Suggest and create roadmap-derived task pages from BigBrain progress and blockers | `skills/bigbrain-roadmap-tasks/SKILL.md` |
+| Refresh existing BigBrain task pages from current brain evidence | `skills/bigbrain-refresh-tasks/SKILL.md` |
 | Run a bounded health-and-remediation pass for a configured BigBrain brain home | `skills/bigbrain-maintain/SKILL.md` |

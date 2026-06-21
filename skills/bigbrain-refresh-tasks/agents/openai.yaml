@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Refresh Tasks"
+  short_description: "Refresh task pages from current BigBrain evidence"
+  default_prompt: "Use BigBrain: Refresh Tasks to reconcile BigBrain task pages with current brain evidence, updating stale statuses and metadata through MCP task tools."
