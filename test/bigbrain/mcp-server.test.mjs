@@ -778,6 +778,107 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
   }
 });
 
+test('MCP task tools resolve me to a deterministic local member when auth is disabled', async () => {
+  const fixture = await createFixture('bigbrain-mcp-local-me-');
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const db = await openDatabase(config);
+    await upsertMember(db, {
+      email: 'local@example.test',
+      name: 'Local Owner',
+      person_slug: 'people/local-owner',
+      role: 'owner',
+    });
+    await db.close?.();
+
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: { mode: 'none', tokenStorePath: '', localPersonSlug: '' },
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const me = await rpc(running.url, 'tools/call', { name: 'me', arguments: {} });
+    assert.equal(me.error, undefined, me.error?.message);
+    assert.equal(me.result.structuredContent.actor, null);
+    assert.equal(me.result.structuredContent.authenticated, false);
+    assert.equal(me.result.structuredContent.person_slug, 'people/local-owner');
+
+    const created = await rpc(running.url, 'tools/call', {
+      name: 'tasks/create',
+      arguments: {
+        title: 'Handle local assignment',
+        body: 'This local task should resolve assignee me without OAuth.',
+        assignees: ['me'],
+      },
+    });
+    assert.equal(created.error, undefined, created.error?.message);
+    assert.deepEqual(created.result.structuredContent.assignee_slugs, ['people/local-owner']);
+
+    const mine = await rpc(running.url, 'tools/call', {
+      name: 'tasks/list',
+      arguments: { assignee: 'me', status: 'open' },
+    });
+    assert.equal(mine.error, undefined, mine.error?.message);
+    assert.deepEqual(mine.result.structuredContent.map((task) => task.slug), ['tasks/handle-local-assignment']);
+
+    const explicit = await rpc(running.url, 'tools/call', {
+      name: 'tasks/list',
+      arguments: { assignee: 'people/local-owner', status: 'open' },
+    });
+    assert.equal(explicit.error, undefined, explicit.error?.message);
+    assert.deepEqual(explicit.result.structuredContent.map((task) => task.slug), ['tasks/handle-local-assignment']);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('MCP task tools reject ambiguous local me resolution when auth is disabled', async () => {
+  const fixture = await createFixture('bigbrain-mcp-local-me-ambiguous-');
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const db = await openDatabase(config);
+    await upsertMember(db, {
+      email: 'first@example.test',
+      name: 'First Owner',
+      person_slug: 'people/first-owner',
+      role: 'owner',
+    });
+    await upsertMember(db, {
+      email: 'second@example.test',
+      name: 'Second Owner',
+      person_slug: 'people/second-owner',
+      role: 'owner',
+    });
+    await db.close?.();
+
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: { mode: 'none', tokenStorePath: '', localPersonSlug: '' },
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const mine = await rpc(running.url, 'tools/call', {
+      name: 'tasks/list',
+      arguments: { assignee: 'me', status: 'open' },
+    });
+    assert.equal(mine.result, undefined);
+    assert.match(mine.error.message, /multiple active owners/);
+    assert.match(mine.error.message, /BIGBRAIN_MCP_LOCAL_PERSON_SLUG/);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('MCP OAuth allowlist mode exposes Codex-native OAuth endpoints', async () => {
   const fixture = await createFixture('bigbrain-mcp-oauth-native-');
   const tokenStorePath = path.join(fixture.rootDir, 'tokens.json');

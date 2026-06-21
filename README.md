@@ -186,6 +186,12 @@ assignees that match active members. External people can still be linked in
 notes, sources, or stakeholder fields; they are not assignable until they are
 added as members.
 
+For a private local MCP service running with `BIGBRAIN_MCP_AUTH_MODE=none`,
+`assignee=me` resolves to the single active owner, or to the single active
+member when there is no owner. If a local brain has multiple active owners or
+members, set `BIGBRAIN_MCP_LOCAL_PERSON_SLUG=people/hani` in the service
+environment to choose the local identity.
+
 ## Install
 
 Install the CLI globally from this repo:

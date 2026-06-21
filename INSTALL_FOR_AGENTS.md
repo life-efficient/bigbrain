@@ -276,6 +276,16 @@ node "$repo_root/scripts/install-local-mcp-service.mjs" \
   --brain-home "$brain_home"
 ```
 
+If the local brain has multiple active members or owners, choose the local
+identity explicitly:
+
+```bash
+node "$repo_root/scripts/install-local-mcp-service.mjs" \
+  --repo-root "$repo_root" \
+  --brain-home "$brain_home" \
+  --local-person-slug people/hani
+```
+
 This writes a LaunchAgent at:
 
 ```text
@@ -310,9 +320,11 @@ http://127.0.0.1:3333/mcp
 ```
 
 This local service uses `BIGBRAIN_MCP_AUTH_MODE=none` and binds only to
-`127.0.0.1`. Do not use this unauthenticated local service for remote or shared
-brains. For server or team access, use the hosted MCP setup in
-`docs/mcp-hosting.md`.
+`127.0.0.1`. In this mode, `assignee=me` resolves to the configured
+`BIGBRAIN_MCP_LOCAL_PERSON_SLUG`, the single active owner, or the single active
+member. Ambiguous local membership fails with setup guidance instead of guessing.
+Do not use this unauthenticated local service for remote or shared brains. For
+server or team access, use the hosted MCP setup in `docs/mcp-hosting.md`.
 
 ## Install automations
 

@@ -31,9 +31,26 @@ export async function findActiveMemberByPersonSlug(db, personSlug) {
   return row ? normalizeMember(row) : null;
 }
 
-export async function resolveActorMember(db, actor) {
-  if (!actor?.email) return null;
-  return findActiveMemberByEmail(db, actor.email);
+export async function resolveActorMember(db, actor, { authMode = null, localPersonSlug = null } = {}) {
+  if (actor?.email) return findActiveMemberByEmail(db, actor.email);
+  if (authMode !== 'none') return null;
+  const configuredSlug = normalizePersonSlug(localPersonSlug);
+  if (configuredSlug) {
+    const member = await findActiveMemberByPersonSlug(db, configuredSlug);
+    if (!member) throw new Error(`Configured local member is not an active member: ${configuredSlug}`);
+    return member;
+  }
+  const members = await listActiveMembers(db);
+  const owners = members.filter((member) => member.role === 'owner');
+  if (owners.length === 1) return owners[0];
+  if (owners.length > 1) {
+    throw new Error('Local auth mode has multiple active owners. Set BIGBRAIN_MCP_LOCAL_PERSON_SLUG to choose the local owner.');
+  }
+  if (members.length === 1) return members[0];
+  if (members.length > 1) {
+    throw new Error('Local auth mode has multiple active members and no active owner. Set BIGBRAIN_MCP_LOCAL_PERSON_SLUG to choose the local owner.');
+  }
+  return null;
 }
 
 export async function upsertMember(db, member) {

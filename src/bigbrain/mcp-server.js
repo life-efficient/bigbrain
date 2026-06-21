@@ -154,8 +154,8 @@ export async function startMcpServer({
 
       const payload = JSON.parse(await readRequestBody(request, { maxBytes: mcpRequestMaxBytes(config) }));
       const result = Array.isArray(payload)
-        ? (await Promise.all(payload.map((message) => handleJsonRpcMessage({ config, message, gitBackupEnabled, actor: authorization.actor })))).filter(Boolean)
-        : await handleJsonRpcMessage({ config, message: payload, gitBackupEnabled, actor: authorization.actor });
+        ? (await Promise.all(payload.map((message) => handleJsonRpcMessage({ config, message, gitBackupEnabled, actor: authorization.actor, authConfig })))).filter(Boolean)
+        : await handleJsonRpcMessage({ config, message: payload, gitBackupEnabled, actor: authorization.actor, authConfig });
       if (!result || (Array.isArray(result) && result.length === 0)) {
         return sendNoContent(response);
       }
@@ -209,7 +209,7 @@ function isDashboardRequest(pathname) {
     || pathname.startsWith('/api/');
 }
 
-async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor }) {
+async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor, authConfig }) {
   if (!message || message.jsonrpc !== '2.0') return jsonRpcError(message?.id ?? null, -32600, 'Invalid JSON-RPC request.');
   if (message.id === undefined) return null;
 
@@ -226,7 +226,7 @@ async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor }
       case 'tools/list':
         return jsonRpcResult(message.id, { tools: toolDefinitions().filter((tool) => canCallTool(tool.name, actor)) });
       case 'tools/call':
-        return jsonRpcResult(message.id, await callTool({ config, params: message.params || {}, gitBackupEnabled, actor }));
+        return jsonRpcResult(message.id, await callTool({ config, params: message.params || {}, gitBackupEnabled, actor, authConfig }));
       default:
         return jsonRpcError(message.id, -32601, `Unknown method: ${message.method}`);
     }
@@ -238,28 +238,28 @@ async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor }
   }
 }
 
-async function callTool({ config, params, gitBackupEnabled, actor }) {
+async function callTool({ config, params, gitBackupEnabled, actor, authConfig }) {
   const name = params.name;
   const args = params.arguments || {};
   assertToolAllowed(name, actor);
   switch (name) {
     case 'me':
-      return toolJson(await toolMe(config, actor));
+      return toolJson(await toolMe(config, actor, authConfig));
     case 'members/list':
     case 'members_list':
       return toolJson(await toolMembersList(config, args));
     case 'tasks/list':
     case 'tasks_list':
-      return toolJson(await toolTasksList(config, args, actor));
+      return toolJson(await toolTasksList(config, args, actor, authConfig));
     case 'tasks/create':
     case 'tasks_create': {
-      const task = await toolTasksCreate(config, args, actor);
+      const task = await toolTasksCreate(config, args, actor, authConfig);
       await postWriteMaintenance(config, gitBackupEnabled, actor);
       return toolJson(task);
     }
     case 'tasks/update':
     case 'tasks_update': {
-      const task = await toolTasksUpdate(config, args, actor);
+      const task = await toolTasksUpdate(config, args, actor, authConfig);
       await postWriteMaintenance(config, gitBackupEnabled, actor);
       return toolJson(task);
     }
@@ -372,10 +372,10 @@ async function postWriteMaintenance(config, gitBackupEnabled, actor) {
   }
 }
 
-async function toolMe(config, actor) {
+async function toolMe(config, actor, authConfig) {
   const db = await openDatabase(config);
   try {
-    const member = await resolveActorMember(db, actor);
+    const member = await resolveActorMember(db, actor, memberResolutionFromAuthConfig(authConfig));
     return {
       actor: actor || null,
       member,
@@ -396,7 +396,7 @@ async function toolMembersList(config, args) {
   }
 }
 
-async function toolTasksList(config, args, actor) {
+async function toolTasksList(config, args, actor, authConfig) {
   const db = await openDatabase(config);
   try {
     return await listTaskPages({
@@ -406,13 +406,14 @@ async function toolTasksList(config, args, actor) {
       status: args.status || null,
       priority: args.priority || null,
       actor,
+      memberResolution: memberResolutionFromAuthConfig(authConfig),
     });
   } finally {
     await db.close?.();
   }
 }
 
-async function toolTasksCreate(config, args, actor) {
+async function toolTasksCreate(config, args, actor, authConfig) {
   const db = await openDatabase(config);
   try {
     return await createTaskPage({
@@ -427,13 +428,14 @@ async function toolTasksCreate(config, args, actor) {
       path: args.path || null,
       timelineEntry: timelineWithActor(args.timeline_entry || 'Task created through MCP.', actor),
       actor,
+      memberResolution: memberResolutionFromAuthConfig(authConfig),
     });
   } finally {
     await db.close?.();
   }
 }
 
-async function toolTasksUpdate(config, args, actor) {
+async function toolTasksUpdate(config, args, actor, authConfig) {
   const db = await openDatabase(config);
   try {
     return await updateTaskPage({
@@ -447,10 +449,18 @@ async function toolTasksUpdate(config, args, actor) {
       source: args.source,
       timelineEntry: timelineWithActor(args.timeline_entry || 'Task updated through MCP.', actor),
       actor,
+      memberResolution: memberResolutionFromAuthConfig(authConfig),
     });
   } finally {
     await db.close?.();
   }
+}
+
+function memberResolutionFromAuthConfig(authConfig) {
+  return {
+    authMode: authConfig?.mode || null,
+    localPersonSlug: authConfig?.localPersonSlug || null,
+  };
 }
 
 async function toolSearch(config, args) {

@@ -8,10 +8,10 @@ import { findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug,
 const TASK_STATUSES = ['open', 'waiting', 'blocked', 'done', 'archived'];
 const TASK_PRIORITIES = ['p0', 'p1', 'p2', 'p3'];
 
-export async function listTaskPages({ config, db, assignee = null, status = null, priority = null, actor = null } = {}) {
+export async function listTaskPages({ config, db, assignee = null, status = null, priority = null, actor = null, memberResolution = {} } = {}) {
   const members = await listActiveMembers(db);
   const memberMap = memberMapByPersonSlug(members);
-  const assigneeMember = await resolveAssigneeFilter({ db, assignee, actor });
+  const assigneeMember = await resolveAssigneeFilter({ db, assignee, actor, memberResolution });
   const hasAssigneeFilter = assignee !== null && assignee !== undefined && String(assignee).trim() !== '';
   const normalizedStatus = status ? normalizeStatus(status) : null;
   const normalizedPriority = priority ? normalizePriority(priority) : null;
@@ -35,9 +35,10 @@ export async function createTaskPage({
   path: taskPath = null,
   timelineEntry = null,
   actor = null,
+  memberResolution = {},
 } = {}) {
   const normalizedTitle = requireNonEmpty(title, 'title');
-  const assigneeSlugs = await normalizeAndValidateAssignees(db, assignees, actor);
+  const assigneeSlugs = await normalizeAndValidateAssignees(db, assignees, actor, memberResolution);
   const normalizedStatus = normalizeStatus(status);
   const normalizedPriority = normalizePriority(priority);
   const slug = taskPath ? normalizeTaskSlug(taskPath) : `tasks/${slugify(normalizedTitle)}`;
@@ -69,6 +70,7 @@ export async function updateTaskPage({
   source = null,
   timelineEntry = null,
   actor = null,
+  memberResolution = {},
 } = {}) {
   const relative = normalizeTaskPagePath(taskPath);
   const fullPath = safeBrainPath(config.brainDir, relative);
@@ -81,7 +83,7 @@ export async function updateTaskPage({
     priority: priority === null || priority === undefined ? normalizePriority(parsed.frontmatter.priority || 'p3') : normalizePriority(priority),
   };
   if (assignees !== null && assignees !== undefined) {
-    nextFrontmatter.assignees = await normalizeAndValidateAssignees(db, assignees, actor);
+    nextFrontmatter.assignees = await normalizeAndValidateAssignees(db, assignees, actor, memberResolution);
   } else {
     nextFrontmatter.assignees = normalizeSlugList(parsed.frontmatter.assignees);
   }
@@ -108,11 +110,11 @@ export async function updateTaskPage({
   return decorateTaskPage(await readBrainPage({ config, pagePath: relative }), memberMapByPersonSlug(await listActiveMembers(db)));
 }
 
-export async function resolveAssigneeFilter({ db, assignee, actor } = {}) {
+export async function resolveAssigneeFilter({ db, assignee, actor, memberResolution = {} } = {}) {
   const normalized = String(assignee || '').trim();
   if (!normalized || normalized === 'all') return null;
   if (normalized === 'me') {
-    const member = await resolveActorMember(db, actor);
+    const member = await resolveActorMember(db, actor, memberResolution);
     if (!member) throw new Error('The authenticated user is not an active member, so assignee=me cannot be resolved.');
     return member;
   }
@@ -152,12 +154,12 @@ function isTaskDocumentationFile(fullPath) {
   return basename === 'readme.md' || basename === 'filing.md';
 }
 
-async function normalizeAndValidateAssignees(db, assignees, actor = null) {
+async function normalizeAndValidateAssignees(db, assignees, actor = null, memberResolution = {}) {
   const slugs = normalizeSlugList(assignees);
   if (!slugs.length) return [];
   const validated = [];
   for (const slug of slugs) {
-    const member = slug === 'me' ? await resolveActorMember(db, actor) : await findActiveMemberByPersonSlug(db, slug);
+    const member = slug === 'me' ? await resolveActorMember(db, actor, memberResolution) : await findActiveMemberByPersonSlug(db, slug);
     if (!member) throw new Error(`Task assignee is not an active member: ${slug}`);
     validated.push(member.person_slug);
   }

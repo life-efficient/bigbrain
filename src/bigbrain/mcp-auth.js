@@ -32,6 +32,7 @@ export function buildAuthConfig({
     mode,
     authToken,
     publicUrl,
+    localPersonSlug: env.BIGBRAIN_MCP_LOCAL_PERSON_SLUG || '',
     provider: env.BIGBRAIN_MCP_OAUTH_PROVIDER || DEFAULT_PROVIDER,
     googleClientId: env.BIGBRAIN_MCP_GOOGLE_CLIENT_ID || env.GOOGLE_CLIENT_ID || '',
     googleClientSecret: env.BIGBRAIN_MCP_GOOGLE_CLIENT_SECRET || env.GOOGLE_CLIENT_SECRET || '',

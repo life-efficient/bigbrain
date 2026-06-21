@@ -18,6 +18,7 @@ async function main() {
   const label = options.label || DEFAULT_LABEL;
   const host = options.host || DEFAULT_HOST;
   const port = Number(options.port || DEFAULT_PORT);
+  const localPersonSlug = normalizeLocalPersonSlug(options.localPersonSlug || '');
   const plistPath = options.plistPath || path.join(os.homedir(), 'Library', 'LaunchAgents', `${label}.plist`);
   const logDir = options.logDir || path.join(os.homedir(), '.config', 'bigbrain');
   const nodePath = options.nodePath || process.execPath;
@@ -35,10 +36,11 @@ async function main() {
     stdoutPath: path.join(logDir, 'bigbrain-mcp.log'),
     stderrPath: path.join(logDir, 'bigbrain-mcp.err.log'),
     home: os.homedir(),
+    localPersonSlug,
   });
 
   if (options.dryRun) {
-    console.log(JSON.stringify({ label, plistPath, serviceTarget, brainHome, host, port, repoRoot }, null, 2));
+    console.log(JSON.stringify({ label, plistPath, serviceTarget, brainHome, host, port, repoRoot, localPersonSlug }, null, 2));
     return;
   }
 
@@ -66,6 +68,7 @@ async function main() {
     brainHome,
     mcpUrl: `http://${host}:${port}/mcp`,
     healthUrl: `http://${host}:${port}/health`,
+    localPersonSlug,
   }, null, 2));
 }
 
@@ -101,6 +104,9 @@ function parseArgs(args) {
       case '--bigbrain-bin':
         options.bigbrainBin = args[++index];
         break;
+      case '--local-person-slug':
+        options.localPersonSlug = args[++index];
+        break;
       case '--dry-run':
         options.dryRun = true;
         break;
@@ -129,6 +135,7 @@ function renderLaunchAgentPlist({
   stdoutPath,
   stderrPath,
   home,
+  localPersonSlug,
 }) {
   const args = [
     nodePath,
@@ -161,7 +168,9 @@ ${args.map((arg) => `    <string>${xmlEscape(arg)}</string>`).join('\n')}
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>BIGBRAIN_MCP_AUTH_MODE</key>
     <string>none</string>
-    <key>BIGBRAIN_MCP_GIT_BACKUP</key>
+${localPersonSlug ? `    <key>BIGBRAIN_MCP_LOCAL_PERSON_SLUG</key>
+    <string>${xmlEscape(localPersonSlug)}</string>
+` : ''}    <key>BIGBRAIN_MCP_GIT_BACKUP</key>
     <string>1</string>
     <key>BIGBRAIN_MCP_SYNC_INTERVAL_MS</key>
     <string>300000</string>
@@ -188,6 +197,14 @@ function xmlEscape(value) {
     .replaceAll('>', '&gt;')
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&apos;');
+}
+
+function normalizeLocalPersonSlug(value) {
+  const normalized = String(value || '').trim().replace(/\.md$/i, '');
+  if (normalized && !normalized.startsWith('people/')) {
+    throw new Error('--local-person-slug must be a people/<slug> page slug.');
+  }
+  return normalized;
 }
 
 async function verifyHealth({ host, port }) {

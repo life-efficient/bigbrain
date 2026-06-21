@@ -275,6 +275,9 @@ the write came from an OAuth user.
 - `/mcp` requires auth unless `BIGBRAIN_MCP_AUTH_MODE=none`.
 - Hosted `dashboard` requires `BIGBRAIN_MCP_AUTH_MODE=oauth_allowlist`; local
   dashboard remains unauthenticated unless OAuth is configured.
+- In local `none` auth mode, `assignee=me` resolves to
+  `BIGBRAIN_MCP_LOCAL_PERSON_SLUG`, the single active owner, or the single active
+  member. Multiple possible local identities produce a setup error.
 - `/connect`, `/auth/start`, and `/auth/callback` are enabled only in
   `oauth_allowlist` mode.
 - Keep token/session state on persistent storage. Prefer the database-backed
