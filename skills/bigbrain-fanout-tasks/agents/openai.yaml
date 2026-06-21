@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Fanout Tasks"
+  short_description: "Create handoff-ready prompts from BigBrain MCP task pages"
+  default_prompt: "Use BigBrain: Fanout Tasks to list matching BigBrain tasks through the MCP tasks/list tool and return concise ready task prompts in chat."

@@ -1,0 +1,73 @@
+---
+name: "BigBrain: Fanout Tasks"
+version: 1.0.0
+description: |
+  Fan out concise chat prompts from open BigBrain task pages exposed through
+  the BigBrain MCP task tools. Use when the user wants daily kickoff prompts,
+  one prompt per brain task, prompts for their assigned BigBrain tasks, or
+  prompts filtered by task assignee, status, or priority.
+triggers:
+  - "fan out brain tasks"
+  - "bigbrain task prompts"
+  - "daily kickoff from BigBrain"
+  - "one prompt per brain task"
+  - "tasks assigned to me"
+tools:
+  - mcp
+mutating: false
+---
+
+# BigBrain: Fanout Tasks
+
+Use this skill when the user wants handoff-ready chat prompts generated from
+BigBrain task pages. BigBrain tasks are page-backed records under `tasks/*.md`;
+do not read or reconstruct old `ops/tasks.md` task lists.
+
+## Workflow
+
+Use the BigBrain MCP task endpoint as the source of truth:
+
+1. Call `tasks/list` with `status: "open"` by default.
+2. If the MCP client does not support slash tool names, call the alias
+   `tasks_list` with the same arguments.
+3. Honor scoping in the user's request:
+   - For "my tasks" or "assigned to me", pass `assignee: "me"`.
+   - For "for people/name" or "assigned to people/name", pass that assignee
+     slug.
+   - For a named priority such as `p0`, `p1`, `p2`, or `p3`, pass `priority`.
+   - For a named status, pass `status`; otherwise keep `status: "open"`.
+4. Use the returned task title, body, priority, assignees, source, and slug to
+   create one prompt per task.
+
+Respond in chat with the generated prompts. Do not write the result to a file,
+do not return only a file link, and do not make the user open an artifact to see
+the prompts.
+
+## Output Requirements
+
+Default output is capped at 10 ready items. Keep each ready item short and
+copyable:
+
+- Show a `Ready tasks` section first.
+- Each ready task should be one concise copyable prompt block that names the
+  BigBrain task slug and describes only the task to do.
+- Do not format ready tasks as a numbered list.
+- Do not include boilerplate about reading files, preserving changes,
+  verification, commits, or updating task pages.
+- Show a `Needs more specification` section after ready tasks when tasks are too
+  vague to hand off cleanly.
+- Keep the needs-specification list succinct; name the task slug and the unclear
+  task.
+
+If no actionable BigBrain task pages match the requested filters, say that
+directly and do not invent prompts.
+
+## Quality Rules
+
+- Treat MCP task data as authoritative for task status and assignees.
+- Do not use local `TODO.md` discovery for this skill.
+- Do not mutate tasks while fanning them out.
+- Do not create prompts for tasks with `status: "done"` or
+  `status: "archived"` unless the user explicitly asks for those statuses.
+- Keep each prompt scoped to one task; split multi-task records into
+  needs-specification rather than guessing hidden subtasks.
