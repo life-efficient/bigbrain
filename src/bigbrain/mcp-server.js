@@ -224,13 +224,16 @@ async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor }
       case 'ping':
         return jsonRpcResult(message.id, {});
       case 'tools/list':
-        return jsonRpcResult(message.id, { tools: toolDefinitions() });
+        return jsonRpcResult(message.id, { tools: toolDefinitions().filter((tool) => canCallTool(tool.name, actor)) });
       case 'tools/call':
         return jsonRpcResult(message.id, await callTool({ config, params: message.params || {}, gitBackupEnabled, actor }));
       default:
         return jsonRpcError(message.id, -32601, `Unknown method: ${message.method}`);
     }
   } catch (error) {
+    if (error instanceof ForbiddenToolError) {
+      return jsonRpcError(message.id, -32003, error.message);
+    }
     return jsonRpcError(message.id, -32603, error instanceof Error ? error.message : String(error));
   }
 }
@@ -238,6 +241,7 @@ async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor }
 async function callTool({ config, params, gitBackupEnabled, actor }) {
   const name = params.name;
   const args = params.arguments || {};
+  assertToolAllowed(name, actor);
   switch (name) {
     case 'me':
       return toolJson(await toolMe(config, actor));
@@ -350,6 +354,12 @@ async function callTool({ config, params, gitBackupEnabled, actor }) {
       await postWriteMaintenance(config, gitBackupEnabled, actor);
       return toolJson(page);
     }
+    case 'maintenance/sync':
+    case 'maintenance_sync':
+      return toolJson(await syncAndPersist(config));
+    case 'maintenance/git_backup':
+    case 'maintenance_git_backup':
+      return toolJson(await backupGitChanges(config, backupMessage(actor)));
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
@@ -357,7 +367,7 @@ async function callTool({ config, params, gitBackupEnabled, actor }) {
 
 async function postWriteMaintenance(config, gitBackupEnabled, actor) {
   await syncAndPersist(config);
-  if (gitBackupEnabled) {
+  if (gitBackupEnabled && canRunGitBackup(actor)) {
     await backupGitChanges(config, backupMessage(actor));
   }
 }
@@ -499,12 +509,15 @@ async function backupGitChanges(config, message) {
   if (!status.stdout.trim()) return { committed: false, pushed: false };
 
   const relativeBrainDir = path.relative(repoRoot, config.brainDir) || '.';
+  await git(repoRoot, ['pull', '--rebase', '--autostash']);
   await git(repoRoot, ['add', relativeBrainDir]);
-  const staged = await git(repoRoot, ['diff', '--cached', '--name-only']);
-  if (!staged.stdout.trim()) return { committed: false, pushed: false };
+  const staged = await git(repoRoot, ['diff', '--cached', '--quiet']).catch((error) => error);
+  if (staged && staged.code === 0) return { committed: false, pushed: false };
+  if (staged && staged.code !== 1) throw staged;
+  const stagedNames = await git(repoRoot, ['diff', '--cached', '--name-only']);
+  if (!stagedNames.stdout.trim()) return { committed: false, pushed: false };
 
   await git(repoRoot, ['commit', '-m', message]);
-  await git(repoRoot, ['pull', '--rebase', '--autostash']);
   await git(repoRoot, ['push']);
   return { committed: true, pushed: true };
 }
@@ -746,7 +759,98 @@ function toolDefinitions() {
         required: ['path', 'body', 'timeline_entry'],
       },
     },
+    {
+      name: 'maintenance/sync',
+      description: 'Run BigBrain sync for the selected brain and persist the latest sync state. Requires a maintenance/admin scope on hosted OAuth.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    {
+      name: 'maintenance_sync',
+      description: 'Alias for maintenance/sync for clients that do not support slash tool names.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    {
+      name: 'maintenance/git_backup',
+      description: 'Commit and push pending changes for the selected git-backed brain. Requires a git-backup/admin scope on hosted OAuth.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    {
+      name: 'maintenance_git_backup',
+      description: 'Alias for maintenance/git_backup for clients that do not support slash tool names.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
   ];
+}
+
+function assertToolAllowed(name, actor) {
+  if (!canCallTool(name, actor)) {
+    const policy = toolPolicy(name);
+    throw new ForbiddenToolError(`${name} requires ${policy.scopes.join(' or ')} scope.`);
+  }
+}
+
+function canCallTool(name, actor) {
+  const policy = toolPolicy(name);
+  if (!policy) return true;
+  const scopes = actorScopes(actor);
+  if (scopes === null) return true;
+  if (scopes.has('brain:admin')) return true;
+  return policy.scopes.some((scope) => scopes.has(scope));
+}
+
+function canRunGitBackup(actor) {
+  const scopes = actorScopes(actor);
+  if (scopes === null) return true;
+  return scopes.has('brain:admin') || scopes.has('brain:git-backup');
+}
+
+function actorScopes(actor) {
+  if (!actor || !Array.isArray(actor.scopes)) return null;
+  return new Set(actor.scopes);
+}
+
+function toolPolicy(name) {
+  const policies = {
+    me: { layer: 'read', scopes: ['brain:read'] },
+    'members/list': { layer: 'read', scopes: ['brain:read'] },
+    members_list: { layer: 'read', scopes: ['brain:read'] },
+    'tasks/list': { layer: 'read', scopes: ['brain:read'] },
+    tasks_list: { layer: 'read', scopes: ['brain:read'] },
+    search: { layer: 'read', scopes: ['brain:read'] },
+    query: { layer: 'read', scopes: ['brain:read'] },
+    list: { layer: 'read', scopes: ['brain:read'] },
+    read: { layer: 'read', scopes: ['brain:read'] },
+    filing_rules: { layer: 'read', scopes: ['brain:read'] },
+    list_raw_files: { layer: 'read', scopes: ['brain:read'] },
+    read_raw_file: { layer: 'read', scopes: ['brain:read'] },
+    'tasks/create': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+    tasks_create: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+    'tasks/update': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+    tasks_update: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+    create_raw_file: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+    create_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+    create_raw_file_with_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+    update_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+    update_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
+    delete_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
+    'maintenance/git_backup': { layer: 'git_backup', scopes: ['brain:git-backup'] },
+    maintenance_git_backup: { layer: 'git_backup', scopes: ['brain:git-backup'] },
+    'maintenance/sync': { layer: 'maintenance', scopes: ['brain:maintenance'] },
+    maintenance_sync: { layer: 'maintenance', scopes: ['brain:maintenance'] },
+  };
+  return policies[name] || null;
 }
 
 function membersListSchema() {
@@ -869,6 +973,13 @@ class HttpError extends Error {
     this.name = 'HttpError';
     this.statusCode = statusCode;
     this.rpcCode = rpcCode;
+  }
+}
+
+class ForbiddenToolError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = 'ForbiddenToolError';
   }
 }
 

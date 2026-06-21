@@ -540,6 +540,116 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
   }
 });
 
+test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
+  const fixture = await createFixture('bigbrain-mcp-policy-');
+  const readToken = 'bbmcp_read-token';
+  const createToken = 'bbmcp_create-token';
+  const rawDeleteToken = 'bbmcp_raw-delete-token';
+  const gitToken = 'bbmcp_git-token';
+  const adminToken = 'bbmcp_admin-token';
+  const tokenStorePath = path.join(fixture.rootDir, 'tokens.json');
+  await fs.writeFile(tokenStorePath, `${JSON.stringify({
+    tokens: [
+      scopedToken(readToken, 'reader@example.com', 'brain:read'),
+      scopedToken(createToken, 'creator@example.com', 'brain:read brain:create'),
+      scopedToken(rawDeleteToken, 'raw@example.com', 'brain:read brain:raw:destructive'),
+      scopedToken(gitToken, 'git@example.com', 'brain:read brain:git-backup'),
+      scopedToken(adminToken, 'admin@example.com', 'brain:admin'),
+    ],
+    states: [],
+    clients: [],
+    codes: [],
+  }, null, 2)}\n`);
+
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: {
+        mode: 'oauth_allowlist',
+        authToken: null,
+        publicUrl: 'https://brain.example.test',
+        provider: 'google',
+        googleClientId: 'client-id',
+        googleClientSecret: 'client-secret',
+        allowedEmails: ['reader@example.com', 'creator@example.com', 'raw@example.com', 'git@example.com', 'admin@example.com'],
+        allowedDomains: [],
+        tokenStorePath,
+        allowSharedToken: false,
+        serviceName: 'Example Brain Cortex',
+        appName: 'Example Brain',
+      },
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const readTools = toolNames(await rpc(running.url, 'tools/list', {}, readToken));
+    assert.equal(readTools.includes('read'), true);
+    assert.equal(readTools.includes('create_page'), false);
+    assert.equal(readTools.includes('update_raw_file'), false);
+    assert.equal(readTools.includes('maintenance/sync'), false);
+    const readWrite = await rpc(running.url, 'tools/call', {
+      name: 'create_page',
+      arguments: {
+        path: 'people/read-denied',
+        title: 'Read Denied',
+        body: 'Should not write.',
+        timeline_entry: 'Denied.',
+      },
+    }, readToken);
+    assert.equal(readWrite.error.code, -32003);
+    assert.match(readWrite.error.message, /requires brain:create or brain:write scope/);
+
+    const createTools = toolNames(await rpc(running.url, 'tools/list', {}, createToken));
+    assert.equal(createTools.includes('create_page'), true);
+    assert.equal(createTools.includes('create_raw_file'), true);
+    assert.equal(createTools.includes('update_raw_file'), false);
+    assert.equal(createTools.includes('maintenance/git_backup'), false);
+    const created = await rpc(running.url, 'tools/call', {
+      name: 'create_page',
+      arguments: {
+        path: 'people/create-allowed',
+        title: 'Create Allowed',
+        body: 'Created with create scope.',
+        timeline_entry: 'Created by scoped policy test.',
+      },
+    }, createToken);
+    assert.equal(created.error, undefined, created.error?.message);
+    assert.match(created.result.structuredContent.timeline, /via creator@example\.com/);
+    const createRawDelete = await rpc(running.url, 'tools/call', {
+      name: 'delete_raw_file',
+      arguments: { path: 'sources/.raw/missing.txt' },
+    }, createToken);
+    assert.equal(createRawDelete.error.code, -32003);
+    assert.match(createRawDelete.error.message, /requires brain:raw:destructive scope/);
+
+    const rawTools = toolNames(await rpc(running.url, 'tools/list', {}, rawDeleteToken));
+    assert.equal(rawTools.includes('update_raw_file'), true);
+    assert.equal(rawTools.includes('delete_raw_file'), true);
+    assert.equal(rawTools.includes('create_page'), false);
+
+    const gitTools = toolNames(await rpc(running.url, 'tools/list', {}, gitToken));
+    assert.equal(gitTools.includes('maintenance/git_backup'), true);
+    assert.equal(gitTools.includes('maintenance/sync'), false);
+    assert.equal(gitTools.includes('create_page'), false);
+
+    const adminTools = toolNames(await rpc(running.url, 'tools/list', {}, adminToken));
+    assert.equal(adminTools.includes('maintenance/git_backup'), true);
+    assert.equal(adminTools.includes('maintenance/sync'), true);
+    assert.equal(adminTools.includes('delete_raw_file'), true);
+    assert.equal(adminTools.includes('create_page'), true);
+    const synced = await rpc(running.url, 'tools/call', { name: 'maintenance/sync', arguments: {} }, adminToken);
+    assert.equal(synced.error, undefined, synced.error?.message);
+    assert.equal(typeof synced.result.structuredContent.index_totals_after_sync.pages, 'number');
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('MCP task tools resolve the authenticated member and manage task pages', async () => {
   const fixture = await createFixture('bigbrain-mcp-tasks-');
   const token = 'bbmcp_task-token';
@@ -803,4 +913,21 @@ function hashToken(token) {
 
 function computePkceChallenge(codeVerifier) {
   return crypto.createHash('sha256').update(codeVerifier).digest('base64url');
+}
+
+function scopedToken(token, email, scope) {
+  return {
+    token_hash: hashToken(token),
+    email,
+    name: email,
+    provider: 'google',
+    created_at: new Date().toISOString(),
+    last_used_at: null,
+    revoked_at: null,
+    scope,
+  };
+}
+
+function toolNames(listed) {
+  return listed.result.tools.map((tool) => tool.name);
 }

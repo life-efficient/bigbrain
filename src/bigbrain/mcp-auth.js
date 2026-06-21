@@ -7,7 +7,16 @@ const ACCESS_TOKEN_PREFIX = 'bbmcp_';
 const DASHBOARD_SESSION_PREFIX = 'bbdash_';
 const AUTH_CODE_TTL_MS = 5 * 60 * 1000;
 const DASHBOARD_SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
-const SCOPES = ['brain:read', 'brain:write'];
+const SCOPES = [
+  'brain:read',
+  'brain:create',
+  'brain:raw:destructive',
+  'brain:git-backup',
+  'brain:maintenance',
+  'brain:admin',
+  'brain:write',
+];
+const LEGACY_WRITE_SCOPE = 'brain:write';
 const DASHBOARD_SCOPE = 'dashboard:read';
 
 export function buildAuthConfig({
@@ -38,26 +47,34 @@ export function buildAuthConfig({
 }
 
 export async function authorizeMcpRequest(request, authConfig) {
-  if (authConfig.mode === 'none') return { ok: true, actor: null };
+  if (authConfig.mode === 'none') return { ok: true, actor: null, authMode: authConfig.mode };
 
   const token = bearerToken(request) || request.headers['x-bigbrain-token'];
   if (!token) return { ok: false, status: 401, message: 'Unauthorized' };
 
   if (authConfig.mode === 'token') {
-    if (authConfig.authToken && token === authConfig.authToken) return { ok: true, actor: null };
+    if (authConfig.authToken && token === authConfig.authToken) return { ok: true, actor: null, authMode: authConfig.mode };
     return { ok: false, status: 401, message: 'Unauthorized' };
   }
 
   if (authConfig.mode === 'oauth_allowlist') {
     if (authConfig.allowSharedToken && authConfig.authToken && token === authConfig.authToken) {
-      return { ok: true, actor: { email: 'shared-token', name: 'Shared Token' } };
+      return { ok: true, actor: { email: 'shared-token', name: 'Shared Token', scopes: ['brain:admin'] }, authMode: authConfig.mode };
     }
     const store = await readTokenStore(authConfig);
     const tokenHash = hashToken(token);
     const record = store.tokens.find((entry) => entry.token_hash === tokenHash && !entry.revoked_at);
     if (!record) return { ok: false, status: 401, message: 'Unauthorized' };
     await touchTokenStore(authConfig, tokenHash, new Date().toISOString(), store);
-    return { ok: true, actor: { email: record.email, name: record.name || record.email } };
+    return {
+      ok: true,
+      actor: {
+        email: record.email,
+        name: record.name || record.email,
+        scopes: normalizeIssuedScopes(record.scope),
+      },
+      authMode: authConfig.mode,
+    };
   }
 
   return { ok: false, status: 500, message: `Unsupported auth mode: ${authConfig.mode}` };
@@ -482,7 +499,17 @@ function parseList(value) {
 function normalizeScope(scope) {
   const requested = String(scope || '').split(/\s+/).filter(Boolean);
   const allowed = requested.filter((entry) => SCOPES.includes(entry));
-  return (allowed.length ? allowed : SCOPES).join(' ');
+  return (allowed.length ? allowed : defaultMcpScopes()).join(' ');
+}
+
+function normalizeIssuedScopes(scope) {
+  const requested = String(scope || '').split(/\s+/).filter(Boolean);
+  const allowed = requested.filter((entry) => SCOPES.includes(entry));
+  return allowed.length ? allowed : defaultMcpScopes();
+}
+
+function defaultMcpScopes() {
+  return ['brain:read', LEGACY_WRITE_SCOPE];
 }
 
 function slugName(name) {

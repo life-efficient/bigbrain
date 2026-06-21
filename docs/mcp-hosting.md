@@ -159,6 +159,29 @@ BigBrain MCP supports these auth modes:
 
 Hosted deployments should use `oauth_allowlist`.
 
+## Hosted Tool Policy
+
+Hosted OAuth MCP tokens are scoped before tools are listed or called. Local
+`none` auth and shared `token` auth remain unscoped for development and trusted
+single-operator deployments. In `oauth_allowlist` mode, per-user tokens use
+these scopes:
+
+- `brain:read`: read-only tools, including `me`, members/tasks listing,
+  `search`, `query`, `list`, `read`, `filing_rules`, `list_raw_files`, and
+  `read_raw_file`.
+- `brain:create`: append/create tools, including task writes, `create_page`,
+  `update_page`, `create_raw_file`, and `create_raw_file_with_page`.
+- `brain:raw:destructive`: destructive raw-file replacement/deletion through
+  `update_raw_file` and `delete_raw_file`.
+- `brain:git-backup`: explicit git publishing through `maintenance/git_backup`.
+- `brain:maintenance`: explicit maintenance operations such as
+  `maintenance/sync`.
+- `brain:admin`: all MCP tools.
+
+The older `brain:write` scope is still accepted for append/create tools so
+existing tokens can continue contributing pages and tasks, but it does not grant
+destructive raw-file, git-backup, or maintenance/admin capabilities.
+
 The dashboard can use the same `oauth_allowlist` configuration. Local dashboard
 use stays unauthenticated on `127.0.0.1` by default; hosted dashboard deployments
 should bind explicitly and rely on the Google allowlist session:
@@ -260,6 +283,6 @@ the write came from an OAuth user.
 - Prefer explicit email allowlists for external collaborators and domain
   allowlists only for domains you fully control.
 - Expose only remote-safe tools by default. Search, query, read, list, and
-  append-style contributions are safer than destructive writes, reindexing, or
-  git operations. Gate maintenance and publishing commands behind admin scopes
-  once scoped OAuth is available.
+  append-style contributions are safer than destructive raw-file writes,
+  reindexing, or git operations. Grant maintenance and publishing scopes only
+  to trusted operators.
