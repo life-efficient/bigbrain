@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Roadmap Tasks"
+  short_description: "Create useful next task pages from BigBrain progress"
+  default_prompt: "Use BigBrain: Roadmap Tasks to review BigBrain progress and create useful next task pages for active members."

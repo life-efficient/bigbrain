@@ -15,4 +15,5 @@
 | Update or create stronger entity or topic pages when new signal materially changes the brain | `skills/bigbrain-enrich/SKILL.md` |
 | Answer questions using the selected BigBrain brain home with cited source slugs | `skills/bigbrain-query/SKILL.md` |
 | Fan out concise handoff prompts from BigBrain task pages exposed through MCP | `skills/bigbrain-fanout-tasks/SKILL.md` |
+| Suggest and create roadmap-derived task pages from BigBrain progress and blockers | `skills/bigbrain-roadmap-tasks/SKILL.md` |
 | Run a bounded health-and-remediation pass for a configured BigBrain brain home | `skills/bigbrain-maintain/SKILL.md` |
