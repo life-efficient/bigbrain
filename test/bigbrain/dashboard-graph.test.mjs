@@ -8,6 +8,7 @@ import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { openDatabase } from '../../src/bigbrain/db.js';
 import {
   buildExplorerFilePayload,
+  buildExplorerRecentPayload,
   buildExplorerTreePayload,
   buildGraphPayload,
   buildPagePayload,
@@ -128,6 +129,34 @@ test('dashboard explorer includes raw folders and classifies obvious file previe
     assert.equal(presentation.kind, 'presentation');
     assert.equal(presentation.mime_type, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
     assert.match(presentation.blob_url, /sources%2F.raw%2Fslides.pptx/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('dashboard explorer recents lists files by latest edit time', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-explorer-recents-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', '# Alice\n');
+    await writeMarkdown(fixture.brainHome, 'projects/relay.md', '# Relay\n');
+    await writeFile(fixture.brainHome, 'sources/.raw/notes.txt', 'notes');
+    await writeFile(fixture.brainHome, '.bigbrain-state/ignored.txt', 'ignored');
+    await fs.utimes(path.join(fixture.brainHome, 'people/alice.md'), new Date('2026-01-01T00:00:00Z'), new Date('2026-01-01T00:00:00Z'));
+    await fs.utimes(path.join(fixture.brainHome, 'projects/relay.md'), new Date('2026-01-03T00:00:00Z'), new Date('2026-01-03T00:00:00Z'));
+    await fs.utimes(path.join(fixture.brainHome, 'sources/.raw/notes.txt'), new Date('2026-01-02T00:00:00Z'), new Date('2026-01-02T00:00:00Z'));
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const recents = await buildExplorerRecentPayload(
+      config,
+      new URL('/api/explorer/recent?limit=2', 'http://127.0.0.1'),
+    );
+
+    assert.deepEqual(recents.files.map((entry) => entry.path), [
+      'projects/relay.md',
+      'sources/.raw/notes.txt',
+    ]);
+    assert.equal(recents.meta.total_file_count, 3);
+    assert.equal(recents.meta.limit, 2);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

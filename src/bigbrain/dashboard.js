@@ -161,6 +161,7 @@ export async function createDashboardRequestHandler(config, {
       if (requestUrl.pathname === '/api/page') return json(res, await buildPagePayload(config, db, requestUrl));
       if (requestUrl.pathname === '/api/preview') return json(res, await buildPreviewPayload(config, db, requestUrl));
       if (requestUrl.pathname === '/api/explorer/tree') return json(res, await buildExplorerTreePayload(config));
+      if (requestUrl.pathname === '/api/explorer/recent') return json(res, await buildExplorerRecentPayload(config, requestUrl));
       if (requestUrl.pathname === '/api/explorer/file') return json(res, await buildExplorerFilePayload(config, requestUrl));
       if (requestUrl.pathname === '/api/explorer/blob') return serveExplorerBlob(config, res, requestUrl);
       res.writeHead(404);
@@ -631,7 +632,12 @@ function renderAppHtml() {
       .explorer-resizer:hover::after,
       .explorer-resizer:focus-visible::after { background: var(--accent-strong); }
       body.explorer-resizing { cursor: col-resize; user-select: none; }
-      .explorer-tree-head { height: 32px; display: flex; align-items: center; padding: 0 12px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+      .explorer-tree-head { min-height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 10px 6px 12px; color: var(--muted); }
+      .explorer-tree-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+      .explorer-view-toggle { flex: none; display: inline-flex; align-items: center; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,0.035); }
+      .explorer-toggle-button { height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 650; cursor: pointer; }
+      .explorer-toggle-button:hover { color: var(--ink); }
+      .explorer-toggle-button.active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 0 rgba(255,255,255,0.06), 0 8px 18px rgba(2,6,23,0.18); }
       .explorer-row { width: 100%; min-width: 0; height: 26px; padding: 0 10px 0 calc(10px + var(--depth, 0) * 14px); border: 0; background: transparent; color: var(--muted); display: grid; grid-template-columns: 14px 18px minmax(0, 1fr); align-items: center; gap: 4px; text-align: left; font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; }
       .explorer-row:hover { background: rgba(255,255,255,0.05); color: var(--ink); }
       .explorer-row.selected { background: rgba(125,211,252,0.12); color: var(--ink); }
@@ -639,6 +645,14 @@ function renderAppHtml() {
       .explorer-glyph { width: 18px; height: 18px; border-radius: 5px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); background: rgba(255,255,255,0.045); font-size: 10px; font-weight: 800; }
       .explorer-glyph.folder { color: var(--accent-strong); background: rgba(125,211,252,0.10); }
       .explorer-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .explorer-recents { display: grid; gap: 2px; padding: 0 6px 10px; }
+      .explorer-recent-row { width: 100%; min-width: 0; min-height: 48px; padding: 7px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: 7px; text-align: left; cursor: pointer; }
+      .explorer-recent-row:hover { background: rgba(255,255,255,0.05); color: var(--ink); }
+      .explorer-recent-row.selected { background: rgba(125,211,252,0.12); color: var(--ink); }
+      .explorer-recent-copy { min-width: 0; display: grid; gap: 3px; }
+      .explorer-recent-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink); }
+      .explorer-recent-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
+      .explorer-recent-meta { font-size: 11px; color: var(--muted); }
       .explorer-viewer { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg); }
       .explorer-viewer.empty { place-items: center; display: grid; }
       .explorer-viewer-head { min-width: 0; min-height: 48px; padding: 10px 14px; border-bottom: 1px solid var(--line); display: grid; align-content: center; gap: 3px; }
@@ -1047,6 +1061,24 @@ export async function buildExplorerTreePayload(config) {
   };
 }
 
+export async function buildExplorerRecentPayload(config, requestUrl = new URL('http://127.0.0.1')) {
+  const requestedLimit = Number.parseInt(requestUrl.searchParams?.get('limit') || '80', 10);
+  const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(250, requestedLimit)) : 80;
+  const files = await explorerRecentFiles(config.brainDir, config.brainDir);
+  files.sort((a, b) => {
+    const byDate = Date.parse(b.updated_at) - Date.parse(a.updated_at);
+    return byDate || a.path.localeCompare(b.path, undefined, { sensitivity: 'base', numeric: true });
+  });
+  return {
+    files: files.slice(0, limit),
+    meta: {
+      root_path: config.brainDir,
+      limit,
+      total_file_count: files.length,
+    },
+  };
+}
+
 export async function buildExplorerFilePayload(config, requestUrl) {
   const relativePath = normalizeExplorerPath(requestUrl.searchParams.get('path') || '');
   const fullPath = safeExplorerPath(config.brainDir, relativePath);
@@ -1172,6 +1204,23 @@ async function explorerEntryForPath(root, fullPath, includeChildren = false) {
   }
   children.sort(compareExplorerEntries);
   return { ...entry, children };
+}
+
+async function explorerRecentFiles(root, fullPath) {
+  const dirents = await fs.readdir(fullPath, { withFileTypes: true });
+  const files = [];
+  for (const dirent of dirents) {
+    const childFullPath = path.join(fullPath, dirent.name);
+    const childRelative = path.relative(root, childFullPath).split(path.sep).join('/');
+    if (shouldSkipExplorerPath(childRelative, dirent)) continue;
+    if (dirent.isDirectory()) {
+      files.push(...await explorerRecentFiles(root, childFullPath));
+      continue;
+    }
+    if (!dirent.isFile()) continue;
+    files.push(await explorerEntryForPath(root, childFullPath, false));
+  }
+  return files;
 }
 
 function shouldSkipExplorerPath(relativePath, dirent) {

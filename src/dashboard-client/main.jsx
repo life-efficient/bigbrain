@@ -87,7 +87,7 @@ function DashboardApp() {
       setAssigneeLoading(true);
       try {
         const assigneeQuery = assigneeFilter ? `?${new URLSearchParams({ assignee: assigneeFilter }).toString()}` : '';
-        const [schema, tasks, inbox, recent, health, graph, explorer] = await Promise.all([
+        const [schema, tasks, inbox, recent, health, graph, explorer, explorerRecent] = await Promise.all([
           fetchJson('/api/schema'),
           fetchJson(`/api/tasks${assigneeQuery}`),
           fetchJson(`/api/inbox${assigneeQuery}`),
@@ -95,6 +95,7 @@ function DashboardApp() {
           fetchJson('/api/health'),
           fetchJson('/api/graph'),
           fetchJson('/api/explorer/tree'),
+          fetchJson('/api/explorer/recent'),
         ]);
         if (cancelled) return;
         const currentMemberSlug = tasks?.filters?.current_member?.person_slug || inbox?.filters?.current_member?.person_slug || '';
@@ -108,7 +109,7 @@ function DashboardApp() {
         setState({
           status: 'ready',
           error: null,
-          data: { schema, tasks, inbox, recent, health, graph, explorer },
+          data: { schema, tasks, inbox, recent, health, graph, explorer: { ...explorer, recent: explorerRecent } },
         });
       } catch (error) {
         if (cancelled) return;
@@ -800,6 +801,8 @@ function PageLinkSection({ title, links, onPageOpen }) {
 
 function ExplorerPanel({ explorer }) {
   const root = explorer?.root;
+  const recentFiles = Array.isArray(explorer?.recent?.files) ? explorer.recent.files : [];
+  const [explorerView, setExplorerView] = useState('folders');
   const [openPaths, setOpenPaths] = useState(() => new Set(['']));
   const [selectedPath, setSelectedPath] = useState('');
   const [fileState, setFileState] = useState({ status: 'idle', file: null, error: null });
@@ -894,15 +897,41 @@ function ExplorerPanel({ explorer }) {
       style={{ '--explorer-tree-width': `${treeWidth}px` }}
     >
       <div className="explorer-tree" aria-label="Brain file explorer">
-        <div className="explorer-tree-head">Explorer</div>
-        <ExplorerTreeNode
-          node={root}
-          depth={0}
-          openPaths={openPaths}
-          selectedPath={selectedPath}
-          onToggle={toggleDirectory}
-          onOpenFile={openFile}
-        />
+        <div className="explorer-tree-head">
+          <span className="explorer-tree-title">Explorer</span>
+          <div className="explorer-view-toggle" role="group" aria-label="Explorer view">
+            {[
+              ['folders', 'Folders'],
+              ['recents', 'Recents'],
+            ].map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={`explorer-toggle-button ${explorerView === id ? 'active' : ''}`}
+                aria-pressed={explorerView === id}
+                onClick={() => setExplorerView(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {explorerView === 'folders' ? (
+          <ExplorerTreeNode
+            node={root}
+            depth={0}
+            openPaths={openPaths}
+            selectedPath={selectedPath}
+            onToggle={toggleDirectory}
+            onOpenFile={openFile}
+          />
+        ) : (
+          <ExplorerRecentList
+            files={recentFiles}
+            selectedPath={selectedPath}
+            onOpenFile={openFile}
+          />
+        )}
       </div>
       <div
         className="explorer-resizer"
@@ -922,6 +951,31 @@ function ExplorerPanel({ explorer }) {
         onRelativeLinkClick={openExplorerLink}
       />
     </section>
+  );
+}
+
+function ExplorerRecentList({ files, selectedPath, onOpenFile }) {
+  if (!files.length) {
+    return <div className="empty-copy">No recent files.</div>;
+  }
+  return (
+    <div className="explorer-recents">
+      {files.map((file) => (
+        <button
+          key={file.path}
+          type="button"
+          className={`explorer-recent-row ${selectedPath === file.path ? 'selected' : ''}`}
+          onClick={() => onOpenFile(file)}
+        >
+          <span className="explorer-glyph">{fileGlyph(file)}</span>
+          <span className="explorer-recent-copy">
+            <span className="explorer-recent-name">{file.name || file.path}</span>
+            <span className="explorer-recent-path">{file.path}</span>
+            <span className="explorer-recent-meta">{formatDateTime(file.updated_at)} | {formatFileSize(file.size)}</span>
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }
 
