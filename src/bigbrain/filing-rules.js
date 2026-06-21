@@ -10,8 +10,9 @@ const DEFAULT_RULES = {
   meetings: 'Specific meetings, calls, meeting prep, and transcripts.',
   initiatives: 'Active named workstreams or programs.',
   deliverables: 'Owned outputs such as reports, decks, PDFs, toolkits, course materials, workshop packs, declarations, episodes, calls, releases, and drafts.',
+  tasks: 'One page per assignable task. Task pages use type: task frontmatter, member-backed assignees, status, priority, source links, current body, and timeline.',
   concepts: 'Reusable concepts, frameworks, pillar notes, strategy, and mental models.',
-  ops: 'Operating material such as roadmaps, tasks, contribution rules, server notes, MCP notes, and cross-workstream coordination.',
+  ops: 'Operating material such as roadmaps, contribution rules, server notes, MCP notes, and cross-workstream coordination.',
   archive: 'Historical or superseded material that should not stay active.',
 };
 
@@ -56,6 +57,7 @@ export async function filingRulesForBrain({ config }) {
       'A separator line: ---',
       'An append-only ## Timeline evidence log.',
     ],
+    task_schema: defaultTaskSchema(),
     raw_file_rules: rawFileRules,
     filing_principles: sharedGuidance.filingPrinciples.length > 0 ? sharedGuidance.filingPrinciples : [
       'File by primary subject, not by source format.',
@@ -150,7 +152,53 @@ function renderFilingRulesMarkdown({ config, sharedGuidance, collections, rawFil
     '',
   );
 
+  sections.push(
+    '## Task Page Schema',
+    '',
+    ...renderTaskSchemaMarkdownLines(defaultTaskSchema()),
+    '',
+  );
+
   return sections.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
+}
+
+function defaultTaskSchema() {
+  return {
+    pattern: 'tasks/<task-slug>.md',
+    frontmatter: {
+      type: 'task',
+      title: 'Required human-readable task title.',
+      status: ['open', 'waiting', 'blocked', 'done', 'archived'],
+      priority: ['p0', 'p1', 'p2', 'p3'],
+      assignees: 'Array of active member person slugs, for example [people/hani]. Use me only through MCP task tools.',
+      source: 'Array of related brain slugs, for example [meetings/proposal-review].',
+      due: 'Optional YYYY-MM-DD date.',
+    },
+    guidance: [
+      'Create one page per assignable task under tasks/.',
+      'Use type: task in frontmatter.',
+      'Assignees must be active members, not arbitrary people pages.',
+      'Use source links to connect the task to the meeting, project, inbox item, or other brain page that justifies it.',
+      'Keep the current task brief above the separator and append evidence or state changes under ## Timeline.',
+      'Use tasks/create and tasks/update MCP tools for task writes when available.',
+      'Do not use ops/tasks.md or recreate a single-file task list.',
+    ],
+  };
+}
+
+function renderTaskSchemaMarkdownLines(schema) {
+  return [
+    `- Pattern: \`${schema.pattern}\``,
+    '- Frontmatter:',
+    '  - `type: task`',
+    '  - `title`: required title',
+    `  - \`status\`: ${schema.frontmatter.status.map((item) => `\`${item}\``).join(', ')}`,
+    `  - \`priority\`: ${schema.frontmatter.priority.map((item) => `\`${item}\``).join(', ')}`,
+    '  - `assignees`: active member person slugs such as `people/hani`',
+    '  - `source`: related brain slugs such as `meetings/proposal-review`',
+    '  - `due`: optional `YYYY-MM-DD` date',
+    ...schema.guidance.map((item) => `- ${item}`),
+  ];
 }
 
 function stripFrontmatter(markdown) {

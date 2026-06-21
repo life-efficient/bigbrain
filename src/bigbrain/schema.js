@@ -13,10 +13,11 @@ const FOLDER_RULES = [
   ['concepts', 'Reusable mental models, frameworks, and general strategy.'],
   ['writing', 'Prose artifacts, drafts, and essay-style outputs.'],
   ['sources', 'Raw imports, archived snapshots, and source material.'],
+  ['tasks', 'One page per assignable task, with member-backed assignees and task metadata.'],
   ['inbox', 'Temporary unsorted captures when no canonical home is clear yet.'],
   ['archive', 'Historical or dead pages that should not stay active.'],
   ['dreams', 'Reserved for later dream-cycle outputs; not active in v1.'],
-  ['ops', 'Operational files such as tasks and run-state documents.'],
+  ['ops', 'Operational notes such as roadmaps, contribution rules, server notes, MCP notes, and cross-workstream coordination.'],
 ];
 
 export function schemaDescription() {
@@ -45,11 +46,24 @@ export function schemaDescription() {
       'sources/.raw is for evidence-first uploads without a clearer canonical subject',
       'do not nest page-slug folders or any other folders inside .raw',
     ],
+    task_page_shape: {
+      path: 'tasks/<task-slug>.md',
+      frontmatter: {
+        type: 'task',
+        status: ['open', 'waiting', 'blocked', 'done', 'archived'],
+        priority: ['p0', 'p1', 'p2', 'p3'],
+        assignees: 'active member person slugs',
+        source: 'related brain slugs',
+        due: 'optional YYYY-MM-DD',
+      },
+      body: 'current task context above --- plus append-only ## Timeline evidence log',
+    },
     notes: [
       'Compiled truth lives above --- and gets rewritten as understanding changes.',
       'Timeline lives below --- and is append-only evidence.',
       'Use relative markdown links instead of duplicate pages.',
       'Raw attachments live under per-collection .raw/ directories and are not canonical brain pages.',
+      'Task pages live under tasks/*.md; do not use ops/tasks.md.',
       'Use the filing_rules tool as the operational source of truth for the active brain.',
       'Repo documentation pages such as README.md and FILING.md files should be excluded from indexing and strict brain-page validation.',
     ],
@@ -96,6 +110,30 @@ export function renderSchemaMarkdown() {
     '- Do not nest page-slug folders or any other folders inside `.raw`; use collision-safe filenames.',
     '- The `filing_rules` tool is the operational source of truth for the active brain.',
     '',
+    '## Task Page Shape',
+    '',
+    '```yaml',
+    '---',
+    'type: task',
+    'title: Follow up on proposal',
+    'status: open',
+    'priority: p1',
+    'assignees: [people/hani]',
+    'source: [meetings/proposal-review]',
+    'due: 2026-07-01',
+    '---',
+    '```',
+    '',
+    '- Path pattern: `tasks/<task-slug>.md`.',
+    '- `status` must be one of `open`, `waiting`, `blocked`, `done`, `archived`.',
+    '- `priority` must be one of `p0`, `p1`, `p2`, `p3`.',
+    '- `assignees` must be active member person slugs; arbitrary `people/*` pages are not assignable.',
+    '- `source` links the task to supporting brain pages such as meetings, projects, or inbox notes.',
+    '- `due` is optional and must be `YYYY-MM-DD` when present.',
+    '- Keep current task context above `---` and append evidence or state changes under `## Timeline`.',
+    '- Use MCP `tasks/create` and `tasks/update` for task writes when available.',
+    '- Do not use `ops/tasks.md` or maintain a single-file task list.',
+    '',
     '## Filing Rules',
     '',
     '- File by primary subject, not by source or format.',
@@ -117,6 +155,7 @@ export function recommendFolderForInput(input) {
   if (/protocol|preference|operating instruction|how to|how-to|playbook for me|calendar organization|personal rule/.test(lower)) return recommendation('personal-protocol', text, 'the item reads like a personal operating preference or repeatable protocol');
   if (/framework|mental model|thesis|playbook|strategy|concept/.test(lower)) return recommendation('concepts', text, 'the primary subject is a reusable concept or framework');
   if (/idea|possibility|someday|explore/.test(lower)) return recommendation('ideas', text, 'the item sounds like an unbuilt possibility');
+  if (/task|todo|to-do|follow[- ]?up|next action|action item|blocked|waiting/.test(lower)) return recommendation('tasks', text, 'the item reads like assignable work');
   if (/project|build|launch|roadmap|implementation/.test(lower)) return recommendation('projects', text, 'the item sounds like an active execution track');
   if (/company|inc\.|llc|firm|organization/.test(lower)) return recommendation('companies', text, 'the primary subject appears to be an organization');
   if (/source|raw|import|email|pdf|screenshot|snapshot/.test(lower)) return recommendation('sources', text, 'the item reads like raw source material');

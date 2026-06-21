@@ -7,6 +7,7 @@ import { spawn } from 'node:child_process';
 
 import { configPathForBrainHome, initializeBrainHome, loadConfig, loadUserEnv, metaDirForBrainHome, userEnvPath } from '../../src/bigbrain/config.js';
 import { openDatabase } from '../../src/bigbrain/db.js';
+import { filingRulesForBrain } from '../../src/bigbrain/filing-rules.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
 import { boostResultsForQuery, classifyQueryIntent, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
@@ -943,11 +944,28 @@ Important company.
 });
 
 test('schema and filing guidance stay inspectable', async () => {
+  const fixture = await createFixture('bigbrain-schema-filing-');
   const markdown = renderSchemaMarkdown();
   const recommendation = recommendFolderForInput('board meeting prep for Acme');
-  assert.match(markdown, /Directory Structure/);
-  assert.match(markdown, /Meeting Page Shape/);
-  assert.equal(recommendation.folder, 'meetings');
+  try {
+    assert.match(markdown, /Directory Structure/);
+    assert.match(markdown, /Meeting Page Shape/);
+    assert.match(markdown, /Task Page Shape/);
+    assert.match(markdown, /status.*open.*waiting.*blocked.*done.*archived/s);
+    assert.match(markdown, /Do not use `ops\/tasks\.md`/);
+    assert.equal(recommendation.folder, 'meetings');
+    assert.equal(recommendFolderForInput('follow up task for the launch owner').folder, 'tasks');
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const filingRules = await filingRulesForBrain({ config });
+    assert.match(filingRules.markdown, /Task Page Schema/);
+    assert.match(filingRules.markdown, /Pattern: `tasks\/<task-slug>\.md`/);
+    assert.deepEqual(filingRules.task_schema.frontmatter.status, ['open', 'waiting', 'blocked', 'done', 'archived']);
+    assert.deepEqual(filingRules.task_schema.frontmatter.priority, ['p0', 'p1', 'p2', 'p3']);
+    assert.match(filingRules.task_schema.guidance.join('\n'), /Do not use ops\/tasks\.md/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
 });
 
 async function createFixture(prefix) {

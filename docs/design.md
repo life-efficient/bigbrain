@@ -494,8 +494,14 @@ Automations should be narrow, explicit, idempotent, and inspectable.
   - emit findings when confidence is low
 
 - page-backed task maintenance
-  - tasks live as individual `tasks/*.md` pages with frontmatter status,
-    priority, source, and assignees
+  - tasks live as individual `tasks/*.md` pages
+  - task frontmatter uses `type: task`, `status`, `priority`, `assignees`,
+    `source`, and optional `due`
+  - valid statuses are `open`, `waiting`, `blocked`, `done`, and `archived`
+  - valid priorities are `p0`, `p1`, `p2`, and `p3`
+  - assignees are active members, not arbitrary `people/*` pages
+  - use MCP `tasks/list`, `tasks/create`, and `tasks/update` for agent task
+    reads and writes
 
 - `freshness`
   - inspect recent conversations, meetings, or file changes

@@ -158,18 +158,26 @@ identity to a canonical person page:
 bigbrain members add hani@example.com people/hani --name Hani --role owner
 ```
 
-Task pages live under `tasks/*.md` and use frontmatter for status and
-assignment:
+Task pages live under `tasks/*.md`. Use one page per assignable task:
 
 ```yaml
 ---
+type: task
 title: Follow up on proposal
 status: open
 priority: p1
 assignees: [people/hani]
 source: [meetings/proposal-review]
+due: 2026-07-01
 ---
 ```
+
+Valid statuses are `open`, `waiting`, `blocked`, `done`, and `archived`.
+Valid priorities are `p0`, `p1`, `p2`, and `p3`. `due` is optional and must be
+`YYYY-MM-DD` when present. Keep the current task context above the separator and
+append evidence or state changes under `## Timeline`. Use the MCP task tools
+(`tasks/list`, `tasks/create`, `tasks/update`) when writing through an agent.
+Do not use `ops/tasks.md` or recreate a single-file task list.
 
 The dashboard and `bigbrain tasks --assignee people/hani` only resolve
 assignees that match active members. External people can still be linked in
