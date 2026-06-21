@@ -2,7 +2,7 @@ version = 1
 id = "bigbrain-check-update"
 kind = "cron"
 name = "BigBrain Check Update"
-prompt = "Use the BigBrain: Check Update skill. From the BigBrain source repo, check whether the tracked upstream has a newer version. If an update is found, pull it with a safe rebase/autostash flow, reinstall or relink only when needed, then verify that BigBrain works with tests and a CLI smoke check. Report whether an update was found, previous and final HEAD, verification status, and any blockers. Do not discard local work."
+prompt = "Use the BigBrain: Check Update skill. From the BigBrain source repo, check whether the tracked upstream has a newer version. If an update is found, pull it with a safe rebase/autostash flow. Then check for newly bundled skills and automations, install or refresh them in the active runtime when safe, reinstall or relink only when needed, and verify that BigBrain works with tests, a CLI smoke check, and skill/automation template health status. Report whether an update was found, previous and final HEAD, new or refreshed skills, new or refreshed automations, verification status, and any blockers. Do not discard local work or overwrite local skill/automation edits."
 status = "ACTIVE"
 rrule = "FREQ=DAILY;BYHOUR=4;BYMINUTE=15;BYSECOND=0"
 model = "gpt-5.5"
