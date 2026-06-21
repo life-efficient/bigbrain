@@ -1,0 +1,73 @@
+# Changelog
+
+BigBrain uses semantic versioning. Each release includes an `Agent update
+actions` section for agents maintaining local installs and hosted brains.
+
+## [Unreleased]
+
+### Agent update actions
+
+- Read this section before pulling or deploying unreleased changes.
+- Do not claim an update is complete unless the relevant release actions below
+  have been applied or explicitly marked not applicable.
+
+## [0.2.0] - 2026-06-21
+
+### Added
+
+- Page-backed task workflows under `tasks/*.md`, with MCP task tools for
+  listing, creating, and updating task pages.
+- BigBrain task skills:
+  - `bigbrain-fanout-tasks`
+  - `bigbrain-roadmap-tasks`
+  - `bigbrain-refresh-tasks`
+- Setup guidance that asks whether to back up the brain to GitHub, strongly
+  recommends a private GitHub backup, and uses GitHub MCP when accepted.
+- Task schema documentation in `README.md`, `bigbrain schema`, and MCP
+  `filing_rules` output.
+
+### Changed
+
+- `bigbrain init` now creates the `tasks/` directory and no longer creates
+  `ops/tasks.md`.
+- Dashboard and task APIs treat `tasks/*.md` as the canonical task source.
+- BigBrain maintenance and install docs no longer install the old hourly task
+  refresh automation.
+
+### Removed
+
+- The legacy `refresh-tasks` CLI/script/source/test path that rewrote
+  `ops/tasks.md`.
+- The old `task-refresh` skill and hourly task-refresh automation template.
+
+### Agent update actions
+
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install` because `package.json` and `package-lock.json` version
+  metadata changed.
+- Run `npm link`, then verify `bigbrain --help`.
+- Install or refresh bundled BigBrain skills from `skills/`, especially:
+  - `bigbrain-fanout-tasks`
+  - `bigbrain-roadmap-tasks`
+  - `bigbrain-refresh-tasks`
+  - refreshed `bigbrain-setup`
+- Install or refresh bundled automation templates from `automations/`; do not
+  reinstall any removed hourly task-refresh automation.
+- Run `bigbrain schema` and confirm it includes `Task Page Shape`.
+- Run the MCP `filing_rules` tool for the target brain and confirm it includes
+  `Task Page Schema`.
+- Run `bigbrain sync --json` and `bigbrain health --json` for the selected
+  brain.
+- If the brain still uses `ops/tasks.md`, stop using that file for new work and
+  create or update individual `tasks/*.md` pages instead. Use active-member
+  `assignees`, `status`, `priority`, `source`, and optional `due` frontmatter.
+- If setup is local and the brain has no GitHub remote backup, ask the user
+  whether to create a private GitHub backup. Warn that the brain could be lost
+  if the folder is deleted or device access is lost.
+
+### Verification
+
+- `npm test`
+
+[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.2.0

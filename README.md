@@ -129,10 +129,12 @@ persist outside the app container.
 
 See:
 
+- [`CHANGELOG.md`](./CHANGELOG.md)
 - [`docs/design.md`](./docs/design.md)
 - [`docs/mcp-hosting.md`](./docs/mcp-hosting.md)
 - [`docs/postgres-migration.md`](./docs/postgres-migration.md)
 - [`docs/example-brain-deployment.md`](./docs/example-brain-deployment.md)
+- [`docs/releases.md`](./docs/releases.md)
 - [`src/bigbrain/README.md`](./src/bigbrain/README.md)
 - [`TODO.md`](./TODO.md)
 

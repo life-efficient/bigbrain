@@ -26,6 +26,8 @@ This skill guarantees:
 - Re-link the global `bigbrain` binary when needed
 - Detect new bundled skills and automations after an update
 - Install or refresh bundled skills and automations in the active agent runtime
+- Read `CHANGELOG.md` after pulling and apply the matching `Agent update
+  actions`
 - Verify the updated checkout and active runtime before reporting success
 - Report unapplied updates only when applying them is blocked or unsafe
 
@@ -51,13 +53,19 @@ This skill guarantees:
    - use `git pull --rebase --autostash`
    - stop and report the exact blocker if rebase conflicts or auth failures
      occur
-6. If `package.json` or lockfiles changed, or `node_modules` is missing, run:
+6. Read release notes:
+   - compare the previous HEAD and final HEAD against `CHANGELOG.md`
+   - identify every release entry that may have landed
+   - read each relevant `Agent update actions` section before continuing
+   - if no release entry covers the changed range, report that the changelog is
+     missing and continue with the generic verification steps below
+7. If `package.json` or lockfiles changed, or `node_modules` is missing, run:
    - `npm install`
-7. Ensure the global CLI points at the checkout:
+8. Ensure the global CLI points at the checkout:
    - `npm link`
    - `command -v bigbrain`
    - `bigbrain --help`
-8. Check for new or changed bundled skills:
+9. Check for new or changed bundled skills:
    - list repo skills with `find "$repo_root/skills" -mindepth 2 -maxdepth 2 -name SKILL.md -print`
    - determine the active skills root using the same rule as
      `INSTALL_FOR_AGENTS.md`: prefer the active harness directory, commonly
@@ -68,7 +76,7 @@ This skill guarantees:
      them as manual follow-up instead
    - do not stop at listing found skills; install or refresh every safe skill
      before proceeding
-9. Check for new or changed bundled automations:
+10. Check for new or changed bundled automations:
    - list repo automation templates under `automations/*/automation.toml`
    - determine the active automation root, normally
      `${CODEX_HOME:-$HOME/.codex}/automations`
@@ -83,7 +91,15 @@ This skill guarantees:
      manual follow-up instead
    - do not stop at listing found automations; install or refresh every safe
      automation before proceeding
-10. Verify the updated checkout and active install:
+11. Apply release-specific actions:
+   - execute every relevant `Agent update actions` item from `CHANGELOG.md`
+     that applies to the local setup
+   - for schema or filing-rules changes, run `bigbrain schema` and MCP
+     `filing_rules` when an MCP-backed brain is configured
+   - for new skills or automations, confirm active installs were refreshed
+   - for removed skills or automations, remove stale BigBrain-owned active
+     installs when safe, or report the manual cleanup needed
+12. Verify the updated checkout and active install:
    - `npm test`
    - `bigbrain health --json` against the default brain when configured
    - review `skill_template_status` and `automation_template_status` in the
@@ -105,6 +121,8 @@ This skill guarantees:
 - Do not overwrite active copied skills or automations with local edits.
 - Do not present installable skills or automations as merely "available"; apply
   them unless a guardrail blocks the change.
+- Do not skip `CHANGELOG.md`; release entries are the source of truth for
+  friend/local-install update actions.
 - Do not write secrets into the repo while verifying.
 
 ## Output
@@ -114,6 +132,8 @@ Report:
 - starting branch and upstream
 - whether an update was found
 - previous HEAD and final HEAD
+- release versions found in `CHANGELOG.md`
+- changelog agent actions applied or skipped as not applicable
 - whether dependencies or `npm link` were run
 - new or refreshed skills
 - new or refreshed automations

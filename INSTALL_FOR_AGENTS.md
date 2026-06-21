@@ -96,6 +96,10 @@ command -v bigbrain
 bigbrain --help
 ```
 
+Before declaring setup or update work complete, read `CHANGELOG.md`. For each
+release applied to this checkout, perform the listed `Agent update actions` or
+report why an action is not applicable.
+
 ## Install skills
 
 BigBrain skills are provided from this repo under `skills/`. Install every
