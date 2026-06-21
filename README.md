@@ -5,12 +5,6 @@ BigBrain:
 
 ```text
 Install and set up BigBrain by following https://github.com/life-efficient/bigbrain/blob/main/INSTALL_FOR_AGENTS.md.
-
-Ask me only for choices that affect setup. Use these recommended answers unless I say otherwise:
-- Where should BigBrain run? Recommended: on this computer.
-- If a server database is needed, where should it live? Recommended: local development database.
-- Who can use this brain? Recommended: private.
-- How should BigBrain get the OpenAI API key? Recommended: use the existing key if one is already configured.
 ```
 
 `bigbrain` is a local-first knowledge runtime for agents and humans working

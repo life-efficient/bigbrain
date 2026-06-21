@@ -5,22 +5,61 @@ such as `bigbrain sync --json` from any working directory.
 
 ## Ask before setup
 
-Ask the user only for choices that change the installation. Use the recommended
-option when the user does not have a preference:
+Ask the user only for choices that change the installation. Ask one question at
+a time, show bullet option answers, mark exactly one answer with
+`(recommended)`, and wait for the user's answer before proceeding.
 
-- Where should BigBrain run? Recommended: on this computer. Other options:
-  on a server, or connect to an already-hosted BigBrain.
-- Which brain folder should BigBrain use? Ask only if the folder is not obvious
-  from the workspace.
-- If a server database is needed, where should it live? Recommended: local
-  development database. Other options: Supabase or another hosted Postgres
-  database.
-- Who can use this brain? Recommended: private. If the user wants a shared
-  brain, ask who should have access.
-- How should BigBrain get the OpenAI API key? Recommended: use the existing
-  key if one is already configured. Otherwise ask whether to save it in
-  `${HOME}/.config/bigbrain/.env`, a deployment secret store, or another
-  user-approved secret location.
+Ask this first:
+
+```text
+Where should BigBrain run?
+
+- On this computer (recommended)
+- On a server
+- Connect to an already-hosted BigBrain
+```
+
+Ask this only if the brain folder is not obvious from the workspace or existing
+BigBrain config:
+
+```text
+Which brain folder should BigBrain use?
+
+- Use the existing or default brain folder (recommended)
+- Use a different folder I provide
+- Create a new brain folder
+```
+
+Ask this only if a server database is needed:
+
+```text
+Where should the server database live?
+
+- Local development database (recommended)
+- Supabase
+- Another hosted Postgres database
+```
+
+Ask this only if BigBrain will run on a server or connect to a hosted BigBrain:
+
+```text
+Who can use this brain?
+
+- Just me / private (recommended)
+- A shared allowlist
+- Another access setup
+```
+
+Ask this only if no OpenAI API key is already available in the environment or
+BigBrain config:
+
+```text
+How should BigBrain get the OpenAI API key?
+
+- Use the existing configured key (recommended)
+- Save a new key in ${HOME}/.config/bigbrain/.env
+- Use a deployment secret store
+```
 
 Do not ask for values that can be discovered safely from the repo, current
 environment, or existing BigBrain config. Never write secrets into this source
