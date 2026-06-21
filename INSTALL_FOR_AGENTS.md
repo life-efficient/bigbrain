@@ -178,6 +178,58 @@ bigbrain health --json
 If `bigbrain` is not found, rerun `npm link` from the BigBrain repo using the
 same Node version and shell environment used by the agent or automation.
 
+## Install local MCP service
+
+For local setup on macOS, install and start the always-on local MCP service
+after the CLI and brain home are configured:
+
+```bash
+repo_root="$(pwd)"
+brain_home="/path/to/brain-home"
+
+node "$repo_root/scripts/install-local-mcp-service.mjs" \
+  --repo-root "$repo_root" \
+  --brain-home "$brain_home"
+```
+
+This writes a LaunchAgent at:
+
+```text
+~/Library/LaunchAgents/local.bigbrain.mcp.plist
+```
+
+It starts BigBrain with:
+
+```bash
+bigbrain --brain-home "$brain_home" mcp --host 127.0.0.1 --port 3333
+```
+
+The service is configured with `RunAtLoad` and `KeepAlive`, so macOS starts it
+at login and restarts it if it exits. Logs are written to:
+
+```text
+~/.config/bigbrain/bigbrain-mcp.log
+~/.config/bigbrain/bigbrain-mcp.err.log
+```
+
+Verify it is running:
+
+```bash
+curl http://127.0.0.1:3333/health
+launchctl print "gui/$(id -u)/local.bigbrain.mcp"
+```
+
+The MCP endpoint is:
+
+```text
+http://127.0.0.1:3333/mcp
+```
+
+This local service uses `BIGBRAIN_MCP_AUTH_MODE=none` and binds only to
+`127.0.0.1`. Do not use this unauthenticated local service for remote or shared
+brains. For server or team access, use the hosted MCP setup in
+`docs/mcp-hosting.md`.
+
 ## Install automations
 
 BigBrain automation templates live under `automations/`. They are repo-owned

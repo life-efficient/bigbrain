@@ -26,6 +26,7 @@ the user with a working runtime, a verified index path, and a clear next step.
 This skill guarantees:
 - Initialize or target the intended brain home explicitly
 - Verify configuration, state, and SQLite runtime paths actually work
+- Install and start the local always-on MCP service for local macOS setups
 - Prove search and health work against real content
 - Keep migration additive rather than destructive
 - Stop with a clear blocker if the environment cannot complete setup safely
@@ -45,10 +46,14 @@ This skill guarantees:
    - keep the source corpus untouched
 5. Rebuild the index:
    - `bigbrain sync --json`
-6. Prove retrieval works on real content:
+6. For local macOS setup, install and start the always-on MCP service:
+   - `node /path/to/bigbrain/scripts/install-local-mcp-service.mjs --repo-root /path/to/bigbrain --brain-home /path/to/brain-home`
+   - verify `http://127.0.0.1:3333/health`
+   - verify an MCP `initialize` plus `tools/list` smoke test
+7. Prove retrieval works on real content:
    - `bigbrain search "<known term>" --json`
    - `bigbrain get <known-slug>` when a canonical page is expected
-7. Explain the next operational step:
+8. Explain the next operational step:
    - use `Understand BigBrain` for filing guidance
    - use `BigBrain: Ingest` for new material
    - use `BigBrain: Maintain` for cleanup
@@ -60,6 +65,8 @@ This skill guarantees:
 - Do not claim setup succeeded until `health` and `sync` both work
 - Prefer a small proof query over a vague “it looks fine”
 - Surface state-root or permissions blockers directly instead of hand-waving them away
+- Do not bind the local unauthenticated MCP service to anything except
+  `127.0.0.1`
 
 ## Output
 
@@ -69,4 +76,5 @@ Report:
 - whether migration was run
 - health result
 - sync result
+- local MCP service status and endpoint
 - one proof that retrieval worked

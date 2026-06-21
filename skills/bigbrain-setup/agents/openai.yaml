@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Setup"
-  short_description: "Initialize BigBrain, verify the runtime, and migrate existing notes when needed"
-  default_prompt: "Use BigBrain: Setup to initialize a brain home, verify health and sync, optionally migrate existing markdown, and prove retrieval works."
+  short_description: "Initialize BigBrain, start local MCP, and verify runtime health"
+  default_prompt: "Use BigBrain: Setup to initialize a brain home, start the local always-on MCP service, verify health and sync, optionally migrate markdown, and prove retrieval works."
