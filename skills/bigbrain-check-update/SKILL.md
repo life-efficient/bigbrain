@@ -12,7 +12,8 @@ description: |
 
 Use this skill to keep the BigBrain code checkout current without clobbering
 local work. The expected target is the BigBrain source repo, not the user's
-markdown brain home.
+markdown brain home. The job is not complete when updates are merely found or
+listed; apply/install all safe updates and prove the active installation works.
 
 ## Contract
 
@@ -25,7 +26,8 @@ This skill guarantees:
 - Re-link the global `bigbrain` binary when needed
 - Detect new bundled skills and automations after an update
 - Install or refresh bundled skills and automations in the active agent runtime
-- Verify the updated checkout before reporting success
+- Verify the updated checkout and active runtime before reporting success
+- Report unapplied updates only when applying them is blocked or unsafe
 
 ## Workflow
 
@@ -64,6 +66,8 @@ This skill guarantees:
    - refresh existing symlinks that point to this repo
    - do not overwrite copied active skills that contain local edits; report
      them as manual follow-up instead
+   - do not stop at listing found skills; install or refresh every safe skill
+     before proceeding
 9. Check for new or changed bundled automations:
    - list repo automation templates under `automations/*/automation.toml`
    - determine the active automation root, normally
@@ -77,11 +81,16 @@ This skill guarantees:
      fields such as `cwds`, `created_at`, and `updated_at`
    - do not overwrite custom local automation definitions; report them as
      manual follow-up instead
+   - do not stop at listing found automations; install or refresh every safe
+     automation before proceeding
 10. Verify the updated checkout and active install:
    - `npm test`
    - `bigbrain health --json` against the default brain when configured
    - review `skill_template_status` and `automation_template_status` in the
      health output for missing or mismatched active installs
+   - if health reports missing or mismatched BigBrain-owned skills or
+     automations, fix the active install and run health again before reporting
+     success
 
 ## Guardrails
 
@@ -94,6 +103,8 @@ This skill guarantees:
 - If tests fail after a pull, report the failure and leave the repo in the
   post-pull state for inspection.
 - Do not overwrite active copied skills or automations with local edits.
+- Do not present installable skills or automations as merely "available"; apply
+  them unless a guardrail blocks the change.
 - Do not write secrets into the repo while verifying.
 
 ## Output
@@ -106,6 +117,7 @@ Report:
 - whether dependencies or `npm link` were run
 - new or refreshed skills
 - new or refreshed automations
+- unapplied updates, only with the blocker that prevented installation
 - verification commands and pass/fail status
 - skill and automation template health status
 - any unresolved blockers
