@@ -696,7 +696,7 @@ function toolDefinitions() {
     },
     {
       name: 'tasks/create',
-      description: 'Create one member-assigned task page under tasks/. Assignees must be active members; assignees may include me.',
+      description: 'Create one member-assigned task page under tasks/. Assignees must be active members; assignees may include me. If creating a done or archived task, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
       inputSchema: taskWriteSchema({ requireBody: true }),
     },
     {
@@ -706,7 +706,7 @@ function toolDefinitions() {
     },
     {
       name: 'tasks/update',
-      description: 'Update one task page under tasks/, including status, priority, assignees, source, body, and timeline.',
+      description: 'Update one task page under tasks/, including status, priority, assignees, source, body, and timeline. When setting status to done or archived, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
       inputSchema: taskWriteSchema({ update: true }),
     },
     {
@@ -1027,7 +1027,7 @@ function taskWriteSchema({ requireBody = false, update = false } = {}) {
       priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
       assignees: { type: 'array', items: { type: 'string' }, description: 'Active member person slugs, or me for the authenticated member.' },
       source: { type: 'array', items: { type: 'string' }, description: 'Related brain slugs such as meetings/example or initiatives/example.' },
-      timeline_entry: { type: 'string' },
+      timeline_entry: { type: 'string', description: 'Required when completing or archiving a task. Use "Next task: tasks/<slug>" or "No successor task needed: <reason>".' },
     },
     required: update ? ['path'] : requireBody ? ['title', 'body'] : ['title'],
   };
@@ -1067,6 +1067,10 @@ function analyzeTaskSpecification(task, questionLimit) {
   if ((task.status === 'blocked' || task.status === 'waiting') && !hasUnblockSignal(combined)) {
     issues.push({ code: 'unclear_unblock_path', reason: `Task is ${task.status} but does not say what dependency, decision, access, or owner will unblock it.` });
     questions.push('What exact dependency, decision, access, or response is needed to unblock this task?');
+  }
+  if (task.completed && !hasCompletionHandoff(`${task.body}\n${task.timeline}`)) {
+    issues.push({ code: 'missing_completion_handoff', reason: 'Completed task does not link a successor task or state that no successor task is needed.' });
+    questions.push('Which successor task should be linked, or why is no successor task needed?');
   }
 
   const dedupedQuestions = Array.from(new Set(questions)).slice(0, questionLimit);
@@ -1147,6 +1151,12 @@ function hasUnblockSignal(text) {
   return /\b(waiting for|blocked by|depends on|dependency|decision|approval|access|credential|response from|owner|unblock)\b/.test(text);
 }
 
+function hasCompletionHandoff(text) {
+  const value = String(text || '');
+  return /\bNext task:\s+tasks\/[a-z0-9][a-z0-9-]*(?:\/[a-z0-9][a-z0-9-]*)*\b/i.test(value)
+    || /\bNo successor task needed:\s+\S.+/i.test(value);
+}
+
 function scoreSpecificationIssues(issues) {
   const weights = {
     missing_assignee: 5,
@@ -1154,6 +1164,7 @@ function scoreSpecificationIssues(issues) {
     missing_source: 4,
     unclear_unblock_path: 4,
     missing_completion_criteria: 3,
+    missing_completion_handoff: 3,
     thin_body: 2,
     vague_title: 1,
   };
@@ -1166,6 +1177,7 @@ function suggestedUpdateFields(issues) {
     if (issue.code === 'missing_assignee' || issue.code === 'invalid_assignee') fields.add('assignees');
     if (issue.code === 'missing_source') fields.add('source');
     if (issue.code === 'thin_body' || issue.code === 'missing_completion_criteria' || issue.code === 'unclear_unblock_path') fields.add('body');
+    if (issue.code === 'missing_completion_handoff') fields.add('timeline_entry');
     if (issue.code === 'vague_title') fields.add('title');
   }
   return Array.from(fields);

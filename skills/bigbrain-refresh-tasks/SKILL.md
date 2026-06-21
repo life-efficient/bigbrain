@@ -36,6 +36,9 @@ or reconstruct old `ops/tasks.md` task lists.
   members.
 - Every status, assignee, priority, source, or body change must be grounded in
   retrieved BigBrain pages or explicit user instruction.
+- Before marking a task `done` or `archived`, either create or link the
+  successor task and use `Next task: tasks/<slug>` in the timeline entry, or
+  state `No successor task needed: <reason>`.
 
 ## Workflow
 
@@ -57,10 +60,13 @@ or reconstruct old `ops/tasks.md` task lists.
      supports the ownership change
    - updated with better source links or body context
 4. Use `tasks/update` for existing tasks whose metadata or body is stale.
-5. Use `tasks/create` only when current evidence shows a clear missing task that
+5. When closing a task, create or identify the next concrete task first unless
+   no successor is needed, then include the completion handoff in
+   `tasks/update`.
+6. Use `tasks/create` only when current evidence shows a clear missing task that
    is concrete, useful, deduplicated, and assignable.
-6. Leave ambiguous items as recommendations rather than mutating them.
-7. Verify updates with `tasks/list` or direct `read`.
+7. Leave ambiguous items as recommendations rather than mutating them.
+8. Verify updates with `tasks/list` or direct `read`.
 
 ## Output
 

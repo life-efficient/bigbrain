@@ -7,6 +7,7 @@ import { findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug,
 
 const TASK_STATUSES = ['open', 'waiting', 'blocked', 'done', 'archived'];
 const TASK_PRIORITIES = ['p0', 'p1', 'p2', 'p3'];
+const COMPLETION_HANDOFF_ERROR = 'Completing a task requires a completion handoff: either Next task: tasks/<slug> or No successor task needed: <reason>.';
 
 export async function listTaskPages({ config, db, assignee = null, status = null, priority = null, actor = null, memberResolution = {} } = {}) {
   const members = await listActiveMembers(db);
@@ -41,6 +42,11 @@ export async function createTaskPage({
   const assigneeSlugs = await normalizeAndValidateAssignees(db, assignees, actor, memberResolution);
   const normalizedStatus = normalizeStatus(status);
   const normalizedPriority = normalizePriority(priority);
+  assertCompletionHandoff({
+    nextStatus: normalizedStatus,
+    previousStatus: null,
+    timelineEntry,
+  });
   const slug = taskPath ? normalizeTaskSlug(taskPath) : `tasks/${slugify(normalizedTitle)}`;
   const page = await createBrainPage({
     config,
@@ -76,10 +82,19 @@ export async function updateTaskPage({
   const fullPath = safeBrainPath(config.brainDir, relative);
   const raw = await fs.readFile(fullPath, 'utf8');
   const parsed = parseMarkdownPage(raw, relative.replace(/\.md$/i, ''));
+  const previousStatus = normalizeStatus(parsed.frontmatter.status || 'open');
+  const statusProvided = status !== null && status !== undefined;
+  const normalizedStatus = statusProvided ? normalizeStatus(status) : previousStatus;
+  assertCompletionHandoff({
+    nextStatus: normalizedStatus,
+    previousStatus,
+    timelineEntry,
+    isExplicitStatusChange: statusProvided,
+  });
   const nextFrontmatter = {
     ...parsed.frontmatter,
     type: parsed.frontmatter.type || 'task',
-    status: status === null || status === undefined ? normalizeStatus(parsed.frontmatter.status || 'open') : normalizeStatus(status),
+    status: normalizedStatus,
     priority: priority === null || priority === undefined ? normalizePriority(parsed.frontmatter.priority || 'p3') : normalizePriority(priority),
   };
   if (assignees !== null && assignees !== undefined) {
@@ -226,6 +241,28 @@ function normalizePriority(value) {
     throw new Error(`Invalid task priority: ${value}. Expected one of ${TASK_PRIORITIES.join(', ')}.`);
   }
   return normalized;
+}
+
+function assertCompletionHandoff({
+  nextStatus,
+  previousStatus = null,
+  timelineEntry,
+  isExplicitStatusChange = true,
+} = {}) {
+  if (!isExplicitStatusChange || !isTerminalTaskStatus(nextStatus)) return;
+  if (isTerminalTaskStatus(previousStatus)) return;
+  const entry = String(timelineEntry || '').trim();
+  if (!hasCompletionHandoff(entry)) throw new Error(COMPLETION_HANDOFF_ERROR);
+}
+
+function isTerminalTaskStatus(status) {
+  return status === 'done' || status === 'archived';
+}
+
+function hasCompletionHandoff(text) {
+  const value = String(text || '');
+  return /\bNext task:\s+tasks\/[a-z0-9][a-z0-9-]*(?:\/[a-z0-9][a-z0-9-]*)*\b/i.test(value)
+    || /\bNo successor task needed:\s+\S.+/i.test(value);
 }
 
 function normalizeDateValue(value) {

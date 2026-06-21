@@ -179,6 +179,9 @@ Valid priorities are `p0`, `p1`, `p2`, and `p3`. `due` is optional and must be
 `YYYY-MM-DD` when present. Keep the current task context above the separator and
 append evidence or state changes under `## Timeline`. Use the MCP task tools
 (`tasks/list`, `tasks/create`, `tasks/update`) when writing through an agent.
+When marking a task `done` or `archived`, include a completion handoff in the
+timeline: either `Next task: tasks/<slug>` or
+`No successor task needed: <reason>`.
 Do not use `ops/tasks.md` or recreate a single-file task list.
 
 The dashboard and `bigbrain tasks --assignee people/hani` only resolve

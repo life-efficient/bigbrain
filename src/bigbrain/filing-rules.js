@@ -180,6 +180,7 @@ function defaultTaskSchema() {
       'Assignees must be active members, not arbitrary people pages.',
       'Use source links to connect the task to the meeting, project, inbox item, or other brain page that justifies it.',
       'Keep the current task brief above the separator and append evidence or state changes under ## Timeline.',
+      'When marking a task done or archived, include a completion handoff in the timeline: either Next task: tasks/<slug> or No successor task needed: <reason>.',
       'Use tasks/create and tasks/update MCP tools for task writes when available.',
       'Do not use ops/tasks.md or recreate a single-file task list.',
     ],

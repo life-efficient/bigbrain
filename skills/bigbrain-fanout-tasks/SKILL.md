@@ -51,9 +51,13 @@ copyable:
 - Show a `Ready tasks` section first.
 - Each ready task should be one concise copyable prompt block that names the
   BigBrain task slug and describes only the task to do.
+- Each prompt must tell the worker that before marking the task `done` or
+  `archived`, they must either create/link the successor as
+  `Next task: tasks/<slug>` or state
+  `No successor task needed: <reason>` in the completion timeline.
 - Do not format ready tasks as a numbered list.
 - Do not include boilerplate about reading files, preserving changes,
-  verification, commits, or updating task pages.
+  verification, or commits beyond the required completion handoff.
 - Show a `Needs more specification` section after ready tasks when tasks are too
   vague to hand off cleanly.
 - Keep the needs-specification list succinct; name the task slug and the unclear

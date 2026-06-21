@@ -764,7 +764,7 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     }, token);
     assert.deepEqual(allTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
 
-    const updated = await rpc(running.url, 'tools/call', {
+    const rejectedCompletion = await rpc(running.url, 'tools/call', {
       name: 'tasks/update',
       arguments: {
         path: 'tasks/draft-icaire-update',
@@ -772,8 +772,32 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
         timeline_entry: 'Marked complete in MCP task test.',
       },
     }, token);
+    assert.equal(rejectedCompletion.result, undefined);
+    assert.match(rejectedCompletion.error.message, /Completing a task requires a completion handoff/);
+
+    const updated = await rpc(running.url, 'tools/call', {
+      name: 'tasks/update',
+      arguments: {
+        path: 'tasks/draft-icaire-update',
+        status: 'done',
+        timeline_entry: 'Marked complete in MCP task test. Next task: tasks/example-follow-up.',
+      },
+    }, token);
     assert.equal(updated.result.structuredContent.status, 'done');
-    assert.match(updated.result.structuredContent.timeline, /Marked complete in MCP task test\. \(via teammate@example\.com\)/);
+    assert.match(updated.result.structuredContent.timeline, /Marked complete in MCP task test\. Next task: tasks\/example-follow-up\. \(via teammate@example\.com\)/);
+
+    const terminal = await rpc(running.url, 'tools/call', {
+      name: 'tasks/create',
+      arguments: {
+        title: 'Terminal cleanup',
+        body: 'Cleanup is complete and no further work remains.',
+        assignees: ['me'],
+        status: 'done',
+        timeline_entry: 'Created completed terminal task. No successor task needed: terminal cleanup complete.',
+      },
+    }, token);
+    assert.equal(terminal.error, undefined, terminal.error?.message);
+    assert.equal(terminal.result.structuredContent.status, 'done');
 
     const rejected = await rpc(running.url, 'tools/call', {
       name: 'tasks/create',
@@ -808,6 +832,25 @@ Weekly ICAIRE updates should summarize progress, decisions, blockers, and next c
     }, token);
     assert.equal(thin.error, undefined, thin.error?.message);
 
+    await fs.writeFile(path.join(fixture.brainHome, 'tasks', 'completed-without-handoff.md'), `---
+type: task
+title: Completed without handoff
+status: done
+priority: p2
+assignees: [people/team-mate]
+---
+
+# Completed without handoff
+
+The task is done and the original outcome was verified.
+
+---
+
+## Timeline
+
+- **2026-06-21** | Marked done before completion handoffs were required.
+`, 'utf8');
+
     const enrichment = await rpc(running.url, 'tools/call', {
       name: 'tasks/enrich',
       arguments: {
@@ -823,6 +866,18 @@ Weekly ICAIRE updates should summarize progress, decisions, blockers, and next c
     assert.equal(candidate.issues.some((issue) => issue.code === 'vague_title'), true);
     assert.equal(candidate.questions.length <= 3, true);
     assert.equal(candidate.related_context[0].slug, 'initiatives/gfeai-2026');
+
+    const completedEnrichment = await rpc(running.url, 'tools/call', {
+      name: 'tasks/enrich',
+      arguments: {
+        path: 'tasks/completed-without-handoff',
+        include_completed: true,
+      },
+    }, token);
+    assert.equal(completedEnrichment.error, undefined, completedEnrichment.error?.message);
+    const completedCandidate = completedEnrichment.result.structuredContent.candidates[0];
+    assert.equal(completedCandidate.task.slug, 'tasks/completed-without-handoff');
+    assert.equal(completedCandidate.issues.some((issue) => issue.code === 'missing_completion_handoff'), true);
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

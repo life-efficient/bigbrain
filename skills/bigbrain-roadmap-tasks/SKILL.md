@@ -36,6 +36,9 @@ assignable task pages under `tasks/*.md`.
 - Do not assign work to arbitrary `people/*` pages. Assignees must be active
   members.
 - Keep roadmap reasoning grounded in retrieved BigBrain pages.
+- Before marking a task `done` or `archived`, either create or link the
+  successor task and use `Next task: tasks/<slug>` in the timeline entry, or
+  state `No successor task needed: <reason>`.
 
 ## Workflow
 
@@ -62,9 +65,12 @@ assignable task pages under `tasks/*.md`.
 6. Use `tasks/update` instead of creating a new task when an existing page
    already captures the work but needs status, priority, source, body, or
    assignee updates.
-7. Leave non-actionable, ungrounded, or unassignable ideas as recommendations
+7. When a roadmap pass closes a task, create or identify the next concrete task
+   first unless no successor is needed, then include the completion handoff in
+   `tasks/update`.
+8. Leave non-actionable, ungrounded, or unassignable ideas as recommendations
    only.
-8. Verify created or updated tasks with `tasks/list` or direct `read`.
+9. Verify created or updated tasks with `tasks/list` or direct `read`.
 
 ## Output
 

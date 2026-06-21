@@ -131,6 +131,7 @@ export function renderSchemaMarkdown() {
     '- `source` links the task to supporting brain pages such as meetings, projects, or inbox notes.',
     '- `due` is optional and must be `YYYY-MM-DD` when present.',
     '- Keep current task context above `---` and append evidence or state changes under `## Timeline`.',
+    '- When marking a task `done` or `archived`, include a completion handoff in the timeline: either `Next task: tasks/<slug>` or `No successor task needed: <reason>`.',
     '- Use MCP `tasks/create` and `tasks/update` for task writes when available.',
     '- Do not use `ops/tasks.md` or maintain a single-file task list.',
     '',

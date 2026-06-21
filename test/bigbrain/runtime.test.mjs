@@ -952,6 +952,7 @@ test('schema and filing guidance stay inspectable', async () => {
     assert.match(markdown, /Meeting Page Shape/);
     assert.match(markdown, /Task Page Shape/);
     assert.match(markdown, /status.*open.*waiting.*blocked.*done.*archived/s);
+    assert.match(markdown, /No successor task needed/);
     assert.match(markdown, /Do not use `ops\/tasks\.md`/);
     assert.equal(recommendation.folder, 'meetings');
     assert.equal(recommendFolderForInput('follow up task for the launch owner').folder, 'tasks');
@@ -962,6 +963,7 @@ test('schema and filing guidance stay inspectable', async () => {
     assert.match(filingRules.markdown, /Pattern: `tasks\/<task-slug>\.md`/);
     assert.deepEqual(filingRules.task_schema.frontmatter.status, ['open', 'waiting', 'blocked', 'done', 'archived']);
     assert.deepEqual(filingRules.task_schema.frontmatter.priority, ['p0', 'p1', 'p2', 'p3']);
+    assert.match(filingRules.task_schema.guidance.join('\n'), /Next task: tasks\/<slug>/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /Do not use ops\/tasks\.md/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
