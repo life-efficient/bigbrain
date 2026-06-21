@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Onboarding"
+  short_description: "Ask onboarding questions that populate a new brain"
+  default_prompt: "Use $bigbrain-onboarding to interview me and create the first useful pages in my BigBrain."
