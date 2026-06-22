@@ -5,9 +5,16 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## [Unreleased]
 
+### Added
+
+- `bigbrain-whats-next` skill for concise BigBrain task snapshots before
+  optionally fanning out handoff prompts.
+
 ### Agent update actions
 
 - Read this section before pulling or deploying unreleased changes.
+- Install or refresh the new bundled `bigbrain-whats-next` skill from
+  `skills/`.
 - Do not claim an update is complete unless the relevant release actions below
   have been applied or explicitly marked not applicable.
 

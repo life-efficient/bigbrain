@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: What's Next"
+  short_description: "Summarize the next open BigBrain tasks as concise bullets"
+  default_prompt: "Use BigBrain: What's Next to list matching BigBrain tasks through the MCP tasks/list tool, return a concise What's Next snapshot in chat, and offer to fan out handoff prompts for the ready tasks."
