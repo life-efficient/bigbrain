@@ -5,18 +5,42 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## [Unreleased]
 
+### Agent update actions
+
+- Read this section before pulling or deploying unreleased changes.
+- Do not claim an update is complete unless the relevant release actions below
+  have been applied or explicitly marked not applicable.
+
+## [0.3.0] - 2026-06-23
+
 ### Added
 
 - `bigbrain-whats-next` skill for concise BigBrain task snapshots before
   optionally fanning out handoff prompts.
+
+### Changed
+
+- `bigbrain-maintain` now attempts safe bounded remediation for deterministic
+  health findings before reporting unresolved items.
+- `bigbrain-nightly-maintenance` now uses the maintenance remediation behavior,
+  re-runs health after remediation, runs task refresh, and reports the task
+  refresh result.
 
 ### Agent update actions
 
 - Read this section before pulling or deploying unreleased changes.
 - Install or refresh the new bundled `bigbrain-whats-next` skill from
   `skills/`.
+- Refresh the bundled `bigbrain-maintain` skill from `skills/`.
+- Refresh the bundled `bigbrain-nightly-maintenance` automation template from
+  `automations/`.
 - Do not claim an update is complete unless the relevant release actions below
   have been applied or explicitly marked not applicable.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
 
 ## [0.2.0] - 2026-06-21
 
@@ -76,5 +100,6 @@ actions` section for agents maintaining local installs and hosted brains.
 
 - `npm test`
 
-[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.3.0
 [0.2.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.2.0
