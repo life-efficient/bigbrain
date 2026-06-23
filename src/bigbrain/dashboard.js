@@ -655,12 +655,11 @@ function renderAppHtml() {
       .explorer-glyph.folder { color: var(--accent-strong); background: rgba(125,211,252,0.10); }
       .explorer-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .explorer-recents { display: grid; gap: 2px; padding: 0 6px 10px; }
-      .explorer-recent-row { width: 100%; min-width: 0; min-height: 48px; padding: 7px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: 7px; text-align: left; cursor: pointer; }
+      .explorer-recent-row { width: 100%; min-width: 0; min-height: 42px; padding: 7px 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); display: grid; grid-template-columns: 22px minmax(0, 1fr); align-items: start; gap: 7px; text-align: left; cursor: pointer; }
       .explorer-recent-row:hover { background: rgba(255,255,255,0.05); color: var(--ink); }
       .explorer-recent-row.selected { background: rgba(125,211,252,0.12); color: var(--ink); }
       .explorer-recent-copy { min-width: 0; display: grid; gap: 3px; }
       .explorer-recent-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 12px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--ink); }
-      .explorer-recent-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
       .explorer-recent-meta { font-size: 11px; color: var(--muted); }
       .explorer-viewer { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg); }
       .explorer-viewer.empty { display: grid; grid-template-rows: minmax(0, 1fr); place-items: center; }

@@ -969,9 +969,8 @@ function ExplorerRecentList({ files, selectedPath, onOpenFile }) {
         >
           <span className="explorer-glyph">{fileGlyph(file)}</span>
           <span className="explorer-recent-copy">
-            <span className="explorer-recent-name">{file.name || file.path}</span>
-            <span className="explorer-recent-path">{file.path}</span>
-            <span className="explorer-recent-meta">{formatDateTime(file.updated_at)} | {formatFileSize(file.size)}</span>
+            <span className="explorer-recent-name">{formatRecentFileTitle(file)}</span>
+            <span className="explorer-recent-meta">{formatRelativeTime(file.updated_at)}</span>
           </span>
         </button>
       ))}
@@ -1242,6 +1241,41 @@ function formatFileSize(size) {
   if (size < 1024) return `${size} B`;
   if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
   return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function formatRecentFileTitle(file) {
+  const source = String(file?.path || file?.name || '').split('/').pop() || 'Untitled';
+  const slug = source.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ').trim();
+  if (!slug) return 'Untitled';
+  return slug
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toLocaleUpperCase() + word.slice(1).toLocaleLowerCase())
+    .join(' ');
+}
+
+function formatRelativeTime(value) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return '';
+  const elapsedMs = Date.now() - timestamp;
+  const isFuture = elapsedMs < 0;
+  const absoluteMs = Math.abs(elapsedMs);
+  if (absoluteMs < 45 * 1000) return isFuture ? 'in a few seconds' : 'just now';
+  const units = [
+    ['year', 365 * 24 * 60 * 60 * 1000],
+    ['month', 30 * 24 * 60 * 60 * 1000],
+    ['day', 24 * 60 * 60 * 1000],
+    ['hour', 60 * 60 * 1000],
+    ['minute', 60 * 1000],
+  ];
+  for (const [unit, unitMs] of units) {
+    const count = Math.round(absoluteMs / unitMs);
+    if (count >= 1) {
+      return isFuture
+        ? `in ${count} ${unit}${count === 1 ? '' : 's'}`
+        : `${count} ${unit}${count === 1 ? '' : 's'} ago`;
+    }
+  }
+  return '';
 }
 
 function clamp(value, min, max) {
