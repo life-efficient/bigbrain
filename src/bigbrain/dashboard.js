@@ -667,6 +667,19 @@ function renderAppHtml() {
       .explorer-viewer-head .meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .explorer-viewer-body { min-height: 0; overflow: auto; padding: 18px 20px; }
       .explorer-viewer-body .markdown-shell { max-width: 920px; }
+      .explorer-markdown-preview { display: grid; gap: 16px; max-width: 920px; }
+      .explorer-frontmatter { border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--surface) 72%, transparent); overflow: hidden; }
+      .explorer-frontmatter summary { min-height: 36px; padding: 6px 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; color: var(--muted); cursor: pointer; list-style: none; user-select: none; }
+      .explorer-frontmatter summary::-webkit-details-marker { display: none; }
+      .explorer-frontmatter summary::before { content: "›"; width: 14px; color: var(--muted); font-size: 15px; line-height: 1; transition: transform 140ms ease; }
+      .explorer-frontmatter[open] summary::before { transform: rotate(90deg); }
+      .explorer-frontmatter-title { color: var(--ink); font-size: 12px; font-weight: 750; }
+      .explorer-frontmatter-meta { font-size: 11px; }
+      .explorer-frontmatter-chip { max-width: min(210px, 100%); min-height: 22px; display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: var(--muted); font-size: 11px; }
+      .explorer-frontmatter-chip span,
+      .explorer-frontmatter-chip strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .explorer-frontmatter-chip strong { color: var(--ink); font-weight: 650; }
+      .explorer-frontmatter pre { margin: 0; max-height: 260px; overflow: auto; border-top: 1px solid var(--line); background: var(--pre-bg); color: var(--pre-ink); padding: 10px 12px; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
       .explorer-text-preview { margin: 0; min-height: 100%; white-space: pre-wrap; word-break: break-word; background: transparent; color: var(--ink); font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
       .explorer-media-frame { height: 100%; min-height: 0; display: grid; place-items: center; }
       .explorer-media-frame img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }

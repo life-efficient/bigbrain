@@ -1105,7 +1105,7 @@ function ExplorerViewer({ fileState, onRelativeLinkClick }) {
       </div>
       <div className="explorer-viewer-body">
         {file.kind === 'markdown' ? (
-          <MarkdownDocument
+          <ExplorerMarkdownPreview
             markdown={file.text || ''}
             sourceSlug={sourceSlug}
             onRelativeLinkClick={({ href }) => onRelativeLinkClick?.({ href, sourcePath: file.path })}
@@ -1143,6 +1143,70 @@ function ExplorerViewer({ fileState, onRelativeLinkClick }) {
       </div>
     </div>
   );
+}
+
+function ExplorerMarkdownPreview({ markdown, sourceSlug, onRelativeLinkClick, emptyLabel }) {
+  const parsed = useMemo(() => splitMarkdownFrontmatter(markdown), [markdown]);
+  if (!markdown?.trim()) {
+    return emptyLabel ? <div className="empty-copy">{emptyLabel}</div> : null;
+  }
+  return (
+    <div className="explorer-markdown-preview">
+      {parsed.frontmatter ? (
+        <details className="explorer-frontmatter">
+          <summary>
+            <span className="explorer-frontmatter-title">Frontmatter</span>
+            <span className="explorer-frontmatter-meta">{parsed.lineCount} {parsed.lineCount === 1 ? 'line' : 'lines'}</span>
+            {parsed.summaryFields.map((field) => (
+              <span className="explorer-frontmatter-chip" key={field.key}>
+                <span>{field.key}</span>
+                <strong>{field.value}</strong>
+              </span>
+            ))}
+          </summary>
+          <pre>{parsed.frontmatter}</pre>
+        </details>
+      ) : null}
+      <MarkdownDocument
+        markdown={parsed.body}
+        sourceSlug={sourceSlug}
+        onRelativeLinkClick={onRelativeLinkClick}
+        emptyLabel={emptyLabel}
+      />
+    </div>
+  );
+}
+
+function splitMarkdownFrontmatter(markdown) {
+  const text = typeof markdown === 'string' ? markdown : '';
+  if (!text.startsWith('---\n')) {
+    return { body: text, frontmatter: '', lineCount: 0, summaryFields: [] };
+  }
+  const end = text.indexOf('\n---', 4);
+  if (end < 0) {
+    return { body: text, frontmatter: '', lineCount: 0, summaryFields: [] };
+  }
+  const frontmatter = text.slice(4, end).trim();
+  const bodyStart = text[end + 4] === '\n' ? end + 5 : end + 4;
+  return {
+    body: text.slice(bodyStart).replace(/^\n+/, ''),
+    frontmatter,
+    lineCount: frontmatter ? frontmatter.split('\n').length : 0,
+    summaryFields: summarizeFrontmatter(frontmatter),
+  };
+}
+
+function summarizeFrontmatter(frontmatter) {
+  const parsed = new Map();
+  for (const line of frontmatter.split('\n')) {
+    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.+?)\s*$/);
+    if (!match) continue;
+    parsed.set(match[1], match[2].replace(/^['"]|['"]$/g, ''));
+  }
+  return ['type', 'status', 'priority', 'created']
+    .filter((key) => parsed.has(key))
+    .map((key) => ({ key, value: parsed.get(key) }))
+    .slice(0, 4);
 }
 
 async function copyTextToClipboard(value) {
