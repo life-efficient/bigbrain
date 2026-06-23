@@ -1248,6 +1248,38 @@ function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+function dayKeyFromTimestamp(value) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return null;
+  return new Date(timestamp).toISOString().slice(0, 10);
+}
+
+function formatActivityDate(dayKey) {
+  if (!dayKey) return 'No date';
+  const timestamp = Date.parse(`${dayKey}T00:00:00.000Z`);
+  if (!Number.isFinite(timestamp)) return dayKey;
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(timestamp));
+}
+
+function buildActivityBuckets(nodes) {
+  const counts = new Map();
+  for (const node of nodes) {
+    const day = dayKeyFromTimestamp(node.updated_at);
+    if (!day) continue;
+    counts.set(day, (counts.get(day) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .map(([day, count]) => ({ day, count }))
+    .sort((left, right) => left.day.localeCompare(right.day));
+}
+
+function resolveTimelineIndex(value, buckets) {
+  if (!buckets.length) return -1;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return buckets.length - 1;
+  return clamp(Math.round(numeric), 0, buckets.length - 1);
+}
+
 const GraphPanel = memo(function GraphPanel({
   graph,
   visualizerId,
@@ -1275,6 +1307,23 @@ const GraphPanel = memo(function GraphPanel({
   const visualizer = graphVisualizers.find((item) => item.id === visualizerId) || graphVisualizers[0];
   const VisualizerComponent = visualizer.Component;
   const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  const activityBuckets = useMemo(() => buildActivityBuckets(graphNodes), [graphNodes]);
+  const maxActivityCount = useMemo(() => Math.max(...activityBuckets.map((item) => item.count), 1), [activityBuckets]);
+  const [timelineIndex, setTimelineIndex] = useState(-1);
+  const latestTimelineIndex = activityBuckets.length - 1;
+  const resolvedTimelineIndex = resolveTimelineIndex(timelineIndex < 0 ? latestTimelineIndex : timelineIndex, activityBuckets);
+  const selectedActivityBucket = resolvedTimelineIndex >= 0 ? activityBuckets[resolvedTimelineIndex] : null;
+  const selectedTimelineDay = selectedActivityBucket?.day || null;
+  const timelineFilteredNodes = useMemo(() => {
+    if (!selectedTimelineDay) return graphNodes;
+    return graphNodes.filter((node) => {
+      const day = dayKeyFromTimestamp(node.updated_at);
+      return !day || day <= selectedTimelineDay;
+    });
+  }, [graphNodes, selectedTimelineDay]);
+  const visibleUpdatedCount = selectedTimelineDay
+    ? graphNodes.length - timelineFilteredNodes.length
+    : 0;
   const presentTypes = new Set(graphNodes.map((node) => node.type));
   const pageTypes = [
     ...TYPE_ORDER.filter((type) => presentTypes.has(type)),
@@ -1282,11 +1331,9 @@ const GraphPanel = memo(function GraphPanel({
   ];
   const selectedTypeSet = useMemo(() => new Set(selectedPageTypes), [selectedPageTypes]);
   const filteredGraph = useMemo(() => {
-    if (!selectedPageTypes.length) {
-      return graph;
-    }
-
-    const nodes = graphNodes.filter((node) => selectedTypeSet.has(node.type));
+    const nodes = selectedPageTypes.length
+      ? timelineFilteredNodes.filter((node) => selectedTypeSet.has(node.type))
+      : timelineFilteredNodes;
     const slugs = new Set(nodes.map((node) => node.slug));
     const edges = (Array.isArray(graph?.edges) ? graph.edges : []).filter((edge) => {
       return slugs.has(edge.source) && slugs.has(edge.target);
@@ -1302,11 +1349,15 @@ const GraphPanel = memo(function GraphPanel({
         edge_count: edges.length,
       },
     };
-  }, [graph, graphNodes, selectedPageTypes.length, selectedTypeSet]);
+  }, [graph, selectedPageTypes.length, selectedTypeSet, timelineFilteredNodes]);
   const isCustomRenderer = visualizerId === 'custom';
   const visibleControls = Array.isArray(visualizer.controls)
     ? visualizer.controls.filter((control) => control === 'resetView')
     : [];
+
+  useEffect(() => {
+    setTimelineIndex(-1);
+  }, [graph]);
 
   useEffect(() => {
     if (!styleMenuOpen && !filterMenuOpen) return undefined;
@@ -1358,6 +1409,42 @@ const GraphPanel = memo(function GraphPanel({
           activeSlug={activeSlug}
           onActiveSlugChange={onActiveSlugChange}
         />
+        {activityBuckets.length ? (
+          <div className="graph-activity-panel">
+            <div className="graph-activity-head">
+              <span>Activity</span>
+              <strong>{formatActivityDate(selectedTimelineDay)}</strong>
+            </div>
+            <div className="graph-activity-bars">
+              {activityBuckets.map((bucket, index) => {
+                const height = 8 + Math.round((bucket.count / maxActivityCount) * 38);
+                return (
+                  <button
+                    key={bucket.day}
+                    type="button"
+                    className={`graph-activity-bar ${index <= resolvedTimelineIndex ? 'active' : ''}`}
+                    style={{ height: `${height}px` }}
+                    aria-label={`${bucket.count} updates on ${formatActivityDate(bucket.day)}`}
+                    onClick={() => setTimelineIndex(index)}
+                  />
+                );
+              })}
+            </div>
+            <input
+              className="graph-timeline-slider"
+              type="range"
+              min="0"
+              max={Math.max(activityBuckets.length - 1, 0)}
+              value={Math.max(resolvedTimelineIndex, 0)}
+              aria-label="Graph date"
+              onChange={(event) => setTimelineIndex(Number(event.target.value))}
+            />
+            <div className="graph-activity-meta">
+              <span>{filteredGraph?.meta?.page_count || 0} pages</span>
+              <span>{visibleUpdatedCount ? `${visibleUpdatedCount} newer hidden` : 'Current'}</span>
+            </div>
+          </div>
+        ) : null}
       </div>
       <div className="graph-footer">
         <div>
