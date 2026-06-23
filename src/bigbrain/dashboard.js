@@ -654,7 +654,7 @@ function renderAppHtml() {
       .explorer-recent-path { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
       .explorer-recent-meta { font-size: 11px; color: var(--muted); }
       .explorer-viewer { min-width: 0; min-height: 0; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); background: var(--bg); }
-      .explorer-viewer.empty { place-items: center; display: grid; }
+      .explorer-viewer.empty { display: grid; grid-template-rows: minmax(0, 1fr); place-items: center; }
       .explorer-viewer-head { min-width: 0; min-height: 48px; padding: 10px 14px; border-bottom: 1px solid var(--line); display: grid; align-content: center; gap: 3px; }
       .explorer-viewer-path-row { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; }
       .explorer-viewer-actions { display: inline-flex; align-items: center; gap: 6px; }
