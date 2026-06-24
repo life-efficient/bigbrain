@@ -33,6 +33,10 @@ This skill guarantees:
 - Fix straightforward problems when the current runtime already has a safe way
   to do that
 - Re-run health after any remediation attempt
+- After content remediation, re-run sync so the database/index reflects the
+  committed brain files
+- Commit intentional remediation changes once verification passes, then push the
+  branch when the repository is otherwise clean
 - For nightly maintenance, attempt remediation before finalizing the
   "unresolved items" section
 - Exit cleanly when no findings remain
@@ -68,6 +72,16 @@ Use only these built-in repair paths unless the user asks for deeper edits:
      unless the exact page convention is already clear and the user asked for a
      cleanup pass
 
+4. Post-remediation persistence:
+   - After any content or brain-file edit, run `node ./bin/bigbrain.js sync
+     --json` so embeddings/index state catches up with the files
+   - Run `git status --short --branch` and inspect the changed files before
+     staging anything
+   - Commit only the intentional remediation changes with a concise message
+   - Re-run `node ./bin/bigbrain.js health --json` after the commit
+   - If the repository is clean and the only remaining git status issue is being
+     ahead of the remote, run `git push`
+
 ## When to stop
 
 Do not keep digging once one of these is true:
@@ -90,12 +104,19 @@ Do not keep digging once one of these is true:
      template when the intended state is clear, then re-run health
    - deterministic page-shape problem -> patch the affected page, then re-run
      health
-3. Stop after one bounded remediation loop unless the next action is still
+3. After a successful remediation:
+   - run `node ./bin/bigbrain.js sync --json`
+   - commit the intentional fix
+   - re-run `node ./bin/bigbrain.js health --json`
+   - push if the repository is clean and the branch has commits ahead of the
+     remote
+4. Stop after one bounded remediation loop unless the next action is still
    deterministic and lower risk than leaving the issue open
-4. Report:
+5. Report:
    - initial findings
    - remediation attempted
    - final findings
+   - sync, commit, and push status for remediation changes
    - whether the pass exited cleanly or stopped with explicit follow-up needed
 
 ## Guardrails
@@ -108,6 +129,10 @@ Do not keep digging once one of these is true:
 - Do not mass-rewrite pages during a maintenance pass
 - If a manual page edit is required, keep it narrow and local to the reported
   finding
+- Do not stage or commit unrelated user changes; if unrelated dirty files are
+  present, leave them untouched and report that push was skipped or limited by
+  the dirty worktree
+- Do not push before the post-remediation sync and health checks complete
 - Never report unresolved items as the final outcome until each remaining
   finding has been classified as either attempted, not safely fixable, or
   intentionally deferred
