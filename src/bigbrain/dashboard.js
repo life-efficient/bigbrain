@@ -544,8 +544,10 @@ function renderAppHtml() {
       .force-shell canvas { border-radius: 18px; }
       .futuristic-graph { background: #18181B; }
       .graph-pulse-line { animation: graph-pulse 7s linear infinite; }
-      .graph-activity-panel { position: absolute; right: 14px; top: 14px; z-index: 4; width: min(270px, calc(100% - 28px)); display: grid; gap: 9px; padding: 10px 12px; border: 1px solid rgba(212,212,216,0.18); border-radius: 12px; background: rgba(12,12,14,0.82); box-shadow: 0 18px 42px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(18px); }
-      .graph-activity-head, .graph-activity-meta { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 11px; }
+      .graph-activity-panel { position: absolute; right: 14px; top: 14px; z-index: 4; width: min(270px, calc(100% - 28px)); display: grid; gap: 0; padding: 0; border: 1px solid transparent; border-radius: 12px; background: transparent; box-shadow: none; backdrop-filter: blur(0); transition: padding 180ms ease, gap 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, backdrop-filter 180ms ease; }
+      .graph-activity-panel:hover, .graph-activity-panel:focus-within { gap: 9px; padding: 10px 12px; border-color: rgba(212,212,216,0.18); background: rgba(12,12,14,0.82); box-shadow: 0 18px 42px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(18px); }
+      .graph-activity-head, .graph-activity-meta { min-width: 0; max-height: 0; opacity: 0; overflow: hidden; transform: translateY(-3px); display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 11px; transition: max-height 180ms ease, opacity 180ms ease, transform 180ms ease; }
+      .graph-activity-panel:hover .graph-activity-head, .graph-activity-panel:hover .graph-activity-meta, .graph-activity-panel:focus-within .graph-activity-head, .graph-activity-panel:focus-within .graph-activity-meta { max-height: 20px; opacity: 1; transform: translateY(0); }
       .graph-activity-head span { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 750; }
       .graph-activity-head strong { min-width: 0; color: var(--ink); font-size: 12px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .graph-activity-bars { height: 48px; min-width: 0; display: flex; align-items: end; gap: 1px; overflow: hidden; }
@@ -554,7 +556,8 @@ function renderAppHtml() {
       .graph-activity-bar.active::before { background: linear-gradient(180deg, #f4f4f5 0%, #a1a1aa 100%); box-shadow: 0 0 0 1px rgba(255,255,255,0.10); }
       .graph-activity-bar:hover, .graph-activity-bar:focus-visible { outline: none; }
       .graph-activity-bar:hover::before, .graph-activity-bar:focus-visible::before { background: #ffffff; box-shadow: 0 0 0 2px rgba(255,255,255,0.16); transform: translateY(-1px); }
-      .graph-timeline-slider { width: 100%; height: 12px; margin: 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer; }
+      .graph-timeline-slider { width: 100%; height: 0; margin: 0; opacity: 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer; pointer-events: none; transition: height 180ms ease, opacity 180ms ease; }
+      .graph-activity-panel:hover .graph-timeline-slider, .graph-activity-panel:focus-within .graph-timeline-slider { height: 12px; opacity: 1; pointer-events: auto; }
       .graph-timeline-slider::-webkit-slider-runnable-track { height: 3px; border-radius: 999px; background: linear-gradient(90deg, rgba(244,244,245,0.78), rgba(82,82,91,0.62)); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06); }
       .graph-timeline-slider::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 13px; height: 13px; margin-top: -5px; border: 1px solid rgba(255,255,255,0.70); border-radius: 999px; background: linear-gradient(180deg, #ffffff, #d4d4d8); box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
       .graph-timeline-slider:focus-visible { outline: none; }
