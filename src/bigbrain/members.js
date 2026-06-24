@@ -31,6 +31,15 @@ export async function findActiveMemberByPersonSlug(db, personSlug) {
   return row ? normalizeMember(row) : null;
 }
 
+export async function findMemberByPersonSlug(db, personSlug) {
+  const normalizedSlug = normalizePersonSlug(personSlug);
+  if (!normalizedSlug) return null;
+  const row = db.backend === 'postgres'
+    ? (await db.query('SELECT * FROM members WHERE person_slug = $1 LIMIT 1', [normalizedSlug])).rows[0]
+    : db.raw.prepare('SELECT * FROM members WHERE person_slug = ? LIMIT 1').get(normalizedSlug);
+  return row ? normalizeMember(row) : null;
+}
+
 export async function resolveActorMember(db, actor, { authMode = null, localPersonSlug = null } = {}) {
   if (actor?.email) return findActiveMemberByEmail(db, actor.email);
   if (authMode !== 'none') return null;
@@ -110,6 +119,25 @@ export async function upsertMember(db, member) {
   return findActiveOrAnyMemberByEmail(db, normalized.email);
 }
 
+export async function ensureLocalOwnerMember(db, {
+  personSlug,
+  email = null,
+  name = null,
+} = {}) {
+  const normalizedSlug = normalizePersonSlug(personSlug);
+  if (!normalizedSlug) throw new Error('Local owner person slug is required.');
+  const existing = await findMemberByPersonSlug(db, normalizedSlug);
+  const memberEmail = existing?.email || normalizeEmail(email) || defaultLocalEmail(normalizedSlug);
+  const memberName = String(name || existing?.name || nameFromPersonSlug(normalizedSlug)).trim();
+  return upsertMember(db, {
+    email: memberEmail,
+    name: memberName,
+    person_slug: normalizedSlug,
+    status: 'active',
+    role: 'owner',
+  });
+}
+
 export function memberMapByPersonSlug(members) {
   return new Map((members || []).map((member) => [member.person_slug, member]));
 }
@@ -166,4 +194,18 @@ function normalizePersonSlug(slug) {
 function normalizeEnum(value, allowed, fallback) {
   const normalized = String(value || fallback).trim().toLowerCase();
   return allowed.includes(normalized) ? normalized : fallback;
+}
+
+function defaultLocalEmail(personSlug) {
+  const localPart = personSlug.replace(/^people\//, '').replace(/[^a-z0-9._+-]+/gi, '-').toLowerCase();
+  return `${localPart || 'owner'}@local.bigbrain`;
+}
+
+function nameFromPersonSlug(personSlug) {
+  return personSlug
+    .replace(/^people\//, '')
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(' ') || 'Local Owner';
 }

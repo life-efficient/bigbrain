@@ -5,7 +5,7 @@ import { initializeBrainHome, loadConfig, loadState, loadUserEnv, persistState, 
 import { dbDoctor, openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
 import { runHealthCheck } from './health.js';
 import { fullPathFromSlug } from './markdown.js';
-import { listMembers, upsertMember } from './members.js';
+import { ensureLocalOwnerMember, listMembers, upsertMember } from './members.js';
 import { startMcpServer } from './mcp-server.js';
 import { migrateBrain } from './migrate.js';
 import { listRecentFiles } from './recent.js';
@@ -238,6 +238,17 @@ async function handleMembers(args, global) {
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
   try {
+    if (args[0] === 'ensure-local-owner') {
+      const personSlug = args[1] || argValue(args, '--person') || argValue(args, '--person-slug');
+      if (!personSlug) throw new Error('members ensure-local-owner requires <people/slug>.');
+      const member = await ensureLocalOwnerMember(db, {
+        personSlug,
+        email: argValue(args, '--email') || null,
+        name: argValue(args, '--name') || null,
+      });
+      output(global, member, `Ensured local owner ${member.person_slug}.`);
+      return;
+    }
     if (args[0] === 'add') {
       const email = args[1];
       const personSlug = args[2];
@@ -472,6 +483,7 @@ Commands:
   file <path-or-description>
   tasks [--assignee people/name]
   members [--status active|inactive|invited]
+  members ensure-local-owner <people/slug> [--name NAME] [--email EMAIL]
   members add <email> <people/slug> [--name NAME] [--role owner|member|viewer] [--status active|inactive|invited]
   eval retrieval [--mode conservative|balanced|tokenmax] [--limit N] [--cases PATH] [--private] [--redact]
   eval export [--cases PATH] [--mode MODE] [--limit N] [--redact]

@@ -19,6 +19,8 @@ async function main() {
   const host = options.host || DEFAULT_HOST;
   const port = Number(options.port || DEFAULT_PORT);
   const localPersonSlug = normalizeLocalPersonSlug(options.localPersonSlug || '');
+  const localOwnerEmail = options.localOwnerEmail || '';
+  const localOwnerName = options.localOwnerName || '';
   const plistPath = options.plistPath || path.join(os.homedir(), 'Library', 'LaunchAgents', `${label}.plist`);
   const logDir = options.logDir || path.join(os.homedir(), '.config', 'bigbrain');
   const nodePath = options.nodePath || process.execPath;
@@ -40,7 +42,19 @@ async function main() {
   });
 
   if (options.dryRun) {
-    console.log(JSON.stringify({ label, plistPath, serviceTarget, brainHome, host, port, repoRoot, localPersonSlug }, null, 2));
+    console.log(JSON.stringify({
+      label,
+      plistPath,
+      serviceTarget,
+      brainHome,
+      host,
+      port,
+      repoRoot,
+      localPersonSlug,
+      localOwnerEmail,
+      localOwnerName,
+      wouldEnsureLocalOwner: Boolean(localPersonSlug),
+    }, null, 2));
     return;
   }
 
@@ -49,6 +63,16 @@ async function main() {
   }
 
   await fs.access(bigbrainBin);
+  if (localPersonSlug) {
+    await ensureLocalOwner({
+      nodePath,
+      bigbrainBin,
+      brainHome,
+      personSlug: localPersonSlug,
+      email: localOwnerEmail,
+      name: localOwnerName,
+    });
+  }
   await fs.mkdir(path.dirname(plistPath), { recursive: true });
   await fs.mkdir(logDir, { recursive: true });
   await fs.writeFile(plistPath, plist, 'utf8');
@@ -69,6 +93,7 @@ async function main() {
     mcpUrl: `http://${host}:${port}/mcp`,
     healthUrl: `http://${host}:${port}/health`,
     localPersonSlug,
+    localOwnerEnsured: Boolean(localPersonSlug),
   }, null, 2));
 }
 
@@ -106,6 +131,12 @@ function parseArgs(args) {
         break;
       case '--local-person-slug':
         options.localPersonSlug = args[++index];
+        break;
+      case '--local-owner-email':
+        options.localOwnerEmail = args[++index];
+        break;
+      case '--local-owner-name':
+        options.localOwnerName = args[++index];
         break;
       case '--dry-run':
         options.dryRun = true;
@@ -222,6 +253,27 @@ async function verifyHealth({ host, port }) {
     await sleep(500);
   }
   throw new Error(`BigBrain MCP service did not become healthy at ${url}: ${lastError?.message || 'unknown error'}`);
+}
+
+async function ensureLocalOwner({
+  nodePath,
+  bigbrainBin,
+  brainHome,
+  personSlug,
+  email,
+  name,
+}) {
+  const args = [
+    bigbrainBin,
+    '--brain-home',
+    brainHome,
+    'members',
+    'ensure-local-owner',
+    personSlug,
+  ];
+  if (email) args.push('--email', email);
+  if (name) args.push('--name', name);
+  await execFileAsync(nodePath, args);
 }
 
 async function verifyMcpTools({ host, port }) {
