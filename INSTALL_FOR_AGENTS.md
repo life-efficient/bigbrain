@@ -273,17 +273,40 @@ brain_home="/path/to/brain-home"
 
 node "$repo_root/scripts/install-local-mcp-service.mjs" \
   --repo-root "$repo_root" \
-  --brain-home "$brain_home"
+  --brain-home "$brain_home" \
+  --local-person-slug people/hani \
+  --local-owner-name "Hani" \
+  --local-owner-email hani@example.com
 ```
 
-If the local brain has multiple active members or owners, choose the local
-identity explicitly:
+Use the target brain owner's real `people/<slug>` page, display name, and email.
+The installer creates or repairs an active local owner row before starting the
+service, then persists `BIGBRAIN_MCP_LOCAL_PERSON_SLUG` in the LaunchAgent so
+`assignee=me` works for local single-user brains.
+
+If the local brain already has exactly one active owner/member, `me` can resolve
+without an explicit slug, but fresh installs should still pass
+`--local-person-slug` so the identity is stable after future collaborators are
+added.
+
+To repair an existing local install where `assignee=me` fails because the
+members table is empty, first bootstrap the owner:
+
+```bash
+bigbrain --brain-home "$brain_home" members ensure-local-owner people/hani \
+  --name "Hani" \
+  --email hani@example.com
+```
+
+Then reinstall or refresh the local service with the same identity:
 
 ```bash
 node "$repo_root/scripts/install-local-mcp-service.mjs" \
   --repo-root "$repo_root" \
   --brain-home "$brain_home" \
-  --local-person-slug people/hani
+  --local-person-slug people/hani \
+  --local-owner-name "Hani" \
+  --local-owner-email hani@example.com
 ```
 
 This writes a LaunchAgent at:

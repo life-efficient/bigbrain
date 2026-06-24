@@ -11,6 +11,62 @@ actions` section for agents maintaining local installs and hosted brains.
 - Do not claim an update is complete unless the relevant release actions below
   have been applied or explicitly marked not applicable.
 
+## [0.3.1] - 2026-06-24
+
+### Added
+
+- `bigbrain members ensure-local-owner <people/slug>` to bootstrap or repair the
+  active owner row needed by local single-user MCP installs.
+- Local MCP installer flags `--local-owner-name` and `--local-owner-email`; when
+  used with `--local-person-slug`, the installer now creates or repairs the
+  active local owner before starting the LaunchAgent.
+
+### Fixed
+
+- Local `BIGBRAIN_MCP_AUTH_MODE=none` installs with an empty `members` table can
+  now be repaired during setup, so `assignee=me`, assigned-to-me task views, and
+  MCP task creation do not depend on hosted OAuth member onboarding.
+
+### Agent update actions
+
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install` because `package.json` and `package-lock.json` version
+  metadata changed.
+- Run `npm link`, then verify `bigbrain --help` includes
+  `members ensure-local-owner`.
+- For local single-user brains where `assignee=me` fails with
+  `The authenticated user is not an active member`, choose the owner's canonical
+  `people/<slug>` page and run:
+
+  ```bash
+  bigbrain --brain-home "$brain_home" members ensure-local-owner people/<slug> \
+    --name "Owner Name" \
+    --email owner@example.com
+  ```
+
+- Reinstall or refresh the local MCP service with the same identity so the
+  LaunchAgent persists `BIGBRAIN_MCP_LOCAL_PERSON_SLUG`:
+
+  ```bash
+  node "$repo_root/scripts/install-local-mcp-service.mjs" \
+    --repo-root "$repo_root" \
+    --brain-home "$brain_home" \
+    --local-person-slug people/<slug> \
+    --local-owner-name "Owner Name" \
+    --local-owner-email owner@example.com
+  ```
+
+- Confirm `members/list` shows the owner as `active` and `owner`, then confirm
+  `tasks/list` with `assignee=me` works through the local MCP connector.
+- Hosted OAuth brains do not need this repair unless they also run a separate
+  local `BIGBRAIN_MCP_AUTH_MODE=none` service.
+
+### Verification
+
+- `node --test test/bigbrain/local-identity.test.mjs`
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+
 ## [0.3.0] - 2026-06-23
 
 ### Added
@@ -100,6 +156,7 @@ actions` section for agents maintaining local installs and hosted brains.
 
 - `npm test`
 
-[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/life-efficient/bigbrain/releases/tag/v0.3.1
 [0.3.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.3.0
 [0.2.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.2.0

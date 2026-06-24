@@ -279,7 +279,10 @@ the write came from an OAuth user.
   dashboard remains unauthenticated unless OAuth is configured.
 - In local `none` auth mode, `assignee=me` resolves to
   `BIGBRAIN_MCP_LOCAL_PERSON_SLUG`, the single active owner, or the single active
-  member. Multiple possible local identities produce a setup error.
+  member. Local single-user installs should create that owner with
+  `bigbrain members ensure-local-owner people/<slug> --name ... --email ...`
+  and install the LaunchAgent with `--local-person-slug people/<slug>`.
+  Multiple possible local identities produce a setup error.
 - `/connect`, `/auth/start`, and `/auth/callback` are enabled only in
   `oauth_allowlist` mode.
 - Keep token/session state on persistent storage. Prefer the database-backed

@@ -190,10 +190,18 @@ notes, sources, or stakeholder fields; they are not assignable until they are
 added as members.
 
 For a private local MCP service running with `BIGBRAIN_MCP_AUTH_MODE=none`,
-`assignee=me` resolves to the single active owner, or to the single active
-member when there is no owner. If a local brain has multiple active owners or
-members, set `BIGBRAIN_MCP_LOCAL_PERSON_SLUG=people/hani` in the service
-environment to choose the local identity.
+`assignee=me` resolves to `BIGBRAIN_MCP_LOCAL_PERSON_SLUG`, the single active
+owner, or the single active member when there is no owner. For local single-user
+brains, bootstrap the local owner during service installation:
+
+```sh
+bigbrain members ensure-local-owner people/hani --name Hani --email hani@example.com
+```
+
+The local service installer can run that bootstrap step and persist
+`BIGBRAIN_MCP_LOCAL_PERSON_SLUG` in the LaunchAgent when called with
+`--local-person-slug people/hani`. If a local brain has multiple active owners
+or members, set that local person slug explicitly so `me` is deterministic.
 
 ## Install
 
