@@ -1443,6 +1443,7 @@ const GraphPanel = memo(function GraphPanel({
           activeSlug={activeSlug}
           onActiveSlugChange={onActiveSlugChange}
         />
+        {/*
         {activityBuckets.length ? (
           <div className="graph-activity-panel">
             <div className="graph-activity-head">
@@ -1479,6 +1480,7 @@ const GraphPanel = memo(function GraphPanel({
             </div>
           </div>
         ) : null}
+        */}
       </div>
       <div className="graph-footer">
         <div>
