@@ -127,17 +127,36 @@ This skill guarantees:
 
 ## Output
 
-Report:
-- repo path
-- starting branch and upstream
-- whether an update was found
-- previous HEAD and final HEAD
-- release versions found in `CHANGELOG.md`
-- changelog agent actions applied or skipped as not applicable
-- whether dependencies or `npm link` were run
-- new or refreshed skills
-- new or refreshed automations
-- unapplied updates, only with the blocker that prevented installation
-- verification commands and pass/fail status
-- skill and automation template health status
-- any unresolved blockers
+Use a concise, plain-language status report. This automation is an update check,
+not a general brain-maintenance report, so do not include command logs, commit
+hashes, template counts, or implementation details in a successful final answer.
+
+For a clean no-update run, use this shape:
+
+> BigBrain is already up to date. The local setup is healthy, and no action is
+> needed.
+
+For a successful applied update, include a short `What changed` bullet list
+derived from the relevant `CHANGELOG.md` release entries, then close with the
+health/no-action status. Example:
+
+> BigBrain was updated successfully.
+>
+> What changed:
+> - Added the `bigbrain-whats-next` skill for clearer task snapshots.
+> - Improved `bigbrain-maintain` so it can safely fix some routine health
+>   issues.
+> - Updated nightly maintenance to rerun health after repairs and include task
+>   refresh results.
+>
+> The local setup is healthy, and no action is needed.
+
+If something did not work, include enough detail to act on it:
+- what failed
+- what was already attempted
+- whether local work was preserved
+- the exact remaining blocker or decision needed
+
+Only mention technical details such as command names, paths, commit hashes,
+template mismatch counts, or health fields when they explain a failure,
+blocker, or user-actionable follow-up.
