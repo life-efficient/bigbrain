@@ -5,6 +5,12 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## [Unreleased]
 
+### Changed
+
+- `bigbrain-check-update` now explicitly separates local MCP service health from
+  Codex MCP registration, including stale default brain pointer repair guidance
+  and direct MCP `tools/list` verification for local installs.
+
 ### Agent update actions
 
 - Read this section before pulling or deploying unreleased changes.

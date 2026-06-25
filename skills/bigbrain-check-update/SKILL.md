@@ -29,6 +29,9 @@ This skill guarantees:
 - Read `CHANGELOG.md` after pulling and apply the matching `Agent update
   actions`
 - Verify the updated checkout and active runtime before reporting success
+- Separately verify the always-on local MCP service and Codex MCP registration
+  when a local service is configured, so "server alive" is not confused with
+  "registered with Codex"
 - Report unapplied updates only when applying them is blocked or unsafe
 
 ## Workflow
@@ -102,11 +105,29 @@ This skill guarantees:
 12. Verify the updated checkout and active install:
    - `npm test`
    - `bigbrain health --json` against the default brain when configured
+   - if health fails with an `ENOENT` path under a deleted temp brain, repair
+     `~/.config/bigbrain/default-brain-home` to the selected brain home before
+     continuing
    - review `skill_template_status` and `automation_template_status` in the
      health output for missing or mismatched active installs
    - if health reports missing or mismatched BigBrain-owned skills or
      automations, fix the active install and run health again before reporting
      success
+13. If a local always-on MCP service is configured, verify it as a separate
+    runtime surface:
+   - inspect `~/Library/LaunchAgents/local.bigbrain.mcp.plist` when present and
+     confirm its `--brain-home` argument points at the selected brain home, not
+     a stale temp fixture
+   - check `curl http://127.0.0.1:3333/health`
+   - check `launchctl print "gui/$(id -u)/local.bigbrain.mcp"` on macOS
+   - run a direct MCP `initialize` plus `tools/list` smoke test against
+     `http://127.0.0.1:3333/mcp`
+   - run `codex mcp list` and report whether a BigBrain entry is registered
+     with Codex; do not treat absence from this list as proof the service is
+     down when the direct endpoint checks pass
+   - if Codex registration is expected but missing, report the exact MCP URL
+     (`http://127.0.0.1:3333/mcp`) and config follow-up separately from service
+     health
 
 ## Guardrails
 
@@ -156,6 +177,8 @@ If something did not work, include enough detail to act on it:
 - what was already attempted
 - whether local work was preserved
 - the exact remaining blocker or decision needed
+- for local MCP issues, state separately whether the always-on service is
+  healthy and whether Codex has a matching MCP registration
 
 Only mention technical details such as command names, paths, commit hashes,
 template mismatch counts, or health fields when they explain a failure,
