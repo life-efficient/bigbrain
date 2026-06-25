@@ -49,8 +49,19 @@ Default output is capped at 10 ready items. Keep each ready item short and
 copyable:
 
 - Show a `Ready tasks` section first.
-- Each ready task should be one concise copyable prompt block that names the
-  BigBrain task slug and describes only the task to do.
+- Each ready task should be one concise copyable prompt block that leads with
+  the actual task content, using plain language drawn from the task page rather
+  than a slug-heavy reference style.
+- Each prompt should stand on its own by pulling in the key task details, so a
+  reader can tell what they are doing without needing to parse internal file
+  references first.
+- Each prompt must tell the worker to show the proposed work to the user for
+  approval before taking the final action, while still updating the brain with
+  what happened (for example, timeline updates or page-body changes).
+- Each prompt must instruct the worker to finish by asking:
+  `Anything you want changed, or should I update this in the brain?`
+- Each prompt must end with:
+  `Before you start working, check the full task spec in the BigBrain tasks/<slug>.`
 - Each prompt must tell the worker that before marking the task `done` or
   `archived`, they must either create/link the successor as
   `Next task: tasks/<slug>` or state
