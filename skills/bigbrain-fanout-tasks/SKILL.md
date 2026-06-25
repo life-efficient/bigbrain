@@ -38,6 +38,9 @@ Use the BigBrain MCP task endpoint as the source of truth:
    - For a named status, pass `status`; otherwise keep `status: "open"`.
 4. Use the returned task title, body, priority, assignees, source, and slug to
    create one prompt per task.
+5. Treat `readiness` as authoritative. Generate handoff prompts only for
+   `readiness: "ready"` tasks. Keep `readiness: "underspecified"` tasks out of
+   prompt blocks and list them separately as needing input.
 
 Respond in chat with the generated prompts. Do not write the result to a file,
 do not return only a file link, and do not make the user open an artifact to see
@@ -49,6 +52,7 @@ Default output is capped at 10 ready items. Keep each ready item short and
 copyable:
 
 - Show a `Ready tasks` section first.
+- Include only tasks whose MCP record has `readiness: "ready"`.
 - Each ready task should be one concise copyable prompt block that leads with
   the actual task content, using plain language drawn from the task page rather
   than a slug-heavy reference style.
@@ -69,10 +73,11 @@ copyable:
 - Do not format ready tasks as a numbered list.
 - Do not include boilerplate about reading files, preserving changes,
   verification, or commits beyond the required completion handoff.
-- Show a `Needs more specification` section after ready tasks when tasks are too
-  vague to hand off cleanly.
-- Keep the needs-specification list succinct; name the task slug and the unclear
-  task.
+- Show a `Needs input before fanout` section after ready tasks for
+  `readiness: "underspecified"` tasks.
+- Keep the input-needed list succinct; name the task slug and include the
+  blocking question(s), preferring the task page's `## Open Questions` section
+  when present.
 
 If no actionable BigBrain task pages match the requested filters, say that
 directly and do not invent prompts.
@@ -84,5 +89,6 @@ directly and do not invent prompts.
 - Do not mutate tasks while fanning them out.
 - Do not create prompts for tasks with `status: "done"` or
   `status: "archived"` unless the user explicitly asks for those statuses.
+- Do not create prompts for tasks with `readiness: "underspecified"`.
 - Keep each prompt scoped to one task; split multi-task records into
-  needs-specification rather than guessing hidden subtasks.
+  input-needed items rather than guessing hidden subtasks.

@@ -730,6 +730,7 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     assert.equal(listed.result.tools.some((tool) => tool.name === 'members/list'), true);
     const enrichTool = listed.result.tools.find((tool) => tool.name === 'tasks/enrich');
     assert.equal(enrichTool.inputSchema.properties.question_limit.type, 'number');
+    assert.deepEqual(enrichTool.inputSchema.properties.readiness.enum, ['underspecified', 'ready']);
 
     const me = await rpc(running.url, 'tools/call', { name: 'me', arguments: {} }, token);
     assert.equal(me.result.structuredContent.actor.email, 'teammate@example.com');
@@ -745,11 +746,13 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
         body: 'Prepare the weekly ICAIRE progress update.',
         assignees: ['me'],
         priority: 'p1',
+        readiness: 'ready',
         source: ['initiatives/gfeai-2026'],
         timeline_entry: 'Task created in MCP task test.',
       },
     }, token);
     assert.equal(created.result.structuredContent.slug, 'tasks/draft-icaire-update');
+    assert.equal(created.result.structuredContent.readiness, 'ready');
     assert.equal(created.result.structuredContent.assignees[0].person_slug, 'people/team-mate');
 
     const mine = await rpc(running.url, 'tools/call', {
@@ -757,6 +760,12 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
       arguments: { assignee: 'me', status: 'open' },
     }, token);
     assert.deepEqual(mine.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
+
+    const readyTasks = await rpc(running.url, 'tools/call', {
+      name: 'tasks/list',
+      arguments: { readiness: 'ready' },
+    }, token);
+    assert.deepEqual(readyTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
 
     const allTasks = await rpc(running.url, 'tools/call', {
       name: 'tasks/list',
@@ -823,7 +832,12 @@ Weekly ICAIRE updates should summarize progress, decisions, blockers, and next c
       name: 'tasks/create',
       arguments: {
         title: 'Follow up',
-        body: 'Ask about it.',
+        body: `Ask about it.
+
+## Open Questions
+
+- Which person should be contacted first?
+- What exact outcome should this follow-up produce?`,
         assignees: ['me'],
         priority: 'p2',
         source: ['initiatives/gfeai-2026'],
@@ -862,10 +876,44 @@ The task is done and the original outcome was verified.
     assert.equal(enrichment.result.structuredContent.candidates.length, 1);
     const candidate = enrichment.result.structuredContent.candidates[0];
     assert.equal(candidate.task.slug, 'tasks/follow-up');
-    assert.equal(candidate.issues.some((issue) => issue.code === 'thin_body'), true);
+    assert.equal(candidate.task.readiness, 'underspecified');
+    assert.equal(candidate.issues.some((issue) => issue.code === 'readiness_underspecified'), true);
     assert.equal(candidate.issues.some((issue) => issue.code === 'vague_title'), true);
+    assert.equal(candidate.questions[0], 'Which person should be contacted first?');
     assert.equal(candidate.questions.length <= 3, true);
     assert.equal(candidate.related_context[0].slug, 'initiatives/gfeai-2026');
+
+    const readinessUpdated = await rpc(running.url, 'tools/call', {
+      name: 'tasks/update',
+      arguments: {
+        path: 'tasks/follow-up',
+        readiness: 'ready',
+        body: `# Follow up
+
+## Summary
+
+Ask the named stakeholder for the missing context.
+
+## What Counts as Completed
+
+The follow-up is sent and the response is recorded in the brain.
+
+## Body Context
+
+Use the linked GFEAI 2026 initiative as the source context.
+
+## Open Questions
+
+None.
+
+## Anti-Patterns
+
+- Do not mark this complete if the message is only drafted.`,
+        timeline_entry: 'Task readiness clarified in MCP task test.',
+      },
+    }, token);
+    assert.equal(readinessUpdated.error, undefined, readinessUpdated.error?.message);
+    assert.equal(readinessUpdated.result.structuredContent.readiness, 'ready');
 
     const completedEnrichment = await rpc(running.url, 'tools/call', {
       name: 'tasks/enrich',

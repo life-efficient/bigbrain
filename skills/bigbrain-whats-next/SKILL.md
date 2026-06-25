@@ -45,6 +45,11 @@ Use the BigBrain MCP task endpoint as the source of truth:
    identify the most useful next work.
 5. Prefer tasks that are high priority, unblocked, clearly scoped, and assigned
    to the requester when the request implies personal focus.
+6. Treat `readiness` as authoritative:
+   - `readiness: "ready"` means the task can appear in the normal next-work
+     bullet list.
+   - `readiness: "underspecified"` means the task needs user input before it
+     should be fanned out or treated as an executable handoff.
 
 Respond in chat with the snapshot. Do not write the result to a file, do not
 return only a file link, and do not make the user open an artifact to see what
@@ -55,15 +60,20 @@ is next.
 Default output is capped at 8 bullets. Keep the snapshot short:
 
 - Show a `What's Next` section first.
+- This section should contain only `readiness: "ready"` tasks.
 - Each bullet should include the task slug, priority when present, and a
   one-sentence description of the concrete next action.
 - Do not format bullets as copyable prompt blocks.
 - Do not include boilerplate about reading files, preserving changes,
   verification, or commits.
-- Show a `Needs Clarification` section only when matching tasks are too vague,
-  blocked, unassigned, or too broad to treat as immediate next work.
-- Keep clarification bullets succinct; name the task slug and the missing
-  decision or context.
+- After the existing bullet output, append exactly:
+  `I also need your input on a few tasks:`
+- Under that line, show a numbered list of `readiness: "underspecified"` tasks.
+  For each task, include indented bullet questions.
+- Prefer questions from the task page's `## Open Questions` section. If that
+  section is absent or incomplete, add a small number of inferred blocking
+  questions on the spot.
+- Do not include underspecified tasks in the main `What's Next` bullets.
 - End by asking whether the user wants handoff prompts generated for the
   ready tasks.
 
@@ -82,5 +92,7 @@ tasks proposed from current brain evidence.
 - Do not mutate tasks while producing the snapshot.
 - Do not create summaries for tasks with `status: "done"` or
   `status: "archived"` unless the user explicitly asks for those statuses.
+- Do not promote an underspecified task to the ready list just because it sounds
+  important.
 - Keep each bullet scoped to one task; put multi-task or ambiguous records in
-  `Needs Clarification` rather than guessing hidden subtasks.
+  the input-needed list rather than guessing hidden subtasks.

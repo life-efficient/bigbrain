@@ -495,10 +495,13 @@ Automations should be narrow, explicit, idempotent, and inspectable.
 
 - page-backed task maintenance
   - tasks live as individual `tasks/*.md` pages
-  - task frontmatter uses `type: task`, `status`, `priority`, `assignees`,
-    `source`, and optional `due`
+  - task frontmatter uses `type: task`, `status`, `readiness`, `priority`,
+    `assignees`, `source`, and optional `due`
   - valid statuses are `open`, `waiting`, `blocked`, `done`, and `archived`
+  - valid readiness values are `underspecified` and `ready`
   - valid priorities are `p0`, `p1`, `p2`, and `p3`
+  - fanout should use `readiness: ready`; `readiness: underspecified` tasks
+    should be surfaced as questions for the user
   - assignees are active members, not arbitrary `people/*` pages
   - use MCP `tasks/list`, `tasks/create`, and `tasks/update` for agent task
     reads and writes

@@ -59,6 +59,12 @@ ready to hand off or execute. BigBrain tasks are page-backed records under
    question count small; prefer questions that unlock a concrete update.
 6. After the user answers, update each task with `tasks/update`:
    - enrich the body with clarified context and completion criteria
+   - structure the body as Summary, What Counts as Completed, Body Context,
+     Open Questions, and Anti-Patterns when rewriting substantial task bodies
+   - set `readiness: "ready"` only when there are no blocking open questions
+     left
+   - keep or set `readiness: "underspecified"` when the task still needs user
+     input before fanout
    - add or correct assignees only when they are active members
    - add source links only when grounded in retrieved brain pages or the user's
      answer
@@ -85,6 +91,8 @@ After applying answers, return:
 - Do not use this skill to create new task pages; use `BigBrain: Roadmap Tasks`
   when the user wants new tasks generated.
 - Do not treat a vague task as ready just because it has a title.
+- Do not set `readiness: "ready"` while the task still has blocking items under
+  `## Open Questions`.
 - Do not update tasks from weak inference when a short user question would avoid
   corrupting the brain.
 - Do not assign work to arbitrary `people/*` pages. Assignees must be active

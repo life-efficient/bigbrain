@@ -56,6 +56,10 @@ or reconstruct old `ops/tasks.md` task lists.
      decision evidence is missing
    - reopened because the source evidence contradicts a completed state
    - reprioritized because the brain shows urgency or risk changed
+   - marked `readiness: "underspecified"` when blocking questions remain or the
+     body lacks a clear completion definition
+   - marked `readiness: "ready"` only when the task has enough context,
+     completion criteria, and no blocking open questions
    - reassigned only when the new assignee is an active member and the evidence
      supports the ownership change
    - updated with better source links or body context
@@ -82,6 +86,8 @@ Return:
 
 - Do not create speculative tasks that are not grounded in the brain.
 - Do not mass-close tasks just because no recent update mentions them.
+- Do not mark tasks `readiness: "ready"` just because they are high priority.
+  Readiness means they can be fanned out without another clarification round.
 - Do not rewrite roadmap, project, initiative, or meeting pages unless the user
   explicitly asks.
 - Do not hide missing ownership; report it.

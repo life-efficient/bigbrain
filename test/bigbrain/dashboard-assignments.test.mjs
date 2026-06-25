@@ -17,6 +17,7 @@ test('dashboard task pages filter assignees through active members', async () =>
 title: Follow up with Ahmed
 status: open
 priority: p1
+readiness: ready
 assignees: [people/hani]
 source: [meetings/ahmed]
 ---
@@ -61,6 +62,9 @@ Task collection overview.
       all.sections.flatMap((section) => section.items).map((item) => item.slug).sort(),
       ['tasks/external-task', 'tasks/follow-up'],
     );
+    const readinessBySlug = Object.fromEntries(all.sections.flatMap((section) => section.items).map((item) => [item.slug, item.readiness]));
+    assert.equal(readinessBySlug['tasks/follow-up'], 'ready');
+    assert.equal(readinessBySlug['tasks/external-task'], 'underspecified');
 
     const filtered = await buildTasksPayload(config, db, new URL('/api/tasks?assignee=people/hani', 'http://127.0.0.1'));
     assert.deepEqual(filtered.sections.flatMap((section) => section.items).map((item) => item.slug), ['tasks/follow-up']);

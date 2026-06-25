@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: What's Next"
   short_description: "Summarize the next open BigBrain tasks as concise bullets"
-  default_prompt: "Use BigBrain: What's Next to list matching BigBrain tasks through the MCP tasks/list tool, return a concise What's Next snapshot in chat, and offer to fan out handoff prompts for the ready tasks."
+  default_prompt: "Use BigBrain: What's Next to list matching BigBrain tasks through the MCP tasks/list tool, return a concise What's Next snapshot from readiness=ready tasks, then append 'I also need your input on a few tasks:' with numbered readiness=underspecified tasks and their blocking questions, and offer to fan out handoff prompts for the ready tasks."

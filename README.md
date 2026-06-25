@@ -167,6 +167,7 @@ Task pages live under `tasks/*.md`. Use one page per assignable task:
 type: task
 title: Follow up on proposal
 status: open
+readiness: underspecified
 priority: p1
 assignees: [people/hani]
 source: [meetings/proposal-review]
@@ -175,9 +176,13 @@ due: 2026-07-01
 ```
 
 Valid statuses are `open`, `waiting`, `blocked`, `done`, and `archived`.
-Valid priorities are `p0`, `p1`, `p2`, and `p3`. `due` is optional and must be
-`YYYY-MM-DD` when present. Keep the current task context above the separator and
-append evidence or state changes under `## Timeline`. Use the MCP task tools
+Valid readiness values are `underspecified` and `ready`; use `ready` only when
+the task can be handed off without another clarification round. Valid
+priorities are `p0`, `p1`, `p2`, and `p3`. `due` is optional and must be
+`YYYY-MM-DD` when present. Keep the current task context above the separator,
+structured as Summary, What Counts as Completed, Body Context, Open Questions,
+and Anti-Patterns, and append evidence or state changes under `## Timeline`.
+Use the MCP task tools
 (`tasks/list`, `tasks/create`, `tasks/update`) when writing through an agent.
 When marking a task `done` or `archived`, include a completion handoff in the
 timeline: either `Next task: tasks/<slug>` or

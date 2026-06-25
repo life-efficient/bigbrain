@@ -7,20 +7,23 @@ import { findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug,
 
 const TASK_STATUSES = ['open', 'waiting', 'blocked', 'done', 'archived'];
 const TASK_PRIORITIES = ['p0', 'p1', 'p2', 'p3'];
+const TASK_READINESS = ['underspecified', 'ready'];
 const COMPLETION_HANDOFF_ERROR = 'Completing a task requires a completion handoff: either Next task: tasks/<slug> or No successor task needed: <reason>.';
 
-export async function listTaskPages({ config, db, assignee = null, status = null, priority = null, actor = null, memberResolution = {} } = {}) {
+export async function listTaskPages({ config, db, assignee = null, status = null, priority = null, readiness = null, actor = null, memberResolution = {} } = {}) {
   const members = await listActiveMembers(db);
   const memberMap = memberMapByPersonSlug(members);
   const assigneeMember = await resolveAssigneeFilter({ db, assignee, actor, memberResolution });
   const hasAssigneeFilter = assignee !== null && assignee !== undefined && String(assignee).trim() !== '';
   const normalizedStatus = status ? normalizeStatus(status) : null;
   const normalizedPriority = priority ? normalizePriority(priority) : null;
+  const normalizedReadiness = readiness ? normalizeReadiness(readiness) : null;
   const tasks = await readTaskPages(config, memberMap);
   return tasks
     .filter((task) => !hasAssigneeFilter || task.assignee_slugs.includes(assigneeMember.person_slug))
     .filter((task) => !normalizedStatus || task.status === normalizedStatus)
     .filter((task) => !normalizedPriority || task.priority === normalizedPriority)
+    .filter((task) => !normalizedReadiness || task.readiness === normalizedReadiness)
     .sort(compareTasks);
 }
 
@@ -32,6 +35,7 @@ export async function createTaskPage({
   assignees = [],
   status = 'open',
   priority = 'p3',
+  readiness = 'underspecified',
   source = [],
   path: taskPath = null,
   timelineEntry = null,
@@ -42,6 +46,7 @@ export async function createTaskPage({
   const assigneeSlugs = await normalizeAndValidateAssignees(db, assignees, actor, memberResolution);
   const normalizedStatus = normalizeStatus(status);
   const normalizedPriority = normalizePriority(priority);
+  const normalizedReadiness = normalizeReadiness(readiness);
   assertCompletionHandoff({
     nextStatus: normalizedStatus,
     previousStatus: null,
@@ -58,6 +63,7 @@ export async function createTaskPage({
       type: 'task',
       status: normalizedStatus,
       priority: normalizedPriority,
+      readiness: normalizedReadiness,
       assignees: assigneeSlugs,
       source: normalizeSlugList(source),
     },
@@ -72,6 +78,7 @@ export async function updateTaskPage({
   body = null,
   status = null,
   priority = null,
+  readiness = null,
   assignees = null,
   source = null,
   timelineEntry = null,
@@ -96,6 +103,7 @@ export async function updateTaskPage({
     type: parsed.frontmatter.type || 'task',
     status: normalizedStatus,
     priority: priority === null || priority === undefined ? normalizePriority(parsed.frontmatter.priority || 'p3') : normalizePriority(priority),
+    readiness: readiness === null || readiness === undefined ? normalizeReadiness(parsed.frontmatter.readiness || 'underspecified') : normalizeReadiness(readiness),
   };
   if (assignees !== null && assignees !== undefined) {
     nextFrontmatter.assignees = await normalizeAndValidateAssignees(db, assignees, actor, memberResolution);
@@ -194,6 +202,7 @@ function decorateParsedTask(parsed, memberMap, updatedAt = null, pagePath = null
     slug: parsed.slug,
     title: parsed.title,
     status,
+    readiness: normalizeReadiness(parsed.frontmatter.readiness || 'underspecified'),
     completed: status === 'done' || status === 'archived',
     priority: normalizePriority(parsed.frontmatter.priority || 'p3'),
     due: normalizeDateValue(parsed.frontmatter.due),
@@ -239,6 +248,14 @@ function normalizePriority(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (!TASK_PRIORITIES.includes(normalized)) {
     throw new Error(`Invalid task priority: ${value}. Expected one of ${TASK_PRIORITIES.join(', ')}.`);
+  }
+  return normalized;
+}
+
+function normalizeReadiness(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!TASK_READINESS.includes(normalized)) {
+    throw new Error(`Invalid task readiness: ${value}. Expected one of ${TASK_READINESS.join(', ')}.`);
   }
   return normalized;
 }

@@ -466,6 +466,7 @@ async function toolTasksList(config, args, actor, authConfig) {
       assignee: args.assignee || null,
       status: args.status || null,
       priority: args.priority || null,
+      readiness: args.readiness || null,
       actor,
       memberResolution: memberResolutionFromAuthConfig(authConfig),
     });
@@ -483,6 +484,7 @@ async function toolTasksEnrich(config, args, actor, authConfig) {
       assignee: args.assignee || null,
       status: args.status || null,
       priority: args.priority || null,
+      readiness: args.readiness || null,
       actor,
       memberResolution: memberResolutionFromAuthConfig(authConfig),
     });
@@ -510,6 +512,7 @@ async function toolTasksEnrich(config, args, actor, authConfig) {
         assignee: args.assignee || null,
         status: args.status || null,
         priority: args.priority || null,
+        readiness: args.readiness || null,
         path: args.path || null,
         include_completed: args.include_completed === true,
       },
@@ -530,6 +533,7 @@ async function toolTasksCreate(config, args, actor, authConfig) {
       assignees: args.assignees || [],
       status: args.status || 'open',
       priority: args.priority || 'p3',
+      readiness: args.readiness || 'underspecified',
       source: args.source || [],
       path: args.path || null,
       timelineEntry: timelineWithActor(args.timeline_entry || 'Task created through MCP.', actor),
@@ -551,6 +555,7 @@ async function toolTasksUpdate(config, args, actor, authConfig) {
       body: args.body,
       status: args.status,
       priority: args.priority,
+      readiness: args.readiness,
       assignees: args.assignees,
       source: args.source,
       timelineEntry: timelineWithActor(args.timeline_entry || 'Task updated through MCP.', actor),
@@ -676,7 +681,7 @@ function toolDefinitions() {
     },
     {
       name: 'tasks/list',
-      description: 'List task pages under tasks/, optionally filtered by assignee, status, or priority. Use assignee=me for the authenticated member.',
+      description: 'List task pages under tasks/, optionally filtered by assignee, status, priority, or readiness. Use assignee=me for the authenticated member.',
       inputSchema: tasksListSchema(),
     },
     {
@@ -686,7 +691,7 @@ function toolDefinitions() {
     },
     {
       name: 'tasks/enrich',
-      description: 'Identify underspecified task pages and return clarifying questions plus related brain context. This read-only tool does not update task pages.',
+      description: 'Identify task pages with readiness=underspecified and return clarifying questions plus related brain context. This read-only tool does not update task pages.',
       inputSchema: tasksEnrichSchema(),
     },
     {
@@ -696,7 +701,7 @@ function toolDefinitions() {
     },
     {
       name: 'tasks/create',
-      description: 'Create one member-assigned task page under tasks/. Assignees must be active members; assignees may include me. If creating a done or archived task, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
+      description: 'Create one member-assigned task page under tasks/. Assignees must be active members; assignees may include me. Set readiness to underspecified or ready. If creating a done or archived task, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
       inputSchema: taskWriteSchema({ requireBody: true }),
     },
     {
@@ -706,7 +711,7 @@ function toolDefinitions() {
     },
     {
       name: 'tasks/update',
-      description: 'Update one task page under tasks/, including status, priority, assignees, source, body, and timeline. When setting status to done or archived, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
+      description: 'Update one task page under tasks/, including status, readiness, priority, assignees, source, body, and timeline. When setting status to done or archived, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
       inputSchema: taskWriteSchema({ update: true }),
     },
     {
@@ -997,6 +1002,7 @@ function tasksListSchema() {
       assignee: { type: 'string', description: 'Active member person slug such as people/hani, or me for the authenticated member.' },
       status: { type: 'string', enum: ['open', 'waiting', 'blocked', 'done', 'archived'] },
       priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
+      readiness: { type: 'string', enum: ['underspecified', 'ready'] },
     },
   };
 }
@@ -1008,6 +1014,7 @@ function tasksEnrichSchema() {
       assignee: { type: 'string', description: 'Active member person slug such as people/hani, or me for the authenticated member.' },
       status: { type: 'string', enum: ['open', 'waiting', 'blocked', 'done', 'archived'] },
       priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
+      readiness: { type: 'string', enum: ['underspecified', 'ready'] },
       path: { type: 'string', description: 'Optional task path or slug under tasks/ to analyze.' },
       limit: { type: 'number', description: 'Maximum number of underspecified task candidates to return.' },
       question_limit: { type: 'number', description: 'Maximum number of clarifying questions per task.' },
@@ -1025,6 +1032,7 @@ function taskWriteSchema({ requireBody = false, update = false } = {}) {
       body: { type: 'string' },
       status: { type: 'string', enum: ['open', 'waiting', 'blocked', 'done', 'archived'] },
       priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
+      readiness: { type: 'string', enum: ['underspecified', 'ready'], description: 'Whether this task is prompt-ready. Use underspecified when blocking questions remain.' },
       assignees: { type: 'array', items: { type: 'string' }, description: 'Active member person slugs, or me for the authenticated member.' },
       source: { type: 'array', items: { type: 'string' }, description: 'Related brain slugs such as meetings/example or initiatives/example.' },
       timeline_entry: { type: 'string', description: 'Required when completing or archiving a task. Use "Next task: tasks/<slug>" or "No successor task needed: <reason>".' },
@@ -1039,6 +1047,11 @@ function analyzeTaskSpecification(task, questionLimit) {
   const body = String(task.body || '').trim();
   const title = String(task.title || '').trim();
   const combined = `${title}\n${body}`.toLowerCase();
+  const openQuestions = extractSectionBullets(body, /^open questions(?:\s*[-:].*)?$/i);
+
+  if (task.readiness === 'underspecified') {
+    issues.push({ code: 'readiness_underspecified', reason: 'Task readiness is underspecified, so it needs input before fanout.' });
+  }
 
   if (!task.assignee_slugs.length) {
     issues.push({ code: 'missing_assignee', reason: 'Task has no active owner.' });
@@ -1073,7 +1086,7 @@ function analyzeTaskSpecification(task, questionLimit) {
     questions.push('Which successor task should be linked, or why is no successor task needed?');
   }
 
-  const dedupedQuestions = Array.from(new Set(questions)).slice(0, questionLimit);
+  const dedupedQuestions = Array.from(new Set([...openQuestions, ...questions])).slice(0, questionLimit);
   return {
     needs_enrichment: issues.length > 0,
     score: scoreSpecificationIssues(issues),
@@ -1082,6 +1095,7 @@ function analyzeTaskSpecification(task, questionLimit) {
       path: task.path,
       title: task.title,
       status: task.status,
+      readiness: task.readiness,
       priority: task.priority,
       assignee_slugs: task.assignee_slugs,
       invalid_assignees: task.invalid_assignees,
@@ -1147,6 +1161,24 @@ function hasCompletionCriteria(text) {
   return /\b(done|complete|completion|deliverable|output|result|success|ship|published|sent|merged|deployed|accepted|verified)\b/.test(text);
 }
 
+function extractSectionBullets(markdown, headingPattern) {
+  const lines = String(markdown || '').split(/\r?\n/);
+  const bullets = [];
+  let inSection = false;
+  for (const line of lines) {
+    const heading = line.match(/^#{2,6}\s+(.+?)\s*$/);
+    if (heading) {
+      if (inSection) break;
+      inSection = headingPattern.test(heading[1].trim());
+      continue;
+    }
+    if (!inSection) continue;
+    const bullet = line.match(/^\s*[-*]\s+(.+?)\s*$/);
+    if (bullet) bullets.push(bullet[1].trim());
+  }
+  return bullets;
+}
+
 function hasUnblockSignal(text) {
   return /\b(waiting for|blocked by|depends on|dependency|decision|approval|access|credential|response from|owner|unblock)\b/.test(text);
 }
@@ -1159,6 +1191,7 @@ function hasCompletionHandoff(text) {
 
 function scoreSpecificationIssues(issues) {
   const weights = {
+    readiness_underspecified: 6,
     missing_assignee: 5,
     invalid_assignee: 5,
     missing_source: 4,
@@ -1176,7 +1209,8 @@ function suggestedUpdateFields(issues) {
   for (const issue of issues) {
     if (issue.code === 'missing_assignee' || issue.code === 'invalid_assignee') fields.add('assignees');
     if (issue.code === 'missing_source') fields.add('source');
-    if (issue.code === 'thin_body' || issue.code === 'missing_completion_criteria' || issue.code === 'unclear_unblock_path') fields.add('body');
+    if (issue.code === 'readiness_underspecified') fields.add('readiness');
+    if (issue.code === 'thin_body' || issue.code === 'missing_completion_criteria' || issue.code === 'unclear_unblock_path' || issue.code === 'readiness_underspecified') fields.add('body');
     if (issue.code === 'missing_completion_handoff') fields.add('timeline_entry');
     if (issue.code === 'vague_title') fields.add('title');
   }
