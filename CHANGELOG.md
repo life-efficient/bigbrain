@@ -11,6 +11,49 @@ actions` section for agents maintaining local installs and hosted brains.
 - Do not claim an update is complete unless the relevant release actions below
   have been applied or explicitly marked not applicable.
 
+## [0.4.0] - 2026-06-25
+
+### Changed
+
+- Dashboard graph activity sparklines now stay visually bounded and reveal
+  activity details on hover.
+- `bigbrain-nightly-maintenance` now uses `BigBrain: Refresh Tasks` behavior for
+  page-backed `tasks/*.md` instead of calling the removed legacy
+  `bigbrain refresh-tasks` command.
+- `bigbrain-maintain` now treats concrete `missing_separator`,
+  `missing_timeline`, non-critical extra meeting-prep headings, and obvious
+  unresolved-link findings as deterministic bounded remediation when health
+  reports specific pages.
+- `bigbrain-check-update` reporting now more clearly separates current status,
+  checks performed, and remaining follow-up.
+
+### Agent update actions
+
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install` because `package.json` and `package-lock.json` version
+  metadata changed.
+- Run `npm link`, then verify `bigbrain --help`.
+- Refresh bundled BigBrain skills from `skills/`, especially:
+  - `bigbrain-maintain`
+  - `bigbrain-check-update`
+- Refresh the bundled `bigbrain-nightly-maintenance` automation template from
+  `automations/` so it invokes `BigBrain: Refresh Tasks` behavior instead of
+  the removed legacy `refresh-tasks` CLI command.
+- Run `bigbrain sync --json` and `bigbrain health --json` for the selected
+  brain; maintenance agents should now attempt the deterministic health
+  remediations listed above before reporting unresolved items.
+- If `bigbrain health --json` fails with a missing temp-brain config path, reset
+  the default brain pointer to the real brain home, for example:
+
+  ```bash
+  printf '%s\n' "$brain_home" > "$HOME/.config/bigbrain/default-brain-home"
+  ```
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+
 ## [0.3.1] - 2026-06-24
 
 ### Added
@@ -156,7 +199,8 @@ actions` section for agents maintaining local installs and hosted brains.
 
 - `npm test`
 
-[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.4.0
 [0.3.1]: https://github.com/life-efficient/bigbrain/releases/tag/v0.3.1
 [0.3.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.3.0
 [0.2.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.2.0
