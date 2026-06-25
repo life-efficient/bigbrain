@@ -66,11 +66,27 @@ Use only these built-in repair paths unless the user asks for deeper edits:
    - If a finding points to a single page and the correction is obvious from the
      page shape rules, apply the smallest safe edit, then re-run health
    - Safe examples: restoring missing required meeting headings, adding missing
-     frontmatter delimiters, or fixing an obviously broken relative markdown
-     link target
-   - Do not batch-fix broad `missing_separator` or `missing_timeline` findings
-     unless the exact page convention is already clear and the user asked for a
-     cleanup pass
+     frontmatter delimiters, adding the body separator required between current
+     truth and timeline, creating an empty `## Timeline` section when the page
+     type requires a timeline and no dated evidence is obvious, or fixing an
+     obviously broken relative markdown link target
+   - Treat `missing_separator` as deterministic when health points to concrete
+     pages: insert the smallest valid `---` body separator after the current
+     truth section or before an existing `## Timeline`, without rewriting the
+     page content
+   - Treat `missing_timeline` as deterministic for page types that require a
+     timeline: add `## Timeline` after the separator; include an initial dated
+     item only when the page already contains clear source evidence for it,
+     otherwise leave the timeline empty if health accepts that shape
+   - Treat `invalid_meeting_prep_heading` as deterministic when the only issue
+     is an extra non-critical prep heading: remove the extra heading while
+     preserving its bullets/content under the allowed prep structure
+   - For `unresolved_link`, inspect the source page and filesystem context; fix
+     the link when there is a single obvious target, such as a raw file whose
+     name differs only by URL encoding/spacing, or convert an external local
+     path citation into literal text when it is not an in-brain page link
+   - After link edits, always run `sync` before re-running `health`, because
+     unresolved-link checks use the indexed outgoing-link table
 
 4. Post-remediation persistence:
    - After any content or brain-file edit, run `node ./bin/bigbrain.js sync
