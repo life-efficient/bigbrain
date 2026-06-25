@@ -66,17 +66,8 @@ copyable:
 - Each prompt should stand on its own by pulling in the key task details, so a
   reader can tell what they are doing without needing to parse internal file
   references first.
-- The separate reusable-instructions paragraph should tell the worker to show
-  proposed review notes, edits, drafts, or recommendations to the user for
-  approval before taking any final irreversible action. It should also tell the
-  worker to update the brain with what happened, including timeline notes or
-  page changes as appropriate.
-- The reusable-instructions paragraph must tell the worker that before marking
-  the task `done` or `archived`, they must either create/link the successor as
-  `Next task: tasks/<slug>` or state
-  `No successor task needed: <reason>` in the completion timeline.
-- The reusable-instructions paragraph must finish by asking:
-  `Anything you want changed, or should I update this in the brain?`
+- The reusable-instructions paragraph should be concise and use this wording:
+  `Show me the result for approval once you finish the task. Once approved, update the brain, marking the task as done or in progress, enriching related pages and their timelines, and noting the successor task if needed.`
 - The only task slug that should appear inside a ready prompt is the final
   full-spec reference. Each prompt must end with:
   `Do not start working until you have read the full task spec in the BigBrain tasks/<slug>.`
