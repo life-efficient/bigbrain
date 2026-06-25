@@ -58,21 +58,28 @@ copyable:
   the actual task content, using plain language drawn from the task page rather
   than a slug-heavy reference style.
 - Do not use task slugs as prompt headings or lead text.
+- The first paragraph must be only the task-specific brief: what to do, what to
+  focus on, and the concrete output expected for this task. Do not mix generic
+  workflow instructions into this paragraph.
+- Put the reusable worker instructions in a separate paragraph after the
+  task-specific brief.
 - Each prompt should stand on its own by pulling in the key task details, so a
   reader can tell what they are doing without needing to parse internal file
   references first.
-- Each prompt must tell the worker to show the proposed work to the user for
-  approval before taking the final action, while still updating the brain with
-  what happened (for example, timeline updates or page-body changes).
-- Each prompt must instruct the worker to finish by asking:
+- The separate reusable-instructions paragraph should tell the worker to show
+  proposed review notes, edits, drafts, or recommendations to the user for
+  approval before taking any final irreversible action. It should also tell the
+  worker to update the brain with what happened, including timeline notes or
+  page changes as appropriate.
+- The reusable-instructions paragraph must tell the worker that before marking
+  the task `done` or `archived`, they must either create/link the successor as
+  `Next task: tasks/<slug>` or state
+  `No successor task needed: <reason>` in the completion timeline.
+- The reusable-instructions paragraph must finish by asking:
   `Anything you want changed, or should I update this in the brain?`
 - The only task slug that should appear inside a ready prompt is the final
   full-spec reference. Each prompt must end with:
-  `Before you start working, check the full task spec in the BigBrain tasks/<slug>.`
-- Each prompt must tell the worker that before marking the task `done` or
-  `archived`, they must either create/link the successor as
-  `Next task: tasks/<slug>` or state
-  `No successor task needed: <reason>` in the completion timeline.
+  `Do not start working until you have read the full task spec in the BigBrain tasks/<slug>.`
 - Do not format ready tasks as a numbered list.
 - Do not include boilerplate about reading files, preserving changes,
   verification, or commits beyond the required completion handoff.
