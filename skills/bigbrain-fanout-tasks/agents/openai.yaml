@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Fanout Tasks"
   short_description: "Create handoff-ready prompts from BigBrain MCP task pages"
-  default_prompt: "Use BigBrain: Fanout Tasks to list matching BigBrain tasks through the MCP tasks/list tool and return concise ready task prompts in chat."
+  default_prompt: "Use BigBrain: Fanout Tasks to list matching BigBrain tasks through the MCP tasks/list tool and return concise ready task prompts in chat. Make each prompt lead with the real task content in plain language, not slug-heavy references. Each prompt should tell the worker to show the proposed work to the user for approval before the final action, still update the brain with what happened, finish by asking 'Anything you want changed, or should I update this in the brain?', and end with 'Before you start working, check the full task spec in the BigBrain tasks/<slug>.'"
