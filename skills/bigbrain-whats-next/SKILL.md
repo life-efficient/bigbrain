@@ -42,7 +42,8 @@ Use the BigBrain MCP task endpoint as the source of truth:
    - For a named priority such as `p0`, `p1`, `p2`, or `p3`, pass `priority`.
    - For a named status, pass `status`; otherwise keep `status: "open"`.
 4. Use the returned task title, body, priority, assignees, source, and slug to
-   identify the most useful next work.
+   identify the most useful next work. Use slugs internally for lookup and
+   continuity, but do not normally show them in the snapshot output.
 5. Prefer tasks that are high priority, unblocked, clearly scoped, and assigned
    to the requester when the request implies personal focus.
 6. Treat `readiness` as authoritative:
@@ -61,8 +62,10 @@ Default output is capped at 8 bullets. Keep the snapshot short:
 
 - Show a `What's Next` section first.
 - This section should contain only `readiness: "ready"` tasks.
-- Each bullet should include the task slug, priority when present, and a
-  one-sentence description of the concrete next action.
+- Each bullet should lead with a human-readable task title or action, not the
+  task slug. Include priority only when it helps ranking or urgency.
+- Do not include task slugs in the `What's Next` bullets unless the user
+  explicitly asks for paths/slugs or two tasks would otherwise be ambiguous.
 - Do not format bullets as copyable prompt blocks.
 - Do not include boilerplate about reading files, preserving changes,
   verification, or commits.
@@ -70,6 +73,8 @@ Default output is capped at 8 bullets. Keep the snapshot short:
   `I also need your input on a few tasks:`
 - Under that line, show a numbered list of `readiness: "underspecified"` tasks.
   For each task, include indented bullet questions.
+- Name underspecified tasks by human-readable title or action, not slug, unless
+  the user explicitly asks for paths/slugs.
 - Prefer questions from the task page's `## Open Questions` section. If that
   section is absent or incomplete, add a small number of inferred blocking
   questions on the spot.

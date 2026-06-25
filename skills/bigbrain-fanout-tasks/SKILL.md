@@ -37,7 +37,8 @@ Use the BigBrain MCP task endpoint as the source of truth:
    - For a named priority such as `p0`, `p1`, `p2`, or `p3`, pass `priority`.
    - For a named status, pass `status`; otherwise keep `status: "open"`.
 4. Use the returned task title, body, priority, assignees, source, and slug to
-   create one prompt per task.
+   create one prompt per task. Use the slug only for the final full-spec
+   reference inside each prompt.
 5. Treat `readiness` as authoritative. Generate handoff prompts only for
    `readiness: "ready"` tasks. Keep `readiness: "underspecified"` tasks out of
    prompt blocks and list them separately as needing input.
@@ -56,6 +57,7 @@ copyable:
 - Each ready task should be one concise copyable prompt block that leads with
   the actual task content, using plain language drawn from the task page rather
   than a slug-heavy reference style.
+- Do not use task slugs as prompt headings or lead text.
 - Each prompt should stand on its own by pulling in the key task details, so a
   reader can tell what they are doing without needing to parse internal file
   references first.
@@ -64,7 +66,8 @@ copyable:
   what happened (for example, timeline updates or page-body changes).
 - Each prompt must instruct the worker to finish by asking:
   `Anything you want changed, or should I update this in the brain?`
-- Each prompt must end with:
+- The only task slug that should appear inside a ready prompt is the final
+  full-spec reference. Each prompt must end with:
   `Before you start working, check the full task spec in the BigBrain tasks/<slug>.`
 - Each prompt must tell the worker that before marking the task `done` or
   `archived`, they must either create/link the successor as
@@ -75,9 +78,9 @@ copyable:
   verification, or commits beyond the required completion handoff.
 - Show a `Needs input before fanout` section after ready tasks for
   `readiness: "underspecified"` tasks.
-- Keep the input-needed list succinct; name the task slug and include the
-  blocking question(s), preferring the task page's `## Open Questions` section
-  when present.
+- Keep the input-needed list succinct; name each task by human-readable title
+  or action, not slug, and include the blocking question(s), preferring the task
+  page's `## Open Questions` section when present.
 
 If no actionable BigBrain task pages match the requested filters, say that
 directly and do not invent prompts.
