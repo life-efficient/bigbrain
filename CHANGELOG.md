@@ -11,6 +11,33 @@ actions` section for agents maintaining local installs and hosted brains.
 - Do not claim an update is complete unless the relevant release actions below
   have been applied or explicitly marked not applicable.
 
+## [0.3.2] - 2026-06-25
+
+### Changed
+
+- Upgraded the desktop runtime from Electron `37.10.3` to `42.5.0` to clear
+  the outstanding audited Electron security advisories while keeping the app's
+  BrowserWindow shell and packaging flow intact.
+- Added an `overrides.undici` pin so the `electron-builder` toolchain resolves a
+  patched `undici` version during packaging.
+
+### Agent update actions
+
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install` because `package.json` and `package-lock.json` changed.
+- Run `npm link`, then verify `bigbrain --help`.
+- If you package the desktop app, rebuild it with `npm run desktop:dir` or your
+  usual release packaging command before trusting an older local bundle.
+- If the desktop app is distributed outside your own machine, smoke test app
+  launch, dashboard load, external-link opening, and packaging on the target
+  platform after upgrading Electron.
+
+### Verification
+
+- `npm audit --json`
+- `npm test`
+- `npm run desktop:dir`
+
 ## [0.3.1] - 2026-06-24
 
 ### Added
@@ -156,7 +183,8 @@ actions` section for agents maintaining local installs and hosted brains.
 
 - `npm test`
 
-[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/life-efficient/bigbrain/releases/tag/v0.3.2
 [0.3.1]: https://github.com/life-efficient/bigbrain/releases/tag/v0.3.1
 [0.3.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.3.0
 [0.2.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.2.0
