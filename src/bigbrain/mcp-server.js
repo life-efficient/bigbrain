@@ -268,9 +268,6 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'tasks/list':
     case 'tasks_list':
       return toolJson(await toolTasksList(config, args, actor, authConfig));
-    case 'tasks/enrich':
-    case 'tasks_enrich':
-      return toolJson(await toolTasksEnrich(config, args, actor, authConfig));
     case 'tasks/create':
     case 'tasks_create': {
       const task = await toolTasksCreate(config, args, actor, authConfig);
@@ -475,53 +472,6 @@ async function toolTasksList(config, args, actor, authConfig) {
   }
 }
 
-async function toolTasksEnrich(config, args, actor, authConfig) {
-  const db = await openDatabase(config);
-  try {
-    const tasks = await listTaskPages({
-      config,
-      db,
-      assignee: args.assignee || null,
-      status: args.status || null,
-      priority: args.priority || null,
-      readiness: args.readiness || null,
-      actor,
-      memberResolution: memberResolutionFromAuthConfig(authConfig),
-    });
-    const requestedPath = args.path ? normalizeTaskLookupPath(args.path) : null;
-    const candidateTasks = tasks
-      .filter((task) => !requestedPath || task.slug === requestedPath || task.path === `${requestedPath}.md`)
-      .filter((task) => args.include_completed === true || !task.completed);
-    const limit = normalizeLimit(args.limit, 8);
-    const questionLimit = normalizeLimit(args.question_limit, 4);
-    const candidates = [];
-    for (const task of candidateTasks) {
-      const analysis = analyzeTaskSpecification(task, questionLimit);
-      if (!analysis.needs_enrichment) continue;
-      const relatedContext = await findTaskRelatedContext({ config, db, task, limit: 3 });
-      candidates.push({
-        ...analysis,
-        related_context: relatedContext,
-      });
-    }
-    return {
-      candidates: candidates
-        .sort((a, b) => b.score - a.score || a.task.slug.localeCompare(b.task.slug))
-        .slice(0, limit),
-      filters: {
-        assignee: args.assignee || null,
-        status: args.status || null,
-        priority: args.priority || null,
-        readiness: args.readiness || null,
-        path: args.path || null,
-        include_completed: args.include_completed === true,
-      },
-    };
-  } finally {
-    await db.close?.();
-  }
-}
-
 async function toolTasksCreate(config, args, actor, authConfig) {
   const db = await openDatabase(config);
   try {
@@ -688,16 +638,6 @@ function toolDefinitions() {
       name: 'tasks_list',
       description: 'Alias for tasks/list for clients that do not support slash tool names.',
       inputSchema: tasksListSchema(),
-    },
-    {
-      name: 'tasks/enrich',
-      description: 'Identify task pages with readiness=underspecified and return clarifying questions plus related brain context. This read-only tool does not update task pages.',
-      inputSchema: tasksEnrichSchema(),
-    },
-    {
-      name: 'tasks_enrich',
-      description: 'Alias for tasks/enrich for clients that do not support slash tool names.',
-      inputSchema: tasksEnrichSchema(),
     },
     {
       name: 'tasks/create',
@@ -959,8 +899,6 @@ function toolPolicy(name) {
     members_list: { layer: 'read', scopes: ['brain:read'] },
     'tasks/list': { layer: 'read', scopes: ['brain:read'] },
     tasks_list: { layer: 'read', scopes: ['brain:read'] },
-    'tasks/enrich': { layer: 'read', scopes: ['brain:read'] },
-    tasks_enrich: { layer: 'read', scopes: ['brain:read'] },
     search: { layer: 'read', scopes: ['brain:read'] },
     query: { layer: 'read', scopes: ['brain:read'] },
     list: { layer: 'read', scopes: ['brain:read'] },
@@ -1007,22 +945,6 @@ function tasksListSchema() {
   };
 }
 
-function tasksEnrichSchema() {
-  return {
-    type: 'object',
-    properties: {
-      assignee: { type: 'string', description: 'Active member person slug such as people/hani, or me for the authenticated member.' },
-      status: { type: 'string', enum: ['open', 'in_progress', 'waiting', 'done', 'archived'] },
-      priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
-      readiness: { type: 'string', enum: ['underspecified', 'ready'] },
-      path: { type: 'string', description: 'Optional task path or slug under tasks/ to analyze.' },
-      limit: { type: 'number', description: 'Maximum number of underspecified task candidates to return.' },
-      question_limit: { type: 'number', description: 'Maximum number of clarifying questions per task.' },
-      include_completed: { type: 'boolean', description: 'Include done or archived tasks when true.' },
-    },
-  };
-}
-
 function taskWriteSchema({ requireBody = false, update = false } = {}) {
   return {
     type: 'object',
@@ -1039,197 +961,6 @@ function taskWriteSchema({ requireBody = false, update = false } = {}) {
     },
     required: update ? ['path'] : requireBody ? ['title', 'body'] : ['title'],
   };
-}
-
-function analyzeTaskSpecification(task, questionLimit) {
-  const issues = [];
-  const questions = [];
-  const body = String(task.body || '').trim();
-  const title = String(task.title || '').trim();
-  const combined = `${title}\n${body}`.toLowerCase();
-  const openQuestions = extractSectionBullets(body, /^open questions(?:\s*[-:].*)?$/i);
-
-  if (task.readiness === 'underspecified') {
-    issues.push({ code: 'readiness_underspecified', reason: 'Task readiness is underspecified, so it needs input before fanout.' });
-  }
-
-  if (!task.assignee_slugs.length) {
-    issues.push({ code: 'missing_assignee', reason: 'Task has no active owner.' });
-    questions.push('Who is responsible for driving this task to completion?');
-  }
-  if (task.invalid_assignees.length) {
-    issues.push({ code: 'invalid_assignee', reason: `Task references inactive or unknown assignees: ${task.invalid_assignees.join(', ')}.` });
-    questions.push('Which active member should replace the invalid assignee?');
-  }
-  if (!task.source_slugs.length) {
-    issues.push({ code: 'missing_source', reason: 'Task has no source links to supporting brain pages.' });
-    questions.push('Which meeting, project, inbox note, or decision page justifies this task?');
-  }
-  if (body.length < 120) {
-    issues.push({ code: 'thin_body', reason: 'Task body is too short to hand off cleanly.' });
-    questions.push('What concrete work should be done, and what details from the brain should guide it?');
-  }
-  if (isVagueTitle(title)) {
-    issues.push({ code: 'vague_title', reason: 'Task title is generic and does not name a specific outcome.' });
-    questions.push('What specific outcome should the title name?');
-  }
-  if (!hasCompletionCriteria(combined)) {
-    issues.push({ code: 'missing_completion_criteria', reason: 'Task does not state what completion looks like.' });
-    questions.push('What observable result means this task is done?');
-  }
-  if (task.status === 'waiting' && !hasUnblockSignal(combined)) {
-    issues.push({ code: 'unclear_unblock_path', reason: `Task is ${task.status} but does not say what dependency, decision, access, or owner will unblock it.` });
-    questions.push('What exact dependency, decision, access, or response is needed to unblock this task?');
-  }
-  if (task.completed && !hasCompletionHandoff(`${task.body}\n${task.timeline}`)) {
-    issues.push({ code: 'missing_completion_handoff', reason: 'Completed task does not link a successor task or state that no successor task is needed.' });
-    questions.push('Which successor task should be linked, or why is no successor task needed?');
-  }
-
-  const dedupedQuestions = Array.from(new Set([...openQuestions, ...questions])).slice(0, questionLimit);
-  return {
-    needs_enrichment: issues.length > 0,
-    score: scoreSpecificationIssues(issues),
-    task: {
-      slug: task.slug,
-      path: task.path,
-      title: task.title,
-      status: task.status,
-      readiness: task.readiness,
-      priority: task.priority,
-      assignee_slugs: task.assignee_slugs,
-      invalid_assignees: task.invalid_assignees,
-      source_slugs: task.source_slugs,
-      updated_at: task.updated_at,
-    },
-    issues,
-    questions: dedupedQuestions,
-    suggested_update_fields: suggestedUpdateFields(issues),
-  };
-}
-
-async function findTaskRelatedContext({ config, db, task, limit }) {
-  const related = [];
-  for (const slug of task.source_slugs.slice(0, limit)) {
-    const page = await readBrainPage({ config, pagePath: slug }).catch(() => null);
-    if (page) {
-      related.push({
-        slug: page.slug,
-        title: page.title,
-        source: 'task_source',
-        excerpt: excerptText(page.markdown),
-      });
-    }
-  }
-
-  if (related.length >= limit) return related.slice(0, limit);
-
-  const query = [task.title, task.body, ...task.source_slugs].filter(Boolean).join(' ');
-  if (!query.trim()) return related;
-  const searchResult = await searchBrain({
-    db,
-    config,
-    query,
-    limit: limit * 2,
-    mode: 'conservative',
-    explain: false,
-  }).catch(() => []);
-
-  const searchResults = Array.isArray(searchResult) ? searchResult : searchResult.fused || [];
-  for (const result of searchResults) {
-    const slug = result.slug || result.path?.replace(/\.md$/i, '');
-    if (!slug || slug === task.slug || related.some((entry) => entry.slug === slug)) continue;
-    related.push({
-      slug,
-      title: result.title || slug,
-      source: 'search',
-      excerpt: excerptText(result.summary || result.snippet || result.excerpt || result.text || result.content || ''),
-    });
-    if (related.length >= limit) break;
-  }
-  return related;
-}
-
-function isVagueTitle(title) {
-  const normalized = title.toLowerCase().trim();
-  if (normalized.length < 16) return true;
-  return /^(follow up|check|handle|fix|update|review|discuss|coordinate|look into|work on)\b/.test(normalized)
-    && !/\b(with|for|about|on|to)\b.+/.test(normalized);
-}
-
-function hasCompletionCriteria(text) {
-  return /\b(done|complete|completion|deliverable|output|result|success|ship|published|sent|merged|deployed|accepted|verified)\b/.test(text);
-}
-
-function extractSectionBullets(markdown, headingPattern) {
-  const lines = String(markdown || '').split(/\r?\n/);
-  const bullets = [];
-  let inSection = false;
-  for (const line of lines) {
-    const heading = line.match(/^#{2,6}\s+(.+?)\s*$/);
-    if (heading) {
-      if (inSection) break;
-      inSection = headingPattern.test(heading[1].trim());
-      continue;
-    }
-    if (!inSection) continue;
-    const bullet = line.match(/^\s*[-*]\s+(.+?)\s*$/);
-    if (bullet) bullets.push(bullet[1].trim());
-  }
-  return bullets;
-}
-
-function hasUnblockSignal(text) {
-  return /\b(waiting for|blocked by|depends on|dependency|decision|approval|access|credential|response from|owner|unblock)\b/.test(text);
-}
-
-function hasCompletionHandoff(text) {
-  const value = String(text || '');
-  return /\bNext task:\s+tasks\/[a-z0-9][a-z0-9-]*(?:\/[a-z0-9][a-z0-9-]*)*\b/i.test(value)
-    || /\bNo successor task needed:\s+\S.+/i.test(value);
-}
-
-function scoreSpecificationIssues(issues) {
-  const weights = {
-    readiness_underspecified: 6,
-    missing_assignee: 5,
-    invalid_assignee: 5,
-    missing_source: 4,
-    unclear_unblock_path: 4,
-    missing_completion_criteria: 3,
-    missing_completion_handoff: 3,
-    thin_body: 2,
-    vague_title: 1,
-  };
-  return issues.reduce((sum, issue) => sum + (weights[issue.code] || 1), 0);
-}
-
-function suggestedUpdateFields(issues) {
-  const fields = new Set();
-  for (const issue of issues) {
-    if (issue.code === 'missing_assignee' || issue.code === 'invalid_assignee') fields.add('assignees');
-    if (issue.code === 'missing_source') fields.add('source');
-    if (issue.code === 'readiness_underspecified') fields.add('readiness');
-    if (issue.code === 'thin_body' || issue.code === 'missing_completion_criteria' || issue.code === 'unclear_unblock_path' || issue.code === 'readiness_underspecified') fields.add('body');
-    if (issue.code === 'missing_completion_handoff') fields.add('timeline_entry');
-    if (issue.code === 'vague_title') fields.add('title');
-  }
-  return Array.from(fields);
-}
-
-function normalizeTaskLookupPath(value) {
-  return String(value || '')
-    .trim()
-    .replace(/\.md$/i, '')
-    .replace(/^\/+/, '');
-}
-
-function excerptText(value) {
-  return String(value || '')
-    .replace(/^---[\s\S]*?---\s*/m, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, 280);
 }
 
 function jsonRpcResult(id, result) {

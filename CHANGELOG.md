@@ -5,11 +5,29 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## [Unreleased]
 
+### Changed
+
+- Replaced the MCP-level `tasks/enrich` helper with the bundled
+  `bigbrain-clarify-tasks` skill. Task clarification now uses the core
+  `tasks/list` readiness filter plus `read`, `search`, and `query` from the
+  skill workflow, while `readiness` remains first-class in task MCP operations.
+
+### Removed
+
+- Removed the `tasks/enrich` and `tasks_enrich` MCP tools. Use
+  `BigBrain: Clarify Tasks` for task-specification review instead.
+
 ### Agent update actions
 
 - Read this section before pulling or deploying unreleased changes.
 - Do not claim an update is complete unless the relevant release actions below
   have been applied or explicitly marked not applicable.
+- Refresh bundled BigBrain skills from `skills/`, especially
+  `bigbrain-clarify-tasks`.
+- Remove any old BigBrain-owned installed `bigbrain-enrich-tasks` skill symlink
+  or copy after confirming it points at this checkout and has no local edits.
+- Restart or redeploy MCP servers after pulling so `tools/list` no longer
+  advertises `tasks/enrich` or `tasks_enrich`.
 
 ## [0.4.1] - 2026-06-26
 

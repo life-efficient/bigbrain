@@ -1,4 +1,0 @@
-interface:
-  display_name: "BigBrain: Enrich Tasks"
-  short_description: "Clarify underspecified BigBrain tasks"
-  default_prompt: "Use $bigbrain-enrich-tasks to find readiness=underspecified BigBrain tasks, ask focused clarification questions, and update them once answered. Promote a task to readiness=ready only when its body has clear completion criteria and no blocking open questions."

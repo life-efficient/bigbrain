@@ -725,15 +725,15 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     assert.equal(listed.result.tools.some((tool) => tool.name === 'me'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks/list'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks_list'), true);
-    assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks/enrich'), true);
-    assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks_enrich'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks/enrich'), false);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks_enrich'), false);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'members/list'), true);
-    const enrichTool = listed.result.tools.find((tool) => tool.name === 'tasks/enrich');
-    assert.equal(enrichTool.inputSchema.properties.question_limit.type, 'number');
-    assert.deepEqual(enrichTool.inputSchema.properties.status.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
-    assert.deepEqual(enrichTool.inputSchema.properties.readiness.enum, ['underspecified', 'ready']);
+    const listTool = listed.result.tools.find((tool) => tool.name === 'tasks/list');
+    assert.deepEqual(listTool.inputSchema.properties.status.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
+    assert.deepEqual(listTool.inputSchema.properties.readiness.enum, ['underspecified', 'ready']);
     const createTool = listed.result.tools.find((tool) => tool.name === 'tasks/create');
     assert.deepEqual(createTool.inputSchema.properties.status.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
+    assert.deepEqual(createTool.inputSchema.properties.readiness.enum, ['underspecified', 'ready']);
 
     const me = await rpc(running.url, 'tools/call', { name: 'me', arguments: {} }, token);
     assert.equal(me.result.structuredContent.actor.email, 'teammate@example.com');
@@ -844,76 +844,31 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     assert.equal(rejected.result, undefined);
     assert.match(rejected.error.message, /not an active member/);
 
-    await fs.mkdir(path.join(fixture.brainHome, 'initiatives'), { recursive: true });
-    await fs.writeFile(path.join(fixture.brainHome, 'initiatives', 'gfeai-2026.md'), `---
-title: GFEAI 2026
----
-# GFEAI 2026
-
-Weekly ICAIRE updates should summarize progress, decisions, blockers, and next commitments.
-`, 'utf8');
-
     const thin = await rpc(running.url, 'tools/call', {
       name: 'tasks/create',
       arguments: {
-        title: 'Follow up',
-        body: `Ask about it.
-
-## Open Questions
-
-- Which person should be contacted first?
-- What exact outcome should this follow-up produce?`,
+        title: 'Clarify follow-up',
+        body: 'Ask the right person for missing context before fanout.',
         assignees: ['me'],
         priority: 'p2',
-        source: ['initiatives/gfeai-2026'],
-        timeline_entry: 'Created thin task in MCP enrichment test.',
+        timeline_entry: 'Created underspecified task in MCP readiness test.',
       },
     }, token);
     assert.equal(thin.error, undefined, thin.error?.message);
+    assert.equal(thin.result.structuredContent.readiness, 'underspecified');
 
-    await fs.writeFile(path.join(fixture.brainHome, 'tasks', 'completed-without-handoff.md'), `---
-type: task
-title: Completed without handoff
-status: done
-priority: p2
-assignees: [people/team-mate]
----
-
-# Completed without handoff
-
-The task is done and the original outcome was verified.
-
----
-
-## Timeline
-
-- **2026-06-21** | Marked done before completion handoffs were required.
-`, 'utf8');
-
-    const enrichment = await rpc(running.url, 'tools/call', {
-      name: 'tasks/enrich',
-      arguments: {
-        path: 'tasks/follow-up',
-        question_limit: 3,
-      },
+    const underspecifiedTasks = await rpc(running.url, 'tools/call', {
+      name: 'tasks/list',
+      arguments: { status: 'open', readiness: 'underspecified' },
     }, token);
-    assert.equal(enrichment.error, undefined, enrichment.error?.message);
-    assert.equal(enrichment.result.structuredContent.candidates.length, 1);
-    const candidate = enrichment.result.structuredContent.candidates[0];
-    assert.equal(candidate.task.slug, 'tasks/follow-up');
-    assert.equal(candidate.task.readiness, 'underspecified');
-    assert.equal(candidate.issues.some((issue) => issue.code === 'readiness_underspecified'), true);
-    assert.equal(candidate.issues.some((issue) => issue.code === 'vague_title'), true);
-    assert.equal(candidate.questions[0], 'Which person should be contacted first?');
-    assert.equal(candidate.questions.length <= 3, true);
-    assert.equal(candidate.related_context[0].slug, 'initiatives/gfeai-2026');
+    assert.deepEqual(underspecifiedTasks.result.structuredContent.map((task) => task.slug), ['tasks/clarify-follow-up']);
 
     const readinessUpdated = await rpc(running.url, 'tools/call', {
       name: 'tasks/update',
       arguments: {
-        path: 'tasks/follow-up',
+        path: 'tasks/clarify-follow-up',
         readiness: 'ready',
-        body: `# Follow up
+        body: `# Clarify follow-up
 
 ## Summary
 
@@ -940,17 +895,11 @@ None.
     assert.equal(readinessUpdated.error, undefined, readinessUpdated.error?.message);
     assert.equal(readinessUpdated.result.structuredContent.readiness, 'ready');
 
-    const completedEnrichment = await rpc(running.url, 'tools/call', {
-      name: 'tasks/enrich',
-      arguments: {
-        path: 'tasks/completed-without-handoff',
-        include_completed: true,
-      },
+    const allReadyTasks = await rpc(running.url, 'tools/call', {
+      name: 'tasks/list',
+      arguments: { readiness: 'ready' },
     }, token);
-    assert.equal(completedEnrichment.error, undefined, completedEnrichment.error?.message);
-    const completedCandidate = completedEnrichment.result.structuredContent.candidates[0];
-    assert.equal(completedCandidate.task.slug, 'tasks/completed-without-handoff');
-    assert.equal(completedCandidate.issues.some((issue) => issue.code === 'missing_completion_handoff'), true);
+    assert.equal(allReadyTasks.result.structuredContent.some((task) => task.slug === 'tasks/clarify-follow-up'), true);
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
