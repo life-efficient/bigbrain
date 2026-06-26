@@ -45,12 +45,12 @@ assignable task pages under `tasks/*.md`.
 1. Call `me` and `members/list` to identify the requester and active members.
 2. Retrieve current context:
    - `filing_rules` for current task-page and routing conventions
-   - `tasks/list` for existing open, waiting, and blocked tasks
+   - `tasks/list` for existing in_progress, open, and waiting tasks
    - `query` or `search` for projects, initiatives, roadmaps, blockers, recent
      meetings, inbox questions, and relevant operating notes
    - direct `read` on the most relevant pages
 3. Identify task candidates:
-   - overdue or blocked follow-ups
+   - overdue, waiting, or stalled follow-ups
    - unowned open questions that should become work
    - project or initiative next steps that are concrete enough to assign
    - dependencies or risks that need active resolution

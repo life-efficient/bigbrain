@@ -961,8 +961,8 @@ function isDocumentationMarkdownFile(filename) {
 function groupTaskPages(taskPages, activeMemberMap) {
   const headings = [
     ['open', 'Open'],
+    ['in_progress', 'In Progress'],
     ['waiting', 'Waiting'],
-    ['blocked', 'Blocked'],
     ['done', 'Done'],
     ['archived', 'Archived'],
   ];
@@ -1022,7 +1022,7 @@ function normalizeSlugList(value) {
 
 function normalizeStatus(value, fallback) {
   const normalized = String(value || fallback).trim().toLowerCase();
-  return ['open', 'waiting', 'blocked', 'done', 'archived', 'triage', 'assigned', 'converted'].includes(normalized)
+  return ['open', 'in_progress', 'waiting', 'done', 'archived', 'triage', 'assigned', 'converted'].includes(normalized)
     ? normalized
     : fallback;
 }

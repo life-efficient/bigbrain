@@ -4,7 +4,7 @@ version: 1.0.0
 description: |
   Refresh BigBrain task pages from current brain evidence. Use when the user
   asks to refresh tasks, reconcile stale task pages, update task statuses from
-  recent progress, or clean up blocked/waiting/open task metadata.
+  recent progress, or clean up in_progress/waiting/open task metadata.
 triggers:
   - "refresh tasks"
   - "reconcile tasks"
@@ -45,19 +45,22 @@ or reconstruct old `ops/tasks.md` task lists.
 1. Call `me` and `members/list` to identify the requester and active members.
 2. Retrieve task context:
    - `filing_rules` for current task-page conventions
-   - `tasks/list` for open, waiting, blocked, and recently done tasks
+   - `tasks/list` for in_progress, open, waiting, and recently done tasks
    - `query` or `search` for recent meetings, project updates, blockers,
      decisions, inbox notes, and roadmap pages related to those tasks
    - direct `read` on task pages and source pages that may change task state
 3. For each relevant task, decide whether it should be:
    - left unchanged
    - marked `done` because source evidence shows completion
-   - moved to `blocked` or `waiting` because ownership, access, dependency, or
-     decision evidence is missing
+   - moved to `in_progress` because source evidence shows active work is
+     underway
+   - moved to `waiting` because ownership, access, dependency, reply, approval,
+     or decision evidence is missing
    - reopened because the source evidence contradicts a completed state
    - reprioritized because the brain shows urgency or risk changed
-   - marked `readiness: "underspecified"` when blocking questions remain or the
-     body lacks a clear completion definition
+   - marked `readiness: "underspecified"` when open questions remain or the
+     body lacks context, ownership, next action, or a clear completion
+     definition
    - marked `readiness: "ready"` only when the task has enough context,
      completion criteria, and no blocking open questions
    - reassigned only when the new assignee is an active member and the evidence

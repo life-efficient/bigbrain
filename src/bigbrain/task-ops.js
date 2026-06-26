@@ -5,7 +5,7 @@ import { parseMarkdownPage, slugFromPath } from './markdown.js';
 import { assertAllowedPagePath, createBrainPage, normalizePagePath, readBrainPage, safeBrainPath } from './page-ops.js';
 import { findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug, resolveActorMember } from './members.js';
 
-const TASK_STATUSES = ['open', 'waiting', 'blocked', 'done', 'archived'];
+const TASK_STATUSES = ['open', 'in_progress', 'waiting', 'done', 'archived'];
 const TASK_PRIORITIES = ['p0', 'p1', 'p2', 'p3'];
 const TASK_READINESS = ['underspecified', 'ready'];
 const COMPLETION_HANDOFF_ERROR = 'Completing a task requires a completion handoff: either Next task: tasks/<slug> or No successor task needed: <reason>.';

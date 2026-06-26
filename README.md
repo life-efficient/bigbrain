@@ -175,13 +175,21 @@ due: 2026-07-01
 ---
 ```
 
-Valid statuses are `open`, `waiting`, `blocked`, `done`, and `archived`.
-Valid readiness values are `underspecified` and `ready`; use `ready` only when
-the task can be handed off without another clarification round. Valid
-priorities are `p0`, `p1`, `p2`, and `p3`. `due` is optional and must be
-`YYYY-MM-DD` when present. Keep the current task context above the separator,
-structured as Summary, What Counts as Completed, Body Context, Open Questions,
-and Anti-Patterns, and append evidence or state changes under `## Timeline`.
+Valid statuses are `open`, `in_progress`, `waiting`, `done`, and `archived`.
+Use `open` for known work that is not actively being worked, `in_progress` for
+active work currently underway, `waiting` for work paused on an external
+dependency, reply, approval, access, or date, `done` for completed work, and
+`archived` for work intentionally closed without treating it as active. Valid
+readiness values are `underspecified` and `ready`; use `underspecified` while
+context, owner, next action, or completion criteria are missing, and use
+`ready` only when enough context and acceptance criteria exist for a person or
+agent to execute without another clarification round. Status and readiness are
+independent: a task can be `open` but `underspecified`, or `in_progress` and
+`ready`. Valid priorities are `p0`, `p1`, `p2`, and `p3`. `due` is optional and
+must be `YYYY-MM-DD` when present. Keep the current task context above the
+separator, structured as Summary, What Counts as Completed, Body Context, Open
+Questions, and Anti-Patterns, and append evidence or state changes under
+`## Timeline`.
 Use the MCP task tools
 (`tasks/list`, `tasks/create`, `tasks/update`) when writing through an agent.
 When marking a task `done` or `archived`, include a completion handoff in the

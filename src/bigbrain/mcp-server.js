@@ -1000,7 +1000,7 @@ function tasksListSchema() {
     type: 'object',
     properties: {
       assignee: { type: 'string', description: 'Active member person slug such as people/hani, or me for the authenticated member.' },
-      status: { type: 'string', enum: ['open', 'waiting', 'blocked', 'done', 'archived'] },
+      status: { type: 'string', enum: ['open', 'in_progress', 'waiting', 'done', 'archived'] },
       priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
       readiness: { type: 'string', enum: ['underspecified', 'ready'] },
     },
@@ -1012,7 +1012,7 @@ function tasksEnrichSchema() {
     type: 'object',
     properties: {
       assignee: { type: 'string', description: 'Active member person slug such as people/hani, or me for the authenticated member.' },
-      status: { type: 'string', enum: ['open', 'waiting', 'blocked', 'done', 'archived'] },
+      status: { type: 'string', enum: ['open', 'in_progress', 'waiting', 'done', 'archived'] },
       priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
       readiness: { type: 'string', enum: ['underspecified', 'ready'] },
       path: { type: 'string', description: 'Optional task path or slug under tasks/ to analyze.' },
@@ -1030,9 +1030,9 @@ function taskWriteSchema({ requireBody = false, update = false } = {}) {
       path: { type: 'string', description: update ? 'Existing task path under tasks/.' : 'Optional destination path under tasks/.' },
       title: { type: 'string' },
       body: { type: 'string' },
-      status: { type: 'string', enum: ['open', 'waiting', 'blocked', 'done', 'archived'] },
+      status: { type: 'string', enum: ['open', 'in_progress', 'waiting', 'done', 'archived'] },
       priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
-      readiness: { type: 'string', enum: ['underspecified', 'ready'], description: 'Whether this task is prompt-ready. Use underspecified when blocking questions remain.' },
+      readiness: { type: 'string', enum: ['underspecified', 'ready'], description: 'Whether this task is prompt-ready. Use underspecified when open questions remain.' },
       assignees: { type: 'array', items: { type: 'string' }, description: 'Active member person slugs, or me for the authenticated member.' },
       source: { type: 'array', items: { type: 'string' }, description: 'Related brain slugs such as meetings/example or initiatives/example.' },
       timeline_entry: { type: 'string', description: 'Required when completing or archiving a task. Use "Next task: tasks/<slug>" or "No successor task needed: <reason>".' },
@@ -1077,7 +1077,7 @@ function analyzeTaskSpecification(task, questionLimit) {
     issues.push({ code: 'missing_completion_criteria', reason: 'Task does not state what completion looks like.' });
     questions.push('What observable result means this task is done?');
   }
-  if ((task.status === 'blocked' || task.status === 'waiting') && !hasUnblockSignal(combined)) {
+  if (task.status === 'waiting' && !hasUnblockSignal(combined)) {
     issues.push({ code: 'unclear_unblock_path', reason: `Task is ${task.status} but does not say what dependency, decision, access, or owner will unblock it.` });
     questions.push('What exact dependency, decision, access, or response is needed to unblock this task?');
   }

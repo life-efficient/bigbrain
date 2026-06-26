@@ -2,8 +2,8 @@
 name: "BigBrain: What's Next"
 version: 1.0.0
 description: |
-  Provide a concise snapshot of what should be done next from open BigBrain
-  task pages exposed through the BigBrain MCP task tools. Use when the user
+  Provide a concise snapshot of what should be done next from in-progress and
+  open BigBrain task pages exposed through the BigBrain MCP task tools. Use when the user
   asks what's next, wants a short task snapshot, or wants to decide what to
   work on before optionally fanning out full handoff prompts.
 triggers:
@@ -20,9 +20,9 @@ mutating: false
 
 # BigBrain: What's Next
 
-Use this skill when the user wants a short, decision-ready snapshot of open
-BigBrain task pages. BigBrain tasks are page-backed records under `tasks/*.md`;
-do not read or reconstruct old `ops/tasks.md` task lists.
+Use this skill when the user wants a short, decision-ready snapshot of active
+and ready BigBrain task pages. BigBrain tasks are page-backed records under
+`tasks/*.md`; do not read or reconstruct old `ops/tasks.md` task lists.
 
 This skill is related to `bigbrain-fanout-tasks`, but it does not produce
 copyable handoff prompts by default. It summarizes the next work first, then
@@ -32,7 +32,8 @@ offers to fan out prompts if the user wants to start the work.
 
 Use the BigBrain MCP task endpoint as the source of truth:
 
-1. Call `tasks/list` with `status: "open"` by default.
+1. Call `tasks/list` twice by default: first with `status: "in_progress"`,
+   then with `status: "open"`.
 2. If the MCP client does not support slash tool names, call the alias
    `tasks_list` with the same arguments.
 3. Honor scoping in the user's request:
@@ -40,12 +41,13 @@ Use the BigBrain MCP task endpoint as the source of truth:
    - For "for people/name" or "assigned to people/name", pass that assignee
      slug.
    - For a named priority such as `p0`, `p1`, `p2`, or `p3`, pass `priority`.
-   - For a named status, pass `status`; otherwise keep `status: "open"`.
+   - For a named status, pass that `status`; otherwise use both default calls.
 4. Use the returned task title, body, priority, assignees, source, and slug to
    identify the most useful next work. Use slugs internally for lookup and
    continuity, but do not normally show them in the snapshot output.
-5. Prefer tasks that are high priority, unblocked, clearly scoped, and assigned
-   to the requester when the request implies personal focus.
+5. Prefer `in_progress` tasks first, then high-priority `open` tasks that are
+   clearly scoped and assigned to the requester when the request implies
+   personal focus. Keep `waiting` tasks separate unless the user asks for them.
 6. Treat `readiness` as authoritative:
    - `readiness: "ready"` means the task can appear in the normal next-work
      bullet list.

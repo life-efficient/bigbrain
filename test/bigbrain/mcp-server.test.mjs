@@ -730,7 +730,10 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     assert.equal(listed.result.tools.some((tool) => tool.name === 'members/list'), true);
     const enrichTool = listed.result.tools.find((tool) => tool.name === 'tasks/enrich');
     assert.equal(enrichTool.inputSchema.properties.question_limit.type, 'number');
+    assert.deepEqual(enrichTool.inputSchema.properties.status.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
     assert.deepEqual(enrichTool.inputSchema.properties.readiness.enum, ['underspecified', 'ready']);
+    const createTool = listed.result.tools.find((tool) => tool.name === 'tasks/create');
+    assert.deepEqual(createTool.inputSchema.properties.status.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
 
     const me = await rpc(running.url, 'tools/call', { name: 'me', arguments: {} }, token);
     assert.equal(me.result.structuredContent.actor.email, 'teammate@example.com');
@@ -755,9 +758,31 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     assert.equal(created.result.structuredContent.readiness, 'ready');
     assert.equal(created.result.structuredContent.assignees[0].person_slug, 'people/team-mate');
 
+    const inProgress = await rpc(running.url, 'tools/call', {
+      name: 'tasks/update',
+      arguments: {
+        path: 'tasks/draft-icaire-update',
+        status: 'in_progress',
+        timeline_entry: 'Marked in progress in MCP task test.',
+      },
+    }, token);
+    assert.equal(inProgress.error, undefined, inProgress.error?.message);
+    assert.equal(inProgress.result.structuredContent.status, 'in_progress');
+
+    const blockedRejected = await rpc(running.url, 'tools/call', {
+      name: 'tasks/update',
+      arguments: {
+        path: 'tasks/draft-icaire-update',
+        status: 'blocked',
+        timeline_entry: 'Attempted legacy status in MCP task test.',
+      },
+    }, token);
+    assert.equal(blockedRejected.result, undefined);
+    assert.match(blockedRejected.error.message, /Invalid task status: blocked/);
+
     const mine = await rpc(running.url, 'tools/call', {
       name: 'tasks/list',
-      arguments: { assignee: 'me', status: 'open' },
+      arguments: { assignee: 'me', status: 'in_progress' },
     }, token);
     assert.deepEqual(mine.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
 

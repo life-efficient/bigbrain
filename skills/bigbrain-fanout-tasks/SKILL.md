@@ -2,10 +2,10 @@
 name: "BigBrain: Fanout Tasks"
 version: 1.0.0
 description: |
-  Fan out concise chat prompts from open BigBrain task pages exposed through
-  the BigBrain MCP task tools. Use when the user wants daily kickoff prompts,
-  one prompt per brain task, prompts for their assigned BigBrain tasks, or
-  prompts filtered by task assignee, status, or priority.
+  Fan out concise chat prompts from in-progress and open BigBrain task pages
+  exposed through the BigBrain MCP task tools. Use when the user wants daily
+  kickoff prompts, one prompt per brain task, prompts for their assigned
+  BigBrain tasks, or prompts filtered by task assignee, status, or priority.
 triggers:
   - "fan out brain tasks"
   - "bigbrain task prompts"
@@ -27,7 +27,8 @@ do not read or reconstruct old `ops/tasks.md` task lists.
 
 Use the BigBrain MCP task endpoint as the source of truth:
 
-1. Call `tasks/list` with `status: "open"` by default.
+1. Call `tasks/list` twice by default: first with `status: "in_progress"`,
+   then with `status: "open"`.
 2. If the MCP client does not support slash tool names, call the alias
    `tasks_list` with the same arguments.
 3. Honor scoping in the user's request:
@@ -35,7 +36,7 @@ Use the BigBrain MCP task endpoint as the source of truth:
    - For "for people/name" or "assigned to people/name", pass that assignee
      slug.
    - For a named priority such as `p0`, `p1`, `p2`, or `p3`, pass `priority`.
-   - For a named status, pass `status`; otherwise keep `status: "open"`.
+   - For a named status, pass that `status`; otherwise use both default calls.
 4. Use the returned task title, body, priority, assignees, source, and slug to
    create one prompt per task. Use the slug only for the final full-spec
    reference inside each prompt.
@@ -52,7 +53,7 @@ the prompts.
 Default output is capped at 10 ready items. Keep each ready item short and
 copyable:
 
-- Show a `Ready tasks` section first.
+- Show ready `in_progress` tasks first, followed by ready `open` tasks.
 - Include only tasks whose MCP record has `readiness: "ready"`.
 - Each ready task should be one concise copyable prompt block that leads with
   the actual task content, using plain language drawn from the task page rather
@@ -67,7 +68,7 @@ copyable:
   reader can tell what they are doing without needing to parse internal file
   references first.
 - The reusable-instructions paragraph should be concise and use this wording:
-  `Show me the result for approval once you finish the task. Once approved, update the brain, marking the task as done or in progress, enriching related pages and their timelines, and noting the successor task if needed.`
+  `Show me the result for approval once you finish the task. Once approved, update the brain, marking the task as done or in_progress, enriching related pages and their timelines, and noting the successor task if needed.`
 - The only task slug that should appear inside a ready prompt is the final
   full-spec reference. Each prompt must end with:
   `Do not start working until you have read the full task spec in the BigBrain tasks/<slug>.`

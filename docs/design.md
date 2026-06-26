@@ -497,8 +497,15 @@ Automations should be narrow, explicit, idempotent, and inspectable.
   - tasks live as individual `tasks/*.md` pages
   - task frontmatter uses `type: task`, `status`, `readiness`, `priority`,
     `assignees`, `source`, and optional `due`
-  - valid statuses are `open`, `waiting`, `blocked`, `done`, and `archived`
+  - valid statuses are `open`, `in_progress`, `waiting`, `done`, and
+    `archived`
+  - `open` means known work not actively being worked; `in_progress` means
+    active work currently underway; `waiting` means work paused on an external
+    dependency, reply, approval, access, or date
   - valid readiness values are `underspecified` and `ready`
+  - readiness is independent from status: `underspecified` means context,
+    owner, next action, or completion criteria are missing; `ready` means the
+    task can be handed off without another clarification round
   - valid priorities are `p0`, `p1`, `p2`, and `p3`
   - fanout should use `readiness: ready`; `readiness: underspecified` tasks
     should be surfaced as questions for the user
