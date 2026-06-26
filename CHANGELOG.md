@@ -5,17 +5,82 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## [Unreleased]
 
-### Changed
-
-- `bigbrain-check-update` now explicitly separates local MCP service health from
-  Codex MCP registration, including stale default brain pointer repair guidance
-  and direct MCP `tools/list` verification for local installs.
-
 ### Agent update actions
 
 - Read this section before pulling or deploying unreleased changes.
 - Do not claim an update is complete unless the relevant release actions below
   have been applied or explicitly marked not applicable.
+
+## [0.4.1] - 2026-06-26
+
+### Added
+
+- Task pages now support `readiness: underspecified|ready` as a first-class
+  frontmatter key across task ops, MCP schemas, dashboard payloads, filing
+  rules, generated schema output, docs, and task-facing skills.
+- Task status now includes `in_progress` for active work currently underway.
+
+### Changed
+
+- Valid task statuses are now `open`, `in_progress`, `waiting`, `done`, and
+  `archived`; `waiting` represents work paused on an external dependency,
+  reply, approval, access, or date.
+- Generated filing rules and schema docs now define each task status and clarify
+  that status is independent from readiness.
+- `bigbrain-whats-next` and `bigbrain-fanout-tasks` now check `in_progress`
+  tasks before `open` tasks by default and keep `waiting` work separate unless
+  requested.
+- `bigbrain-refresh-tasks`, `bigbrain-roadmap-tasks`, and
+  `bigbrain-enrich-tasks` now treat readiness as the authority for fanout
+  readiness instead of mixing handoff readiness into task status.
+- `bigbrain-fanout-tasks` now uses cleaner task-specific prompt structure and
+  less slug-heavy wording.
+- `bigbrain-check-update` now explicitly separates local MCP service health from
+  Codex MCP registration, including stale default brain pointer repair guidance
+  and direct MCP `tools/list` verification for local installs.
+
+### Removed
+
+- `blocked` is no longer a valid task status. Existing `blocked` task pages
+  should be migrated to `waiting` when deploying this release.
+
+### Agent update actions
+
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install` because `package.json` and `package-lock.json` version
+  metadata changed.
+- Run `npm link`, then verify `bigbrain --help`.
+- Refresh bundled BigBrain skills from `skills/`, especially:
+  - `bigbrain-whats-next`
+  - `bigbrain-fanout-tasks`
+  - `bigbrain-refresh-tasks`
+  - `bigbrain-roadmap-tasks`
+  - `bigbrain-enrich-tasks`
+  - `bigbrain-check-update`
+- Refresh the bundled `bigbrain-check-update` automation template from
+  `automations/`.
+- For each selected brain, update local filing rules or collection filing rules
+  that still describe task statuses so they use `open`, `in_progress`,
+  `waiting`, `done`, and `archived`, and explain `readiness:
+  underspecified|ready`.
+- Migrate any existing task page with `status: blocked` to `status: waiting`
+  and add a timeline note explaining that `blocked` was retired.
+- Use `status: in_progress` for active work already underway; do not enforce a
+  singleton active task unless the brain's local rules explicitly require it.
+- Run `bigbrain schema` and verify the task status list includes `in_progress`
+  and does not include `blocked`.
+- Run `bigbrain sync --json` and `bigbrain health --json` for the selected
+  brain.
+- For hosted MCP deployments, restart or redeploy the server after pulling so
+  MCP `tasks/list`, `tasks/create`, `tasks/update`, and `tasks/enrich` expose
+  the new task status enum.
+- Confirm `tasks/list status:"in_progress"` works through the MCP connector for
+  at least one hosted or local brain where in-progress work exists.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
 
 ## [0.4.0] - 2026-06-25
 
