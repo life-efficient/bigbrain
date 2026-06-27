@@ -964,10 +964,12 @@ test('schema and filing guidance stay inspectable', async () => {
     const filingRules = await filingRulesForBrain({ config });
     assert.match(filingRules.markdown, /Task Page Schema/);
     assert.match(filingRules.markdown, /Pattern: `tasks\/<task-slug>\.md`/);
+    assert.match(filingRules.markdown, /does not need to match or mirror the full task title/);
     assert.deepEqual(filingRules.task_schema.frontmatter.status, ['open', 'in_progress', 'waiting', 'done', 'archived']);
     assert.deepEqual(filingRules.task_schema.frontmatter.readiness, ['underspecified', 'ready']);
     assert.deepEqual(filingRules.task_schema.frontmatter.priority, ['p0', 'p1', 'p2', 'p3']);
     assert.match(filingRules.task_schema.guidance.join('\n'), /readiness: underspecified/);
+    assert.match(filingRules.task_schema.guidance.join('\n'), /human-readable identifier/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /status to in_progress/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /Status and readiness are independent/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /Anti-Patterns/);

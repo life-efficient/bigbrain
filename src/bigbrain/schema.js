@@ -48,6 +48,7 @@ export function schemaDescription() {
     ],
     task_page_shape: {
       path: 'tasks/<task-slug>.md',
+      slug: 'concise stable human-readable identifier; it does not need to match the title',
       frontmatter: {
         type: 'task',
         status: ['open', 'in_progress', 'waiting', 'done', 'archived'],
@@ -127,6 +128,7 @@ export function renderSchemaMarkdown() {
     '```',
     '',
     '- Path pattern: `tasks/<task-slug>.md`.',
+    '- The task slug is a concise, stable, human-readable identifier; it does not need to match or mirror the full task title.',
     '- `status` must be one of `open`, `in_progress`, `waiting`, `done`, `archived`.',
     '- `open` means known work that is not actively being worked.',
     '- `in_progress` means active work currently underway.',

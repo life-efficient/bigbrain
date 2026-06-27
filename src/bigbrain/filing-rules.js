@@ -177,6 +177,7 @@ function defaultTaskSchema() {
     },
     guidance: [
       'Create one page per assignable task under tasks/.',
+      'Use the task slug as a concise, stable, human-readable identifier; it does not need to match or mirror the full task title.',
       'Use type: task in frontmatter.',
       'Set status to open for known work that is not actively being worked.',
       'Set status to in_progress for active work currently underway.',
