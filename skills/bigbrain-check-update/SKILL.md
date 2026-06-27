@@ -28,6 +28,8 @@ This skill guarantees:
 - Install or refresh bundled skills and automations in the active agent runtime
 - Read `CHANGELOG.md` after pulling and apply the matching `Agent update
   actions`
+- Apply filing-rule updates from the new release to the selected brain, while
+  preserving user customizations
 - Verify the updated checkout and active runtime before reporting success
 - Separately verify the always-on local MCP service and Codex MCP registration
   when a local service is configured, so "server alive" is not confused with
@@ -97,7 +99,9 @@ This skill guarantees:
 11. Apply release-specific actions:
    - execute every relevant `Agent update actions` item from `CHANGELOG.md`
      that applies to the local setup
-   - for schema or filing-rules changes, run `bigbrain schema` and MCP
+   - for schema or filing-rules changes, apply the filing-rule update policy
+     below before running verification
+   - after applying filing-rule changes, run `bigbrain schema` and MCP
      `filing_rules` when an MCP-backed brain is configured
    - for new skills or automations, confirm active installs were refreshed
    - for removed skills or automations, remove stale BigBrain-owned active
@@ -129,10 +133,36 @@ This skill guarantees:
      (`http://127.0.0.1:3333/mcp`) and config follow-up separately from service
      health
 
+## Filing-Rule Update Policy
+
+When release notes mention schema or filing-rule changes, update the selected
+brain's `FILING.md` and relevant collection `FILING.md` files, especially
+`tasks/FILING.md`, instead of only reporting that the compiled `filing_rules`
+output changed.
+
+- If a filing-rule file still matches the default wording from the previous
+  BigBrain version, replace it with the new default wording for that file.
+- If a filing-rule file has user customizations or has diverged from the old
+  default, merge the new release's filing-rule changes into the existing file
+  while keeping the user's wording and local rules present.
+- For custom files, prefer additive edits: insert missing new bullets,
+  sections, enum values, examples, or timeline notes near the corresponding
+  existing rule.
+- If a new default rule conflicts with an existing user rule, keep the user's
+  rule and do not block the update; record the unresolved difference in the
+  update report only if it matters operationally.
+- It is acceptable to make straightforward judgment calls rather than asking
+  the user to approve every filing-rule merge. Avoid destructive rewrites, but
+  do not be overly cautious when the intended merge is clear.
+- Do not overwrite unrelated collection guidance just because it differs from
+  the generated defaults.
+
 ## Guardrails
 
 - Do not use `git reset --hard`, `git checkout --`, or destructive cleanup.
 - Do not discard unrelated local edits.
+- Do not erase customized filing rules while applying release filing-rule
+  changes; merge new defaults into them and keep user rules on conflict.
 - Do not claim an update was installed unless the local HEAD changed or the
   upstream comparison proved it was already current.
 - If the repo has local commits and upstream updates, still use rebase with

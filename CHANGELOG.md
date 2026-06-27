@@ -5,12 +5,29 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## [Unreleased]
 
+### Agent update actions
+
+- Read this section before pulling or deploying unreleased changes.
+- Do not claim an update is complete unless the relevant release actions below
+  have been applied or explicitly marked not applicable.
+
+## [0.4.2] - 2026-06-27
+
 ### Changed
 
 - Replaced the MCP-level `tasks/enrich` helper with the bundled
   `bigbrain-clarify-tasks` skill. Task clarification now uses the core
   `tasks/list` readiness filter plus `read`, `search`, and `query` from the
   skill workflow, while `readiness` remains first-class in task MCP operations.
+- Generated task filing guidance and schema docs now clarify that task slugs are
+  concise, stable, human-readable identifiers and do not need to match or mirror
+  the full task title.
+- `bigbrain-check-update` now applies release filing-rule changes to selected
+  brains. Default old filing rules should be replaced with the new defaults,
+  while customized user filing rules should receive the new changes additively
+  and keep user wording on conflicts.
+- The bundled `bigbrain-check-update` automation prompt now asks agents to
+  report applied filing-rule updates, not just skill and automation refreshes.
 
 ### Removed
 
@@ -26,8 +43,23 @@ actions` section for agents maintaining local installs and hosted brains.
   `bigbrain-clarify-tasks`.
 - Remove any old BigBrain-owned installed `bigbrain-enrich-tasks` skill symlink
   or copy after confirming it points at this checkout and has no local edits.
+- Refresh the bundled `bigbrain-check-update` automation template from
+  `automations/`.
+- For each selected brain, update `FILING.md` and relevant collection filing
+  rules, especially `tasks/FILING.md`: if the file still matches the default
+  wording from a previous BigBrain version, replace it with the new default; if
+  it has user customizations, merge in the new filing-rule changes and keep the
+  user's rule on conflict.
+- Confirm the compiled `filing_rules` output includes the task slug guidance:
+  task slugs are stable human-readable identifiers and do not need to match full
+  task titles.
 - Restart or redeploy MCP servers after pulling so `tools/list` no longer
   advertises `tasks/enrich` or `tasks_enrich`.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
 
 ## [0.4.1] - 2026-06-26
 
@@ -315,7 +347,9 @@ actions` section for agents maintaining local installs and hosted brains.
 
 - `npm test`
 
-[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/life-efficient/bigbrain/releases/tag/v0.4.2
+[0.4.1]: https://github.com/life-efficient/bigbrain/releases/tag/v0.4.1
 [0.4.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.4.0
 [0.3.2]: https://github.com/life-efficient/bigbrain/releases/tag/v0.3.2
 [0.3.1]: https://github.com/life-efficient/bigbrain/releases/tag/v0.3.1

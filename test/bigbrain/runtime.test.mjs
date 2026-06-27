@@ -980,6 +980,21 @@ test('schema and filing guidance stay inspectable', async () => {
   }
 });
 
+test('check-update skill applies filing-rule updates without clobbering user customizations', async () => {
+  const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..');
+  const [skill, automation] = await Promise.all([
+    fs.readFile(path.join(repoRoot, 'skills/bigbrain-check-update/SKILL.md'), 'utf8'),
+    fs.readFile(path.join(repoRoot, 'automations/bigbrain-check-update/automation.toml'), 'utf8'),
+  ]);
+
+  assert.match(skill, /## Filing-Rule Update Policy/);
+  assert.match(skill, /matches the default wording from the previous/);
+  assert.match(skill, /merge the new release's filing-rule changes/);
+  assert.match(skill, /keep the user's\s+rule/);
+  assert.match(automation, /apply release filing-rule changes/);
+  assert.match(automation, /preserving the user's rules/);
+});
+
 async function createFixture(prefix) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   const pointerPath = path.join(rootDir, 'pointer');
