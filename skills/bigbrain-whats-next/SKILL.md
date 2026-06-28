@@ -50,7 +50,7 @@ Use the BigBrain MCP task endpoint as the source of truth:
    personal focus. Keep `waiting` tasks separate unless the user asks for them.
 6. Treat `readiness` as authoritative:
    - `readiness: "ready"` means the task can appear in the normal next-work
-     bullet list.
+     numbered list.
    - `readiness: "underspecified"` means the task needs user input before it
      should be fanned out or treated as an executable handoff.
 
@@ -60,15 +60,16 @@ is next.
 
 ## Output Requirements
 
-Default output is capped at 8 bullets. Keep the snapshot short:
+Default output is capped at 8 numbered items. Keep the snapshot short:
 
 - Show a `What's Next` section first.
 - This section should contain only `readiness: "ready"` tasks.
-- Each bullet should lead with a human-readable task title or action, not the
+- Format ready tasks as a numbered list, not bullets.
+- Each numbered item should lead with a human-readable task title or action, not the
   task slug. Include priority only when it helps ranking or urgency.
-- Do not include task slugs in the `What's Next` bullets unless the user
+- Do not include task slugs in the `What's Next` numbered list unless the user
   explicitly asks for paths/slugs or two tasks would otherwise be ambiguous.
-- Do not format bullets as copyable prompt blocks.
+- Do not format the numbered list as copyable prompt blocks.
 - Do not include boilerplate about reading files, preserving changes,
   verification, or commits.
 - After the existing bullet output, append exactly:
@@ -80,7 +81,7 @@ Default output is capped at 8 bullets. Keep the snapshot short:
 - Prefer questions from the task page's `## Open Questions` section. If that
   section is absent or incomplete, add a small number of inferred blocking
   questions on the spot.
-- Do not include underspecified tasks in the main `What's Next` bullets.
+- Do not include underspecified tasks in the main `What's Next` numbered list.
 - End by asking whether the user wants handoff prompts generated for the
   ready tasks.
 
@@ -101,5 +102,5 @@ tasks proposed from current brain evidence.
   `status: "archived"` unless the user explicitly asks for those statuses.
 - Do not promote an underspecified task to the ready list just because it sounds
   important.
-- Keep each bullet scoped to one task; put multi-task or ambiguous records in
+- Keep each numbered item scoped to one task; put multi-task or ambiguous records in
   the input-needed list rather than guessing hidden subtasks.

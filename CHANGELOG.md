@@ -11,13 +11,18 @@ actions` section for agents maintaining local installs and hosted brains.
   `bigbrain-ingest-granola` automation template for scheduled Granola meeting
   capture into the selected brain.
 
+### Changed
+
+- `BigBrain: What's Next` now formats ready task snapshots as a numbered list
+  instead of bullets.
+
 ### Agent update actions
 
 - Read this section before pulling or deploying unreleased changes.
 - Do not claim an update is complete unless the relevant release actions below
   have been applied or explicitly marked not applicable.
 - Refresh bundled BigBrain skills from `skills/`, especially
-  `bigbrain-granola-ingest`.
+  `bigbrain-granola-ingest` and `bigbrain-whats-next`.
 - Refresh bundled BigBrain automations from `automations/`, including the new
   `bigbrain-ingest-granola` template.
 
