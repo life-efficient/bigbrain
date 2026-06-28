@@ -80,6 +80,15 @@ export async function runHealthCheck(config, {
     });
   }
 
+  const filingRuleStatus = await detectFilingRuleStatus(config.brainDir);
+  for (const missing of filingRuleStatus.missing) {
+    await insertHealthFinding(db, {
+      findingType: 'missing_filing_rules',
+      severity: 'medium',
+      details: missing,
+    });
+  }
+
   const gitStatus = await detectGitStatus(config.brainDir);
   if (gitStatus) {
     await insertHealthFinding(db, {
@@ -143,6 +152,7 @@ export async function runHealthCheck(config, {
     finding_count: findings.length,
     findings,
     git_status: gitStatus,
+    filing_rules_status: filingRuleStatus,
     cli_status: cliStatus,
     automation_template_status: automationTemplateStatus,
     skill_template_status: skillTemplateStatus,
@@ -153,7 +163,66 @@ function severityForFinding(findingType) {
   if (findingType === 'missing_frontmatter' || findingType === 'missing_separator') return 'medium';
   if (findingType === 'missing_meeting_heading' || findingType === 'invalid_meeting_prep_heading' || findingType === 'invalid_meeting_prep_structure') return 'medium';
   if (findingType === 'nested_raw_file_path') return 'medium';
+  if (findingType === 'missing_filing_rules') return 'medium';
   return 'low';
+}
+
+async function detectFilingRuleStatus(brainDir) {
+  const folders = await listBrainFoldersRequiringFilingRules(brainDir);
+  const missing = [];
+  for (const folder of folders) {
+    const filingPath = folder === '.' ? 'FILING.md' : `${folder}/FILING.md`;
+    const exists = await fs.stat(path.join(brainDir, filingPath))
+      .then((stats) => stats.isFile())
+      .catch((error) => {
+        if (error?.code === 'ENOENT') return false;
+        throw error;
+      });
+    if (!exists) {
+      missing.push({
+        folder,
+        expected_path: filingPath,
+      });
+    }
+  }
+  return {
+    checked_count: folders.length,
+    missing_count: missing.length,
+    missing,
+  };
+}
+
+async function listBrainFoldersRequiringFilingRules(brainDir) {
+  const folders = ['.'];
+  await walkBrainFoldersForFilingRules(brainDir, brainDir, folders);
+  folders.sort((left, right) => {
+    if (left === '.') return -1;
+    if (right === '.') return 1;
+    return left.localeCompare(right);
+  });
+  return folders;
+}
+
+async function walkBrainFoldersForFilingRules(root, current, folders) {
+  const dirents = await fs.readdir(current, { withFileTypes: true }).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  for (const dirent of dirents) {
+    if (!dirent.isDirectory()) continue;
+    const fullPath = path.join(current, dirent.name);
+    const relative = path.relative(root, fullPath).split(path.sep).join('/');
+    if (shouldSkipFolderForFilingRules(relative)) continue;
+    folders.push(relative);
+    await walkBrainFoldersForFilingRules(root, fullPath, folders);
+  }
+}
+
+function shouldSkipFolderForFilingRules(relativePath) {
+  if (!relativePath) return false;
+  const segments = relativePath.split('/');
+  if (segments.some((segment) => segment.startsWith('.'))) return true;
+  return segments.includes('node_modules');
 }
 
 async function detectNestedRawFiles(brainDir) {

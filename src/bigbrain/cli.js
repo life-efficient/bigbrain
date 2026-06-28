@@ -595,6 +595,7 @@ function renderHealthText(report) {
 function renderHealthFindingDetails(details) {
   if (!details || typeof details !== 'object') return '';
   if (Array.isArray(details.missing) && details.missing.length > 0) return `: missing ${details.missing.join(', ')}`;
+  if (typeof details.expected_path === 'string' && details.expected_path) return `: missing ${details.expected_path}`;
   if (typeof details.message === 'string' && details.message) return `: ${details.message}`;
   if (typeof details.target_slug === 'string' && details.target_slug) return `: ${details.target_slug}`;
   return '';

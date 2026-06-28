@@ -690,6 +690,47 @@ test('health reports page-shape issues', async () => {
   }
 });
 
+test('health flags folders missing FILING.md', async () => {
+  const fixture = await createFixture('bigbrain-filing-health-');
+  try {
+    await writeAllDefaultFilingRules(fixture.brainHome);
+    await writeMarkdown(fixture.brainHome, 'projects/acme-rollout.md', `---
+type: project
+title: Acme Rollout
+---
+# Acme Rollout
+
+Operational rollout notes.
+
+---
+
+## Timeline
+
+- 2026-06-29: Created.
+`);
+    await fs.mkdir(path.join(fixture.brainHome, 'projects', 'client-work'), { recursive: true });
+    await fs.mkdir(path.join(fixture.brainHome, 'projects', '.raw', 'nested-asset-folder'), { recursive: true });
+    await fs.mkdir(path.join(fixture.brainHome, '.bigbrain-state', 'runtime'), { recursive: true });
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const report = await runHealthCheck(config);
+    const missing = report.findings.filter((finding) => finding.finding_type === 'missing_filing_rules');
+
+    assert.equal(report.filing_rules_status.missing_count, 1);
+    assert.deepEqual(missing.map((finding) => finding.details.expected_path), ['projects/client-work/FILING.md']);
+
+    await writeMarkdown(fixture.brainHome, 'projects/client-work/FILING.md', '# Client Work Filing\n\nUse for client work project subfolders.\n');
+    await syncBrain({ config, apiKey: null });
+    const repaired = await runHealthCheck(config);
+
+    assert.equal(repaired.filing_rules_status.missing_count, 0);
+    assert.equal(repaired.findings.some((finding) => finding.finding_type === 'missing_filing_rules'), false);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('health verifies the bigbrain command is available on PATH from outside the repo', async () => {
   const fixture = await createFixture('bigbrain-cli-health-');
   try {
@@ -1008,6 +1049,15 @@ async function writeMarkdown(brainHome, relativePath, content) {
   const fullPath = path.join(brainHome, relativePath);
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.writeFile(fullPath, content, 'utf8');
+}
+
+async function writeAllDefaultFilingRules(brainHome) {
+  await writeMarkdown(brainHome, 'FILING.md', '# Brain Filing\n\nShared filing rules.\n');
+  const entries = await fs.readdir(brainHome, { withFileTypes: true });
+  for (const entry of entries) {
+    if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+    await writeMarkdown(brainHome, `${entry.name}/FILING.md`, `# ${entry.name} Filing\n\nRules for ${entry.name}.\n`);
+  }
 }
 
 async function writeAutomationToml(automationRoot, id, content) {

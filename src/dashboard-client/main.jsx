@@ -706,6 +706,10 @@ function formatHealthMessage(item) {
       return item.details?.clean === false ? 'Working tree has local changes.' : 'Git status needs review.';
     case 'missing_separator':
       return 'Missing required separator in page body.';
+    case 'missing_filing_rules':
+      return item.details?.expected_path
+        ? `Missing ${item.details.expected_path}.`
+        : 'Folder is missing FILING.md.';
     case 'invalid_meeting_prep_heading':
       return 'Meeting prep has unexpected headings.';
     default:
