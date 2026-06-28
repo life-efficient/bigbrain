@@ -11,6 +11,40 @@ actions` section for agents maintaining local installs and hosted brains.
 - Do not claim an update is complete unless the relevant release actions below
   have been applied or explicitly marked not applicable.
 
+## [0.4.3] - 2026-06-28
+
+### Changed
+
+- `bigbrain-nightly-maintenance` now treats task refresh as advisory work after
+  sync and health checks, so task interpretation does not block the core
+  maintenance result.
+- `bigbrain-refresh-tasks` guidance now better separates evidence-backed task
+  updates from speculative task reshaping.
+
+### Fixed
+
+- Local identity tests now isolate their default brain pointer and runtime state
+  under temporary fixture paths, and fixture cleanup refuses to remove paths
+  outside the OS temp directory. This prevents test runs from rewriting a real
+  default brain pointer to a temporary brain.
+
+### Agent update actions
+
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm link`, then verify `bigbrain --help`.
+- Refresh bundled BigBrain skills from `skills/`, especially
+  `bigbrain-refresh-tasks`.
+- Refresh the bundled `bigbrain-nightly-maintenance` automation template from
+  `automations/`.
+- Run `npm test`.
+- Confirm the default brain pointer still points at the intended production
+  brain after tests or automation verification.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+
 ## [0.4.2] - 2026-06-27
 
 ### Changed
