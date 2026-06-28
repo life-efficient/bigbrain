@@ -239,6 +239,38 @@ Sync writes to the runtime state directory:
 <brain-home>/.bigbrain-state/
 ```
 
+## Install automations
+
+BigBrain automation templates are provided from this repo under `automations/`.
+Install every direct child directory that contains an `automation.toml` file into
+the active Codex automation directory. Prefer copying automation templates rather
+than symlinking them, because installed automations usually need local `cwds`
+values:
+
+```bash
+repo_root="$(pwd)"
+automation_root="${CODEX_HOME:-$HOME/.codex}/automations"
+brain_home="/path/to/brain-home"
+bigbrain_repo="$repo_root"
+
+mkdir -p "$automation_root"
+find "$repo_root/automations" -mindepth 2 -maxdepth 2 -name automation.toml -print \
+  | while IFS= read -r automation_file; do
+  automation_dir="$(dirname "$automation_file")"
+  automation_id="$(basename "$automation_dir")"
+  rm -rf "$automation_root/$automation_id"
+  cp -R "$automation_dir" "$automation_root/$automation_id"
+  perl -0pi -e "s#<brain-home>#$brain_home#g" "$automation_root/$automation_id/automation.toml"
+  perl -0pi -e "s#<bigbrain-repo>#$bigbrain_repo#g" "$automation_root/$automation_id/automation.toml"
+done
+```
+
+The bundled automations currently include:
+
+- `bigbrain-check-update`
+- `bigbrain-ingest-granola`
+- `bigbrain-nightly-maintenance`
+
 The automation environment must be able to write there. Read-only access is not
 sufficient because sync updates `bigbrain.sqlite`, `state.json`, and SQLite
 sidecar files.
