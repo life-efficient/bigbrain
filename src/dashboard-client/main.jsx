@@ -256,6 +256,23 @@ function DashboardApp() {
     handleGraphNodeOpen(slug);
   });
 
+  const changePageVisibility = useEffectEvent(async (slug, visibility) => {
+    if (!slug) return;
+    setPreview((current) => current?.slug === slug ? { ...current, visibility_status: 'saving' } : current);
+    try {
+      const data = await fetchJson('/api/page/visibility', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ slug, visibility }),
+      });
+      setPreview({ status: 'ready', ...data });
+    } catch (error) {
+      setPreview((current) => current?.slug === slug
+        ? { ...current, visibility_status: 'error', visibility_error: error instanceof Error ? error.message : String(error) }
+        : current);
+    }
+  });
+
   if (state.status === 'loading') {
     return (
       <LoadingSplash />
@@ -520,6 +537,7 @@ function DashboardApp() {
           }}
           onRelativeLinkClick={openPreview}
           onPageOpen={openPageBySlug}
+          onVisibilityChange={changePageVisibility}
         />
       </div>
     </GraphThemeProvider>
@@ -606,8 +624,8 @@ function publicSlugFromPath(pathname) {
   }
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url);
+async function fetchJson(url, options) {
+  const response = await fetch(url, options);
   if (!response.ok) {
     throw new Error(`${url} failed with ${response.status}`);
   }
@@ -798,7 +816,7 @@ function AssigneePills({ assignees, invalidAssignees }) {
   );
 }
 
-function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen }) {
+function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisibilityChange }) {
   const type = preview?.type || preview?.slug?.split('/')[0] || 'page';
   const updatedLabel = formatDateTime(preview?.updated_at);
   const pathLabel = preview?.path || preview?.slug || preview?.href || '';
@@ -806,6 +824,32 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen }) {
   const outgoing = Array.isArray(preview?.links?.outgoing) ? preview.links.outgoing : [];
   const backlinks = Array.isArray(preview?.links?.backlinks) ? preview.links.backlinks : [];
   const hasLinks = outgoing.length || backlinks.length;
+  const visibility = preview?.visibility === 'public' ? 'public' : 'internal';
+  const isPublic = visibility === 'public';
+  const canChangeVisibility = preview?.status === 'ready' && preview?.slug && onVisibilityChange;
+  const visibilityBusy = preview?.visibility_status === 'saving';
+  const publicUrl = preview?.slug ? `${window.location.origin}/public/${preview.slug}` : '';
+  const [copiedPublicLink, setCopiedPublicLink] = useState(false);
+
+  async function changeVisibility(nextVisibility) {
+    if (!canChangeVisibility || visibilityBusy) return;
+    if (nextVisibility === 'public') {
+      const confirmed = window.confirm('This makes the body of this page available to anyone with the link. Continue?');
+      if (!confirmed) return;
+    }
+    await onVisibilityChange(preview.slug, nextVisibility);
+  }
+
+  async function copyPublicLink() {
+    if (!publicUrl) return;
+    try {
+      await copyTextToClipboard(publicUrl);
+      setCopiedPublicLink(true);
+      window.setTimeout(() => setCopiedPublicLink(false), 1200);
+    } catch (error) {
+      console.warn('Unable to copy public link', error);
+    }
+  }
 
   return (
     <aside className="sidecar-shell" aria-hidden={!preview}>
@@ -815,14 +859,36 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen }) {
             <div className="sidecar-title-copy">
               <div className="sidecar-meta-row">
                 <span className="sidecar-chip strong">{type}</span>
+                <span className={`sidecar-chip visibility-${visibility}`}>{isPublic ? 'Public' : 'Internal'}</span>
                 {updatedLabel ? <span className="sidecar-chip">{updatedLabel}</span> : null}
               </div>
               {pathLabel ? <div className="meta">{pathLabel}</div> : null}
             </div>
-            <button type="button" className="graph-button" onClick={onClose}>
-              Close
-            </button>
+            <div className="sidecar-actions">
+              {canChangeVisibility ? (
+                <>
+                  {isPublic ? (
+                    <>
+                      <button type="button" className="graph-button" onClick={copyPublicLink} disabled={visibilityBusy}>
+                        {copiedPublicLink ? 'Copied' : 'Copy public link'}
+                      </button>
+                      <button type="button" className="graph-button" onClick={() => changeVisibility('internal')} disabled={visibilityBusy}>
+                        Make internal
+                      </button>
+                    </>
+                  ) : (
+                    <button type="button" className="graph-button" onClick={() => changeVisibility('public')} disabled={visibilityBusy}>
+                      Make public
+                    </button>
+                  )}
+                </>
+              ) : null}
+              <button type="button" className="graph-button" onClick={onClose}>
+                Close
+              </button>
+            </div>
           </div>
+          {preview?.visibility_status === 'error' ? <div className="sidecar-error">{preview.visibility_error}</div> : null}
         </div>
 
         <div className="sidecar-body">

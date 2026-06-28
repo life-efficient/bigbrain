@@ -76,6 +76,8 @@ test('dashboard page payload includes file explorer metadata and nearby links', 
     assert.equal(payload.title, 'Alice Example');
     assert.equal(payload.type, 'people');
     assert.equal(payload.path, 'people/alice.md');
+    assert.equal(payload.visibility, 'internal');
+    assert.equal(payload.public_url, null);
     assert.match(payload.summary, /Works on/);
     assert.match(payload.summary, /second sentence should also remain visible/);
     assert.equal(payload.frontmatter.title, 'Alice Example');
@@ -169,7 +171,7 @@ test('public page payload exposes only approved body content and safe links', as
     await writeMarkdown(fixture.brainHome, 'people/alice.md', [
       '---',
       'title: Alice Public',
-      'public: true',
+      'visibility: public',
       '---',
       '# Alice Public',
       '',
@@ -184,7 +186,7 @@ test('public page payload exposes only approved body content and safe links', as
     await writeMarkdown(fixture.brainHome, 'projects/relay.md', [
       '---',
       'title: Relay Public',
-      'public: true',
+      'visibility: public',
       '---',
       '# Relay Public',
       '',

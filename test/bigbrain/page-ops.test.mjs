@@ -13,10 +13,12 @@ import {
   deleteRawFile,
   listBrainPath,
   listRawFiles,
+  pageVisibility,
   readBrainPage,
   readRawFile,
   updateRawFile,
   updateBrainPage,
+  updatePageVisibility,
 } from '../../src/bigbrain/page-ops.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -30,11 +32,14 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
       title: 'Jordan Lee',
       body: 'Jordan Lee is a example contact for Example Brain.',
       timelineEntry: 'Created from MCP contribution.',
-      frontmatter: { tags: ['example-brain', 'person'] },
+      frontmatter: { tags: ['example-brain', 'person'], visibility: 'public', public: true },
     });
 
     assert.equal(created.path, 'people/jordan-lee.md');
     assert.equal(created.title, 'Jordan Lee');
+    assert.equal(pageVisibility(created.frontmatter), 'internal');
+    assert.equal('visibility' in created.frontmatter, false);
+    assert.equal('public' in created.frontmatter, false);
     assert.match(created.markdown, /^---\ntype: note\ntitle: Jordan Lee\ncreated: \d{4}-\d{2}-\d{2}\ntags: \[example-brain, person\]\n---/);
     assert.match(created.markdown, /\n---\n\n## Timeline\n\n- \*\*\d{4}-\d{2}-\d{2}\*\* \| Created from MCP contribution\.\n$/);
 
@@ -289,6 +294,57 @@ Current body.
     assert.match(updated.markdown, /# Alice\n\nUpdated body\./);
     assert.match(updated.timeline, /Updated from MCP/);
     assert.equal((updated.markdown.match(/^## Timeline$/gm) || []).length, 1);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page visibility is internal by default and changes only through dedicated page op', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-visibility-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await fs.writeFile(path.join(fixture.brainHome, 'people', 'visibility.md'), `---
+type: note
+title: Visibility
+visibility: accidental
+tags:
+  - example-brain
+---
+
+# Visibility
+
+Current body.
+
+---
+
+## Timeline
+
+- **2026-06-28** | Created.
+`, 'utf8');
+
+    const original = await readBrainPage({ config, pagePath: 'people/visibility.md' });
+    assert.equal(pageVisibility(original.frontmatter), 'internal');
+
+    const updated = await updatePageVisibility({
+      config,
+      pagePath: 'people/visibility.md',
+      visibility: 'public',
+      timelineEntry: 'Published intentionally.',
+    });
+    assert.equal(pageVisibility(updated.frontmatter), 'public');
+    assert.match(updated.markdown, /visibility: public/);
+    assert.doesNotMatch(updated.markdown, /visibility: accidental/);
+    assert.match(updated.markdown, /tags:\n  - example-brain/);
+    assert.match(updated.timeline, /Published intentionally/);
+
+    const internal = await updatePageVisibility({
+      config,
+      pagePath: 'people/visibility.md',
+      visibility: 'internal',
+      timelineEntry: 'Made internal again.',
+    });
+    assert.equal(pageVisibility(internal.frontmatter), 'internal');
+    assert.match(internal.markdown, /visibility: internal/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

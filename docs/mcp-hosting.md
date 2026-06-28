@@ -27,11 +27,11 @@ a personal brain unless that is intentionally what you want to publish.
 ## Public Body-Only Pages
 
 Hosted BigBrain can publish individual approved pages at `/public/<slug>`.
-Public publishing is private by default: a page is public only when its
-frontmatter explicitly includes:
+Public publishing is internal by default: a page is public only when its
+visibility is explicitly set to:
 
 ```yaml
-public: true
+visibility: public
 ```
 
 The public renderer exposes only the current page body above the timeline
@@ -51,15 +51,18 @@ GET /api/public/page?slug=ops/example-onboarding
 ```
 
 That API returns only `slug`, `title`, `summary`, `markdown`, and `updated_at`
-for public pages. Missing pages, invalid paths, and pages without `public: true`
-return `404`.
+for public pages. Missing pages, invalid paths, and pages without
+`visibility: public` return `404`. Missing or invalid visibility values fall
+back to `internal`.
 
 Internal brain links are active only when the target page is also public. Links
 to private pages or raw files are rendered as plain text. Linked pages are never
 published automatically.
 
-To revoke publication, remove `public: true` from the page frontmatter or set it
-to `public: false`, then sync or redeploy the hosted brain as usual.
+To revoke publication, set visibility back to `internal` from the dashboard page
+sidecar or the `set_page_visibility` MCP tool, then sync or redeploy the hosted
+brain as usual. Ordinary page create/update tools ignore visibility fields so
+pages are not published by accident.
 
 ## Persistence Boundary
 
@@ -208,6 +211,8 @@ these scopes:
   `read_raw_file`.
 - `brain:create`: append/create tools, including task writes, `create_page`,
   `update_page`, `create_raw_file`, and `create_raw_file_with_page`.
+- `brain:publish`: page visibility publishing tools, including
+  `set_page_visibility`.
 - `brain:raw:destructive`: destructive raw-file replacement/deletion through
   `update_raw_file` and `delete_raw_file`.
 - `brain:git-backup`: explicit git publishing through `maintenance/git_backup`.

@@ -18,7 +18,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     await fs.writeFile(path.join(fixture.brainHome, 'people', 'public.md'), [
       '---',
       'title: Public MCP Page',
-      'public: true',
+      'visibility: public',
       '---',
       '# Public MCP Page',
       '',
@@ -59,6 +59,8 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(listed.result.tools.some((tool) => tool.name === 'read_raw_file'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'update_raw_file'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'delete_raw_file'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'get_page_visibility'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'set_page_visibility'), true);
 
     const unauthorized = await fetch(running.url, {
       method: 'POST',
@@ -91,6 +93,25 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(created.error, undefined, created.error?.message);
     assert.equal(created.result.structuredContent.slug, 'people/mcp-test');
     assert.match(created.result.structuredContent.markdown, /Created through MCP endpoint test/);
+    assert.equal(created.result.structuredContent.frontmatter.visibility, undefined);
+
+    const published = await rpc(running.url, 'tools/call', {
+      name: 'set_page_visibility',
+      arguments: {
+        path: 'people/mcp-test',
+        visibility: 'public',
+        timeline_entry: 'Published through MCP endpoint test.',
+      },
+    }, 'secret');
+    assert.equal(published.error, undefined, published.error?.message);
+    assert.equal(published.result.structuredContent.visibility, 'public');
+    assert.equal(published.result.structuredContent.public_url, '/public/people/mcp-test');
+
+    const visibility = await rpc(running.url, 'tools/call', {
+      name: 'get_page_visibility',
+      arguments: { path: 'people/mcp-test' },
+    }, 'secret');
+    assert.equal(visibility.result.structuredContent.visibility, 'public');
 
     const db = await openDatabase(config);
     const record = await getPageRecord(db, 'people/mcp-test');
@@ -580,6 +601,7 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
   const fixture = await createFixture('bigbrain-mcp-policy-');
   const readToken = 'bbmcp_read-token';
   const createToken = 'bbmcp_create-token';
+  const publishToken = 'bbmcp_publish-token';
   const rawDeleteToken = 'bbmcp_raw-delete-token';
   const gitToken = 'bbmcp_git-token';
   const adminToken = 'bbmcp_admin-token';
@@ -588,6 +610,7 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
     tokens: [
       scopedToken(readToken, 'reader@example.com', 'brain:read'),
       scopedToken(createToken, 'creator@example.com', 'brain:read brain:create'),
+      scopedToken(publishToken, 'publisher@example.com', 'brain:read brain:publish'),
       scopedToken(rawDeleteToken, 'raw@example.com', 'brain:read brain:raw:destructive'),
       scopedToken(gitToken, 'git@example.com', 'brain:read brain:git-backup'),
       scopedToken(adminToken, 'admin@example.com', 'brain:admin'),
@@ -611,7 +634,7 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
         provider: 'google',
         googleClientId: 'client-id',
         googleClientSecret: 'client-secret',
-        allowedEmails: ['reader@example.com', 'creator@example.com', 'raw@example.com', 'git@example.com', 'admin@example.com'],
+        allowedEmails: ['reader@example.com', 'creator@example.com', 'publisher@example.com', 'raw@example.com', 'git@example.com', 'admin@example.com'],
         allowedDomains: [],
         tokenStorePath,
         allowSharedToken: false,
@@ -624,6 +647,8 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
 
     const readTools = toolNames(await rpc(running.url, 'tools/list', {}, readToken));
     assert.equal(readTools.includes('read'), true);
+    assert.equal(readTools.includes('get_page_visibility'), true);
+    assert.equal(readTools.includes('set_page_visibility'), false);
     assert.equal(readTools.includes('create_page'), false);
     assert.equal(readTools.includes('update_raw_file'), false);
     assert.equal(readTools.includes('maintenance/sync'), false);
@@ -642,6 +667,7 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
     const createTools = toolNames(await rpc(running.url, 'tools/list', {}, createToken));
     assert.equal(createTools.includes('create_page'), true);
     assert.equal(createTools.includes('create_raw_file'), true);
+    assert.equal(createTools.includes('set_page_visibility'), false);
     assert.equal(createTools.includes('update_raw_file'), false);
     assert.equal(createTools.includes('maintenance/git_backup'), false);
     const created = await rpc(running.url, 'tools/call', {
@@ -655,12 +681,28 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
     }, createToken);
     assert.equal(created.error, undefined, created.error?.message);
     assert.match(created.result.structuredContent.timeline, /via creator@example\.com/);
+    const createPublish = await rpc(running.url, 'tools/call', {
+      name: 'set_page_visibility',
+      arguments: { path: 'people/create-allowed', visibility: 'public' },
+    }, createToken);
+    assert.equal(createPublish.error.code, -32003);
+    assert.match(createPublish.error.message, /requires brain:publish scope/);
     const createRawDelete = await rpc(running.url, 'tools/call', {
       name: 'delete_raw_file',
       arguments: { path: 'sources/.raw/missing.txt' },
     }, createToken);
     assert.equal(createRawDelete.error.code, -32003);
     assert.match(createRawDelete.error.message, /requires brain:raw:destructive scope/);
+
+    const publishTools = toolNames(await rpc(running.url, 'tools/list', {}, publishToken));
+    assert.equal(publishTools.includes('set_page_visibility'), true);
+    assert.equal(publishTools.includes('create_page'), false);
+    const published = await rpc(running.url, 'tools/call', {
+      name: 'set_page_visibility',
+      arguments: { path: 'people/create-allowed', visibility: 'public' },
+    }, publishToken);
+    assert.equal(published.error, undefined, published.error?.message);
+    assert.equal(published.result.structuredContent.visibility, 'public');
 
     const rawTools = toolNames(await rpc(running.url, 'tools/list', {}, rawDeleteToken));
     assert.equal(rawTools.includes('update_raw_file'), true);
@@ -677,6 +719,7 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
     assert.equal(adminTools.includes('maintenance/sync'), true);
     assert.equal(adminTools.includes('delete_raw_file'), true);
     assert.equal(adminTools.includes('create_page'), true);
+    assert.equal(adminTools.includes('set_page_visibility'), true);
     const synced = await rpc(running.url, 'tools/call', { name: 'maintenance/sync', arguments: {} }, adminToken);
     assert.equal(synced.error, undefined, synced.error?.message);
     assert.equal(typeof synced.result.structuredContent.index_totals_after_sync.pages, 'number');

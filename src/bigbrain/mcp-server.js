@@ -18,10 +18,13 @@ import {
   deleteRawFile,
   listRawFiles,
   listBrainPath,
+  normalizePageVisibility,
+  pageVisibility,
   readBrainPage,
   readRawFile,
   updateRawFile,
   updateBrainPage,
+  updatePageVisibility,
 } from './page-ops.js';
 import { queryBrain, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
@@ -296,6 +299,17 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       }));
     case 'read':
       return toolJson(await readBrainPage({ config, pagePath: args.path }));
+    case 'get_page_visibility': {
+      const page = await readBrainPage({ config, pagePath: args.path });
+      const visibility = pageVisibility(page.frontmatter);
+      return toolJson({
+        path: page.path,
+        slug: page.slug,
+        title: page.title,
+        visibility,
+        public_url: visibility === 'public' ? `/public/${page.slug}` : null,
+      });
+    }
     case 'filing_rules':
       return toolMarkdown(await filingRulesForBrain({ config }));
     case 'list_raw_files':
@@ -372,6 +386,23 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor);
       return toolJson(page);
+    }
+    case 'set_page_visibility': {
+      const visibility = normalizePageVisibility(args.visibility);
+      const page = await updatePageVisibility({
+        config,
+        pagePath: args.path,
+        visibility,
+        timelineEntry: timelineWithActor(args.timeline_entry || `Visibility set to ${visibility}.`, actor),
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      return toolJson({
+        path: page.path,
+        slug: page.slug,
+        title: page.title,
+        visibility: pageVisibility(page.frontmatter),
+        public_url: pageVisibility(page.frontmatter) === 'public' ? `/public/${page.slug}` : null,
+      });
     }
     case 'maintenance/sync':
     case 'maintenance_sync':
@@ -715,6 +746,11 @@ function toolDefinitions() {
       },
     },
     {
+      name: 'get_page_visibility',
+      description: 'Return whether one markdown page is internal or public. Internal is the default and fallback visibility.',
+      inputSchema: pageVisibilitySchema({ requireVisibility: false }),
+    },
+    {
       name: 'filing_rules',
       description: 'Return the selected brain filing rules as combined Markdown, compiled from top-level and collection FILING.md files.',
       inputSchema: {
@@ -833,6 +869,11 @@ function toolDefinitions() {
       },
     },
     {
+      name: 'set_page_visibility',
+      description: 'Set one page to internal or public. Public makes the page body available on the internet at /public/<slug>; frontmatter, timeline, raw files, and linked private pages stay private.',
+      inputSchema: pageVisibilitySchema({ requireVisibility: true }),
+    },
+    {
       name: 'maintenance/sync',
       description: 'Run BigBrain sync for the selected brain and persist the latest sync state. Requires a maintenance/admin scope on hosted OAuth.',
       inputSchema: {
@@ -905,6 +946,7 @@ function toolPolicy(name) {
     query: { layer: 'read', scopes: ['brain:read'] },
     list: { layer: 'read', scopes: ['brain:read'] },
     read: { layer: 'read', scopes: ['brain:read'] },
+    get_page_visibility: { layer: 'read', scopes: ['brain:read'] },
     filing_rules: { layer: 'read', scopes: ['brain:read'] },
     list_raw_files: { layer: 'read', scopes: ['brain:read'] },
     read_raw_file: { layer: 'read', scopes: ['brain:read'] },
@@ -916,6 +958,7 @@ function toolPolicy(name) {
     create_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
     create_raw_file_with_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
     update_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+    set_page_visibility: { layer: 'publish', scopes: ['brain:publish'] },
     update_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
     delete_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
     'maintenance/git_backup': { layer: 'git_backup', scopes: ['brain:git-backup'] },
@@ -944,6 +987,18 @@ function tasksListSchema() {
       priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
       readiness: { type: 'string', enum: ['underspecified', 'ready'] },
     },
+  };
+}
+
+function pageVisibilitySchema({ requireVisibility }) {
+  return {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: 'Markdown page path such as people/alice or people/alice.md.' },
+      visibility: { type: 'string', enum: ['internal', 'public'], description: 'internal is private to the brain; public exposes the page body at /public/<slug>.' },
+      timeline_entry: { type: 'string', description: 'Optional timeline note for the visibility change.' },
+    },
+    required: requireVisibility ? ['path', 'visibility'] : ['path'],
   };
 }
 

@@ -10,6 +10,7 @@ const DASHBOARD_SESSION_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const SCOPES = [
   'brain:read',
   'brain:create',
+  'brain:publish',
   'brain:raw:destructive',
   'brain:git-backup',
   'brain:maintenance',

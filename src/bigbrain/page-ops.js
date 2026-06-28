@@ -241,6 +241,32 @@ export async function updateBrainPage({ config, pagePath, body, timelineEntry })
   return readBrainPage({ config, pagePath: relative });
 }
 
+export async function updatePageVisibility({ config, pagePath, visibility, timelineEntry }) {
+  const relative = normalizePagePath(pagePath);
+  assertAllowedPagePath(relative);
+  const nextVisibility = normalizePageVisibility(visibility);
+  const existing = await readBrainPage({ config, pagePath: relative });
+  const now = new Date().toISOString().slice(0, 10);
+  const markdown = renderPageMarkdown({
+    frontmatterRaw: setFrontmatterValue(existing.frontmatter_raw, 'visibility', nextVisibility),
+    title: existing.title,
+    body: existing.body,
+    timeline: appendTimelineEntry(existing.timeline, timelineEntry || `Visibility set to ${nextVisibility}.`, now),
+  });
+  await fs.writeFile(safeBrainPath(config.brainDir, relative), markdown, 'utf8');
+  return readBrainPage({ config, pagePath: relative });
+}
+
+export function pageVisibility(frontmatter = {}) {
+  return frontmatter?.visibility === 'public' ? 'public' : 'internal';
+}
+
+export function normalizePageVisibility(value) {
+  const normalized = String(value || 'internal').trim().toLowerCase();
+  if (normalized === 'public' || normalized === 'internal') return normalized;
+  throw new Error('visibility must be internal or public.');
+}
+
 export function normalizePagePath(input) {
   const trimmed = requireNonEmpty(input, 'path').replace(/\\/g, '/').replace(/^\/+/, '');
   const normalized = path.posix.normalize(trimmed);
@@ -332,8 +358,15 @@ function renderFrontmatter(frontmatter) {
 }
 
 function omitReservedFrontmatter(frontmatter) {
-  const { type, title, created, ...rest } = frontmatter || {};
+  const { type, title, created, visibility, public: legacyPublic, ...rest } = frontmatter || {};
   return rest;
+}
+
+function setFrontmatterValue(frontmatterRaw, key, value) {
+  const lines = String(frontmatterRaw || '').split('\n');
+  const next = lines.filter((line) => !new RegExp(`^\\s*${escapeRegExp(key)}\\s*:`).test(line));
+  next.push(`${key}: ${formatYamlValue(value)}`);
+  return next.filter((line, index, array) => line.trim() || index < array.length - 1).join('\n');
 }
 
 function formatYamlValue(value) {
@@ -341,6 +374,10 @@ function formatYamlValue(value) {
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   const text = String(value);
   return /[:#\n]|^\s|\s$/.test(text) ? JSON.stringify(text) : text;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function appendTimelineEntry(timeline, entry, date) {

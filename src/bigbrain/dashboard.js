@@ -20,6 +20,7 @@ import {
 } from './mcp-auth.js';
 import { createMcpAuthStore } from './mcp-auth-store.js';
 import { renderSchemaMarkdown } from './schema.js';
+import { normalizePageVisibility, pageVisibility, updatePageVisibility } from './page-ops.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..');
@@ -109,7 +110,7 @@ export async function createDashboardRequestHandler(config, {
         res.end();
         return;
       }
-      const publicRequest = isPublicAppPath(requestUrl.pathname) || requestUrl.pathname === '/api/public/page';
+      const publicRequest = isPublicAppPath(requestUrl.pathname) || (req.method === 'GET' && requestUrl.pathname === '/api/public/page');
       if (authEnabled && !publicRequest && requestUrl.pathname !== '/favicon.ico' && !requestUrl.pathname.startsWith('/assets/')) {
         const authorization = await authorizeDashboardRequest(req, authConfig);
         if (!authorization.ok) {
@@ -168,8 +169,14 @@ export async function createDashboardRequestHandler(config, {
       if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db));
       if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
       if (requestUrl.pathname === '/api/page') return json(res, await buildPagePayload(config, db, requestUrl));
+      if (requestUrl.pathname === '/api/page/visibility') return json(res, await updateDashboardPageVisibility(config, db, req, actor));
       if (requestUrl.pathname === '/api/preview') return json(res, await buildPreviewPayload(config, db, requestUrl));
       if (requestUrl.pathname === '/api/public/page') {
+        if (req.method !== 'GET') {
+          res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ error: 'Public page requests require GET.' }));
+          return;
+        }
         const publicPayload = await buildPublicPagePayload(config, requestUrl);
         if (!publicPayload) {
           res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -186,7 +193,7 @@ export async function createDashboardRequestHandler(config, {
       res.end('Not found');
     } catch (error) {
       console.error(`Dashboard request failed: ${req.url || '/'}: ${error instanceof Error ? error.stack || error.message : String(error)}`);
-      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.writeHead(error?.statusCode || 500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
     }
   };
@@ -243,6 +250,18 @@ async function serveExplorerBlob(config, res, requestUrl) {
 function json(res, value) {
   res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(value, null, 2));
+}
+
+async function readJsonRequest(req, { maxBytes = 64 * 1024 } = {}) {
+  const chunks = [];
+  let total = 0;
+  for await (const chunk of req) {
+    total += chunk.length;
+    if (total > maxBytes) throw new Error('Request body is too large.');
+    chunks.push(chunk);
+  }
+  const text = Buffer.concat(chunks).toString('utf8').trim();
+  return text ? JSON.parse(text) : {};
 }
 
 export function dashboardSessionCookie(token, authConfig) {
@@ -610,6 +629,7 @@ function renderAppHtml() {
       .graph-controls-inline { position: static; z-index: auto; }
       .graph-button { border: 1px solid var(--line); background: var(--surface-strong); color: var(--ink); border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); }
       .graph-button:hover { background: var(--surface); }
+      .graph-button:disabled { opacity: 0.52; cursor: not-allowed; }
       .graph-button-active { background: rgba(255,255,255,0.08); border-color: var(--line-strong); }
       .icon-button { width: 38px; height: 38px; padding: 0; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-strong); color: var(--ink); cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); display: inline-flex; align-items: center; justify-content: center; }
       .icon-button:hover { background: var(--surface); }
@@ -798,9 +818,12 @@ function renderAppHtml() {
       .sidecar-title-row { display: flex; justify-content: space-between; gap: 18px; align-items: start; }
       .sidecar-title-copy { min-width: 0; display: grid; gap: 8px; }
       .sidecar-title-copy h2 { margin: 0; font-size: 25px; line-height: 1.12; overflow-wrap: anywhere; }
+      .sidecar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
       .sidecar-meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
       .sidecar-chip { display: inline-flex; align-items: center; min-height: 25px; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; }
       .sidecar-chip.strong { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.08); }
+      .sidecar-chip.visibility-public { color: #2563eb; border-color: rgba(37,99,235,0.32); background: rgba(37,99,235,0.10); }
+      .sidecar-error { color: var(--danger); font-size: 12px; line-height: 1.4; }
       .sidecar-body { padding: 18px 28px 34px; display: grid; gap: 16px; }
       .sidecar-summary { color: var(--muted); overflow-wrap: anywhere; font-style: italic; }
       .sidecar-summary .tailwind-prose { font-size: 12px; line-height: 1.45; color: var(--muted); font-style: italic; }
@@ -1209,6 +1232,25 @@ export async function buildPublicPagePayload(config, requestUrl) {
   };
 }
 
+export async function updateDashboardPageVisibility(config, db, req, actor = null) {
+  if (req.method !== 'POST') {
+    const error = new Error('Page visibility updates require POST.');
+    error.statusCode = 405;
+    throw error;
+  }
+  const input = await readJsonRequest(req);
+  const slug = normalizePublicSlug(input.slug || input.path);
+  if (!slug) throw new Error('Page visibility update requires slug.');
+  const visibility = normalizePageVisibility(input.visibility);
+  await updatePageVisibility({
+    config,
+    pagePath: slug,
+    visibility,
+    timelineEntry: `Visibility set to ${visibility} from dashboard${actor?.email ? ` by ${actor.email}` : ''}.`,
+  });
+  return buildPagePayloadForSlug(config, db, slug);
+}
+
 async function buildPagePayloadForSlug(config, db, slug) {
   const fullPath = resolveBrainMarkdownPath(config.brainDir, slug);
   const raw = await fs.readFile(fullPath, 'utf8');
@@ -1222,6 +1264,8 @@ async function buildPagePayloadForSlug(config, db, slug) {
     title: parsed.title,
     type: parsed.type,
     path: relativePath,
+    visibility: pageVisibility(parsed.frontmatter),
+    public_url: pageVisibility(parsed.frontmatter) === 'public' ? `/public/${slug}` : null,
     summary: extractPageReaderSummary(parsed),
     frontmatter: parsed.frontmatter,
     markdown: parsed.bodyContentMarkdown,
@@ -1262,7 +1306,7 @@ function normalizePublicSlug(value) {
 }
 
 function isPublicPage(parsed) {
-  return parsed?.frontmatter?.public === true;
+  return pageVisibility(parsed?.frontmatter) === 'public';
 }
 
 async function sanitizePublicMarkdown({ config, markdown, sourceSlug }) {

@@ -36,7 +36,7 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
     await fs.writeFile(path.join(fixture.brainHome, 'people', 'public.md'), [
       '---',
       'title: Public Page',
-      'public: true',
+      'visibility: public',
       '---',
       '# Public Page',
       '',
@@ -88,6 +88,15 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
     assert.equal(privateApi.status, 302);
     assert.match(privateApi.headers.get('location'), /^\/auth\/start\?redirect=%2Fapi%2Fpage/);
 
+    const privateVisibility = await fetch(`${url}/api/page/visibility`, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ slug: 'people/public', visibility: 'internal' }),
+    });
+    assert.equal(privateVisibility.status, 302);
+    assert.match(privateVisibility.headers.get('location'), /^\/auth\/start\?redirect=%2Fapi%2Fpage%2Fvisibility/);
+
     const authenticated = await fetch(url, {
       headers: { cookie: `bigbrain_dashboard_session=${sessionToken}` },
     });
@@ -99,6 +108,21 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
     });
     assert.equal(health.status, 200);
     assert.equal(Array.isArray((await health.json()).findings), true);
+
+    const authenticatedVisibility = await fetch(`${url}/api/page/visibility`, {
+      method: 'POST',
+      headers: {
+        cookie: `bigbrain_dashboard_session=${sessionToken}`,
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({ slug: 'people/public', visibility: 'internal' }),
+    });
+    assert.equal(authenticatedVisibility.status, 200);
+    const visibilityJson = await authenticatedVisibility.json();
+    assert.equal(visibilityJson.visibility, 'internal');
+
+    const unpublishedApi = await fetch(`${url}/api/public/page?slug=people/public`);
+    assert.equal(unpublishedApi.status, 404);
 
     const start = await fetch(`${url}/auth/start?redirect=/api/health`, { redirect: 'manual' });
     assert.equal(start.status, 302);
