@@ -5,14 +5,26 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## [Unreleased]
 
+### Agent update actions
+
+- Read this section before pulling or deploying unreleased changes.
+- Do not claim an update is complete unless the relevant release actions below
+  have been applied or explicitly marked not applicable.
+
+## [0.5.0] - 2026-06-29
+
 ### Added
 
+- Added public body-only page publishing and explicit page visibility controls
+  for sharing approved brain pages without exposing private metadata.
 - Added a bundled `BigBrain: Granola Ingest` skill and
   `bigbrain-ingest-granola` automation template for scheduled Granola meeting
   capture into the selected brain.
 
 ### Changed
 
+- `bigbrain health --json` now checks every normal brain folder for a
+  `FILING.md` file and reports `missing_filing_rules` findings for gaps.
 - `BigBrain: What's Next` now formats ready task snapshots as a numbered list
   instead of bullets.
 
@@ -21,10 +33,22 @@ actions` section for agents maintaining local installs and hosted brains.
 - Read this section before pulling or deploying unreleased changes.
 - Do not claim an update is complete unless the relevant release actions below
   have been applied or explicitly marked not applicable.
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install`, then `npm link`, and verify `bigbrain --help`.
 - Refresh bundled BigBrain skills from `skills/`, especially
   `bigbrain-granola-ingest` and `bigbrain-whats-next`.
 - Refresh bundled BigBrain automations from `automations/`, including the new
   `bigbrain-ingest-granola` template.
+- Run `bigbrain health --json` for the selected brain and add `FILING.md` files
+  to any normal folders reported as `missing_filing_rules`.
+- Review any intentionally shared public pages and their visibility settings
+  before distributing links.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
 
 ## [0.4.3] - 2026-06-28
 
