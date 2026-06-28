@@ -14,6 +14,7 @@ import {
   resolveActorMember,
   upsertMember,
 } from '../../src/bigbrain/members.js';
+import { DEFAULT_POINTER_PATH } from '../../src/bigbrain/constants.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -36,7 +37,7 @@ test('ensureLocalOwnerMember creates an active owner for local assignee me resol
     assert.equal(resolved.person_slug, 'people/local-user');
     await db.close?.();
   } finally {
-    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+    await removeTempFixture(fixture.rootDir);
   }
 });
 
@@ -66,7 +67,7 @@ test('ensureLocalOwnerMember repairs an existing inactive local member by person
     assert.equal(member.person_slug, 'people/existing-local');
     await db.close?.();
   } finally {
-    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+    await removeTempFixture(fixture.rootDir);
   }
 });
 
@@ -76,8 +77,8 @@ test('members ensure-local-owner CLI bootstraps a local owner row', async () => 
     const binPath = path.resolve('bin/bigbrain.js');
     const { stdout } = await execFileAsync(process.execPath, [
       binPath,
-      '--brain-home',
-      fixture.brainHome,
+      '--config',
+      fixture.configPath,
       '--json',
       'members',
       'ensure-local-owner',
@@ -98,7 +99,7 @@ test('members ensure-local-owner CLI bootstraps a local owner row', async () => 
     assert.equal(member.name, 'CLI Local');
     await db.close?.();
   } finally {
-    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+    await removeTempFixture(fixture.rootDir);
   }
 });
 
@@ -119,20 +120,57 @@ test('local MCP installer dry-run reports local owner bootstrapping intent', asy
       '--local-owner-email',
       'installer-local@example.test',
       '--dry-run',
-    ]);
+    ], { env: fixture.env });
     const result = JSON.parse(stdout);
     assert.equal(result.localPersonSlug, 'people/installer-local');
     assert.equal(result.localOwnerName, 'Installer Local');
     assert.equal(result.localOwnerEmail, 'installer-local@example.test');
     assert.equal(result.wouldEnsureLocalOwner, true);
   } finally {
-    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+    await removeTempFixture(fixture.rootDir);
+  }
+});
+
+test('local identity fixtures do not rewrite the real default brain pointer', async () => {
+  const before = await readIfExists(DEFAULT_POINTER_PATH);
+  const fixture = await createFixture('bigbrain-local-owner-pointer-isolation-');
+  try {
+    assert.equal(await readIfExists(DEFAULT_POINTER_PATH), before);
+    assert.equal((await fs.readFile(fixture.pointerPath, 'utf8')).trim(), fixture.brainHome);
+  } finally {
+    await removeTempFixture(fixture.rootDir);
   }
 });
 
 async function createFixture(prefix) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   const brainHome = path.join(rootDir, 'brain');
-  const init = await initializeBrainHome(brainHome);
-  return { rootDir, brainHome, configPath: init.configPath };
+  const pointerPath = path.join(rootDir, 'pointer');
+  const stateRoot = path.join(rootDir, 'state-root');
+  const env = {
+    ...process.env,
+    BIGBRAIN_POINTER_PATH: pointerPath,
+    BIGBRAIN_STATE_ROOT: stateRoot,
+  };
+  const init = await initializeBrainHome(brainHome, { env });
+  return { rootDir, brainHome, configPath: init.configPath, pointerPath, stateRoot, env };
+}
+
+async function readIfExists(filePath) {
+  try {
+    return await fs.readFile(filePath, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+async function removeTempFixture(rootDir) {
+  const resolvedRoot = path.resolve(rootDir);
+  const resolvedTmp = path.resolve(os.tmpdir());
+  const relative = path.relative(resolvedTmp, resolvedRoot);
+  assert.notEqual(relative, '');
+  assert.equal(relative.startsWith('..'), false);
+  assert.equal(path.isAbsolute(relative), false);
+  await fs.rm(resolvedRoot, { recursive: true, force: true });
 }
