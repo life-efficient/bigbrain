@@ -109,7 +109,8 @@ export async function createDashboardRequestHandler(config, {
         res.end();
         return;
       }
-      if (authEnabled && requestUrl.pathname !== '/favicon.ico' && !requestUrl.pathname.startsWith('/assets/')) {
+      const publicRequest = isPublicAppPath(requestUrl.pathname) || requestUrl.pathname === '/api/public/page';
+      if (authEnabled && !publicRequest && requestUrl.pathname !== '/favicon.ico' && !requestUrl.pathname.startsWith('/assets/')) {
         const authorization = await authorizeDashboardRequest(req, authConfig);
         if (!authorization.ok) {
           const headers = {};
@@ -127,6 +128,14 @@ export async function createDashboardRequestHandler(config, {
           return;
         }
         actor = authorization.actor || null;
+      }
+      if (isPublicAppPath(requestUrl.pathname)) {
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
+        res.end(renderAppHtml());
+        return;
       }
       if (isDashboardAppPath(requestUrl.pathname, normalizedBasePath)) {
         res.writeHead(200, {
@@ -160,6 +169,15 @@ export async function createDashboardRequestHandler(config, {
       if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
       if (requestUrl.pathname === '/api/page') return json(res, await buildPagePayload(config, db, requestUrl));
       if (requestUrl.pathname === '/api/preview') return json(res, await buildPreviewPayload(config, db, requestUrl));
+      if (requestUrl.pathname === '/api/public/page') {
+        const publicPayload = await buildPublicPagePayload(config, requestUrl);
+        if (!publicPayload) {
+          res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ error: 'Public page not found.' }));
+          return;
+        }
+        return json(res, publicPayload);
+      }
       if (requestUrl.pathname === '/api/explorer/tree') return json(res, await buildExplorerTreePayload(config));
       if (requestUrl.pathname === '/api/explorer/recent') return json(res, await buildExplorerRecentPayload(config, requestUrl));
       if (requestUrl.pathname === '/api/explorer/file') return json(res, await buildExplorerFilePayload(config, requestUrl));
@@ -247,6 +265,10 @@ function isDashboardAppPath(pathname, basePath) {
   return pathname === basePath || pathname === `${basePath}/` || pathname === `${basePath}/index.html`;
 }
 
+function isPublicAppPath(pathname) {
+  return pathname === '/public' || pathname.startsWith('/public/');
+}
+
 function renderAppHtml() {
   return `<!doctype html>
 <html>
@@ -301,6 +323,28 @@ function renderAppHtml() {
       .page-shell { --sidecar-width: 0px; position: relative; height: 100vh; overflow: hidden; background: var(--bg); color: var(--ink); }
       .page-shell.preview-open { --sidecar-width: min(560px, 48vw); }
       main { min-width: 0; max-width: none; height: 100vh; margin: 0; padding: 20px calc(20px + var(--sidecar-width)) 16px 20px; width: 100%; overflow: hidden; display: flex; flex-direction: column; transition: padding-right 240ms ease; }
+      .public-main { min-height: 100vh; height: auto; overflow: auto; display: block; padding: 42px 22px 64px; background: #fafafa; color: #18181b; }
+      .public-document { width: min(820px, 100%); margin: 0 auto; display: grid; gap: 22px; }
+      .public-document-head { display: grid; gap: 8px; padding-bottom: 18px; border-bottom: 1px solid #e4e4e7; }
+      .public-document-head h1,
+      .public-document > h1 { margin: 0; color: #18181b; font-size: 40px; line-height: 1.08; letter-spacing: 0; }
+      .public-document .meta,
+      .public-document .empty-copy,
+      .public-document p { color: #52525b; }
+      .public-document .markdown-shell { color: #18181b; }
+      .public-document .tailwind-prose { color: #18181b; font-size: 16px; line-height: 1.72; }
+      .public-document .tailwind-prose h1,
+      .public-document .tailwind-prose h2,
+      .public-document .tailwind-prose h3,
+      .public-document .tailwind-prose h4,
+      .public-document .tailwind-prose strong { color: #18181b; }
+      .public-document .tailwind-prose a { color: #155eef; }
+      .public-document .tailwind-prose code { background: #f4f4f5; color: #18181b; }
+      .public-document .tailwind-prose pre { background: #18181b; color: #fafafa; border-radius: 8px; }
+      .public-document .tailwind-prose blockquote { border-left-color: #d4d4d8; color: #52525b; }
+      .public-document .tailwind-prose th,
+      .public-document .tailwind-prose td { border-color: #e4e4e7; }
+      .public-document .tailwind-prose th { background: #f4f4f5; }
       h1 { font-size: 44px; margin: 0 0 6px; letter-spacing: -0.03em; }
       h2 { margin: 0 0 14px; font-size: 20px; }
       h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
@@ -1147,6 +1191,24 @@ export async function buildPagePayload(config, db, requestUrl) {
   return buildPagePayloadForSlug(config, db, slug);
 }
 
+export async function buildPublicPagePayload(config, requestUrl) {
+  const slug = normalizePublicSlug(requestUrl.searchParams.get('slug')?.trim());
+  if (!slug) return null;
+  const page = await readPublicMarkdownPage(config, slug);
+  if (!page || !isPublicPage(page.parsed)) return null;
+  return {
+    slug,
+    title: page.parsed.title,
+    summary: extractPageReaderSummary(page.parsed),
+    markdown: await sanitizePublicMarkdown({
+      config,
+      markdown: page.parsed.compiledTruth,
+      sourceSlug: slug,
+    }),
+    updated_at: page.stat.mtime.toISOString(),
+  };
+}
+
 async function buildPagePayloadForSlug(config, db, slug) {
   const fullPath = resolveBrainMarkdownPath(config.brainDir, slug);
   const raw = await fs.readFile(fullPath, 'utf8');
@@ -1175,6 +1237,76 @@ async function buildPagePayloadForSlug(config, db, slug) {
         .map((link) => ({ slug: link.from_slug, label: link.link_text || link.from_slug })),
     },
   };
+}
+
+async function readPublicMarkdownPage(config, slug) {
+  let fullPath;
+  try {
+    fullPath = resolveBrainMarkdownPath(config.brainDir, slug);
+    const stat = await fs.stat(fullPath);
+    if (!stat.isFile()) return null;
+    const raw = await fs.readFile(fullPath, 'utf8');
+    return { stat, parsed: parseMarkdownPage(raw, slug) };
+  } catch (error) {
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return null;
+    return null;
+  }
+}
+
+function normalizePublicSlug(value) {
+  const slug = String(value || '').trim().replace(/^\/+/, '').replace(/\.md$/i, '');
+  if (!slug || slug === '.' || slug.startsWith('../') || path.posix.isAbsolute(slug)) return '';
+  const normalized = path.posix.normalize(slug);
+  if (normalized === '.' || normalized.startsWith('../') || normalized.split('/').some((part) => !part || part === '.' || part === '..')) return '';
+  return normalized.replace(/\.md$/i, '');
+}
+
+function isPublicPage(parsed) {
+  return parsed?.frontmatter?.public === true;
+}
+
+async function sanitizePublicMarkdown({ config, markdown, sourceSlug }) {
+  let next = String(markdown || '');
+  next = await replaceMarkdownLinks(next, /!?\[([^\]]*)\]\(([^)]+)\)/g, async (full, label, target) => {
+    if (/^!/.test(full)) return label || '';
+    const publicHref = await publicHrefForTarget(config, sourceSlug, target);
+    return publicHref ? `[${label}](${publicHref})` : label;
+  });
+  next = await replaceMarkdownLinks(next, /\[\[([^[\]]+)\]\]/g, async (_full, rawTarget) => {
+    const [target, label] = String(rawTarget || '').split('|').map((part) => part.trim());
+    const publicHref = await publicHrefForTarget(config, sourceSlug, target);
+    const publicLabel = label || target;
+    return publicHref ? `[${publicLabel}](${publicHref})` : publicLabel;
+  });
+  return next;
+}
+
+async function replaceMarkdownLinks(markdown, pattern, replacer) {
+  const matches = [...markdown.matchAll(pattern)];
+  if (!matches.length) return markdown;
+  let output = '';
+  let cursor = 0;
+  for (const match of matches) {
+    output += markdown.slice(cursor, match.index);
+    output += await replacer(...match);
+    cursor = match.index + match[0].length;
+  }
+  output += markdown.slice(cursor);
+  return output;
+}
+
+async function publicHrefForTarget(config, sourceSlug, target) {
+  const trimmed = String(target || '').trim();
+  if (!trimmed) return null;
+  if (/^(https?:|mailto:|#)/i.test(trimmed)) return trimmed;
+  const anchorIndex = trimmed.indexOf('#');
+  const targetWithoutAnchor = anchorIndex >= 0 ? trimmed.slice(0, anchorIndex) : trimmed;
+  const anchor = anchorIndex >= 0 ? trimmed.slice(anchorIndex) : '';
+  const slug = resolveMarkdownLink(sourceSlug, targetWithoutAnchor);
+  if (!slug) return null;
+  const page = await readPublicMarkdownPage(config, slug);
+  if (!page || !isPublicPage(page.parsed)) return null;
+  return `/public/${slug}${anchor}`;
 }
 
 function resolveBrainMarkdownPath(brainDir, slug) {

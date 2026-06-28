@@ -526,6 +526,86 @@ function DashboardApp() {
   );
 }
 
+function PublicPageApp() {
+  const [state, setState] = useState({ status: 'loading', error: null, page: null });
+  const slug = useMemo(() => publicSlugFromPath(window.location.pathname), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        if (!slug) throw new Error('Public page not found.');
+        const params = new URLSearchParams({ slug });
+        const page = await fetchJson(`/api/public/page?${params.toString()}`);
+        if (!cancelled) setState({ status: 'ready', error: null, page });
+      } catch (error) {
+        if (!cancelled) {
+          setState({ status: 'error', error: 'Public page not found.', page: null });
+        }
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  if (state.status === 'loading') {
+    return (
+      <main className="public-main">
+        <article className="public-document">
+          <div className="empty-copy">Loading public page…</div>
+        </article>
+      </main>
+    );
+  }
+
+  if (state.status === 'error') {
+    return (
+      <main className="public-main">
+        <article className="public-document">
+          <h1>Page not found</h1>
+          <p className="empty-copy">{state.error}</p>
+        </article>
+      </main>
+    );
+  }
+
+  return (
+    <main className="public-main">
+      <article className="public-document">
+        <header className="public-document-head">
+          <h1>{state.page.title}</h1>
+          <p className="meta">{state.page.slug}</p>
+        </header>
+        <MarkdownDocument
+          markdown={state.page.markdown}
+          sourceSlug={state.page.slug}
+          emptyLabel="This public page is empty."
+        />
+      </article>
+    </main>
+  );
+}
+
+function RootApp() {
+  return isPublicPageLocation(window.location.pathname) ? <PublicPageApp /> : <DashboardApp />;
+}
+
+function isPublicPageLocation(pathname) {
+  return pathname === '/public' || pathname.startsWith('/public/');
+}
+
+function publicSlugFromPath(pathname) {
+  if (!isPublicPageLocation(pathname)) return '';
+  const raw = pathname.replace(/^\/public\/?/, '');
+  try {
+    return decodeURIComponent(raw).replace(/^\/+/, '').replace(/\/+$/, '');
+  } catch (_error) {
+    return raw.replace(/^\/+/, '').replace(/\/+$/, '');
+  }
+}
+
 async function fetchJson(url) {
   const response = await fetch(url);
   if (!response.ok) {
@@ -1702,6 +1782,6 @@ function stripSourceReferences(value) {
 const root = createRoot(document.getElementById('root'));
 root.render(
   <DashboardErrorBoundary>
-    <DashboardApp />
+    <RootApp />
   </DashboardErrorBoundary>,
 );

@@ -14,6 +14,22 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
   const fixture = await createFixture('bigbrain-mcp-server-');
   let running;
   try {
+    await fs.mkdir(path.join(fixture.brainHome, 'people'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'people', 'public.md'), [
+      '---',
+      'title: Public MCP Page',
+      'public: true',
+      '---',
+      '# Public MCP Page',
+      '',
+      'Public body through hosted MCP wrapper.',
+      '',
+      '---',
+      '',
+      '## Timeline',
+      '',
+      '- 2026-06-28 | Private timeline.',
+    ].join('\n'), 'utf8');
     const config = await loadConfig({ configPath: fixture.configPath });
     running = await startMcpServer({
       config,
@@ -23,6 +39,17 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
       syncIntervalMs: 0,
       gitBackupEnabled: false,
     });
+
+    const publicPage = await fetch(running.url.replace('/mcp', '/public/people/public'), { redirect: 'manual' });
+    assert.equal(publicPage.status, 200);
+    assert.match(await publicPage.text(), /dashboard-client\.js/);
+
+    const publicApi = await fetch(running.url.replace('/mcp', '/api/public/page?slug=people/public'));
+    assert.equal(publicApi.status, 200);
+    const publicPayload = await publicApi.json();
+    assert.equal(publicPayload.title, 'Public MCP Page');
+    assert.match(publicPayload.markdown, /Public body through hosted MCP wrapper/);
+    assert.doesNotMatch(publicPayload.markdown, /Private timeline/);
 
     const listed = await rpc(running.url, 'tools/list', {}, 'secret');
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_page'), true);

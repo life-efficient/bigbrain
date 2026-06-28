@@ -24,6 +24,43 @@ lists, creates, and updates are constrained to that brain root.
 Use a separate deployment per shared brain. Do not point a hosted deployment at
 a personal brain unless that is intentionally what you want to publish.
 
+## Public Body-Only Pages
+
+Hosted BigBrain can publish individual approved pages at `/public/<slug>`.
+Public publishing is private by default: a page is public only when its
+frontmatter explicitly includes:
+
+```yaml
+public: true
+```
+
+The public renderer exposes only the current page body above the timeline
+separator. It does not expose frontmatter, timeline entries, task metadata, raw
+files, graph data, search, dashboard state, or unapproved linked pages.
+
+Public page URLs use the canonical brain slug:
+
+```text
+https://your-service.example.com/public/ops/example-onboarding
+```
+
+The body-only JSON surface is:
+
+```text
+GET /api/public/page?slug=ops/example-onboarding
+```
+
+That API returns only `slug`, `title`, `summary`, `markdown`, and `updated_at`
+for public pages. Missing pages, invalid paths, and pages without `public: true`
+return `404`.
+
+Internal brain links are active only when the target page is also public. Links
+to private pages or raw files are rendered as plain text. Linked pages are never
+published automatically.
+
+To revoke publication, remove `public: true` from the page frontmatter or set it
+to `public: false`, then sync or redeploy the hosted brain as usual.
+
 ## Persistence Boundary
 
 Hosted BigBrain should treat the app container filesystem as disposable. For

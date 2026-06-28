@@ -12,6 +12,7 @@ import {
   buildExplorerTreePayload,
   buildGraphPayload,
   buildPagePayload,
+  buildPublicPagePayload,
 } from '../../src/bigbrain/dashboard.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -157,6 +158,70 @@ test('dashboard explorer recents lists files by latest edit time', async () => {
     ]);
     assert.equal(recents.meta.total_file_count, 3);
     assert.equal(recents.meta.limit, 2);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('public page payload exposes only approved body content and safe links', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-public-page-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', [
+      '---',
+      'title: Alice Public',
+      'public: true',
+      '---',
+      '# Alice Public',
+      '',
+      'Visible body with [Relay](../projects/relay.md), [Secret](../projects/secret.md), [Deck](../sources/.raw/deck.pdf), [External](https://example.com), and [[projects/relay|Relay Wiki]].',
+      '',
+      '---',
+      '',
+      '## Timeline',
+      '',
+      '- 2026-06-28 | Private provenance should not publish.',
+    ].join('\n'));
+    await writeMarkdown(fixture.brainHome, 'projects/relay.md', [
+      '---',
+      'title: Relay Public',
+      'public: true',
+      '---',
+      '# Relay Public',
+      '',
+      'Public target.',
+    ].join('\n'));
+    await writeMarkdown(fixture.brainHome, 'projects/secret.md', [
+      '---',
+      'title: Secret Private',
+      '---',
+      '# Secret Private',
+      '',
+      'Private target.',
+    ].join('\n'));
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const payload = await buildPublicPagePayload(
+      config,
+      new URL('/api/public/page?slug=people/alice', 'http://127.0.0.1'),
+    );
+
+    assert.equal(payload.slug, 'people/alice');
+    assert.equal(payload.title, 'Alice Public');
+    assert.match(payload.summary, /Visible body/);
+    assert.match(payload.markdown, /Visible body/);
+    assert.match(payload.markdown, /\[Relay\]\(\/public\/projects\/relay\)/);
+    assert.match(payload.markdown, /\[Relay Wiki\]\(\/public\/projects\/relay\)/);
+    assert.match(payload.markdown, /\[External\]\(https:\/\/example\.com\)/);
+    assert.doesNotMatch(payload.markdown, /frontmatter/i);
+    assert.doesNotMatch(payload.markdown, /Private provenance/);
+    assert.doesNotMatch(payload.markdown, /projects\/secret/);
+    assert.doesNotMatch(payload.markdown, /sources\/\.raw\/deck\.pdf/);
+
+    const privatePayload = await buildPublicPagePayload(
+      config,
+      new URL('/api/public/page?slug=projects/secret', 'http://127.0.0.1'),
+    );
+    assert.equal(privatePayload, null);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

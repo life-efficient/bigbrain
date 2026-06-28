@@ -33,6 +33,21 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
 
   let server;
   try {
+    await fs.writeFile(path.join(fixture.brainHome, 'people', 'public.md'), [
+      '---',
+      'title: Public Page',
+      'public: true',
+      '---',
+      '# Public Page',
+      '',
+      'Safe public body.',
+      '',
+      '---',
+      '',
+      '## Timeline',
+      '',
+      '- 2026-06-28 | Private timeline.',
+    ].join('\n'), 'utf8');
     const config = await loadConfig({ configPath: fixture.configPath });
     server = await startDashboard(config, {
       host: '127.0.0.1',
@@ -57,6 +72,21 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
     const unauthenticated = await fetch(url, { redirect: 'manual' });
     assert.equal(unauthenticated.status, 302);
     assert.match(unauthenticated.headers.get('location'), /^\/auth\/start\?redirect=%2F/);
+
+    const publicPage = await fetch(`${url}/public/people/public`, { redirect: 'manual' });
+    assert.equal(publicPage.status, 200);
+    assert.match(await publicPage.text(), /dashboard-client\.js/);
+
+    const publicApi = await fetch(`${url}/api/public/page?slug=people/public`);
+    assert.equal(publicApi.status, 200);
+    const publicJson = await publicApi.json();
+    assert.equal(publicJson.title, 'Public Page');
+    assert.match(publicJson.markdown, /Safe public body/);
+    assert.doesNotMatch(publicJson.markdown, /Private timeline/);
+
+    const privateApi = await fetch(`${url}/api/page?slug=people/public`, { redirect: 'manual' });
+    assert.equal(privateApi.status, 302);
+    assert.match(privateApi.headers.get('location'), /^\/auth\/start\?redirect=%2Fapi%2Fpage/);
 
     const authenticated = await fetch(url, {
       headers: { cookie: `bigbrain_dashboard_session=${sessionToken}` },
@@ -134,6 +164,7 @@ async function createFixture(prefix) {
     BIGBRAIN_STATE_ROOT: path.join(rootDir, 'state'),
   };
   const init = await initializeBrainHome(brainHome, { env });
+  await fs.mkdir(path.join(brainHome, 'people'), { recursive: true });
   return { rootDir, brainHome, configPath: init.configPath };
 }
 

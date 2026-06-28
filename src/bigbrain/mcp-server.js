@@ -204,6 +204,8 @@ export async function startMcpServer({
 function isDashboardRequest(pathname) {
   return pathname === '/dashboard'
     || pathname.startsWith('/dashboard/')
+    || pathname === '/public'
+    || pathname.startsWith('/public/')
     || pathname === '/favicon.ico'
     || pathname.startsWith('/assets/')
     || pathname.startsWith('/api/');
