@@ -5,11 +5,22 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## [Unreleased]
 
+### Changed
+
+- `BigBrain: Granola Ingest` and its bundled automation now require
+  meeting-derived task updates as part of ingestion: check existing active task
+  pages first, update matches when meeting evidence changes status or next
+  action, and create new task pages only for concrete assignable follow-ups.
+
 ### Agent update actions
 
 - Read this section before pulling or deploying unreleased changes.
 - Do not claim an update is complete unless the relevant release actions below
   have been applied or explicitly marked not applicable.
+- Refresh bundled BigBrain skills from `skills/`, especially
+  `bigbrain-granola-ingest`.
+- Refresh bundled BigBrain automations from `automations/`, especially
+  `bigbrain-ingest-granola`.
 
 ## [0.5.0] - 2026-06-29
 

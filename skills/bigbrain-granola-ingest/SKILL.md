@@ -48,6 +48,11 @@ Successful completion means:
   updates
 - meeting pages, raw sidecars, entity pages, and task pages are created or
   updated only according to the brain filing rules
+- task work is handled as part of the ingestion run: check existing open,
+  in-progress, and waiting tasks before creating new ones; update matching task
+  pages when meeting evidence changes status, owner, due date, next action, or
+  completion criteria; create new task pages only for concrete assignable
+  follow-ups
 - transcripts are saved verbatim by default after an explicit safety check, with
   targeted redaction only where unsafe or highly sensitive content appears
 - every substantive ingested meeting has a raw transcript sidecar unless
@@ -96,8 +101,15 @@ Successful completion means:
    - Update related people, companies, deals, concepts, projects, or other
      entity pages only when the meeting contains durable facts and the filing
      rules support that placement.
-   - Create task pages only for concrete assignable follow-ups with an owner or
-     clear assignee; update existing task pages when follow-up status changed.
+   - Review existing open, in-progress, and waiting task pages for matching or
+     related follow-ups before creating any new task.
+   - Update existing task pages when the meeting changes their status, owner,
+     due date, next action, or completion criteria. Add an evidence-backed
+     timeline entry citing the Granola meeting ID and date.
+   - Create new task pages only for concrete assignable follow-ups with an
+     owner or clear assignee. Use the brain's task tools when available, or
+     write page-backed `tasks/*.md` files that follow the live task filing
+     rules.
 7. Review transcript safety before saving.
    - Explicitly inspect transcripts for unsafe, slanderous, highly personal, or
      sensitive spans.
@@ -118,6 +130,8 @@ Successful completion means:
    - Confirm created or updated pages match the live filing rules.
    - Confirm transcript sidecars either passed safety review or contain only
      targeted redactions.
+   - Confirm any task pages created or updated by the run are visible through
+     the brain task surface, such as `tasks/list`, when that tool is available.
    - Run `bigbrain sync --json` from the selected brain root.
 
 ## Guardrails
