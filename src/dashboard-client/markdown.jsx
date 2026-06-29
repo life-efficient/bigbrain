@@ -35,12 +35,13 @@ function buildExtensions() {
 }
 
 export function MarkdownDocument({ markdown, sourceSlug, onRelativeLinkClick, emptyLabel = '' }) {
+  const markdownText = typeof markdown === 'string' ? markdown : '';
   const editor = useEditor(
     {
       immediatelyRender: false,
       editable: false,
       extensions: buildExtensions(),
-      content: markdown || '',
+      content: markdownText,
       contentType: 'markdown',
       editorProps: {
         attributes: {
@@ -48,15 +49,18 @@ export function MarkdownDocument({ markdown, sourceSlug, onRelativeLinkClick, em
         },
       },
     },
-    [markdown],
   );
 
   useEffect(() => {
-    if (!editor) return;
-    editor.commands.setContent(markdown || '', { contentType: 'markdown' });
-  }, [editor, markdown]);
+    if (!editor || editor.isDestroyed) return;
+    try {
+      editor.commands.setContent(markdownText, { contentType: 'markdown' });
+    } catch (error) {
+      if (!editor.isDestroyed) throw error;
+    }
+  }, [editor, markdownText]);
 
-  if (!markdown?.trim()) {
+  if (!markdownText.trim()) {
     return emptyLabel ? <div className="empty-copy">{emptyLabel}</div> : null;
   }
 
