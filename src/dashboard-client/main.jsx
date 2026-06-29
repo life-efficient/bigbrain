@@ -1445,6 +1445,15 @@ function formatActivityDate(dayKey) {
   return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(timestamp));
 }
 
+function labelFromSlug(slug) {
+  const leaf = String(slug || '').split('/').filter(Boolean).pop() || '';
+  return leaf
+    .split('-')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
 function buildActivityBuckets(nodes) {
   const counts = new Map();
   for (const node of nodes) {
@@ -1534,6 +1543,13 @@ const GraphPanel = memo(function GraphPanel({
       },
     };
   }, [graph, selectedPageTypes.length, selectedTypeSet, timelineFilteredNodes]);
+  const recentNodes = useMemo(() => {
+    const nodes = Array.isArray(filteredGraph?.nodes) ? filteredGraph.nodes : [];
+    return [...nodes]
+      .filter((node) => Number.isFinite(Date.parse(node.updated_at)))
+      .sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at))
+      .slice(0, 6);
+  }, [filteredGraph]);
   const isCustomRenderer = visualizerId === 'custom';
   const visibleControls = Array.isArray(visualizer.controls)
     ? visualizer.controls.filter((control) => control === 'resetView')
@@ -1626,6 +1642,27 @@ const GraphPanel = memo(function GraphPanel({
             <div className="graph-activity-meta">
               <span>{filteredGraph?.meta?.page_count || 0} pages</span>
               <span>{visibleUpdatedCount ? `${visibleUpdatedCount} newer hidden` : 'Current'}</span>
+            </div>
+          </div>
+        ) : null}
+        {recentNodes.length ? (
+          <div className="graph-recent-panel" aria-label="Recently updated files">
+            <div className="graph-recent-head">
+              <span>Recent</span>
+              <strong>{recentNodes.length}</strong>
+            </div>
+            <div className="graph-recent-list">
+              {recentNodes.map((node) => (
+                <button
+                  key={node.slug}
+                  type="button"
+                  className={`graph-recent-card ${activeSlug === node.slug ? 'active' : ''}`}
+                  onClick={() => onNodeOpen(node.slug)}
+                >
+                  <span className="graph-recent-title">{node.title || labelFromSlug(node.slug)}</span>
+                  <span className="graph-recent-update">{node.latest_timeline_entry || formatDateTime(node.updated_at)}</span>
+                </button>
+              ))}
             </div>
           </div>
         ) : null}

@@ -426,16 +426,19 @@ export async function deletePageIndex(db, slug) {
   raw.prepare('DELETE FROM pages WHERE slug = ?').run(slug);
 }
 
-export async function listPages(db, { type = null } = {}) {
+export async function listPages(db, { type = null, includeTimeline = false } = {}) {
+  const columns = includeTimeline
+    ? 'slug, title, type, summary, updated_at, timeline'
+    : 'slug, title, type, summary, updated_at';
   if (db.backend === 'postgres') {
     const result = type
-      ? await db.query('SELECT slug, title, type, summary, updated_at FROM pages WHERE type = $1 ORDER BY slug', [type])
-      : await db.query('SELECT slug, title, type, summary, updated_at FROM pages ORDER BY slug');
+      ? await db.query(`SELECT ${columns} FROM pages WHERE type = $1 ORDER BY slug`, [type])
+      : await db.query(`SELECT ${columns} FROM pages ORDER BY slug`);
     return result.rows.map(normalizeTimestampRow);
   }
   const raw = unwrapSqlite(db);
-  if (type) return raw.prepare('SELECT slug, title, type, summary, updated_at FROM pages WHERE type = ? ORDER BY slug').all(type);
-  return raw.prepare('SELECT slug, title, type, summary, updated_at FROM pages ORDER BY slug').all();
+  if (type) return raw.prepare(`SELECT ${columns} FROM pages WHERE type = ? ORDER BY slug`).all(type);
+  return raw.prepare(`SELECT ${columns} FROM pages ORDER BY slug`).all();
 }
 
 export async function getPageRecord(db, slug) {

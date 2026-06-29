@@ -668,6 +668,17 @@ function renderAppHtml() {
       .graph-timeline-slider::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 13px; height: 13px; margin-top: -5px; border: 1px solid rgba(255,255,255,0.70); border-radius: 999px; background: linear-gradient(180deg, #ffffff, #d4d4d8); box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
       .graph-timeline-slider:focus-visible { outline: none; }
       .graph-timeline-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(255,255,255,0.18), 0 2px 8px rgba(0,0,0,0.35); }
+      .graph-recent-panel { position: absolute; left: 14px; top: 14px; z-index: 4; width: min(290px, calc(100% - 28px)); display: grid; gap: 8px; max-height: 166px; padding: 9px; overflow: hidden; border: 1px solid rgba(212,212,216,0.14); border-radius: 12px; background: rgba(12,12,14,0.52); box-shadow: 0 14px 34px rgba(0,0,0,0.16), inset 0 1px 0 rgba(255,255,255,0.035); backdrop-filter: blur(12px); transition: max-height 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, backdrop-filter 180ms ease; }
+      .graph-recent-panel:hover, .graph-recent-panel:focus-within { max-height: min(430px, calc(100% - 28px)); border-color: rgba(212,212,216,0.22); background: rgba(12,12,14,0.84); box-shadow: 0 20px 48px rgba(0,0,0,0.26), inset 0 1px 0 rgba(255,255,255,0.045); backdrop-filter: blur(18px); }
+      .graph-recent-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 0 2px; color: var(--muted); font-size: 11px; }
+      .graph-recent-head span { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 750; }
+      .graph-recent-head strong { color: var(--ink); font-size: 12px; font-weight: 650; }
+      .graph-recent-list { display: grid; gap: 6px; overflow: hidden; }
+      .graph-recent-card { width: 100%; min-width: 0; display: grid; gap: 4px; padding: 8px 9px; border: 1px solid rgba(212,212,216,0.10); border-radius: 8px; background: rgba(255,255,255,0.045); color: var(--ink); text-align: left; cursor: pointer; transition: background 140ms ease, border-color 140ms ease, transform 140ms ease; }
+      .graph-recent-card:hover, .graph-recent-card:focus-visible, .graph-recent-card.active { border-color: rgba(255,255,255,0.26); background: rgba(255,255,255,0.09); transform: translateY(-1px); outline: none; }
+      .graph-recent-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 1.25; font-weight: 700; }
+      .graph-recent-update { max-height: 0; opacity: 0; overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; transition: max-height 180ms ease, opacity 180ms ease; }
+      .graph-recent-panel:hover .graph-recent-update, .graph-recent-panel:focus-within .graph-recent-update { max-height: 34px; opacity: 1; }
       .graph-controls { display: flex; gap: 8px; }
       .graph-controls-inline { position: static; z-index: auto; }
       .graph-button { border: 1px solid var(--line); background: var(--surface-strong); color: var(--ink); border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); }
@@ -1674,7 +1685,7 @@ async function buildHealthPayload(config) {
 }
 
 export async function buildGraphPayload(db) {
-  const pages = await listPages(db);
+  const pages = await listPages(db, { includeTimeline: true });
   const graphPages = pages.filter(isDirectoryBackedGraphPage);
   const candidateNodes = (await Promise.all(graphPages.map(async (page) => {
     const outgoing = await getOutgoingLinks(db, page.slug);
@@ -1684,6 +1695,7 @@ export async function buildGraphPayload(db) {
       title: page.title,
       type: page.type,
       updated_at: page.updated_at,
+      latest_timeline_entry: latestTimelineEntry(page.timeline),
       degree: outgoing.length + backlinks.length,
       outgoing,
     };
@@ -1710,10 +1722,23 @@ export async function buildGraphPayload(db) {
       title: node.title,
       type: node.type,
       updated_at: node.updated_at,
+      latest_timeline_entry: node.latest_timeline_entry,
       degree: node.degree,
     })),
     edges,
   };
+}
+
+function latestTimelineEntry(timeline) {
+  const entries = String(timeline || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('- '));
+  if (!entries.length) return '';
+  return entries[entries.length - 1]
+    .replace(/^-\s*/, '')
+    .replace(/^\*\*(\d{4}-\d{2}-\d{2})\*\*\s*\|\s*/, '$1 | ')
+    .trim();
 }
 
 export function isDirectoryBackedGraphPage(page) {

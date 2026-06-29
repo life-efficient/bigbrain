@@ -22,7 +22,17 @@ test('dashboard graph excludes root infrastructure files from nodes and types', 
     await writeMarkdown(fixture.brainHome, 'index.md', '# Index\n\nSee [Alice](people/alice.md).\n');
     await writeMarkdown(fixture.brainHome, 'schema.md', '# Schema\n\nSee [Relay](projects/relay.md).\n');
     await writeMarkdown(fixture.brainHome, 'resolver.md', '# Resolver\n\nInternal resolver notes.\n');
-    await writeMarkdown(fixture.brainHome, 'people/alice.md', '# Alice\n\nWorks on [Relay](../projects/relay.md) and reads [Index](../index.md).\n');
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', [
+      '# Alice',
+      '',
+      'Works on [Relay](../projects/relay.md) and reads [Index](../index.md).',
+      '',
+      '---',
+      '',
+      '## Timeline',
+      '- **2026-06-28** | First graph update.',
+      '- **2026-06-29** | Latest graph update.',
+    ].join('\n'));
     await writeMarkdown(fixture.brainHome, 'projects/relay.md', '# Relay\n\nRelated to [Alice](../people/alice.md).\n');
 
     const config = await loadConfig({ configPath: fixture.configPath });
@@ -35,6 +45,7 @@ test('dashboard graph excludes root infrastructure files from nodes and types', 
     assert.equal(graph.meta.page_count, 2);
     assert.equal(graph.meta.node_count, 2);
     assert.match(graph.nodes[0].updated_at, /^\d{4}-\d{2}-\d{2}T/);
+    assert.equal(graph.nodes.find((node) => node.slug === 'people/alice').latest_timeline_entry, '2026-06-29 | Latest graph update.');
     assert.deepEqual(graph.edges, [
       { source: 'people/alice', target: 'projects/relay' },
       { source: 'projects/relay', target: 'people/alice' },
