@@ -272,16 +272,13 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'members_list':
       return toolJson(await toolMembersList(config, args));
     case 'tasks/list':
-    case 'tasks_list':
       return toolJson(await toolTasksList(config, args, actor, authConfig));
-    case 'tasks/create':
-    case 'tasks_create': {
+    case 'tasks/create': {
       const task = await toolTasksCreate(config, args, actor, authConfig);
       await postWriteMaintenance(config, gitBackupEnabled, actor);
       return toolJson(task);
     }
-    case 'tasks/update':
-    case 'tasks_update': {
+    case 'tasks/update': {
       const task = await toolTasksUpdate(config, args, actor, authConfig);
       await postWriteMaintenance(config, gitBackupEnabled, actor);
       return toolJson(task);
@@ -673,28 +670,13 @@ function toolDefinitions() {
       inputSchema: tasksListSchema(),
     },
     {
-      name: 'tasks_list',
-      description: 'Alias for tasks/list for clients that do not support slash tool names.',
-      inputSchema: tasksListSchema(),
-    },
-    {
       name: 'tasks/create',
       description: 'Create one member-assigned task page under tasks/. Assignees must be active members; assignees may include me. Set readiness to underspecified or ready. If creating a done or archived task, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
       inputSchema: taskWriteSchema({ requireBody: true }),
     },
     {
-      name: 'tasks_create',
-      description: 'Alias for tasks/create for clients that do not support slash tool names.',
-      inputSchema: taskWriteSchema({ requireBody: true }),
-    },
-    {
       name: 'tasks/update',
       description: 'Update one task page under tasks/, including status, readiness, priority, assignees, source, body, and timeline. When setting status to done or archived, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
-      inputSchema: taskWriteSchema({ update: true }),
-    },
-    {
-      name: 'tasks_update',
-      description: 'Alias for tasks/update for clients that do not support slash tool names.',
       inputSchema: taskWriteSchema({ update: true }),
     },
     {
@@ -946,7 +928,6 @@ function toolPolicy(name) {
     'members/list': { layer: 'read', scopes: ['brain:read'] },
     members_list: { layer: 'read', scopes: ['brain:read'] },
     'tasks/list': { layer: 'read', scopes: ['brain:read'] },
-    tasks_list: { layer: 'read', scopes: ['brain:read'] },
     search: { layer: 'read', scopes: ['brain:read'] },
     query: { layer: 'read', scopes: ['brain:read'] },
     list: { layer: 'read', scopes: ['brain:read'] },
@@ -956,9 +937,7 @@ function toolPolicy(name) {
     list_raw_files: { layer: 'read', scopes: ['brain:read'] },
     read_raw_file: { layer: 'read', scopes: ['brain:read'] },
     'tasks/create': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-    tasks_create: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
     'tasks/update': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-    tasks_update: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
     create_raw_file: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
     create_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
     create_raw_file_with_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },

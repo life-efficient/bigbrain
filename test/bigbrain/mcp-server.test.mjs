@@ -835,7 +835,7 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     const listed = await rpc(running.url, 'tools/list', {}, token);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'me'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks/list'), true);
-    assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks_list'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks_list'), false);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks/enrich'), false);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks_enrich'), false);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'members/list'), true);

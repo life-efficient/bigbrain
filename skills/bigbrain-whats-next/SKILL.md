@@ -34,8 +34,8 @@ Use the BigBrain MCP task endpoint as the source of truth:
 
 1. Call `tasks/list` twice by default: first with `status: "in_progress"`,
    then with `status: "open"`.
-2. If the MCP client does not support slash tool names, call the alias
-   `tasks_list` with the same arguments.
+2. If `tasks/list` is not visible, use targeted Codex tool discovery for the
+   BigBrain `tasks/list` tool before falling back to runtime or code inspection.
 3. Honor scoping in the user's request:
    - For "my tasks" or "assigned to me", pass `assignee: "me"`.
    - For "for people/name" or "assigned to people/name", pass that assignee

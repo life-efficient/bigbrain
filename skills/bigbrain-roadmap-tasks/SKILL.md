@@ -28,7 +28,8 @@ assignable task pages under `tasks/*.md`.
 - Prefer direct task creation when a recommendation is concrete, useful,
   grounded in the brain, and assignable to an active member.
 - Use `me`, `members/list`, `tasks/list`, `tasks/create`, and `tasks/update`
-  when available; use underscore aliases only if slash tool names fail.
+  when available. If any task tool is not visible, use targeted Codex tool
+  discovery before falling back to runtime or code inspection.
 - Before creating or updating task pages, call `filing_rules` and follow the
   compiled `FILING.md` guidance it returns. If that tool is unavailable, list
   and read the relevant `FILING.md` files directly; do not expect a page named

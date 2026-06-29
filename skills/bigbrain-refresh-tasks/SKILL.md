@@ -32,8 +32,8 @@ for mutation in the current turn after seeing the recommendations.
 - Prefer suggestions for existing task pages over suggestions to create new
   tasks.
 - Use `me`, `members/list`, `tasks/list`, `filing_rules`, `query`, `search`,
-  and `read` when available; use underscore aliases only if slash tool names
-  fail.
+  and `read` when available. If `tasks/list` is not visible, use targeted
+  Codex tool discovery before falling back to runtime or code inspection.
 - Do not call `tasks/update` or `tasks/create` during refresh-task behavior
   unless the user explicitly asks you to apply a specific recommendation in the
   current turn.

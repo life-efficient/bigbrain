@@ -11,6 +11,9 @@ actions` section for agents maintaining local installs and hosted brains.
   meeting-derived task updates as part of ingestion: check existing active task
   pages first, update matches when meeting evidence changes status or next
   action, and create new task pages only for concrete assignable follow-ups.
+- BigBrain MCP task tools now expose only the canonical slash names
+  `tasks/list`, `tasks/create`, and `tasks/update`; the old underscore task
+  aliases have been removed to match Codex-native tool discovery.
 
 ### Agent update actions
 
@@ -18,9 +21,16 @@ actions` section for agents maintaining local installs and hosted brains.
 - Do not claim an update is complete unless the relevant release actions below
   have been applied or explicitly marked not applicable.
 - Refresh bundled BigBrain skills from `skills/`, especially
-  `bigbrain-granola-ingest`.
+  `bigbrain-granola-ingest`, `bigbrain-whats-next`,
+  `bigbrain-fanout-tasks`, `bigbrain-refresh-tasks`, and
+  `bigbrain-roadmap-tasks`.
 - Refresh bundled BigBrain automations from `automations/`, especially
   `bigbrain-ingest-granola`.
+- Update any custom agents or scripts that call `tasks_list`, `tasks_create`,
+  or `tasks_update` to use `tasks/list`, `tasks/create`, and `tasks/update`.
+- Restart the local BigBrain MCP service after pulling, then verify
+  `tasks/list` appears in Codex tool discovery before falling back to local
+  runtime inspection.
 
 ## [0.5.0] - 2026-06-29
 
