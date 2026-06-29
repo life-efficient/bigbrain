@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Page Visibility"
+  short_description: "Publish, unpublish, or inspect one BigBrain page"
+  default_prompt: "Use $bigbrain-page-visibility to inspect or change the public visibility of a BigBrain page."

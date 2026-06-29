@@ -6,6 +6,7 @@
 | Set up BigBrain, initialize a brain home, migrate an existing corpus, and prove the runtime works | `skills/bigbrain-setup/SKILL.md` |
 | Open the BigBrain desktop dashboard app and verify the local dashboard is running | `skills/bigbrain-dashboard/SKILL.md` |
 | Check for BigBrain code updates, pull upstream changes, and verify the CLI/runtime still works | `skills/bigbrain-check-update/SKILL.md` |
+| Make a BigBrain page public, unpublish it, check whether it is public, or get its public URL | `skills/bigbrain-page-visibility/SKILL.md` |
 | Interview a user and create starter pages that initially populate a new or sparse brain | `skills/bigbrain-onboarding/SKILL.md` |
 | Route new material into the right BigBrain ingest path | `skills/bigbrain-ingest/SKILL.md` |
 | Ingest a meeting or call into the canonical meeting page shape | `skills/bigbrain-meeting-ingest/SKILL.md` |
