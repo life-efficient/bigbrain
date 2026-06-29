@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Granola Ingest"
   short_description: "Ingest recent Granola meetings into the selected brain"
-  default_prompt: "Use BigBrain: Granola Ingest to import recent Granola meetings into the selected BigBrain brain, respect excluded folders, preserve transcript sidecars, update or create grounded task pages from meeting follow-ups, and sync the index."
+  default_prompt: "Use BigBrain: Granola Ingest to import recent Granola meetings into the selected BigBrain brain, respect excluded folders, preserve transcript sidecars, update relevant entity pages and grounded task pages from meeting evidence, and sync the index."

@@ -48,6 +48,10 @@ Successful completion means:
   updates
 - meeting pages, raw sidecars, entity pages, and task pages are created or
   updated only according to the brain filing rules
+- relevant entity pages are updated when meetings add durable information about
+  people, companies or organizations, deals, concepts, projects, or other
+  supported collections; at minimum, add evidence-backed timeline entries for
+  new facts, relationship context, decisions, status changes, or commitments
 - task work is handled as part of the ingestion run: check existing open,
   in-progress, and waiting tasks before creating new ones; update matching task
   pages when meeting evidence changes status, owner, due date, next action, or
@@ -98,9 +102,14 @@ Successful completion means:
    - Skip duplicates unless there is a missing transcript, missing source
      sidecar, or clear entity/task update to apply.
    - Create or update one canonical meeting page per ingested meeting.
-   - Update related people, companies, deals, concepts, projects, or other
-     entity pages only when the meeting contains durable facts and the filing
-     rules support that placement.
+   - Review related people, company/organization, deal, concept, project, or
+     other supported entity pages for durable updates from the meeting before
+     finishing the write plan.
+   - Update relevant entity pages when the meeting adds new facts, relationship
+     context, decisions, status changes, commitments, or other durable state.
+     At minimum, append an evidence-backed timeline entry citing the Granola
+     meeting ID and date; update page body/frontmatter too when the fact is
+     stable enough to belong in the canonical entity record.
    - Review existing open, in-progress, and waiting task pages for matching or
      related follow-ups before creating any new task.
    - Update existing task pages when the meeting changes their status, owner,
@@ -128,6 +137,9 @@ Successful completion means:
 9. Verify and sync.
    - Re-scan for duplicate `granola_id` values.
    - Confirm created or updated pages match the live filing rules.
+   - Confirm relevant entity pages were considered and that any necessary
+     people, company/organization, deal, concept, or project updates were made
+     or explicitly reported as unnecessary.
    - Confirm transcript sidecars either passed safety review or contain only
      targeted redactions.
    - Confirm any task pages created or updated by the run are visible through

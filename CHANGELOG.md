@@ -13,6 +13,10 @@ actions` section for agents maintaining local installs and hosted brains.
   meeting-derived task updates as part of ingestion: check existing active task
   pages first, update matches when meeting evidence changes status or next
   action, and create new task pages only for concrete assignable follow-ups.
+- `BigBrain: Granola Ingest` now also requires relevant entity page updates
+  from meeting evidence, including people, company or organization, deal,
+  concept, and project pages, with timeline entries as the minimum durable
+  write-back.
 - BigBrain MCP task tools now expose only the canonical slash names
   `tasks/list`, `tasks/create`, and `tasks/update`; the old underscore task
   aliases have been removed to match Codex-native tool discovery.
