@@ -372,7 +372,7 @@ function renderAppHtml() {
       .page-shell { --sidecar-width: 0px; position: relative; height: 100vh; overflow: hidden; background: var(--bg); color: var(--ink); }
       .page-shell.preview-open { --sidecar-width: min(560px, 48vw); }
       main { min-width: 0; max-width: none; height: 100vh; margin: 0; padding: 20px calc(20px + var(--sidecar-width)) 16px 20px; width: 100%; overflow: hidden; display: flex; flex-direction: column; transition: padding-right 240ms ease; }
-      .public-main { min-height: 100vh; height: auto; overflow: auto; display: block; padding: 42px 22px 64px; background: #fafafa; color: #18181b; }
+      .public-main { min-height: 100vh; height: 100vh; overflow: auto; display: block; padding: 42px 22px 64px; background: #fafafa; color: #18181b; }
       .public-document { width: min(820px, 100%); margin: 0 auto; display: grid; gap: 22px; }
       .public-document-head { display: grid; gap: 8px; padding-bottom: 18px; border-bottom: 1px solid #e4e4e7; }
       .public-document-head h1,

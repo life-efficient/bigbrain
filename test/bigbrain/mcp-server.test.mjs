@@ -46,7 +46,9 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
 
     const publicPage = await fetch(running.url.replace('/mcp', '/public/people/public'), { redirect: 'manual' });
     assert.equal(publicPage.status, 200);
-    assert.match(await publicPage.text(), /dashboard-client\.js/);
+    const publicHtml = await publicPage.text();
+    assert.match(publicHtml, /dashboard-client\.js/);
+    assert.match(publicHtml, /\.public-main \{[^}]*height: 100vh;[^}]*overflow: auto;/);
 
     const publicApi = await fetch(running.url.replace('/mcp', '/api/public/page?slug=people/public'));
     assert.equal(publicApi.status, 200);
