@@ -28,6 +28,10 @@ import {
   safeBrainPath,
   updatePageVisibility,
 } from './page-ops.js';
+import {
+  PUBLIC_RAW_CONTENT_SECURITY_POLICY,
+  publicRawMimeTypeForPath,
+} from './public-raw-policy.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..');
@@ -270,11 +274,20 @@ async function servePublicRawFile(config, res, requestUrl, method = 'GET') {
   }
   res.writeHead(200, {
     'Content-Type': payload.mime_type,
-    'Content-Length': payload.bytes.length,
+    'Content-Length': payload.size,
     'Cache-Control': 'public, max-age=300',
+    'Content-Security-Policy': PUBLIC_RAW_CONTENT_SECURITY_POLICY,
     'Content-Disposition': `inline; filename="${payload.filename.replace(/["\\]/g, '')}"`,
+    'X-Content-Type-Options': 'nosniff',
   });
-  res.end(payload.bytes);
+  const { createReadStream } = await import('node:fs');
+  await new Promise((resolve, reject) => {
+    const stream = createReadStream(payload.fullPath);
+    stream.once('error', reject);
+    res.once('error', reject);
+    res.once('finish', resolve);
+    stream.pipe(res);
+  });
 }
 
 function json(res, value) {
@@ -1250,18 +1263,20 @@ export async function buildPublicPagePayload(config, requestUrl) {
   const page = await readPublicMarkdownPage(config, slug);
   if (!page || !isPublicPage(page.parsed)) return null;
   const rawFiles = publicRawFiles(page.parsed.frontmatter);
+  const markdown = await sanitizePublicMarkdown({
+    config,
+    markdown: page.parsed.compiledTruth,
+    sourceSlug: slug,
+    allowedRawFiles: rawFiles,
+  });
+  const linkedRawFiles = publicRawFilesReferencedByMarkdown(markdown, slug, rawFiles);
   return {
     slug,
     title: page.parsed.title,
-    summary: extractPageReaderSummary(page.parsed),
-    markdown: await sanitizePublicMarkdown({
-      config,
-      markdown: page.parsed.compiledTruth,
-      sourceSlug: slug,
-      allowedRawFiles: rawFiles,
-    }),
-    raw_files: rawFiles.map((rawPath) => ({
-      path: rawPath,
+    summary: extractPageReaderSummary(page.parsed, markdown),
+    markdown,
+    raw_files: linkedRawFiles.map((rawPath) => ({
+      filename: path.posix.basename(rawPath),
       url: publicRawHref(slug, rawPath),
     })),
     updated_at: page.stat.mtime.toISOString(),
@@ -1277,14 +1292,17 @@ export async function buildPublicRawFilePayload(config, requestUrl) {
   if (!page || !isPublicPage(page.parsed)) return null;
   const rawFiles = publicRawFiles(page.parsed.frontmatter);
   if (!rawFiles.includes(requestedRawPath)) return null;
+  const mimeType = publicRawMimeTypeForPath(requestedRawPath);
+  if (!mimeType) return null;
   const fullPath = safeBrainPath(config.brainDir, requestedRawPath);
   const stat = await fs.stat(fullPath).catch(() => null);
   if (!stat?.isFile()) return null;
   return {
     path: requestedRawPath,
+    fullPath,
     filename: path.posix.basename(requestedRawPath),
-    mime_type: mimeTypeForPath(requestedRawPath),
-    bytes: await fs.readFile(fullPath),
+    mime_type: mimeType,
+    size: stat.size,
     updated_at: stat.mtime.toISOString(),
   };
 }
@@ -1391,6 +1409,27 @@ function publicRawHrefForTarget(sourceSlug, target, allowedRawFiles) {
   return publicRawHref(sourceSlug, rawPath);
 }
 
+function publicRawFilesReferencedByMarkdown(markdown, sourceSlug, allowedRawFiles) {
+  const referencedRawFiles = new Set();
+  for (const match of String(markdown || '').matchAll(/!?\[([^\]]*)\]\(([^)]+)\)/g)) {
+    const rawPath = publicRawPathForHref(sourceSlug, match[2]);
+    if (rawPath && allowedRawFiles.includes(rawPath)) referencedRawFiles.add(rawPath);
+  }
+  return allowedRawFiles.filter((rawPath) => referencedRawFiles.has(rawPath));
+}
+
+function publicRawPathForHref(sourceSlug, href) {
+  try {
+    const parsed = new URL(String(href || ''), 'http://127.0.0.1');
+    if (parsed.pathname !== '/api/public/raw') return null;
+    const slug = normalizePublicSlug(parsed.searchParams.get('slug')?.trim());
+    if (slug !== sourceSlug) return null;
+    return normalizePublicRawQueryPath(parsed.searchParams.get('path'));
+  } catch {
+    return null;
+  }
+}
+
 function publicRawHref(sourceSlug, rawPath) {
   return `/api/public/raw?slug=${encodeURIComponent(sourceSlug)}&path=${encodeURIComponent(rawPath)}`;
 }
@@ -1457,11 +1496,11 @@ function resolveBrainMarkdownPath(brainDir, slug) {
   return candidate;
 }
 
-function extractPageReaderSummary(parsed) {
+function extractPageReaderSummary(parsed, markdown = parsed.compiledTruth) {
   const titlePattern = new RegExp(`^#\\s+${escapeRegExp(parsed.title)}\\s*$`, 'i');
   const blocks = [];
   let current = [];
-  for (const rawLine of parsed.compiledTruth.split('\n')) {
+  for (const rawLine of markdown.split('\n')) {
     const line = rawLine.trim().replace(/^>\s*/, '');
     if (!line || line === '---' || titlePattern.test(line) || /^#{1,6}\s/.test(line)) {
       flushSummaryBlock(blocks, current);

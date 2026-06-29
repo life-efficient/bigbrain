@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
 import { parseMarkdownPage } from './markdown.js';
+import { assertSafePublicRawPath, isSafePublicRawPath } from './public-raw-policy.js';
 
 export const DEFAULT_COLLECTIONS = [
   'archive',
@@ -249,7 +250,11 @@ export async function updatePageVisibility({ config, pagePath, visibility, timel
   const now = new Date().toISOString().slice(0, 10);
   let frontmatterRaw = setFrontmatterValue(existing.frontmatter_raw, 'visibility', nextVisibility);
   if (publicRawFiles !== undefined) {
-    frontmatterRaw = setFrontmatterValue(frontmatterRaw, 'public_raw_files', normalizePublicRawFiles(publicRawFiles));
+    frontmatterRaw = setFrontmatterValue(
+      frontmatterRaw,
+      'public_raw_files',
+      await validatePublicRawFilesForPage({ config, page: existing, publicRawFiles }),
+    );
   }
   const markdown = renderPageMarkdown({
     frontmatterRaw,
@@ -272,15 +277,37 @@ export function normalizePageVisibility(value) {
 }
 
 export function publicRawFiles(frontmatter = {}) {
-  return normalizePublicRawFiles(frontmatter?.public_raw_files || []);
+  return normalizePublicRawFiles(frontmatter?.public_raw_files || [], { rejectUnsafe: false });
 }
 
-export function normalizePublicRawFiles(value = []) {
+export function normalizePublicRawFiles(value = [], { rejectUnsafe = true } = {}) {
   const values = Array.isArray(value) ? value : [value];
   const normalized = values
     .map((item) => normalizeRawPath(item))
+    .filter((item) => {
+      if (isSafePublicRawPath(item)) return true;
+      if (rejectUnsafe) assertPublicRawTypeAllowed(item);
+      return false;
+    })
     .filter(Boolean);
   return [...new Set(normalized)].sort();
+}
+
+export async function validatePublicRawFilesForPage({ config, page, publicRawFiles }) {
+  const normalized = normalizePublicRawFiles(publicRawFiles);
+  if (!normalized.length) return normalized;
+
+  const linkedRawFiles = rawFilesLinkedFromPage(page);
+  const attachedRawFiles = rawFilesAttachedToPage(page);
+  for (const rawPath of normalized) {
+    await assertPublicRawFileExists(config, rawPath);
+    if (linkedRawFiles.has(rawPath) || attachedRawFiles.has(rawPath)) continue;
+    throw new Error(
+      `Cannot publish raw file ${rawPath}: it is not linked from page ${page.path} and does not match that page's raw_file frontmatter. `
+      + `Add a markdown link to ${rawPath} in the page body, or attach it by setting raw_file: ${rawPath} before listing it in public_raw_files.`,
+    );
+  }
+  return normalized;
 }
 
 export function normalizePagePath(input) {
@@ -513,6 +540,73 @@ async function rawFileMetadata(config, rawRelative, { stats = null, mimeType = n
     created_at: fileStats.birthtime.toISOString(),
     updated_at: fileStats.mtime.toISOString(),
   };
+}
+
+async function assertPublicRawFileExists(config, rawPath) {
+  const fullPath = safeBrainPath(config.brainDir, rawPath);
+  let stats;
+  try {
+    stats = await fs.stat(fullPath);
+  } catch (error) {
+    if (error.code === 'ENOENT') {
+      throw new Error(`Cannot publish raw file ${rawPath}: file does not exist under the brain. Create it first or remove it from public_raw_files.`);
+    }
+    throw error;
+  }
+  if (!stats.isFile()) {
+    throw new Error(`Cannot publish raw file ${rawPath}: path exists but is not a file. Choose a specific file under <collection>/.raw/.`);
+  }
+}
+
+function assertPublicRawTypeAllowed(rawPath) {
+  try {
+    assertSafePublicRawPath(rawPath);
+  } catch (error) {
+    throw new Error(`Cannot publish raw file ${rawPath}: ${error.message}`);
+  }
+}
+
+function rawFilesLinkedFromPage(page) {
+  const linked = new Set();
+  const sourceSlug = page.slug || String(page.path || '').replace(/\.md$/i, '');
+  for (const match of String(page.body || '').matchAll(/!?\[([^\]]*)\]\(([^)]+)\)/g)) {
+    const rawPath = resolveRawLinkTarget(sourceSlug, match[2]);
+    if (rawPath) linked.add(rawPath);
+  }
+  return linked;
+}
+
+function rawFilesAttachedToPage(page) {
+  const attached = new Set();
+  const values = Array.isArray(page?.frontmatter?.raw_file)
+    ? page.frontmatter.raw_file
+    : [page?.frontmatter?.raw_file];
+  for (const value of values) {
+    if (!value) continue;
+    try {
+      attached.add(normalizeRawPath(value));
+    } catch {
+      // Ignore malformed legacy raw_file values. Publishing still requires a valid public_raw_files path.
+    }
+  }
+  return attached;
+}
+
+function resolveRawLinkTarget(sourceSlug, target) {
+  const trimmed = String(target || '').trim();
+  if (!trimmed || /^(https?:|mailto:|#)/i.test(trimmed)) return null;
+  const withoutAnchor = trimmed.split('#')[0].trim();
+  if (!withoutAnchor) return null;
+  const sourceDir = path.posix.dirname(sourceSlug);
+  const candidate = path.posix.normalize(
+    withoutAnchor.startsWith('/') ? withoutAnchor.replace(/^\/+/, '') : path.posix.join(sourceDir, withoutAnchor),
+  );
+  if (!candidate.split('/').includes('.raw')) return null;
+  try {
+    return normalizeRawPath(candidate);
+  } catch {
+    return null;
+  }
 }
 
 async function pruneEmptyRawParents(brainDir, currentDir) {

@@ -16,17 +16,20 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
   try {
     await fs.mkdir(path.join(fixture.brainHome, 'people'), { recursive: true });
     await fs.mkdir(path.join(fixture.brainHome, 'people', '.raw'), { recursive: true });
-    await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'public.pdf'), 'public pdf bytes');
+    const publicPdfBytes = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x0a, 0x00, 0xff, 0x62, 0x79, 0x74, 0x65, 0x73]);
+    await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'public.pdf'), publicPdfBytes);
+    await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'active.svg'), '<svg><script>alert(1)</script></svg>');
+    await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'unlinked.pdf'), 'unlinked public pdf bytes');
     await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'private.pdf'), 'private pdf bytes');
     await fs.writeFile(path.join(fixture.brainHome, 'people', 'public.md'), [
       '---',
       'title: Public MCP Page',
       'visibility: public',
-      'public_raw_files: [people/.raw/public.pdf]',
+      'public_raw_files: [people/.raw/public.pdf, people/.raw/active.svg, people/.raw/unlinked.pdf]',
       '---',
       '# Public MCP Page',
       '',
-      'Public body through hosted MCP wrapper. [PDF](.raw/public.pdf) [Private PDF](.raw/private.pdf).',
+      'Public body through hosted MCP wrapper. [PDF](.raw/public.pdf) [Active SVG](.raw/active.svg) [Private PDF](.raw/private.pdf).',
       '',
       '---',
       '',
@@ -56,10 +59,12 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(publicPayload.title, 'Public MCP Page');
     assert.match(publicPayload.markdown, /Public body through hosted MCP wrapper/);
     assert.match(publicPayload.markdown, /\[PDF\]\(\/api\/public\/raw\?slug=people%2Fpublic&path=people%2F\.raw%2Fpublic\.pdf\)/);
+    assert.doesNotMatch(JSON.stringify(publicPayload), /active\.svg/);
     assert.doesNotMatch(publicPayload.markdown, /private\.pdf/);
+    assert.doesNotMatch(JSON.stringify(publicPayload), /unlinked\.pdf/);
     assert.deepEqual(publicPayload.raw_files, [
       {
-        path: 'people/.raw/public.pdf',
+        filename: 'public.pdf',
         url: '/api/public/raw?slug=people%2Fpublic&path=people%2F.raw%2Fpublic.pdf',
       },
     ]);
@@ -68,7 +73,16 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     const publicRaw = await fetch(running.url.replace('/mcp', '/api/public/raw?slug=people%2Fpublic&path=people%2F.raw%2Fpublic.pdf'));
     assert.equal(publicRaw.status, 200);
     assert.equal(publicRaw.headers.get('content-type'), 'application/pdf');
-    assert.equal(await publicRaw.text(), 'public pdf bytes');
+    assert.equal(Number(publicRaw.headers.get('content-length')), publicPdfBytes.length);
+    assert.match(publicRaw.headers.get('content-disposition'), /^inline; filename="public\.pdf"/);
+    assert.match(publicRaw.headers.get('content-security-policy'), /default-src 'none'/);
+    assert.equal(publicRaw.headers.get('x-content-type-options'), 'nosniff');
+    assert.deepEqual(Buffer.from(await publicRaw.arrayBuffer()), publicPdfBytes);
+
+    const activeRaw = await fetch(running.url.replace('/mcp', '/api/public/raw?slug=people%2Fpublic&path=people%2F.raw%2Factive.svg'));
+    assert.equal(activeRaw.status, 404);
+    assert.notEqual(activeRaw.headers.get('content-type'), 'image/svg+xml');
+    assert.equal(activeRaw.headers.get('content-disposition'), null);
 
     const privateRaw = await fetch(running.url.replace('/mcp', '/api/public/raw?slug=people%2Fpublic&path=people%2F.raw%2Fprivate.pdf'));
     assert.equal(privateRaw.status, 404);
@@ -109,7 +123,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
       arguments: {
         path: 'people/mcp-test',
         title: 'MCP Test',
-        body: 'Created through the MCP server.',
+        body: 'Created through the MCP server. [PDF](.raw/public.pdf)',
         timeline_entry: 'Created through MCP endpoint test.',
       },
     }, 'secret');
@@ -150,7 +164,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     const details = JSON.parse(createdAudit.details_json);
     assert.equal(details.status, 'success');
     assert.equal(details.arguments.path, 'people/mcp-test');
-    assert.deepEqual(details.arguments.body, { redacted: true, length: 'Created through the MCP server.'.length });
+    assert.deepEqual(details.arguments.body, { redacted: true, length: 'Created through the MCP server. [PDF](.raw/public.pdf)'.length });
     assert.equal(JSON.stringify(details.arguments).includes('Created through the MCP server'), false);
     await db.close?.();
   } finally {

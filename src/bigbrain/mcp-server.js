@@ -1004,7 +1004,7 @@ function pageVisibilitySchema({ requireVisibility }) {
       public_raw_files: {
         type: 'array',
         items: { type: 'string' },
-        description: 'Optional explicit raw-file allowlist such as ["ops/.raw/onboarding.pdf"]. Only these raw files can be served from links on a public page.',
+        description: 'Optional explicit raw-file allowlist such as ["ops/.raw/onboarding.pdf"]. Only linked or attached PDF, PNG, JPG, JPEG, WebP, TXT, and CSV files can be served on public pages.',
       },
       timeline_entry: { type: 'string', description: 'Optional timeline note for the visibility change.' },
     },

@@ -350,6 +350,158 @@ Current body.
   }
 });
 
+test('page visibility rejects public raw files that do not exist', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-public-raw-missing-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await fs.writeFile(path.join(fixture.brainHome, 'people', 'visibility.md'), `---
+type: note
+title: Visibility
+---
+
+# Visibility
+
+Current body.
+
+---
+
+## Timeline
+
+- **2026-06-28** | Created.
+`, 'utf8');
+
+    await assert.rejects(() => updatePageVisibility({
+      config,
+      pagePath: 'people/visibility.md',
+      visibility: 'public',
+      publicRawFiles: ['people/.raw/missing.pdf'],
+      timelineEntry: 'Attempted publish with missing raw file.',
+    }), /Cannot publish raw file people\/\.raw\/missing\.pdf: file does not exist/);
+
+    const unchanged = await readBrainPage({ config, pagePath: 'people/visibility.md' });
+    assert.equal(pageVisibility(unchanged.frontmatter), 'internal');
+    assert.equal(unchanged.frontmatter.public_raw_files, undefined);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page visibility rejects active public raw file types', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-public-raw-unsafe-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await fs.mkdir(path.join(fixture.brainHome, 'people', '.raw'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'active.svg'), '<svg><script>alert(1)</script></svg>');
+    await fs.writeFile(path.join(fixture.brainHome, 'people', 'visibility.md'), `---
+type: note
+title: Visibility
+---
+
+# Visibility
+
+Current body with [Active SVG](.raw/active.svg).
+
+---
+
+## Timeline
+
+- **2026-06-28** | Created.
+`, 'utf8');
+
+    await assert.rejects(() => updatePageVisibility({
+      config,
+      pagePath: 'people/visibility.md',
+      visibility: 'public',
+      publicRawFiles: ['people/.raw/active.svg'],
+      timelineEntry: 'Attempted publish with unsafe raw file.',
+    }), /Public raw files may only use these file types/);
+
+    const unchanged = await readBrainPage({ config, pagePath: 'people/visibility.md' });
+    assert.equal(pageVisibility(unchanged.frontmatter), 'internal');
+    assert.equal(unchanged.frontmatter.public_raw_files, undefined);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page visibility rejects public raw files that are not linked or attached to the page', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-public-raw-unrelated-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await fs.mkdir(path.join(fixture.brainHome, 'people', '.raw'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'same-collection.pdf'), 'pdf bytes');
+    await fs.writeFile(path.join(fixture.brainHome, 'people', 'visibility.md'), `---
+type: note
+title: Visibility
+---
+
+# Visibility
+
+Current body without a raw link.
+
+---
+
+## Timeline
+
+- **2026-06-28** | Created.
+`, 'utf8');
+
+    await assert.rejects(() => updatePageVisibility({
+      config,
+      pagePath: 'people/visibility.md',
+      visibility: 'public',
+      publicRawFiles: ['people/.raw/same-collection.pdf'],
+      timelineEntry: 'Attempted publish with unrelated raw file.',
+    }), /not linked from page people\/visibility\.md and does not match that page's raw_file frontmatter/);
+
+    const unchanged = await readBrainPage({ config, pagePath: 'people/visibility.md' });
+    assert.equal(pageVisibility(unchanged.frontmatter), 'internal');
+    assert.equal(unchanged.frontmatter.public_raw_files, undefined);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page visibility accepts linked and frontmatter-attached public raw files', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-public-raw-valid-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await fs.mkdir(path.join(fixture.brainHome, 'people', '.raw'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'linked.pdf'), 'linked pdf bytes');
+    await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'attached.pdf'), 'attached pdf bytes');
+    await fs.writeFile(path.join(fixture.brainHome, 'people', 'visibility.md'), `---
+type: note
+title: Visibility
+raw_file: people/.raw/attached.pdf
+---
+
+# Visibility
+
+Current body with [Linked PDF](.raw/linked.pdf).
+
+---
+
+## Timeline
+
+- **2026-06-28** | Created.
+`, 'utf8');
+
+    const updated = await updatePageVisibility({
+      config,
+      pagePath: 'people/visibility.md',
+      visibility: 'public',
+      publicRawFiles: ['people/.raw/linked.pdf', 'people/.raw/attached.pdf'],
+      timelineEntry: 'Published with validated raw files.',
+    });
+
+    assert.equal(pageVisibility(updated.frontmatter), 'public');
+    assert.deepEqual(updated.frontmatter.public_raw_files, ['people/.raw/attached.pdf', 'people/.raw/linked.pdf']);
+    assert.match(updated.timeline, /Published with validated raw files/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function createFixture(prefix) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   const brainHome = path.join(rootDir, 'brain');

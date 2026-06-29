@@ -172,7 +172,7 @@ test('public page payload exposes only approved body content and safe links', as
       '---',
       'title: Alice Public',
       'visibility: public',
-      'public_raw_files: [sources/.raw/deck.pdf]',
+      'public_raw_files: [sources/.raw/deck.pdf, sources/.raw/unlinked.pdf]',
       '---',
       '# Alice Public',
       '',
@@ -203,6 +203,7 @@ test('public page payload exposes only approved body content and safe links', as
     ].join('\n'));
     await fs.mkdir(path.join(fixture.brainHome, 'sources', '.raw'), { recursive: true });
     await fs.writeFile(path.join(fixture.brainHome, 'sources', '.raw', 'deck.pdf'), 'pdf bytes');
+    await fs.writeFile(path.join(fixture.brainHome, 'sources', '.raw', 'unlinked.pdf'), 'unlinked pdf bytes');
     await fs.writeFile(path.join(fixture.brainHome, 'sources', '.raw', 'private.pdf'), 'private pdf bytes');
 
     const config = await loadConfig({ configPath: fixture.configPath });
@@ -220,7 +221,7 @@ test('public page payload exposes only approved body content and safe links', as
     assert.match(payload.markdown, /\[Deck\]\(\/api\/public\/raw\?slug=people%2Falice&path=sources%2F\.raw%2Fdeck\.pdf\)/);
     assert.deepEqual(payload.raw_files, [
       {
-        path: 'sources/.raw/deck.pdf',
+        filename: 'deck.pdf',
         url: '/api/public/raw?slug=people%2Falice&path=sources%2F.raw%2Fdeck.pdf',
       },
     ]);
@@ -228,6 +229,7 @@ test('public page payload exposes only approved body content and safe links', as
     assert.doesNotMatch(payload.markdown, /frontmatter/i);
     assert.doesNotMatch(payload.markdown, /Private provenance/);
     assert.doesNotMatch(payload.markdown, /projects\/secret/);
+    assert.doesNotMatch(JSON.stringify(payload), /unlinked\.pdf/);
     assert.doesNotMatch(payload.markdown, /sources\/\.raw\/private\.pdf/);
 
     const privatePayload = await buildPublicPagePayload(
