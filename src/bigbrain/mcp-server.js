@@ -20,6 +20,7 @@ import {
   listBrainPath,
   normalizePageVisibility,
   pageVisibility,
+  publicRawFiles,
   readBrainPage,
   readRawFile,
   updateRawFile,
@@ -308,6 +309,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         title: page.title,
         visibility,
         public_url: visibility === 'public' ? `/public/${page.slug}` : null,
+        public_raw_files: publicRawFiles(page.frontmatter),
       });
     }
     case 'filing_rules':
@@ -393,15 +395,18 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         config,
         pagePath: args.path,
         visibility,
+        publicRawFiles: args.public_raw_files,
         timelineEntry: timelineWithActor(args.timeline_entry || `Visibility set to ${visibility}.`, actor),
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor);
+      const nextVisibility = pageVisibility(page.frontmatter);
       return toolJson({
         path: page.path,
         slug: page.slug,
         title: page.title,
-        visibility: pageVisibility(page.frontmatter),
-        public_url: pageVisibility(page.frontmatter) === 'public' ? `/public/${page.slug}` : null,
+        visibility: nextVisibility,
+        public_url: nextVisibility === 'public' ? `/public/${page.slug}` : null,
+        public_raw_files: publicRawFiles(page.frontmatter),
       });
     }
     case 'maintenance/sync':
@@ -870,7 +875,7 @@ function toolDefinitions() {
     },
     {
       name: 'set_page_visibility',
-      description: 'Set one page to internal or public. Public makes the page body available on the internet at /public/<slug>; frontmatter, timeline, raw files, and linked private pages stay private.',
+      description: 'Set one page to internal or public. Public makes the page body available on the internet at /public/<slug>; frontmatter, timeline, linked private pages, and raw files stay private unless raw files are explicitly listed in public_raw_files.',
       inputSchema: pageVisibilitySchema({ requireVisibility: true }),
     },
     {
@@ -996,6 +1001,11 @@ function pageVisibilitySchema({ requireVisibility }) {
     properties: {
       path: { type: 'string', description: 'Markdown page path such as people/alice or people/alice.md.' },
       visibility: { type: 'string', enum: ['internal', 'public'], description: 'internal is private to the brain; public exposes the page body at /public/<slug>.' },
+      public_raw_files: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Optional explicit raw-file allowlist such as ["ops/.raw/onboarding.pdf"]. Only these raw files can be served from links on a public page.',
+      },
       timeline_entry: { type: 'string', description: 'Optional timeline note for the visibility change.' },
     },
     required: requireVisibility ? ['path', 'visibility'] : ['path'],

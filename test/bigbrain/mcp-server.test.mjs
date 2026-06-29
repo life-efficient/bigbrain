@@ -15,14 +15,18 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
   let running;
   try {
     await fs.mkdir(path.join(fixture.brainHome, 'people'), { recursive: true });
+    await fs.mkdir(path.join(fixture.brainHome, 'people', '.raw'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'public.pdf'), 'public pdf bytes');
+    await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'private.pdf'), 'private pdf bytes');
     await fs.writeFile(path.join(fixture.brainHome, 'people', 'public.md'), [
       '---',
       'title: Public MCP Page',
       'visibility: public',
+      'public_raw_files: [people/.raw/public.pdf]',
       '---',
       '# Public MCP Page',
       '',
-      'Public body through hosted MCP wrapper.',
+      'Public body through hosted MCP wrapper. [PDF](.raw/public.pdf) [Private PDF](.raw/private.pdf).',
       '',
       '---',
       '',
@@ -49,7 +53,23 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     const publicPayload = await publicApi.json();
     assert.equal(publicPayload.title, 'Public MCP Page');
     assert.match(publicPayload.markdown, /Public body through hosted MCP wrapper/);
+    assert.match(publicPayload.markdown, /\[PDF\]\(\/api\/public\/raw\?slug=people%2Fpublic&path=people%2F\.raw%2Fpublic\.pdf\)/);
+    assert.doesNotMatch(publicPayload.markdown, /private\.pdf/);
+    assert.deepEqual(publicPayload.raw_files, [
+      {
+        path: 'people/.raw/public.pdf',
+        url: '/api/public/raw?slug=people%2Fpublic&path=people%2F.raw%2Fpublic.pdf',
+      },
+    ]);
     assert.doesNotMatch(publicPayload.markdown, /Private timeline/);
+
+    const publicRaw = await fetch(running.url.replace('/mcp', '/api/public/raw?slug=people%2Fpublic&path=people%2F.raw%2Fpublic.pdf'));
+    assert.equal(publicRaw.status, 200);
+    assert.equal(publicRaw.headers.get('content-type'), 'application/pdf');
+    assert.equal(await publicRaw.text(), 'public pdf bytes');
+
+    const privateRaw = await fetch(running.url.replace('/mcp', '/api/public/raw?slug=people%2Fpublic&path=people%2F.raw%2Fprivate.pdf'));
+    assert.equal(privateRaw.status, 404);
 
     const listed = await rpc(running.url, 'tools/list', {}, 'secret');
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_page'), true);
@@ -61,6 +81,8 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(listed.result.tools.some((tool) => tool.name === 'delete_raw_file'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'get_page_visibility'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'set_page_visibility'), true);
+    const visibilityTool = listed.result.tools.find((tool) => tool.name === 'set_page_visibility');
+    assert.equal(visibilityTool.inputSchema.properties.public_raw_files.type, 'array');
 
     const unauthorized = await fetch(running.url, {
       method: 'POST',
@@ -100,18 +122,21 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
       arguments: {
         path: 'people/mcp-test',
         visibility: 'public',
+        public_raw_files: ['people/.raw/public.pdf'],
         timeline_entry: 'Published through MCP endpoint test.',
       },
     }, 'secret');
     assert.equal(published.error, undefined, published.error?.message);
     assert.equal(published.result.structuredContent.visibility, 'public');
     assert.equal(published.result.structuredContent.public_url, '/public/people/mcp-test');
+    assert.deepEqual(published.result.structuredContent.public_raw_files, ['people/.raw/public.pdf']);
 
     const visibility = await rpc(running.url, 'tools/call', {
       name: 'get_page_visibility',
       arguments: { path: 'people/mcp-test' },
     }, 'secret');
     assert.equal(visibility.result.structuredContent.visibility, 'public');
+    assert.deepEqual(visibility.result.structuredContent.public_raw_files, ['people/.raw/public.pdf']);
 
     const db = await openDatabase(config);
     const record = await getPageRecord(db, 'people/mcp-test');

@@ -20,7 +20,14 @@ import {
 } from './mcp-auth.js';
 import { createMcpAuthStore } from './mcp-auth-store.js';
 import { renderSchemaMarkdown } from './schema.js';
-import { normalizePageVisibility, pageVisibility, updatePageVisibility } from './page-ops.js';
+import {
+  normalizePageVisibility,
+  normalizeRawPath,
+  pageVisibility,
+  publicRawFiles,
+  safeBrainPath,
+  updatePageVisibility,
+} from './page-ops.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..');
@@ -110,7 +117,8 @@ export async function createDashboardRequestHandler(config, {
         res.end();
         return;
       }
-      const publicRequest = isPublicAppPath(requestUrl.pathname) || (req.method === 'GET' && requestUrl.pathname === '/api/public/page');
+      const publicRequest = isPublicAppPath(requestUrl.pathname)
+        || (req.method === 'GET' && (requestUrl.pathname === '/api/public/page' || requestUrl.pathname === '/api/public/raw'));
       if (authEnabled && !publicRequest && requestUrl.pathname !== '/favicon.ico' && !requestUrl.pathname.startsWith('/assets/')) {
         const authorization = await authorizeDashboardRequest(req, authConfig);
         if (!authorization.ok) {
@@ -185,6 +193,7 @@ export async function createDashboardRequestHandler(config, {
         }
         return json(res, publicPayload);
       }
+      if (requestUrl.pathname === '/api/public/raw') return servePublicRawFile(config, res, requestUrl, req.method);
       if (requestUrl.pathname === '/api/explorer/tree') return json(res, await buildExplorerTreePayload(config));
       if (requestUrl.pathname === '/api/explorer/recent') return json(res, await buildExplorerRecentPayload(config, requestUrl));
       if (requestUrl.pathname === '/api/explorer/file') return json(res, await buildExplorerFilePayload(config, requestUrl));
@@ -245,6 +254,27 @@ async function serveExplorerBlob(config, res, requestUrl) {
     res.once('finish', resolve);
     stream.pipe(res);
   });
+}
+
+async function servePublicRawFile(config, res, requestUrl, method = 'GET') {
+  if (method !== 'GET') {
+    res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ error: 'Public raw file requests require GET.' }));
+    return;
+  }
+  const payload = await buildPublicRawFilePayload(config, requestUrl);
+  if (!payload) {
+    res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ error: 'Public raw file not found.' }));
+    return;
+  }
+  res.writeHead(200, {
+    'Content-Type': payload.mime_type,
+    'Content-Length': payload.bytes.length,
+    'Cache-Control': 'public, max-age=300',
+    'Content-Disposition': `inline; filename="${payload.filename.replace(/["\\]/g, '')}"`,
+  });
+  res.end(payload.bytes);
 }
 
 function json(res, value) {
@@ -1219,6 +1249,7 @@ export async function buildPublicPagePayload(config, requestUrl) {
   if (!slug) return null;
   const page = await readPublicMarkdownPage(config, slug);
   if (!page || !isPublicPage(page.parsed)) return null;
+  const rawFiles = publicRawFiles(page.parsed.frontmatter);
   return {
     slug,
     title: page.parsed.title,
@@ -1227,8 +1258,34 @@ export async function buildPublicPagePayload(config, requestUrl) {
       config,
       markdown: page.parsed.compiledTruth,
       sourceSlug: slug,
+      allowedRawFiles: rawFiles,
     }),
+    raw_files: rawFiles.map((rawPath) => ({
+      path: rawPath,
+      url: publicRawHref(slug, rawPath),
+    })),
     updated_at: page.stat.mtime.toISOString(),
+  };
+}
+
+export async function buildPublicRawFilePayload(config, requestUrl) {
+  const slug = normalizePublicSlug(requestUrl.searchParams.get('slug')?.trim());
+  if (!slug) return null;
+  const requestedRawPath = normalizePublicRawQueryPath(requestUrl.searchParams.get('path'));
+  if (!requestedRawPath) return null;
+  const page = await readPublicMarkdownPage(config, slug);
+  if (!page || !isPublicPage(page.parsed)) return null;
+  const rawFiles = publicRawFiles(page.parsed.frontmatter);
+  if (!rawFiles.includes(requestedRawPath)) return null;
+  const fullPath = safeBrainPath(config.brainDir, requestedRawPath);
+  const stat = await fs.stat(fullPath).catch(() => null);
+  if (!stat?.isFile()) return null;
+  return {
+    path: requestedRawPath,
+    filename: path.posix.basename(requestedRawPath),
+    mime_type: mimeTypeForPath(requestedRawPath),
+    bytes: await fs.readFile(fullPath),
+    updated_at: stat.mtime.toISOString(),
   };
 }
 
@@ -1246,6 +1303,7 @@ export async function updateDashboardPageVisibility(config, db, req, actor = nul
     config,
     pagePath: slug,
     visibility,
+    publicRawFiles: input.public_raw_files,
     timelineEntry: `Visibility set to ${visibility} from dashboard${actor?.email ? ` by ${actor.email}` : ''}.`,
   });
   return buildPagePayloadForSlug(config, db, slug);
@@ -1309,10 +1367,12 @@ function isPublicPage(parsed) {
   return pageVisibility(parsed?.frontmatter) === 'public';
 }
 
-async function sanitizePublicMarkdown({ config, markdown, sourceSlug }) {
+async function sanitizePublicMarkdown({ config, markdown, sourceSlug, allowedRawFiles = [] }) {
   let next = String(markdown || '');
   next = await replaceMarkdownLinks(next, /!?\[([^\]]*)\]\(([^)]+)\)/g, async (full, label, target) => {
     if (/^!/.test(full)) return label || '';
+    const publicRawHref = publicRawHrefForTarget(sourceSlug, target, allowedRawFiles);
+    if (publicRawHref) return `[${label}](${publicRawHref})`;
     const publicHref = await publicHrefForTarget(config, sourceSlug, target);
     return publicHref ? `[${label}](${publicHref})` : label;
   });
@@ -1323,6 +1383,41 @@ async function sanitizePublicMarkdown({ config, markdown, sourceSlug }) {
     return publicHref ? `[${publicLabel}](${publicHref})` : publicLabel;
   });
   return next;
+}
+
+function publicRawHrefForTarget(sourceSlug, target, allowedRawFiles) {
+  const rawPath = resolveRawLinkTarget(sourceSlug, target);
+  if (!rawPath || !allowedRawFiles.includes(rawPath)) return null;
+  return publicRawHref(sourceSlug, rawPath);
+}
+
+function publicRawHref(sourceSlug, rawPath) {
+  return `/api/public/raw?slug=${encodeURIComponent(sourceSlug)}&path=${encodeURIComponent(rawPath)}`;
+}
+
+function normalizePublicRawQueryPath(value) {
+  try {
+    return normalizeRawPath(value);
+  } catch {
+    return '';
+  }
+}
+
+function resolveRawLinkTarget(sourceSlug, target) {
+  const trimmed = String(target || '').trim();
+  if (!trimmed || /^(https?:|mailto:|#)/i.test(trimmed)) return null;
+  const withoutAnchor = trimmed.split('#')[0].trim();
+  if (!withoutAnchor) return null;
+  const sourceDir = path.posix.dirname(sourceSlug);
+  const candidate = path.posix.normalize(
+    withoutAnchor.startsWith('/') ? withoutAnchor.replace(/^\/+/, '') : path.posix.join(sourceDir, withoutAnchor),
+  );
+  if (!candidate.split('/').includes('.raw')) return null;
+  try {
+    return normalizeRawPath(candidate);
+  } catch {
+    return null;
+  }
 }
 
 async function replaceMarkdownLinks(markdown, pattern, replacer) {

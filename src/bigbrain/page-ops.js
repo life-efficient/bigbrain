@@ -241,14 +241,18 @@ export async function updateBrainPage({ config, pagePath, body, timelineEntry })
   return readBrainPage({ config, pagePath: relative });
 }
 
-export async function updatePageVisibility({ config, pagePath, visibility, timelineEntry }) {
+export async function updatePageVisibility({ config, pagePath, visibility, timelineEntry, publicRawFiles }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
   const nextVisibility = normalizePageVisibility(visibility);
   const existing = await readBrainPage({ config, pagePath: relative });
   const now = new Date().toISOString().slice(0, 10);
+  let frontmatterRaw = setFrontmatterValue(existing.frontmatter_raw, 'visibility', nextVisibility);
+  if (publicRawFiles !== undefined) {
+    frontmatterRaw = setFrontmatterValue(frontmatterRaw, 'public_raw_files', normalizePublicRawFiles(publicRawFiles));
+  }
   const markdown = renderPageMarkdown({
-    frontmatterRaw: setFrontmatterValue(existing.frontmatter_raw, 'visibility', nextVisibility),
+    frontmatterRaw,
     title: existing.title,
     body: existing.body,
     timeline: appendTimelineEntry(existing.timeline, timelineEntry || `Visibility set to ${nextVisibility}.`, now),
@@ -265,6 +269,18 @@ export function normalizePageVisibility(value) {
   const normalized = String(value || 'internal').trim().toLowerCase();
   if (normalized === 'public' || normalized === 'internal') return normalized;
   throw new Error('visibility must be internal or public.');
+}
+
+export function publicRawFiles(frontmatter = {}) {
+  return normalizePublicRawFiles(frontmatter?.public_raw_files || []);
+}
+
+export function normalizePublicRawFiles(value = []) {
+  const values = Array.isArray(value) ? value : [value];
+  const normalized = values
+    .map((item) => normalizeRawPath(item))
+    .filter(Boolean);
+  return [...new Set(normalized)].sort();
 }
 
 export function normalizePagePath(input) {

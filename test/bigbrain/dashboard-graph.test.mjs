@@ -172,10 +172,11 @@ test('public page payload exposes only approved body content and safe links', as
       '---',
       'title: Alice Public',
       'visibility: public',
+      'public_raw_files: [sources/.raw/deck.pdf]',
       '---',
       '# Alice Public',
       '',
-      'Visible body with [Relay](../projects/relay.md), [Secret](../projects/secret.md), [Deck](../sources/.raw/deck.pdf), [External](https://example.com), and [[projects/relay|Relay Wiki]].',
+      'Visible body with [Relay](../projects/relay.md), [Secret](../projects/secret.md), [Deck](../sources/.raw/deck.pdf), [Private Deck](../sources/.raw/private.pdf), [External](https://example.com), and [[projects/relay|Relay Wiki]].',
       '',
       '---',
       '',
@@ -200,6 +201,9 @@ test('public page payload exposes only approved body content and safe links', as
       '',
       'Private target.',
     ].join('\n'));
+    await fs.mkdir(path.join(fixture.brainHome, 'sources', '.raw'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'sources', '.raw', 'deck.pdf'), 'pdf bytes');
+    await fs.writeFile(path.join(fixture.brainHome, 'sources', '.raw', 'private.pdf'), 'private pdf bytes');
 
     const config = await loadConfig({ configPath: fixture.configPath });
     const payload = await buildPublicPagePayload(
@@ -213,11 +217,18 @@ test('public page payload exposes only approved body content and safe links', as
     assert.match(payload.markdown, /Visible body/);
     assert.match(payload.markdown, /\[Relay\]\(\/public\/projects\/relay\)/);
     assert.match(payload.markdown, /\[Relay Wiki\]\(\/public\/projects\/relay\)/);
+    assert.match(payload.markdown, /\[Deck\]\(\/api\/public\/raw\?slug=people%2Falice&path=sources%2F\.raw%2Fdeck\.pdf\)/);
+    assert.deepEqual(payload.raw_files, [
+      {
+        path: 'sources/.raw/deck.pdf',
+        url: '/api/public/raw?slug=people%2Falice&path=sources%2F.raw%2Fdeck.pdf',
+      },
+    ]);
     assert.match(payload.markdown, /\[External\]\(https:\/\/example\.com\)/);
     assert.doesNotMatch(payload.markdown, /frontmatter/i);
     assert.doesNotMatch(payload.markdown, /Private provenance/);
     assert.doesNotMatch(payload.markdown, /projects\/secret/);
-    assert.doesNotMatch(payload.markdown, /sources\/\.raw\/deck\.pdf/);
+    assert.doesNotMatch(payload.markdown, /sources\/\.raw\/private\.pdf/);
 
     const privatePayload = await buildPublicPagePayload(
       config,
