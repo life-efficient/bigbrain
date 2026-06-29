@@ -5,6 +5,8 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-29
+
 ### Changed
 
 - `BigBrain: Granola Ingest` and its bundled automation now require
@@ -20,6 +22,8 @@ actions` section for agents maintaining local installs and hosted brains.
 - Read this section before pulling or deploying unreleased changes.
 - Do not claim an update is complete unless the relevant release actions below
   have been applied or explicitly marked not applicable.
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install`, then `npm link`, and verify `bigbrain --help`.
 - Refresh bundled BigBrain skills from `skills/`, especially
   `bigbrain-granola-ingest`, `bigbrain-whats-next`,
   `bigbrain-fanout-tasks`, `bigbrain-refresh-tasks`, and
@@ -31,6 +35,14 @@ actions` section for agents maintaining local installs and hosted brains.
 - Restart the local BigBrain MCP service after pulling, then verify
   `tasks/list` appears in Codex tool discovery before falling back to local
   runtime inspection.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+- Local MCP `tools/list` verification showed only `tasks/list`,
+  `tasks/create`, and `tasks/update` for task tools.
 
 ## [0.5.0] - 2026-06-29
 
@@ -441,7 +453,10 @@ actions` section for agents maintaining local installs and hosted brains.
 
 - `npm test`
 
-[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.6.0
+[0.5.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.5.0
+[0.4.3]: https://github.com/life-efficient/bigbrain/releases/tag/v0.4.3
 [0.4.2]: https://github.com/life-efficient/bigbrain/releases/tag/v0.4.2
 [0.4.1]: https://github.com/life-efficient/bigbrain/releases/tag/v0.4.1
 [0.4.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.4.0
