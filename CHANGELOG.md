@@ -5,6 +5,53 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## [Unreleased]
 
+## [0.6.1] - 2026-06-30
+
+### Changed
+
+- BigBrain agent install instructions now require verifying `bigbrain` from a
+  fresh Codex-style shell outside the repo and repairing the shell `PATH` with
+  npm's global binary directory before setup can be considered complete.
+- Dashboard graph pages now show recent update cards alongside graph activity
+  so agents and humans can inspect fresh brain changes without switching views.
+- `BigBrain: Granola Ingest` and its automation now require relevant entity
+  page updates from meeting evidence, not just task updates.
+
+### Fixed
+
+- Dashboard markdown rendering now tolerates page visibility updates that
+  temporarily omit markdown content, preventing preview crashes.
+
+### Agent update actions
+
+- Read this section before pulling or deploying unreleased changes.
+- Do not claim an update is complete unless the relevant release actions below
+  have been applied or explicitly marked not applicable.
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install`, then `npm link`.
+- Verify the active shell can resolve BigBrain with `command -v bigbrain` and
+  `bigbrain --help`.
+- Verify a fresh Codex-style shell can resolve BigBrain from outside the repo:
+  `cd /tmp && zsh -lc 'command -v bigbrain && bigbrain --help'`.
+- If either PATH check fails, add `$(npm prefix -g)/bin` to the shell startup
+  file used by Codex, open a fresh shell, and rerun the verification.
+- Refresh bundled BigBrain skills from `skills/`, especially
+  `bigbrain-granola-ingest`.
+- Refresh bundled BigBrain automations from `automations/`, especially
+  `bigbrain-ingest-granola`.
+- Restart the local BigBrain MCP service after pulling, then verify Codex can
+  run `bigbrain sync --json` from a normal project directory.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+- Local-data compatibility audit: install-only PATH guidance, dashboard
+  rendering, and Granola ingest instruction changes do not rename or narrow
+  persisted task fields, filing rules, MCP schemas, runtime state, or database
+  migrations.
+
 ## [0.6.0] - 2026-06-29
 
 ### Changed
@@ -457,7 +504,8 @@ actions` section for agents maintaining local installs and hosted brains.
 
 - `npm test`
 
-[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/life-efficient/bigbrain/compare/v0.6.1...HEAD
+[0.6.1]: https://github.com/life-efficient/bigbrain/releases/tag/v0.6.1
 [0.6.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.6.0
 [0.5.0]: https://github.com/life-efficient/bigbrain/releases/tag/v0.5.0
 [0.4.3]: https://github.com/life-efficient/bigbrain/releases/tag/v0.4.3

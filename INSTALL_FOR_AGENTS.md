@@ -89,12 +89,38 @@ cd /path/to/bigbrain
 npm link
 ```
 
-Verify the binary is on `PATH`:
+Verify the binary is on the active shell `PATH`:
 
 ```bash
 command -v bigbrain
 bigbrain --help
 ```
+
+Also verify the Codex shell can resolve the same command from outside the
+BigBrain repo:
+
+```bash
+cd /tmp
+zsh -lc 'command -v bigbrain && bigbrain --help'
+```
+
+If either `command -v bigbrain` check fails, add npm's global binary directory
+to the shell startup file used by Codex, then open a fresh shell and verify
+again:
+
+```bash
+global_bin="$(npm prefix -g)/bin"
+case ":$PATH:" in
+  *":$global_bin:"*) ;;
+  *) printf '\nexport PATH="%s:$PATH"\n' "$global_bin" >> "$HOME/.zprofile" ;;
+esac
+
+zsh -lc 'command -v bigbrain && bigbrain --help'
+```
+
+Do not continue setup until `bigbrain` resolves in a fresh Codex-style shell.
+Automation and MCP health checks depend on the global CLI being available from
+ordinary working directories.
 
 Before declaring setup or update work complete, read `CHANGELOG.md`. For each
 release applied to this checkout, perform the listed `Agent update actions` or
@@ -292,7 +318,8 @@ bigbrain health --json
 ```
 
 If `bigbrain` is not found, rerun `npm link` from the BigBrain repo using the
-same Node version and shell environment used by the agent or automation.
+same Node version and shell environment used by the agent or automation, then
+repair the Codex shell `PATH` as described in One-time setup.
 
 ## Install local MCP service
 
