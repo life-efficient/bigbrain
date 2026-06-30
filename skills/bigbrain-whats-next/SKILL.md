@@ -82,7 +82,7 @@ Default output is capped at 8 numbered items. Keep the snapshot short:
 - Do not include boilerplate about reading files, preserving changes,
   verification, or commits.
 - Only when there are matching `execution_mode: "user"` tasks, append exactly:
-  `There are a few things that I can't do for you:`
+  `There are a few things I can't physically help with:`
 - Under that line, show a numbered list of user-only tasks with the concrete
   real-world user action required.
 - If there are no matching user-only tasks, omit this heading entirely and do
