@@ -510,10 +510,11 @@ Automations should be narrow, explicit, idempotent, and inspectable.
     for autonomous agent-executable work, `user` for work the user must
     personally do, and `interactive` for agent-guided review or input sessions
   - valid priorities are `p0`, `p1`, `p2`, and `p3`
-  - fanout should use tasks with `readiness: ready` and
-    `execution_mode: agent`; tasks with `readiness: underspecified`,
-    `execution_mode: user`, or `execution_mode: interactive` should be
-    surfaced separately for the user
+  - fanout should create autonomous prompts for tasks with `readiness: ready`
+    and `execution_mode: agent`, and guided step-by-step prompts for tasks with
+    `readiness: ready` and `execution_mode: interactive`; tasks with
+    `readiness: underspecified` or `execution_mode: user` should be surfaced
+    separately for the user
   - assignees are active members, not arbitrary `people/*` pages
   - use MCP `tasks/list`, `tasks/create`, and `tasks/update` for agent task
     reads and writes

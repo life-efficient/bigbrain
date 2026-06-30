@@ -9,8 +9,9 @@ actions` section for agents maintaining local installs and hosted brains.
 
 - Task pages now support `execution_mode: agent|user|interactive` frontmatter
   across task ops, MCP schemas, dashboard payloads, filing rules, schema docs,
-  and task skills, so agent-executable work can be separated from user-only and
-  interactive tasks.
+  and task skills. Fanout creates autonomous prompts for `agent` tasks and
+  guided step-by-step prompts for `interactive` tasks, while `user` tasks stay
+  surfaced as user action.
 
 ### Fixed
 

@@ -54,7 +54,9 @@ Use the BigBrain MCP task endpoint as the source of truth:
    - `execution_mode: "user"` means the user must personally do the work, even
      if the task is otherwise ready.
    - `execution_mode: "interactive"` means an agent can help only by walking
-     the user through input, review, or decisions.
+     the user through input, review, or decisions. Keep these in the input
+     section of the snapshot, but they can still be fanned out as guided
+     step-by-step prompts.
    - `readiness: "underspecified"` means the task needs user input before it
      should be fanned out or treated as an executable handoff.
 
@@ -90,7 +92,7 @@ Default output is capped at 8 numbered items. Keep the snapshot short:
 - Do not include underspecified, user-only, or interactive tasks in the main
   `What's Next` numbered list.
 - End by asking whether the user wants handoff prompts generated for the
-  ready tasks.
+  ready agent-executable or interactive tasks.
 
 If the user agrees to receive prompts, immediately use the BigBrain: Fanout
 Tasks workflow on the same task scope and filters. Do not ask the user to repeat
