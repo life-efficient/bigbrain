@@ -1,60 +1,57 @@
 ---
 name: bigbrain-dashboard
 description: |
-  Open the BigBrain desktop dashboard app and verify it is running. Use when the
+  Open the BigBrain browser dashboard app and verify it is running. Use when the
   user asks for the BigBrain dashboard, wants to open or launch the dashboard,
-  asks for the desktop app, or asks to view BigBrain locally.
+  or asks to view BigBrain locally.
 ---
 
 # BigBrain: Dashboard
 
-Use this skill to open the BigBrain dashboard as the Mac desktop app. Default to
-the desktop app, not the browser-only dashboard, unless the user explicitly asks
-for a browser/server version.
+Use this skill to open the BigBrain dashboard as the local browser app. Default
+to the browser app because it uses the installed BigBrain CLI and avoids desktop
+app dependency setup. Use the Electron desktop app only when the user explicitly
+asks for it.
 
 ## Contract
 
 This skill guarantees:
-- Launch the BigBrain desktop app from the local BigBrain source repo
-- Keep the launcher process alive so the Electron app stays open
+- Start the local BigBrain browser dashboard with `bigbrain dashboard`
+- Keep the dashboard command session alive so the server stays open
 - Verify the app is actually serving a dashboard before reporting success
 - Report the reachable local URL when it can be discovered
 
 ## Workflow
 
-1. Resolve the BigBrain source repo:
-   - use the current working directory if it is the BigBrain repo
-   - otherwise walk upward from the current directory looking for the BigBrain
-     repo
-   - otherwise use `BIGBRAIN_REPO` when it points to the BigBrain repo
-   - otherwise search common workspace roots exposed by the environment
-   - otherwise ask the user for the repo path
-2. Start the desktop app from the BigBrain repo:
-   - `npm run desktop:dev`
-3. Keep the command session running. Do not stop the launcher after the window
-   opens, because the Electron app depends on that process.
-4. Verify the app:
-   - if the launcher prints a URL, check it with `curl -I`
-   - otherwise inspect local listeners and look for the Electron dashboard
-     server; the usual local dashboard URL is `http://127.0.0.1:3474`
+1. Start the browser dashboard:
+   - `bigbrain dashboard`
+   - pass `--brain-home <path>` or `--config <path>` only when the user asks for
+     a specific brain or local context requires it
+   - pass `--no-open` only when you need to verify the server without opening a
+     browser window
+2. Keep the command session running. Do not stop the launcher after the window
+   opens, because the browser dashboard depends on that server process.
+3. Verify the app:
+   - use the URL printed by `bigbrain dashboard`
+   - check it with `curl -I`
    - verify the candidate URL returns HTTP 200
-5. If the app launches but the URL cannot be found, report that the desktop
-   window was opened and say URL discovery was inconclusive.
+4. If the command starts but the URL cannot be found, report that the dashboard
+   process is running and say URL discovery was inconclusive.
 
 ## Guardrails
 
-- Do not fall back to `bigbrain dashboard` unless the desktop app launch fails
-  or the user explicitly asks for a browser/server dashboard.
+- Do not fall back to `npm run desktop:dev` unless the browser dashboard launch
+  fails or the user explicitly asks for the desktop app.
 - Do not edit dashboard source files just to open the app.
-- Do not kill unrelated Electron apps.
+- Do not kill unrelated browser or dashboard processes.
 - If the dashboard appears stale after recent source edits, rebuild the
-  dashboard bundle with `npm run build:dashboard`, restart the desktop app, and
-  verify the served bundle or local URL before claiming the new UI is live.
+  dashboard bundle with `npm run build:dashboard`, restart `bigbrain dashboard`,
+  and verify the served bundle or local URL before claiming the new UI is live.
 
 ## Output
 
 Report:
-- repo path used
-- whether the desktop app launch command is still running
+- command used
+- whether the dashboard command is still running
 - local URL if discovered
 - verification result

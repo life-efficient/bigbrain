@@ -142,6 +142,40 @@ test('CLI reports search mode bundles', async () => {
   assert.equal(report.bundles.tokenmax.expansion, true);
 });
 
+test('CLI dashboard starts the browser dashboard server', async () => {
+  const fixture = await createFixture('bigbrain-cli-dashboard-');
+  let child;
+  try {
+    child = spawn(process.execPath, [
+      './bin/bigbrain.js',
+      '--config',
+      fixture.configPath,
+      'dashboard',
+      '--port',
+      '0',
+      '--no-open',
+    ], {
+      cwd: process.cwd(),
+      env: { ...process.env },
+    });
+
+    const stdout = [];
+    const stderr = [];
+    child.stdout.on('data', (chunk) => stdout.push(chunk));
+    child.stderr.on('data', (chunk) => stderr.push(chunk));
+    const line = await waitForStdoutLine(child, stdout, /Dashboard running at http:\/\/127\.0\.0\.1:\d+/);
+    const url = line.match(/http:\/\/127\.0\.0\.1:\d+/)?.[0];
+    assert.ok(url);
+    const response = await fetch(url);
+    assert.equal(response.status, 200);
+    assert.match(await response.text(), /dashboard-client\.js/);
+    assert.equal(Buffer.concat(stderr).toString('utf8'), '');
+  } finally {
+    child?.kill();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('CLI runs deterministic retrieval evals', async () => {
   const text = await runNode(['./bin/bigbrain.js', 'eval', 'retrieval'], { cwd: process.cwd() });
   assert.equal(text.code, 0, text.stderr);
@@ -1084,5 +1118,33 @@ async function runNode(args, options = {}) {
         stderr: Buffer.concat(stderr).toString('utf8'),
       });
     });
+  });
+}
+
+async function waitForStdoutLine(child, chunks, pattern) {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      cleanup();
+      reject(new Error(`Timed out waiting for ${pattern}. Stdout: ${Buffer.concat(chunks).toString('utf8')}`));
+    }, 10_000);
+    const onData = () => {
+      const line = Buffer.concat(chunks).toString('utf8').split(/\r?\n/).find((candidate) => pattern.test(candidate));
+      if (line) {
+        cleanup();
+        resolve(line);
+      }
+    };
+    const onExit = (code) => {
+      cleanup();
+      reject(new Error(`Process exited before ${pattern} with code ${code}. Stdout: ${Buffer.concat(chunks).toString('utf8')}`));
+    };
+    function cleanup() {
+      clearTimeout(timeout);
+      child.stdout.off('data', onData);
+      child.off('exit', onExit);
+    }
+    child.stdout.on('data', onData);
+    child.once('exit', onExit);
+    onData();
   });
 }

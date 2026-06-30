@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 
 import { initializeBrainHome, loadConfig, loadState, loadUserEnv, persistState, resolveBrainHome } from './config.js';
 import { dbDoctor, openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
@@ -406,8 +407,13 @@ async function handleDashboard(args, global) {
   const port = Number(argValue(args, '--port') || config.dashboardPort);
   const host = argValue(args, '--host') || process.env.HOST || '127.0.0.1';
   const { startDashboard } = await import('./dashboard.js');
-  await startDashboard(config, { host, port });
-  console.log(`Dashboard running at http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${port}`);
+  const server = await startDashboard(config, { host, port });
+  const address = server.address();
+  const actualPort = typeof address === 'object' && address ? address.port : port;
+  const displayHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host;
+  const url = `http://${displayHost}:${actualPort}`;
+  if (!args.includes('--no-open')) openBrowser(url);
+  console.log(`Dashboard running at ${url}`);
 }
 
 async function handleMcp(args, global) {
@@ -489,7 +495,7 @@ Commands:
   eval export [--cases PATH] [--mode MODE] [--limit N] [--redact]
   eval replay --against baseline.ndjson [--mode MODE] [--limit N]
   eval compare [--cases PATH] [--modes conservative,balanced,tokenmax] [--markdown]
-  dashboard [--host HOST] [--port N]
+  dashboard [--host HOST] [--port N] [--no-open]
   mcp [--host HOST] [--port N]
 
 Global options:
@@ -609,6 +615,24 @@ function requireFirstArg(args, message) {
 function argValue(args, name) {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : null;
+}
+
+function openBrowser(url) {
+  const opener = process.platform === 'darwin'
+    ? { command: 'open', args: [url] }
+    : process.platform === 'win32'
+      ? { command: 'cmd', args: ['/c', 'start', '', url] }
+      : { command: 'xdg-open', args: [url] };
+  try {
+    const child = spawn(opener.command, opener.args, {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.once('error', () => {});
+    child.unref();
+  } catch {
+    // The dashboard server is still useful even when the OS browser opener is unavailable.
+  }
 }
 
 async function readStdin() {
