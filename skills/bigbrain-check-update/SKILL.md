@@ -40,7 +40,10 @@ This skill guarantees:
 
 1. Resolve the BigBrain source repo:
    - use the current working directory if it is the BigBrain repo
-   - otherwise use `~/projects/bigbrain` when it exists
+   - otherwise walk upward from the current directory looking for the BigBrain
+     repo
+   - otherwise use `BIGBRAIN_REPO` when it points to the BigBrain repo
+   - otherwise search common workspace roots exposed by the environment
    - otherwise ask the user for the repo path
 2. Record the current state:
    - `git status --short --branch`
