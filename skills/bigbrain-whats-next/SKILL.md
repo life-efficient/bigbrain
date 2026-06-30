@@ -79,11 +79,13 @@ Default output is capped at 8 numbered items. Keep the snapshot short:
 - Do not format the numbered list as copyable prompt blocks.
 - Do not include boilerplate about reading files, preserving changes,
   verification, or commits.
-- After the existing bullet output, append exactly:
+- Only when there are matching input-needed tasks, append exactly:
   `I also need your input on a few tasks:`
 - Under that line, show a numbered list of `readiness: "underspecified"`,
   `execution_mode: "user"`, and `execution_mode: "interactive"` tasks. For
   each task, include indented bullet questions or the user action required.
+- If there are no matching input-needed tasks, omit the input-needed heading
+  entirely and do not mention that no such tasks were found.
 - Name underspecified tasks by human-readable title or action, not slug, unless
   the user explicitly asks for paths/slugs.
 - Prefer questions from the task page's `## Open Questions` section. If that
