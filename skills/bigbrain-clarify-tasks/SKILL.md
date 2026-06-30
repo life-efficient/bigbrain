@@ -75,9 +75,10 @@ reconstruct old `ops/tasks.md` task lists.
    - enrich the body with clarified context and completion criteria
    - structure substantial rewrites as Summary, What Counts as Completed, Body
      Context, Open Questions, and Anti-Patterns
-   - set `readiness: "ready"` only when there are no blocking open questions
-   - keep or set `readiness: "underspecified"` when the task still needs user
-     input before fanout
+   - set `readiness: "ready"` when the task appears specified enough to work,
+     including guided interactive work
+   - keep or set `readiness: "underspecified"` when useful work cannot begin
+     without more context
    - set `execution_mode: "agent"` only when Codex can complete the task
      autonomously with current context, tools, and files
    - set `execution_mode: "interactive"` when Codex can advance the task but

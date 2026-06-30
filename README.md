@@ -181,12 +181,13 @@ Use `open` for known work that is not actively being worked, `in_progress` for
 active work currently underway, `waiting` for work paused on an external
 dependency, reply, approval, access, or date, `done` for completed work, and
 `archived` for work intentionally closed without treating it as active. Valid
-readiness values are `underspecified` and `ready`; use `underspecified` while
-context, owner, next action, or completion criteria are missing, and use
-`ready` only when enough context and acceptance criteria exist for a person or
-agent to execute without another clarification round. Status and readiness are
-independent: a task can be `open` but `underspecified`, or `in_progress` and
-`ready`. Valid execution modes are `agent`, `interactive`, and `user`. Use
+readiness values are `underspecified` and `ready`; treat readiness as an
+agent-authored handoff hint. Use `underspecified` when useful work cannot begin
+without more context, and use `ready` when the task appears specified enough to
+work. Status and readiness are independent: a task can be `open` but
+`underspecified`, or `in_progress` and `ready`. Open questions in the task body
+can still cause what's-next or fanout output to ask for user input. Valid
+execution modes are `agent`, `interactive`, and `user`. Use
 `agent` only when Codex or another agent can complete the task autonomously with
 the available context, tools, and files. Use `interactive` when Codex can
 advance the task but needs the user's judgement, preferences, review, or

@@ -503,9 +503,9 @@ Automations should be narrow, explicit, idempotent, and inspectable.
     active work currently underway; `waiting` means work paused on an external
     dependency, reply, approval, access, or date
   - valid readiness values are `underspecified` and `ready`
-  - readiness is independent from status: `underspecified` means context,
-    owner, next action, or completion criteria are missing; `ready` means the
-    task can be handed off without another clarification round
+  - readiness is independent from status and is an agent-authored handoff hint:
+    use `underspecified` when useful work cannot begin without more context,
+    and `ready` when the task appears specified enough to work
   - valid execution modes are `agent`, `user`, and `interactive`; use `agent`
     for autonomous agent-executable work, `user` for work the user must
     personally do, and `interactive` for agent-guided review or input sessions
@@ -513,6 +513,9 @@ Automations should be narrow, explicit, idempotent, and inspectable.
   - what's-next snapshots should put `readiness: ready` tasks with
     `execution_mode: agent` or `execution_mode: interactive` in the main
     actionable list
+  - if a task body contains substantive open questions, what's-next can show
+    it under `I also need your input on a few tasks:` even when frontmatter says
+    `ready`
   - `execution_mode: user` tasks should be surfaced under `There are a few
     things I can't physically help with:` because they require real-world user
     action

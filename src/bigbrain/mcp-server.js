@@ -674,12 +674,12 @@ function toolDefinitions() {
     },
     {
       name: 'tasks/create',
-      description: 'Create one member-assigned task page under tasks/. Assignees must be active members; assignees may include me. Use readiness=ready only when the task has an assignee, source link, completion criteria, and no blocking open questions. Always set execution_mode: agent for autonomous agent-completable work, interactive when user judgement/review/decisions are needed, or user only for real-world actions Codex cannot meaningfully perform. If creating a done or archived task, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
+      description: 'Create one member-assigned task page under tasks/. Assignees must be active members; assignees may include me. Set readiness and execution_mode as agent-authored handoff hints: agent for autonomous agent-completable work, interactive when guided user judgement/review/decisions are needed, or user only for real-world actions Codex cannot meaningfully perform. If creating a done or archived task, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
       inputSchema: taskWriteSchema({ requireBody: true }),
     },
     {
       name: 'tasks/update',
-      description: 'Update one task page under tasks/, including status, readiness, execution_mode, priority, assignees, source, body, and timeline. Use readiness=ready only when the task has an assignee, source link, completion criteria, and no blocking open questions. Reclassify execution_mode case by case: agent for autonomous agent-completable work, interactive when user judgement/review/decisions are needed, or user only for real-world actions Codex cannot meaningfully perform. When setting status to done or archived, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
+      description: 'Update one task page under tasks/, including status, readiness, execution_mode, priority, assignees, source, body, and timeline. Treat readiness and execution_mode as agent-authored handoff hints; reclassify them case by case instead of relying on write-time body validation. When setting status to done or archived, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
       inputSchema: taskWriteSchema({ update: true }),
     },
     {
@@ -1004,7 +1004,7 @@ function taskWriteSchema({ requireBody = false, update = false } = {}) {
       body: { type: 'string' },
       status: { type: 'string', enum: ['open', 'in_progress', 'waiting', 'done', 'archived'] },
       priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
-      readiness: { type: 'string', enum: ['underspecified', 'ready'], description: 'Whether this task is prompt-ready. Use ready only when the task has an assignee, source link, completion criteria, and no blocking open questions; otherwise use underspecified.' },
+      readiness: { type: 'string', enum: ['underspecified', 'ready'], description: 'Agent-authored handoff state. Use ready when the task appears specified enough to work; use underspecified when it clearly needs more context. Presentation tools may still surface open questions as input-needed.' },
       execution_mode: { type: 'string', enum: ['agent', 'user', 'interactive'], description: 'Who can execute the task: agent for autonomous agent-completable work, interactive for guided work needing user judgement/review/decisions, user only for real-world actions Codex cannot perform.' },
       assignees: { type: 'array', items: { type: 'string' }, description: 'Active member person slugs, or me for the authenticated member.' },
       source: { type: 'array', items: { type: 'string' }, description: 'Related brain slugs such as meetings/example or initiatives/example.' },

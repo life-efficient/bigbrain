@@ -45,12 +45,13 @@ actions` section for agents maintaining local installs and hosted brains.
   physically help with:" section and underspecified tasks remain under the
   input-needed section.
 
-### Fixed
+### Changed
 
-- MCP task writes now reject `readiness: ready` when the task is missing an
-  active assignee, source link, explicit completion criteria, or has blocking
-  open questions, so thin Granola-ingested follow-ups stay underspecified until
-  clarified.
+- MCP task writes now treat `readiness` and `execution_mode` as agent-authored
+  handoff hints instead of rejecting legal enum combinations based on task body
+  semantics. What's-next and fanout presentation should use the task body,
+  especially `## Open Questions`, to decide whether a task belongs in the main
+  actionable list or the input-needed section.
 
 ### Agent update actions
 

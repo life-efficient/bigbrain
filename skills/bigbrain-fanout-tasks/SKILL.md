@@ -48,16 +48,22 @@ Use the BigBrain MCP task endpoint as the source of truth:
    - For a named priority such as `p0`, `p1`, `p2`, or `p3`, pass `priority`.
    - For a named status, pass that `status`; otherwise use both default calls.
 4. Use the returned task title, body, priority, assignees, source, and slug to
-   create one prompt per task. Use the slug only for the final full-spec
-   reference inside each prompt.
-5. Treat `readiness` and `execution_mode` together. Generate autonomous
-   handoff prompts for tasks with `readiness: "ready"` and
+   create one prompt per task. The prompt itself must contain the task context
+   needed to begin; do not make the worker fetch or read the task page before
+   starting.
+5. Treat `readiness` and `execution_mode` as useful hints, then read the task
+   body. If `## Open Questions` contains substantive questions, keep the task
+   out of worker prompt blocks and list it as needing input, unless the task is
+   clearly an interactive guided session whose purpose is to answer those
+   questions with the user.
+6. Classify the remaining tasks with `readiness` and `execution_mode`. Generate
+   autonomous handoff prompts for tasks with `readiness: "ready"` and
    `execution_mode: "agent"`. Generate guided-session prompts for tasks with
    `readiness: "ready"` and `execution_mode: "interactive"`, instructing Codex
    to walk through the task with the user step by step. Keep
    `readiness: "underspecified"` and `execution_mode: "user"` tasks out of
    prompt blocks and list them separately as needing user action or input.
-6. Discover the Codex thread tools before concluding live fanout is unavailable:
+7. Discover the Codex thread tools before concluding live fanout is unavailable:
    - Call `tool_search` for `create_thread`.
    - Use `codex_app.list_projects` when available to choose an appropriate
      target for each worker thread.
@@ -80,7 +86,8 @@ self-contained, and suitable as the initial prompt for a fresh Codex thread:
 
 - Show ready `in_progress` tasks first, followed by ready `open` tasks.
 - Include only tasks whose MCP record has `readiness: "ready"` and
-  `execution_mode: "agent"` or `execution_mode: "interactive"`.
+  `execution_mode: "agent"` or `execution_mode: "interactive"` after the
+  open-questions override above.
 - Each ready task should be one concise copyable prompt block that leads with
   the actual task content, using plain language drawn from the task page rather
   than a slug-heavy reference style.
@@ -102,12 +109,12 @@ self-contained, and suitable as the initial prompt for a fresh Codex thread:
   this task.
 - Each prompt should stand on its own by pulling in the key task details, so a
   reader can tell what they are doing without needing to parse internal file
-  references first.
+  references first or find the task in the brain before beginning.
 - The reusable-instructions paragraph should be concise and use this wording:
   `Show me the result for approval once you finish the task. Once approved, update the brain, marking the task as done or in_progress, enriching related pages and their timelines, and noting the successor task if needed.`
-- The only task slug that should appear inside a ready prompt is the final
-  full-spec reference. Each prompt must end with:
-  `Do not start working until you have read the full task spec in the BigBrain tasks/<slug>.`
+- Include the source task slug only as a compact completion/update reference,
+  for example `Source task: tasks/<slug>`. Do not instruct the worker to read,
+  open, find, or fetch the task from the brain before starting.
 - Do not format ready tasks as a numbered list.
 - Do not include boilerplate about reading files, preserving changes,
   verification, or commits beyond the required completion handoff.
@@ -117,7 +124,7 @@ self-contained, and suitable as the initial prompt for a fresh Codex thread:
 - When the user explicitly asks for copyable prompts only, or live thread
   creation is unavailable, print the prompt blocks instead of thread IDs.
 - Show a `Needs user action before fanout` section after ready prompts for
-  `readiness: "underspecified"` and `execution_mode: "user"` tasks.
+  input-needed tasks and `execution_mode: "user"` tasks.
 - Keep the input-needed list succinct; name each task by human-readable title
   or action, not slug, and include the blocking question(s), preferring the task
   page's `## Open Questions` section when present.
@@ -141,8 +148,8 @@ Then provide the shortest useful set of copyable worker prompts.
   is not.
 - Do not create prompts for tasks with `status: "done"` or
   `status: "archived"` unless the user explicitly asks for those statuses.
-- Do not create prompts for tasks with `readiness: "underspecified"` or
-  `execution_mode: "user"`.
+- Do not create prompts for input-needed tasks or `execution_mode: "user"`
+  tasks.
 - Keep each prompt scoped to one task; split multi-task records into
   input-needed items rather than guessing hidden subtasks.
 - Do not claim fanout ran unless `codex_app.create_thread` succeeded for the

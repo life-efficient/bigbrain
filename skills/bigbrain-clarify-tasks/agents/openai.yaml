@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Clarify Tasks"
   short_description: "Clarify vague BigBrain tasks"
-  default_prompt: "Use BigBrain: Clarify Tasks to review BigBrain task pages through MCP tasks/list, defaulting to readiness=underspecified unless the user scopes otherwise. Use read/search/query for context, then group results into Clarify, Archive Candidates, and Merge Candidates. Do not mutate tasks unless the user explicitly asks to archive, merge, or update them. Promote a task to readiness=ready only when its body has clear completion criteria and no blocking open questions."
+  default_prompt: "Use BigBrain: Clarify Tasks to review BigBrain task pages through MCP tasks/list, defaulting to readiness=underspecified unless the user scopes otherwise. Use read/search/query for context, then group results into Clarify, Archive Candidates, and Merge Candidates. Do not mutate tasks unless the user explicitly asks to archive, merge, or update them. Set readiness=ready when the task appears specified enough to work, including guided interactive work; keep readiness=underspecified when useful work cannot begin without more context."

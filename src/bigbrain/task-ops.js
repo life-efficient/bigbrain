@@ -54,12 +54,6 @@ export async function createTaskPage({
   const normalizedExecutionMode = normalizeExecutionMode(executionMode);
   const sourceSlugs = normalizeSlugList(source);
   const normalizedBody = requireNonEmpty(body, 'body');
-  assertReadyTaskSpecification({
-    readiness: normalizedReadiness,
-    body: normalizedBody,
-    assigneeSlugs,
-    sourceSlugs,
-  });
   assertCompletionHandoff({
     nextStatus: normalizedStatus,
     previousStatus: null,
@@ -133,12 +127,6 @@ export async function updateTaskPage({
   }
 
   const nextBody = body === null || body === undefined ? parsed.compiledTruth : requireNonEmpty(body, 'body');
-  assertReadyTaskSpecification({
-    readiness: nextFrontmatter.readiness,
-    body: nextBody,
-    assigneeSlugs: nextFrontmatter.assignees,
-    sourceSlugs: nextFrontmatter.source || [],
-  });
   const now = new Date().toISOString().slice(0, 10);
   const nextTimeline = appendTimelineEntry(parsed.timeline, timelineEntry || 'Task updated.', now);
   const markdown = renderTaskMarkdown({
@@ -289,53 +277,6 @@ function normalizeExecutionMode(value) {
     throw new Error(`Invalid task execution_mode: ${value}. Expected one of ${TASK_EXECUTION_MODES.join(', ')}.`);
   }
   return normalized;
-}
-
-function assertReadyTaskSpecification({ readiness, body, assigneeSlugs = [], sourceSlugs = [] } = {}) {
-  if (readiness !== 'ready') return;
-  const issues = [];
-  if (!assigneeSlugs.length) issues.push('at least one active assignee');
-  if (!sourceSlugs.length) issues.push('at least one source link');
-  if (!hasCompletionCriteria(body)) issues.push('explicit completion criteria');
-  if (hasBlockingOpenQuestions(body)) issues.push('no blocking open questions');
-  if (issues.length) {
-    throw new Error(
-      `readiness: ready requires a fully specified task: ${issues.join(', ')}. `
-      + 'Use readiness: underspecified until the missing details are captured.',
-    );
-  }
-}
-
-function hasCompletionCriteria(body) {
-  return /^##\s+(What Counts as Completed|Acceptance Criteria|Done When)\b/im.test(String(body || ''));
-}
-
-function hasBlockingOpenQuestions(body) {
-  const section = extractMarkdownSection(body, 'Open Questions');
-  if (section === null) return false;
-  const content = section
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/^\s*[-*]\s*/gm, '')
-    .trim();
-  if (!content) return false;
-  return !/^(none|none blocking\b.*|no blocking open questions\b.*|no open questions|n\/a|not applicable)\.?$/i.test(content);
-}
-
-function extractMarkdownSection(body, heading) {
-  const lines = String(body || '').split(/\r?\n/);
-  const headingPattern = new RegExp(`^##\\s+${escapeRegExp(heading)}\\b`, 'i');
-  const start = lines.findIndex((line) => headingPattern.test(line));
-  if (start < 0) return null;
-  const collected = [];
-  for (const line of lines.slice(start + 1)) {
-    if (/^##\s+/.test(line)) break;
-    collected.push(line);
-  }
-  return collected.join('\n');
-}
-
-function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 function assertCompletionHandoff({

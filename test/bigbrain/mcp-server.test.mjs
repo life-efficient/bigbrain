@@ -949,7 +949,7 @@ Use the linked GFEAI 2026 initiative as the source context.
 
 ## Open Questions
 
-None blocking. Confirm the final send wording during the guided review session.`,
+What final send wording should be used during the guided review session?`,
         readiness: 'ready',
         execution_mode: 'interactive',
         timeline_entry: 'Marked as ready for guided interactive execution in MCP task test.',
@@ -982,26 +982,26 @@ None blocking. Confirm the final send wording during the guided review session.`
     }, token);
     assert.deepEqual(agentTasksAfterModeChange.result.structuredContent, []);
 
-    const rejectedThinReady = await rpc(running.url, 'tools/call', {
+    const thinReady = await rpc(running.url, 'tools/call', {
       name: 'tasks/create',
       arguments: {
         title: 'Granola thin follow-up',
         body: 'Follow up on the meeting suggestion.',
         assignees: ['me'],
         readiness: 'ready',
-        timeline_entry: 'Attempted to create a thin ready task from meeting ingest.',
+        execution_mode: 'interactive',
+        timeline_entry: 'Created thin ready task from meeting ingest; presentation layers decide whether it needs input.',
       },
     }, token);
-    assert.equal(rejectedThinReady.result, undefined);
-    assert.match(rejectedThinReady.error.message, /readiness: ready requires a fully specified task/);
-    assert.match(rejectedThinReady.error.message, /source link/);
-    assert.match(rejectedThinReady.error.message, /completion criteria/);
+    assert.equal(thinReady.error, undefined, thinReady.error?.message);
+    assert.equal(thinReady.result.structuredContent.readiness, 'ready');
+    assert.equal(thinReady.result.structuredContent.execution_mode, 'interactive');
 
     const allTasks = await rpc(running.url, 'tools/call', {
       name: 'tasks/list',
       arguments: {},
     }, token);
-    assert.deepEqual(allTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
+    assert.deepEqual(allTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update', 'tasks/granola-thin-follow-up']);
 
     const rejectedCompletion = await rpc(running.url, 'tools/call', {
       name: 'tasks/update',

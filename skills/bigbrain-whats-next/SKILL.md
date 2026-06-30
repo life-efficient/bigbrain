@@ -48,7 +48,12 @@ Use the BigBrain MCP task endpoint as the source of truth:
 5. Prefer `in_progress` tasks first, then high-priority `open` tasks that are
    clearly scoped and assigned to the requester when the request implies
    personal focus. Keep `waiting` tasks separate unless the user asks for them.
-6. Treat `readiness` and `execution_mode` together:
+6. Treat `readiness` and `execution_mode` as useful hints, then read the task
+   body. If `## Open Questions` contains substantive questions, put the task in
+   the input-needed section even when frontmatter says `readiness: "ready"`,
+   unless the task is clearly an interactive guided session whose purpose is to
+   answer those questions with the user.
+7. Classify the remaining tasks with `readiness` and `execution_mode`:
    - `readiness: "ready"` plus `execution_mode: "agent"` means the task can
      appear in the normal next-work numbered list and can be fanned out as an
      autonomous prompt.
@@ -72,7 +77,8 @@ Default output is capped at 8 numbered items. Keep the snapshot short:
 
 - Show a `What's Next` section first.
 - This section should contain only tasks with `readiness: "ready"` and
-  `execution_mode: "agent"` or `execution_mode: "interactive"`.
+  `execution_mode: "agent"` or `execution_mode: "interactive"` after the open
+  questions override above.
 - Format ready tasks as a numbered list, not bullets.
 - Each numbered item should lead with a human-readable task title or action, not the
   task slug. Include priority only when it helps ranking or urgency.
@@ -87,19 +93,20 @@ Default output is capped at 8 numbered items. Keep the snapshot short:
   real-world user action required.
 - If there are no matching user-only tasks, omit this heading entirely and do
   not mention that no such tasks were found.
-- Only when there are matching `readiness: "underspecified"` tasks, append
+- Only when there are matching `readiness: "underspecified"` tasks, or tasks
+  whose body contains substantive open questions, append
   exactly:
   `I also need your input on a few tasks:`
-- Under that line, show a numbered list of underspecified tasks. For each task,
+- Under that line, show a numbered list of input-needed tasks. For each task,
   include indented bullet questions or the missing context required.
 - If there are no matching input-needed tasks, omit the input-needed heading
   entirely and do not mention that no such tasks were found.
-- Name underspecified tasks by human-readable title or action, not slug, unless
+- Name input-needed tasks by human-readable title or action, not slug, unless
   the user explicitly asks for paths/slugs.
 - Prefer questions from the task page's `## Open Questions` section. If that
   section is absent or incomplete, add a small number of inferred blocking
   questions on the spot.
-- Do not include underspecified or user-only tasks in the main `What's Next`
+- Do not include input-needed or user-only tasks in the main `What's Next`
   numbered list.
 - End by asking whether the user wants Codex threads launched with handoff
   prompts for the ready agent-executable or interactive tasks.

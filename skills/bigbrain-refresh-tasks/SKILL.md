@@ -70,11 +70,10 @@ for mutation in the current turn after seeing the recommendations.
      or decision evidence is missing
    - reopened because the source evidence contradicts a completed state
    - reprioritized because the brain shows urgency or risk changed
-   - marked `readiness: "underspecified"` when open questions remain or the
-     body lacks context, ownership, next action, or a clear completion
-     definition
-   - marked `readiness: "ready"` only when the task has enough context,
-     completion criteria, and no blocking open questions
+   - marked `readiness: "underspecified"` when useful work cannot begin without
+     more context
+   - marked `readiness: "ready"` when the task appears specified enough to work,
+     even if the work is an interactive review or decision session
    - marked `execution_mode: "agent"` only when Codex can complete the task
      autonomously with current context, tools, and files
    - marked `execution_mode: "interactive"` when Codex can advance the task but
