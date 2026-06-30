@@ -3,7 +3,7 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining local installs and hosted brains.
 
-## [Unreleased]
+## [0.8.0] - 2026-07-01
 
 ### Added
 
@@ -13,9 +13,9 @@ actions` section for agents maintaining local installs and hosted brains.
   guided step-by-step prompts for `interactive` tasks, while `user` tasks stay
   surfaced as user action.
 - What's Next now treats ready `interactive` tasks as actionable next work,
-  while ready `user` tasks get a separate "There are a few things that I can't
-  do for you:" section and underspecified tasks remain under the input-needed
-  section.
+  while ready `user` tasks get a separate "There are a few things I can't
+  physically help with:" section and underspecified tasks remain under the
+  input-needed section.
 
 ### Fixed
 
@@ -23,6 +23,44 @@ actions` section for agents maintaining local installs and hosted brains.
   active assignee, source link, explicit completion criteria, or has blocking
   open questions, so thin Granola-ingested follow-ups stay underspecified until
   clarified.
+
+### Agent update actions
+
+- Read this section before pulling or deploying unreleased changes.
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install`, then `npm link`.
+- Restart the local BigBrain MCP service if installed:
+  `launchctl kickstart -k gui/$(id -u)/local.bigbrain.mcp`.
+- Verify the live MCP `tasks/create`, `tasks/update`, and `tasks/list` schemas
+  include `execution_mode` with enum values `agent`, `user`, and
+  `interactive`.
+- Run `bigbrain schema` and confirm the task page shape documents
+  `execution_mode`.
+- Refresh bundled BigBrain skills from `skills/`, especially
+  `bigbrain-whats-next`, `bigbrain-fanout-tasks`, `bigbrain-refresh-tasks`,
+  `bigbrain-clarify-tasks`, and `bigbrain-roadmap-tasks`.
+- For hosted brains that run BigBrain from this repo, redeploy or restart the
+  hosted wrapper after pulling so the MCP schema and bundled task skills are
+  active.
+- Existing task pages without `execution_mode` remain backward-compatible and
+  default to `agent` when listed, but agents should classify
+  `execution_mode` case by case on new or materially updated tasks:
+  - `agent`: Codex can complete the task autonomously with current context,
+    tools, and files.
+  - `interactive`: Codex can advance the task but needs the user's judgement,
+    review, preferences, or decisions.
+  - `user`: the task requires a real-world action Codex cannot meaningfully
+    perform.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+- Local-data compatibility audit: `execution_mode` is a backward-compatible
+  frontmatter addition; missing persisted values default to `agent` in task
+  list/dashboard readers, and existing `status`, `readiness`, `priority`,
+  `assignees`, `source`, and task path values are not renamed or narrowed.
 
 ## [0.7.0] - 2026-07-01
 
