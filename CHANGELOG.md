@@ -12,6 +12,10 @@ actions` section for agents maintaining local installs and hosted brains.
   and task skills. Fanout creates autonomous prompts for `agent` tasks and
   guided step-by-step prompts for `interactive` tasks, while `user` tasks stay
   surfaced as user action.
+- What's Next now treats ready `interactive` tasks as actionable next work,
+  while ready `user` tasks get a separate "There are a few things that I can't
+  do for you:" section and underspecified tasks remain under the input-needed
+  section.
 
 ### Fixed
 

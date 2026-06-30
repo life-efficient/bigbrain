@@ -61,7 +61,13 @@ assignable task pages under `tasks/*.md`.
 5. Create task pages with `tasks/create` when each task has:
    - a clear title
    - status, priority, and source links
-   - execution_mode set to `agent`, `user`, or `interactive`
+   - execution_mode set case by case:
+     - `agent` only when Codex can complete the task autonomously with current
+       context, tools, and files
+     - `interactive` when Codex can advance the task but needs the user's
+       judgement, preferences, review, or decisions
+     - `user` only when the task requires a real-world action Codex cannot
+       meaningfully perform
    - one or more active member assignees
    - a body that explains why the task exists and what good completion means
 6. Use `tasks/update` instead of creating a new task when an existing page

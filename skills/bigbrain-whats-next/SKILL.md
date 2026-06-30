@@ -50,13 +50,15 @@ Use the BigBrain MCP task endpoint as the source of truth:
    personal focus. Keep `waiting` tasks separate unless the user asks for them.
 6. Treat `readiness` and `execution_mode` together:
    - `readiness: "ready"` plus `execution_mode: "agent"` means the task can
-     appear in the normal agent-executable next-work numbered list.
+     appear in the normal next-work numbered list and can be fanned out as an
+     autonomous prompt.
    - `execution_mode: "user"` means the user must personally do the work, even
-     if the task is otherwise ready.
+     if the task is otherwise ready. Keep these in a separate user-action
+     section.
    - `execution_mode: "interactive"` means an agent can help only by walking
-     the user through input, review, or decisions. Keep these in the input
-     section of the snapshot, but they can still be fanned out as guided
-     step-by-step prompts.
+     the user through input, review, or decisions. These still belong in the
+     main next-work numbered list and can be fanned out as guided step-by-step
+     prompts.
    - `readiness: "underspecified"` means the task needs user input before it
      should be fanned out or treated as an executable handoff.
 
@@ -70,7 +72,7 @@ Default output is capped at 8 numbered items. Keep the snapshot short:
 
 - Show a `What's Next` section first.
 - This section should contain only tasks with `readiness: "ready"` and
-  `execution_mode: "agent"`.
+  `execution_mode: "agent"` or `execution_mode: "interactive"`.
 - Format ready tasks as a numbered list, not bullets.
 - Each numbered item should lead with a human-readable task title or action, not the
   task slug. Include priority only when it helps ranking or urgency.
@@ -79,11 +81,17 @@ Default output is capped at 8 numbered items. Keep the snapshot short:
 - Do not format the numbered list as copyable prompt blocks.
 - Do not include boilerplate about reading files, preserving changes,
   verification, or commits.
-- Only when there are matching input-needed tasks, append exactly:
+- Only when there are matching `execution_mode: "user"` tasks, append exactly:
+  `There are a few things that I can't do for you:`
+- Under that line, show a numbered list of user-only tasks with the concrete
+  real-world user action required.
+- If there are no matching user-only tasks, omit this heading entirely and do
+  not mention that no such tasks were found.
+- Only when there are matching `readiness: "underspecified"` tasks, append
+  exactly:
   `I also need your input on a few tasks:`
-- Under that line, show a numbered list of `readiness: "underspecified"`,
-  `execution_mode: "user"`, and `execution_mode: "interactive"` tasks. For
-  each task, include indented bullet questions or the user action required.
+- Under that line, show a numbered list of underspecified tasks. For each task,
+  include indented bullet questions or the missing context required.
 - If there are no matching input-needed tasks, omit the input-needed heading
   entirely and do not mention that no such tasks were found.
 - Name underspecified tasks by human-readable title or action, not slug, unless
@@ -91,8 +99,8 @@ Default output is capped at 8 numbered items. Keep the snapshot short:
 - Prefer questions from the task page's `## Open Questions` section. If that
   section is absent or incomplete, add a small number of inferred blocking
   questions on the spot.
-- Do not include underspecified, user-only, or interactive tasks in the main
-  `What's Next` numbered list.
+- Do not include underspecified or user-only tasks in the main `What's Next`
+  numbered list.
 - End by asking whether the user wants handoff prompts generated for the
   ready agent-executable or interactive tasks.
 

@@ -186,11 +186,14 @@ context, owner, next action, or completion criteria are missing, and use
 `ready` only when enough context and acceptance criteria exist for a person or
 agent to execute without another clarification round. Status and readiness are
 independent: a task can be `open` but `underspecified`, or `in_progress` and
-`ready`. Valid execution modes are `agent`, `user`, and `interactive`. Use
-`agent` when an autonomous agent can execute the task, `user` when the user must
-personally do it, and `interactive` when an agent needs the user's input to walk
-through review, decisions, or data entry. Valid priorities are `p0`, `p1`,
-`p2`, and `p3`. `due` is optional and
+`ready`. Valid execution modes are `agent`, `interactive`, and `user`. Use
+`agent` only when Codex or another agent can complete the task autonomously with
+the available context, tools, and files. Use `interactive` when Codex can
+advance the task but needs the user's judgement, preferences, review, or
+decisions along the way. Use `user` only when the task requires a real-world
+action Codex cannot meaningfully perform, such as sending a personal WhatsApp,
+conducting a meeting, signing a physical document, or obtaining approval. Valid
+priorities are `p0`, `p1`, `p2`, and `p3`. `due` is optional and
 must be `YYYY-MM-DD` when present. Keep the current task context above the
 separator, structured as Summary, What Counts as Completed, Body Context, Open
 Questions, and Anti-Patterns, and append evidence or state changes under

@@ -78,10 +78,15 @@ reconstruct old `ops/tasks.md` task lists.
    - set `readiness: "ready"` only when there are no blocking open questions
    - keep or set `readiness: "underspecified"` when the task still needs user
      input before fanout
-   - set `execution_mode: "agent"` for autonomous agent-executable work,
-     `execution_mode: "user"` for work the user must personally do, or
-     `execution_mode: "interactive"` when the agent should walk the user
-     through input, review, or decisions
+   - set `execution_mode: "agent"` only when Codex can complete the task
+     autonomously with current context, tools, and files
+   - set `execution_mode: "interactive"` when Codex can advance the task but
+     needs the user's judgement, preferences, review, or decisions
+   - set `execution_mode: "user"` only when the task requires a real-world
+     action Codex cannot meaningfully perform
+   - when uncertain between `agent` and `interactive`, prefer `interactive`;
+     when uncertain between `interactive` and `user`, use `interactive` if
+     Codex can still structure or guide the work
    - add or correct assignees only when they are active members
    - add source links only when grounded in retrieved brain pages or the user's
      answer

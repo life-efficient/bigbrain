@@ -75,12 +75,17 @@ for mutation in the current turn after seeing the recommendations.
      definition
    - marked `readiness: "ready"` only when the task has enough context,
      completion criteria, and no blocking open questions
-   - marked `execution_mode: "agent"` when an autonomous agent can execute the
-     task
-   - marked `execution_mode: "user"` when the user must personally do the work,
-     such as asking someone for something
-   - marked `execution_mode: "interactive"` when an agent needs the user's
-     input to walk through review, decisions, or data entry
+   - marked `execution_mode: "agent"` only when Codex can complete the task
+     autonomously with current context, tools, and files
+   - marked `execution_mode: "interactive"` when Codex can advance the task but
+     needs the user's judgement, preferences, review, or decisions
+   - marked `execution_mode: "user"` only when the task requires a real-world
+     action Codex cannot meaningfully perform, such as sending a personal
+     WhatsApp, conducting a meeting, signing a physical document, or obtaining
+     approval
+   - when uncertain between `agent` and `interactive`, prefer `interactive`;
+     when uncertain between `interactive` and `user`, use `interactive` if
+     Codex can still structure or guide the work
    - reassigned only when the new assignee is an active member and the evidence
      supports the ownership change
    - updated with better source links or body context
