@@ -671,12 +671,12 @@ function toolDefinitions() {
     },
     {
       name: 'tasks/create',
-      description: 'Create one member-assigned task page under tasks/. Assignees must be active members; assignees may include me. Set readiness to underspecified or ready. If creating a done or archived task, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
+      description: 'Create one member-assigned task page under tasks/. Assignees must be active members; assignees may include me. Use readiness=ready only when the task has an assignee, source link, completion criteria, and no blocking open questions. If creating a done or archived task, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
       inputSchema: taskWriteSchema({ requireBody: true }),
     },
     {
       name: 'tasks/update',
-      description: 'Update one task page under tasks/, including status, readiness, priority, assignees, source, body, and timeline. When setting status to done or archived, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
+      description: 'Update one task page under tasks/, including status, readiness, priority, assignees, source, body, and timeline. Use readiness=ready only when the task has an assignee, source link, completion criteria, and no blocking open questions. When setting status to done or archived, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
       inputSchema: taskWriteSchema({ update: true }),
     },
     {
@@ -1000,7 +1000,7 @@ function taskWriteSchema({ requireBody = false, update = false } = {}) {
       body: { type: 'string' },
       status: { type: 'string', enum: ['open', 'in_progress', 'waiting', 'done', 'archived'] },
       priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
-      readiness: { type: 'string', enum: ['underspecified', 'ready'], description: 'Whether this task is prompt-ready. Use underspecified when open questions remain.' },
+      readiness: { type: 'string', enum: ['underspecified', 'ready'], description: 'Whether this task is prompt-ready. Use ready only when the task has an assignee, source link, completion criteria, and no blocking open questions; otherwise use underspecified.' },
       assignees: { type: 'array', items: { type: 'string' }, description: 'Active member person slugs, or me for the authenticated member.' },
       source: { type: 'array', items: { type: 'string' }, description: 'Related brain slugs such as meetings/example or initiatives/example.' },
       timeline_entry: { type: 'string', description: 'Required when completing or archiving a task. Use "Next task: tasks/<slug>" or "No successor task needed: <reason>".' },

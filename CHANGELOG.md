@@ -5,6 +5,13 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## [Unreleased]
 
+### Fixed
+
+- MCP task writes now reject `readiness: ready` when the task is missing an
+  active assignee, source link, explicit completion criteria, or has blocking
+  open questions, so thin Granola-ingested follow-ups stay underspecified until
+  clarified.
+
 ## [0.7.0] - 2026-07-01
 
 ### Changed

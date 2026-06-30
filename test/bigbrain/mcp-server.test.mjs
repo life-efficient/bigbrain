@@ -857,7 +857,23 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
       name: 'tasks/create',
       arguments: {
         title: 'Draft ICAIRE update',
-        body: 'Prepare the weekly ICAIRE progress update.',
+        body: `# Draft ICAIRE update
+
+## Summary
+
+Prepare the weekly ICAIRE progress update.
+
+## What Counts as Completed
+
+The update is drafted, checked against the linked initiative, and ready to send.
+
+## Body Context
+
+Use the linked GFEAI 2026 initiative as the source context.
+
+## Open Questions
+
+None.`,
         assignees: ['me'],
         priority: 'p1',
         readiness: 'ready',
@@ -902,6 +918,21 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
       arguments: { readiness: 'ready' },
     }, token);
     assert.deepEqual(readyTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
+
+    const rejectedThinReady = await rpc(running.url, 'tools/call', {
+      name: 'tasks/create',
+      arguments: {
+        title: 'Granola thin follow-up',
+        body: 'Follow up on the meeting suggestion.',
+        assignees: ['me'],
+        readiness: 'ready',
+        timeline_entry: 'Attempted to create a thin ready task from meeting ingest.',
+      },
+    }, token);
+    assert.equal(rejectedThinReady.result, undefined);
+    assert.match(rejectedThinReady.error.message, /readiness: ready requires a fully specified task/);
+    assert.match(rejectedThinReady.error.message, /source link/);
+    assert.match(rejectedThinReady.error.message, /completion criteria/);
 
     const allTasks = await rpc(running.url, 'tools/call', {
       name: 'tasks/list',
@@ -979,6 +1010,7 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
       arguments: {
         path: 'tasks/clarify-follow-up',
         readiness: 'ready',
+        source: ['initiatives/gfeai-2026'],
         body: `# Clarify follow-up
 
 ## Summary
