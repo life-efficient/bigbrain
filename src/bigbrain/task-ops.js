@@ -318,7 +318,7 @@ function hasBlockingOpenQuestions(body) {
     .replace(/^\s*[-*]\s*/gm, '')
     .trim();
   if (!content) return false;
-  return !/^(none|no open questions|n\/a|not applicable)\.?$/i.test(content);
+  return !/^(none|none blocking\b.*|no blocking open questions\b.*|no open questions|n\/a|not applicable)\.?$/i.test(content);
 }
 
 function extractMarkdownSection(body, heading) {

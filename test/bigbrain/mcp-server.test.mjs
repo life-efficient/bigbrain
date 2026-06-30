@@ -929,6 +929,42 @@ None.`,
     }, token);
     assert.deepEqual(agentTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
 
+    const interactiveMode = await rpc(running.url, 'tools/call', {
+      name: 'tasks/update',
+      arguments: {
+        path: 'tasks/draft-icaire-update',
+        body: `# Draft ICAIRE update
+
+## Summary
+
+Prepare the weekly ICAIRE progress update.
+
+## What Counts as Completed
+
+The update is drafted, checked against the linked initiative, and ready to send.
+
+## Body Context
+
+Use the linked GFEAI 2026 initiative as the source context.
+
+## Open Questions
+
+None blocking. Confirm the final send wording during the guided review session.`,
+        readiness: 'ready',
+        execution_mode: 'interactive',
+        timeline_entry: 'Marked as ready for guided interactive execution in MCP task test.',
+      },
+    }, token);
+    assert.equal(interactiveMode.error, undefined, interactiveMode.error?.message);
+    assert.equal(interactiveMode.result.structuredContent.readiness, 'ready');
+    assert.equal(interactiveMode.result.structuredContent.execution_mode, 'interactive');
+
+    const interactiveTasks = await rpc(running.url, 'tools/call', {
+      name: 'tasks/list',
+      arguments: { readiness: 'ready', execution_mode: 'interactive' },
+    }, token);
+    assert.deepEqual(interactiveTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
+
     const userMode = await rpc(running.url, 'tools/call', {
       name: 'tasks/update',
       arguments: {
