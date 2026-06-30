@@ -34,28 +34,40 @@ class DashboardErrorBoundary extends React.Component {
 
   render() {
     if (this.state.error) {
-      return (
-        <main className="fallback-main">
-          <section className="card loading-card error-card">
-            <h1>Dashboard unavailable</h1>
-            <p>The dashboard hit a frontend error.</p>
-            <div className="error-actions">
-              <button
-                type="button"
-                className="graph-button"
-                onClick={() => window.location.reload()}
-              >
-                Reload dashboard
-              </button>
-            </div>
-            <pre className="error-details">{String(this.state.error?.stack || this.state.error)}</pre>
-          </section>
-        </main>
-      );
+      return <DashboardFatalError error={this.state.error} />;
     }
 
     return this.props.children;
   }
+}
+
+function DashboardFatalError({ error }) {
+  return (
+    <main className="fallback-main">
+      <section className="card loading-card error-card">
+        <h1>Dashboard unavailable</h1>
+        <p>The dashboard hit a frontend error.</p>
+        <div className="error-actions">
+          <button
+            type="button"
+            className="graph-button"
+            onClick={() => window.location.reload()}
+          >
+            Reload dashboard
+          </button>
+        </div>
+        <pre className="error-details">{formatErrorDetails(error)}</pre>
+      </section>
+    </main>
+  );
+}
+
+function formatErrorDetails(error) {
+  if (error instanceof Error) return String(error.stack || error.message);
+  if (error && typeof error === 'object' && 'reason' in error) {
+    return formatErrorDetails(error.reason);
+  }
+  return String(error);
 }
 
 function DashboardApp() {
@@ -1887,8 +1899,27 @@ function stripSourceReferences(value) {
 }
 
 const root = createRoot(document.getElementById('root'));
+installGlobalErrorHandlers(root);
 root.render(
   <DashboardErrorBoundary>
     <RootApp />
   </DashboardErrorBoundary>,
 );
+
+function installGlobalErrorHandlers(rootInstance) {
+  if (typeof window === 'undefined') return;
+  let fatalRendered = false;
+  const renderFatal = (label, error) => {
+    console.error(label, error);
+    if (fatalRendered) return;
+    fatalRendered = true;
+    rootInstance.render(<DashboardFatalError error={error} />);
+  };
+  window.addEventListener('error', (event) => {
+    renderFatal('Dashboard uncaught error', event.error || event.message);
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    event.preventDefault();
+    renderFatal('Dashboard unhandled promise rejection', event.reason);
+  });
+}
