@@ -5,7 +5,7 @@ description: |
   Provide a concise snapshot of what should be done next from in-progress and
   open BigBrain task pages exposed through the BigBrain MCP task tools. Use when the user
   asks what's next, wants a short task snapshot, or wants to decide what to
-  work on before optionally fanning out full handoff prompts.
+  work on before optionally fanning out Codex threads with full handoff prompts.
 triggers:
   - "what's next"
   - "what is next"
@@ -24,9 +24,9 @@ Use this skill when the user wants a short, decision-ready snapshot of active
 and ready BigBrain task pages. BigBrain tasks are page-backed records under
 `tasks/*.md`; do not read or reconstruct old `ops/tasks.md` task lists.
 
-This skill is related to `bigbrain-fanout-tasks`, but it does not produce
-copyable handoff prompts by default. It summarizes the next work first, then
-offers to fan out prompts if the user wants to start the work.
+This skill is related to `bigbrain-fanout-tasks`, but it does not create
+handoff threads by default. It summarizes the next work first, then offers to
+fan out Codex threads if the user wants to start the work.
 
 ## Workflow
 
@@ -101,12 +101,12 @@ Default output is capped at 8 numbered items. Keep the snapshot short:
   questions on the spot.
 - Do not include underspecified or user-only tasks in the main `What's Next`
   numbered list.
-- End by asking whether the user wants handoff prompts generated for the
-  ready agent-executable or interactive tasks.
+- End by asking whether the user wants Codex threads launched with handoff
+  prompts for the ready agent-executable or interactive tasks.
 
-If the user agrees to receive prompts, immediately use the BigBrain: Fanout
-Tasks workflow on the same task scope and filters. Do not ask the user to repeat
-the scope.
+If the user agrees to launch threads or receive prompts, immediately use the
+BigBrain: Fanout Tasks workflow on the same task scope and filters. Do not ask
+the user to repeat the scope.
 
 If no actionable BigBrain task pages match the requested filters, say that
 directly and offer to run BigBrain: Roadmap Tasks only if the user wants new

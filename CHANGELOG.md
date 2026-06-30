@@ -3,6 +3,34 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining local installs and hosted brains.
 
+## [0.8.1] - 2026-06-30
+
+### Changed
+
+- `bigbrain-fanout-tasks` now launches separate Codex threads with
+  self-contained task handoff prompts by default when `codex_app.create_thread`
+  is available, instead of only returning copyable prompt blocks.
+- `bigbrain-fanout-tasks` keeps the previous worker prompt structure as the
+  prompt passed into each new thread, and prepends interactive tasks with:
+  `I need to get this done, and I want you to walk me through it step by step.`
+- `bigbrain-whats-next` now offers to launch Codex threads with handoff prompts
+  when the user wants to fan out ready `agent` or `interactive` tasks.
+
+### Agent update actions
+
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install`, then `npm link`.
+- Refresh bundled BigBrain skills from `skills/`, especially
+  `bigbrain-whats-next` and `bigbrain-fanout-tasks`.
+- Verify `bigbrain-fanout-tasks` discovers `codex_app.create_thread` before
+  falling back to copyable prompts.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+
 ## [0.8.0] - 2026-07-01
 
 ### Added
