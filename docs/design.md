@@ -514,7 +514,7 @@ Automations should be narrow, explicit, idempotent, and inspectable.
     `execution_mode: agent` or `execution_mode: interactive` in the main
     actionable list
   - `execution_mode: user` tasks should be surfaced under `There are a few
-    things that I can't do for you:` because they require real-world user
+    things I can't physically help with:` because they require real-world user
     action
   - `readiness: underspecified` tasks should be surfaced under `I also need
     your input on a few tasks:` because they need missing context before
