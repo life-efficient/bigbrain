@@ -61,11 +61,12 @@ assignable task pages under `tasks/*.md`.
 5. Create task pages with `tasks/create` when each task has:
    - a clear title
    - status, priority, and source links
+   - execution_mode set to `agent`, `user`, or `interactive`
    - one or more active member assignees
    - a body that explains why the task exists and what good completion means
 6. Use `tasks/update` instead of creating a new task when an existing page
-   already captures the work but needs status, priority, source, body, or
-   assignee updates.
+   already captures the work but needs status, priority, execution_mode,
+   source, body, or assignee updates.
 7. When a roadmap pass closes a task, create or identify the next concrete task
    first unless no successor is needed, then include the completion handoff in
    `tasks/update`.

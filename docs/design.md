@@ -495,8 +495,8 @@ Automations should be narrow, explicit, idempotent, and inspectable.
 
 - page-backed task maintenance
   - tasks live as individual `tasks/*.md` pages
-  - task frontmatter uses `type: task`, `status`, `readiness`, `priority`,
-    `assignees`, `source`, and optional `due`
+  - task frontmatter uses `type: task`, `status`, `readiness`,
+    `execution_mode`, `priority`, `assignees`, `source`, and optional `due`
   - valid statuses are `open`, `in_progress`, `waiting`, `done`, and
     `archived`
   - `open` means known work not actively being worked; `in_progress` means
@@ -506,9 +506,14 @@ Automations should be narrow, explicit, idempotent, and inspectable.
   - readiness is independent from status: `underspecified` means context,
     owner, next action, or completion criteria are missing; `ready` means the
     task can be handed off without another clarification round
+  - valid execution modes are `agent`, `user`, and `interactive`; use `agent`
+    for autonomous agent-executable work, `user` for work the user must
+    personally do, and `interactive` for agent-guided review or input sessions
   - valid priorities are `p0`, `p1`, `p2`, and `p3`
-  - fanout should use `readiness: ready`; `readiness: underspecified` tasks
-    should be surfaced as questions for the user
+  - fanout should use tasks with `readiness: ready` and
+    `execution_mode: agent`; tasks with `readiness: underspecified`,
+    `execution_mode: user`, or `execution_mode: interactive` should be
+    surfaced separately for the user
   - assignees are active members, not arbitrary `people/*` pages
   - use MCP `tasks/list`, `tasks/create`, and `tasks/update` for agent task
     reads and writes

@@ -35,8 +35,9 @@ manual `up` commands. The helper scripts detect either command.
 
 For a real brain, set `BIGBRAIN_MARKDOWN_REPO=/absolute/path/to/brain` in
 `.env`. Task records should live as individual markdown pages under `tasks/`
-with `type: task`, `status`, `priority`, active-member `assignees`, `source`,
-and optional `due` frontmatter. The template config expects the brain root to
+with `type: task`, `status`, `readiness`, `execution_mode`, `priority`,
+active-member `assignees`, `source`, and optional `due` frontmatter. The
+template config expects the brain root to
 be `/brain` inside the container.
 
 The MCP service listens on `BIGBRAIN_SERVICE_PORT` and exposes:

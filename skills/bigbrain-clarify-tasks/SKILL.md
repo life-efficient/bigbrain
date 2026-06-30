@@ -78,6 +78,10 @@ reconstruct old `ops/tasks.md` task lists.
    - set `readiness: "ready"` only when there are no blocking open questions
    - keep or set `readiness: "underspecified"` when the task still needs user
      input before fanout
+   - set `execution_mode: "agent"` for autonomous agent-executable work,
+     `execution_mode: "user"` for work the user must personally do, or
+     `execution_mode: "interactive"` when the agent should walk the user
+     through input, review, or decisions
    - add or correct assignees only when they are active members
    - add source links only when grounded in retrieved brain pages or the user's
      answer

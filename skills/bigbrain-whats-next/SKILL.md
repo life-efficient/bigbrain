@@ -48,9 +48,13 @@ Use the BigBrain MCP task endpoint as the source of truth:
 5. Prefer `in_progress` tasks first, then high-priority `open` tasks that are
    clearly scoped and assigned to the requester when the request implies
    personal focus. Keep `waiting` tasks separate unless the user asks for them.
-6. Treat `readiness` as authoritative:
-   - `readiness: "ready"` means the task can appear in the normal next-work
-     numbered list.
+6. Treat `readiness` and `execution_mode` together:
+   - `readiness: "ready"` plus `execution_mode: "agent"` means the task can
+     appear in the normal agent-executable next-work numbered list.
+   - `execution_mode: "user"` means the user must personally do the work, even
+     if the task is otherwise ready.
+   - `execution_mode: "interactive"` means an agent can help only by walking
+     the user through input, review, or decisions.
    - `readiness: "underspecified"` means the task needs user input before it
      should be fanned out or treated as an executable handoff.
 
@@ -63,7 +67,8 @@ is next.
 Default output is capped at 8 numbered items. Keep the snapshot short:
 
 - Show a `What's Next` section first.
-- This section should contain only `readiness: "ready"` tasks.
+- This section should contain only tasks with `readiness: "ready"` and
+  `execution_mode: "agent"`.
 - Format ready tasks as a numbered list, not bullets.
 - Each numbered item should lead with a human-readable task title or action, not the
   task slug. Include priority only when it helps ranking or urgency.
@@ -74,14 +79,16 @@ Default output is capped at 8 numbered items. Keep the snapshot short:
   verification, or commits.
 - After the existing bullet output, append exactly:
   `I also need your input on a few tasks:`
-- Under that line, show a numbered list of `readiness: "underspecified"` tasks.
-  For each task, include indented bullet questions.
+- Under that line, show a numbered list of `readiness: "underspecified"`,
+  `execution_mode: "user"`, and `execution_mode: "interactive"` tasks. For
+  each task, include indented bullet questions or the user action required.
 - Name underspecified tasks by human-readable title or action, not slug, unless
   the user explicitly asks for paths/slugs.
 - Prefer questions from the task page's `## Open Questions` section. If that
   section is absent or incomplete, add a small number of inferred blocking
   questions on the spot.
-- Do not include underspecified tasks in the main `What's Next` numbered list.
+- Do not include underspecified, user-only, or interactive tasks in the main
+  `What's Next` numbered list.
 - End by asking whether the user wants handoff prompts generated for the
   ready tasks.
 

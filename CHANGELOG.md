@@ -5,6 +5,13 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## [Unreleased]
 
+### Added
+
+- Task pages now support `execution_mode: agent|user|interactive` frontmatter
+  across task ops, MCP schemas, dashboard payloads, filing rules, schema docs,
+  and task skills, so agent-executable work can be separated from user-only and
+  interactive tasks.
+
 ### Fixed
 
 - MCP task writes now reject `readiness: ready` when the task is missing an

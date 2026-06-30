@@ -1028,6 +1028,7 @@ test('schema and filing guidance stay inspectable', async () => {
     assert.match(markdown, /Task Page Shape/);
     assert.match(markdown, /status.*open.*in_progress.*waiting.*done.*archived/s);
     assert.match(markdown, /readiness.*underspecified.*ready/s);
+    assert.match(markdown, /execution_mode.*agent.*user.*interactive/s);
     assert.match(markdown, /Status and readiness are independent/);
     assert.match(markdown, /What Counts as Completed/);
     assert.match(markdown, /No successor task needed/);
@@ -1042,11 +1043,13 @@ test('schema and filing guidance stay inspectable', async () => {
     assert.match(filingRules.markdown, /does not need to match or mirror the full task title/);
     assert.deepEqual(filingRules.task_schema.frontmatter.status, ['open', 'in_progress', 'waiting', 'done', 'archived']);
     assert.deepEqual(filingRules.task_schema.frontmatter.readiness, ['underspecified', 'ready']);
+    assert.deepEqual(filingRules.task_schema.frontmatter.execution_mode, ['agent', 'user', 'interactive']);
     assert.deepEqual(filingRules.task_schema.frontmatter.priority, ['p0', 'p1', 'p2', 'p3']);
     assert.match(filingRules.task_schema.guidance.join('\n'), /readiness: underspecified/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /human-readable identifier/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /status to in_progress/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /Status and readiness are independent/);
+    assert.match(filingRules.task_schema.guidance.join('\n'), /execution_mode: interactive/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /Anti-Patterns/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /Next task: tasks\/<slug>/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /Do not use ops\/tasks\.md/);

@@ -18,6 +18,7 @@ title: Follow up with Ahmed
 status: open
 priority: p1
 readiness: ready
+execution_mode: interactive
 assignees: [people/hani]
 source: [meetings/ahmed]
 ---
@@ -65,6 +66,9 @@ Task collection overview.
     const readinessBySlug = Object.fromEntries(all.sections.flatMap((section) => section.items).map((item) => [item.slug, item.readiness]));
     assert.equal(readinessBySlug['tasks/follow-up'], 'ready');
     assert.equal(readinessBySlug['tasks/external-task'], 'underspecified');
+    const executionModeBySlug = Object.fromEntries(all.sections.flatMap((section) => section.items).map((item) => [item.slug, item.execution_mode]));
+    assert.equal(executionModeBySlug['tasks/follow-up'], 'interactive');
+    assert.equal(executionModeBySlug['tasks/external-task'], 'agent');
 
     const filtered = await buildTasksPayload(config, db, new URL('/api/tasks?assignee=people/hani', 'http://127.0.0.1'));
     assert.deepEqual(filtered.sections.flatMap((section) => section.items).map((item) => item.slug), ['tasks/follow-up']);

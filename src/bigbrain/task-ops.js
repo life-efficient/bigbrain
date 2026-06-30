@@ -8,9 +8,10 @@ import { findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug,
 const TASK_STATUSES = ['open', 'in_progress', 'waiting', 'done', 'archived'];
 const TASK_PRIORITIES = ['p0', 'p1', 'p2', 'p3'];
 const TASK_READINESS = ['underspecified', 'ready'];
+const TASK_EXECUTION_MODES = ['agent', 'user', 'interactive'];
 const COMPLETION_HANDOFF_ERROR = 'Completing a task requires a completion handoff: either Next task: tasks/<slug> or No successor task needed: <reason>.';
 
-export async function listTaskPages({ config, db, assignee = null, status = null, priority = null, readiness = null, actor = null, memberResolution = {} } = {}) {
+export async function listTaskPages({ config, db, assignee = null, status = null, priority = null, readiness = null, executionMode = null, actor = null, memberResolution = {} } = {}) {
   const members = await listActiveMembers(db);
   const memberMap = memberMapByPersonSlug(members);
   const assigneeMember = await resolveAssigneeFilter({ db, assignee, actor, memberResolution });
@@ -18,12 +19,14 @@ export async function listTaskPages({ config, db, assignee = null, status = null
   const normalizedStatus = status ? normalizeStatus(status) : null;
   const normalizedPriority = priority ? normalizePriority(priority) : null;
   const normalizedReadiness = readiness ? normalizeReadiness(readiness) : null;
+  const normalizedExecutionMode = executionMode ? normalizeExecutionMode(executionMode) : null;
   const tasks = await readTaskPages(config, memberMap);
   return tasks
     .filter((task) => !hasAssigneeFilter || task.assignee_slugs.includes(assigneeMember.person_slug))
     .filter((task) => !normalizedStatus || task.status === normalizedStatus)
     .filter((task) => !normalizedPriority || task.priority === normalizedPriority)
     .filter((task) => !normalizedReadiness || task.readiness === normalizedReadiness)
+    .filter((task) => !normalizedExecutionMode || task.execution_mode === normalizedExecutionMode)
     .sort(compareTasks);
 }
 
@@ -36,6 +39,7 @@ export async function createTaskPage({
   status = 'open',
   priority = 'p3',
   readiness = 'underspecified',
+  executionMode = 'agent',
   source = [],
   path: taskPath = null,
   timelineEntry = null,
@@ -47,6 +51,7 @@ export async function createTaskPage({
   const normalizedStatus = normalizeStatus(status);
   const normalizedPriority = normalizePriority(priority);
   const normalizedReadiness = normalizeReadiness(readiness);
+  const normalizedExecutionMode = normalizeExecutionMode(executionMode);
   const sourceSlugs = normalizeSlugList(source);
   const normalizedBody = requireNonEmpty(body, 'body');
   assertReadyTaskSpecification({
@@ -72,6 +77,7 @@ export async function createTaskPage({
       status: normalizedStatus,
       priority: normalizedPriority,
       readiness: normalizedReadiness,
+      execution_mode: normalizedExecutionMode,
       assignees: assigneeSlugs,
       source: sourceSlugs,
     },
@@ -87,6 +93,7 @@ export async function updateTaskPage({
   status = null,
   priority = null,
   readiness = null,
+  executionMode = null,
   assignees = null,
   source = null,
   timelineEntry = null,
@@ -112,6 +119,7 @@ export async function updateTaskPage({
     status: normalizedStatus,
     priority: priority === null || priority === undefined ? normalizePriority(parsed.frontmatter.priority || 'p3') : normalizePriority(priority),
     readiness: readiness === null || readiness === undefined ? normalizeReadiness(parsed.frontmatter.readiness || 'underspecified') : normalizeReadiness(readiness),
+    execution_mode: executionMode === null || executionMode === undefined ? normalizeExecutionMode(parsed.frontmatter.execution_mode || 'agent') : normalizeExecutionMode(executionMode),
   };
   if (assignees !== null && assignees !== undefined) {
     nextFrontmatter.assignees = await normalizeAndValidateAssignees(db, assignees, actor, memberResolution);
@@ -217,6 +225,7 @@ function decorateParsedTask(parsed, memberMap, updatedAt = null, pagePath = null
     title: parsed.title,
     status,
     readiness: normalizeReadiness(parsed.frontmatter.readiness || 'underspecified'),
+    execution_mode: normalizeExecutionMode(parsed.frontmatter.execution_mode || 'agent'),
     completed: status === 'done' || status === 'archived',
     priority: normalizePriority(parsed.frontmatter.priority || 'p3'),
     due: normalizeDateValue(parsed.frontmatter.due),
@@ -270,6 +279,14 @@ function normalizeReadiness(value) {
   const normalized = String(value || '').trim().toLowerCase();
   if (!TASK_READINESS.includes(normalized)) {
     throw new Error(`Invalid task readiness: ${value}. Expected one of ${TASK_READINESS.join(', ')}.`);
+  }
+  return normalized;
+}
+
+function normalizeExecutionMode(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (!TASK_EXECUTION_MODES.includes(normalized)) {
+    throw new Error(`Invalid task execution_mode: ${value}. Expected one of ${TASK_EXECUTION_MODES.join(', ')}.`);
   }
   return normalized;
 }

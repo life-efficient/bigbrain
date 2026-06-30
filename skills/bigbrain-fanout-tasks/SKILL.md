@@ -40,9 +40,11 @@ Use the BigBrain MCP task endpoint as the source of truth:
 4. Use the returned task title, body, priority, assignees, source, and slug to
    create one prompt per task. Use the slug only for the final full-spec
    reference inside each prompt.
-5. Treat `readiness` as authoritative. Generate handoff prompts only for
-   `readiness: "ready"` tasks. Keep `readiness: "underspecified"` tasks out of
-   prompt blocks and list them separately as needing input.
+5. Treat `readiness` and `execution_mode` together. Generate handoff prompts
+   only for tasks with `readiness: "ready"` and `execution_mode: "agent"`.
+   Keep `readiness: "underspecified"`, `execution_mode: "user"`, and
+   `execution_mode: "interactive"` tasks out of prompt blocks and list them
+   separately as needing user action or input.
 
 Respond in chat with the generated prompts. Do not write the result to a file,
 do not return only a file link, and do not make the user open an artifact to see
@@ -54,7 +56,8 @@ Default output is capped at 10 ready items. Keep each ready item short and
 copyable:
 
 - Show ready `in_progress` tasks first, followed by ready `open` tasks.
-- Include only tasks whose MCP record has `readiness: "ready"`.
+- Include only tasks whose MCP record has `readiness: "ready"` and
+  `execution_mode: "agent"`.
 - Each ready task should be one concise copyable prompt block that leads with
   the actual task content, using plain language drawn from the task page rather
   than a slug-heavy reference style.
@@ -75,8 +78,9 @@ copyable:
 - Do not format ready tasks as a numbered list.
 - Do not include boilerplate about reading files, preserving changes,
   verification, or commits beyond the required completion handoff.
-- Show a `Needs input before fanout` section after ready tasks for
-  `readiness: "underspecified"` tasks.
+- Show a `Needs user action before fanout` section after ready prompts for
+  `readiness: "underspecified"`, `execution_mode: "user"`, and
+  `execution_mode: "interactive"` tasks.
 - Keep the input-needed list succinct; name each task by human-readable title
   or action, not slug, and include the blocking question(s), preferring the task
   page's `## Open Questions` section when present.
@@ -91,6 +95,7 @@ directly and do not invent prompts.
 - Do not mutate tasks while fanning them out.
 - Do not create prompts for tasks with `status: "done"` or
   `status: "archived"` unless the user explicitly asks for those statuses.
-- Do not create prompts for tasks with `readiness: "underspecified"`.
+- Do not create prompts for tasks with `readiness: "underspecified"`,
+  `execution_mode: "user"`, or `execution_mode: "interactive"`.
 - Keep each prompt scoped to one task; split multi-task records into
   input-needed items rather than guessing hidden subtasks.

@@ -499,6 +499,7 @@ async function toolTasksList(config, args, actor, authConfig) {
       status: args.status || null,
       priority: args.priority || null,
       readiness: args.readiness || null,
+      executionMode: args.execution_mode || null,
       actor,
       memberResolution: memberResolutionFromAuthConfig(authConfig),
     });
@@ -519,6 +520,7 @@ async function toolTasksCreate(config, args, actor, authConfig) {
       status: args.status || 'open',
       priority: args.priority || 'p3',
       readiness: args.readiness || 'underspecified',
+      executionMode: args.execution_mode || 'agent',
       source: args.source || [],
       path: args.path || null,
       timelineEntry: timelineWithActor(args.timeline_entry || 'Task created through MCP.', actor),
@@ -541,6 +543,7 @@ async function toolTasksUpdate(config, args, actor, authConfig) {
       status: args.status,
       priority: args.priority,
       readiness: args.readiness,
+      executionMode: args.execution_mode,
       assignees: args.assignees,
       source: args.source,
       timelineEntry: timelineWithActor(args.timeline_entry || 'Task updated through MCP.', actor),
@@ -666,17 +669,17 @@ function toolDefinitions() {
     },
     {
       name: 'tasks/list',
-      description: 'List task pages under tasks/, optionally filtered by assignee, status, priority, or readiness. Use assignee=me for the authenticated member.',
+      description: 'List task pages under tasks/, optionally filtered by assignee, status, priority, readiness, or execution_mode. Use assignee=me for the authenticated member.',
       inputSchema: tasksListSchema(),
     },
     {
       name: 'tasks/create',
-      description: 'Create one member-assigned task page under tasks/. Assignees must be active members; assignees may include me. Use readiness=ready only when the task has an assignee, source link, completion criteria, and no blocking open questions. If creating a done or archived task, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
+      description: 'Create one member-assigned task page under tasks/. Assignees must be active members; assignees may include me. Use readiness=ready only when the task has an assignee, source link, completion criteria, and no blocking open questions. Use execution_mode to say whether the task should be executed by an agent, by the user, or interactively with user input. If creating a done or archived task, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
       inputSchema: taskWriteSchema({ requireBody: true }),
     },
     {
       name: 'tasks/update',
-      description: 'Update one task page under tasks/, including status, readiness, priority, assignees, source, body, and timeline. Use readiness=ready only when the task has an assignee, source link, completion criteria, and no blocking open questions. When setting status to done or archived, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
+      description: 'Update one task page under tasks/, including status, readiness, execution_mode, priority, assignees, source, body, and timeline. Use readiness=ready only when the task has an assignee, source link, completion criteria, and no blocking open questions. Use execution_mode to say whether the task should be executed by an agent, by the user, or interactively with user input. When setting status to done or archived, timeline_entry must include either "Next task: tasks/<slug>" or "No successor task needed: <reason>".',
       inputSchema: taskWriteSchema({ update: true }),
     },
     {
@@ -970,6 +973,7 @@ function tasksListSchema() {
       status: { type: 'string', enum: ['open', 'in_progress', 'waiting', 'done', 'archived'] },
       priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
       readiness: { type: 'string', enum: ['underspecified', 'ready'] },
+      execution_mode: { type: 'string', enum: ['agent', 'user', 'interactive'], description: 'Who can execute the task: agent for autonomous agent work, user for work the user must personally do, interactive for work an agent can walk through only with user input.' },
     },
   };
 }
@@ -1001,6 +1005,7 @@ function taskWriteSchema({ requireBody = false, update = false } = {}) {
       status: { type: 'string', enum: ['open', 'in_progress', 'waiting', 'done', 'archived'] },
       priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
       readiness: { type: 'string', enum: ['underspecified', 'ready'], description: 'Whether this task is prompt-ready. Use ready only when the task has an assignee, source link, completion criteria, and no blocking open questions; otherwise use underspecified.' },
+      execution_mode: { type: 'string', enum: ['agent', 'user', 'interactive'], description: 'Who can execute the task: agent for autonomous agent work, user for work the user must personally do, interactive for work an agent can walk through only with user input.' },
       assignees: { type: 'array', items: { type: 'string' }, description: 'Active member person slugs, or me for the authenticated member.' },
       source: { type: 'array', items: { type: 'string' }, description: 'Related brain slugs such as meetings/example or initiatives/example.' },
       timeline_entry: { type: 'string', description: 'Required when completing or archiving a task. Use "Next task: tasks/<slug>" or "No successor task needed: <reason>".' },

@@ -168,6 +168,7 @@ type: task
 title: Follow up on proposal
 status: open
 readiness: underspecified
+execution_mode: agent
 priority: p1
 assignees: [people/hani]
 source: [meetings/proposal-review]
@@ -185,7 +186,11 @@ context, owner, next action, or completion criteria are missing, and use
 `ready` only when enough context and acceptance criteria exist for a person or
 agent to execute without another clarification round. Status and readiness are
 independent: a task can be `open` but `underspecified`, or `in_progress` and
-`ready`. Valid priorities are `p0`, `p1`, `p2`, and `p3`. `due` is optional and
+`ready`. Valid execution modes are `agent`, `user`, and `interactive`. Use
+`agent` when an autonomous agent can execute the task, `user` when the user must
+personally do it, and `interactive` when an agent needs the user's input to walk
+through review, decisions, or data entry. Valid priorities are `p0`, `p1`,
+`p2`, and `p3`. `due` is optional and
 must be `YYYY-MM-DD` when present. Keep the current task context above the
 separator, structured as Summary, What Counts as Completed, Body Context, Open
 Questions, and Anti-Patterns, and append evidence or state changes under

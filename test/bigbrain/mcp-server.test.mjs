@@ -842,9 +842,11 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     const listTool = listed.result.tools.find((tool) => tool.name === 'tasks/list');
     assert.deepEqual(listTool.inputSchema.properties.status.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
     assert.deepEqual(listTool.inputSchema.properties.readiness.enum, ['underspecified', 'ready']);
+    assert.deepEqual(listTool.inputSchema.properties.execution_mode.enum, ['agent', 'user', 'interactive']);
     const createTool = listed.result.tools.find((tool) => tool.name === 'tasks/create');
     assert.deepEqual(createTool.inputSchema.properties.status.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
     assert.deepEqual(createTool.inputSchema.properties.readiness.enum, ['underspecified', 'ready']);
+    assert.deepEqual(createTool.inputSchema.properties.execution_mode.enum, ['agent', 'user', 'interactive']);
 
     const me = await rpc(running.url, 'tools/call', { name: 'me', arguments: {} }, token);
     assert.equal(me.result.structuredContent.actor.email, 'teammate@example.com');
@@ -877,12 +879,14 @@ None.`,
         assignees: ['me'],
         priority: 'p1',
         readiness: 'ready',
+        execution_mode: 'agent',
         source: ['initiatives/gfeai-2026'],
         timeline_entry: 'Task created in MCP task test.',
       },
     }, token);
     assert.equal(created.result.structuredContent.slug, 'tasks/draft-icaire-update');
     assert.equal(created.result.structuredContent.readiness, 'ready');
+    assert.equal(created.result.structuredContent.execution_mode, 'agent');
     assert.equal(created.result.structuredContent.assignees[0].person_slug, 'people/team-mate');
 
     const inProgress = await rpc(running.url, 'tools/call', {
@@ -918,6 +922,29 @@ None.`,
       arguments: { readiness: 'ready' },
     }, token);
     assert.deepEqual(readyTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
+
+    const agentTasks = await rpc(running.url, 'tools/call', {
+      name: 'tasks/list',
+      arguments: { readiness: 'ready', execution_mode: 'agent' },
+    }, token);
+    assert.deepEqual(agentTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
+
+    const userMode = await rpc(running.url, 'tools/call', {
+      name: 'tasks/update',
+      arguments: {
+        path: 'tasks/draft-icaire-update',
+        execution_mode: 'user',
+        timeline_entry: 'Marked as user-executed in MCP task test.',
+      },
+    }, token);
+    assert.equal(userMode.error, undefined, userMode.error?.message);
+    assert.equal(userMode.result.structuredContent.execution_mode, 'user');
+
+    const agentTasksAfterModeChange = await rpc(running.url, 'tools/call', {
+      name: 'tasks/list',
+      arguments: { readiness: 'ready', execution_mode: 'agent' },
+    }, token);
+    assert.deepEqual(agentTasksAfterModeChange.result.structuredContent, []);
 
     const rejectedThinReady = await rpc(running.url, 'tools/call', {
       name: 'tasks/create',

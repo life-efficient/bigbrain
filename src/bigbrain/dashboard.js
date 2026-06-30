@@ -1045,6 +1045,7 @@ async function readTaskPages(config) {
       markdown: parsed.bodyContentMarkdown,
       status,
       readiness: normalizeReadiness(parsed.frontmatter.readiness),
+      execution_mode: normalizeExecutionMode(parsed.frontmatter.execution_mode),
       completed: status === 'done' || status === 'archived',
       priority: normalizePriority(parsed.frontmatter.priority),
       due: normalizeDateValue(parsed.frontmatter.due),
@@ -1099,6 +1100,7 @@ function groupTaskPages(taskPages, activeMemberMap) {
           title: task.title,
           status: task.status,
           readiness: task.readiness,
+          execution_mode: task.execution_mode,
           priority: task.priority,
           due: task.due,
           assignees: resolveAssignees(task.assignee_slugs, activeMemberMap),
@@ -1156,6 +1158,11 @@ function normalizePriority(value) {
 function normalizeReadiness(value) {
   const normalized = String(value || 'underspecified').trim().toLowerCase();
   return ['underspecified', 'ready'].includes(normalized) ? normalized : 'underspecified';
+}
+
+function normalizeExecutionMode(value) {
+  const normalized = String(value || 'agent').trim().toLowerCase();
+  return ['agent', 'user', 'interactive'].includes(normalized) ? normalized : 'agent';
 }
 
 function normalizeDateValue(value) {
