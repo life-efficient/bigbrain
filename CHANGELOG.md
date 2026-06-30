@@ -5,6 +5,58 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-01
+
+### Changed
+
+- `bigbrain dashboard` is now the default lightweight dashboard launcher for
+  agents. It starts the local browser dashboard, opens the local URL by default,
+  supports `--no-open` for headless verification, and reports the actual served
+  port when `--port 0` is used.
+- `BigBrain: Dashboard` now uses the browser dashboard workflow by default
+  instead of requiring the Electron desktop development dependencies. The
+  desktop app remains available only when explicitly requested.
+- BigBrain dashboard and update-check skills no longer assume a machine-specific
+  `~/projects/bigbrain` source path when resolving repo context.
+
+### Fixed
+
+- The dashboard frontend now shows the controlled dashboard error fallback for
+  uncaught browser errors and unhandled promise rejections, not only React render
+  boundary failures.
+- The Electron desktop wrapper now handles renderer exits, unresponsive
+  renderers, and dashboard load failures with bounded reload attempts and an
+  in-window recovery screen instead of leaving a crashed or blank window.
+
+### Agent update actions
+
+- Read this section before pulling or deploying unreleased changes.
+- Do not claim an update is complete unless the relevant release actions below
+  have been applied or explicitly marked not applicable.
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install`, then `npm link`.
+- Verify `bigbrain dashboard --no-open --port 0` prints a local dashboard URL
+  and that the printed URL returns HTTP 200.
+- Refresh bundled BigBrain skills from `skills/`, especially
+  `bigbrain-dashboard` and `bigbrain-check-update`.
+- Restart any active `bigbrain dashboard` or Electron desktop dashboard sessions
+  after updating so the new crash recovery and browser-first launcher behavior
+  are active.
+- Restart the local BigBrain MCP service after pulling if it is running from
+  this checkout.
+- Run `npm test`.
+
+### Verification
+
+- `node --check electron/main.cjs`
+- `npm run build:dashboard`
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+- Local-data compatibility audit: dashboard CLI, bundled skill instructions,
+  frontend error handling, and Electron renderer recovery do not rename or
+  narrow persisted task fields, filing rules, MCP schemas, runtime state, or
+  database migrations.
+
 ## [0.6.1] - 2026-06-30
 
 ### Changed
