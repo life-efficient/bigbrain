@@ -52,6 +52,12 @@ Successful completion means:
   people, companies or organizations, deals, concepts, projects, or other
   supported collections; at minimum, add evidence-backed timeline entries for
   new facts, relationship context, decisions, status changes, or commitments
+- participant identity facts are extracted from the transcript and preserved on
+  the meeting and relevant entity pages when present: self-stated name,
+  role/title, employer or organization, location, mandate/source authority,
+  relationship context, and volunteered contact/channel details
+- unclear or malformed transcript identity/affiliation statements are recorded
+  as explicit unresolved fields instead of being smoothed into generic summaries
 - task work is handled as part of the ingestion run: check existing open,
   in-progress, and waiting tasks before creating new ones; update matching task
   pages when meeting evidence changes status, owner, due date, next action, or
@@ -102,6 +108,19 @@ Successful completion means:
    - Skip duplicates unless there is a missing transcript, missing source
      sidecar, or clear entity/task update to apply.
    - Create or update one canonical meeting page per ingested meeting.
+   - Run an identity and affiliation pass before writing summaries:
+     - Extract each substantive participant's self-stated name, role/title,
+       employer or organization, location, mandate/source authority,
+       relationship to the brain owner, and volunteered contact/channel details.
+     - If a transcript has a malformed phrase around role or affiliation, quote
+       only a short safe snippet in the internal source note or page and mark
+       the missing field as unresolved, for example `organization: unresolved
+       from transcript`.
+     - Do not infer an employer from the deal name, asset name, message thread,
+       or generic role words unless another source supports that inference.
+     - Add missing durable identity facts to the relevant people,
+       companies/organizations, deal, and meeting pages with Granola meeting ID
+       and date evidence.
    - Review related people, company/organization, deal, concept, project, or
      other supported entity pages for durable updates from the meeting before
      finishing the write plan.
@@ -154,6 +173,10 @@ Successful completion means:
   cannot be built.
 - Do not create placeholder pages for exact-title `New note` / `New Note`
   records.
+- Do not flatten role, employer, mandate status, or source authority into vague
+  labels such as `works in investments` when the transcript gives more detail or
+  when the transcript is malformed around the affiliation. Preserve the exact
+  supported fact and the uncertainty separately.
 - Do not invent attendees, decisions, facts, owners, due dates, or task status.
 - Do not omit raw transcript sidecars for substantive meetings when transcript
   content is available.
@@ -172,5 +195,7 @@ Report briefly:
 - meeting pages, entity pages, task pages, and sidecars changed
 - meetings left partial because transcript capture or attachment failed
 - transcript safety result and targeted redaction count
+- unresolved identity, employer, affiliation, or mandate/source-authority fields
+  that need human follow-up
 - `bigbrain sync --json` result
 - warnings or unresolved questions
