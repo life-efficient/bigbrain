@@ -228,9 +228,11 @@ This is the right place for:
 - deliverable-owned raw files, filed beside the deliverable page rather than
   under sources
 
-Use `sources/.raw/` for evidence-first uploads whose subject has not yet become
-another canonical entity. The active brain's `filing_rules` output is the
-operational source of truth for exact paths.
+Use `sources/.raw/` only for evidence-first uploads whose subject has not yet
+become another canonical entity. Prefer the owning collection whenever one is
+clear: for example, deal-owned teasers and models belong in `deals/.raw/`, and
+meeting transcripts belong in `meetings/.raw/`. The active brain's
+`filing_rules` output is the operational source of truth for exact paths.
 Do not nest page-slug folders or any other folders inside `.raw`; use
 collision-safe filenames.
 

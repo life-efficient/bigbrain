@@ -754,7 +754,7 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'Optional .raw path prefix such as sources/.raw or sources/.raw/deck.pdf.' },
+          path: { type: 'string', description: 'Optional .raw path prefix such as deals/.raw, meetings/.raw, deliverables/.raw, or sources/.raw for unassigned evidence.' },
           recursive: { type: 'boolean' },
           limit: { type: 'number' },
           order_by: { type: 'string', enum: ['updated_at', 'created_at', 'alphanumeric'] },
@@ -767,7 +767,7 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'Raw file path such as sources/.raw/deck.pdf.' },
+          path: { type: 'string', description: 'Raw file path such as deals/.raw/blind-teaser.pdf, meetings/.raw/call-transcript.txt, or sources/.raw/unassigned-evidence.pdf.' },
         },
         required: ['path'],
       },
@@ -778,7 +778,7 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'Destination such as sources/.raw/deck.pdf.' },
+          path: { type: 'string', description: 'Destination such as deals/.raw/blind-teaser.pdf, meetings/.raw/call-transcript.txt, or sources/.raw/unassigned-evidence.pdf.' },
           raw_content_base64: { type: 'string', description: 'Base64 encoded raw bytes. Use this for PDFs, images, and other binary files.' },
           raw_content_text: { type: 'string', description: 'Plain text raw content. Use exactly one of raw_content_base64 or raw_content_text.' },
           mime_type: { type: 'string' },
@@ -807,11 +807,11 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
-          raw_path: { type: 'string', description: 'Destination such as sources/.raw/deck.pdf or meetings/.raw/call-transcript.txt.' },
+          raw_path: { type: 'string', description: 'Destination such as deals/.raw/blind-teaser.pdf, meetings/.raw/call-transcript.txt, deliverables/.raw/brief.pdf, or sources/.raw/unassigned-evidence.pdf.' },
           raw_content_base64: { type: 'string', description: 'Base64 encoded raw bytes. Use this for PDFs, images, and other binary files.' },
           raw_content_text: { type: 'string', description: 'Plain text raw content. Use exactly one of raw_content_base64 or raw_content_text.' },
           mime_type: { type: 'string' },
-          page_path: { type: 'string', description: 'Markdown page path to create, such as sources/deck-summary.' },
+          page_path: { type: 'string', description: 'Markdown page path to create in the same owning collection, such as deals/blind-teaser-summary, meetings/call-summary, or sources/unassigned-evidence-summary.' },
           title: { type: 'string' },
           body: { type: 'string' },
           timeline_entry: { type: 'string' },
@@ -826,7 +826,7 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
-          path: { type: 'string', description: 'Existing raw file path such as sources/.raw/deck.pdf.' },
+          path: { type: 'string', description: 'Existing raw file path such as deals/.raw/blind-teaser.pdf, meetings/.raw/call-transcript.txt, or sources/.raw/unassigned-evidence.pdf.' },
           raw_content_base64: { type: 'string', description: 'Base64 encoded raw bytes. Use this for PDFs, images, and other binary files.' },
           raw_content_text: { type: 'string', description: 'Plain text raw content. Use exactly one of raw_content_base64 or raw_content_text.' },
           mime_type: { type: 'string' },

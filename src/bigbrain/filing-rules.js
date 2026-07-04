@@ -3,7 +3,7 @@ import path from 'node:path';
 
 const DEFAULT_RULES = {
   inbox: 'Temporary unsorted captures when no canonical home is clear yet.',
-  sources: 'Evidence, imported material, provenance records, transcripts, and source extracts.',
+  sources: 'Legacy or evidence-first imports only when no clearer owning collection exists; prefer the primary subject collection for new material.',
   people: 'One page per human being.',
   organizations: 'One page per institution, government body, university, vendor, company, advisory group, or other organization.',
   companies: 'One page per company or organization.',
@@ -27,14 +27,14 @@ export async function filingRulesForBrain({ config }) {
       'For uploads such as PDFs, decks, screenshots, spreadsheets, and transcripts, create a markdown page and raw file together when the raw file has brain value.',
       'Place the raw file directly under the same collection .raw folder as the markdown page it supports, choosing the collection by artifact role rather than file type.',
       'Do not create page-slug folders or other nested folders inside .raw; make filenames collision-safe instead.',
-      'Use sources/.raw for evidence-first uploads whose subject has not yet become another canonical entity.',
+      'Use sources/.raw only for evidence-first uploads whose subject has not yet become another canonical entity; when in doubt, use the owning collection instead.',
       'Use deliverables/.raw when the raw file is an owned output being reviewed, sent, published, presented, or maintained as the deliverable itself.',
       'Raw uploads are limited to the configured raw_file_max_bytes value, 25 MiB by default; compress oversized files or store a summary/link instead.',
     ],
     examples: [
       {
-        raw_path: 'sources/.raw/example-evidence-deck.pdf',
-        page_path: 'sources/example-evidence-deck',
+        raw_path: 'deals/.raw/exampleco-blind-teaser.pdf',
+        page_path: 'deals/exampleco-blind-teaser',
       },
       {
         raw_path: 'deliverables/.raw/example-partner-brief.pdf',
@@ -43,6 +43,10 @@ export async function filingRulesForBrain({ config }) {
       {
         raw_path: 'meetings/.raw/unesco-workshop-sync-transcript.txt',
         page_path: 'meetings/unesco-workshop-sync',
+      },
+      {
+        raw_path: 'sources/.raw/unassigned-evidence-pack.pdf',
+        page_path: 'sources/unassigned-evidence-pack',
       },
     ],
   };

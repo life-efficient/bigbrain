@@ -3,6 +3,49 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining local installs and hosted brains.
 
+## [0.8.2] - 2026-07-04
+
+### Changed
+
+- Filing guidance now treats `sources/` as a last-resort home for legacy or
+  evidence-first imports without a clearer owning collection, instead of a
+  default bucket for PDFs, decks, snapshots, or source-like material.
+- Raw-file examples now lead with owner-based paths such as `deals/.raw/` and
+  `meetings/.raw/`, with `sources/.raw/` shown only for unassigned evidence.
+- Folder recommendation no longer routes generic raw/PDF/screenshot language to
+  `sources/`; when no owning collection is obvious, it recommends `inbox/` so
+  an agent or human can classify the item deliberately.
+
+### Agent update actions
+
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install`, then `npm link`.
+- Restart local or hosted MCP services that run from this checkout so the new
+  filing-rule examples and tool descriptions are active.
+- Review each brain's `sources/` folder. Move files and pages there to the
+  appropriate owning collection wherever possible:
+  - deal-owned teasers, models, brochures, decks, diligence packs, and review
+    PDFs belong under `deals/` with raw files under `deals/.raw/`;
+  - meeting transcripts and meeting source material belong under `meetings/`
+    with raw files under `meetings/.raw/`;
+  - project/workstream maps and planning artifacts belong under `projects/`;
+  - operating queues, filing notes, MCP notes, and migration guidance belong
+    under `ops/`;
+  - only leave material under `sources/` when it is genuinely unassigned
+    evidence without a clearer canonical owner.
+- For hosted brains, check the active `filing_rules` output after migration and
+  update collection `FILING.md` files to make any local removal or deprecation
+  of `sources/` explicit.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- Local-data compatibility audit: this release narrows filing guidance and
+  examples only. It does not remove the `sources` folder from BigBrain's core
+  schema or raw-file tooling, so existing brains with `sources/` pages remain
+  readable while agents migrate them to owner collections.
+
 ## [0.8.1] - 2026-06-30
 
 ### Changed

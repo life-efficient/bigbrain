@@ -12,7 +12,7 @@ const FOLDER_RULES = [
   ['personal-protocol', 'Personal operating instructions, preferences, and repeatable how-to pages.'],
   ['concepts', 'Reusable mental models, frameworks, and general strategy.'],
   ['writing', 'Prose artifacts, drafts, and essay-style outputs.'],
-  ['sources', 'Raw imports, archived snapshots, and source material.'],
+  ['sources', 'Legacy or evidence-first imports without a clearer owning collection; prefer the primary subject collection for new material.'],
   ['tasks', 'One page per assignable task, with member-backed assignees and task metadata.'],
   ['inbox', 'Temporary unsorted captures when no canonical home is clear yet.'],
   ['archive', 'Historical or dead pages that should not stay active.'],
@@ -43,7 +43,7 @@ export function schemaDescription() {
       '<collection>/.raw/<filename>',
       'raw attached files such as pdf/png/pptx/xlsx/txt stay outside the indexed page graph',
       'the markdown page carries searchable context and links to the raw file',
-      'sources/.raw is for evidence-first uploads without a clearer canonical subject',
+      'sources/.raw is only for evidence-first uploads without a clearer canonical subject',
       'do not nest page-slug folders or any other folders inside .raw',
     ],
     task_page_shape: {
@@ -109,7 +109,7 @@ export function renderSchemaMarkdown() {
     '- Raw attachments are supporting files, not full entity pages.',
     '- Canonical pages link outward to raw attachments.',
     '- The markdown page remains the searchable context surface.',
-    '- Use `sources/.raw/` for evidence-first uploads without a clearer canonical subject.',
+    '- Use `sources/.raw/` only for evidence-first uploads without a clearer canonical subject; otherwise use the owning collection.',
     '- Do not nest page-slug folders or any other folders inside `.raw`; use collision-safe filenames.',
     '- The `filing_rules` tool is the operational source of truth for the active brain.',
     '',
@@ -179,7 +179,7 @@ export function recommendFolderForInput(input) {
   if (/task|todo|to-do|follow[- ]?up|next action|action item|blocked|waiting/.test(lower)) return recommendation('tasks', text, 'the item reads like assignable work');
   if (/project|build|launch|roadmap|implementation/.test(lower)) return recommendation('projects', text, 'the item sounds like an active execution track');
   if (/company|inc\.|llc|firm|organization/.test(lower)) return recommendation('companies', text, 'the primary subject appears to be an organization');
-  if (/source|raw|import|email|pdf|screenshot|snapshot/.test(lower)) return recommendation('sources', text, 'the item reads like raw source material');
+  if (/source|raw|import|email|pdf|screenshot|snapshot/.test(lower)) return recommendation('inbox', text, 'the item appears to be raw material, but no higher-confidence owning collection was obvious');
   return recommendation('inbox', text, 'no higher-confidence canonical home was obvious');
 }
 
