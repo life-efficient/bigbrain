@@ -3,6 +3,52 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining local installs and hosted brains.
 
+## [0.8.3] - 2026-07-05
+
+### Changed
+
+- `bigbrain-fanout-tasks` now scopes fanout to the current conversation by
+  default: tasks just named, just created or discussed, selected task numbers,
+  or explicit assignee/status/priority filters.
+- Broad active-queue fanout now requires an explicit broad request such as
+  "all ready" or "daily kickoff", or the accepted follow-up after a
+  `BigBrain: What's Next` snapshot offers fanout.
+- Task identity is now documented as path-derived for `tasks/<slug>.md`.
+  Legacy `type: task` frontmatter remains tolerated and may still be written
+  for compatibility, but it is optional and not used to decide whether a page
+  is a task.
+- Generic page creation no longer forces `type: note` frontmatter, reducing
+  contradictory metadata on non-task pages.
+
+### Agent update actions
+
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install`, then `npm link`.
+- Restart local or hosted MCP services that run from this checkout so updated
+  task docs, schema output, and bundled skill prompts are active.
+- Refresh bundled BigBrain skills from `skills/`, especially
+  `bigbrain-fanout-tasks`.
+- When using `bigbrain-fanout-tasks`, do not fan out the whole task queue
+  unless the user explicitly asks for all ready/open/in-progress tasks, daily
+  kickoff threads, or accepts a fanout offer from a preceding
+  `BigBrain: What's Next` snapshot.
+- Stop treating `type: task` as required metadata for task behavior. Existing
+  pages with `type: task`, `type: note`, missing `type`, or other legacy values
+  remain readable; task identity should come from the `tasks/` path and task
+  fields such as `status`, `readiness`, and `execution_mode`.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+- Local-data compatibility audit: this release changes bundled skill behavior,
+  schema documentation, filing-rule output, and page creation defaults. It does
+  not rename or narrow persisted task enum values, remove support for existing
+  `type` frontmatter, remove `type: task` from new task creation, or change
+  task path semantics. Existing task pages remain discoverable by path under
+  `tasks/`, while older `type` values are tolerated as inert legacy metadata.
+
 ## [0.8.2] - 2026-07-04
 
 ### Changed
