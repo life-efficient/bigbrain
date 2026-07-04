@@ -7,6 +7,21 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ### Changed
 
+- Task readiness is now treated as an agent-authored handoff hint instead of a
+  write-time schema gate. `tasks/create` and `tasks/update` no longer reject
+  `readiness: ready` solely because a body has open questions, no source link,
+  or no completion-criteria heading; presentation skills decide how to surface
+  input-needed work.
+- `bigbrain-whats-next` and `bigbrain-fanout-tasks` now inspect task bodies for
+  substantive `## Open Questions` and keep those tasks in input-needed sections
+  unless they are clearly interactive guided sessions.
+- Fanout prompts are now self-contained and no longer tell worker threads to
+  read the task page before starting; task slugs are retained only as compact
+  source/update references.
+- `bigbrain-granola-ingest` now requires an explicit identity and affiliation
+  pass, preserving self-stated participant names, roles, employers,
+  mandate/source authority, relationship context, and unresolved identity fields
+  instead of smoothing malformed transcript details into generic summaries.
 - Filing guidance now treats `sources/` as a last-resort home for legacy or
   evidence-first imports without a clearer owning collection, instead of a
   default bucket for PDFs, decks, snapshots, or source-like material.
@@ -21,7 +36,21 @@ actions` section for agents maintaining local installs and hosted brains.
 - Pull the new release with `git pull --rebase --autostash`.
 - Run `npm install`, then `npm link`.
 - Restart local or hosted MCP services that run from this checkout so the new
-  filing-rule examples and tool descriptions are active.
+  task-tool descriptions, filing-rule examples, and bundled skills are active.
+- Refresh bundled BigBrain skills from `skills/`, especially
+  `bigbrain-whats-next`, `bigbrain-fanout-tasks`,
+  `bigbrain-refresh-tasks`, `bigbrain-clarify-tasks`, and
+  `bigbrain-granola-ingest`.
+- Verify the live MCP `tasks/create` and `tasks/update` schemas describe
+  readiness as an agent-authored handoff hint rather than a strict write-time
+  validation rule.
+- Review any local automations or prompts that still assume `readiness: ready`
+  means no open questions; they should read the task body and route substantive
+  `## Open Questions` to input-needed presentation.
+- For recent Granola ingests, check whether participant employer, role,
+  mandate/source authority, or contact/channel fields were flattened or left
+  ambiguous; update affected meeting/entity pages when a transcript supports
+  clearer identity facts.
 - Review each brain's `sources/` folder. Move files and pages there to the
   appropriate owning collection wherever possible:
   - deal-owned teasers, models, brochures, decks, diligence packs, and review
@@ -42,9 +71,12 @@ actions` section for agents maintaining local installs and hosted brains.
 
 - `npm test`
 - Local-data compatibility audit: this release narrows filing guidance and
-  examples only. It does not remove the `sources` folder from BigBrain's core
-  schema or raw-file tooling, so existing brains with `sources/` pages remain
-  readable while agents migrate them to owner collections.
+  examples, relaxes task write-time readiness validation, and updates bundled
+  skill guidance. It does not rename or remove persisted task enum values,
+  remove the `sources` folder from BigBrain's core schema, or remove raw-file
+  tooling support for existing `sources/` pages. Existing task pages and
+  `sources/` pages remain readable while agents migrate filing locations and
+  rely on presentation tools to route open questions.
 
 ## [0.8.1] - 2026-06-30
 
