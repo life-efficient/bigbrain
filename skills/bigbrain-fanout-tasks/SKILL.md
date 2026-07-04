@@ -2,11 +2,11 @@
 name: "BigBrain: Fanout Tasks"
 version: 1.0.0
 description: |
-  Fan out in-progress and open BigBrain task pages into separate Codex threads
+  Fan out currently discussed BigBrain task pages into separate Codex threads
   using handoff prompts built from the BigBrain MCP task tools. Use when the
-  user wants daily kickoff threads, one thread per brain task, prompts for
-  their assigned BigBrain tasks, or prompts filtered by task assignee, status,
-  or priority.
+  user wants the tasks just mentioned, selected from a recent what's-next
+  snapshot, or explicitly filtered by assignee, status, or priority turned into
+  handoff-ready worker threads.
 triggers:
   - "fan out brain tasks"
   - "bigbrain task prompts"
@@ -21,14 +21,24 @@ mutating: true
 
 # BigBrain: Fanout Tasks
 
-Use this skill when the user wants BigBrain task pages fanned out into
-handoff-ready Codex threads. BigBrain tasks are page-backed records under
-`tasks/*.md`; do not read or reconstruct old `ops/tasks.md` task lists.
+Use this skill when the user wants the currently discussed BigBrain task pages
+fanned out into handoff-ready Codex threads. BigBrain tasks are page-backed
+records under `tasks/*.md`; do not read or reconstruct old `ops/tasks.md` task
+lists.
 
-By default, this skill should create one new Codex thread per ready task when
-the Codex app thread tools are available. The generated worker prompt remains
-the same kind of self-contained prompt this skill previously returned in chat;
-the difference is that the prompt is passed directly to `codex_app.create_thread`.
+By default, this skill should create one new Codex thread per ready task in the
+current conversation scope when the Codex app thread tools are available. The
+current conversation scope is narrower than the whole task queue: it means
+tasks the user just named, task slugs or titles just created or discussed, task
+numbers from the immediately preceding `BigBrain: What's Next` snapshot, or a
+set explicitly filtered in the user's fanout request.
+
+Only fan out the broad active queue when the skill is invoked as the accepted
+follow-up to a `BigBrain: What's Next` snapshot, for example after the assistant
+offers fanout and the user replies `yes`, or when the user explicitly asks for
+all ready/open/in-progress BigBrain tasks, daily kickoff threads, or another
+broad queue scope.
+
 Only return copyable prompts instead of creating threads when the user
 explicitly asks for prompts only, or when live thread creation is unavailable
 after targeted tool discovery.
@@ -37,33 +47,55 @@ after targeted tool discovery.
 
 Use the BigBrain MCP task endpoint as the source of truth:
 
-1. Call `tasks/list` twice by default: first with `status: "in_progress"`,
-   then with `status: "open"`.
-2. If `tasks/list` is not visible, use targeted Codex tool discovery for the
+1. Resolve the fanout scope before listing tasks:
+   - If the user names task slugs, task titles, task numbers, or says "these",
+     "this", "the ones we just made", or similar, restrict fanout to those
+     currently discussed tasks.
+   - If the user is responding to an immediately preceding `BigBrain: What's
+     Next` snapshot with `yes`, "fan these out", or selected numbers, preserve
+     that snapshot's numbering and fan out only the accepted ready items.
+   - If the user explicitly asks for "all", "daily kickoff", "all ready",
+     "all open", "all in progress", or a broad assignee/status/priority filter,
+     use that broad queue scope.
+   - If there is no recoverable current task scope and no explicit broad scope,
+     ask the user which tasks to fan out instead of defaulting to the whole
+     active queue.
+2. Call `tasks/list` only for the resolved scope:
+   - For broad queue scope, call `tasks/list` twice by default: first with
+     `status: "in_progress"`, then with `status: "open"`.
+   - For selected task numbers from a `What's Next` snapshot, reuse the snapshot
+     task records when available; otherwise call `tasks/list` for the necessary
+     status/filter and match by slug/title.
+   - For slugs or titles from the current conversation, call the narrowest
+     available `tasks/list` filters, then match by slug/title from the MCP
+     records; do not launch unrelated tasks merely because they share a status
+     or priority.
+3. If `tasks/list` is not visible, use targeted Codex tool discovery for the
    BigBrain `tasks/list` tool before falling back to runtime or code inspection.
-3. Honor scoping in the user's request:
+4. Honor explicit scoping in the user's request:
    - For "my tasks" or "assigned to me", pass `assignee: "me"`.
    - For "for people/name" or "assigned to people/name", pass that assignee
      slug.
    - For a named priority such as `p0`, `p1`, `p2`, or `p3`, pass `priority`.
-   - For a named status, pass that `status`; otherwise use both default calls.
-4. Use the returned task title, body, priority, assignees, source, and slug to
+   - For a named status, pass that `status`; otherwise use the resolved scope
+     rules above.
+5. Use the returned task title, body, priority, assignees, source, and slug to
    create one prompt per task. The prompt itself must contain the task context
    needed to begin; do not make the worker fetch or read the task page before
    starting.
-5. Treat `readiness` and `execution_mode` as useful hints, then read the task
+6. Treat `readiness` and `execution_mode` as useful hints, then read the task
    body. If `## Open Questions` contains substantive questions, keep the task
    out of worker prompt blocks and list it as needing input, unless the task is
    clearly an interactive guided session whose purpose is to answer those
    questions with the user.
-6. Classify the remaining tasks with `readiness` and `execution_mode`. Generate
+7. Classify the remaining tasks with `readiness` and `execution_mode`. Generate
    autonomous handoff prompts for tasks with `readiness: "ready"` and
    `execution_mode: "agent"`. Generate guided-session prompts for tasks with
    `readiness: "ready"` and `execution_mode: "interactive"`, instructing Codex
    to walk through the task with the user step by step. Keep
    `readiness: "underspecified"` and `execution_mode: "user"` tasks out of
    prompt blocks and list them separately as needing user action or input.
-7. Discover the Codex thread tools before concluding live fanout is unavailable:
+8. Discover the Codex thread tools before concluding live fanout is unavailable:
    - Call `tool_search` for `create_thread`.
    - Use `codex_app.list_projects` when available to choose an appropriate
      target for each worker thread.
@@ -81,8 +113,9 @@ do not make the user open an artifact to see what was launched.
 
 ## Output Requirements
 
-Default output is capped at 10 ready items. Keep each worker prompt short,
-self-contained, and suitable as the initial prompt for a fresh Codex thread:
+Default output is capped at 10 ready items within the resolved scope. Keep each
+worker prompt short, self-contained, and suitable as the initial prompt for a
+fresh Codex thread:
 
 - Show ready `in_progress` tasks first, followed by ready `open` tasks.
 - Include only tasks whose MCP record has `readiness: "ready"` and
@@ -144,6 +177,11 @@ Then provide the shortest useful set of copyable worker prompts.
 - Treat MCP task data as authoritative for task status and assignees.
 - Do not use local `TODO.md` discovery for this skill.
 - Do not mutate tasks while fanning them out.
+- Do not fan out the whole active queue merely because the skill was invoked.
+  Whole-queue fanout is allowed only after a `What's Next` snapshot fanout
+  offer is accepted, or when the user explicitly requests a broad queue scope.
+- When the user has just created or discussed one or more BigBrain tasks, treat
+  those tasks as the fanout scope unless they say otherwise.
 - Creating Codex threads is allowed by this skill; mutating BigBrain task pages
   is not.
 - Do not create prompts for tasks with `status: "done"` or
