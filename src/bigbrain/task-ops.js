@@ -109,7 +109,6 @@ export async function updateTaskPage({
   });
   const nextFrontmatter = {
     ...parsed.frontmatter,
-    type: parsed.frontmatter.type || 'task',
     status: normalizedStatus,
     priority: priority === null || priority === undefined ? normalizePriority(parsed.frontmatter.priority || 'p3') : normalizePriority(priority),
     readiness: readiness === null || readiness === undefined ? normalizeReadiness(parsed.frontmatter.readiness || 'underspecified') : normalizeReadiness(readiness),

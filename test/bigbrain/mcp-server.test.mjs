@@ -245,7 +245,7 @@ Shared cross-folder routing guidance.
 
 ## Page Shape
 
-- YAML frontmatter with type and title.
+- YAML frontmatter with title and optional metadata.
 - Append-only timeline evidence.
 `, 'utf8');
 
@@ -297,7 +297,7 @@ One page per organization.
       'Use collection FILING files for folder-specific rules.',
     ]);
     assert.deepEqual(rules.result.structuredContent.page_shape, [
-      'YAML frontmatter with type and title.',
+      'YAML frontmatter with title and optional metadata.',
       'Append-only timeline evidence.',
     ]);
     const organizations = rules.result.structuredContent.collections.find((collection) => collection.name === 'organizations');
@@ -888,6 +888,8 @@ None.`,
     assert.equal(created.result.structuredContent.readiness, 'ready');
     assert.equal(created.result.structuredContent.execution_mode, 'agent');
     assert.equal(created.result.structuredContent.assignees[0].person_slug, 'people/team-mate');
+    const createdTaskMarkdown = await fs.readFile(path.join(fixture.brainHome, 'tasks', 'draft-icaire-update.md'), 'utf8');
+    assert.doesNotMatch(createdTaskMarkdown, /^type:/m);
 
     const inProgress = await rpc(running.url, 'tools/call', {
       name: 'tasks/update',

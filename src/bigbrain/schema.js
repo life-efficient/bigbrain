@@ -50,7 +50,6 @@ export function schemaDescription() {
       path: 'tasks/<task-slug>.md',
       slug: 'concise stable human-readable identifier; it does not need to match the title',
       frontmatter: {
-        type: 'task',
         status: ['open', 'in_progress', 'waiting', 'done', 'archived'],
         readiness: ['underspecified', 'ready'],
         execution_mode: ['agent', 'user', 'interactive'],
@@ -117,7 +116,6 @@ export function renderSchemaMarkdown() {
     '',
     '```yaml',
     '---',
-    'type: task',
     'title: Follow up on proposal',
     'status: open',
     'priority: p1',
@@ -130,6 +128,7 @@ export function renderSchemaMarkdown() {
     '```',
     '',
     '- Path pattern: `tasks/<task-slug>.md`.',
+    '- Task identity is derived from the `tasks/` path; legacy `type: task` frontmatter may appear, but it is optional and not used for behavior.',
     '- The task slug is a concise, stable, human-readable identifier; it does not need to match or mirror the full task title.',
     '- `status` must be one of `open`, `in_progress`, `waiting`, `done`, `archived`.',
     '- `open` means known work that is not actively being worked.',

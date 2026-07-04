@@ -40,7 +40,10 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
     assert.equal(pageVisibility(created.frontmatter), 'internal');
     assert.equal('visibility' in created.frontmatter, false);
     assert.equal('public' in created.frontmatter, false);
-    assert.match(created.markdown, /^---\ntype: note\ntitle: Jordan Lee\ncreated: \d{4}-\d{2}-\d{2}\ntags: \[example-brain, person\]\n---/);
+    assert.equal('type' in created.frontmatter, false);
+    assert.equal(created.type, 'people');
+    assert.match(created.markdown, /^---\ntitle: Jordan Lee\ncreated: \d{4}-\d{2}-\d{2}\ntags: \[example-brain, person\]\n---/);
+    assert.doesNotMatch(created.markdown, /^type:/m);
     assert.match(created.markdown, /\n---\n\n## Timeline\n\n- \*\*\d{4}-\d{2}-\d{2}\*\* \| Created from MCP contribution\.\n$/);
 
     const updated = await updateBrainPage({

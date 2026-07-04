@@ -34,6 +34,31 @@ Stable page.
   }
 });
 
+test('sync derives page type from the path instead of frontmatter type', async () => {
+  const fixture = await createFixture('bigbrain-sync-derived-type-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/stale-type.md', `---
+type: note
+title: Stale Type
+---
+# Stale Type
+
+This page keeps legacy frontmatter metadata.
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+
+    const db = await openDatabase(config);
+    const row = await getPageRecord(db, 'people/stale-type');
+    assert.equal(row.type, 'people');
+    assert.equal(JSON.parse(row.frontmatter_json).type, 'note');
+    await db.close?.();
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('sync persists run history with the sync report', async () => {
   const fixture = await createFixture('bigbrain-sync-run-history-');
   try {

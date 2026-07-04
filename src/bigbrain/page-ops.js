@@ -78,7 +78,6 @@ export async function createBrainPage({
 
   const now = new Date().toISOString().slice(0, 10);
   const metadata = {
-    type: 'note',
     title: requireNonEmpty(title, 'title'),
     created: now,
     ...omitReservedFrontmatter(frontmatter),

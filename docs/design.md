@@ -497,8 +497,9 @@ Automations should be narrow, explicit, idempotent, and inspectable.
 
 - page-backed task maintenance
   - tasks live as individual `tasks/*.md` pages
-  - task frontmatter uses `type: task`, `status`, `readiness`,
-    `execution_mode`, `priority`, `assignees`, `source`, and optional `due`
+  - task identity is derived from `tasks/<slug>.md`; task frontmatter uses
+    `status`, `readiness`, `execution_mode`, `priority`, `assignees`,
+    `source`, and optional `due`
   - valid statuses are `open`, `in_progress`, `waiting`, `done`, and
     `archived`
   - `open` means known work not actively being worked; `in_progress` means

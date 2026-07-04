@@ -10,7 +10,7 @@ const DEFAULT_RULES = {
   meetings: 'Specific meetings, calls, meeting prep, and transcripts.',
   initiatives: 'Active named workstreams or programs.',
   deliverables: 'Owned outputs such as reports, decks, PDFs, toolkits, course materials, workshop packs, declarations, episodes, calls, releases, and drafts.',
-  tasks: 'One page per assignable task. Task pages use type: task frontmatter, member-backed assignees, status, readiness, priority, source links, current body, and timeline.',
+  tasks: 'One page per assignable task. Task identity is derived from tasks/<slug>.md; task pages use member-backed assignees, status, readiness, priority, source links, current body, and timeline.',
   concepts: 'Reusable concepts, frameworks, pillar notes, strategy, and mental models.',
   ops: 'Operating material such as roadmaps, contribution rules, server notes, MCP notes, and cross-workstream coordination.',
   archive: 'Historical or superseded material that should not stay active.',
@@ -56,7 +56,7 @@ export async function filingRulesForBrain({ config }) {
     shared_guidance: sharedGuidance,
     collections,
     page_shape: sharedGuidance.pageShape.length > 0 ? sharedGuidance.pageShape : [
-      'YAML frontmatter with type, title, created, and optional tags/source fields.',
+      'YAML frontmatter with title, created, and optional tags/source fields.',
       'A current-state body that can be rewritten as understanding changes.',
       'A separator line: ---',
       'An append-only ## Timeline evidence log.',
@@ -170,7 +170,6 @@ function defaultTaskSchema() {
   return {
     pattern: 'tasks/<task-slug>.md',
     frontmatter: {
-      type: 'task',
       title: 'Required human-readable task title.',
       status: ['open', 'in_progress', 'waiting', 'done', 'archived'],
       readiness: ['underspecified', 'ready'],
@@ -183,7 +182,7 @@ function defaultTaskSchema() {
     guidance: [
       'Create one page per assignable task under tasks/.',
       'Use the task slug as a concise, stable, human-readable identifier; it does not need to match or mirror the full task title.',
-      'Use type: task in frontmatter.',
+      'Task identity is derived from the tasks/ path. Legacy type: task frontmatter may appear, but it is optional and not used for behavior.',
       'Set status to open for known work that is not actively being worked.',
       'Set status to in_progress for active work currently underway.',
       'Set status to waiting when work is paused on an external dependency, reply, approval, access, or date.',
@@ -213,7 +212,6 @@ function renderTaskSchemaMarkdownLines(schema) {
   return [
     `- Pattern: \`${schema.pattern}\``,
     '- Frontmatter:',
-    '  - `type: task`',
     '  - `title`: required title',
     `  - \`status\`: ${schema.frontmatter.status.map((item) => `\`${item}\``).join(', ')}`,
     `  - \`readiness\`: ${schema.frontmatter.readiness.map((item) => `\`${item}\``).join(', ')}`,

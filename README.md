@@ -167,7 +167,6 @@ Task pages live under `tasks/*.md`. Use one page per assignable task:
 
 ```yaml
 ---
-type: task
 title: Follow up on proposal
 status: open
 readiness: underspecified
@@ -179,6 +178,8 @@ due: 2026-07-01
 ---
 ```
 
+Task identity is derived from the `tasks/` path. Legacy `type: task`
+frontmatter may appear, but it is optional and not used for behavior.
 Valid statuses are `open`, `in_progress`, `waiting`, `done`, and `archived`.
 Use `open` for known work that is not actively being worked, `in_progress` for
 active work currently underway, `waiting` for work paused on an external
