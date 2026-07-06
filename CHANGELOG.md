@@ -3,7 +3,7 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining local installs and hosted brains.
 
-## Unreleased
+## [0.8.4] - 2026-07-06
 
 ### Changed
 
