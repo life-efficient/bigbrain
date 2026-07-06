@@ -3,6 +3,28 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining local installs and hosted brains.
 
+## Unreleased
+
+### Changed
+
+- `bigbrain-whats-next` now makes the follow-up contract explicit: when the
+  user answers input-needed questions or adds context after a snapshot, that
+  input is for clarifying or enriching the task record, not permission to start
+  executing the task in the same thread.
+
+### Agent update actions
+
+- Refresh bundled BigBrain skills from `skills/`, especially
+  `bigbrain-whats-next`.
+- Keep execution in separate fanout threads or explicit execution requests;
+  do not work on tasks in the same thread just because the user answered
+  `What's Next` clarification questions.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+
 ## [0.8.3] - 2026-07-05
 
 ### Changed

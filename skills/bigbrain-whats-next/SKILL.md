@@ -28,6 +28,13 @@ This skill is related to `bigbrain-fanout-tasks`, but it does not create
 handoff threads by default. It summarizes the next work first, then offers to
 fan out Codex threads if the user wants to start the work.
 
+If the user answers questions from the input-needed section or provides
+additional task context after a snapshot, treat that as task-enrichment input.
+Do not start executing the task in the same thread unless the user explicitly
+asks you to work on it here. Working on tasks in the same thread where
+`What's Next` ran is an anti-pattern by default; enrich or clarify the task
+record, then wait for an explicit fanout or execution request.
+
 ## Workflow
 
 Use the BigBrain MCP task endpoint as the source of truth:
@@ -99,6 +106,8 @@ Default output is capped at 8 numbered items. Keep the snapshot short:
   `I also need your input on a few tasks:`
 - Under that line, show a numbered list of input-needed tasks. For each task,
   include indented bullet questions or the missing context required.
+- Make clear that answers to these questions are for clarifying or enriching
+  the task, not for starting execution in this `What's Next` thread.
 - If there are no matching input-needed tasks, omit the input-needed heading
   entirely and do not mention that no such tasks were found.
 - Name input-needed tasks by human-readable title or action, not slug, unless
@@ -124,6 +133,9 @@ tasks proposed from current brain evidence.
 - Treat MCP task data as authoritative for task status and assignees.
 - Do not use local `TODO.md` discovery for this skill.
 - Do not mutate tasks while producing the snapshot.
+- If the user follows up with answers or additional context, use that context
+  to enrich the relevant task record when an update workflow is available; do
+  not treat the answer as permission to start working on the task.
 - Do not create summaries for tasks with `status: "done"` or
   `status: "archived"` unless the user explicitly asks for those statuses.
 - Do not promote an underspecified task to the ready list just because it sounds
