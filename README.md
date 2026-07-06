@@ -1,7 +1,6 @@
 # bigbrain
 
-Copy this into a new agent thread before asking it to install or set up
-BigBrain:
+Copy this into your agent (Codex/Claude Code)
 
 ```text
 Install and set up BigBrain by following https://github.com/life-efficient/bigbrain/blob/main/INSTALL_FOR_AGENTS.md.
