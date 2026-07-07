@@ -268,16 +268,24 @@ Raw attachments live outside the indexed page graph:
 ```text
 <collection>/<page-slug>.md
 <collection>/.raw/<filename>
+<collection>/.raw/<filename>.md
 ```
 
-The markdown page is the searchable context surface. It should usually include:
+A canonical markdown page is the searchable context surface. It should usually include:
 
 1. YAML frontmatter
 2. Short description of what the source is
 3. A link to the raw attachment
 4. Optional timeline when provenance or reuse history matters
 
-Suggested frontmatter:
+A raw-file sidecar markdown page is different: it exists to store metadata for a
+specific raw file, such as visibility, groups, provenance, MIME type, and
+sharing state. Raw sidecar markdown belongs inside the same `.raw/` folder as
+the raw file and should not be the public object shown when a user shares a raw
+file. Group and public-folder views should show the actual raw file, while the
+sidecar stores the metadata needed to control and explain that file.
+
+Suggested frontmatter for a canonical page that discusses an attachment:
 
 ```yaml
 type: source
@@ -287,10 +295,21 @@ kind: contract
 created: 2026-05-19
 ```
 
+Suggested frontmatter for a raw sidecar:
+
+```yaml
+title: ExampleCo Advisory Contract Draft v1
+raw_file: deals/.raw/exampleco-advisory-arrangement-contract-draft-v1.pdf
+raw_mime_type: application/pdf
+groups: [exampleco-diligence-pack]
+visibility: private
+```
+
 The canonical graph is bidirectional:
 
 - brain pages link outward to raw attachments
-- raw attachments remain associated through page links and `raw_file` frontmatter
+- raw attachments remain associated through page links, `raw_file` frontmatter,
+  and optional raw sidecar metadata under `.raw/`
 
 Raw attachments may contain both upstream inputs and generated outputs. That
 semantic distinction is intentionally not hard-coded at the storage layer
@@ -304,6 +323,9 @@ because an output may become a future input.
 - Keep `inbox/` only as a legacy last-resort holding area for non-actionable material that cannot yet be filed anywhere else.
 - Do not store attached files directly in entity directories; place them under
   per-collection `.raw/` directories and reference them from canonical pages.
+- Place raw-file sidecar markdown pages under the same `.raw/` directory as
+  their raw files. Do not show those sidecar pages as normal public pages when a
+  group or folder is sharing the raw file.
 - Repo documentation pages such as directory `README.md` files are not part of
   the canonical brain graph and should be excluded from indexing and strict
   page validation.

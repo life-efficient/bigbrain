@@ -123,12 +123,16 @@ screenshots, transcripts, slide decks, and spreadsheets:
 - `delete_raw_file`
 
 Use `create_raw_file` to upload a remote file without a markdown page,
-`create_raw_file_with_page` to upload a remote file and create the searchable
-brain page in the same call, `read_raw_file` to download the raw bytes as
+`create_raw_file_with_page` to upload a remote file and create a markdown
+metadata page in the same call, `read_raw_file` to download the raw bytes as
 base64, and `update_raw_file` to replace the bytes of an existing upload.
 
 The tool `create_raw_file_with_page` writes a raw file and its corresponding
-markdown brain page together.
+markdown metadata page together. For canonical pages that summarize a meeting,
+deal, report, deliverable, or source, use the owning collection page path. For
+raw-file sidecars that exist only to carry metadata, visibility, groups, or
+provenance for the raw file, store the sidecar under the same `.raw/` folder as
+the raw file.
 
 Required fields:
 
@@ -143,8 +147,10 @@ Required fields:
   filenames.
 - `raw_content_base64` or `raw_content_text`: provide exactly one. Use base64
   for PDFs and other binary files.
-- `page_path`, `title`, `body`, `timeline_entry`: the markdown brain page to
-  create at the same time when using `create_raw_file_with_page`.
+- `page_path`, `title`, `body`, `timeline_entry`: the markdown metadata page to
+  create at the same time when using `create_raw_file_with_page`. Use a normal
+  collection path only for a canonical page. Use `<collection>/.raw/<slug>.md`
+  for a raw-file sidecar.
 
 For local binary artifacts, the normal upload path is still MCP:
 
@@ -178,9 +184,11 @@ node scripts/prepare-raw-upload.mjs \
 
 Raw reads return `content_base64` so binary files can round-trip safely. The
 generated page from `create_raw_file_with_page` gets a `raw_file` frontmatter
-field and a `## Source File` link back to the raw upload. Raw files under
-`.raw/` stay out of the indexed page graph; the associated markdown page is the
-searchable surface.
+field and a `## Source File` link back to the raw upload. Canonical markdown
+pages remain the searchable surface. Raw sidecar markdown under `.raw/` is
+metadata for the raw file and should not be shown as the public item when a
+group shares that raw file; published group views should show the raw file
+itself.
 
 Raw uploads are limited to 25 MiB decoded bytes by default so git-backed brains
 do not accept files likely to break backup or sync. The limit can be changed

@@ -85,6 +85,12 @@ Use only these built-in repair paths unless the user asks for deeper edits:
      the link when there is a single obvious target, such as a raw file whose
      name differs only by URL encoding/spacing, or convert an external local
      path citation into literal text when it is not an in-brain page link
+   - For raw-file sidecar placement, distinguish canonical pages from sidecars:
+     canonical meeting, report, source, deliverable, deal, and project pages may
+     link to raw files from normal collection folders, but markdown pages whose
+     main purpose is raw-file metadata should live next to the raw file under
+     `<collection>/.raw/`. Move only unambiguous sidecars and list ambiguous
+     pages for review.
    - After link edits, always run `sync` before re-running `health`, because
      unresolved-link checks use the indexed outgoing-link table
 
