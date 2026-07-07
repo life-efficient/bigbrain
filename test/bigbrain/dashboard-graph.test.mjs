@@ -227,6 +227,7 @@ test('public page payload exposes only approved body content and safe links', as
     assert.equal(payload.title, 'Alice Public');
     assert.match(payload.summary, /Visible body/);
     assert.match(payload.markdown, /Visible body/);
+    assert.doesNotMatch(payload.markdown, /^# Alice Public/m);
     assert.match(payload.markdown, /\[Relay\]\(\/public\/projects\/relay\)/);
     assert.match(payload.markdown, /\[Relay Wiki\]\(\/public\/projects\/relay\)/);
     assert.match(payload.markdown, /\[Deck\]\(\/api\/public\/raw\?slug=people%2Falice&path=sources%2F\.raw%2Fdeck\.pdf\)/);

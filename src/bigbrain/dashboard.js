@@ -386,9 +386,13 @@ function renderAppHtml() {
       main { min-width: 0; max-width: none; height: 100vh; margin: 0; padding: 20px calc(20px + var(--sidecar-width)) 16px 20px; width: 100%; overflow: hidden; display: flex; flex-direction: column; transition: padding-right 240ms ease; }
       .public-main { min-height: 100vh; height: 100vh; overflow: auto; display: block; padding: 42px 22px 64px; background: #fafafa; color: #18181b; }
       .public-document { width: min(820px, 100%); margin: 0 auto; display: grid; gap: 22px; }
-      .public-document-head { display: grid; gap: 8px; padding-bottom: 18px; border-bottom: 1px solid #e4e4e7; }
+      .public-document-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid #e4e4e7; }
       .public-document-head h1,
       .public-document > h1 { margin: 0; color: #18181b; font-size: 40px; line-height: 1.08; letter-spacing: 0; }
+      .public-view-toggle { display: inline-grid; grid-template-columns: repeat(2, 34px); gap: 4px; padding: 3px; border: 1px solid #d4d4d8; border-radius: 8px; background: #fff; flex: 0 0 auto; }
+      .public-view-button { width: 34px; height: 30px; display: inline-grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #52525b; cursor: pointer; font-size: 17px; line-height: 1; }
+      .public-view-button:hover { background: #f4f4f5; color: #18181b; }
+      .public-view-button.active { background: #18181b; color: #fafafa; }
       .public-document .meta,
       .public-document .empty-copy,
       .public-document p { color: #52525b; }
@@ -400,6 +404,10 @@ function renderAppHtml() {
       .public-document .tailwind-prose h4,
       .public-document .tailwind-prose strong { color: #18181b; }
       .public-document .tailwind-prose a { color: #155eef; }
+      .public-document.raw-file-view-grid .tailwind-prose ul:has(a[href*="/api/public/raw"]) { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; padding-left: 0; list-style: none; }
+      .public-document.raw-file-view-grid .tailwind-prose ul:has(a[href*="/api/public/raw"]) li { margin: 0; }
+      .public-document.raw-file-view-grid .tailwind-prose ul:has(a[href*="/api/public/raw"]) a { display: block; min-height: 76px; padding: 13px 14px; border: 1px solid #e4e4e7; border-radius: 8px; background: #fff; text-decoration: none; color: #18181b; font-weight: 650; }
+      .public-document.raw-file-view-grid .tailwind-prose ul:has(a[href*="/api/public/raw"]) a:hover { border-color: #a1a1aa; background: #f8fafc; }
       .public-document .tailwind-prose code { background: #f4f4f5; color: #18181b; }
       .public-document .tailwind-prose pre { background: #18181b; color: #fafafa; border-radius: 8px; }
       .public-document .tailwind-prose blockquote { border-left-color: #d4d4d8; color: #52525b; }
@@ -1196,12 +1204,12 @@ export async function buildPublicPagePayload(config, requestUrl) {
   const page = await readPublicMarkdownPage(config, slug);
   if (!page || !isPublicPage(page.parsed)) return null;
   const rawFiles = publicRawFiles(page.parsed.frontmatter);
-  const markdown = await sanitizePublicMarkdown({
+  const markdown = stripDuplicatePublicTitle(await sanitizePublicMarkdown({
     config,
     markdown: page.parsed.compiledTruth,
     sourceSlug: slug,
     allowedRawFiles: rawFiles,
-  });
+  }), page.parsed.title);
   const linkedRawFiles = publicRawFilesReferencedByMarkdown(markdown, slug, rawFiles);
   return {
     slug,
@@ -1214,6 +1222,20 @@ export async function buildPublicPagePayload(config, requestUrl) {
     })),
     updated_at: page.stat.mtime.toISOString(),
   };
+}
+
+function stripDuplicatePublicTitle(markdown, title) {
+  const expected = String(title || '').trim();
+  if (!expected) return markdown;
+  const lines = String(markdown || '').split('\n');
+  let index = 0;
+  while (index < lines.length && !lines[index].trim()) index += 1;
+  if (index >= lines.length) return markdown;
+  const heading = lines[index].trim().match(/^#\s+(.+)$/);
+  if (!heading || heading[1].trim() !== expected) return markdown;
+  lines.splice(index, 1);
+  while (index < lines.length && !lines[index].trim()) lines.splice(index, 1);
+  return lines.join('\n');
 }
 
 export async function buildPublicRawFilePayload(config, requestUrl) {

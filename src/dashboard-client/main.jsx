@@ -512,6 +512,7 @@ function DashboardApp() {
 
 function PublicPageApp() {
   const [state, setState] = useState({ status: 'loading', error: null, page: null });
+  const [rawFileView, setRawFileView] = useState('list');
   const slug = useMemo(() => publicSlugFromPath(window.location.pathname), []);
 
   useEffect(() => {
@@ -557,10 +558,31 @@ function PublicPageApp() {
 
   return (
     <main className="public-main">
-      <article className="public-document">
+      <article className={`public-document raw-file-view-${rawFileView}`}>
         <header className="public-document-head">
           <h1>{state.page.title}</h1>
-          <p className="meta">{state.page.slug}</p>
+          {Array.isArray(state.page.raw_files) && state.page.raw_files.length ? (
+            <div className="public-view-toggle" role="group" aria-label="Raw file layout">
+              <button
+                type="button"
+                className={`public-view-button ${rawFileView === 'list' ? 'active' : ''}`}
+                aria-label="Show raw files as a list"
+                aria-pressed={rawFileView === 'list'}
+                onClick={() => setRawFileView('list')}
+              >
+                <span aria-hidden="true">☰</span>
+              </button>
+              <button
+                type="button"
+                className={`public-view-button ${rawFileView === 'grid' ? 'active' : ''}`}
+                aria-label="Show raw files as a grid"
+                aria-pressed={rawFileView === 'grid'}
+                onClick={() => setRawFileView('grid')}
+              >
+                <span aria-hidden="true">▦</span>
+              </button>
+            </div>
+          ) : null}
         </header>
         <MarkdownDocument
           markdown={state.page.markdown}
