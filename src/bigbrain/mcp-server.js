@@ -23,6 +23,8 @@ import {
   publicRawFiles,
   readBrainPage,
   readRawFile,
+  renameBrainPage,
+  renameRawFile,
   updateRawFile,
   updateBrainPage,
   updatePageVisibility,
@@ -365,10 +367,30 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       await postWriteMaintenance(config, gitBackupEnabled, actor);
       return toolJson(rawFile);
     }
+    case 'rename_raw_file': {
+      const rawFile = await renameRawFile({
+        config,
+        fromRawPath: args.from_path,
+        toRawPath: args.to_path,
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      return toolJson(rawFile);
+    }
     case 'delete_raw_file': {
       const result = await deleteRawFile({ config, rawPath: args.path });
       await postWriteMaintenance(config, gitBackupEnabled, actor);
       return toolJson(result);
+    }
+    case 'rename_page': {
+      const page = await renameBrainPage({
+        config,
+        fromPagePath: args.from_path,
+        toPagePath: args.to_path,
+        title: args.title,
+        timelineEntry: timelineWithActor(args.timeline_entry, actor),
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      return toolJson(page);
     }
     case 'update_page': {
       const page = await updateBrainPage({
@@ -852,6 +874,32 @@ function toolDefinitions() {
       },
     },
     {
+      name: 'rename_raw_file',
+      description: 'Rename one existing raw file under .raw and rewrite markdown links, raw_file frontmatter, and public_raw_files references that pointed to the old raw file path.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          from_path: { type: 'string', description: 'Existing raw file path such as deals/.raw/company-specific-teaser.pdf.' },
+          to_path: { type: 'string', description: 'Destination raw file path such as deals/.raw/regional-platform-blind-teaser.pdf.' },
+        },
+        required: ['from_path', 'to_path'],
+      },
+    },
+    {
+      name: 'rename_page',
+      description: 'Rename one markdown brain page and rewrite relative markdown links that pointed to the old page path. Optionally update the page title during the rename.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          from_path: { type: 'string', description: 'Existing markdown page path such as deals/company-specific-teaser.md.' },
+          to_path: { type: 'string', description: 'Destination markdown page path such as deals/regional-platform-blind-teaser.md.' },
+          title: { type: 'string', description: 'Optional replacement title for the moved page.' },
+          timeline_entry: { type: 'string' },
+        },
+        required: ['from_path', 'to_path', 'timeline_entry'],
+      },
+    },
+    {
       name: 'update_page',
       description: 'Replace the current body of a markdown brain page and append a timeline entry.',
       inputSchema: {
@@ -951,8 +999,10 @@ function toolPolicy(name) {
     create_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
     create_raw_file_with_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
     update_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+    rename_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
     set_page_visibility: { layer: 'publish', scopes: ['brain:publish'] },
     update_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
+    rename_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
     delete_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
     'maintenance/git_backup': { layer: 'git_backup', scopes: ['brain:git-backup'] },
     maintenance_git_backup: { layer: 'git_backup', scopes: ['brain:git-backup'] },

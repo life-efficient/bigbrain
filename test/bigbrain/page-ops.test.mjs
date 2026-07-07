@@ -16,6 +16,8 @@ import {
   pageVisibility,
   readBrainPage,
   readRawFile,
+  renameBrainPage,
+  renameRawFile,
   updateRawFile,
   updateBrainPage,
   updatePageVisibility,
@@ -150,6 +152,91 @@ test('page ops support raw file CRUD without indexing raw files', async () => {
     await syncBrain({ config, apiKey: null });
     const db = await openDatabase(config);
     assert.equal(await getPageRecord(db, 'meetings/.raw/transcript.txt'), undefined);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page ops rename raw files and rewrite page references', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-raw-rename-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const pdfBytes = Buffer.from('%PDF-1.4\nraw deck\n%%EOF\n', 'utf8');
+    await createRawFileWithPage({
+      config,
+      rawPath: 'deals/.raw/company-name-blind-teaser.pdf',
+      rawContentBase64: pdfBytes.toString('base64'),
+      mimeType: 'application/pdf',
+      pagePath: 'deals/company-name-blind-teaser',
+      title: 'Company Name Blind Teaser',
+      body: 'Current teaser.',
+      timelineEntry: 'Uploaded teaser.',
+      frontmatter: { public_raw_files: ['deals/.raw/company-name-blind-teaser.pdf'] },
+    });
+
+    const renamed = await renameRawFile({
+      config,
+      fromRawPath: 'deals/.raw/company-name-blind-teaser.pdf',
+      toRawPath: 'deals/.raw/regional-platform-blind-teaser.pdf',
+    });
+
+    assert.equal(renamed.path, 'deals/.raw/regional-platform-blind-teaser.pdf');
+    assert.equal(renamed.previous_path, 'deals/.raw/company-name-blind-teaser.pdf');
+    assert.deepEqual(renamed.changed_pages, ['deals/company-name-blind-teaser.md']);
+    await assert.rejects(
+      () => readRawFile({ config, rawPath: 'deals/.raw/company-name-blind-teaser.pdf' }),
+      /ENOENT/,
+    );
+    const page = await readBrainPage({ config, pagePath: 'deals/company-name-blind-teaser' });
+    assert.equal(page.frontmatter.raw_file, 'deals/.raw/regional-platform-blind-teaser.pdf');
+    assert.deepEqual(page.frontmatter.public_raw_files, ['deals/.raw/regional-platform-blind-teaser.pdf']);
+    assert.match(page.markdown, /\[regional-platform-blind-teaser\.pdf\]\(\.raw\/regional-platform-blind-teaser\.pdf\)/);
+    assert.doesNotMatch(page.markdown, /company-name-blind-teaser\.pdf/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page ops rename pages and rewrite relative markdown links', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-page-rename-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await createBrainPage({
+      config,
+      pagePath: 'deals/company-name-blind-teaser',
+      title: 'Company Name Blind Teaser',
+      body: 'Current teaser.',
+      timelineEntry: 'Created teaser.',
+    });
+    await createBrainPage({
+      config,
+      pagePath: 'deals/company-name',
+      title: 'Company Name',
+      body: 'Related: [Company Name Blind Teaser](company-name-blind-teaser.md).',
+      timelineEntry: 'Created deal.',
+    });
+
+    const renamed = await renameBrainPage({
+      config,
+      fromPagePath: 'deals/company-name-blind-teaser',
+      toPagePath: 'deals/regional-platform-blind-teaser',
+      title: 'Regional Platform Blind Teaser',
+      timelineEntry: 'Renamed teaser artifact to anonymized path.',
+    });
+
+    assert.equal(renamed.path, 'deals/regional-platform-blind-teaser.md');
+    assert.equal(renamed.previous_path, 'deals/company-name-blind-teaser.md');
+    assert.equal(renamed.title, 'Regional Platform Blind Teaser');
+    assert.match(renamed.markdown, /^title: Regional Platform Blind Teaser$/m);
+    assert.match(renamed.body, /^# Regional Platform Blind Teaser/m);
+    assert.deepEqual(renamed.changed_pages, ['deals/company-name.md']);
+    await assert.rejects(
+      () => readBrainPage({ config, pagePath: 'deals/company-name-blind-teaser' }),
+      /ENOENT/,
+    );
+    const deal = await readBrainPage({ config, pagePath: 'deals/company-name' });
+    assert.match(deal.body, /\[Company Name Blind Teaser\]\(regional-platform-blind-teaser\.md\)/);
+    assert.doesNotMatch(deal.body, /company-name-blind-teaser\.md/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

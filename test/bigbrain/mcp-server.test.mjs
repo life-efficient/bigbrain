@@ -94,7 +94,9 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'read_raw_file'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'update_raw_file'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'rename_raw_file'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'delete_raw_file'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'rename_page'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'get_page_visibility'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'set_page_visibility'), true);
     const visibilityTool = listed.result.tools.find((tool) => tool.name === 'set_page_visibility');
@@ -377,18 +379,28 @@ test('MCP server supports raw file CRUD tools', async () => {
     }, 'secret');
     assert.equal(updated.result.structuredContent.size, 'second version'.length);
 
+    const renamed = await rpc(running.url, 'tools/call', {
+      name: 'rename_raw_file',
+      arguments: {
+        from_path: 'sources/.raw/mcp-crud.txt',
+        to_path: 'sources/.raw/mcp-crud-renamed.txt',
+      },
+    }, 'secret');
+    assert.equal(renamed.result.structuredContent.previous_path, 'sources/.raw/mcp-crud.txt');
+    assert.equal(renamed.result.structuredContent.path, 'sources/.raw/mcp-crud-renamed.txt');
+
     const listed = await rpc(running.url, 'tools/call', {
       name: 'list_raw_files',
       arguments: { path: 'sources/.raw' },
     }, 'secret');
-    assert.deepEqual(listed.result.structuredContent.map((entry) => entry.path), ['sources/.raw/mcp-crud.txt']);
+    assert.deepEqual(listed.result.structuredContent.map((entry) => entry.path), ['sources/.raw/mcp-crud-renamed.txt']);
 
     const deleted = await rpc(running.url, 'tools/call', {
       name: 'delete_raw_file',
-      arguments: { path: 'sources/.raw/mcp-crud.txt' },
+      arguments: { path: 'sources/.raw/mcp-crud-renamed.txt' },
     }, 'secret');
-    assert.deepEqual(deleted.result.structuredContent, { path: 'sources/.raw/mcp-crud.txt', deleted: true });
-    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'sources', '.raw', 'mcp-crud.txt')), /ENOENT/);
+    assert.deepEqual(deleted.result.structuredContent, { path: 'sources/.raw/mcp-crud-renamed.txt', deleted: true });
+    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'sources', '.raw', 'mcp-crud-renamed.txt')), /ENOENT/);
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

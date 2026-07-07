@@ -194,6 +194,35 @@ export async function updateRawFile({
   return rawFileMetadata(config, rawRelative, { mimeType });
 }
 
+export async function renameRawFile({
+  config,
+  fromRawPath,
+  toRawPath,
+}) {
+  const fromRelative = normalizeRawPath(fromRawPath);
+  const toRelative = normalizeRawPath(toRawPath);
+  if (fromRelative === toRelative) throw new Error('Raw file source and destination must differ.');
+  const fromFullPath = safeBrainPath(config.brainDir, fromRelative);
+  const toFullPath = safeBrainPath(config.brainDir, toRelative);
+  const stats = await fs.stat(fromFullPath);
+  if (!stats.isFile()) throw new Error(`Raw file is not a file: ${fromRelative}`);
+  if (await exists(toFullPath)) throw new Error(`Raw file already exists: ${toRelative}`);
+  await fs.mkdir(path.dirname(toFullPath), { recursive: true });
+  await fs.rename(fromFullPath, toFullPath);
+  await pruneEmptyRawParents(config.brainDir, path.dirname(fromFullPath));
+  const changed_pages = await rewriteMarkdownReferencesAcrossBrain({
+    config,
+    kind: 'raw',
+    fromPath: fromRelative,
+    toPath: toRelative,
+  });
+  return {
+    ...(await rawFileMetadata(config, toRelative)),
+    previous_path: fromRelative,
+    changed_pages,
+  };
+}
+
 export async function deleteRawFile({ config, rawPath }) {
   const rawRelative = normalizeRawPath(rawPath);
   const rawFullPath = safeBrainPath(config.brainDir, rawRelative);
@@ -238,6 +267,55 @@ export async function updateBrainPage({ config, pagePath, body, timelineEntry })
   });
   await fs.writeFile(safeBrainPath(config.brainDir, relative), markdown, 'utf8');
   return readBrainPage({ config, pagePath: relative });
+}
+
+export async function renameBrainPage({
+  config,
+  fromPagePath,
+  toPagePath,
+  title = null,
+  timelineEntry,
+}) {
+  const fromRelative = normalizePagePath(fromPagePath);
+  const toRelative = normalizePagePath(toPagePath);
+  if (fromRelative === toRelative) throw new Error('Page source and destination must differ.');
+  assertAllowedPagePath(fromRelative);
+  assertAllowedPagePath(toRelative);
+  const fromFullPath = safeBrainPath(config.brainDir, fromRelative);
+  const toFullPath = safeBrainPath(config.brainDir, toRelative);
+  const stats = await fs.stat(fromFullPath);
+  if (!stats.isFile()) throw new Error(`Page is not a file: ${fromRelative}`);
+  if (await exists(toFullPath)) throw new Error(`Page already exists: ${toRelative}`);
+
+  const existing = await readBrainPage({ config, pagePath: fromRelative });
+  const now = new Date().toISOString().slice(0, 10);
+  const nextTitle = title ? requireNonEmpty(title, 'title') : existing.title;
+  const nextBody = title ? replaceLeadingHeading(existing.body, existing.title, nextTitle) : existing.body;
+  const frontmatterRaw = title
+    ? setFrontmatterValue(existing.frontmatter_raw, 'title', nextTitle)
+    : existing.frontmatter_raw;
+  const markdown = renderPageMarkdown({
+    frontmatterRaw,
+    title: nextTitle,
+    body: nextBody,
+    timeline: appendTimelineEntry(existing.timeline, timelineEntry, now),
+  });
+
+  await fs.mkdir(path.dirname(toFullPath), { recursive: true });
+  await fs.writeFile(toFullPath, markdown, 'utf8');
+  await fs.rm(fromFullPath);
+  await pruneEmptyMarkdownParents(config.brainDir, path.dirname(fromFullPath));
+  const changed_pages = await rewriteMarkdownReferencesAcrossBrain({
+    config,
+    kind: 'page',
+    fromPath: fromRelative,
+    toPath: toRelative,
+  });
+  return {
+    ...(await readBrainPage({ config, pagePath: toRelative })),
+    previous_path: fromRelative,
+    changed_pages,
+  };
 }
 
 export async function updatePageVisibility({ config, pagePath, visibility, timelineEntry, publicRawFiles }) {
@@ -391,6 +469,17 @@ function normalizeCurrentBody(title, body) {
   return [`# ${title}`, '', trimmed].join('\n');
 }
 
+function replaceLeadingHeading(body, oldTitle, nextTitle) {
+  const lines = String(body || '').split('\n');
+  const index = lines.findIndex((line) => line.trim());
+  if (index < 0) return `# ${nextTitle}`;
+  const heading = lines[index].match(/^#\s+(.+)$/);
+  if (!heading) return body;
+  if (heading[1].trim() !== oldTitle) return body;
+  lines[index] = `# ${nextTitle}`;
+  return lines.join('\n');
+}
+
 function renderFrontmatter(frontmatter) {
   return Object.entries(frontmatter)
     .filter(([, value]) => value !== undefined && value !== null)
@@ -518,6 +607,100 @@ async function walkRawFiles(root, current, entries, recursive, prefix) {
   }
 }
 
+async function walkMarkdownFiles(root, current, files = []) {
+  const dirents = await fs.readdir(current, { withFileTypes: true }).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  for (const dirent of dirents) {
+    if (dirent.name === '.git' || dirent.name === '.bigbrain' || dirent.name === '.bigbrain-state' || dirent.name === 'node_modules') continue;
+    const fullPath = path.join(current, dirent.name);
+    if (dirent.isDirectory()) {
+      await walkMarkdownFiles(root, fullPath, files);
+      continue;
+    }
+    if (!dirent.isFile() || !dirent.name.endsWith('.md')) continue;
+    const relative = path.relative(root, fullPath).split(path.sep).join('/');
+    if (relative.split('/').includes('.raw')) continue;
+    files.push({ fullPath, relative });
+  }
+  return files;
+}
+
+async function rewriteMarkdownReferencesAcrossBrain({ config, kind, fromPath, toPath }) {
+  const files = await walkMarkdownFiles(config.brainDir, config.brainDir);
+  const changed = [];
+  for (const file of files) {
+    const markdown = await fs.readFile(file.fullPath, 'utf8');
+    const next = rewriteMarkdownReferences({
+      markdown,
+      currentPagePath: file.relative,
+      kind,
+      fromPath,
+      toPath,
+    });
+    if (next === markdown) continue;
+    await fs.writeFile(file.fullPath, next, 'utf8');
+    changed.push(file.relative);
+  }
+  return changed;
+}
+
+function rewriteMarkdownReferences({ markdown, currentPagePath, kind, fromPath, toPath }) {
+  const sourceSlug = currentPagePath.replace(/\.md$/i, '');
+  const sourceDir = path.posix.dirname(currentPagePath);
+  let next = String(markdown || '');
+  if (kind === 'raw') {
+    next = next.replace(
+      /(^\s*(?:raw_file|public_raw_files)\s*:\s*)([^\n]+)/gm,
+      (match, prefix, value) => `${prefix}${rewriteRawFrontmatterValue(value, fromPath, toPath)}`,
+    );
+  }
+  return next.replace(/(!?\[[^\]]*\]\()([^)#]+)(#[^)]*)?(\))/g, (match, prefix, target, anchor = '', suffix) => {
+    const replacement = kind === 'raw'
+      ? rewriteRawLinkTarget({ sourceSlug, target, fromPath, toPath })
+      : rewritePageLinkTarget({ sourceDir, target, fromPath, toPath });
+    if (!replacement) return match;
+    const nextPrefix = kind === 'raw'
+      ? prefix.replace(path.posix.basename(fromPath), path.posix.basename(toPath))
+      : prefix;
+    return `${nextPrefix}${replacement}${anchor}${suffix}`;
+  });
+}
+
+function rewriteRawFrontmatterValue(value, fromPath, toPath) {
+  const rewritten = String(value || '').replaceAll(fromPath, toPath);
+  return rewritten;
+}
+
+function rewriteRawLinkTarget({ sourceSlug, target, fromPath, toPath }) {
+  const resolved = resolveRawLinkTarget(sourceSlug, target);
+  if (resolved !== fromPath) return null;
+  const currentDir = path.posix.dirname(`${sourceSlug}.md`);
+  return path.posix.relative(currentDir, toPath) || path.posix.basename(toPath);
+}
+
+function rewritePageLinkTarget({ sourceDir, target, fromPath, toPath }) {
+  const resolved = resolvePageLinkTarget(sourceDir, target);
+  if (resolved !== fromPath) return null;
+  return path.posix.relative(sourceDir, toPath) || path.posix.basename(toPath);
+}
+
+function resolvePageLinkTarget(sourceDir, target) {
+  const trimmed = String(target || '').trim();
+  if (!trimmed || /^(https?:|mailto:|#)/i.test(trimmed)) return null;
+  const withoutQuery = trimmed.split('?')[0].trim();
+  if (!withoutQuery || withoutQuery.split('/').includes('.raw')) return null;
+  const candidate = path.posix.normalize(
+    withoutQuery.startsWith('/') ? withoutQuery.replace(/^\/+/, '') : path.posix.join(sourceDir, withoutQuery),
+  );
+  try {
+    return normalizePagePath(candidate);
+  } catch {
+    return null;
+  }
+}
+
 async function entryForPath(root, fullPath, stats) {
   return {
     path: path.relative(root, fullPath).split(path.sep).join('/'),
@@ -611,6 +794,17 @@ async function pruneEmptyRawParents(brainDir, currentDir) {
   const root = path.resolve(brainDir);
   let cursor = path.resolve(currentDir);
   while (cursor.startsWith(`${root}${path.sep}`) && path.basename(cursor) !== '.raw') {
+    const entries = await fs.readdir(cursor).catch(() => null);
+    if (!entries || entries.length > 0) return;
+    await fs.rmdir(cursor);
+    cursor = path.dirname(cursor);
+  }
+}
+
+async function pruneEmptyMarkdownParents(brainDir, currentDir) {
+  const root = path.resolve(brainDir);
+  let cursor = path.resolve(currentDir);
+  while (cursor.startsWith(`${root}${path.sep}`)) {
     const entries = await fs.readdir(cursor).catch(() => null);
     if (!entries || entries.length > 0) return;
     await fs.rmdir(cursor);
