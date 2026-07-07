@@ -287,8 +287,7 @@ bigbrain --config /path/to/config.json members add alice@example.com people/alic
 ```
 
 Each member links an authenticated email to a canonical `people/<slug>` page.
-Only active members can be assigned tasks. Legacy inbox item assignment may
-still appear for compatibility, but active intake should be task-only.
+Only active members can be assigned tasks. Active intake is task-only.
 
 Create a Google OAuth client with this redirect URI:
 

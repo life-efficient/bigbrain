@@ -120,7 +120,7 @@ function DashboardApp() {
         setState({
           status: 'ready',
           error: null,
-          data: { schema, tasks, inbox: { deprecated: true, items: [] }, recent, health, graph, explorer: { ...explorer, recent: explorerRecent } },
+          data: { schema, tasks, recent, health, graph, explorer: { ...explorer, recent: explorerRecent } },
         });
       } catch (error) {
         if (cancelled) return;

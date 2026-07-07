@@ -205,9 +205,9 @@ Questions, and Anti-Patterns, and append evidence or state changes under
 Use the MCP task tools
 (`tasks/list`, `tasks/create`, `tasks/update`) when writing through an agent.
 For new intake, create or update a task by default when the item is actionable,
-needs an owner, needs status, or represents follow-up work. Keep `inbox/` as a
-legacy compatibility area for historical or non-actionable unresolved captures,
-not as a parallel task queue.
+needs an owner, needs status, or represents follow-up work. Historical
+`inbox/` pages may remain in existing brains, but there is no inbox API or
+dashboard workflow; do not use inbox as a parallel task queue.
 When marking a task `done` or `archived`, include a completion handoff in the
 timeline: either `Next task: tasks/<slug>` or
 `No successor task needed: <reason>`.

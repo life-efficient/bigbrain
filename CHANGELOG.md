@@ -3,6 +3,15 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining local installs and hosted brains.
 
+## Unreleased
+
+### Removed
+
+- Removed the dashboard `/api/inbox` compatibility endpoint, inbox payload
+  builder, inbox dashboard styling, and inbox assignment tests. Existing
+  historical `inbox/` pages can still be migrated and indexed, but active
+  intake is task-only.
+
 ## [0.8.5] - 2026-07-07
 
 ### Fixed

@@ -60,8 +60,8 @@ for agents:
   future enrichment workflows
 - automations are explicit, scheduled, and inspectable rather than hidden
   personalities
-- the dashboard is a first-class surface for health, graph, tasks, legacy inbox
-  compatibility, sync, and agent activity inspection
+- the dashboard is a first-class surface for health, graph, tasks, sync, and
+  agent activity inspection
 
 This posture still leaves room for hosted or team brains. The hosted form
 should preserve the same contract: agents connect to BigBrain, BigBrain indexes
@@ -86,7 +86,7 @@ The initial system must support:
   - markdown/database sync
 - git backup and GitHub-friendly workflows
 - ingestion and enrichment workflows
-- lightweight dashboard for graph, tasks, and legacy inbox compatibility
+- lightweight dashboard for graph and tasks
 - migration from an existing markdown brain corpus
 
 ## What You Are Missing
@@ -113,7 +113,7 @@ Without these, the system will drift back into hidden complexity.
 - canonical page bodies
 - human-authored structure
 - explicit links written in the notes
-- task content and legacy inbox compatibility content
+- task content
 
 ### Database in the external brain home is authoritative for:
 
@@ -184,7 +184,7 @@ The top-level structure should stay intentionally small:
 - `concepts/`
 - `writing/`
 - `sources/`
-- `inbox/` (legacy compatibility, not active task intake)
+- `inbox/` (historical collection only, not active task intake)
 - `archive/`
 - `dreams/`
 - `ops/`
@@ -320,7 +320,7 @@ because an output may become a future input.
 - File by primary subject, not by source or format.
 - Use cross-links instead of duplicate pages.
 - Use `tasks/` for actionable work by default; use `sources/` for evidence-first imports whose owning collection is unclear.
-- Keep `inbox/` only as a legacy last-resort holding area for non-actionable material that cannot yet be filed anywhere else.
+- Historical `inbox/` pages may remain in existing brains, but new material should use `tasks/`, `sources/`, or a canonical subject page.
 - Do not store attached files directly in entity directories; place them under
   per-collection `.raw/` directories and reference them from canonical pages.
 - Place raw-file sidecar markdown pages under the same `.raw/` directory as
@@ -658,7 +658,6 @@ Initial screens:
 
 - graph explorer
 - tasks view
-- legacy inbox view
 - health findings
 - recent changes
 - sync and embedding status
@@ -718,7 +717,7 @@ It should be concise and operational.
 
 - lightweight dashboard
 - graph visualization
-- task pages plus legacy inbox compatibility pages
+- task pages
 
 ### Milestone 6: hosted brain service
 

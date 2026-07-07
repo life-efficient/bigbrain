@@ -176,7 +176,6 @@ export async function createDashboardRequestHandler(config, {
       }
       if (requestUrl.pathname === '/api/schema') return json(res, { markdown: renderSchemaMarkdown() });
       if (requestUrl.pathname === '/api/tasks') return json(res, await buildTasksPayload(config, db, requestUrl, { actor }));
-      if (requestUrl.pathname === '/api/inbox') return json(res, await buildInboxPayload(config, db, requestUrl, { actor }));
       if (requestUrl.pathname === '/api/recent') return json(res, await buildRecentPayload(db));
       if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db));
       if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
@@ -537,12 +536,10 @@ function renderAppHtml() {
       .card { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 20px; box-shadow: var(--shadow-soft); backdrop-filter: blur(10px); }
       .view-stage { flex: 1; min-height: 0; width: 100%; }
       .view-stage-list { display: flex; justify-content: center; }
-      .view-inbox.preview-open .view-stage-list,
       .view-tasks.preview-open .view-stage-list { justify-content: flex-start; }
       .view-stage-graph { display: block; }
       .hero-card { min-height: 0; height: 100%; display: flex; flex-direction: column; min-width: 0; border: 0; background: transparent; box-shadow: none; backdrop-filter: none; padding: 0; }
       .list-page-card { width: min(760px, 100%); max-width: 760px; margin: 0 auto; }
-      .view-inbox.preview-open .list-page-card,
       .view-tasks.preview-open .list-page-card { width: 100%; max-width: none; margin: 0; }
       .list-scroll-region { flex: 1; min-height: 0; overflow: auto; padding-right: 4px; }
       .standalone-list-region { height: 100%; overflow: auto; padding-right: 4px; }
@@ -706,23 +703,7 @@ function renderAppHtml() {
       .graph-fixed-labels text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
       .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
       .legend span { font-size: 12px; color: var(--muted); padding: 6px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); text-transform: lowercase; }
-      .inbox-task-button { text-align: left; width: 100%; cursor: pointer; transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
-      .inbox-task-button:hover { transform: translateY(-1px); box-shadow: 0 18px 36px rgba(0,0,0,0.18); border-color: rgba(255,255,255,0.16); }
-      .inbox-card-head { display: grid; gap: 6px; margin-bottom: 10px; }
-      .inbox-card-summary { font-size: 14px; line-height: 1.55; color: var(--ink); max-height: 7.8em; overflow: hidden; }
-      .inbox-card-summary .tailwind-prose { font-size: inherit; line-height: inherit; }
-      .inbox-card-summary .tailwind-prose h1,
-      .inbox-card-summary .tailwind-prose h2,
-      .inbox-card-summary .tailwind-prose h3,
-      .inbox-card-summary .tailwind-prose h4,
-      .inbox-card-summary .tailwind-prose pre,
-      .inbox-card-summary .tailwind-prose table,
-      .inbox-card-summary .tailwind-prose hr { display: none; }
-      .inbox-card-summary .tailwind-prose p,
-      .inbox-card-summary .tailwind-prose ul,
-      .inbox-card-summary .tailwind-prose ol,
-      .inbox-card-summary .tailwind-prose blockquote { margin: 0 0 0.45em; }
-      .task-section, .inbox-list, .recent-list, .health-list { display: grid; gap: 12px; }
+      .task-section, .recent-list, .health-list { display: grid; gap: 12px; }
       .task-section { width: min(680px, 100%); margin: 0 auto; }
       .filter-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; width: min(680px, 100%); margin: 0 auto 14px; }
       .filter-label { color: var(--muted); font-size: 12px; font-weight: 700; }
@@ -746,15 +727,14 @@ function renderAppHtml() {
       .task { padding: 12px 14px; border-radius: 14px; background: var(--surface); border: 1px solid rgba(148,163,184,0.16); line-height: 1.45; }
       .task-preview-button { cursor: pointer; transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease; }
       .task-preview-button:hover { transform: translateY(-1px); box-shadow: 0 18px 36px rgba(0,0,0,0.18); border-color: rgba(255,255,255,0.16); }
-      .task-preview-button:focus-visible,
-      .inbox-task-button:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+      .task-preview-button:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
       .task.done { opacity: 0.6; }
       .assignee-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 9px; }
       .assignee-pill { display: inline-flex; align-items: center; min-height: 22px; padding: 3px 8px; border-radius: 999px; border: 1px solid rgba(148,163,184,0.18); background: rgba(255,255,255,0.05); color: var(--muted); font-size: 11px; font-weight: 700; }
       .assignee-pill.invalid { color: #fecaca; border-color: rgba(252,165,165,0.34); background: rgba(127,29,29,0.2); }
       .meta { font-size: 12px; color: var(--muted); }
-      .inbox-item, .recent-item, .health-item { padding: 14px; border-radius: 14px; background: var(--surface); border: 1px solid rgba(148,163,184,0.16); }
-      .recent-item strong, .inbox-item strong { display: block; margin-bottom: 6px; }
+      .recent-item, .health-item { padding: 14px; border-radius: 14px; background: var(--surface); border: 1px solid rgba(148,163,184,0.16); }
+      .recent-item strong { display: block; margin-bottom: 6px; }
       .health-item.high { border-color: rgba(164,69,69,0.35); }
       .health-item.medium { border-color: rgba(188,123,77,0.35); }
       .card-copy { margin-top: 8px; line-height: 1.5; color: var(--ink); }
@@ -928,7 +908,6 @@ function renderAppHtml() {
         .graph-style-menu, .graph-filter-menu { right: 0; left: auto; }
         .view-stage-list { justify-content: center; }
         .list-page-card { width: 100%; max-width: 760px; }
-        .view-inbox.preview-open .list-page-card,
         .view-tasks.preview-open .list-page-card { max-width: 760px; margin: 0 auto; }
         .topline { grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; justify-items: initial; }
         .topline-brand { justify-self: start; }
@@ -983,50 +962,6 @@ export async function buildTasksPayload(config, db = null, requestUrl = new URL(
         .flatMap((section) => section.items)
         .reduce((count, item) => count + item.invalid_assignees.length, 0),
     },
-  };
-}
-
-export async function buildInboxPayload(config, db = null, requestUrl = new URL('/api/inbox', 'http://127.0.0.1'), { actor = null } = {}) {
-  const inboxDir = path.join(config.brainDir, 'inbox');
-  const entries = await fs.readdir(inboxDir, { withFileTypes: true }).catch(() => []);
-  const items = [];
-  const activeMembers = db ? await listActiveMembers(db) : [];
-  const activeMemberMap = memberMapByPersonSlug(activeMembers);
-  const currentMember = await resolveCurrentMember(db, actor);
-  const requestedAssignee = await resolveRequestedAssignee(db, requestUrl, actor);
-  const hasAssigneeFilter = requestUrl.searchParams.has('assignee');
-  for (const entry of entries) {
-    if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
-    if (isDocumentationMarkdownFile(entry.name)) continue;
-    const fullPath = path.join(inboxDir, entry.name);
-    const raw = await fs.readFile(fullPath, 'utf8');
-    const slug = `inbox/${entry.name.replace(/\.md$/, '')}`;
-    const parsed = parseMarkdownPage(raw, slug);
-    const assigneeSlugs = normalizeSlugList(parsed.frontmatter.assignees);
-    if (hasAssigneeFilter && (!requestedAssignee || !assigneeSlugs.includes(requestedAssignee.person_slug))) continue;
-    const stat = await fs.stat(fullPath);
-    items.push({
-      slug,
-      title: parsed.title,
-      summary: extractInboxPreview(parsed),
-      markdown: parsed.bodyContentMarkdown,
-      status: normalizeStatus(parsed.frontmatter.status, 'triage'),
-      assignees: resolveAssignees(assigneeSlugs, activeMemberMap),
-      invalid_assignees: assigneeSlugs.filter((assignee) => !activeMemberMap.has(assignee)),
-      updated_at: stat.mtime.toISOString(),
-    });
-  }
-  items.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
-  return {
-    deprecated: true,
-    guidance: 'Legacy compatibility surface. Create or update tasks for actionable intake; keep inbox only for historical or non-actionable unresolved captures.',
-    members: activeMembers,
-    filters: {
-      assignee: requestedAssignee?.person_slug || null,
-      actor_email: actor?.email || null,
-      current_member: currentMember,
-    },
-    items,
   };
 }
 
@@ -1185,28 +1120,6 @@ function priorityRank(priority) {
 
 function dueSortValue(due) {
   return due ? Date.parse(`${due}T00:00:00Z`) : Number.MAX_SAFE_INTEGER;
-}
-
-function extractInboxPreview(parsed) {
-  const withoutTitle = stripSourceReferences(
-    parsed.compiledTruth
-      .replace(new RegExp(`^#\\s+${escapeRegExp(parsed.title)}\\s*`, 'i'), '')
-      .trim(),
-  );
-  const lines = withoutTitle
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line && !/^#{1,6}\s/.test(line) && line !== '---' && !/^Date:\s/i.test(line));
-  const previewLines = [];
-  let totalLength = 0;
-  for (const line of lines) {
-    const normalizedLine = line.replace(/\s+/g, ' ').trim();
-    if (!normalizedLine) continue;
-    previewLines.push(normalizedLine);
-    totalLength += normalizedLine.length;
-    if (previewLines.length >= 3 || totalLength >= 320) break;
-  }
-  return previewLines.join('\n\n').trim();
 }
 
 export async function buildPreviewPayload(config, db, requestUrl) {
