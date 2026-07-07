@@ -99,6 +99,9 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(listed.result.tools.some((tool) => tool.name === 'set_page_visibility'), true);
     const visibilityTool = listed.result.tools.find((tool) => tool.name === 'set_page_visibility');
     assert.equal(visibilityTool.inputSchema.properties.public_raw_files.type, 'array');
+    assert.match(visibilityTool.description, /absolute public_url/);
+    const getVisibilityTool = listed.result.tools.find((tool) => tool.name === 'get_page_visibility');
+    assert.match(getVisibilityTool.description, /public_url is a directly shareable absolute public URL/);
 
     const unauthorized = await fetch(running.url, {
       method: 'POST',
@@ -133,6 +136,14 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.match(created.result.structuredContent.markdown, /Created through MCP endpoint test/);
     assert.equal(created.result.structuredContent.frontmatter.visibility, undefined);
 
+    const privateVisibility = await rpc(running.url, 'tools/call', {
+      name: 'get_page_visibility',
+      arguments: { path: 'people/mcp-test' },
+    }, 'secret');
+    assert.equal(privateVisibility.result.structuredContent.visibility, 'internal');
+    assert.equal(privateVisibility.result.structuredContent.public_url, null);
+    assert.equal(privateVisibility.result.structuredContent.public_url_path, null);
+
     const published = await rpc(running.url, 'tools/call', {
       name: 'set_page_visibility',
       arguments: {
@@ -144,7 +155,8 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     }, 'secret');
     assert.equal(published.error, undefined, published.error?.message);
     assert.equal(published.result.structuredContent.visibility, 'public');
-    assert.equal(published.result.structuredContent.public_url, '/public/people/mcp-test');
+    assert.equal(published.result.structuredContent.public_url, running.url.replace('/mcp', '/public/people/mcp-test'));
+    assert.equal(published.result.structuredContent.public_url_path, '/public/people/mcp-test');
     assert.deepEqual(published.result.structuredContent.public_raw_files, ['people/.raw/public.pdf']);
 
     const visibility = await rpc(running.url, 'tools/call', {
@@ -152,6 +164,8 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
       arguments: { path: 'people/mcp-test' },
     }, 'secret');
     assert.equal(visibility.result.structuredContent.visibility, 'public');
+    assert.equal(visibility.result.structuredContent.public_url, running.url.replace('/mcp', '/public/people/mcp-test'));
+    assert.equal(visibility.result.structuredContent.public_url_path, '/public/people/mcp-test');
     assert.deepEqual(visibility.result.structuredContent.public_raw_files, ['people/.raw/public.pdf']);
 
     const db = await openDatabase(config);
@@ -744,6 +758,8 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
     }, publishToken);
     assert.equal(published.error, undefined, published.error?.message);
     assert.equal(published.result.structuredContent.visibility, 'public');
+    assert.equal(published.result.structuredContent.public_url, 'https://brain.example.test/public/people/create-allowed');
+    assert.equal(published.result.structuredContent.public_url_path, '/public/people/create-allowed');
 
     const rawTools = toolNames(await rpc(running.url, 'tools/list', {}, rawDeleteToken));
     assert.equal(rawTools.includes('update_raw_file'), true);

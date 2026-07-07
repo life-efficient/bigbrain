@@ -182,10 +182,12 @@ export async function startMcpServer({
 
   const address = server.address();
   const resolvedPort = typeof address === 'object' && address ? address.port : port;
+  const localOrigin = `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${resolvedPort}`;
+  authConfig.runtimePublicUrl = authConfig.publicUrl || localOrigin;
 
   return {
     server,
-    url: `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${resolvedPort}/mcp`,
+    url: `${localOrigin}/mcp`,
     close: () => new Promise((resolve, reject) => {
       if (syncTimer) clearInterval(syncTimer);
       if (gitBackupTimer) clearInterval(gitBackupTimer);
@@ -299,15 +301,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       return toolJson(await readBrainPage({ config, pagePath: args.path }));
     case 'get_page_visibility': {
       const page = await readBrainPage({ config, pagePath: args.path });
-      const visibility = pageVisibility(page.frontmatter);
-      return toolJson({
-        path: page.path,
-        slug: page.slug,
-        title: page.title,
-        visibility,
-        public_url: visibility === 'public' ? `/public/${page.slug}` : null,
-        public_raw_files: publicRawFiles(page.frontmatter),
-      });
+      return toolJson(pageVisibilityToolResponse(page, authConfig));
     }
     case 'filing_rules':
       return toolMarkdown(await filingRulesForBrain({ config }));
@@ -396,15 +390,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         timelineEntry: timelineWithActor(args.timeline_entry || `Visibility set to ${visibility}.`, actor),
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor);
-      const nextVisibility = pageVisibility(page.frontmatter);
-      return toolJson({
-        path: page.path,
-        slug: page.slug,
-        title: page.title,
-        visibility: nextVisibility,
-        public_url: nextVisibility === 'public' ? `/public/${page.slug}` : null,
-        public_raw_files: publicRawFiles(page.frontmatter),
-      });
+      return toolJson(pageVisibilityToolResponse(page, authConfig));
     }
     case 'maintenance/sync':
     case 'maintenance_sync':
@@ -456,6 +442,26 @@ function redactedAuditValue(value) {
   if (value === undefined) return undefined;
   const length = typeof value === 'string' ? value.length : JSON.stringify(value ?? '').length;
   return { redacted: true, length };
+}
+
+function pageVisibilityToolResponse(page, authConfig) {
+  const visibility = pageVisibility(page.frontmatter);
+  const publicUrlPath = visibility === 'public' ? `/public/${page.slug}` : null;
+  return {
+    path: page.path,
+    slug: page.slug,
+    title: page.title,
+    visibility,
+    public_url: publicUrlPath ? absolutePublicUrl(authConfig, publicUrlPath) : null,
+    public_url_path: publicUrlPath,
+    public_raw_files: publicRawFiles(page.frontmatter),
+  };
+}
+
+function absolutePublicUrl(authConfig, publicUrlPath) {
+  const origin = (authConfig?.publicUrl || authConfig?.runtimePublicUrl || '').replace(/\/+$/, '');
+  if (!origin) return publicUrlPath;
+  return new URL(publicUrlPath, origin).toString();
 }
 
 async function postWriteMaintenance(config, gitBackupEnabled, actor) {
@@ -737,7 +743,7 @@ function toolDefinitions() {
     },
     {
       name: 'get_page_visibility',
-      description: 'Return whether one markdown page is internal or public. Internal is the default and fallback visibility.',
+      description: 'Return whether one markdown page is internal or public. When public, public_url is a directly shareable absolute public URL. Internal is the default and fallback visibility.',
       inputSchema: pageVisibilitySchema({ requireVisibility: false }),
     },
     {
@@ -860,7 +866,7 @@ function toolDefinitions() {
     },
     {
       name: 'set_page_visibility',
-      description: 'Set one page to internal or public. Public makes the page body available on the internet at /public/<slug>; frontmatter, timeline, linked private pages, and raw files stay private unless raw files are explicitly listed in public_raw_files.',
+      description: 'Set one page to internal or public. Public makes the page body available on the internet and returns a directly usable absolute public_url; frontmatter, timeline, linked private pages, and raw files stay private unless raw files are explicitly listed in public_raw_files.',
       inputSchema: pageVisibilitySchema({ requireVisibility: true }),
     },
     {
@@ -983,7 +989,7 @@ function pageVisibilitySchema({ requireVisibility }) {
     type: 'object',
     properties: {
       path: { type: 'string', description: 'Markdown page path such as people/alice or people/alice.md.' },
-      visibility: { type: 'string', enum: ['internal', 'public'], description: 'internal is private to the brain; public exposes the page body at /public/<slug>.' },
+      visibility: { type: 'string', enum: ['internal', 'public'], description: 'internal is private to the brain; public exposes the page body and returns an absolute public_url plus public_url_path.' },
       public_raw_files: {
         type: 'array',
         items: { type: 'string' },

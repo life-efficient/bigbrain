@@ -44,6 +44,14 @@ Public page URLs use the canonical brain slug:
 https://your-service.example.com/public/ops/example-onboarding
 ```
 
+The visibility MCP tools return that full URL directly. When
+`get_page_visibility` or `set_page_visibility` reports `visibility: public`,
+the `public_url` field is an absolute, directly shareable URL such as
+`https://your-service.example.com/public/ops/example-onboarding`. The response
+also keeps `path`, `slug`, `visibility`, `public_raw_files`, and
+`public_url_path` for callers that need the canonical brain slug or relative
+route. Internal pages return `public_url: null`.
+
 The body-only JSON surface is:
 
 ```text
