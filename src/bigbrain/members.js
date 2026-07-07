@@ -42,13 +42,13 @@ export async function findMemberByPersonSlug(db, personSlug) {
 
 export async function resolveActorMember(db, actor, { authMode = null, localPersonSlug = null } = {}) {
   if (actor?.email) return findActiveMemberByEmail(db, actor.email);
-  if (authMode !== 'none') return null;
   const configuredSlug = normalizePersonSlug(localPersonSlug);
   if (configuredSlug) {
     const member = await findActiveMemberByPersonSlug(db, configuredSlug);
-    if (!member) throw new Error(`Configured local member is not an active member: ${configuredSlug}`);
+    if (!member) throw new Error(`Configured member is not an active member: ${configuredSlug}`);
     return member;
   }
+  if (authMode !== 'none') return null;
   const members = await listActiveMembers(db);
   const owners = members.filter((member) => member.role === 'owner');
   if (owners.length === 1) return owners[0];

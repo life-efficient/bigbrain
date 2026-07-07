@@ -41,6 +41,30 @@ test('ensureLocalOwnerMember creates an active owner for local assignee me resol
   }
 });
 
+test('configured member resolves assignee me for token-auth hosted brains', async () => {
+  const fixture = await createFixture('bigbrain-token-owner-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const db = await openDatabase(config);
+    await upsertMember(db, {
+      email: 'owner@example.test',
+      name: 'Token Owner',
+      person_slug: 'people/token-owner',
+      role: 'owner',
+      status: 'active',
+    });
+
+    const resolved = await resolveActorMember(db, null, {
+      authMode: 'token',
+      localPersonSlug: 'people/token-owner',
+    });
+    assert.equal(resolved.person_slug, 'people/token-owner');
+    await db.close?.();
+  } finally {
+    await removeTempFixture(fixture.rootDir);
+  }
+});
+
 test('ensureLocalOwnerMember repairs an existing inactive local member by person slug', async () => {
   const fixture = await createFixture('bigbrain-local-owner-repair-');
   try {
