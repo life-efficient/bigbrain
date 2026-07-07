@@ -177,7 +177,7 @@ Example:
 ```sh
 node scripts/prepare-raw-upload.mjs \
   --call \
-  --mcp-name icaire \
+  --mcp-name example-brain \
   --file ./evidence-deck.pptx \
   --raw-path deals/.raw/example-deal-deck.pptx
 ```

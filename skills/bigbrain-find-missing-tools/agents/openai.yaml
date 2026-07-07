@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Find Missing Tools"
+  short_description: "Resolve missing MCP tools before fallback"
+  default_prompt: "Use BigBrain: Find Missing Tools to resolve missing or partially visible MCP tools through targeted discovery before falling back to local files or weaker workflows."
