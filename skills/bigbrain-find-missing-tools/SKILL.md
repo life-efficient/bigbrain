@@ -32,6 +32,18 @@ brain pages, update tasks, or repair MCP configuration by itself. Its job is to
 determine whether the tool is loaded, discoverable, blocked by configuration or
 login, or genuinely absent.
 
+When the MCP server name is known, prefer deterministic config-backed discovery
+before relying on the visible lazy-loaded tool surface:
+
+```sh
+node scripts/discover-codex-mcp-tools.mjs --name <mcp-server-name> --tool <expected-tool> --names-only
+```
+
+That helper reads Codex config files, resolves the named MCP server, and runs a
+direct MCP `initialize` plus `tools/list` probe where possible. It supports both
+HTTP and stdio MCP entries. When `--tool` is provided, it reports whether the
+expected tool appears in the direct `tools/list` result.
+
 ## Inputs To Collect
 
 Before concluding anything, identify:
@@ -56,18 +68,27 @@ instead of inventing a broader search.
    - If only a capability is known, search for the smallest concrete verb/noun
      phrase first, such as `tasks/list`, `read`, `create_page`, or
      `filing_rules`.
-2. Check for partial exposure.
+2. Run deterministic config discovery when the server name is known.
+   - Use `node scripts/discover-codex-mcp-tools.mjs --name <mcp-server-name> --tool <expected-tool> --names-only`.
+   - If it returns `resolved`, compare the expected tool against `tool_names`.
+   - If it returns `server_disabled`, `not_configured`, or `not_logged_in`,
+     report that blocker instead of guessing from the lazy-loaded surface.
+   - If it returns `tool_error`, keep the error text and continue with targeted
+     discovery only when that could still expose a client-side lazy-load issue.
+3. Check for partial exposure.
    - If any tool from the same server is visible, treat the server as partially
      exposed, not broken.
    - Do not fall back just because one specific tool is absent from the first
      visible tool list.
-3. Run targeted discovery.
+4. Run targeted discovery.
    - Search for the fully qualified exact tool name.
    - Search for the bare tool name.
    - Search for slash and underscore variants when applicable.
    - Search for the related capability only after exact-name discovery fails.
-4. Classify the result:
+5. Classify the result:
    - `resolved`: the expected tool is visible now.
+   - `resolved_by_config`: deterministic config probing found the expected tool
+     through direct `tools/list`.
    - `resolved_after_discovery`: targeted discovery exposed the expected tool.
    - `partial`: some server tools are visible, but the expected tool is still
      absent after targeted discovery.
@@ -79,9 +100,9 @@ instead of inventing a broader search.
      or a fresh authenticated session.
    - `tool_error`: the tool is visible but the discovery or harmless read probe
      returns a server-side error.
-5. Continue or stop based on the classification.
-   - For `resolved` and `resolved_after_discovery`, return to the original
-     workflow and use the discovered tool.
+6. Continue or stop based on the classification.
+   - For `resolved`, `resolved_by_config`, and `resolved_after_discovery`,
+     return to the original workflow and use the discovered tool.
    - For `partial`, report the exact missing tool names and the discovery
      searches already attempted.
    - For `server_disabled` or `not_logged_in`, report the setup action needed
@@ -119,7 +140,7 @@ explicitly changes the target workflow.
 Return a short status report:
 
 ```text
-Tool discovery: resolved_after_discovery
+Tool discovery: resolved_by_config
 Server: <server>
 Expected tool: <tool>
 Discovery attempted: <queries>
