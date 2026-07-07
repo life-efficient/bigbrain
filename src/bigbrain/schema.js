@@ -14,7 +14,7 @@ const FOLDER_RULES = [
   ['writing', 'Prose artifacts, drafts, and essay-style outputs.'],
   ['sources', 'Legacy or evidence-first imports without a clearer owning collection; prefer the primary subject collection for new material.'],
   ['tasks', 'One page per assignable task, with member-backed assignees and task metadata.'],
-  ['inbox', 'Temporary unsorted captures when no canonical home is clear yet.'],
+  ['inbox', 'Legacy holding area for historical unsorted captures; do not use for new actionable work.'],
   ['archive', 'Historical or dead pages that should not stay active.'],
   ['dreams', 'Reserved for later dream-cycle outputs; not active in v1.'],
   ['ops', 'Operational notes such as roadmaps, contribution rules, server notes, MCP notes, and cross-workstream coordination.'],
@@ -66,6 +66,7 @@ export function schemaDescription() {
       'Use relative markdown links instead of duplicate pages.',
       'Raw attachments live under per-collection .raw/ directories and are not canonical brain pages.',
       'Task pages live under tasks/*.md; do not use ops/tasks.md.',
+      'Create or update a task by default when new intake is actionable, needs an owner, needs status, or is a follow-up.',
       'Use the filing_rules tool as the operational source of truth for the active brain.',
       'Repo documentation pages such as README.md and FILING.md files should be excluded from indexing and strict brain-page validation.',
     ],
@@ -146,7 +147,7 @@ export function renderSchemaMarkdown() {
     '- If uncertain between `agent` and `interactive`, prefer `interactive`; if uncertain between `interactive` and `user`, use `interactive` when Codex can still structure or guide the work.',
     '- Status and readiness are independent: a task can be `open` but `underspecified`, or `in_progress` and `ready`.',
     '- `assignees` must be active member person slugs; arbitrary `people/*` pages are not assignable.',
-    '- `source` links the task to supporting brain pages such as meetings, projects, or inbox notes.',
+    '- `source` links the task to supporting brain pages such as meetings, projects, sources, or legacy inbox notes.',
     '- `due` is optional and must be `YYYY-MM-DD` when present.',
     '- Keep current task context above `---` and append evidence or state changes under `## Timeline`.',
     '- Structure current task context with `## Summary`, `## What Counts as Completed`, `## Body Context`, `## Open Questions`, and `## Anti-Patterns`.',
@@ -158,7 +159,8 @@ export function renderSchemaMarkdown() {
     '',
     '- File by primary subject, not by source or format.',
     '- Use cross-links instead of duplicate pages.',
-    '- Use `inbox/` when a page does not clearly fit yet.',
+    '- Use `tasks/` for actionable work by default; use `sources/` for evidence-first imports whose owning collection is unclear.',
+    '- Use `inbox/` only as a legacy last-resort holding area for non-actionable material that cannot yet be filed anywhere else.',
     '- Store attached files under per-collection `.raw/` directories, not directly in entity directories.',
     '- Repo documentation pages such as directory `README.md` and `FILING.md` files are not canonical brain pages and should be excluded from indexing.',
   );
@@ -178,8 +180,8 @@ export function recommendFolderForInput(input) {
   if (/task|todo|to-do|follow[- ]?up|next action|action item|blocked|waiting/.test(lower)) return recommendation('tasks', text, 'the item reads like assignable work');
   if (/project|build|launch|roadmap|implementation/.test(lower)) return recommendation('projects', text, 'the item sounds like an active execution track');
   if (/company|inc\.|llc|firm|organization/.test(lower)) return recommendation('companies', text, 'the primary subject appears to be an organization');
-  if (/source|raw|import|email|pdf|screenshot|snapshot/.test(lower)) return recommendation('inbox', text, 'the item appears to be raw material, but no higher-confidence owning collection was obvious');
-  return recommendation('inbox', text, 'no higher-confidence canonical home was obvious');
+  if (/source|raw|import|email|pdf|screenshot|snapshot/.test(lower)) return recommendation('sources', text, 'the item appears to be evidence-first source material, but no higher-confidence owning collection was obvious');
+  return recommendation('sources', text, 'no higher-confidence canonical home was obvious; use tasks/ instead if this is actionable work');
 }
 
 export function validatePageShape(parsedPage) {

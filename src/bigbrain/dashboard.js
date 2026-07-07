@@ -1018,6 +1018,8 @@ export async function buildInboxPayload(config, db = null, requestUrl = new URL(
   }
   items.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   return {
+    deprecated: true,
+    guidance: 'Legacy compatibility surface. Create or update tasks for actionable intake; keep inbox only for historical or non-actionable unresolved captures.',
     members: activeMembers,
     filters: {
       assignee: requestedAssignee?.person_slug || null,

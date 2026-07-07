@@ -38,7 +38,9 @@ This skill guarantees:
    - `bigbrain schema`
 2. If the question is about filing or page shape, explain:
    - canonical directories such as `people/`, `companies/`, `projects/`, `concepts/`, `meetings/`, and `ops/`
-   - `inbox/` as the default holding area when the canonical home is unclear
+  - `tasks/` as the default home for actionable work and follow-ups
+  - `sources/` as the default for evidence-first material when the owning collection is unclear
+  - `inbox/` as a legacy last-resort holding area, not a parallel task queue
    - per-collection `.raw/` folders for raw files and generated outputs
    - `filing_rules` as the operational source of truth for the active brain
 3. If the question is about a specific item, classify it by primary subject:
@@ -49,7 +51,9 @@ This skill guarantees:
    - reusable framework -> `concepts/`
    - personal operating preference -> `personal-protocol/`
    - specific meeting or call -> `meetings/`
-   - unclear item -> `inbox/`
+   - actionable item or follow-up -> `tasks/`
+   - unclear evidence-first material -> `sources/`
+   - non-actionable unresolved legacy material -> `inbox/`
 4. If the question is about workflow, route to the best skill:
    - lookup or context -> `BigBrain: Query`
    - setup or migration -> `BigBrain: Setup`
@@ -67,7 +71,7 @@ This skill guarantees:
 - Prefer cross-links over duplicate pages
 - Use the same meeting page across prep and post-meeting updates
 - Keep raw transcripts, decks, PDFs, and other attached files under the `.raw/` path specified by `filing_rules`
-- When in doubt, recommend `inbox/` rather than forcing a low-confidence filing decision
+- When in doubt, recommend `tasks/` for actionable work, `sources/` for evidence-first material, and `inbox/` only for non-actionable unresolved legacy material
 
 ## Output
 

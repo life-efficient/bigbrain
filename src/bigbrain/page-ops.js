@@ -11,7 +11,6 @@ export const DEFAULT_COLLECTIONS = [
   'concepts',
   'deals',
   'ideas',
-  'inbox',
   'meetings',
   'people',
   'projects',

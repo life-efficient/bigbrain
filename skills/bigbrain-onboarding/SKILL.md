@@ -70,8 +70,10 @@ and what the user wants agents to understand about them.
 What are the main projects or responsibilities this brain should track first?
 ```
 
-Create or update `projects/` pages for active work. Use `inbox/` when the user
-mentions a thread but the destination is unclear.
+Create or update `projects/` pages for active work. Create `tasks/` pages for
+assignable follow-ups or work items. Use `sources/` for evidence-first material
+when the destination is unclear, and keep `inbox/` only for non-actionable
+unresolved legacy material.
 
 3. People and organizations:
 
@@ -104,7 +106,8 @@ they can add more information like this at any time.
 
 - Prefer updating existing pages over creating duplicates.
 - Use canonical collections such as `people/`, `companies/`, `projects/`,
-  `concepts/`, `meetings/`, `tasks/`, `ops/`, and `inbox/` when they exist.
+  `concepts/`, `meetings/`, `tasks/`, `sources/`, and `ops/` when they exist.
+  Use `inbox/` only as a legacy last-resort holding area.
 - Keep first-pass pages compact and editable.
 - Include timeline entries when the brain's page shape expects them.
 - Use markdown links between related pages where obvious.

@@ -1008,11 +1008,22 @@ Important company.
 ---
 2026-05-18 | Added.
 `, 'utf8');
+    await fs.mkdir(path.join(sourceDir, 'inbox'), { recursive: true });
+    await fs.writeFile(path.join(sourceDir, 'inbox/legacy-note.md'), `---
+title: Legacy Note
+---
+# Legacy Note
+
+Historical unresolved capture.
+`, 'utf8');
 
     const config = await loadConfig({ configPath: fixture.configPath });
+    assert.equal(config.schemaDirs.includes('inbox'), false);
     const report = await migrateBrain({ sourceDir, config });
     assert.equal(report.copied_files.includes('companies/acme.md'), true);
+    assert.equal(report.copied_files.includes('inbox/legacy-note.md'), true);
     await fs.stat(path.join(fixture.brainHome, 'companies/acme.md'));
+    await fs.stat(path.join(fixture.brainHome, 'inbox/legacy-note.md'));
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -1033,8 +1044,11 @@ test('schema and filing guidance stay inspectable', async () => {
     assert.match(markdown, /What Counts as Completed/);
     assert.match(markdown, /No successor task needed/);
     assert.match(markdown, /Do not use `ops\/tasks\.md`/);
+    assert.match(markdown, /Use `tasks\/` for actionable work by default/);
     assert.equal(recommendation.folder, 'meetings');
     assert.equal(recommendFolderForInput('follow up task for the launch owner').folder, 'tasks');
+    assert.equal(recommendFolderForInput('raw PDF snapshot with unclear owner').folder, 'sources');
+    assert.equal(recommendFolderForInput('unclassified note with no obvious subject').folder, 'sources');
 
     const config = await loadConfig({ configPath: fixture.configPath });
     const filingRules = await filingRulesForBrain({ config });
@@ -1053,6 +1067,7 @@ test('schema and filing guidance stay inspectable', async () => {
     assert.match(filingRules.task_schema.guidance.join('\n'), /Anti-Patterns/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /Next task: tasks\/<slug>/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /Do not use ops\/tasks\.md/);
+    assert.match(filingRules.filing_principles.join('\n'), /Use tasks\/ for assignable work by default/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

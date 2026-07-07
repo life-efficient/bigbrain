@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { CANONICAL_SCHEMA_DIRS } from './constants.js';
+import { CANONICAL_SCHEMA_DIRS, LEGACY_SCHEMA_DIRS } from './constants.js';
 import { rewriteSlugLinksToRelative, slugFromPath } from './markdown.js';
 import { syncBrain } from './sync.js';
 
@@ -13,7 +13,7 @@ export async function migrateBrain({ sourceDir, config }) {
     skipped_files: [],
   };
 
-  for (const dir of CANONICAL_SCHEMA_DIRS) {
+  for (const dir of [...CANONICAL_SCHEMA_DIRS, ...LEGACY_SCHEMA_DIRS]) {
     if (dir === 'dreams') continue;
     const sourcePath = path.join(sourceRoot, dir);
     const exists = await fs.stat(sourcePath).then((stats) => stats.isDirectory()).catch(() => false);

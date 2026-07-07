@@ -26,7 +26,7 @@ signal, not for every operational message.
 This skill guarantees:
 - Capture only durable knowledge worth preserving
 - Prefer updating an existing canonical page over creating a new one
-- Use `personal-protocol/`, `projects/`, `concepts/`, entity pages, or `inbox/` based on the substance of the message
+- Use `tasks/` for actionable work, and use `personal-protocol/`, `projects/`, `concepts/`, entity pages, or `sources/` based on the substance of durable non-task material
 - Avoid polluting the brain with purely procedural chatter
 - Re-sync the index after a meaningful write
 
@@ -46,7 +46,9 @@ This skill guarantees:
    - project page
    - concept page
    - `personal-protocol/`
-   - `inbox/` when the right home is not yet clear
+   - `tasks/` when the message is actionable work or a follow-up
+   - `sources/` when durable evidence-first material has no clearer owning collection yet
+   - `inbox/` only for non-actionable unresolved legacy material
 3. Update or create the canonical page
 4. Keep the update compact and source-aware
 5. Re-index:

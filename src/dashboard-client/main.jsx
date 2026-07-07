@@ -99,10 +99,9 @@ function DashboardApp() {
       setAssigneeLoading(true);
       try {
         const assigneeQuery = assigneeFilter ? `?${new URLSearchParams({ assignee: assigneeFilter }).toString()}` : '';
-        const [schema, tasks, inbox, recent, health, graph, explorer, explorerRecent] = await Promise.all([
+        const [schema, tasks, recent, health, graph, explorer, explorerRecent] = await Promise.all([
           fetchJson('/api/schema'),
           fetchJson(`/api/tasks${assigneeQuery}`),
-          fetchJson(`/api/inbox${assigneeQuery}`),
           fetchJson('/api/recent'),
           fetchJson('/api/health'),
           fetchJson('/api/graph'),
@@ -110,7 +109,7 @@ function DashboardApp() {
           fetchJson('/api/explorer/recent'),
         ]);
         if (cancelled) return;
-        const currentMemberSlug = tasks?.filters?.current_member?.person_slug || inbox?.filters?.current_member?.person_slug || '';
+        const currentMemberSlug = tasks?.filters?.current_member?.person_slug || '';
         if (!defaultAssigneeAppliedRef.current && !assigneeFilter && currentMemberSlug) {
           defaultAssigneeAppliedRef.current = true;
           setAssigneeFilter(currentMemberSlug);
@@ -121,7 +120,7 @@ function DashboardApp() {
         setState({
           status: 'ready',
           error: null,
-          data: { schema, tasks, inbox, recent, health, graph, explorer: { ...explorer, recent: explorerRecent } },
+          data: { schema, tasks, inbox: { deprecated: true, items: [] }, recent, health, graph, explorer: { ...explorer, recent: explorerRecent } },
         });
       } catch (error) {
         if (cancelled) return;
@@ -226,10 +225,7 @@ function DashboardApp() {
       }
 
       const key = event.key.toLowerCase();
-      if (key === 'i') {
-        event.preventDefault();
-        setView('inbox');
-      } else if (key === 't') {
+      if (key === 't') {
         event.preventDefault();
         setView('tasks');
       } else if (key === 'g') {
@@ -302,10 +298,9 @@ function DashboardApp() {
     );
   }
 
-  const { schema, tasks, inbox, recent, health, graph, explorer } = state.data;
-  const inboxItems = Array.isArray(inbox?.items) ? inbox.items : [];
+  const { schema, tasks, recent, health, graph, explorer } = state.data;
   const taskSections = Array.isArray(tasks?.sections) ? tasks.sections : [];
-  const members = Array.isArray(tasks?.members) ? tasks.members : Array.isArray(inbox?.members) ? inbox.members : [];
+  const members = Array.isArray(tasks?.members) ? tasks.members : [];
   const healthFindingCount = Number.isFinite(health?.finding_count) ? health.finding_count : 0;
   const healthFindings = Array.isArray(health?.findings)
     ? health.findings
@@ -315,7 +310,6 @@ function DashboardApp() {
   const healthSeverity = deriveHealthSeverity(healthFindings);
 
   const views = [
-    { id: 'inbox', label: 'Inbox', count: inboxItems.length, shortcut: 'I' },
     { id: 'tasks', label: 'Tasks', count: Number.isFinite(tasks?.meta?.open_tasks) ? tasks.meta.open_tasks : 0, shortcut: 'T' },
     { id: 'graph', label: 'Graph', shortcut: 'G' },
     { id: 'explorer', label: 'Explorer', shortcut: 'E' },
@@ -336,14 +330,6 @@ function DashboardApp() {
         message: error instanceof Error ? error.message : String(error),
       });
     }
-  }
-
-  function openInboxItem(item) {
-    if (item?.slug) {
-      openPageBySlug(item.slug);
-      return;
-    }
-    setPreview({ status: 'ready', title: item?.title, markdown: item?.markdown });
   }
 
   function handlePreviewCardKeyDown(event, callback) {
@@ -448,38 +434,6 @@ function DashboardApp() {
           </div>
 
           <div className={`view-stage ${view === 'graph' || view === 'explorer' ? 'view-stage-graph' : 'view-stage-list'}`}>
-            {view === 'inbox' ? (
-              <div className="list-page-card standalone-list-region">
-                <AssigneeFilter members={members} value={assigneeFilter} onChange={handleAssigneeFilterChange} disabled={assigneeLoading} />
-                <div className="task-section">
-                  {assigneeLoading ? <ListLoadingState label="Loading inbox" /> : inboxItems.map((item) => (
-                    <div
-                      key={item.slug}
-                      className="task inbox-task-button"
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => openInboxItem(item)}
-                      onKeyDown={(event) => handlePreviewCardKeyDown(event, () => openInboxItem(item))}
-                    >
-                      <div className="inbox-card-head">
-                        <strong>{item.title}</strong>
-                        <span className="meta">{item.slug}</span>
-                      </div>
-                      <AssigneePills assignees={item.assignees} invalidAssignees={item.invalid_assignees} />
-                      <div className="inbox-card-summary">
-                        <MarkdownDocument
-                          markdown={stripSourceReferences(item.summary || '')}
-                          sourceSlug={item.slug}
-                          onRelativeLinkClick={openPreview}
-                          emptyLabel="Open to inspect full detail."
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
             {view === 'tasks' ? (
               <div className="list-page-card standalone-list-region">
                 <AssigneeFilter members={members} value={assigneeFilter} onChange={handleAssigneeFilterChange} disabled={assigneeLoading} />

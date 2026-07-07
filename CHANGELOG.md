@@ -133,9 +133,9 @@ actions` section for agents maintaining local installs and hosted brains.
   default bucket for PDFs, decks, snapshots, or source-like material.
 - Raw-file examples now lead with owner-based paths such as `deals/.raw/` and
   `meetings/.raw/`, with `sources/.raw/` shown only for unassigned evidence.
-- Folder recommendation no longer routes generic raw/PDF/screenshot language to
-  `sources/`; when no owning collection is obvious, it recommends `inbox/` so
-  an agent or human can classify the item deliberately.
+- Folder recommendation now routes generic raw/PDF/screenshot language to
+  `sources/`; when no owning collection is obvious, it avoids `inbox/` unless
+  a legacy last-resort holding area is explicitly needed.
 
 ### Agent update actions
 

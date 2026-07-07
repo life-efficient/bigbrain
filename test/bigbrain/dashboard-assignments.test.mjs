@@ -130,7 +130,7 @@ Partner contact.
   }
 });
 
-test('dashboard inbox payload exposes member-backed assignees', async () => {
+test('legacy dashboard inbox payload exposes deprecation metadata and member-backed assignees', async () => {
   const fixture = await createFixture('bigbrain-dashboard-inbox-assignments-');
   let db;
   try {
@@ -160,6 +160,8 @@ Collection overview.
     });
 
     const payload = await buildInboxPayload(config, db, new URL('/api/inbox?assignee=people/hani', 'http://127.0.0.1'));
+    assert.equal(payload.deprecated, true);
+    assert.match(payload.guidance, /Create or update tasks/);
     assert.equal(payload.items.length, 1);
     assert.deepEqual(payload.items.map((item) => item.slug), ['inbox/raw-note']);
     assert.deepEqual(payload.items[0].assignees.map((member) => member.person_slug), ['people/hani']);

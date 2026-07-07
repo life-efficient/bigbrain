@@ -59,7 +59,7 @@ for mutation in the current turn after seeing the recommendations.
    - `filing_rules` for current task-page conventions
    - `tasks/list` for in_progress, open, waiting, and recently done tasks
    - `query` or `search` for recent meetings, project updates, blockers,
-     decisions, inbox notes, and roadmap pages related to those tasks
+     decisions, legacy inbox notes, and roadmap pages related to those tasks
    - direct `read` on task pages and source pages that may change task state
 3. For each relevant task, decide whether to recommend that it should be:
    - left unchanged

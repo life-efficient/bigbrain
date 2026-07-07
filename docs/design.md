@@ -60,8 +60,8 @@ for agents:
   future enrichment workflows
 - automations are explicit, scheduled, and inspectable rather than hidden
   personalities
-- the dashboard is a first-class surface for health, graph, task, inbox, sync,
-  and agent activity inspection
+- the dashboard is a first-class surface for health, graph, tasks, legacy inbox
+  compatibility, sync, and agent activity inspection
 
 This posture still leaves room for hosted or team brains. The hosted form
 should preserve the same contract: agents connect to BigBrain, BigBrain indexes
@@ -86,7 +86,7 @@ The initial system must support:
   - markdown/database sync
 - git backup and GitHub-friendly workflows
 - ingestion and enrichment workflows
-- lightweight dashboard for graph, inbox, and tasks
+- lightweight dashboard for graph, tasks, and legacy inbox compatibility
 - migration from an existing markdown brain corpus
 
 ## What You Are Missing
@@ -113,7 +113,7 @@ Without these, the system will drift back into hidden complexity.
 - canonical page bodies
 - human-authored structure
 - explicit links written in the notes
-- inbox and tasks content
+- task content and legacy inbox compatibility content
 
 ### Database in the external brain home is authoritative for:
 
@@ -184,7 +184,7 @@ The top-level structure should stay intentionally small:
 - `concepts/`
 - `writing/`
 - `sources/`
-- `inbox/`
+- `inbox/` (legacy compatibility, not active task intake)
 - `archive/`
 - `dreams/`
 - `ops/`
@@ -300,7 +300,8 @@ because an output may become a future input.
 
 - File by primary subject, not by source or format.
 - Use cross-links instead of duplicate pages.
-- Use `inbox/` when a page does not clearly fit yet.
+- Use `tasks/` for actionable work by default; use `sources/` for evidence-first imports whose owning collection is unclear.
+- Keep `inbox/` only as a legacy last-resort holding area for non-actionable material that cannot yet be filed anywhere else.
 - Do not store attached files directly in entity directories; place them under
   per-collection `.raw/` directories and reference them from canonical pages.
 - Repo documentation pages such as directory `README.md` files are not part of
@@ -635,7 +636,7 @@ Initial screens:
 
 - graph explorer
 - tasks view
-- inbox view
+- legacy inbox view
 - health findings
 - recent changes
 - sync and embedding status
@@ -695,7 +696,7 @@ It should be concise and operational.
 
 - lightweight dashboard
 - graph visualization
-- inbox/tasks pages
+- task pages plus legacy inbox compatibility pages
 
 ### Milestone 6: hosted brain service
 

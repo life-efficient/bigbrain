@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const DEFAULT_RULES = {
-  inbox: 'Temporary unsorted captures when no canonical home is clear yet.',
+  inbox: 'Legacy holding area for historical unsorted captures; do not use for new actionable work.',
   sources: 'Legacy or evidence-first imports only when no clearer owning collection exists; prefer the primary subject collection for new material.',
   people: 'One page per human being.',
   organizations: 'One page per institution, government body, university, vendor, company, advisory group, or other organization.',
@@ -68,7 +68,9 @@ export async function filingRulesForBrain({ config }) {
       'Update an existing canonical page when the page already exists.',
       'Create a new page when the item introduces a distinct person, organization, meeting, initiative, deliverable, concept, source, or operating note.',
       'Use relative markdown links instead of duplicating facts across pages.',
-      'Use inbox/ only when no higher-confidence canonical home is clear.',
+      'Use tasks/ for assignable work by default; use canonical subject pages for durable knowledge.',
+      'Use sources/ for evidence-first imports whose owning collection is not clear yet.',
+      'Use inbox/ only as a legacy last-resort holding area for non-actionable material that cannot yet be filed anywhere else.',
     ],
   };
 }
@@ -181,6 +183,7 @@ function defaultTaskSchema() {
     },
     guidance: [
       'Create one page per assignable task under tasks/.',
+      'Create or update a task by default when new intake is actionable, needs an owner, needs status, or is a follow-up.',
       'Use the task slug as a concise, stable, human-readable identifier; it does not need to match or mirror the full task title.',
       'Task identity is derived from the tasks/ path. Legacy type: task frontmatter may appear, but it is optional and not used for behavior.',
       'Set status to open for known work that is not actively being worked.',
@@ -198,7 +201,7 @@ function defaultTaskSchema() {
       'If uncertain between agent and interactive, prefer interactive. If uncertain between interactive and user, use interactive when Codex can still structure or guide the work.',
       'Status and readiness are independent: a task can be open but underspecified, or in_progress and ready.',
       'Assignees must be active members, not arbitrary people pages.',
-      'Use source links to connect the task to the meeting, project, inbox item, or other brain page that justifies it.',
+      'Use source links to connect the task to the meeting, project, source, legacy inbox item, or other brain page that justifies it.',
       'Keep the current task brief above the separator and append evidence or state changes under ## Timeline.',
       'Structure task bodies with ## Summary, ## What Counts as Completed, ## Body Context, ## Open Questions, and ## Anti-Patterns.',
       'When marking a task done or archived, include a completion handoff in the timeline: either Next task: tasks/<slug> or No successor task needed: <reason>.',

@@ -25,11 +25,14 @@ export const CANONICAL_SCHEMA_DIRS = [
   'concepts',
   'writing',
   'sources',
-  'inbox',
   'tasks',
   'archive',
   'dreams',
   'ops',
+];
+
+export const LEGACY_SCHEMA_DIRS = [
+  'inbox',
 ];
 
 export const DEFAULT_FRESHNESS_INPUTS = ['markdown', 'meetings', 'conversations'];
