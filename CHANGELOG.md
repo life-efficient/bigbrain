@@ -5,6 +5,14 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## Unreleased
 
+## [0.10.0] - 2026-07-08
+
+### Added
+
+- Added MCP/page-operation support for renaming canonical pages and raw files
+  while rewriting markdown links, `raw_file` frontmatter, and
+  `public_raw_files` references that pointed at the old path.
+
 ### Changed
 
 - Updated the default BigBrain folder pack to
@@ -24,21 +32,56 @@ actions` section for agents maintaining local installs and hosted brains.
 - Pull the new release with `git pull --rebase --autostash`.
 - Run `npm install`, then `npm link`.
 - Restart local or hosted MCP services that run from this checkout so updated
-  schema defaults, filing recommendations, and MCP tool descriptions are
-  active.
+  schema defaults, filing recommendations, MCP tool descriptions, and rename
+  tools are active.
 - Refresh bundled BigBrain skills from `skills/`, especially
   `bigbrain-understand`, `bigbrain-conversation-ingest`,
   `bigbrain-document-ingest`, `bigbrain-onboarding`, and `bigbrain-query`.
-- Audit existing brains before moving pages: migrate generic `companies/` pages
-  toward `organizations/`, generic `ops/` work toward `tasks/` or `protocol/`,
-  and generic `sources/` uploads toward the owning collection `.raw/` folder;
-  keep domain overlays such as ICAIRE `deliverables/` and `reports/` when the
-  active brain's filing rules define them.
+- For every existing brain, read the active filing rules before moving content:
+  `bigbrain filing-rules` for local brains or the hosted MCP `filing_rules`
+  tool for remote brains.
+- Back up or commit the brain before migrating page paths.
+- Migrate generic brain contents toward the v2 default pack:
+  - move ordinary company/institution pages from `companies/` to
+    `organizations/`;
+  - move repeatable preferences, health/personal protocols, process notes,
+    MCP/server operating guidance, and how-things-work notes from
+    `personal-protocol/`, `health/`, or generic `ops/` into `protocol/`;
+  - move actionable next actions from `ops/` or `inbox/` into one page per
+    task under `tasks/`;
+  - move standalone prose drafts from `inbox/` or generic notes into
+    `writing/`;
+  - move unbuilt possibilities into `ideas/`;
+  - move raw/rendered attachments from generic `sources/.raw/` into the
+    owning collection `.raw/` folder when ownership is clear, such as
+    `deals/.raw/`, `meetings/.raw/`, `projects/.raw/`, `writing/.raw/`, or
+    `protocol/.raw/`;
+  - archive obsolete `dreams/`, `dream-cycle-summaries/`, and dead folder
+    stubs instead of keeping them active.
+- Preserve domain overlays when the active brain's filing rules define them.
+  For example, ICAIRE may keep `sources/`, `initiatives/`, `deliverables/`,
+  and `reports/`; Dealmaking may keep `companies/` for operating companies
+  that are deal subjects while also using `organizations/` for firms,
+  investors, advisors, buyers, vendors, and institutions.
+- After migrating a brain, run `bigbrain sync --json`, then
+  `bigbrain health --json`, and fix or record any unresolved links created by
+  moved pages. Hosted brains should use their normal MCP sync/health path if
+  direct CLI access is not available.
 - Run `npm test`.
 
 ### Verification
 
 - `npm test`
+- `node ./bin/bigbrain.js schema`
+- Live `filing_rules` checks against Harry's personal BigBrain, ICAIRE, and
+  Dealmaking brains.
+- Local-data compatibility audit: this release changes default schema dirs,
+  filing recommendations, config examples, bundled skills, docs, graph display
+  ordering, and retrieval fixtures. It does not remove indexing or read support
+  for existing legacy/domain folders, and it does not rename, remove, or narrow
+  persisted task enum values or task fields such as `status`, `readiness`,
+  `priority`, `assignees`, `source`, or `execution_mode`. Existing brains can
+  migrate content gradually by following the folder migration actions above.
 
 ## [0.9.0] - 2026-07-08
 
