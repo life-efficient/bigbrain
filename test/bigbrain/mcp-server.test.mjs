@@ -1173,6 +1173,158 @@ test('MCP task tools resolve me to a deterministic local member when auth is dis
   }
 });
 
+test('MCP token auth resolves me only through the configured active member', async () => {
+  const fixture = await createFixture('bigbrain-mcp-token-me-');
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const db = await openDatabase(config);
+    await upsertMember(db, {
+      email: 'token-owner@example.test',
+      name: 'Token Owner',
+      person_slug: 'people/token-owner',
+      role: 'owner',
+    });
+    await upsertMember(db, {
+      email: 'other-owner@example.test',
+      name: 'Other Owner',
+      person_slug: 'people/other-owner',
+      role: 'owner',
+    });
+    await db.close?.();
+
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: {
+        mode: 'token',
+        authToken: 'secret',
+        tokenStorePath: '',
+        localPersonSlug: 'people/token-owner',
+      },
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const unauthorized = await fetch(running.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+    });
+    assert.equal(unauthorized.status, 401);
+
+    const me = await rpc(running.url, 'tools/call', { name: 'me', arguments: {} }, 'secret');
+    assert.equal(me.error, undefined, me.error?.message);
+    assert.equal(me.result.structuredContent.actor, null);
+    assert.equal(me.result.structuredContent.authenticated, false);
+    assert.equal(me.result.structuredContent.person_slug, 'people/token-owner');
+
+    const created = await rpc(running.url, 'tools/call', {
+      name: 'tasks/create',
+      arguments: {
+        title: 'Handle token assignment',
+        body: 'This hosted token-mode task should resolve assignee me deterministically.',
+        assignees: ['me'],
+      },
+    }, 'secret');
+    assert.equal(created.error, undefined, created.error?.message);
+    assert.deepEqual(created.result.structuredContent.assignee_slugs, ['people/token-owner']);
+
+    const mine = await rpc(running.url, 'tools/call', {
+      name: 'tasks/list',
+      arguments: { assignee: 'me', status: 'open' },
+    }, 'secret');
+    assert.equal(mine.error, undefined, mine.error?.message);
+    assert.deepEqual(mine.result.structuredContent.map((task) => task.slug), ['tasks/handle-token-assignment']);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('MCP OAuth identity takes precedence over configured member binding', async () => {
+  const fixture = await createFixture('bigbrain-mcp-oauth-me-precedence-');
+  const token = 'bbmcp_test-token';
+  const tokenStorePath = path.join(fixture.rootDir, 'tokens.json');
+  await fs.writeFile(tokenStorePath, `${JSON.stringify({
+    tokens: [{
+      token_hash: hashToken(token),
+      email: 'teammate@example.com',
+      name: 'Team Mate',
+      provider: 'google',
+      created_at: new Date().toISOString(),
+      last_used_at: null,
+      revoked_at: null,
+      scope: 'brain:read brain:create',
+    }],
+    states: [],
+    clients: [],
+    codes: [],
+  }, null, 2)}\n`);
+
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const db = await openDatabase(config);
+    await upsertMember(db, {
+      email: 'teammate@example.com',
+      name: 'Team Mate',
+      person_slug: 'people/team-mate',
+      role: 'member',
+    });
+    await upsertMember(db, {
+      email: 'configured@example.com',
+      name: 'Configured Owner',
+      person_slug: 'people/configured-owner',
+      role: 'owner',
+    });
+    await db.close?.();
+
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: {
+        mode: 'oauth_allowlist',
+        authToken: null,
+        publicUrl: 'https://brain.example.test',
+        provider: 'google',
+        googleClientId: 'client-id',
+        googleClientSecret: 'client-secret',
+        allowedEmails: ['teammate@example.com'],
+        allowedDomains: [],
+        tokenStorePath,
+        allowSharedToken: false,
+        localPersonSlug: 'people/configured-owner',
+        serviceName: 'Example Brain Cortex',
+        appName: 'Example Brain',
+      },
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const me = await rpc(running.url, 'tools/call', { name: 'me', arguments: {} }, token);
+    assert.equal(me.error, undefined, me.error?.message);
+    assert.equal(me.result.structuredContent.actor.email, 'teammate@example.com');
+    assert.equal(me.result.structuredContent.person_slug, 'people/team-mate');
+
+    const created = await rpc(running.url, 'tools/call', {
+      name: 'tasks/create',
+      arguments: {
+        title: 'Handle OAuth assignment',
+        body: 'This OAuth task should resolve assignee me to the authenticated user.',
+        assignees: ['me'],
+      },
+    }, token);
+    assert.equal(created.error, undefined, created.error?.message);
+    assert.deepEqual(created.result.structuredContent.assignee_slugs, ['people/team-mate']);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('MCP task tools reject ambiguous local me resolution when auth is disabled', async () => {
   const fixture = await createFixture('bigbrain-mcp-local-me-ambiguous-');
   let running;
