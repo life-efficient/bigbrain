@@ -5,12 +5,68 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## Unreleased
 
+## [0.9.0] - 2026-07-08
+
+### Added
+
+- Added `BigBrain: Find Missing Tools`, a bundled skill for resolving missing
+  or partially visible MCP tools before falling back to local files or weaker
+  workflows.
+- Added `scripts/discover-codex-mcp-tools.mjs`, a deterministic Codex MCP
+  discovery helper that reads Codex MCP config, probes a named HTTP or stdio
+  MCP server with `initialize` and `tools/list`, and reports expected-tool
+  matches, disabled servers, missing config, auth blockers, and tool errors.
+
+### Changed
+
+- Raw-file hosting docs, health checks, dashboard public-page behavior, and
+  bundled skill guidance now distinguish canonical markdown pages from
+  metadata-only `.raw` sidecar pages.
+- Public raw-file views now focus on the shared raw artifact instead of
+  presenting raw sidecar markdown as the public item.
+- BigBrain skills that create or enrich pages now steer raw-file sidecar
+  metadata under the owning `.raw/` folder and keep canonical summaries under
+  normal collection paths.
+
 ### Removed
 
 - Removed the dashboard `/api/inbox` compatibility endpoint, inbox payload
   builder, inbox dashboard styling, and inbox assignment tests. Existing
   historical `inbox/` pages can still be migrated and indexed, but active
   intake is task-only.
+
+### Agent update actions
+
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install`, then `npm link`.
+- Refresh bundled BigBrain skills from `skills/`, especially
+  `bigbrain-find-missing-tools`, `bigbrain-maintain`,
+  `bigbrain-understand`, `bigbrain-conversation-ingest`, and
+  `bigbrain-onboarding`.
+- Restart local or hosted MCP services that run from this checkout so updated
+  raw-file/public-page behavior and docs are active.
+- When a known MCP tool appears missing in Codex, use:
+  `node scripts/discover-codex-mcp-tools.mjs --name <mcp-server-name> --tool <expected-tool> --names-only`
+  before falling back to lazy tool discovery or local files.
+- Run `bigbrain health --json` and review any raw sidecar findings. Canonical
+  markdown pages should stay under normal collection paths; metadata-only raw
+  sidecars belong under the matching `.raw/` folder.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- `node --test test/bigbrain/codex-mcp-discovery-script.test.mjs`
+- `node scripts/discover-codex-mcp-tools.mjs --name bigbrain --tool tasks/list --names-only --no-keychain`
+- Local-data compatibility audit: this release adds a bundled skill and a
+  deterministic MCP discovery helper, removes the legacy dashboard inbox API,
+  and tightens health/dashboard behavior around metadata-only raw sidecars. It
+  does not rename, remove, or narrow persisted task enum values or task page
+  fields such as `status`, `readiness`, `priority`, `assignees`, `source`, or
+  `execution_mode`. Historical `inbox/` pages remain indexable/migratable even
+  though active intake is task-only. Existing canonical pages with raw links
+  remain valid; metadata-only raw sidecar pages outside `.raw/` are now reported
+  for cleanup rather than silently treated as canonical pages.
 
 ## [0.8.5] - 2026-07-07
 
