@@ -2,15 +2,15 @@
 name: "BigBrain: Enrich"
 version: 1.0.0
 description: |
-  Update or create BigBrain pages for people, companies, projects, or concepts
+  Update or create BigBrain pages for people, organizations, projects, or concepts
   when new signal materially changes what the brain should know. Use after
   ingest or when a thin page needs a higher-quality durable summary.
 triggers:
   - "enrich this page"
   - "update this person page"
-  - "update this company page"
+  - "update this organization page"
   - "create a page for this person"
-  - "create a page for this company"
+  - "create a page for this organization"
 tools:
   - shell
 mutating: true

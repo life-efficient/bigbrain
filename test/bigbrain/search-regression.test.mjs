@@ -136,14 +136,14 @@ Notes from proposal drafting for the Wellness App.
 test('regression: todo-style query finds the current priorities page', async () => {
   const fixture = await createFixture('bigbrain-search-regression-todos-');
   try {
-    await writeMarkdown(fixture.brainHome, 'ops/current-priorities.md', `---
+    await writeMarkdown(fixture.brainHome, 'tasks/current-priorities.md', `---
 title: Current Priorities
 ---
 # Current Priorities
 
 Next on my TODO list is to review the buyer priorities, tighten the website copy, and follow up on the app proposal.
 `);
-    await writeMarkdown(fixture.brainHome, 'ops/completed-items.md', `---
+    await writeMarkdown(fixture.brainHome, 'tasks/completed-items.md', `---
 title: Completed Items
 ---
 # Completed Items
@@ -156,7 +156,7 @@ Finished tasks from last week.
 
     const db = await openDatabase(config);
     const result = await searchBrain({ db, config, query: "What's next on my TODO list?", apiKey: null });
-    assert.equal(result.fused[0].slug, 'ops/current-priorities');
+    assert.equal(result.fused[0].slug, 'tasks/current-priorities');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -165,7 +165,7 @@ Finished tasks from last week.
 test('regression: recent-mention query finds the example ai context page', async () => {
   const fixture = await createFixture('bigbrain-search-regression-example-ai-');
   try {
-    await writeMarkdown(fixture.brainHome, 'companies/example-ai.md', `---
+    await writeMarkdown(fixture.brainHome, 'organizations/example-ai.md', `---
 title: Example AI
 ---
 # Example AI
@@ -185,7 +185,7 @@ General advisory positioning notes.
 
     const db = await openDatabase(config);
     const result = await searchBrain({ db, config, query: 'what did i mention recently about example ai?', apiKey: null });
-    assert.equal(result.fused[0].slug, 'companies/example-ai');
+    assert.equal(result.fused[0].slug, 'organizations/example-ai');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

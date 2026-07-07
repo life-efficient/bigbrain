@@ -8,10 +8,15 @@ const DEFAULT_RULES = {
   organizations: 'One page per institution, government body, university, vendor, company, advisory group, or other organization.',
   companies: 'One page per company or organization.',
   meetings: 'Specific meetings, calls, meeting prep, and transcripts.',
+  deals: 'Transactions, acquisitions, raises, investments, mandates, opportunities, diligence, valuation, buyer/investor processes, and deal-owned artifacts.',
+  projects: 'Active execution tracks and workstreams.',
+  ideas: 'Unbuilt possibilities that are not yet active projects.',
   initiatives: 'Active named workstreams or programs.',
   deliverables: 'Owned outputs such as reports, decks, PDFs, toolkits, course materials, workshop packs, declarations, episodes, calls, releases, and drafts.',
   tasks: 'One page per assignable task. Task identity is derived from tasks/<slug>.md; task pages use member-backed assignees, status, readiness, priority, source links, current body, and timeline.',
   concepts: 'Reusable concepts, frameworks, pillar notes, strategy, and mental models.',
+  writing: 'Authored prose artifacts whose primary identity is the writing itself.',
+  protocol: 'Repeatable operating rules, preferences, processes, playbooks, and how-things-should-work guidance.',
   ops: 'Operating material such as roadmaps, contribution rules, server notes, MCP notes, and cross-workstream coordination.',
   archive: 'Historical or superseded material that should not stay active.',
 };
@@ -30,7 +35,7 @@ export async function filingRulesForBrain({ config }) {
       'Use a <collection>/.raw/<slug>.md page path only when the markdown page is a raw-file sidecar whose main purpose is metadata, visibility, groups, or provenance for that raw file.',
       'When sharing a raw file through a group or folder view, expose the raw file itself as the shared item; the sidecar markdown only stores metadata for that raw file.',
       'Do not create page-slug folders or other nested folders inside .raw; make filenames collision-safe instead.',
-      'Use sources/.raw only for evidence-first uploads whose subject has not yet become another canonical entity; when in doubt, use the owning collection instead.',
+      'Use the owning collection .raw folder for raw attachments; sources/.raw is only for legacy or domain-specific evidence overlays.',
       'Use deliverables/.raw when the raw file is an owned output being reviewed, sent, published, presented, or maintained as the deliverable itself.',
       'Raw uploads are limited to the configured raw_file_max_bytes value, 25 MiB by default; compress oversized files or store a summary/link instead.',
     ],
@@ -48,8 +53,8 @@ export async function filingRulesForBrain({ config }) {
         page_path: 'meetings/unesco-workshop-sync',
       },
       {
-        raw_path: 'sources/.raw/unassigned-evidence-pack.pdf',
-        page_path: 'sources/unassigned-evidence-pack',
+        raw_path: 'writing/.raw/unassigned-evidence-pack.pdf',
+        page_path: 'writing/unassigned-evidence-pack',
       },
     ],
   };
@@ -69,11 +74,11 @@ export async function filingRulesForBrain({ config }) {
     filing_principles: sharedGuidance.filingPrinciples.length > 0 ? sharedGuidance.filingPrinciples : [
       'File by primary subject, not by source format.',
       'Update an existing canonical page when the page already exists.',
-      'Create a new page when the item introduces a distinct person, organization, meeting, initiative, deliverable, concept, source, or operating note.',
+      'Create a new page when the item introduces a distinct person, organization, deal, project, idea, meeting, task, concept, writing artifact, protocol, or domain overlay page.',
       'Use relative markdown links instead of duplicating facts across pages.',
       'Use tasks/ for assignable work by default; use canonical subject pages for durable knowledge.',
-      'Use sources/ for evidence-first imports whose owning collection is not clear yet.',
-      'Use inbox/ only as a legacy last-resort holding area for non-actionable material that cannot yet be filed anywhere else.',
+      'Use the owning collection .raw folder for evidence files, and keep sources/ only when a specific brain treats it as a domain overlay.',
+      'Treat inbox/ and ops/ as legacy folders, not active default destinations.',
     ],
   };
 }

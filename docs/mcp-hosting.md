@@ -140,8 +140,8 @@ Required fields:
   example `deals/.raw/blind-teaser.pdf` for a deal-owned teaser,
   `meetings/.raw/call-transcript.txt` for a meeting transcript,
   `deliverables/.raw/partner-brief.pdf` for a deliverable-owned upload, or
-  `sources/.raw/unassigned-evidence.pdf` only when the upload has no clearer
-  owning collection yet. Follow the selected brain's `filing_rules`; choose the
+  `writing/.raw/unassigned-evidence.pdf` when the upload has no clearer owning
+  collection yet. Follow the selected brain's `filing_rules`; choose the
   collection by the artifact's role, not only its file type. Do not nest
   page-slug folders or any other folders inside `.raw`; use collision-safe
   filenames.

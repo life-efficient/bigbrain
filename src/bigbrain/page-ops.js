@@ -7,14 +7,15 @@ import { assertSafePublicRawPath, isSafePublicRawPath } from './public-raw-polic
 
 export const DEFAULT_COLLECTIONS = [
   'archive',
-  'companies',
   'concepts',
   'deals',
   'ideas',
   'meetings',
+  'organizations',
   'people',
+  'protocol',
   'projects',
-  'sources',
+  'tasks',
   'writing',
 ];
 

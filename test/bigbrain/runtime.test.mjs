@@ -27,7 +27,11 @@ test('init creates an external brain home with runtime state under the home-leve
     await fs.stat(path.join(metaDirForBrainHome(brainHome, env), 'config.json'));
     await fs.stat(path.join(metaDirForBrainHome(brainHome, env), 'state.json'));
     await fs.stat(path.join(brainHome, 'tasks'));
-    await fs.stat(path.join(brainHome, 'personal-protocol'));
+    await fs.stat(path.join(brainHome, 'organizations'));
+    await fs.stat(path.join(brainHome, 'protocol'));
+    await assert.rejects(fs.stat(path.join(brainHome, 'companies')));
+    await assert.rejects(fs.stat(path.join(brainHome, 'sources')));
+    await assert.rejects(fs.stat(path.join(brainHome, 'ops')));
     await assert.rejects(fs.stat(path.join(brainHome, '.bigbrain', 'config.json')));
   } finally {
     await fs.rm(rootDir, { recursive: true, force: true });
@@ -340,10 +344,10 @@ Private eval retrieval target decoy.
   }
 });
 
-test('folder recommendation routes personal operating preferences to personal-protocol', () => {
+test('folder recommendation routes operating preferences to protocol', () => {
   const result = recommendFolderForInput('Calendar organization preference for travel days');
-  assert.equal(result.folder, 'personal-protocol');
-  assert.equal(result.relative_path.startsWith('personal-protocol/'), true);
+  assert.equal(result.folder, 'protocol');
+  assert.equal(result.relative_path.startsWith('protocol/'), true);
 });
 
 test('sync indexes markdown pages and search finds lexical matches', async () => {
@@ -567,7 +571,7 @@ test('tokenmax mode enables query expansion', async () => {
   const fixture = await createFixture('bigbrain-search-tokenmax-expansion-');
   const originalFetch = globalThis.fetch;
   try {
-    await writeMarkdown(fixture.brainHome, 'ops/current-priorities.md', `---
+    await writeMarkdown(fixture.brainHome, 'tasks/current-priorities.md', `---
 title: Current Priorities
 ---
 # Current Priorities
@@ -1047,8 +1051,9 @@ test('schema and filing guidance stay inspectable', async () => {
     assert.match(markdown, /Use `tasks\/` for actionable work by default/);
     assert.equal(recommendation.folder, 'meetings');
     assert.equal(recommendFolderForInput('follow up task for the launch owner').folder, 'tasks');
-    assert.equal(recommendFolderForInput('raw PDF snapshot with unclear owner').folder, 'sources');
-    assert.equal(recommendFolderForInput('unclassified note with no obvious subject').folder, 'sources');
+    assert.equal(recommendFolderForInput('Acme LLC relationship note').folder, 'organizations');
+    assert.equal(recommendFolderForInput('raw PDF snapshot with unclear owner').folder, 'writing');
+    assert.equal(recommendFolderForInput('unclassified note with no obvious subject').folder, 'ideas');
 
     const config = await loadConfig({ configPath: fixture.configPath });
     const filingRules = await filingRulesForBrain({ config });

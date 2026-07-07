@@ -33,10 +33,10 @@ This skill guarantees:
 ## Workflow
 
 1. Classify the primary subject of the document:
-   - company, person, project, concept, deal, writing artifact, or source material
+   - organization, person, project, concept, deal, writing artifact, protocol, or supporting evidence
 2. Decide the canonical destination:
    - durable page under the appropriate directory
-   - `sources/` only when the item is truly a raw import without a clearer primary subject
+   - the owning collection `.raw/` folder for source files; `sources/` only when the active brain defines it as a legacy or domain overlay
 3. Extract and summarize the document at the right level:
    - executive summary
    - key facts or sections

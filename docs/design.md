@@ -175,19 +175,16 @@ re-embedding, re-authorizing clients, or losing operational history.
 The top-level structure should stay intentionally small:
 
 - `people/`
-- `companies/`
+- `organizations/`
 - `deals/`
-- `meetings/`
 - `projects/`
 - `ideas/`
-- `personal-protocol/`
+- `meetings/`
+- `tasks/`
 - `concepts/`
 - `writing/`
-- `sources/`
-- `inbox/` (historical collection only, not active task intake)
+- `protocol/`
 - `archive/`
-- `dreams/`
-- `ops/`
 
 Repo documentation pages such as directory `README.md` files are not canonical
 brain pages and should stay outside the indexed graph.
@@ -228,11 +225,11 @@ This is the right place for:
 - deliverable-owned raw files, filed beside the deliverable page rather than
   under sources
 
-Use `sources/.raw/` only for evidence-first uploads whose subject has not yet
-become another canonical entity. Prefer the owning collection whenever one is
-clear: for example, deal-owned teasers and models belong in `deals/.raw/`, and
-meeting transcripts belong in `meetings/.raw/`. The active brain's
-`filing_rules` output is the operational source of truth for exact paths.
+Prefer the owning collection whenever one is clear: for example, deal-owned
+teasers and models belong in `deals/.raw/`, and meeting transcripts belong in
+`meetings/.raw/`. Legacy or domain-specific `sources/.raw/` folders remain
+readable when an existing brain defines them. The active brain's `filing_rules`
+output is the operational source of truth for exact paths.
 Do not nest page-slug folders or any other folders inside `.raw`; use
 collision-safe filenames.
 
@@ -319,8 +316,8 @@ because an output may become a future input.
 
 - File by primary subject, not by source or format.
 - Use cross-links instead of duplicate pages.
-- Use `tasks/` for actionable work by default; use `sources/` for evidence-first imports whose owning collection is unclear.
-- Historical `inbox/` pages may remain in existing brains, but new material should use `tasks/`, `sources/`, or a canonical subject page.
+- Use `tasks/` for actionable work by default; use canonical subject pages and owning collection `.raw/` folders for durable knowledge and evidence.
+- Historical `inbox/`, `sources/`, and `ops/` pages may remain in existing brains or domain overlays, but new generic material should use `tasks/`, a canonical subject page, or `protocol/`.
 - Do not store attached files directly in entity directories; place them under
   per-collection `.raw/` directories and reference them from canonical pages.
 - Place raw-file sidecar markdown pages under the same `.raw/` directory as

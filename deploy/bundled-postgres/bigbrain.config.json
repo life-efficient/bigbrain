@@ -2,12 +2,16 @@
   "brain_dir": "/brain",
   "schema_dirs": [
     "people",
-    "companies",
-    "meetings",
+    "organizations",
     "deals",
-    "concepts",
     "projects",
-    "ops"
+    "ideas",
+    "meetings",
+    "tasks",
+    "concepts",
+    "writing",
+    "protocol",
+    "archive"
   ],
   "storage_backend": "postgres",
   "database_url_env": "DATABASE_URL",

@@ -161,7 +161,7 @@ export function useGraphViewport(ref, laidOut, options = {}) {
 export function GraphTypeDefs({ idPrefix }) {
   return (
     <>
-      {['people', 'companies', 'projects', 'meetings', 'deals', 'personal-protocol', 'concepts', 'writing', 'inbox', 'unknown'].map((type) => (
+      {['people', 'organizations', 'deals', 'projects', 'ideas', 'meetings', 'tasks', 'concepts', 'writing', 'protocol', 'archive', 'companies', 'personal-protocol', 'sources', 'ops', 'inbox', 'unknown'].map((type) => (
         <React.Fragment key={type}>
           <radialGradient id={`${idPrefix}-node-gradient-${type}`} cx="38%" cy="35%" r="72%">
             <stop offset="0%" stopColor="#ffffff" stopOpacity="0.96" />

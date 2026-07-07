@@ -5,6 +5,41 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## Unreleased
 
+### Changed
+
+- Updated the default BigBrain folder pack to
+  `people/`, `organizations/`, `deals/`, `projects/`, `ideas/`, `meetings/`,
+  `tasks/`, `concepts/`, `writing/`, `protocol/`, and `archive/`.
+- Updated schema output, filing recommendations, config examples, bundled
+  skills, docs, retrieval fixtures, and dashboard graph ordering for the new
+  default pack while preserving legacy/domain folders such as `companies/`,
+  `sources/`, `ops/`, `inbox/`, `personal-protocol/`, and `health/` for
+  existing brains.
+- Raw-file guidance now prefers the owning collection `.raw/` folder and treats
+  `sources/` as a legacy or domain-specific overlay instead of a generic
+  default.
+
+### Agent update actions
+
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install`, then `npm link`.
+- Restart local or hosted MCP services that run from this checkout so updated
+  schema defaults, filing recommendations, and MCP tool descriptions are
+  active.
+- Refresh bundled BigBrain skills from `skills/`, especially
+  `bigbrain-understand`, `bigbrain-conversation-ingest`,
+  `bigbrain-document-ingest`, `bigbrain-onboarding`, and `bigbrain-query`.
+- Audit existing brains before moving pages: migrate generic `companies/` pages
+  toward `organizations/`, generic `ops/` work toward `tasks/` or `protocol/`,
+  and generic `sources/` uploads toward the owning collection `.raw/` folder;
+  keep domain overlays such as ICAIRE `deliverables/` and `reports/` when the
+  active brain's filing rules define them.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+
 ## [0.9.0] - 2026-07-08
 
 ### Added

@@ -2,17 +2,16 @@
   "brain_dir": "/absolute/path/to/your/brain-home",
   "schema_dirs": [
     "people",
-    "companies",
+    "organizations",
     "deals",
-    "meetings",
     "projects",
     "ideas",
+    "meetings",
+    "tasks",
     "concepts",
     "writing",
-    "sources",
-    "archive",
-    "dreams",
-    "ops"
+    "protocol",
+    "archive"
   ],
   "storage_backend": "sqlite",
   "database_url_env": "DATABASE_URL",

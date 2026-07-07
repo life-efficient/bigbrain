@@ -33,13 +33,13 @@ This skill guarantees:
 ## Workflow
 
 1. Identify the primary subject:
-   - a person, company, project, meeting, concept, or media-specific note
+   - a person, organization, project, meeting, concept, or media-specific note
 2. Decide the canonical page to update or create
 3. Extract the usable signal from the media:
    - summary
    - major themes
    - notable sections or timestamps when available
-   - people, companies, or projects that materially matter
+   - people, organizations, or projects that materially matter
 4. Preserve the source:
    - transcript, recording, or supporting files under `<collection>/.raw/<filename>`
    - call `filing_rules` first when using an MCP or remote brain connector

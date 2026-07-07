@@ -101,7 +101,7 @@ Notes from proposal drafting for the Cinder Canvas app.
 `,
   },
   {
-    path: 'ops/current-priorities.md',
+    path: 'tasks/current-priorities.md',
     markdown: `---
 title: Current Priorities
 ---
@@ -111,7 +111,7 @@ Next on my TODO list is to review the buyer priorities, tighten the website copy
 `,
   },
   {
-    path: 'companies/ember-ai.md',
+    path: 'organizations/ember-ai.md',
     markdown: `---
 title: Ember AI
 ---
@@ -203,14 +203,14 @@ const FIXTURE_CASES = [
   { id: 'title-substring-person', family: 'title-substring', query: 'Aurora Vale', expected_slug: 'people/aurora-vale' },
   { id: 'title-substring-project', family: 'title-substring', query: 'Lumen Orchard', expected_slug: 'projects/lumen-orchard' },
   { id: 'generic-to-named-current-state', family: 'generic-to-named', query: 'Aurora Rowan current state', expected_slug: 'deals/lumen-orchard-process-status' },
-  { id: 'generic-to-named-todo', family: 'generic-to-named', query: "What's next on my TODO list?", expected_slug: 'ops/current-priorities' },
+  { id: 'generic-to-named-todo', family: 'generic-to-named', query: "What's next on my TODO list?", expected_slug: 'tasks/current-priorities' },
   { id: 'alias-synonym-inline-array', family: 'alias-synonym', query: 'Sun Room', expected_slug: 'concepts/solarium' },
   { id: 'alias-synonym-string', family: 'alias-synonym', query: 'Light Grove', expected_slug: 'projects/lumen-orchard' },
   { id: 'multi-chunk-dilution', family: 'multi-chunk-dilution', query: 'prism ledger route', expected_slug: 'projects/long-mosaic', acceptable_slugs: ['notes/decoy-prism-ledger'] },
   { id: 'short-vs-rich', family: 'short-vs-rich', query: 'canonical operating project for Cinder Canvas app', expected_slug: 'projects/cinder-canvas' },
   { id: 'graph-relationship', family: 'graph-relationship', query: 'Harbor Contact related project', expected_slug: 'people/harbor-contact', acceptable_slugs: ['projects/lumen-orchard'] },
   { id: 'hard-negative', family: 'hard-negative', query: 'prism ledger route unrelated negative', expected_slug: 'notes/decoy-prism-ledger', forbidden_slugs: ['projects/long-mosaic'] },
-  { id: 'recent-mention', family: 'generic-to-named', query: 'what did i mention recently about ember ai?', expected_slug: 'companies/ember-ai' },
+  { id: 'recent-mention', family: 'generic-to-named', query: 'what did i mention recently about ember ai?', expected_slug: 'organizations/ember-ai' },
   { id: 'advisory-history', family: 'generic-to-named', query: 'What seed-stage companies have I advised?', expected_slug: 'projects/seed-stage-advisory' },
 ];
 

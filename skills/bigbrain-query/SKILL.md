@@ -20,8 +20,8 @@ mutating: false
 # BigBrain: Query
 
 Use this skill to answer from BigBrain rather than from general memory. The
-brain is the source of truth for people, companies, meetings, projects, deals,
-tasks, and personal operating context.
+brain is the source of truth for people, organizations, meetings, projects,
+deals, tasks, writing, and protocol context.
 
 ## Contract
 

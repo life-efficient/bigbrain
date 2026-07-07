@@ -18,8 +18,8 @@ then write only the pages justified by the user's responses.
 This skill guarantees:
 - Ask focused onboarding questions instead of dumping a long form on the user
 - Prefer the active BigBrain filing rules and page shapes over generic guesses
-- Create or update starter pages for the user's work, people, companies,
-  projects, concepts, and source material
+- Create or update starter pages for the user's work, people, organizations,
+  projects, concepts, writing, protocol, and tasks
 - Preserve uncertainty as notes or open questions instead of inventing facts
 - End by filing all gathered information into the brain appropriately
 - Sync the index after meaningful writes
@@ -71,9 +71,10 @@ What are the main projects or responsibilities this brain should track first?
 ```
 
 Create or update `projects/` pages for active work. Create `tasks/` pages for
-assignable follow-ups or work items. Use `sources/` for evidence-first material
-when the destination is unclear, and keep `inbox/` only for non-actionable
-unresolved legacy material.
+assignable follow-ups or work items. Attach evidence under the owning
+collection `.raw/` folder once ownership is clear; use `inbox/`, `sources/`,
+or `ops/` only when the active brain's filing rules define them as legacy or
+domain overlays.
 
 3. People and organizations:
 
@@ -81,7 +82,7 @@ unresolved legacy material.
 Which people or organizations should this brain know about first?
 ```
 
-Create or update `people/` and `companies/` pages only for entities with enough
+Create or update `people/` and `organizations/` pages only for entities with enough
 durable signal. Ask one follow-up if the relationship or relevance is unclear.
 
 4. Source material:
@@ -105,9 +106,11 @@ they can add more information like this at any time.
 ## Writing Guidance
 
 - Prefer updating existing pages over creating duplicates.
-- Use canonical collections such as `people/`, `companies/`, `projects/`,
-  `concepts/`, `meetings/`, `tasks/`, `sources/`, and `ops/` when they exist.
-  Use `inbox/` only as a legacy last-resort holding area.
+- Use canonical collections such as `people/`, `organizations/`, `deals/`,
+  `projects/`, `ideas/`, `meetings/`, `tasks/`, `concepts/`, `writing/`,
+  `protocol/`, and `archive/` when they exist. Use legacy or domain overlays
+  such as `companies/`, `sources/`, `ops/`, or `inbox/` only when the active
+  brain's filing rules call for them.
 - Keep first-pass pages compact and editable.
 - Include timeline entries when the brain's page shape expects them.
 - Use markdown links between related pages where obvious.
@@ -128,7 +131,7 @@ After meaningful writes:
 Report:
 - questions completed
 - pages created or updated
-- source material routed or noted
+- supporting material routed or noted
 - any answers intentionally left unwritten
 - sync result and one retrieval proof
 - closing message thanked the user and invited future additions

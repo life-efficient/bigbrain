@@ -88,8 +88,8 @@ test('signal bloom keeps small type clusters compact and non-overlapping', () =>
       { slug: 'people/blair', title: 'Blair', type: 'people', degree: 6 },
       { slug: 'projects/bigbrain', title: 'BigBrain', type: 'projects', degree: 7 },
       { slug: 'projects/jarvis', title: 'Jarvis', type: 'projects', degree: 5 },
-      { slug: 'companies/acme', title: 'Acme', type: 'companies', degree: 6 },
-      { slug: 'companies/zenith', title: 'Zenith', type: 'companies', degree: 4 },
+      { slug: 'organizations/acme', title: 'Acme', type: 'organizations', degree: 6 },
+      { slug: 'organizations/zenith', title: 'Zenith', type: 'organizations', degree: 4 },
     ],
     edges: [],
   };

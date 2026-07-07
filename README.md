@@ -56,7 +56,8 @@ Skill routing lives in [`skills/RESOLVER.md`](./skills/RESOLVER.md).
 `bigbrain` treats the markdown brain as two related layers:
 
 - canonical brain pages under typed top-level directories like `people/`,
-  `companies/`, `deals/`, `meetings/`, and `projects/`
+  `organizations/`, `deals/`, `projects/`, `ideas/`, `meetings/`, `tasks/`,
+  `concepts/`, `writing/`, and `protocol/`
 - attached raw files under per-collection `.raw/` directories
 
 Canonical pages are the authored knowledge graph. Raw files are attached source
@@ -84,13 +85,12 @@ Do not nest page-slug folders or any other folders inside `.raw`; use
 collision-safe filenames such as `meeting-slug-transcript.txt` or
 `report-slug-final.pdf`.
 
-Use `sources/.raw/` only for evidence-first uploads whose subject has not yet
-become another canonical entity. Prefer the owning collection whenever one is
-clear: for example, deal-owned teasers and models belong in `deals/.raw/`, and
-meeting transcripts belong in `meetings/.raw/`. The `filing_rules` tool is the
-operational source of truth for the active brain; older `.artifacts/`
-directories are legacy unless a specific brain's filing rules explicitly require
-them.
+Prefer the owning collection whenever one is clear: for example, deal-owned
+teasers and models belong in `deals/.raw/`, meeting transcripts belong in
+`meetings/.raw/`, writing exports belong in `writing/.raw/`, and protocol
+templates belong in `protocol/.raw/`. The `filing_rules` tool is the operational
+source of truth for the active brain; legacy `sources/.raw/` and `.artifacts/`
+directories remain readable when a specific brain's filing rules require them.
 
 Repo documentation pages such as `README.md` files are not canonical brain
 pages and should be ignored by indexing and schema validation.

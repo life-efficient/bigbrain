@@ -26,14 +26,14 @@ signal, not for every operational message.
 This skill guarantees:
 - Capture only durable knowledge worth preserving
 - Prefer updating an existing canonical page over creating a new one
-- Use `tasks/` for actionable work, and use `personal-protocol/`, `projects/`, `concepts/`, entity pages, or `sources/` based on the substance of durable non-task material
+- Use `tasks/` for actionable work, and use `protocol/`, `projects/`, `ideas/`, `concepts/`, `writing/`, entity pages, or owning collection `.raw/` files based on the substance of durable non-task material
 - Avoid polluting the brain with purely procedural chatter
 - Re-sync the index after a meaningful write
 
 ## What counts as durable signal
 
 - preferences or operating rules
-- relationship context about a person or company
+- relationship context about a person or organization
 - new facts that materially change a page
 - decisions, roadmap direction, or explicit open threads
 - the user's original ideas, theses, or frameworks
@@ -42,13 +42,13 @@ This skill guarantees:
 
 1. Distinguish durable signal from procedural chatter
 2. Classify the target:
-   - person or company page
+   - person or organization page
    - project page
    - concept page
-   - `personal-protocol/`
+   - `protocol/`
    - `tasks/` when the message is actionable work or a follow-up
-   - `sources/` when durable evidence-first material has no clearer owning collection yet
-   - `inbox/` only for non-actionable unresolved legacy material
+   - owning collection `.raw/` folders for evidence files
+   - `inbox/`, `sources/`, or `ops/` only when the active brain's filing rules define them as legacy or domain overlays
 3. Update or create the canonical page
 4. Keep the update compact and source-aware
 5. Re-index:
@@ -58,7 +58,7 @@ This skill guarantees:
 
 - Do not ingest every message just because it exists
 - Do not create a new page when a small update to an existing page is enough
-- Do not bury user preferences in generic notes when `personal-protocol/` is the right home
+- Do not bury user preferences in generic notes when `protocol/` is the right home
 - Do not over-formalize half-formed chatter into false certainty
 
 ## Output

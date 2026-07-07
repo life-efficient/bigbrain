@@ -16,23 +16,27 @@ export const DEFAULT_MAX_EMBEDDING_PAGES_PER_SYNC = 1000;
 
 export const CANONICAL_SCHEMA_DIRS = [
   'people',
-  'companies',
+  'organizations',
   'deals',
-  'meetings',
   'projects',
   'ideas',
-  'personal-protocol',
+  'meetings',
+  'tasks',
   'concepts',
   'writing',
-  'sources',
-  'tasks',
+  'protocol',
   'archive',
-  'dreams',
-  'ops',
 ];
 
 export const LEGACY_SCHEMA_DIRS = [
+  'companies',
+  'personal-protocol',
+  'health',
+  'sources',
   'inbox',
+  'dreams',
+  'ops',
+  'dream-cycle-summaries',
 ];
 
 export const DEFAULT_FRESHNESS_INPUTS = ['markdown', 'meetings', 'conversations'];
@@ -40,6 +44,8 @@ export const DEFAULT_FRESHNESS_INPUTS = ['markdown', 'meetings', 'conversations'
 export const PAGE_REQUIRED_TIMELINE_TYPES = new Set([
   'people',
   'companies',
+  'organizations',
   'deals',
   'projects',
+  'protocol',
 ]);

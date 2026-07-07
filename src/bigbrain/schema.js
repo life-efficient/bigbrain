@@ -4,20 +4,16 @@ import { CANONICAL_SCHEMA_DIRS, PAGE_REQUIRED_TIMELINE_TYPES } from './constants
 
 const FOLDER_RULES = [
   ['people', 'One page per human being. File by the person as the primary subject.'],
-  ['companies', 'One page per organization or company.'],
-  ['deals', 'Transactions, fundraising, and investment items with terms or decisions.'],
-  ['meetings', 'Specific meetings, calls, or transcripts.'],
+  ['organizations', 'One page per company, institution, fund, vendor, partner, government body, university, nonprofit, or other non-person entity.'],
+  ['deals', 'Transactions, acquisitions, raises, investments, mandates, opportunities, diligence, valuation, buyer/investor processes, and deal-owned artifacts.'],
   ['projects', 'Actively built execution tracks with a repo, spec, or team.'],
   ['ideas', 'Unbuilt possibilities that are not yet active projects.'],
-  ['personal-protocol', 'Personal operating instructions, preferences, and repeatable how-to pages.'],
+  ['meetings', 'Specific meetings, calls, prep, transcripts, decisions, and action-item context.'],
+  ['tasks', 'One page per assignable task, with member-backed assignees and task metadata.'],
   ['concepts', 'Reusable mental models, frameworks, and general strategy.'],
   ['writing', 'Prose artifacts, drafts, and essay-style outputs.'],
-  ['sources', 'Legacy or evidence-first imports without a clearer owning collection; prefer the primary subject collection for new material.'],
-  ['tasks', 'One page per assignable task, with member-backed assignees and task metadata.'],
-  ['inbox', 'Legacy holding area for historical unsorted captures; do not use for new actionable work.'],
+  ['protocol', 'Repeatable operating rules, preferences, processes, playbooks, and how-things-should-work guidance.'],
   ['archive', 'Historical or dead pages that should not stay active.'],
-  ['dreams', 'Reserved for later dream-cycle outputs; not active in v1.'],
-  ['ops', 'Operational notes such as roadmaps, contribution rules, server notes, MCP notes, and cross-workstream coordination.'],
 ];
 
 export function schemaDescription() {
@@ -43,7 +39,7 @@ export function schemaDescription() {
       '<collection>/.raw/<filename>',
       'raw attached files such as pdf/png/pptx/xlsx/txt stay outside the indexed page graph',
       'the markdown page carries searchable context and links to the raw file',
-      'sources/.raw is only for evidence-first uploads without a clearer canonical subject',
+      'legacy sources/.raw folders remain readable, but new raw files should use the owning collection .raw folder',
       'do not nest page-slug folders or any other folders inside .raw',
     ],
     task_page_shape: {
@@ -109,7 +105,7 @@ export function renderSchemaMarkdown() {
     '- Raw attachments are supporting files, not full entity pages.',
     '- Canonical pages link outward to raw attachments.',
     '- The markdown page remains the searchable context surface.',
-    '- Use `sources/.raw/` only for evidence-first uploads without a clearer canonical subject; otherwise use the owning collection.',
+    '- Use the owning collection `.raw/` folder for raw attachments; `sources/.raw/` is legacy or domain-specific evidence storage, not the generic default.',
     '- Do not nest page-slug folders or any other folders inside `.raw`; use collision-safe filenames.',
     '- The `filing_rules` tool is the operational source of truth for the active brain.',
     '',
@@ -147,7 +143,7 @@ export function renderSchemaMarkdown() {
     '- If uncertain between `agent` and `interactive`, prefer `interactive`; if uncertain between `interactive` and `user`, use `interactive` when Codex can still structure or guide the work.',
     '- Status and readiness are independent: a task can be `open` but `underspecified`, or `in_progress` and `ready`.',
     '- `assignees` must be active member person slugs; arbitrary `people/*` pages are not assignable.',
-    '- `source` links the task to supporting brain pages such as meetings, projects, sources, or legacy inbox notes.',
+    '- `source` links the task to supporting brain pages such as meetings, projects, writing, protocol, source overlays, or legacy inbox notes.',
     '- `due` is optional and must be `YYYY-MM-DD` when present.',
     '- Keep current task context above `---` and append evidence or state changes under `## Timeline`.',
     '- Structure current task context with `## Summary`, `## What Counts as Completed`, `## Body Context`, `## Open Questions`, and `## Anti-Patterns`.',
@@ -159,8 +155,8 @@ export function renderSchemaMarkdown() {
     '',
     '- File by primary subject, not by source or format.',
     '- Use cross-links instead of duplicate pages.',
-    '- Use `tasks/` for actionable work by default; use `sources/` for evidence-first imports whose owning collection is unclear.',
-    '- Use `inbox/` only as a legacy last-resort holding area for non-actionable material that cannot yet be filed anywhere else.',
+    '- Use `tasks/` for actionable work by default; use canonical subject pages or owning collection `.raw/` folders for durable knowledge and evidence.',
+    '- Treat `inbox/`, `sources/`, and `ops/` as legacy or domain-specific overlays, not generic default destinations.',
     '- Store attached files under per-collection `.raw/` directories, not directly in entity directories.',
     '- Repo documentation pages such as directory `README.md` and `FILING.md` files are not canonical brain pages and should be excluded from indexing.',
   );
@@ -174,14 +170,14 @@ export function recommendFolderForInput(input) {
   if (/meeting|call|transcript|sync|prep/.test(lower)) return recommendation('meetings', text, 'the primary subject is a specific meeting or call');
   if (/deal|acquisition|investor|fundraise|teaser|valuation/.test(lower)) return recommendation('deals', text, 'the primary subject is a transaction or financing item');
   if (/draft|essay|writeup|proposal|memo|article/.test(lower)) return recommendation('writing', text, 'the primary subject is a prose artifact');
-  if (/protocol|preference|operating instruction|how to|how-to|playbook for me|calendar organization|personal rule/.test(lower)) return recommendation('personal-protocol', text, 'the item reads like a personal operating preference or repeatable protocol');
+  if (/protocol|preference|operating instruction|how to|how-to|playbook for me|calendar organization|personal rule|process|operating rule/.test(lower)) return recommendation('protocol', text, 'the item reads like an operating preference, repeatable process, or protocol');
   if (/framework|mental model|thesis|playbook|strategy|concept/.test(lower)) return recommendation('concepts', text, 'the primary subject is a reusable concept or framework');
   if (/idea|possibility|someday|explore/.test(lower)) return recommendation('ideas', text, 'the item sounds like an unbuilt possibility');
   if (/task|todo|to-do|follow[- ]?up|next action|action item|blocked|waiting/.test(lower)) return recommendation('tasks', text, 'the item reads like assignable work');
   if (/project|build|launch|roadmap|implementation/.test(lower)) return recommendation('projects', text, 'the item sounds like an active execution track');
-  if (/company|inc\.|llc|firm|organization/.test(lower)) return recommendation('companies', text, 'the primary subject appears to be an organization');
-  if (/source|raw|import|email|pdf|screenshot|snapshot/.test(lower)) return recommendation('sources', text, 'the item appears to be evidence-first source material, but no higher-confidence owning collection was obvious');
-  return recommendation('sources', text, 'no higher-confidence canonical home was obvious; use tasks/ instead if this is actionable work');
+  if (/company|inc\.|llc|firm|organization|institution|vendor|partner|university|fund|government body/.test(lower)) return recommendation('organizations', text, 'the primary subject appears to be an organization');
+  if (/source|raw|import|email|pdf|screenshot|snapshot/.test(lower)) return recommendation('writing', text, 'the item appears to be evidence-first material without a clear owning collection; preserve raw files under the owning collection .raw folder once ownership is clear');
+  return recommendation('ideas', text, 'no higher-confidence canonical home was obvious; use tasks/ instead if this is actionable work');
 }
 
 export function validatePageShape(parsedPage) {

@@ -37,23 +37,23 @@ This skill guarantees:
 1. Start from the built-in schema:
    - `bigbrain schema`
 2. If the question is about filing or page shape, explain:
-   - canonical directories such as `people/`, `companies/`, `projects/`, `concepts/`, `meetings/`, and `ops/`
+   - canonical directories such as `people/`, `organizations/`, `deals/`, `projects/`, `ideas/`, `meetings/`, `tasks/`, `concepts/`, `writing/`, `protocol/`, and `archive/`
   - `tasks/` as the default home for actionable work and follow-ups
-  - `sources/` as the default for evidence-first material when the owning collection is unclear
-  - `inbox/` as a legacy last-resort holding area, not a parallel task queue
+  - owning collection `.raw/` folders as the default home for raw/rendered evidence
+  - `inbox/`, `sources/`, and `ops/` as legacy or domain overlays, not generic default destinations
    - per-collection `.raw/` folders for raw files and generated outputs
    - `filing_rules` as the operational source of truth for the active brain
 3. If the question is about a specific item, classify it by primary subject:
    - person -> `people/`
-   - company -> `companies/`
+   - organization, company, institution, vendor, fund, or partner -> `organizations/`
    - deal or financing item -> `deals/`
    - active build track -> `projects/`
    - reusable framework -> `concepts/`
-   - personal operating preference -> `personal-protocol/`
+   - repeatable process, operating rule, or personal/organizational preference -> `protocol/`
    - specific meeting or call -> `meetings/`
    - actionable item or follow-up -> `tasks/`
-   - unclear evidence-first material -> `sources/`
-   - non-actionable unresolved legacy material -> `inbox/`
+   - unclear evidence-first material -> the owning collection `.raw/` folder once ownership is clear; otherwise `writing/` or a brain-specific source overlay if filing rules define one
+   - non-actionable unresolved legacy material -> avoid by default; use `inbox/` only when the active brain's filing rules explicitly preserve it
 4. If the question is about workflow, route to the best skill:
    - lookup or context -> `BigBrain: Query`
    - setup or migration -> `BigBrain: Setup`
@@ -71,7 +71,7 @@ This skill guarantees:
 - Prefer cross-links over duplicate pages
 - Use the same meeting page across prep and post-meeting updates
 - Keep raw transcripts, decks, PDFs, and other attached files under the `.raw/` path specified by `filing_rules`
-- When in doubt, recommend `tasks/` for actionable work, `sources/` for evidence-first material, and `inbox/` only for non-actionable unresolved legacy material
+- When in doubt, recommend `tasks/` for actionable work, `ideas/` for unbuilt possibilities, `protocol/` for repeatable processes, and the owning collection `.raw/` folder for evidence files
 
 ## Output
 
