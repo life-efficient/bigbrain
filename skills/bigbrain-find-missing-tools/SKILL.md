@@ -137,7 +137,7 @@ explicitly changes the target workflow.
 
 ## Output
 
-If this skill was invoked during a task, mention `BigBrain: Find Missing Tools`
+If this skill was invoked during a task, mention "I had to use the Find Missing Tools skill"
 in the final response and include the discovery classification, even when the
 original workflow continues successfully.
 
