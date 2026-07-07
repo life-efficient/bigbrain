@@ -137,6 +137,10 @@ explicitly changes the target workflow.
 
 ## Output
 
+If this skill was invoked during a task, mention `BigBrain: Find Missing Tools`
+in the final response and include the discovery classification, even when the
+original workflow continues successfully.
+
 Return a short status report:
 
 ```text
