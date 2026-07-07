@@ -66,6 +66,74 @@ Nested raw fixture.
   }
 });
 
+test('health flags metadata-only raw sidecars outside .raw', async () => {
+  const fixture = await createFixture('bigbrain-raw-sidecar-health-');
+  try {
+    await writeFile(path.join(fixture.brainHome, 'sources', '.raw', 'upload.pdf'), 'pdf');
+    await writeMarkdown(fixture.brainHome, 'sources/upload.md', `---
+title: Upload
+raw_file: sources/.raw/upload.pdf
+raw_mime_type: application/pdf
+---
+# Upload
+
+## Source File
+
+- [upload.pdf](.raw/upload.pdf)
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const report = await runHealthCheck(config);
+
+    const sidecars = report.findings.filter((finding) => finding.finding_type === 'possible_misplaced_raw_sidecar');
+    assert.equal(sidecars.length, 1);
+    assert.equal(sidecars[0].page_slug, 'sources/upload');
+    assert.equal(sidecars[0].details.raw_file, 'sources/.raw/upload.pdf');
+    assert.equal(sidecars[0].details.expected_sidecar_path, 'sources/.raw/upload.md');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('health accepts canonical pages that link to raw files', async () => {
+  const fixture = await createFixture('bigbrain-raw-canonical-health-');
+  try {
+    await writeFile(path.join(fixture.brainHome, 'deliverables', '.raw', 'brief.pdf'), 'pdf');
+    await writeMarkdown(fixture.brainHome, 'deliverables/brief.md', `---
+title: Brief
+raw_file: deliverables/.raw/brief.pdf
+raw_mime_type: application/pdf
+---
+# Brief
+
+## Summary
+
+This canonical deliverable page explains what the attached brief is for and why
+it matters in the brain.
+
+## Source File
+
+- [brief.pdf](.raw/brief.pdf)
+
+---
+
+## Timeline
+
+- **2026-07-08** | Added the brief.
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const report = await runHealthCheck(config);
+
+    const sidecars = report.findings.filter((finding) => finding.finding_type === 'possible_misplaced_raw_sidecar');
+    assert.equal(sidecars.length, 0);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function createFixture(prefix) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   const pointerPath = path.join(rootDir, 'pointer');

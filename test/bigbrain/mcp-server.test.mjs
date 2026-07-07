@@ -324,6 +324,7 @@ One page per organization.
     assert.match(organizations.markdown, /One page per organization/);
     assert.equal(rules.result.structuredContent.raw_file_rules.create_with_page_tool, 'create_raw_file_with_page');
     assert.match(rules.result.content[0].text, /Use deliverables\/.raw when the raw file is an owned output/);
+    assert.match(rules.result.content[0].text, /Use a <collection>\/\.raw\/<slug>\.md page path only when the markdown page is a raw-file sidecar/);
     assert.equal(
       rules.result.structuredContent.raw_file_rules.examples.some((example) => example.raw_path.startsWith('deliverables/.raw/')),
       true,

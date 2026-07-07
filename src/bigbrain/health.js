@@ -51,6 +51,16 @@ export async function runHealthCheck(config, {
       });
     }
 
+    const rawSidecar = detectPossibleMisplacedRawSidecar(parsed);
+    if (rawSidecar) {
+      await insertHealthFinding(db, {
+        findingType: 'possible_misplaced_raw_sidecar',
+        severity: 'low',
+        pageSlug: page.slug,
+        details: rawSidecar,
+      });
+    }
+
     for (const link of await getOutgoingLinks(db, page.slug)) {
       const targetPath = link.link_kind === 'asset'
         ? path.join(config.brainDir, link.to_slug)
@@ -165,6 +175,57 @@ function severityForFinding(findingType) {
   if (findingType === 'nested_raw_file_path') return 'medium';
   if (findingType === 'missing_filing_rules') return 'medium';
   return 'low';
+}
+
+function detectPossibleMisplacedRawSidecar(parsed) {
+  const rawFile = typeof parsed.frontmatter?.raw_file === 'string' ? parsed.frontmatter.raw_file.trim() : '';
+  if (!rawFile || !rawFile.split('/').includes('.raw')) return null;
+  if (parsed.slug.split('/').includes('.raw')) return null;
+  if (!looksMetadataOnlyRawPage(parsed)) return null;
+
+  const rawCollection = rawFile.split('/')[0] || null;
+  const pageCollection = parsed.slug.split('/')[0] || null;
+  const expectedSidecarPath = rawCollection && rawFile.includes('/')
+    ? `${path.posix.dirname(rawFile)}/${path.posix.basename(parsed.slug)}.md`
+    : null;
+  return {
+    raw_file: rawFile,
+    current_path: `${parsed.slug}.md`,
+    expected_sidecar_path: expectedSidecarPath,
+    page_collection: pageCollection,
+    raw_collection: rawCollection,
+    reason: 'raw-file metadata page appears to be sidecar-only; canonical pages with substantive summaries, related links, or timelines are not flagged',
+  };
+}
+
+function looksMetadataOnlyRawPage(parsed) {
+  if (parsed.hasSeparator || /(^|\n)##\s+Timeline\b/i.test(parsed.bodyContentMarkdown)) return false;
+  const markdown = parsed.bodyContentMarkdown.replace(/\r\n/g, '\n');
+  const headings = [...markdown.matchAll(/^##\s+(.+)$/gm)]
+    .map((match) => match[1].trim().toLowerCase());
+  const substantiveHeadings = headings.filter((heading) => !['source file', 'artifact', 'raw file'].includes(heading));
+  if (substantiveHeadings.some((heading) => [
+    'summary',
+    'current state',
+    'current decision',
+    'review notes',
+    'related pages',
+    'key facts',
+    'intended use',
+    'use in brain',
+    'source notes',
+  ].includes(heading))) return false;
+
+  const stripped = markdown
+    .replace(/^#\s+.+$/gm, '')
+    .replace(/^##\s+(source file|artifact|raw file)\s*$/gim, '')
+    .replace(/-\s+\[[^\]]+\]\([^)]+\)/g, '')
+    .replace(/`[^`]+`/g, '')
+    .replace(/\[[^\]]+\]\([^)]+\)/g, '')
+    .replace(/[^\w]+/g, ' ')
+    .trim();
+  const wordCount = stripped ? stripped.split(/\s+/).length : 0;
+  return wordCount <= 30;
 }
 
 async function detectFilingRuleStatus(brainDir) {
