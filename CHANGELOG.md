@@ -3,6 +3,44 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining local installs and hosted brains.
 
+## [0.8.5] - 2026-07-07
+
+### Fixed
+
+- `bigbrain-fanout-tasks` agent metadata now describes the current
+  thread-first behavior: launch separate Codex threads with self-contained
+  worker prompts when `codex_app.create_thread` is available, and return
+  copyable prompts only when explicitly requested or when live thread creation
+  is unavailable after targeted discovery.
+- MCP token authentication now preserves the configured member/user precedence
+  so bearer-token callers resolve the intended active member identity.
+
+### Changed
+
+- Agent-facing handoff wording now describes task readiness and execution
+  metadata as handoff hints rather than hard execution permission.
+
+### Agent update actions
+
+- Pull the new release with `git pull --rebase --autostash`.
+- Run `npm install`, then `npm link`.
+- Restart local or hosted MCP services that run from this checkout so updated
+  task-tool auth behavior and bundled skill metadata are active.
+- Refresh bundled BigBrain skills from `skills/`, especially
+  `bigbrain-fanout-tasks`, so the exposed agent description is thread-first.
+- Verify `bigbrain-fanout-tasks` discovers `codex_app.create_thread` before
+  falling back to copyable prompts.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- Local-data compatibility audit: this release changes bundled skill metadata,
+  README wording, and MCP/member authentication resolution. It does not rename,
+  remove, or narrow persisted task enum values or task page fields such as
+  `status`, `readiness`, `priority`, `assignees`, `source`, or
+  `execution_mode`. Existing task pages and member records remain compatible.
+
 ## [0.8.4] - 2026-07-06
 
 ### Changed
