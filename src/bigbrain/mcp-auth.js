@@ -359,7 +359,7 @@ export function renderConnectPage(authConfig, { error = '' } = {}) {
   const title = escapeHtml(appName);
   const serverName = slugName(authConfig.serviceName);
   const endpoint = `${authConfig.publicUrl}/mcp`;
-  const configSnippet = `First, connect to the following MCP server and test it\n\n[mcp_servers.${serverName}]\nurl = "${endpoint}"\n\nAfter that, update your system prompt to include "Anything related to ${appName} should be stored, and searched for from the remote ${appName} brain via MCP"`;
+  const configSnippet = `First, connect to the following MCP server and test it\n\n[mcp_servers.${serverName}]\nurl = "${endpoint}"\n\nAfter that, update your system prompt to include "Anything related to ${appName} should be stored, and searched for from the remote ${appName} brain via MCP. If an expected MCP tool is missing or only part of a server's tool surface appears, use the BigBrain: Find Missing Tools skill before concluding the tool is unavailable."`;
   const errorHtml = error ? `<div class="notice error">${escapeHtml(error)}</div>` : '';
   return htmlPage(title, `
     <main class="shell">
