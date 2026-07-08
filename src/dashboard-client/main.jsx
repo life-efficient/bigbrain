@@ -1648,7 +1648,7 @@ const GraphPanel = memo(function GraphPanel({
                   onClick={() => onNodeOpen(node.slug)}
                 >
                   <span className="graph-recent-title">{node.title || labelFromSlug(node.slug)}</span>
-                  <span className="graph-recent-update">{node.latest_timeline_entry || formatDateTime(node.updated_at)}</span>
+                  <span className="graph-recent-update">{formatDateTime(node.updated_at)}</span>
                 </button>
               ))}
             </div>

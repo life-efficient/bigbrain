@@ -177,7 +177,7 @@ export async function createDashboardRequestHandler(config, {
       if (requestUrl.pathname === '/api/schema') return json(res, { markdown: renderSchemaMarkdown() });
       if (requestUrl.pathname === '/api/tasks') return json(res, await buildTasksPayload(config, db, requestUrl, { actor }));
       if (requestUrl.pathname === '/api/recent') return json(res, await buildRecentPayload(db));
-      if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db));
+      if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db, config));
       if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
       if (requestUrl.pathname === '/api/page') return json(res, await buildPagePayload(config, db, requestUrl));
       if (requestUrl.pathname === '/api/page/visibility') return json(res, await updateDashboardPageVisibility(config, db, req, actor));
@@ -1628,17 +1628,18 @@ async function buildHealthPayload(config) {
   };
 }
 
-export async function buildGraphPayload(db) {
+export async function buildGraphPayload(db, config = null) {
   const pages = await listPages(db, { includeTimeline: true });
   const graphPages = pages.filter(isDirectoryBackedGraphPage);
   const candidateNodes = (await Promise.all(graphPages.map(async (page) => {
     const outgoing = await getOutgoingLinks(db, page.slug);
     const backlinks = await getBacklinks(db, page.slug);
+    const updatedAt = await resolveGraphNodeUpdatedAt(config, page);
     return {
       slug: page.slug,
       title: page.title,
       type: page.type,
-      updated_at: page.updated_at,
+      updated_at: updatedAt,
       latest_timeline_entry: latestTimelineEntry(page.timeline),
       degree: outgoing.length + backlinks.length,
       outgoing,
@@ -1671,6 +1672,16 @@ export async function buildGraphPayload(db) {
     })),
     edges,
   };
+}
+
+async function resolveGraphNodeUpdatedAt(config, page) {
+  if (!config?.brainDir || !page?.slug) return page.updated_at;
+  try {
+    const stats = await fs.stat(fullPathFromSlug(config.brainDir, page.slug));
+    return stats.mtime.toISOString();
+  } catch {
+    return page.updated_at;
+  }
 }
 
 function latestTimelineEntry(timeline) {

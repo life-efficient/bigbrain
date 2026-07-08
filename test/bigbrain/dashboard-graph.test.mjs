@@ -55,6 +55,26 @@ test('dashboard graph excludes root infrastructure files from nodes and types', 
   }
 });
 
+test('dashboard graph recent timestamps reflect current markdown file edits', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-graph-mtime-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', '# Alice\n\nWorks on [Relay](../projects/relay.md).\n');
+    await writeMarkdown(fixture.brainHome, 'projects/relay.md', '# Relay\n\nRelated to [Alice](../people/alice.md).\n');
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+    const editedAt = new Date('2026-01-04T00:00:00Z');
+    await fs.utimes(path.join(fixture.brainHome, 'people/alice.md'), editedAt, editedAt);
+
+    const graph = await buildGraphPayload(db, config);
+
+    assert.equal(graph.nodes.find((node) => node.slug === 'people/alice').updated_at, editedAt.toISOString());
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('dashboard page payload includes file explorer metadata and nearby links', async () => {
   const fixture = await createFixture('bigbrain-dashboard-page-');
   try {
