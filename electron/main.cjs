@@ -8,10 +8,13 @@ const LOCAL_HOST = "127.0.0.1";
 const DEFAULT_WINDOW_SIZE = { width: 1079, height: 945 };
 const APP_ICON_PATH = path.join(__dirname, "assets", "desktop-icon.png");
 const MAX_RENDERER_RECOVERY_ATTEMPTS = 2;
+const REMOTE_DASHBOARD_URL_ENV = "BIGBRAIN_DASHBOARD_URL";
 
 let mainWindow = null;
 let dashboardServer = null;
 let dashboardUrl = null;
+let dashboardOrigin = null;
+let remoteDashboardMode = false;
 let rendererRecoveryAttempts = 0;
 
 const singleInstanceLock = app.requestSingleInstanceLock();
@@ -63,6 +66,13 @@ if (!singleInstanceLock) {
 }
 
 async function startDashboardRuntime() {
+  const remoteDashboardUrl = resolveRemoteDashboardUrl();
+  if (remoteDashboardUrl) {
+    dashboardOrigin = new URL(remoteDashboardUrl).origin;
+    remoteDashboardMode = true;
+    return remoteDashboardUrl;
+  }
+
   const [{ resolveBrainHome, loadConfig }, { startDashboard }] = await Promise.all([
     importModule("src/bigbrain/config.js"),
     importModule("src/bigbrain/dashboard.js"),
@@ -72,7 +82,10 @@ async function startDashboardRuntime() {
   const config = await loadConfig({ brainHome });
   const port = await getFreePort(config.dashboardPort);
   dashboardServer = await startDashboard(config, { port });
-  return `http://${LOCAL_HOST}:${port}`;
+  const localDashboardUrl = `http://${LOCAL_HOST}:${port}`;
+  dashboardOrigin = new URL(localDashboardUrl).origin;
+  remoteDashboardMode = false;
+  return localDashboardUrl;
 }
 
 function createMainWindow() {
@@ -98,7 +111,7 @@ function createMainWindow() {
   });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-    if (isTrustedInternalUrl(url)) {
+    if (isTrustedInternalUrl(url) || isRemoteDashboardAuthUrl(url)) {
       return { action: "allow" };
     }
 
@@ -110,7 +123,7 @@ function createMainWindow() {
   });
 
   mainWindow.webContents.on("will-navigate", (event, url) => {
-    if (isTrustedInternalUrl(url)) return;
+    if (isTrustedInternalUrl(url) || isRemoteDashboardAuthUrl(url)) return;
     event.preventDefault();
     if (isSafeExternalUrl(url)) {
       void shell.openExternal(url);
@@ -193,7 +206,23 @@ function createAppMenu() {
 }
 
 function isTrustedInternalUrl(url) {
-  return Boolean(dashboardUrl && url.startsWith(dashboardUrl));
+  if (!dashboardUrl || !dashboardOrigin) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.origin === dashboardOrigin;
+  } catch {
+    return false;
+  }
+}
+
+function isRemoteDashboardAuthUrl(url) {
+  if (!remoteDashboardMode) return false;
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === "https:" && parsed.hostname === "accounts.google.com";
+  } catch {
+    return false;
+  }
 }
 
 function isSafeExternalUrl(url) {
@@ -273,6 +302,35 @@ function escapeHtml(value) {
 async function importModule(relativePath) {
   const moduleUrl = pathToFileURL(path.join(app.getAppPath(), relativePath)).href;
   return import(moduleUrl);
+}
+
+function resolveRemoteDashboardUrl() {
+  const value = process.env[REMOTE_DASHBOARD_URL_ENV] || argValue("--dashboard-url") || argValue("--remote-dashboard-url");
+  if (!value) return null;
+
+  let parsed;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(`${REMOTE_DASHBOARD_URL_ENV} must be a valid http or https URL.`);
+  }
+
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    throw new Error(`${REMOTE_DASHBOARD_URL_ENV} must use http or https.`);
+  }
+
+  if (parsed.pathname === "/" || parsed.pathname === "") {
+    parsed.pathname = "/dashboard";
+  }
+
+  parsed.hash = "";
+  return parsed.toString();
+}
+
+function argValue(name) {
+  const index = process.argv.indexOf(name);
+  if (index === -1) return null;
+  return process.argv[index + 1] || null;
 }
 
 async function getFreePort(preferredPort) {

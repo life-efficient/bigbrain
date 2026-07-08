@@ -2,6 +2,9 @@
 
 ## Hosted Brain Service
 
+- Keep packaging focused on the two supported product modes: local brain and
+  remote brain. Docker, bundled Postgres, Supabase, and thin clients should be
+  implementation details or roadmap variants around those modes.
 - Add dashboard/API surfacing for hosted brain git durability health state:
   canonical upstream head, runtime checkout head, dirty/ahead/behind status,
   last checked time, latest error, and needs-attention status are now persisted
@@ -89,6 +92,11 @@
   HTTP MCP server.
 - Add dashboard APIs and UI for MCP clients, recent tool calls, sync status,
   embedding backlog, and write attribution.
+- Make the desktop app a local service controller: default brain selection,
+  LaunchAgent install/start/stop/restart, `/health`, direct MCP `tools/list`,
+  local owner identity, and the local MCP URL for agent setup.
+- Keep the dashboard endpoint-relative so the same UI works against localhost
+  and hosted BigBrain endpoints.
 - Add source/ingest logs so agent-written or imported knowledge can be audited
   and reversed.
 - Add agent-readable install and operations docs for deploying, connecting,
@@ -97,7 +105,12 @@
 ## Open Design Decisions
 
 - Freshness automation inputs: markdown change history, conversation transcripts, meeting ingests, or a bounded mix.
-- Whether the dashboard should remain inside the CLI runtime or split into a separate app later.
+
+## Decided Design Directions
+
+- Keep the dashboard inside the shared BigBrain runtime for now. Package it
+  through wrappers such as CLI, Electron, local service, Docker, and hosted
+  service instead of splitting it into a separate dashboard app.
 
 ## Dashboard UI
 

@@ -109,17 +109,19 @@ update the same meeting page that later receives ingested meeting outcomes.
 
 ## Operating Modes
 
-BigBrain should support the same brain model across a few deployment shapes:
+BigBrain currently optimizes for two supported product modes:
 
-- `local`: a personal brain home with local runtime state, currently SQLite
-  under `.bigbrain-state/`.
-- `server`: a bundled app plus local Postgres/pgvector for shared or hosted
-  brains that need durable embeddings, OAuth/session state, git durability
-  health state, and audit logs across redeploys.
-- `remote`: the same Postgres storage contract pointed at an external Postgres
-  or Supabase instance when operational needs justify it.
-- `thin client`: agent tools connect to a hosted BigBrain over MCP/API while the
-  agent runtime lives elsewhere.
+- `local brain`: a selected markdown brain home on this machine, local runtime
+  state under `.bigbrain-state/`, and localhost CLI/MCP/dashboard access.
+- `remote brain`: one selected markdown brain served by a hosted BigBrain
+  MCP/API/dashboard endpoint, with durable server state in Postgres.
+
+Other shapes, such as Docker Compose, bundled Postgres, Supabase, and thin
+clients, should stack around those two modes instead of becoming separate
+products. Docker or Compose is the practical way to run a remote brain locally
+or on a small server. Supabase is a managed Postgres target for a remote brain.
+A thin client is any agent, browser, or desktop shell pointed at a remote brain
+endpoint.
 
 The database is service state, not the source of truth for authored knowledge.
 For hosted brains such as Example Brain, markdown in git remains canonical.
@@ -133,6 +135,7 @@ See:
 
 - [`CHANGELOG.md`](./CHANGELOG.md)
 - [`docs/design.md`](./docs/design.md)
+- [`docs/packaging-architecture.md`](./docs/packaging-architecture.md)
 - [`docs/mcp-hosting.md`](./docs/mcp-hosting.md)
 - [`docs/postgres-migration.md`](./docs/postgres-migration.md)
 - [`docs/example-brain-deployment.md`](./docs/example-brain-deployment.md)
@@ -395,6 +398,15 @@ npm run desktop:dev
 That launches a real `.app` wrapper around the built-in dashboard server, so it
 behaves like a normal desktop app in the Dock and can be added to macOS login
 items.
+
+By default, the desktop app uses the selected local brain and starts the
+built-in local dashboard server. To wrap a hosted remote brain dashboard with
+the same desktop shell, set `BIGBRAIN_DASHBOARD_URL` or pass
+`--dashboard-url`:
+
+```bash
+BIGBRAIN_DASHBOARD_URL=https://your-service.example.com/dashboard npm run desktop:dev
+```
 
 To build distributable artifacts:
 

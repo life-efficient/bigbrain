@@ -679,6 +679,18 @@ initially a full authoring environment.
 
 It should be concise and operational.
 
+## Packaging Posture
+
+BigBrain should package one shared runtime in two supported product modes:
+
+- local brain
+- remote brain
+
+The CLI, Electron desktop shell, macOS LaunchAgent, Docker image, and hosted
+service should wrap the same BigBrain HTTP runtime instead of introducing
+parallel dashboard or API implementations. See
+[`packaging-architecture.md`](./packaging-architecture.md).
+
 ## Recommended Implementation Order
 
 ### Milestone 1: repository foundation
