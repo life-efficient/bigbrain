@@ -73,14 +73,53 @@ export async function migrateSqliteToPostgres(config) {
       `, [finding.finding_type, finding.severity, finding.page_slug, finding.details_json || '{}', finding.created_at]);
     }
 
-    const syncRuns = tableExists(sqlite, 'sync_runs')
-      ? sqlite.prepare('SELECT * FROM sync_runs ORDER BY id').all()
+    const gitStates = tableExists(sqlite, 'hosted_brain_git_state')
+      ? sqlite.prepare('SELECT * FROM hosted_brain_git_state ORDER BY brain_key').all()
       : [];
-    for (const run of syncRuns) {
+    for (const state of gitStates) {
       await postgres.query(`
-        INSERT INTO sync_runs (started_at, finished_at, status, report_json, error)
-        VALUES ($1,$2,$3,$4,$5)
-      `, [run.started_at, run.finished_at, run.status, run.report_json || '{}', run.error]);
+        INSERT INTO hosted_brain_git_state (
+          brain_key, brain_dir, canonical_remote, canonical_branch, canonical_head,
+          runtime_branch, runtime_head, dirty, ahead_count, behind_count,
+          sync_status, health_status, needs_attention, latest_error_code,
+          latest_error_summary, checked_at, details_json
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+        ON CONFLICT (brain_key) DO UPDATE SET
+          brain_dir = EXCLUDED.brain_dir,
+          canonical_remote = EXCLUDED.canonical_remote,
+          canonical_branch = EXCLUDED.canonical_branch,
+          canonical_head = EXCLUDED.canonical_head,
+          runtime_branch = EXCLUDED.runtime_branch,
+          runtime_head = EXCLUDED.runtime_head,
+          dirty = EXCLUDED.dirty,
+          ahead_count = EXCLUDED.ahead_count,
+          behind_count = EXCLUDED.behind_count,
+          sync_status = EXCLUDED.sync_status,
+          health_status = EXCLUDED.health_status,
+          needs_attention = EXCLUDED.needs_attention,
+          latest_error_code = EXCLUDED.latest_error_code,
+          latest_error_summary = EXCLUDED.latest_error_summary,
+          checked_at = EXCLUDED.checked_at,
+          details_json = EXCLUDED.details_json
+      `, [
+        state.brain_key,
+        state.brain_dir,
+        state.canonical_remote,
+        state.canonical_branch,
+        state.canonical_head,
+        state.runtime_branch,
+        state.runtime_head,
+        Boolean(state.dirty),
+        state.ahead_count,
+        state.behind_count,
+        state.sync_status,
+        state.health_status,
+        Boolean(state.needs_attention),
+        state.latest_error_code,
+        state.latest_error_summary,
+        state.checked_at,
+        state.details_json || '{}',
+      ]);
     }
 
     const auditRows = tableExists(sqlite, 'mcp_audit_log')
@@ -102,7 +141,7 @@ export async function migrateSqliteToPostgres(config) {
       sources: sources.length,
       embeddings: embeddings.length,
       health_findings: findings.length,
-      sync_runs: syncRuns.length,
+      hosted_brain_git_state: gitStates.length,
       mcp_audit_log_entries: auditRows.length,
     };
   } catch (error) {
@@ -116,7 +155,7 @@ export async function migrateSqliteToPostgres(config) {
 
 async function clearPostgresIndex(db) {
   await db.query('DELETE FROM mcp_audit_log');
-  await db.query('DELETE FROM sync_runs');
+  await db.query('DELETE FROM hosted_brain_git_state');
   await db.query('DELETE FROM health_findings');
   await db.query('DELETE FROM activity_log');
   await db.query('DELETE FROM embeddings');

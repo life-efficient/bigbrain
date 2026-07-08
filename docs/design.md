@@ -130,8 +130,9 @@ search operations.
 
 For hosted deployments, the same split applies even when the local SQLite index
 is replaced by Postgres/pgvector. The database should persist embeddings, sync
-state, OAuth/session state, audit logs, health reports, and derived indexes, but
-it should not become the canonical authored content store.
+projection state, hosted git durability health state, OAuth/session state,
+bounded audit logs, health reports, and derived indexes, but it should not
+become the canonical authored content store.
 
 ## Storage Modes
 
@@ -158,9 +159,9 @@ app service
 
 local Postgres/pgvector service or volume
   -> embeddings
-  -> sync state
+  -> hosted git durability health state
   -> OAuth/session state
-  -> audit logs
+  -> bounded audit logs
 
 GitHub markdown repo
   -> canonical cortex pages
@@ -411,7 +412,7 @@ The database should stay narrow and derived from the markdown layer.
 - `oauth_grants`
 - `oauth_sessions`
 - `mcp_audit_log`
-- `sync_runs`
+- `hosted_brain_git_state`
 
 These should come later, only if the page-derived tables are insufficient.
 

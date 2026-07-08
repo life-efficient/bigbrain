@@ -40,7 +40,8 @@ The BigBrain config for the hosted Example Brain brain should include:
 
 Do not rely on app-container files for embeddings or OAuth tokens. With
 `storage_backend: "postgres"`, BigBrain stores OAuth clients, states, codes,
-token hashes, sync run history, and MCP audit log entries in Postgres.
+token hashes, hosted brain git durability health state, and bounded MCP audit
+log entries in Postgres.
 
 ## Local Network Shape
 

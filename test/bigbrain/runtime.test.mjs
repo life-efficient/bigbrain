@@ -3,16 +3,19 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { promisify } from 'node:util';
 
 import { configPathForBrainHome, initializeBrainHome, loadConfig, loadUserEnv, metaDirForBrainHome, userEnvPath } from '../../src/bigbrain/config.js';
-import { openDatabase } from '../../src/bigbrain/db.js';
+import { getHostedBrainGitState, openDatabase } from '../../src/bigbrain/db.js';
 import { filingRulesForBrain } from '../../src/bigbrain/filing-rules.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
 import { boostResultsForQuery, classifyQueryIntent, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
 import { renderSchemaMarkdown, recommendFolderForInput } from '../../src/bigbrain/schema.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
+
+const execFileAsync = promisify(execFile);
 
 test('init creates an external brain home with runtime state under the home-level state root', async () => {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-init-'));
@@ -787,6 +790,55 @@ test('health verifies the bigbrain command is available on PATH from outside the
 
     assert.equal(report.cli_status.available, true);
     assert.equal(report.findings.some((finding) => finding.finding_type === 'cli_not_available_globally'), false);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('health persists compact hosted brain git durability state', async () => {
+  const fixture = await createFixture('bigbrain-git-health-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'projects/git-health.md', `---
+title: Git Health
+---
+# Git Health
+
+Git durability status page.
+`);
+    const remoteDir = path.join(fixture.rootDir, 'remote.git');
+    await execFileAsync('git', ['init', '--bare', remoteDir]);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'init']);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'config', 'user.email', 'test@example.com']);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'config', 'user.name', 'Test User']);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'add', '.']);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'commit', '-m', 'initial brain']);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'branch', '-M', 'main']);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'remote', 'add', 'origin', remoteDir]);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'push', '-u', 'origin', 'main']);
+
+    await fs.appendFile(path.join(fixture.brainHome, 'projects/git-health.md'), '\nUncommitted runtime edit.\n', 'utf8');
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const report = await runHealthCheck(config, { cliCommand: process.execPath });
+
+    assert.equal(report.git_status.canonical_remote, 'origin');
+    assert.equal(report.git_status.canonical_branch, 'main');
+    assert.equal(report.git_status.ahead_count, 0);
+    assert.equal(report.git_status.behind_count, 0);
+    assert.equal(report.git_status.sync_status, 'dirty');
+    assert.equal(report.git_status.needs_attention, true);
+
+    const db = await openDatabase(config);
+    const state = await getHostedBrainGitState(db, config.brainDir);
+    assert.equal(state.brain_dir, config.brainDir);
+    assert.equal(state.canonical_remote, 'origin');
+    assert.equal(state.canonical_branch, 'main');
+    assert.equal(state.sync_status, 'dirty');
+    assert.equal(state.health_status, 'needs_attention');
+    assert.equal(state.needs_attention, true);
+    assert.equal(state.dirty, true);
+    assert.equal(state.latest_error_code, null);
+    await db.close?.();
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

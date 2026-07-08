@@ -2,13 +2,12 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { deletePageIndex, getEmbeddingRecord, insertSyncRun, listPageSlugs, openDatabase, replaceEmbeddingsForPage, replaceLinksForPage, replacePageIndex } from './db.js';
+import { deletePageIndex, getEmbeddingRecord, listPageSlugs, openDatabase, replaceEmbeddingsForPage, replaceLinksForPage, replacePageIndex } from './db.js';
 import { isExcludedPath, matchesIncludeGlobs, shouldSkipSystemPath } from './file-selection.js';
 import { embedTexts } from './openai.js';
 import { extractLinks, parseMarkdownPage, slugFromPath } from './markdown.js';
 
 export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, embedder = embedTexts } = {}) {
-  const startedAt = new Date().toISOString();
   const db = await openDatabase(config);
   try {
     const files = await collectMarkdownFiles(config);
@@ -138,21 +137,8 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
       pages_embedding_skipped_by_guard: embeddingBatchGuardTriggered ? pagesNeedingEmbeddings.length : 0,
     },
   };
-    await insertSyncRun(db, {
-      startedAt,
-      finishedAt: new Date().toISOString(),
-      status: pagesWithFailedEmbeddings > 0 ? 'partial_success' : 'success',
-      report,
-    });
     return report;
   } catch (error) {
-    await insertSyncRun(db, {
-      startedAt,
-      finishedAt: new Date().toISOString(),
-      status: 'error',
-      report: {},
-      error: error instanceof Error ? error.message : String(error),
-    }).catch(() => {});
     throw error;
   } finally {
     await db.close?.();

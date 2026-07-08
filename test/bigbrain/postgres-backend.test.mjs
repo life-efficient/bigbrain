@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { allEmbeddings, dbDoctor, getPageRecord, insertMcpAuditLog, listMcpAuditLog, listPageSlugs, listSyncRuns, openDatabase, semanticSearch } from '../../src/bigbrain/db.js';
+import { allEmbeddings, dbDoctor, getHostedBrainGitState, getPageRecord, insertMcpAuditLog, listMcpAuditLog, listPageSlugs, openDatabase, semanticSearch, upsertHostedBrainGitState } from '../../src/bigbrain/db.js';
 import { createMcpAuthStore, PostgresMcpAuthStore } from '../../src/bigbrain/mcp-auth-store.js';
 import { migrateSqliteToPostgres } from '../../src/bigbrain/postgres-migrate.js';
 import { searchBrain } from '../../src/bigbrain/search.js';
@@ -33,16 +33,72 @@ Works on Example Brain example partnerships and Postgres persistence.
     assert.equal(second.embedding_chunks_generated, 0);
 
     const db = await openDatabase(config);
-    const runs = await listSyncRuns(db);
-    assert.equal(runs.length, 2);
-    assert.equal(runs[0].status, 'success');
-    assert.deepEqual(JSON.parse(runs[0].report_json).index_totals_after_sync, { pages: 1, links: 0 });
     assert.deepEqual(await listPageSlugs(db), ['people/alice']);
     assert.equal((await allEmbeddings(db)).length, 1);
     const lexical = await searchBrain({ db, config, query: 'Example Brain example partnerships', apiKey: null });
     assert.equal(lexical.fused[0].slug, 'people/alice');
     const semantic = await semanticSearch(db, [0.1, 0.2, 0.3], 5);
     assert.equal(semantic[0].slug, 'people/alice');
+    await db.close?.();
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('postgres backend stores one compact hosted brain git state row', async (t) => {
+  const fixture = await createFixture('bigbrain-postgres-git-state-', t);
+  if (!fixture) return;
+  try {
+    const config = await postgresConfig(fixture);
+    const db = await openDatabase(config);
+    await upsertHostedBrainGitState(db, {
+      brainKey: config.brainDir,
+      brainDir: config.brainDir,
+      canonicalRemote: 'origin',
+      canonicalBranch: 'main',
+      canonicalHead: 'abc123',
+      runtimeBranch: 'main',
+      runtimeHead: 'def456',
+      dirty: false,
+      aheadCount: 1,
+      behindCount: 2,
+      syncStatus: 'diverged',
+      healthStatus: 'needs_attention',
+      needsAttention: true,
+      latestErrorCode: null,
+      latestErrorSummary: null,
+      checkedAt: '2026-07-08T10:00:00.000Z',
+      details: { upstream_ref: 'origin/main' },
+    });
+    await upsertHostedBrainGitState(db, {
+      brainKey: config.brainDir,
+      brainDir: config.brainDir,
+      canonicalRemote: 'origin',
+      canonicalBranch: 'main',
+      canonicalHead: 'def456',
+      runtimeBranch: 'main',
+      runtimeHead: 'def456',
+      dirty: false,
+      aheadCount: 0,
+      behindCount: 0,
+      syncStatus: 'in_sync',
+      healthStatus: 'ok',
+      needsAttention: false,
+      latestErrorCode: null,
+      latestErrorSummary: null,
+      checkedAt: '2026-07-08T10:05:00.000Z',
+      details: { upstream_ref: 'origin/main' },
+    });
+
+    const state = await getHostedBrainGitState(db, config.brainDir);
+    assert.equal(state.sync_status, 'in_sync');
+    assert.equal(state.health_status, 'ok');
+    assert.equal(state.ahead_count, 0);
+    assert.equal(state.behind_count, 0);
+    assert.equal(state.needs_attention, false);
+    assert.equal(state.checked_at, '2026-07-08T10:05:00.000Z');
+    const doctor = await dbDoctor(config);
+    assert.equal(doctor.hosted_brain_git_state_count, 1);
     await db.close?.();
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
@@ -182,6 +238,23 @@ Migration source page.
       details: { status: 'success' },
       createdAt: '2026-06-21T10:00:00.000Z',
     });
+    await upsertHostedBrainGitState(sqliteDb, {
+      brainKey: sqliteConfig.brainDir,
+      brainDir: sqliteConfig.brainDir,
+      canonicalRemote: 'origin',
+      canonicalBranch: 'main',
+      canonicalHead: 'abc123',
+      runtimeBranch: 'main',
+      runtimeHead: 'abc123',
+      dirty: false,
+      aheadCount: 0,
+      behindCount: 0,
+      syncStatus: 'in_sync',
+      healthStatus: 'ok',
+      needsAttention: false,
+      checkedAt: '2026-07-08T11:00:00.000Z',
+      details: { upstream_ref: 'origin/main' },
+    });
     await sqliteDb.close?.();
     rawConfig.database_url_env = 'TEST_DATABASE_URL';
     await fs.writeFile(fixture.configPath, `${JSON.stringify(rawConfig, null, 2)}\n`, 'utf8');
@@ -189,7 +262,7 @@ Migration source page.
     const report = await migrateSqliteToPostgres(await loadConfig({ configPath: fixture.configPath }));
     assert.equal(report.pages, 1);
     assert.equal(report.embeddings, 1);
-    assert.equal(report.sync_runs, 1);
+    assert.equal(report.hosted_brain_git_state, 1);
     assert.equal(report.mcp_audit_log_entries, 1);
 
     rawConfig.storage_backend = 'postgres';
@@ -243,7 +316,7 @@ async function clearPostgres(db) {
   await db.query('DELETE FROM mcp_oauth_codes');
   await db.query('DELETE FROM mcp_oauth_states');
   await db.query('DELETE FROM mcp_oauth_clients');
-  await db.query('DELETE FROM sync_runs');
+  await db.query('DELETE FROM hosted_brain_git_state');
   await db.query('DELETE FROM health_findings');
   await db.query('DELETE FROM activity_log');
   await db.query('DELETE FROM embeddings');

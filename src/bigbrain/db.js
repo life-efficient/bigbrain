@@ -62,13 +62,24 @@ export function initializeSqliteSchema(db) {
       timestamp TEXT NOT NULL,
       details_json TEXT NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS sync_runs (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      started_at TEXT NOT NULL,
-      finished_at TEXT NOT NULL,
-      status TEXT NOT NULL,
-      report_json TEXT NOT NULL,
-      error TEXT
+    CREATE TABLE IF NOT EXISTS hosted_brain_git_state (
+      brain_key TEXT PRIMARY KEY,
+      brain_dir TEXT NOT NULL,
+      canonical_remote TEXT,
+      canonical_branch TEXT,
+      canonical_head TEXT,
+      runtime_branch TEXT,
+      runtime_head TEXT,
+      dirty INTEGER NOT NULL DEFAULT 0,
+      ahead_count INTEGER,
+      behind_count INTEGER,
+      sync_status TEXT NOT NULL,
+      health_status TEXT NOT NULL,
+      needs_attention INTEGER NOT NULL DEFAULT 0,
+      latest_error_code TEXT,
+      latest_error_summary TEXT,
+      checked_at TEXT NOT NULL,
+      details_json TEXT NOT NULL
     );
     CREATE TABLE IF NOT EXISTS mcp_audit_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -216,13 +227,24 @@ export async function initializePostgresSchema(db) {
       details_json JSONB NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
-    CREATE TABLE IF NOT EXISTS sync_runs (
-      id BIGSERIAL PRIMARY KEY,
-      started_at TIMESTAMPTZ NOT NULL,
-      finished_at TIMESTAMPTZ NOT NULL,
-      status TEXT NOT NULL,
-      report_json JSONB NOT NULL,
-      error TEXT
+    CREATE TABLE IF NOT EXISTS hosted_brain_git_state (
+      brain_key TEXT PRIMARY KEY,
+      brain_dir TEXT NOT NULL,
+      canonical_remote TEXT,
+      canonical_branch TEXT,
+      canonical_head TEXT,
+      runtime_branch TEXT,
+      runtime_head TEXT,
+      dirty BOOLEAN NOT NULL DEFAULT false,
+      ahead_count INTEGER,
+      behind_count INTEGER,
+      sync_status TEXT NOT NULL,
+      health_status TEXT NOT NULL,
+      needs_attention BOOLEAN NOT NULL DEFAULT false,
+      latest_error_code TEXT,
+      latest_error_summary TEXT,
+      checked_at TIMESTAMPTZ NOT NULL,
+      details_json JSONB NOT NULL
     );
     CREATE TABLE IF NOT EXISTS members (
       id BIGSERIAL PRIMARY KEY,
@@ -240,7 +262,7 @@ export async function initializePostgresSchema(db) {
     CREATE INDEX IF NOT EXISTS links_from_slug_idx ON links (from_slug);
     CREATE INDEX IF NOT EXISTS links_to_slug_idx ON links (to_slug);
     CREATE INDEX IF NOT EXISTS embeddings_page_slug_idx ON embeddings (page_slug);
-    CREATE INDEX IF NOT EXISTS sync_runs_finished_at_idx ON sync_runs (finished_at DESC);
+    CREATE INDEX IF NOT EXISTS hosted_brain_git_state_checked_at_idx ON hosted_brain_git_state (checked_at DESC);
     CREATE INDEX IF NOT EXISTS mcp_audit_log_created_at_idx ON mcp_audit_log (created_at DESC);
   `);
 }
@@ -594,41 +616,107 @@ export async function listHealthFindings(db) {
   return unwrapSqlite(db).prepare('SELECT finding_type, severity, page_slug, details_json, created_at FROM health_findings ORDER BY severity DESC, finding_type, page_slug').all();
 }
 
-export async function insertSyncRun(db, { startedAt, finishedAt, status, report = {}, error = null }) {
-  const started = startedAt || new Date().toISOString();
-  const finished = finishedAt || new Date().toISOString();
+export async function upsertHostedBrainGitState(db, state) {
+  const checkedAt = state.checkedAt || new Date().toISOString();
+  const details = state.details || {};
   if (db.backend === 'postgres') {
     await db.query(`
-      INSERT INTO sync_runs (started_at, finished_at, status, report_json, error)
-      VALUES ($1,$2,$3,$4,$5)
-    `, [started, finished, status, JSON.stringify(report || {}), error]);
+      INSERT INTO hosted_brain_git_state (
+        brain_key, brain_dir, canonical_remote, canonical_branch, canonical_head,
+        runtime_branch, runtime_head, dirty, ahead_count, behind_count,
+        sync_status, health_status, needs_attention, latest_error_code,
+        latest_error_summary, checked_at, details_json
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+      ON CONFLICT (brain_key) DO UPDATE SET
+        brain_dir = EXCLUDED.brain_dir,
+        canonical_remote = EXCLUDED.canonical_remote,
+        canonical_branch = EXCLUDED.canonical_branch,
+        canonical_head = EXCLUDED.canonical_head,
+        runtime_branch = EXCLUDED.runtime_branch,
+        runtime_head = EXCLUDED.runtime_head,
+        dirty = EXCLUDED.dirty,
+        ahead_count = EXCLUDED.ahead_count,
+        behind_count = EXCLUDED.behind_count,
+        sync_status = EXCLUDED.sync_status,
+        health_status = EXCLUDED.health_status,
+        needs_attention = EXCLUDED.needs_attention,
+        latest_error_code = EXCLUDED.latest_error_code,
+        latest_error_summary = EXCLUDED.latest_error_summary,
+        checked_at = EXCLUDED.checked_at,
+        details_json = EXCLUDED.details_json
+    `, [
+      state.brainKey,
+      state.brainDir,
+      state.canonicalRemote ?? null,
+      state.canonicalBranch ?? null,
+      state.canonicalHead ?? null,
+      state.runtimeBranch ?? null,
+      state.runtimeHead ?? null,
+      Boolean(state.dirty),
+      state.aheadCount ?? null,
+      state.behindCount ?? null,
+      state.syncStatus,
+      state.healthStatus,
+      Boolean(state.needsAttention),
+      state.latestErrorCode ?? null,
+      state.latestErrorSummary ?? null,
+      checkedAt,
+      JSON.stringify(details),
+    ]);
     return;
   }
-  unwrapSqlite(db).prepare('INSERT INTO sync_runs (started_at, finished_at, status, report_json, error) VALUES (?, ?, ?, ?, ?)')
-    .run(started, finished, status, JSON.stringify(report || {}), error);
+  unwrapSqlite(db).prepare(`
+    INSERT INTO hosted_brain_git_state (
+      brain_key, brain_dir, canonical_remote, canonical_branch, canonical_head,
+      runtime_branch, runtime_head, dirty, ahead_count, behind_count,
+      sync_status, health_status, needs_attention, latest_error_code,
+      latest_error_summary, checked_at, details_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(brain_key) DO UPDATE SET
+      brain_dir = excluded.brain_dir,
+      canonical_remote = excluded.canonical_remote,
+      canonical_branch = excluded.canonical_branch,
+      canonical_head = excluded.canonical_head,
+      runtime_branch = excluded.runtime_branch,
+      runtime_head = excluded.runtime_head,
+      dirty = excluded.dirty,
+      ahead_count = excluded.ahead_count,
+      behind_count = excluded.behind_count,
+      sync_status = excluded.sync_status,
+      health_status = excluded.health_status,
+      needs_attention = excluded.needs_attention,
+      latest_error_code = excluded.latest_error_code,
+      latest_error_summary = excluded.latest_error_summary,
+      checked_at = excluded.checked_at,
+      details_json = excluded.details_json
+  `).run(
+    state.brainKey,
+    state.brainDir,
+    state.canonicalRemote ?? null,
+    state.canonicalBranch ?? null,
+    state.canonicalHead ?? null,
+    state.runtimeBranch ?? null,
+    state.runtimeHead ?? null,
+    Boolean(state.dirty) ? 1 : 0,
+    state.aheadCount ?? null,
+    state.behindCount ?? null,
+    state.syncStatus,
+    state.healthStatus,
+    Boolean(state.needsAttention) ? 1 : 0,
+    state.latestErrorCode ?? null,
+    state.latestErrorSummary ?? null,
+    checkedAt,
+    JSON.stringify(details),
+  );
 }
 
-export async function listSyncRuns(db, { limit = 20 } = {}) {
-  const boundedLimit = normalizeLimit(limit, 20);
+export async function getHostedBrainGitState(db, brainKey) {
   if (db.backend === 'postgres') {
-    return (await db.query(`
-      SELECT id, started_at, finished_at, status, report_json, error
-      FROM sync_runs
-      ORDER BY finished_at DESC, id DESC
-      LIMIT $1
-    `, [boundedLimit])).rows.map((row) => ({
-      ...row,
-      started_at: normalizeTimestamp(row.started_at),
-      finished_at: normalizeTimestamp(row.finished_at),
-      report_json: JSON.stringify(row.report_json ?? {}),
-    }));
+    const row = (await db.query('SELECT * FROM hosted_brain_git_state WHERE brain_key = $1', [brainKey])).rows[0];
+    return normalizeHostedBrainGitState(row);
   }
-  return unwrapSqlite(db).prepare(`
-    SELECT id, started_at, finished_at, status, report_json, error
-    FROM sync_runs
-    ORDER BY finished_at DESC, id DESC
-    LIMIT ?
-  `).all(boundedLimit);
+  const row = unwrapSqlite(db).prepare('SELECT * FROM hosted_brain_git_state WHERE brain_key = ?').get(brainKey);
+  return normalizeHostedBrainGitState(row);
 }
 
 export async function insertMcpAuditLog(db, { actorEmail = null, action, details = {}, createdAt = null }) {
@@ -675,7 +763,7 @@ export async function dbDoctor(config) {
       sqlite_path: config.sqlitePath,
       page_count: (await listPageSlugs(db)).length,
       embedding_count: (await allEmbeddings(db)).length,
-      sync_run_count: (await listSyncRuns(db, { limit: 100 })).length,
+      hosted_brain_git_state_count: unwrapSqlite(db).prepare('SELECT count(*) AS count FROM hosted_brain_git_state').get().count,
       audit_log_count: (await listMcpAuditLog(db, { limit: 100 })).length,
       warnings: [],
     };
@@ -688,7 +776,7 @@ export async function dbDoctor(config) {
       (SELECT count(*)::int FROM pages) AS page_count,
       (SELECT count(*)::int FROM links) AS link_count,
       (SELECT count(*)::int FROM embeddings) AS embedding_count,
-      (SELECT count(*)::int FROM sync_runs) AS sync_run_count,
+      (SELECT count(*)::int FROM hosted_brain_git_state) AS hosted_brain_git_state_count,
       (SELECT count(*)::int FROM mcp_audit_log) AS audit_log_count,
       (SELECT count(*)::int FROM mcp_oauth_tokens) AS token_count
   `).catch(async () => db.query(`
@@ -696,7 +784,7 @@ export async function dbDoctor(config) {
       (SELECT count(*)::int FROM pages) AS page_count,
       (SELECT count(*)::int FROM links) AS link_count,
       (SELECT count(*)::int FROM embeddings) AS embedding_count,
-      0 AS sync_run_count,
+      0 AS hosted_brain_git_state_count,
       0 AS audit_log_count,
       0 AS token_count
   `));
@@ -707,7 +795,7 @@ export async function dbDoctor(config) {
     page_count: counts.rows[0].page_count,
     link_count: counts.rows[0].link_count,
     embedding_count: counts.rows[0].embedding_count,
-    sync_run_count: counts.rows[0].sync_run_count,
+    hosted_brain_git_state_count: counts.rows[0].hosted_brain_git_state_count,
     audit_log_count: counts.rows[0].audit_log_count,
     token_count: counts.rows[0].token_count,
     warnings: extension.rows.length === 1 ? [] : ['pgvector extension is not installed.'],
@@ -763,6 +851,17 @@ function normalizePageRecord(row) {
     frontmatter_json: JSON.stringify(row.frontmatter_json ?? {}),
     updated_at: normalizeTimestamp(row.updated_at),
     last_indexed_at: normalizeTimestamp(row.last_indexed_at),
+  };
+}
+
+function normalizeHostedBrainGitState(row) {
+  if (!row) return row;
+  return {
+    ...row,
+    dirty: row.dirty === true || row.dirty === 1,
+    needs_attention: row.needs_attention === true || row.needs_attention === 1,
+    checked_at: normalizeTimestamp(row.checked_at),
+    details_json: JSON.stringify(row.details_json ?? {}),
   };
 }
 

@@ -2,9 +2,13 @@
 
 ## Hosted Brain Service
 
-- Persist sync run history and write MCP audit log entries through the Postgres
-  backend; OAuth client/state/code/token records and embeddings are already
-  database-backed for hosted deployments.
+- Add dashboard/API surfacing for hosted brain git durability health state:
+  canonical upstream head, runtime checkout head, dirty/ahead/behind status,
+  last checked time, latest error, and needs-attention status are now persisted
+  as one current row per brain.
+- Expand bounded MCP audit logging at tool boundaries for meaningful writes,
+  destructive/admin operations, maintenance actions, and auth/security
+  failures without storing full request payloads.
 - Add a tool policy layer for hosted MCP that separates read-only tools,
   append/create tools, destructive raw-file updates/deletes, git backup, and
   maintenance/admin operations by auth mode or scope.

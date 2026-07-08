@@ -114,8 +114,8 @@ BigBrain should support the same brain model across a few deployment shapes:
 - `local`: a personal brain home with local runtime state, currently SQLite
   under `.bigbrain-state/`.
 - `server`: a bundled app plus local Postgres/pgvector for shared or hosted
-  brains that need durable embeddings, OAuth/session state, sync state, and
-  audit logs across redeploys.
+  brains that need durable embeddings, OAuth/session state, git durability
+  health state, and audit logs across redeploys.
 - `remote`: the same Postgres storage contract pointed at an external Postgres
   or Supabase instance when operational needs justify it.
 - `thin client`: agent tools connect to a hosted BigBrain over MCP/API while the
@@ -124,8 +124,8 @@ BigBrain should support the same brain model across a few deployment shapes:
 The database is service state, not the source of truth for authored knowledge.
 For hosted brains such as Example Brain, markdown in git remains canonical.
 Postgres can always be rebuilt from the markdown repo, but mutable runtime state
-such as OAuth clients, grants, sync runs, embedding rows, and audit logs should
-persist outside the app container.
+such as OAuth clients, grants, hosted git health state, embedding rows, and
+bounded audit logs should persist outside the app container.
 
 ## Architecture
 

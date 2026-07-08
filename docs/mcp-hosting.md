@@ -79,10 +79,10 @@ redeploy-heavy services, all mutable runtime state must be stored on persistent
 storage:
 
 - embeddings and embedding chunks
-- sync runs and sync cursors
+- compact hosted brain git durability state
 - OAuth clients, grants, sessions, and issued MCP tokens
-- MCP audit logs and contribution attribution
-- health findings and operational history
+- bounded MCP audit logs and contribution attribution
+- health findings
 
 Markdown remains canonical and should continue to live in the selected brain
 home or a git-backed content repo. Database state is a durable runtime
@@ -273,9 +273,12 @@ BIGBRAIN_MCP_GOOGLE_CLIENT_SECRET=...
 
 Set `BIGBRAIN_MCP_TOKEN_STORE` only for file-backed SQLite or persistent-volume
 deployments. When the BigBrain config uses `storage_backend: "postgres"`, OAuth
-client, state, code, and token records are stored in Postgres instead. Sync run
-history and MCP audit log entries are also written to Postgres in this mode, so
-redeploys do not lose hosted operational history.
+client, state, code, and token records are stored in Postgres instead. Health
+checks also upsert one compact hosted git durability state row per brain,
+including upstream head, runtime checkout head, dirty/ahead/behind status, last
+checked time, latest error, and needs-attention status. MCP audit logs remain a
+separate bounded stream for meaningful writes, destructive/admin operations,
+maintenance actions, and auth/security failures without storing full payloads.
 
 At least one of `BIGBRAIN_MCP_ALLOWED_EMAILS` or
 `BIGBRAIN_MCP_ALLOWED_DOMAINS` must be set, unless active members have already

@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import { openDatabase, clearHealthFindings, getBacklinks, getOutgoingLinks, insertHealthFinding, listHealthFindings, listPages } from './db.js';
+import { openDatabase, clearHealthFindings, getBacklinks, getOutgoingLinks, insertHealthFinding, listHealthFindings, listPages, upsertHostedBrainGitState } from './db.js';
 import { fullPathFromSlug, parseMarkdownPage } from './markdown.js';
 import { validatePageShape } from './schema.js';
 
@@ -101,9 +101,10 @@ export async function runHealthCheck(config, {
 
   const gitStatus = await detectGitStatus(config.brainDir);
   if (gitStatus) {
+    await upsertHostedBrainGitState(db, hostedBrainGitStateFromStatus(config, gitStatus));
     await insertHealthFinding(db, {
       findingType: 'git_status',
-      severity: gitStatus.clean ? 'low' : 'medium',
+      severity: gitStatus.health_status === 'ok' ? 'low' : 'medium',
       details: gitStatus,
     });
   }
@@ -313,16 +314,142 @@ async function walkForNestedRawFiles(root, current, nested) {
 }
 
 async function detectGitStatus(brainDir) {
+  const checkedAt = new Date().toISOString();
   try {
-    const { stdout } = await execFileAsync('git', ['-C', brainDir, 'status', '--short', '--branch']);
-    const lines = stdout.trim().split('\n').filter(Boolean);
+    await execFileAsync('git', ['-C', brainDir, 'rev-parse', '--is-inside-work-tree']);
+    const [statusResult, branchResult, headResult, upstreamResult] = await Promise.all([
+      execFileAsync('git', ['-C', brainDir, 'status', '--short', '--branch']),
+      execFileAsync('git', ['-C', brainDir, 'rev-parse', '--abbrev-ref', 'HEAD']),
+      execFileAsync('git', ['-C', brainDir, 'rev-parse', 'HEAD']),
+      execFileAsync('git', ['-C', brainDir, 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']).catch((error) => ({ error })),
+    ]);
+    const lines = statusResult.stdout.trim().split('\n').filter(Boolean);
+    const localBranch = branchResult.stdout.trim();
+    const localHead = headResult.stdout.trim();
+    const dirty = lines.some((line) => !line.startsWith('## '));
+    const upstreamRef = upstreamResult.error ? null : upstreamResult.stdout.trim();
+    if (!upstreamRef) {
+      return decorateGitStatus({
+        checked_at: checkedAt,
+        clean: !dirty,
+        dirty,
+        summary: lines,
+        runtime_branch: localBranch,
+        runtime_head: localHead,
+        canonical_remote: null,
+        canonical_branch: null,
+        canonical_head: null,
+        ahead_count: null,
+        behind_count: null,
+        latest_error_code: 'no_upstream',
+        latest_error_summary: 'No tracked upstream branch is configured for this brain checkout.',
+      });
+    }
+    const upstream = parseUpstreamRef(upstreamRef);
+    await execFileAsync('git', ['-C', brainDir, 'fetch', '--quiet', upstream.remote])
+      .catch(() => null);
+    const [upstreamHeadResult, countsResult] = await Promise.all([
+      execFileAsync('git', ['-C', brainDir, 'rev-parse', upstreamRef]).catch((error) => ({ error })),
+      execFileAsync('git', ['-C', brainDir, 'rev-list', '--left-right', '--count', `HEAD...${upstreamRef}`]).catch((error) => ({ error })),
+    ]);
+    const canonicalHead = upstreamHeadResult.error ? null : upstreamHeadResult.stdout.trim();
+    const [aheadText, behindText] = countsResult.error ? [null, null] : countsResult.stdout.trim().split(/\s+/);
+    const latestErrorCode = upstreamHeadResult.error || countsResult.error ? 'git_compare_failed' : null;
     return {
-      clean: lines.length <= 1,
-      summary: lines,
+      ...decorateGitStatus({
+        checked_at: checkedAt,
+        clean: !dirty,
+        dirty,
+        summary: lines,
+        runtime_branch: localBranch,
+        runtime_head: localHead,
+        canonical_remote: upstream.remote,
+        canonical_branch: upstream.branch,
+        canonical_head: canonicalHead,
+        ahead_count: aheadText === null ? null : Number(aheadText),
+        behind_count: behindText === null ? null : Number(behindText),
+        latest_error_code: latestErrorCode,
+        latest_error_summary: latestErrorCode ? 'Unable to compare the runtime checkout with its tracked upstream.' : null,
+      }),
+      upstream_ref: upstreamRef,
     };
-  } catch {
-    return null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const stderr = typeof error === 'object' && error && 'stderr' in error ? String(error.stderr) : '';
+    const combined = `${message}\n${stderr}`;
+    if (/not a git repository/i.test(combined)) return null;
+    return decorateGitStatus({
+      checked_at: checkedAt,
+      clean: false,
+      dirty: null,
+      summary: [],
+      runtime_branch: null,
+      runtime_head: null,
+      canonical_remote: null,
+      canonical_branch: null,
+      canonical_head: null,
+      ahead_count: null,
+      behind_count: null,
+      latest_error_code: 'git_status_failed',
+      latest_error_summary: combined.trim(),
+    });
   }
+}
+
+function parseUpstreamRef(upstreamRef) {
+  const separator = upstreamRef.indexOf('/');
+  if (separator < 0) return { remote: upstreamRef, branch: null };
+  return {
+    remote: upstreamRef.slice(0, separator),
+    branch: upstreamRef.slice(separator + 1),
+  };
+}
+
+function decorateGitStatus(status) {
+  const ahead = status.ahead_count;
+  const behind = status.behind_count;
+  let syncStatus = 'unknown';
+  if (status.latest_error_code === 'no_upstream') syncStatus = 'no_upstream';
+  else if (status.latest_error_code) syncStatus = 'error';
+  else if (status.dirty) syncStatus = 'dirty';
+  else if (ahead > 0 && behind > 0) syncStatus = 'diverged';
+  else if (ahead > 0) syncStatus = 'ahead';
+  else if (behind > 0) syncStatus = 'behind';
+  else if (ahead === 0 && behind === 0) syncStatus = 'in_sync';
+
+  const needsAttention = syncStatus !== 'in_sync';
+  return {
+    ...status,
+    clean: status.dirty === null ? false : !status.dirty,
+    sync_status: syncStatus,
+    health_status: needsAttention ? 'needs_attention' : 'ok',
+    needs_attention: needsAttention,
+  };
+}
+
+function hostedBrainGitStateFromStatus(config, gitStatus) {
+  return {
+    brainKey: config.brainDir,
+    brainDir: config.brainDir,
+    canonicalRemote: gitStatus.canonical_remote,
+    canonicalBranch: gitStatus.canonical_branch,
+    canonicalHead: gitStatus.canonical_head,
+    runtimeBranch: gitStatus.runtime_branch,
+    runtimeHead: gitStatus.runtime_head,
+    dirty: Boolean(gitStatus.dirty),
+    aheadCount: gitStatus.ahead_count,
+    behindCount: gitStatus.behind_count,
+    syncStatus: gitStatus.sync_status,
+    healthStatus: gitStatus.health_status,
+    needsAttention: gitStatus.needs_attention,
+    latestErrorCode: gitStatus.latest_error_code,
+    latestErrorSummary: gitStatus.latest_error_summary,
+    checkedAt: gitStatus.checked_at,
+    details: {
+      summary: gitStatus.summary,
+      upstream_ref: gitStatus.upstream_ref ?? null,
+    },
+  };
 }
 
 async function detectCliAvailability({ env, command, cwd }) {
