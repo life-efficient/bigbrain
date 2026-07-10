@@ -60,11 +60,19 @@ jobs:
         if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: >-
-          gh release create "$GITHUB_REF_NAME"
-          dist/electron/BigBrain-*-mac-universal.dmg
-          dist/electron/BigBrain-*-mac-universal.zip
-          dist/electron/SHA256SUMS.txt
-          --verify-tag
-          --generate-notes
-          --title "BigBrain $GITHUB_REF_NAME"
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              dist/electron/BigBrain-*-mac-universal.dmg \
+              dist/electron/BigBrain-*-mac-universal.zip \
+              dist/electron/SHA256SUMS.txt \
+              --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              dist/electron/BigBrain-*-mac-universal.dmg \
+              dist/electron/BigBrain-*-mac-universal.zip \
+              dist/electron/SHA256SUMS.txt \
+              --verify-tag \
+              --generate-notes \
+              --title "BigBrain $GITHUB_REF_NAME"
+          fi

@@ -3,6 +3,72 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining local installs and hosted brains.
 
+## [0.12.0] - 2026-07-11
+
+### Added
+
+- Added a lecture-ready macOS desktop onboarding flow for owner identity, brain
+  selection, local mode, Keychain-backed OpenAI access, and copyable generic,
+  Codex, and Claude MCP connection instructions.
+- Added a desktop brain registry with isolated service labels and stable ports,
+  multi-brain switching, resumable setup, and in-place registration of existing
+  initialized brains without moving or reinitializing their markdown.
+- Added a custom themed brain selector integrated with the dashboard navigation,
+  including a separated new-brain action and a dedicated macOS drag strip.
+- Added provider-neutral AI access, authentication, entitlement, usage-metering,
+  and managed-inference boundaries. Managed plans remain disabled; local
+  bring-your-own-key OpenAI access is the only enabled desktop provider.
+- Added an unsigned universal macOS DMG/ZIP release workflow with SHA-256
+  checksums and GitHub Release uploads.
+- Added a shared hosted runtime adapter and authenticated dashboard protections
+  for hosted and on-prem brain deployments.
+
+### Changed
+
+- Local MCP services can retrieve a brain-specific OpenAI key from macOS
+  Keychain without writing the secret into brain files, service definitions,
+  logs, onboarding state, or connection instructions.
+- MCP health responses now include the immutable `brain_id` and editable
+  `brain_name`, allowing desktop clients to prove that an endpoint serves the
+  selected brain.
+- The desktop development app can adopt an already-running local brain service,
+  preserving its endpoint so existing agent connections continue working.
+- Desktop distribution now builds a single universal Intel/Apple Silicon app
+  with versioned artifact names.
+
+### Fixed
+
+- Selecting the already-active brain no longer rebuilds the dashboard iframe or
+  reloads the application.
+- Universal packaging now handles architecture-specific esbuild binaries during
+  the Electron merge.
+
+### Agent update actions
+
+- Before upgrading, commit or back up each local brain, then pull the release,
+  run `npm install`, and run `npm link`.
+- Restart each local or hosted BigBrain MCP/dashboard service so health identity,
+  hosted runtime, and dashboard authentication changes take effect.
+- Existing CLI and MCP installations remain compatible and require no brain-page,
+  task-field, filing-rule, database, or folder migration.
+- To use the desktop app, run `npm run desktop:dev` from a source checkout or
+  install the unsigned DMG. Existing brains can be registered in place by
+  choosing the folder that contains `.bigbrain-state/config.json`.
+- When adopting an existing brain, preserve its current port and service instead
+  of running two sync/backup services against the same brain home.
+- Run `bigbrain sync --json`, `bigbrain health --json`, verify the MCP `/health`
+  response reports the intended brain identity, and run `npm test`.
+
+### Verification
+
+- `npm test`
+- `node ./bin/bigbrain.js schema`
+- `npm run desktop:dist`
+- Universal DMG and ZIP SHA-256 generation
+- Live MCP `/health`, `initialize`, and `tools/list` verification against an
+  existing local brain
+- Desktop development launch against an adopted real brain
+
 ## [0.11.0] - 2026-07-10
 
 ### Added
