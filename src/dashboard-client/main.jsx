@@ -597,7 +597,86 @@ function PublicPageApp() {
   );
 }
 
+function SharedGroupApp() {
+  const [state, setState] = useState({ status: 'loading', error: null, group: null });
+  const slug = useMemo(() => sharedSlugFromPath(window.location.pathname), []);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        if (!slug) throw new Error('Shared group not found.');
+        const params = new URLSearchParams({ slug });
+        const group = await fetchJson(`/api/shared/group?${params.toString()}`);
+        if (group.redirect_to && window.location.pathname !== group.redirect_to) {
+          window.history.replaceState(null, '', group.redirect_to);
+        }
+        if (!cancelled) setState({ status: 'ready', error: null, group });
+      } catch (error) {
+        if (!cancelled) setState({ status: 'error', error: 'Shared group not found.', group: null });
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
+  if (state.status === 'loading') {
+    return (
+      <main className="public-main">
+        <article className="public-document">
+          <div className="empty-copy">Loading shared group…</div>
+        </article>
+      </main>
+    );
+  }
+
+  if (state.status === 'error') {
+    return (
+      <main className="public-main">
+        <article className="public-document">
+          <h1>Shared group not found</h1>
+          <p className="empty-copy">{state.error}</p>
+        </article>
+      </main>
+    );
+  }
+
+  return (
+    <main className="public-main">
+      <article className="public-document shared-group-document">
+        <header className="public-document-head shared-group-head">
+          <div>
+            <h1>{state.group.title}</h1>
+            {state.group.description ? <p className="empty-copy">{state.group.description}</p> : null}
+          </div>
+        </header>
+        <div className="shared-group-grid">
+          {state.group.pages.map((page) => (
+            <section className="shared-group-card" key={page.slug}>
+              <div className="shared-group-card-kind">{page.type}</div>
+              <h2>{page.title}</h2>
+              {page.summary ? <p>{page.summary}</p> : null}
+              {Array.isArray(page.raw_files) && page.raw_files.length ? (
+                <div className="shared-group-files">
+                  {page.raw_files.map((file) => (
+                    <a href={file.url} key={file.path || file.url}>
+                      {file.filename}
+                    </a>
+                  ))}
+                </div>
+              ) : null}
+            </section>
+          ))}
+        </div>
+      </article>
+    </main>
+  );
+}
+
 function RootApp() {
+  if (isSharedGroupLocation(window.location.pathname)) return <SharedGroupApp />;
   return isPublicPageLocation(window.location.pathname) ? <PublicPageApp /> : <DashboardApp />;
 }
 
@@ -605,9 +684,23 @@ function isPublicPageLocation(pathname) {
   return pathname === '/public' || pathname.startsWith('/public/');
 }
 
+function isSharedGroupLocation(pathname) {
+  return pathname === '/shared' || pathname.startsWith('/shared/');
+}
+
 function publicSlugFromPath(pathname) {
   if (!isPublicPageLocation(pathname)) return '';
   const raw = pathname.replace(/^\/public\/?/, '');
+  try {
+    return decodeURIComponent(raw).replace(/^\/+/, '').replace(/\/+$/, '');
+  } catch (_error) {
+    return raw.replace(/^\/+/, '').replace(/\/+$/, '');
+  }
+}
+
+function sharedSlugFromPath(pathname) {
+  if (!isSharedGroupLocation(pathname)) return '';
+  const raw = pathname.replace(/^\/shared\/?/, '');
   try {
     return decodeURIComponent(raw).replace(/^\/+/, '').replace(/\/+$/, '');
   } catch (_error) {

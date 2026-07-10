@@ -9,7 +9,13 @@ import {
   createDashboardRequestHandler,
   dashboardSessionCookie,
 } from './dashboard.js';
-import { insertMcpAuditLog, openDatabase } from './db.js';
+import {
+  getSharedGroup,
+  insertMcpAuditLog,
+  listSharedGroups,
+  openDatabase,
+  upsertSharedGroup,
+} from './db.js';
 import { filingRulesForBrain } from './filing-rules.js';
 import {
   createBrainPage,
@@ -305,6 +311,16 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       const page = await readBrainPage({ config, pagePath: args.path });
       return toolJson(pageVisibilityToolResponse(page, authConfig));
     }
+    case 'groups_list': {
+      const db = await openDatabase(config);
+      return toolJson(await listSharedGroups(db));
+    }
+    case 'groups_get': {
+      const db = await openDatabase(config);
+      const group = await getSharedGroup(db, args.slug, { resolveRedirect: true });
+      if (!group) throw new Error(`Shared group not found: ${args.slug}`);
+      return toolJson(sharedGroupToolResponse(group, authConfig));
+    }
     case 'filing_rules':
       return toolMarkdown(await filingRulesForBrain({ config }));
     case 'list_raw_files':
@@ -414,6 +430,18 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       await postWriteMaintenance(config, gitBackupEnabled, actor);
       return toolJson(pageVisibilityToolResponse(page, authConfig));
     }
+    case 'groups_upsert': {
+      const db = await openDatabase(config);
+      const group = await upsertSharedGroup(db, {
+        slug: args.slug,
+        title: args.title,
+        description: args.description,
+        visibility: args.visibility,
+        redirect_from: args.redirect_from,
+        pages: args.pages,
+      });
+      return toolJson(sharedGroupToolResponse(group, authConfig));
+    }
     case 'maintenance/sync':
     case 'maintenance_sync':
       return toolJson(await syncAndPersist(config));
@@ -477,6 +505,22 @@ function pageVisibilityToolResponse(page, authConfig) {
     public_url: publicUrlPath ? absolutePublicUrl(authConfig, publicUrlPath) : null,
     public_url_path: publicUrlPath,
     public_raw_files: publicRawFiles(page.frontmatter),
+  };
+}
+
+function sharedGroupToolResponse(group, authConfig) {
+  const publicUrlPath = group.visibility === 'public' ? `/shared/${group.slug}` : null;
+  return {
+    slug: group.slug,
+    title: group.title,
+    description: group.description,
+    visibility: group.visibility,
+    public_url: publicUrlPath ? absolutePublicUrl(authConfig, publicUrlPath) : null,
+    public_url_path: publicUrlPath,
+    redirect_from: group.redirect_from || [],
+    pages: group.pages || [],
+    created_at: group.created_at,
+    updated_at: group.updated_at,
   };
 }
 
@@ -769,6 +813,25 @@ function toolDefinitions() {
       inputSchema: pageVisibilitySchema({ requireVisibility: false }),
     },
     {
+      name: 'groups_list',
+      description: 'List first-class shared groups and their ordered member pages.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    {
+      name: 'groups_get',
+      description: 'Read one first-class shared group by slug, resolving group redirects when present.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          slug: { type: 'string', description: 'Shared group slug such as active-deals.' },
+        },
+        required: ['slug'],
+      },
+    },
+    {
       name: 'filing_rules',
       description: 'Return the selected brain filing rules as combined Markdown, compiled from top-level and collection FILING.md files.',
       inputSchema: {
@@ -918,6 +981,11 @@ function toolDefinitions() {
       inputSchema: pageVisibilitySchema({ requireVisibility: true }),
     },
     {
+      name: 'groups_upsert',
+      description: 'Create or update a first-class shared group. A public group is served at /shared/<slug> and exposes only selected member summaries plus safe raw attachments from those pages.',
+      inputSchema: sharedGroupWriteSchema(),
+    },
+    {
       name: 'maintenance/sync',
       description: 'Run BigBrain sync for the selected brain and persist the latest sync state. Requires a maintenance/admin scope on hosted OAuth.',
       inputSchema: {
@@ -990,6 +1058,8 @@ function toolPolicy(name) {
     list: { layer: 'read', scopes: ['brain:read'] },
     read: { layer: 'read', scopes: ['brain:read'] },
     get_page_visibility: { layer: 'read', scopes: ['brain:read'] },
+    groups_list: { layer: 'read', scopes: ['brain:read'] },
+    groups_get: { layer: 'read', scopes: ['brain:read'] },
     filing_rules: { layer: 'read', scopes: ['brain:read'] },
     list_raw_files: { layer: 'read', scopes: ['brain:read'] },
     read_raw_file: { layer: 'read', scopes: ['brain:read'] },
@@ -1000,6 +1070,7 @@ function toolPolicy(name) {
     create_raw_file_with_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
     update_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
     rename_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+    groups_upsert: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
     set_page_visibility: { layer: 'publish', scopes: ['brain:publish'] },
     update_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
     rename_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
@@ -1048,6 +1119,38 @@ function pageVisibilitySchema({ requireVisibility }) {
       timeline_entry: { type: 'string', description: 'Optional timeline note for the visibility change.' },
     },
     required: requireVisibility ? ['path', 'visibility'] : ['path'],
+  };
+}
+
+function sharedGroupWriteSchema() {
+  return {
+    type: 'object',
+    properties: {
+      slug: { type: 'string', description: 'Simple shared URL slug such as active-deals. Public URL is /shared/<slug>.' },
+      title: { type: 'string' },
+      description: { type: 'string' },
+      visibility: { type: 'string', enum: ['internal', 'public'], description: 'internal is private to MCP; public exposes the group at /shared/<slug>.' },
+      redirect_from: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Optional previous group slugs that should redirect to this group.',
+      },
+      pages: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            page_slug: { type: 'string' },
+            slug: { type: 'string' },
+            path: { type: 'string' },
+            label: { type: 'string' },
+            sort_order: { type: 'number' },
+          },
+        },
+        description: 'Ordered member pages. Each item may use page_slug, slug, or path.',
+      },
+    },
+    required: ['slug', 'title', 'pages'],
   };
 }
 

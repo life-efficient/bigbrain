@@ -115,6 +115,22 @@ export function initializeSqliteSchema(db) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS shared_groups (
+      slug TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      visibility TEXT NOT NULL DEFAULT 'internal',
+      redirect_from_json TEXT NOT NULL DEFAULT '[]',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS shared_group_pages (
+      group_slug TEXT NOT NULL,
+      page_slug TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      label TEXT,
+      PRIMARY KEY (group_slug, page_slug)
+    );
     CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(
       slug UNINDEXED,
       title,
@@ -258,12 +274,29 @@ export async function initializePostgresSchema(db) {
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS shared_groups (
+      slug TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      visibility TEXT NOT NULL DEFAULT 'internal',
+      redirect_from_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS shared_group_pages (
+      group_slug TEXT NOT NULL REFERENCES shared_groups(slug) ON DELETE CASCADE,
+      page_slug TEXT NOT NULL,
+      sort_order INTEGER NOT NULL,
+      label TEXT,
+      PRIMARY KEY (group_slug, page_slug)
+    );
     CREATE INDEX IF NOT EXISTS pages_slug_idx ON pages (slug);
     CREATE INDEX IF NOT EXISTS links_from_slug_idx ON links (from_slug);
     CREATE INDEX IF NOT EXISTS links_to_slug_idx ON links (to_slug);
     CREATE INDEX IF NOT EXISTS embeddings_page_slug_idx ON embeddings (page_slug);
     CREATE INDEX IF NOT EXISTS hosted_brain_git_state_checked_at_idx ON hosted_brain_git_state (checked_at DESC);
     CREATE INDEX IF NOT EXISTS mcp_audit_log_created_at_idx ON mcp_audit_log (created_at DESC);
+    CREATE INDEX IF NOT EXISTS shared_group_pages_group_slug_idx ON shared_group_pages (group_slug, sort_order);
   `);
 }
 
@@ -500,6 +533,220 @@ export async function getBacklinks(db, slug) {
     return (await db.query('SELECT from_slug, link_text, link_kind FROM links WHERE to_slug = $1 ORDER BY from_slug', [slug])).rows;
   }
   return unwrapSqlite(db).prepare('SELECT from_slug, link_text, link_kind FROM links WHERE to_slug = ? ORDER BY from_slug').all(slug);
+}
+
+export async function listSharedGroups(db) {
+  if (db.backend === 'postgres') {
+    const groups = (await db.query(`
+      SELECT slug, title, description, visibility, redirect_from_json, created_at, updated_at
+      FROM shared_groups
+      ORDER BY slug
+    `)).rows.map(normalizeSharedGroupRow);
+    return Promise.all(groups.map(async (group) => ({
+      ...group,
+      pages: await listSharedGroupPages(db, group.slug),
+    })));
+  }
+  const rows = unwrapSqlite(db).prepare(`
+    SELECT slug, title, description, visibility, redirect_from_json, created_at, updated_at
+    FROM shared_groups
+    ORDER BY slug
+  `).all().map(normalizeSharedGroupRow);
+  return Promise.all(rows.map(async (group) => ({
+    ...group,
+    pages: await listSharedGroupPages(db, group.slug),
+  })));
+}
+
+export async function getSharedGroup(db, slug, { includePages = true, resolveRedirect = false } = {}) {
+  const normalized = normalizeSharedGroupSlug(slug);
+  if (!normalized) {
+    if (!resolveRedirect) return null;
+    const redirectOnly = await findSharedGroupRedirect(db, slug);
+    if (!redirectOnly) return null;
+    return includePages ? { ...redirectOnly, pages: await listSharedGroupPages(db, redirectOnly.slug) } : redirectOnly;
+  }
+  const row = await getSharedGroupRow(db, normalized);
+  if (row) {
+    const group = normalizeSharedGroupRow(row);
+    return includePages ? { ...group, pages: await listSharedGroupPages(db, group.slug) } : group;
+  }
+  if (!resolveRedirect) return null;
+  const redirect = await findSharedGroupRedirect(db, normalized);
+  if (!redirect) return null;
+  return includePages ? { ...redirect, pages: await listSharedGroupPages(db, redirect.slug) } : redirect;
+}
+
+export async function upsertSharedGroup(db, input) {
+  const slug = normalizeSharedGroupSlug(input?.slug);
+  if (!slug) throw new Error('Shared group slug is required and must be a simple URL slug.');
+  const title = String(input?.title || '').trim();
+  if (!title) throw new Error('Shared group title is required.');
+  const description = String(input?.description || '').trim();
+  const visibility = normalizeSharedGroupVisibility(input?.visibility);
+  const pages = normalizeSharedGroupPages(input?.pages || input?.page_slugs || []);
+  if (!pages.length) throw new Error('Shared group requires at least one page.');
+  await assertSharedGroupPagesExist(db, pages.map((page) => page.page_slug));
+  const existing = await getSharedGroup(db, slug, { includePages: false });
+  const now = new Date().toISOString();
+  const redirectFrom = mergeRedirects(existing?.redirect_from, input?.redirect_from);
+
+  if (db.backend === 'postgres') {
+    await db.query(`
+      INSERT INTO shared_groups (slug, title, description, visibility, redirect_from_json, created_at, updated_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
+      ON CONFLICT(slug) DO UPDATE SET
+        title = EXCLUDED.title,
+        description = EXCLUDED.description,
+        visibility = EXCLUDED.visibility,
+        redirect_from_json = EXCLUDED.redirect_from_json,
+        updated_at = EXCLUDED.updated_at
+    `, [slug, title, description, visibility, JSON.stringify(redirectFrom), existing?.created_at || now, now]);
+    await db.query('DELETE FROM shared_group_pages WHERE group_slug = $1', [slug]);
+    for (const page of pages) {
+      await db.query(`
+        INSERT INTO shared_group_pages (group_slug, page_slug, sort_order, label)
+        VALUES ($1,$2,$3,$4)
+      `, [slug, page.page_slug, page.sort_order, page.label || null]);
+    }
+    return getSharedGroup(db, slug);
+  }
+
+  const raw = unwrapSqlite(db);
+  raw.prepare(`
+    INSERT INTO shared_groups (slug, title, description, visibility, redirect_from_json, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(slug) DO UPDATE SET
+      title = excluded.title,
+      description = excluded.description,
+      visibility = excluded.visibility,
+      redirect_from_json = excluded.redirect_from_json,
+      updated_at = excluded.updated_at
+  `).run(slug, title, description, visibility, JSON.stringify(redirectFrom), existing?.created_at || now, now);
+  raw.prepare('DELETE FROM shared_group_pages WHERE group_slug = ?').run(slug);
+  const insert = raw.prepare('INSERT INTO shared_group_pages (group_slug, page_slug, sort_order, label) VALUES (?, ?, ?, ?)');
+  for (const page of pages) insert.run(slug, page.page_slug, page.sort_order, page.label || null);
+  return getSharedGroup(db, slug);
+}
+
+export function normalizeSharedGroupSlug(value) {
+  const slug = String(value || '').trim().replace(/^\/+/, '').replace(/\/+$/, '');
+  if (!slug || slug === '.' || slug.includes('/') || slug.startsWith('.') || slug.endsWith('.md')) return '';
+  if (!/^[a-z0-9][a-z0-9-]*[a-z0-9]$|^[a-z0-9]$/.test(slug)) return '';
+  return slug;
+}
+
+function normalizeSharedGroupVisibility(value) {
+  const visibility = String(value || 'internal').trim().toLowerCase();
+  if (visibility === 'public' || visibility === 'internal') return visibility;
+  throw new Error('Shared group visibility must be internal or public.');
+}
+
+async function getSharedGroupRow(db, slug) {
+  if (db.backend === 'postgres') {
+    return (await db.query(`
+      SELECT slug, title, description, visibility, redirect_from_json, created_at, updated_at
+      FROM shared_groups
+      WHERE slug = $1
+    `, [slug])).rows[0] || null;
+  }
+  return unwrapSqlite(db).prepare(`
+    SELECT slug, title, description, visibility, redirect_from_json, created_at, updated_at
+    FROM shared_groups
+    WHERE slug = ?
+  `).get(slug) || null;
+}
+
+async function listSharedGroupPages(db, groupSlug) {
+  if (db.backend === 'postgres') {
+    return (await db.query(`
+      SELECT page_slug, sort_order, label
+      FROM shared_group_pages
+      WHERE group_slug = $1
+      ORDER BY sort_order, page_slug
+    `, [groupSlug])).rows;
+  }
+  return unwrapSqlite(db).prepare(`
+    SELECT page_slug, sort_order, label
+    FROM shared_group_pages
+    WHERE group_slug = ?
+    ORDER BY sort_order, page_slug
+  `).all(groupSlug);
+}
+
+async function findSharedGroupRedirect(db, requestedSlug) {
+  const wanted = normalizeSharedGroupRedirect(requestedSlug);
+  if (!wanted) return null;
+  const groups = await listSharedGroups(db);
+  return groups.find((group) => group.redirect_from.includes(wanted)) || null;
+}
+
+function normalizeSharedGroupRow(row) {
+  return {
+    slug: row.slug,
+    title: row.title,
+    description: row.description || '',
+    visibility: row.visibility || 'internal',
+    redirect_from: parseJsonArray(row.redirect_from_json),
+    created_at: normalizeTimestampValue(row.created_at),
+    updated_at: normalizeTimestampValue(row.updated_at),
+  };
+}
+
+function normalizeSharedGroupPages(input) {
+  const values = Array.isArray(input) ? input : [];
+  return values.map((entry, index) => {
+    if (typeof entry === 'string') {
+      return { page_slug: normalizePageSlug(entry), sort_order: index, label: null };
+    }
+    return {
+      page_slug: normalizePageSlug(entry?.page_slug || entry?.slug || entry?.path),
+      sort_order: Number.isInteger(entry?.sort_order) ? entry.sort_order : index,
+      label: String(entry?.label || '').trim() || null,
+    };
+  }).filter((entry) => entry.page_slug);
+}
+
+function normalizePageSlug(value) {
+  return String(value || '').trim().replace(/^\/+/, '').replace(/\.md$/i, '');
+}
+
+async function assertSharedGroupPagesExist(db, pageSlugs) {
+  const unique = [...new Set(pageSlugs)];
+  const records = await getPagesBySlugs(db, unique);
+  const found = new Set(records.map((record) => record.slug));
+  const missing = unique.filter((slug) => !found.has(slug));
+  if (missing.length) throw new Error(`Shared group references unknown page(s): ${missing.join(', ')}`);
+}
+
+function mergeRedirects(existing = [], next = []) {
+  const values = Array.isArray(next) ? next : [next];
+  return [...new Set([...(existing || []), ...values]
+    .map((value) => normalizeSharedGroupRedirect(value))
+    .filter(Boolean))];
+}
+
+function normalizeSharedGroupRedirect(value) {
+  const redirect = String(value || '').trim().replace(/^\/+/, '').replace(/\/+$/, '').replace(/\.md$/i, '');
+  if (!redirect || redirect === '.' || redirect.startsWith('.') || redirect.startsWith('../') || path.posix.isAbsolute(redirect)) return '';
+  const normalized = path.posix.normalize(redirect);
+  if (normalized === '.' || normalized.startsWith('../') || normalized.split('/').some((part) => !part || part === '.' || part === '..' || part.startsWith('.'))) return '';
+  return normalized;
+}
+
+function parseJsonArray(value) {
+  if (Array.isArray(value)) return value.map(String);
+  if (!value) return [];
+  try {
+    const parsed = typeof value === 'string' ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeTimestampValue(value) {
+  return value instanceof Date ? value.toISOString() : String(value || '');
 }
 
 export async function lexicalSearch(db, query, limit = 10) {

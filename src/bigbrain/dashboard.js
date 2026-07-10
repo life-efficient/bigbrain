@@ -5,7 +5,14 @@ import { fileURLToPath } from 'node:url';
 
 import { build } from 'esbuild';
 
-import { openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
+import {
+  getBacklinks,
+  getOutgoingLinks,
+  getPagesBySlugs,
+  getSharedGroup,
+  listPages,
+  openDatabase,
+} from './db.js';
 import { runHealthCheck } from './health.js';
 import { fullPathFromSlug, parseMarkdownPage, resolveMarkdownLink, slugFromPath } from './markdown.js';
 import { findActiveMemberByEmail, findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug } from './members.js';
@@ -122,7 +129,13 @@ export async function createDashboardRequestHandler(config, {
         return;
       }
       const publicRequest = isPublicAppPath(requestUrl.pathname)
-        || (req.method === 'GET' && (requestUrl.pathname === '/api/public/page' || requestUrl.pathname === '/api/public/raw'));
+        || isSharedAppPath(requestUrl.pathname)
+        || (req.method === 'GET' && (
+          requestUrl.pathname === '/api/public/page'
+          || requestUrl.pathname === '/api/public/raw'
+          || requestUrl.pathname === '/api/shared/group'
+          || requestUrl.pathname === '/api/shared/raw'
+        ));
       if (authEnabled && !publicRequest && requestUrl.pathname !== '/favicon.ico' && !requestUrl.pathname.startsWith('/assets/')) {
         const authorization = await authorizeDashboardRequest(req, authConfig);
         if (!authorization.ok) {
@@ -143,7 +156,24 @@ export async function createDashboardRequestHandler(config, {
         actor = authorization.actor || null;
       }
       if (isPublicAppPath(requestUrl.pathname)) {
-        const redirectLocation = await publicRedirectLocation(config, requestUrl);
+        const redirectLocation = await publicRedirectLocation(config, db, requestUrl);
+        if (redirectLocation) {
+          res.writeHead(308, {
+            location: redirectLocation,
+            'Cache-Control': 'no-store',
+          });
+          res.end();
+          return;
+        }
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
+        res.end(renderAppHtml());
+        return;
+      }
+      if (isSharedAppPath(requestUrl.pathname)) {
+        const redirectLocation = await sharedRedirectLocation(db, requestUrl);
         if (redirectLocation) {
           res.writeHead(308, {
             location: redirectLocation,
@@ -206,6 +236,21 @@ export async function createDashboardRequestHandler(config, {
         return json(res, publicPayload);
       }
       if (requestUrl.pathname === '/api/public/raw') return servePublicRawFile(config, res, requestUrl, req.method);
+      if (requestUrl.pathname === '/api/shared/group') {
+        if (req.method !== 'GET') {
+          res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ error: 'Shared group requests require GET.' }));
+          return;
+        }
+        const groupPayload = await buildSharedGroupPayload(config, db, requestUrl);
+        if (!groupPayload) {
+          res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ error: 'Shared group not found.' }));
+          return;
+        }
+        return json(res, groupPayload);
+      }
+      if (requestUrl.pathname === '/api/shared/raw') return serveSharedRawFile(config, db, res, requestUrl, req.method);
       if (requestUrl.pathname === '/api/explorer/tree') return json(res, await buildExplorerTreePayload(config));
       if (requestUrl.pathname === '/api/explorer/recent') return json(res, await buildExplorerRecentPayload(config, requestUrl));
       if (requestUrl.pathname === '/api/explorer/file') return json(res, await buildExplorerFilePayload(config, requestUrl));
@@ -298,6 +343,36 @@ async function servePublicRawFile(config, res, requestUrl, method = 'GET') {
   });
 }
 
+async function serveSharedRawFile(config, db, res, requestUrl, method = 'GET') {
+  if (method !== 'GET') {
+    res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ error: 'Shared raw file requests require GET.' }));
+    return;
+  }
+  const payload = await buildSharedRawFilePayload(config, db, requestUrl);
+  if (!payload) {
+    res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(JSON.stringify({ error: 'Shared raw file not found.' }));
+    return;
+  }
+  res.writeHead(200, {
+    'Content-Type': payload.mime_type,
+    'Content-Length': payload.size,
+    'Cache-Control': 'public, max-age=300',
+    'Content-Security-Policy': PUBLIC_RAW_CONTENT_SECURITY_POLICY,
+    'Content-Disposition': `inline; filename="${payload.filename.replace(/["\\]/g, '')}"`,
+    'X-Content-Type-Options': 'nosniff',
+  });
+  const { createReadStream } = await import('node:fs');
+  await new Promise((resolve, reject) => {
+    const stream = createReadStream(payload.fullPath);
+    stream.once('error', reject);
+    res.once('error', reject);
+    res.once('finish', resolve);
+    stream.pipe(res);
+  });
+}
+
 function json(res, value) {
   res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(JSON.stringify(value, null, 2));
@@ -337,6 +412,10 @@ function isDashboardAppPath(pathname, basePath) {
 
 function isPublicAppPath(pathname) {
   return pathname === '/public' || pathname.startsWith('/public/');
+}
+
+function isSharedAppPath(pathname) {
+  return pathname === '/shared' || pathname.startsWith('/shared/');
 }
 
 function renderAppHtml() {
@@ -395,9 +474,20 @@ function renderAppHtml() {
       main { min-width: 0; max-width: none; height: 100vh; margin: 0; padding: 20px calc(20px + var(--sidecar-width)) 16px 20px; width: 100%; overflow: hidden; display: flex; flex-direction: column; transition: padding-right 240ms ease; }
       .public-main { min-height: 100vh; height: 100vh; overflow: auto; display: block; padding: 42px 22px 64px; background: #fafafa; color: #18181b; }
       .public-document { width: min(820px, 100%); margin: 0 auto; display: grid; gap: 22px; }
+      .public-document.shared-group-document { width: min(1040px, 100%); }
       .public-document-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid #e4e4e7; }
       .public-document-head h1,
       .public-document > h1 { margin: 0; color: #18181b; font-size: 40px; line-height: 1.08; letter-spacing: 0; }
+      .shared-group-head { align-items: flex-end; }
+      .shared-group-head .empty-copy { margin-top: 8px; font-size: 16px; line-height: 1.55; }
+      .shared-group-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; align-items: stretch; }
+      .shared-group-card { display: grid; align-content: start; gap: 12px; min-height: 220px; padding: 18px; border: 1px solid #e4e4e7; border-radius: 8px; background: #fff; }
+      .shared-group-card h2 { margin: 0; color: #18181b; font-size: 21px; line-height: 1.2; letter-spacing: 0; }
+      .shared-group-card p { margin: 0; color: #52525b; font-size: 14px; line-height: 1.55; }
+      .shared-group-card-kind { justify-self: start; padding: 3px 8px; border: 1px solid #d4d4d8; border-radius: 999px; color: #3f3f46; background: #fafafa; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; }
+      .shared-group-files { display: grid; gap: 8px; margin-top: 4px; }
+      .shared-group-files a { display: block; padding: 10px 11px; border: 1px solid #d4d4d8; border-radius: 8px; color: #18181b; background: #fafafa; text-decoration: none; font-size: 13px; font-weight: 650; overflow-wrap: anywhere; }
+      .shared-group-files a:hover { border-color: #a1a1aa; background: #f4f4f5; }
       .public-view-toggle { display: inline-grid; grid-template-columns: repeat(2, 34px); gap: 4px; padding: 3px; border: 1px solid #d4d4d8; border-radius: 8px; background: #fff; flex: 0 0 auto; }
       .public-view-button { width: 34px; height: 30px; display: inline-grid; place-items: center; border: 0; border-radius: 6px; background: transparent; color: #52525b; cursor: pointer; font-size: 17px; line-height: 1; }
       .public-view-button:hover { background: #f4f4f5; color: #18181b; }
@@ -1207,6 +1297,38 @@ export async function buildPagePayload(config, db, requestUrl) {
   return buildPagePayloadForSlug(config, db, slug);
 }
 
+export async function buildSharedGroupPayload(config, db, requestUrl) {
+  const requestedSlug = publicSlugFromSharedPath(requestUrl.pathname) || requestUrl.searchParams.get('slug')?.trim();
+  const group = await getSharedGroup(db, requestedSlug, { resolveRedirect: true });
+  if (!group || group.visibility !== 'public') return null;
+  const pageRows = await getPagesBySlugs(db, group.pages.map((page) => page.page_slug));
+  const pageBySlug = new Map(pageRows.map((row) => [row.slug, row]));
+  const items = [];
+  for (const member of group.pages) {
+    const row = pageBySlug.get(member.page_slug);
+    if (!row) continue;
+    const rawFiles = await sharedRawFilesForPage(config, group.slug, row);
+    const summary = extractSummaryFromText(row.summary || '') || extractSummaryFromText(row.compiled_truth || '');
+    items.push({
+      slug: row.slug,
+      title: member.label || row.title,
+      page_title: row.title,
+      type: row.type,
+      summary,
+      raw_files: rawFiles,
+    });
+  }
+  return {
+    kind: 'group',
+    slug: group.slug,
+    title: group.title,
+    description: group.description,
+    redirect_to: group.slug !== requestedSlug ? `/shared/${group.slug}` : null,
+    pages: items,
+    updated_at: group.updated_at,
+  };
+}
+
 export async function buildPublicPagePayload(config, requestUrl) {
   const slug = normalizePublicSlug(requestUrl.searchParams.get('slug')?.trim());
   if (!slug) return null;
@@ -1233,6 +1355,36 @@ export async function buildPublicPagePayload(config, requestUrl) {
       url: publicRawHref(canonicalSlug, rawPath),
     })),
     updated_at: page.stat.mtime.toISOString(),
+  };
+}
+
+export async function buildSharedRawFilePayload(config, db, requestUrl) {
+  const groupSlug = requestUrl.searchParams.get('group')?.trim();
+  const pageSlug = normalizePublicSlug(requestUrl.searchParams.get('page')?.trim());
+  const requestedRawPath = normalizePublicRawQueryPath(requestUrl.searchParams.get('path'));
+  if (!groupSlug || !pageSlug || !requestedRawPath) return null;
+  const group = await getSharedGroup(db, groupSlug, { resolveRedirect: true });
+  if (!group || group.visibility !== 'public') return null;
+  if (!group.pages.some((page) => page.page_slug === pageSlug)) return null;
+  const rows = await getPagesBySlugs(db, [pageSlug]);
+  const row = rows[0];
+  if (!row) return null;
+  const allowedRawFiles = sharedRawPathsForPage(row);
+  if (!allowedRawFiles.includes(requestedRawPath)) return null;
+  const mimeType = publicRawMimeTypeForPath(requestedRawPath);
+  if (!mimeType) return null;
+  const fullPath = safeBrainPath(config.brainDir, requestedRawPath);
+  const stat = await fs.stat(fullPath).catch(() => null);
+  if (!stat?.isFile()) return null;
+  return {
+    group_slug: group.slug,
+    page_slug: pageSlug,
+    path: requestedRawPath,
+    fullPath,
+    filename: path.posix.basename(requestedRawPath),
+    mime_type: mimeType,
+    size: stat.size,
+    updated_at: stat.mtime.toISOString(),
   };
 }
 
@@ -1350,9 +1502,11 @@ async function resolvePublicMarkdownPage(config, slug) {
   return redirect;
 }
 
-async function publicRedirectLocation(config, requestUrl) {
+async function publicRedirectLocation(config, db, requestUrl) {
   const slug = normalizePublicSlug(publicSlugFromPublicPath(requestUrl.pathname));
   if (!slug) return null;
+  const group = await getSharedGroup(db, slug, { resolveRedirect: true });
+  if (group?.visibility === 'public') return `/shared/${group.slug}`;
   const page = await readPublicMarkdownPage(config, slug);
   if (page && isPublicPage(page.parsed)) return null;
   const redirect = await findPublicRedirectTarget(config, slug);
@@ -1360,9 +1514,29 @@ async function publicRedirectLocation(config, requestUrl) {
   return `/public/${redirect.slug}${requestUrl.search || ''}`;
 }
 
+async function sharedRedirectLocation(db, requestUrl) {
+  const slug = publicSlugFromSharedPath(requestUrl.pathname);
+  if (!slug) return null;
+  const group = await getSharedGroup(db, slug, { resolveRedirect: true });
+  if (!group || group.visibility !== 'public' || group.slug === slug) return null;
+  return `/shared/${group.slug}${requestUrl.search || ''}`;
+}
+
 function publicSlugFromPublicPath(pathname) {
+  if (!isPublicAppPath(pathname)) return '';
   if (pathname === '/public') return '';
   const raw = String(pathname || '').replace(/^\/public\/?/, '');
+  try {
+    return decodeURIComponent(raw).replace(/^\/+/, '').replace(/\/+$/, '');
+  } catch {
+    return raw.replace(/^\/+/, '').replace(/\/+$/, '');
+  }
+}
+
+function publicSlugFromSharedPath(pathname) {
+  if (!isSharedAppPath(pathname)) return '';
+  if (pathname === '/shared') return '';
+  const raw = String(pathname || '').replace(/^\/shared\/?/, '');
   try {
     return decodeURIComponent(raw).replace(/^\/+/, '').replace(/\/+$/, '');
   } catch {
@@ -1404,12 +1578,65 @@ function publicRedirects(frontmatter = {}) {
   return redirects.map((value) => normalizePublicSlug(value)).filter(Boolean);
 }
 
+async function sharedRawFilesForPage(config, groupSlug, row) {
+  const rawFiles = [];
+  for (const rawPath of sharedRawPathsForPage(row)) {
+    const mimeType = publicRawMimeTypeForPath(rawPath);
+    if (!mimeType) continue;
+    const fullPath = safeBrainPath(config.brainDir, rawPath);
+    const stat = await fs.stat(fullPath).catch(() => null);
+    if (!stat?.isFile()) continue;
+    rawFiles.push({
+      filename: path.posix.basename(rawPath),
+      path: rawPath,
+      mime_type: mimeType,
+      size: stat.size,
+      url: `/api/shared/raw?group=${encodeURIComponent(groupSlug)}&page=${encodeURIComponent(row.slug)}&path=${encodeURIComponent(rawPath)}`,
+    });
+  }
+  return rawFiles;
+}
+
+function sharedRawPathsForPage(row) {
+  const frontmatter = parseFrontmatterJson(row?.frontmatter_json);
+  const values = [
+    ...arrayOfStrings(frontmatter.raw_file),
+    ...arrayOfStrings(frontmatter.public_raw_files),
+  ];
+  return [...new Set(values.map((value) => normalizePublicRawQueryPath(value)).filter(Boolean))];
+}
+
+function parseFrontmatterJson(value) {
+  if (!value) return {};
+  if (typeof value === 'object') return value;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
+}
+
+function arrayOfStrings(value) {
+  if (Array.isArray(value)) return value.map(String);
+  if (typeof value === 'string' && value.trim()) return [value.trim()];
+  return [];
+}
+
 function normalizePublicSlug(value) {
   const slug = String(value || '').trim().replace(/^\/+/, '').replace(/\.md$/i, '');
   if (!slug || slug === '.' || slug.startsWith('../') || path.posix.isAbsolute(slug)) return '';
   const normalized = path.posix.normalize(slug);
   if (normalized === '.' || normalized.startsWith('../') || normalized.split('/').some((part) => !part || part === '.' || part === '..')) return '';
   return normalized.replace(/\.md$/i, '');
+}
+
+function extractSummaryFromText(text) {
+  return String(text || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && !/^#{1,6}\s/.test(line))
+    .slice(0, 2)
+    .join('\n\n');
 }
 
 function isPublicPage(parsed) {

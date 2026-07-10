@@ -5,6 +5,15 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## Unreleased
 
+### Added
+
+- Added first-class shared groups stored in the runtime database. Groups have
+  simple `/shared/<slug>` URLs, ordered member pages, optional redirects, MCP
+  read/write tools, and a dedicated public group UI.
+- Added shared raw-file serving for group member pages. Public groups expose
+  only safe raw attachment types selected from member page `raw_file` or
+  `public_raw_files` frontmatter.
+
 ### Fixed
 
 - Public page renames now preserve old public slugs through `redirect_from`
@@ -16,6 +25,8 @@ actions` section for agents maintaining local installs and hosted brains.
 
 - Pull the latest BigBrain checkout and restart hosted or local MCP/dashboard
   services that serve public pages before renaming already-shared public pages.
+- For public collections of pages, create a shared group with `groups_upsert`
+  and use `/shared/<slug>` instead of publishing a markdown page as a group.
 - After a public page rename, verify both `/public/<new-slug>` and the prior
   `/public/<old-slug>` URL.
 

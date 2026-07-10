@@ -99,6 +99,9 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(listed.result.tools.some((tool) => tool.name === 'rename_page'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'get_page_visibility'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'set_page_visibility'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'groups_list'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'groups_get'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'groups_upsert'), true);
     const visibilityTool = listed.result.tools.find((tool) => tool.name === 'set_page_visibility');
     assert.equal(visibilityTool.inputSchema.properties.public_raw_files.type, 'array');
     assert.match(visibilityTool.description, /absolute public_url/);
@@ -169,6 +172,27 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(visibility.result.structuredContent.public_url, running.url.replace('/mcp', '/public/people/mcp-test'));
     assert.equal(visibility.result.structuredContent.public_url_path, '/public/people/mcp-test');
     assert.deepEqual(visibility.result.structuredContent.public_raw_files, ['people/.raw/public.pdf']);
+
+    const group = await rpc(running.url, 'tools/call', {
+      name: 'groups_upsert',
+      arguments: {
+        slug: 'mcp-group',
+        title: 'MCP Group',
+        description: 'Shared through MCP.',
+        visibility: 'public',
+        redirect_from: ['people/legacy-group-page'],
+        pages: [{ page_slug: 'people/mcp-test' }],
+      },
+    }, 'secret');
+    assert.equal(group.error, undefined, group.error?.message);
+    assert.equal(group.result.structuredContent.public_url, running.url.replace('/mcp', '/shared/mcp-group'));
+    assert.deepEqual(group.result.structuredContent.pages.map((page) => page.page_slug), ['people/mcp-test']);
+
+    const groupRead = await rpc(running.url, 'tools/call', {
+      name: 'groups_get',
+      arguments: { slug: 'people/legacy-group-page' },
+    }, 'secret');
+    assert.equal(groupRead.result.structuredContent.slug, 'mcp-group');
 
     const db = await openDatabase(config);
     const record = await getPageRecord(db, 'people/mcp-test');
@@ -717,6 +741,9 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
     const readTools = toolNames(await rpc(running.url, 'tools/list', {}, readToken));
     assert.equal(readTools.includes('read'), true);
     assert.equal(readTools.includes('get_page_visibility'), true);
+    assert.equal(readTools.includes('groups_list'), true);
+    assert.equal(readTools.includes('groups_get'), true);
+    assert.equal(readTools.includes('groups_upsert'), false);
     assert.equal(readTools.includes('set_page_visibility'), false);
     assert.equal(readTools.includes('create_page'), false);
     assert.equal(readTools.includes('update_raw_file'), false);
@@ -736,6 +763,7 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
     const createTools = toolNames(await rpc(running.url, 'tools/list', {}, createToken));
     assert.equal(createTools.includes('create_page'), true);
     assert.equal(createTools.includes('create_raw_file'), true);
+    assert.equal(createTools.includes('groups_upsert'), true);
     assert.equal(createTools.includes('set_page_visibility'), false);
     assert.equal(createTools.includes('update_raw_file'), false);
     assert.equal(createTools.includes('maintenance/git_backup'), false);

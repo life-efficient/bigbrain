@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { openDatabase } from '../../src/bigbrain/db.js';
+import { openDatabase, upsertSharedGroup } from '../../src/bigbrain/db.js';
 import {
   buildExplorerFilePayload,
   buildExplorerRecentPayload,
@@ -14,6 +14,8 @@ import {
   buildPagePayload,
   buildPublicPagePayload,
   buildPublicRawFilePayload,
+  buildSharedGroupPayload,
+  buildSharedRawFilePayload,
 } from '../../src/bigbrain/dashboard.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -329,6 +331,86 @@ test('public page payload resolves redirect_from slugs for pages and raw files',
       new URL('/api/public/page?slug=people/private-old', 'http://127.0.0.1'),
     );
     assert.equal(privateRedirectPayload, null);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('shared group payload exposes ordered member summaries and safe raw files', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-shared-group-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'deals/platform-one.md', [
+      '---',
+      'title: Platform One',
+      'raw_file: deals/.raw/platform-one.pdf',
+      '---',
+      '# Platform One',
+      '',
+      'First public-safe teaser summary.',
+    ].join('\n'));
+    await writeMarkdown(fixture.brainHome, 'deals/platform-two.md', [
+      '---',
+      'title: Platform Two',
+      'raw_file: deals/.raw/platform-two.exe',
+      '---',
+      '# Platform Two',
+      '',
+      'Second teaser summary.',
+    ].join('\n'));
+    await fs.mkdir(path.join(fixture.brainHome, 'deals', '.raw'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'deals', '.raw', 'platform-one.pdf'), 'pdf bytes');
+    await fs.writeFile(path.join(fixture.brainHome, 'deals', '.raw', 'platform-two.exe'), 'not safe');
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+    await upsertSharedGroup(db, {
+      slug: 'active-deals',
+      title: 'Active Deals',
+      description: 'Current shared deal teasers.',
+      visibility: 'public',
+      redirect_from: ['deals/active-deals', 'deals/active-deals-blind-teasers-group'],
+      pages: [
+        { page_slug: 'deals/platform-two', sort_order: 1 },
+        { page_slug: 'deals/platform-one', sort_order: 0, label: 'Platform One Teaser' },
+      ],
+    });
+
+    const payload = await buildSharedGroupPayload(
+      config,
+      db,
+      new URL('/api/shared/group?slug=active-deals', 'http://127.0.0.1'),
+    );
+
+    assert.equal(payload.slug, 'active-deals');
+    assert.equal(payload.title, 'Active Deals');
+    assert.deepEqual(payload.pages.map((page) => page.slug), ['deals/platform-one', 'deals/platform-two']);
+    assert.equal(payload.pages[0].title, 'Platform One Teaser');
+    assert.match(payload.pages[0].summary, /First public-safe teaser summary/);
+    assert.deepEqual(payload.pages[0].raw_files.map((file) => file.filename), ['platform-one.pdf']);
+    assert.deepEqual(payload.pages[1].raw_files, []);
+
+    const redirected = await buildSharedGroupPayload(
+      config,
+      db,
+      new URL('/api/shared/group?slug=deals/active-deals', 'http://127.0.0.1'),
+    );
+    assert.equal(redirected.slug, 'active-deals');
+    assert.equal(redirected.redirect_to, '/shared/active-deals');
+
+    const rawPayload = await buildSharedRawFilePayload(
+      config,
+      db,
+      new URL('/api/shared/raw?group=active-deals&page=deals/platform-one&path=deals/.raw/platform-one.pdf', 'http://127.0.0.1'),
+    );
+    assert.equal(rawPayload.filename, 'platform-one.pdf');
+
+    const blockedRawPayload = await buildSharedRawFilePayload(
+      config,
+      db,
+      new URL('/api/shared/raw?group=active-deals&page=deals/platform-two&path=deals/.raw/platform-two.exe', 'http://127.0.0.1'),
+    );
+    assert.equal(blockedRawPayload, null);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
