@@ -129,6 +129,7 @@ export function initializeSqliteSchema(db) {
       page_slug TEXT NOT NULL,
       sort_order INTEGER NOT NULL,
       label TEXT,
+      raw_files_json TEXT NOT NULL DEFAULT '[]',
       PRIMARY KEY (group_slug, page_slug)
     );
     CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(
@@ -140,6 +141,7 @@ export function initializeSqliteSchema(db) {
       body_text
     );
   `);
+  ensureSqliteSharedGroupColumns(raw);
 }
 
 export async function initializePostgresSchema(db) {
@@ -288,6 +290,7 @@ export async function initializePostgresSchema(db) {
       page_slug TEXT NOT NULL,
       sort_order INTEGER NOT NULL,
       label TEXT,
+      raw_files_json JSONB NOT NULL DEFAULT '[]'::jsonb,
       PRIMARY KEY (group_slug, page_slug)
     );
     CREATE INDEX IF NOT EXISTS pages_slug_idx ON pages (slug);
@@ -298,6 +301,19 @@ export async function initializePostgresSchema(db) {
     CREATE INDEX IF NOT EXISTS mcp_audit_log_created_at_idx ON mcp_audit_log (created_at DESC);
     CREATE INDEX IF NOT EXISTS shared_group_pages_group_slug_idx ON shared_group_pages (group_slug, sort_order);
   `);
+  await ensurePostgresSharedGroupColumns(db);
+}
+
+function ensureSqliteSharedGroupColumns(raw) {
+  const columns = raw.prepare('PRAGMA table_info(shared_group_pages)').all().map((row) => row.name);
+  if (!columns.includes('raw_files_json')) {
+    raw.exec("ALTER TABLE shared_group_pages ADD COLUMN raw_files_json TEXT NOT NULL DEFAULT '[]'");
+  }
+}
+
+async function ensurePostgresSharedGroupColumns(db) {
+  const pg = unwrapPostgres(db);
+  await pg.query("ALTER TABLE shared_group_pages ADD COLUMN IF NOT EXISTS raw_files_json JSONB NOT NULL DEFAULT '[]'::jsonb");
 }
 
 export async function replacePageIndex(db, page) {
@@ -605,9 +621,9 @@ export async function upsertSharedGroup(db, input) {
     await db.query('DELETE FROM shared_group_pages WHERE group_slug = $1', [slug]);
     for (const page of pages) {
       await db.query(`
-        INSERT INTO shared_group_pages (group_slug, page_slug, sort_order, label)
-        VALUES ($1,$2,$3,$4)
-      `, [slug, page.page_slug, page.sort_order, page.label || null]);
+        INSERT INTO shared_group_pages (group_slug, page_slug, sort_order, label, raw_files_json)
+        VALUES ($1,$2,$3,$4,$5)
+      `, [slug, page.page_slug, page.sort_order, page.label || null, JSON.stringify(page.raw_files || [])]);
     }
     return getSharedGroup(db, slug);
   }
@@ -624,8 +640,8 @@ export async function upsertSharedGroup(db, input) {
       updated_at = excluded.updated_at
   `).run(slug, title, description, visibility, JSON.stringify(redirectFrom), existing?.created_at || now, now);
   raw.prepare('DELETE FROM shared_group_pages WHERE group_slug = ?').run(slug);
-  const insert = raw.prepare('INSERT INTO shared_group_pages (group_slug, page_slug, sort_order, label) VALUES (?, ?, ?, ?)');
-  for (const page of pages) insert.run(slug, page.page_slug, page.sort_order, page.label || null);
+  const insert = raw.prepare('INSERT INTO shared_group_pages (group_slug, page_slug, sort_order, label, raw_files_json) VALUES (?, ?, ?, ?, ?)');
+  for (const page of pages) insert.run(slug, page.page_slug, page.sort_order, page.label || null, JSON.stringify(page.raw_files || []));
   return getSharedGroup(db, slug);
 }
 
@@ -660,18 +676,18 @@ async function getSharedGroupRow(db, slug) {
 async function listSharedGroupPages(db, groupSlug) {
   if (db.backend === 'postgres') {
     return (await db.query(`
-      SELECT page_slug, sort_order, label
+      SELECT page_slug, sort_order, label, raw_files_json
       FROM shared_group_pages
       WHERE group_slug = $1
       ORDER BY sort_order, page_slug
-    `, [groupSlug])).rows;
+    `, [groupSlug])).rows.map(normalizeSharedGroupPageRow);
   }
   return unwrapSqlite(db).prepare(`
-    SELECT page_slug, sort_order, label
+    SELECT page_slug, sort_order, label, raw_files_json
     FROM shared_group_pages
     WHERE group_slug = ?
     ORDER BY sort_order, page_slug
-  `).all(groupSlug);
+  `).all(groupSlug).map(normalizeSharedGroupPageRow);
 }
 
 async function findSharedGroupRedirect(db, requestedSlug) {
@@ -693,22 +709,37 @@ function normalizeSharedGroupRow(row) {
   };
 }
 
+function normalizeSharedGroupPageRow(row) {
+  return {
+    page_slug: row.page_slug,
+    sort_order: Number(row.sort_order) || 0,
+    label: row.label || null,
+    raw_files: parseJsonArray(row.raw_files_json),
+  };
+}
+
 function normalizeSharedGroupPages(input) {
   const values = Array.isArray(input) ? input : [];
   return values.map((entry, index) => {
     if (typeof entry === 'string') {
-      return { page_slug: normalizePageSlug(entry), sort_order: index, label: null };
+      return { page_slug: normalizePageSlug(entry), sort_order: index, label: null, raw_files: [] };
     }
     return {
       page_slug: normalizePageSlug(entry?.page_slug || entry?.slug || entry?.path),
       sort_order: Number.isInteger(entry?.sort_order) ? entry.sort_order : index,
       label: String(entry?.label || '').trim() || null,
+      raw_files: normalizeRawFileList(entry?.raw_files),
     };
   }).filter((entry) => entry.page_slug);
 }
 
 function normalizePageSlug(value) {
   return String(value || '').trim().replace(/^\/+/, '').replace(/\.md$/i, '');
+}
+
+function normalizeRawFileList(value) {
+  const values = Array.isArray(value) ? value : [value];
+  return [...new Set(values.map((item) => String(item || '').trim()).filter(Boolean))];
 }
 
 async function assertSharedGroupPagesExist(db, pageSlugs) {

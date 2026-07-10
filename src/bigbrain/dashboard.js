@@ -1307,7 +1307,7 @@ export async function buildSharedGroupPayload(config, db, requestUrl) {
   for (const member of group.pages) {
     const row = pageBySlug.get(member.page_slug);
     if (!row) continue;
-    const rawFiles = await sharedRawFilesForPage(config, group.slug, row);
+    const rawFiles = await sharedRawFilesForPage(config, group.slug, row, member);
     const summary = extractSummaryFromText(row.summary || '') || extractSummaryFromText(row.compiled_truth || '');
     items.push({
       slug: row.slug,
@@ -1365,11 +1365,12 @@ export async function buildSharedRawFilePayload(config, db, requestUrl) {
   if (!groupSlug || !pageSlug || !requestedRawPath) return null;
   const group = await getSharedGroup(db, groupSlug, { resolveRedirect: true });
   if (!group || group.visibility !== 'public') return null;
-  if (!group.pages.some((page) => page.page_slug === pageSlug)) return null;
+  const member = group.pages.find((page) => page.page_slug === pageSlug);
+  if (!member) return null;
   const rows = await getPagesBySlugs(db, [pageSlug]);
   const row = rows[0];
   if (!row) return null;
-  const allowedRawFiles = sharedRawPathsForPage(row);
+  const allowedRawFiles = sharedRawPathsForPage(row, member);
   if (!allowedRawFiles.includes(requestedRawPath)) return null;
   const mimeType = publicRawMimeTypeForPath(requestedRawPath);
   if (!mimeType) return null;
@@ -1578,9 +1579,9 @@ function publicRedirects(frontmatter = {}) {
   return redirects.map((value) => normalizePublicSlug(value)).filter(Boolean);
 }
 
-async function sharedRawFilesForPage(config, groupSlug, row) {
+async function sharedRawFilesForPage(config, groupSlug, row, member = null) {
   const rawFiles = [];
-  for (const rawPath of sharedRawPathsForPage(row)) {
+  for (const rawPath of sharedRawPathsForPage(row, member)) {
     const mimeType = publicRawMimeTypeForPath(rawPath);
     if (!mimeType) continue;
     const fullPath = safeBrainPath(config.brainDir, rawPath);
@@ -1597,9 +1598,10 @@ async function sharedRawFilesForPage(config, groupSlug, row) {
   return rawFiles;
 }
 
-function sharedRawPathsForPage(row) {
+function sharedRawPathsForPage(row, member = null) {
   const frontmatter = parseFrontmatterJson(row?.frontmatter_json);
   const values = [
+    ...arrayOfStrings(member?.raw_files),
     ...arrayOfStrings(frontmatter.raw_file),
     ...arrayOfStrings(frontmatter.public_raw_files),
   ];

@@ -342,7 +342,6 @@ test('shared group payload exposes ordered member summaries and safe raw files',
     await writeMarkdown(fixture.brainHome, 'deals/platform-one.md', [
       '---',
       'title: Platform One',
-      'raw_file: deals/.raw/platform-one.pdf',
       '---',
       '# Platform One',
       '',
@@ -372,7 +371,12 @@ test('shared group payload exposes ordered member summaries and safe raw files',
       redirect_from: ['deals/active-deals', 'deals/active-deals-blind-teasers-group'],
       pages: [
         { page_slug: 'deals/platform-two', sort_order: 1 },
-        { page_slug: 'deals/platform-one', sort_order: 0, label: 'Platform One Teaser' },
+        {
+          page_slug: 'deals/platform-one',
+          sort_order: 0,
+          label: 'Platform One Teaser',
+          raw_files: ['deals/.raw/platform-one.pdf'],
+        },
       ],
     });
 
