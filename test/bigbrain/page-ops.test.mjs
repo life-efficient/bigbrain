@@ -79,7 +79,7 @@ test('page ops create raw files with associated brain pages', async () => {
       rawPath: 'sources/.raw/example-deck.pdf',
       rawContentBase64: pdfBytes.toString('base64'),
       mimeType: 'application/pdf',
-      pagePath: 'sources/example-deck',
+      pagePath: 'sources/.raw/example-deck',
       title: 'Example Brain Deck',
       body: 'Source deck for the Example Brain program.',
       timelineEntry: 'Uploaded source deck and created page.',
@@ -88,18 +88,47 @@ test('page ops create raw files with associated brain pages', async () => {
 
     assert.equal(result.raw_file.path, 'sources/.raw/example-deck.pdf');
     assert.equal(result.raw_file.size, pdfBytes.length);
-    assert.equal(result.page.slug, 'sources/example-deck');
+    assert.equal(result.page.slug, 'sources/.raw/example-deck');
     assert.equal(result.page.frontmatter.raw_file, 'sources/.raw/example-deck.pdf');
     assert.match(result.page.markdown, /raw_mime_type: application\/pdf/);
-    assert.match(result.page.markdown, /- \[example-deck\.pdf\]\(\.raw\/example-deck\.pdf\)/);
+    assert.match(result.page.markdown, /- \[example-deck\.pdf\]\(example-deck\.pdf\)/);
 
     const storedRaw = await fs.readFile(path.join(fixture.brainHome, 'sources', '.raw', 'example-deck.pdf'));
     assert.deepEqual(storedRaw, pdfBytes);
 
     await syncBrain({ config, apiKey: null });
     const db = await openDatabase(config);
-    assert.equal((await getPageRecord(db, 'sources/example-deck')).title, 'Example Brain Deck');
+    assert.equal((await getPageRecord(db, 'sources/.raw/example-deck')).title, 'Example Brain Deck');
+    assert.equal((await getPageRecord(db, 'sources/.raw/example-deck')).page_kind, 'attachment');
     assert.equal(await getPageRecord(db, 'sources/.raw/example-deck.pdf'), undefined);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('attachment creation derives sidecar paths and rejects placement ambiguity', async () => {
+  const fixture = await createFixture('bigbrain-sidecar-placement-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const created = await createRawFileWithPage({
+      config,
+      rawPath: 'deals/.raw/plan.pdf',
+      rawContentBase64: Buffer.from('%PDF-1.4\n%%EOF\n').toString('base64'),
+      mimeType: 'application/pdf',
+      title: 'Plan',
+      body: 'Comprehensive extracted plan.',
+      timelineEntry: 'Uploaded plan.',
+    });
+    assert.equal(created.page.path, 'deals/.raw/plan.md');
+    await assert.rejects(() => createRawFileWithPage({
+      config,
+      rawPath: 'deals/.raw/other.pdf',
+      rawContentBase64: Buffer.from('%PDF-1.4\n%%EOF\n').toString('base64'),
+      pagePath: 'deals/other',
+      title: 'Other',
+      body: 'Other plan.',
+      timelineEntry: 'Uploaded other.',
+    }), /deterministic sidecar path/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -167,7 +196,7 @@ test('page ops rename raw files and rewrite page references', async () => {
       rawPath: 'deals/.raw/company-name-blind-teaser.pdf',
       rawContentBase64: pdfBytes.toString('base64'),
       mimeType: 'application/pdf',
-      pagePath: 'deals/company-name-blind-teaser',
+      pagePath: 'deals/.raw/company-name-blind-teaser',
       title: 'Company Name Blind Teaser',
       body: 'Current teaser.',
       timelineEntry: 'Uploaded teaser.',
@@ -182,15 +211,16 @@ test('page ops rename raw files and rewrite page references', async () => {
 
     assert.equal(renamed.path, 'deals/.raw/regional-platform-blind-teaser.pdf');
     assert.equal(renamed.previous_path, 'deals/.raw/company-name-blind-teaser.pdf');
-    assert.deepEqual(renamed.changed_pages, ['deals/company-name-blind-teaser.md']);
+    assert.deepEqual(renamed.changed_pages, ['deals/.raw/regional-platform-blind-teaser.md']);
     await assert.rejects(
       () => readRawFile({ config, rawPath: 'deals/.raw/company-name-blind-teaser.pdf' }),
       /ENOENT/,
     );
-    const page = await readBrainPage({ config, pagePath: 'deals/company-name-blind-teaser' });
+    await assert.rejects(() => readBrainPage({ config, pagePath: 'deals/.raw/company-name-blind-teaser' }), /ENOENT/);
+    const page = await readBrainPage({ config, pagePath: 'deals/.raw/regional-platform-blind-teaser' });
     assert.equal(page.frontmatter.raw_file, 'deals/.raw/regional-platform-blind-teaser.pdf');
     assert.deepEqual(page.frontmatter.public_raw_files, ['deals/.raw/regional-platform-blind-teaser.pdf']);
-    assert.match(page.markdown, /\[regional-platform-blind-teaser\.pdf\]\(\.raw\/regional-platform-blind-teaser\.pdf\)/);
+    assert.match(page.markdown, /\[regional-platform-blind-teaser\.pdf\]\(regional-platform-blind-teaser\.pdf\)/);
     assert.doesNotMatch(page.markdown, /company-name-blind-teaser\.pdf/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
@@ -282,7 +312,7 @@ test('page ops reject raw files over the configured decoded size limit before wr
       config,
       rawPath: 'sources/.raw/uploads-too-large.pdf',
       rawContentBase64: Buffer.from('also too large', 'utf8').toString('base64'),
-      pagePath: 'sources/too-large',
+      pagePath: 'sources/.raw/uploads-too-large',
       title: 'Too Large',
       body: 'This page should not be written.',
       timelineEntry: 'Attempted oversized upload.',

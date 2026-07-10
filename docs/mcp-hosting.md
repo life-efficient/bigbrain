@@ -132,12 +132,10 @@ Use `create_raw_file` to upload a remote file without a markdown page,
 metadata page in the same call, `read_raw_file` to download the raw bytes as
 base64, and `update_raw_file` to replace the bytes of an existing upload.
 
-The tool `create_raw_file_with_page` writes a raw file and its corresponding
-markdown metadata page together. For canonical pages that summarize a meeting,
-deal, report, deliverable, or source, use the owning collection page path. For
-raw-file sidecars that exist only to carry metadata, visibility, groups, or
-provenance for the raw file, store the sidecar under the same `.raw/` folder as
-the raw file.
+The tool `create_raw_file_with_page` writes a raw file and its indexed attachment
+sidecar together. The sidecar path is deterministic: `<collection>/.raw/<basename>.md`.
+It may contain comprehensive extraction and synthesis as well as metadata. Public
+sidecar routes render the bound raw artifact, never the private sidecar Markdown.
 
 Required fields:
 
@@ -152,10 +150,9 @@ Required fields:
   filenames.
 - `raw_content_base64` or `raw_content_text`: provide exactly one. Use base64
   for PDFs and other binary files.
-- `page_path`, `title`, `body`, `timeline_entry`: the markdown metadata page to
-  create at the same time when using `create_raw_file_with_page`. Use a normal
-  collection path only for a canonical page. Use `<collection>/.raw/<slug>.md`
-  for a raw-file sidecar.
+- `title`, `body`, `timeline_entry`: the indexed attachment sidecar content.
+  `page_path` is optional and, when supplied, must equal the deterministic
+  same-basename `<collection>/.raw/<slug>.md` path derived from `raw_path`.
 
 For local binary artifacts, the normal upload path is still MCP:
 

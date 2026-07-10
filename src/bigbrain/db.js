@@ -19,6 +19,7 @@ export function initializeSqliteSchema(db) {
       slug TEXT NOT NULL UNIQUE,
       path TEXT NOT NULL,
       type TEXT NOT NULL,
+      page_kind TEXT NOT NULL DEFAULT 'canonical',
       title TEXT NOT NULL,
       summary TEXT NOT NULL DEFAULT '',
       frontmatter_json TEXT NOT NULL,
@@ -142,6 +143,7 @@ export function initializeSqliteSchema(db) {
     );
   `);
   ensureSqliteSharedGroupColumns(raw);
+  ensureSqlitePageKindColumn(raw);
 }
 
 export async function initializePostgresSchema(db) {
@@ -153,6 +155,7 @@ export async function initializePostgresSchema(db) {
       slug TEXT NOT NULL UNIQUE,
       path TEXT NOT NULL,
       type TEXT NOT NULL,
+      page_kind TEXT NOT NULL DEFAULT 'canonical',
       title TEXT NOT NULL,
       summary TEXT NOT NULL DEFAULT '',
       frontmatter_json JSONB NOT NULL,
@@ -302,6 +305,12 @@ export async function initializePostgresSchema(db) {
     CREATE INDEX IF NOT EXISTS shared_group_pages_group_slug_idx ON shared_group_pages (group_slug, sort_order);
   `);
   await ensurePostgresSharedGroupColumns(db);
+  await db.query("ALTER TABLE pages ADD COLUMN IF NOT EXISTS page_kind TEXT NOT NULL DEFAULT 'canonical'");
+}
+
+function ensureSqlitePageKindColumn(raw) {
+  const columns = raw.prepare('PRAGMA table_info(pages)').all().map((row) => row.name);
+  if (!columns.includes('page_kind')) raw.exec("ALTER TABLE pages ADD COLUMN page_kind TEXT NOT NULL DEFAULT 'canonical'");
 }
 
 function ensureSqliteSharedGroupColumns(raw) {
@@ -322,12 +331,13 @@ export async function replacePageIndex(db, page) {
     const updatedAt = await resolvePageUpdatedAt(page, now);
     await db.query(`
       INSERT INTO pages (
-        slug, path, type, title, summary, frontmatter_json, compiled_truth, timeline,
+        slug, path, type, page_kind, title, summary, frontmatter_json, compiled_truth, timeline,
         body_markdown, body_text, content_hash, updated_at, last_indexed_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
       ON CONFLICT(slug) DO UPDATE SET
         path = EXCLUDED.path,
         type = EXCLUDED.type,
+        page_kind = EXCLUDED.page_kind,
         title = EXCLUDED.title,
         summary = EXCLUDED.summary,
         frontmatter_json = EXCLUDED.frontmatter_json,
@@ -342,6 +352,7 @@ export async function replacePageIndex(db, page) {
       page.slug,
       page.path,
       page.type,
+      page.pageKind || 'canonical',
       page.title,
       page.summary,
       JSON.stringify(page.frontmatter),
@@ -361,12 +372,13 @@ export async function replacePageIndex(db, page) {
   const updatedAt = await resolvePageUpdatedAt(page, now);
   raw.prepare(`
     INSERT INTO pages (
-      slug, path, type, title, summary, frontmatter_json, compiled_truth, timeline,
+      slug, path, type, page_kind, title, summary, frontmatter_json, compiled_truth, timeline,
       body_markdown, body_text, content_hash, updated_at, last_indexed_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(slug) DO UPDATE SET
       path = excluded.path,
       type = excluded.type,
+      page_kind = excluded.page_kind,
       title = excluded.title,
       summary = excluded.summary,
       frontmatter_json = excluded.frontmatter_json,
@@ -381,6 +393,7 @@ export async function replacePageIndex(db, page) {
     page.slug,
     page.path,
     page.type,
+    page.pageKind || 'canonical',
     page.title,
     page.summary,
     JSON.stringify(page.frontmatter),
@@ -787,7 +800,7 @@ export async function lexicalSearch(db, query, limit = 10) {
       WITH search AS (
         SELECT websearch_to_tsquery('simple', $1) AS q
       )
-      SELECT p.slug, p.title, p.type, p.summary, p.frontmatter_json,
+      SELECT p.slug, p.title, p.type, p.page_kind, p.summary, p.frontmatter_json,
              ts_headline('simple', p.compiled_truth, search.q, 'StartSel=[, StopSel=], MaxWords=20, MinWords=5') AS snippet,
              ts_rank_cd(
                to_tsvector('simple', p.title || ' ' || p.summary || ' ' || p.compiled_truth || ' ' || p.timeline || ' ' || p.body_text),
@@ -801,7 +814,7 @@ export async function lexicalSearch(db, query, limit = 10) {
     return result.rows;
   }
   return unwrapSqlite(db).prepare(`
-    SELECT p.slug, p.title, p.type, p.summary, p.frontmatter_json,
+    SELECT p.slug, p.title, p.type, p.page_kind, p.summary, p.frontmatter_json,
            snippet(pages_fts, 3, '[', ']', ' … ', 10) AS snippet,
            bm25(pages_fts) AS lexical_score
     FROM pages_fts
@@ -822,6 +835,7 @@ export async function semanticSearch(db, queryVector, limit = 10) {
            p.slug,
            p.title,
            p.type,
+           p.page_kind,
            p.summary,
            1 - (e.embedding <=> $1::vector) AS semantic_score
     FROM embeddings e
@@ -834,6 +848,7 @@ export async function semanticSearch(db, queryVector, limit = 10) {
     slug: row.page_slug,
     title: row.title ?? row.page_slug,
     type: row.type ?? null,
+    page_kind: row.page_kind ?? 'canonical',
     summary: row.summary ?? '',
     snippet: row.chunk_text.slice(0, 240),
     chunk_id: row.chunk_id,

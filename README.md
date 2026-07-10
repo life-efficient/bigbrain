@@ -53,17 +53,20 @@ Skill routing lives in [`skills/RESOLVER.md`](./skills/RESOLVER.md).
 
 ## Brain Model
 
-`bigbrain` treats the markdown brain as two related layers:
+`bigbrain` treats the brain as three related surfaces:
 
 - canonical brain pages under typed top-level directories like `people/`,
   `organizations/`, `deals/`, `projects/`, `ideas/`, `meetings/`, `tasks/`,
   `concepts/`, `writing/`, and `protocol/`
-- attached raw files under per-collection `.raw/` directories
+- first-class indexed attachment sidecars under per-collection `.raw/` directories
+- raw binaries beside those sidecars
 
-Canonical pages are the authored knowledge graph. Raw files are attached source
-files or generated outputs that should stay retrievable but are not themselves
-expected to conform to page schema. The markdown page remains the searchable
-surface; raw files stay out of the indexed page graph.
+Subject pages and attachment sidecars are both authored, indexed knowledge pages.
+Every valuable raw artifact has exactly one same-basename Markdown sidecar beside
+it. Sidecars may contain comprehensive extraction and synthesis and control the
+artifact's visibility and groups. Raw binaries are never indexed directly. When
+a sidecar is public, its public route renders the artifact rather than exposing
+the private searchable Markdown body.
 
 Examples of raw attachments:
 
@@ -77,7 +80,8 @@ Raw attachments live under the same collection as the markdown page they
 support. The default shape is:
 
 ```text
-<collection>/<page-slug>.md
+<collection>/.raw/<filename>
+<collection>/.raw/<basename>.md
 <collection>/.raw/<filename>
 ```
 

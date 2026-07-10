@@ -9,6 +9,35 @@ import { allEmbeddings, getPageRecord, listPageSlugs, openDatabase, replacePageI
 import { searchBrain } from '../../src/bigbrain/search.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
+test('sync indexes attachment sidecars under .raw despite legacy exclusion', async () => {
+  const fixture = await createFixture('bigbrain-sync-attachment-sidecar-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'deals/.raw/calypso-plan.md', `---
+title: Calypso Plan
+raw_file: deals/.raw/calypso-plan.pdf
+visibility: internal
+---
+# Calypso Plan
+
+Searchable ultrasonic instrumentation detail.
+`);
+    await fs.writeFile(path.join(fixture.brainHome, 'deals', '.raw', 'calypso-plan.pdf'), '%PDF-1.4\n%%EOF\n');
+    const config = await loadConfig({ configPath: fixture.configPath });
+    assert.equal(config.excludeGlobs.includes('.raw/**'), true);
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+    const record = await getPageRecord(db, 'deals/.raw/calypso-plan');
+    assert.equal(record.page_kind, 'attachment');
+    assert.match(record.compiled_truth, /ultrasonic instrumentation detail/);
+    assert.equal(await getPageRecord(db, 'deals/.raw/calypso-plan.pdf'), undefined);
+    const results = await searchBrain({ db, config, query: 'ultrasonic instrumentation detail', apiKey: null });
+    assert.equal(results.lexical[0].slug, 'deals/.raw/calypso-plan');
+    assert.equal(results.lexical[0].page_kind, 'attachment');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('sync stores page updated_at from file mtime, not index time', async () => {
   const fixture = await createFixture('bigbrain-sync-updated-at-');
   try {

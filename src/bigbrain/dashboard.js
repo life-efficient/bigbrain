@@ -1336,6 +1336,25 @@ export async function buildPublicPagePayload(config, requestUrl) {
   const page = resolved?.page || null;
   if (!page || !isPublicPage(page.parsed)) return null;
   const canonicalSlug = resolved.slug;
+  const attachmentRawPath = attachmentRawPathForPage(canonicalSlug, page.parsed);
+  if (attachmentRawPath) {
+    const mimeType = publicRawMimeTypeForPath(attachmentRawPath);
+    const fullPath = safeBrainPath(config.brainDir, attachmentRawPath);
+    const stat = mimeType ? await fs.lstat(fullPath).catch(() => null) : null;
+    if (stat?.isSymbolicLink()) return null;
+    if (!stat?.isFile()) return null;
+    return {
+      slug: canonicalSlug,
+      redirect_to: canonicalSlug !== slug ? `/public/${canonicalSlug}` : null,
+      title: page.parsed.title,
+      summary: '',
+      markdown: '',
+      page_kind: 'attachment',
+      attachment_url: publicRawHref(canonicalSlug, attachmentRawPath),
+      raw_files: [{ filename: path.posix.basename(attachmentRawPath), url: publicRawHref(canonicalSlug, attachmentRawPath) }],
+      updated_at: page.stat.mtime.toISOString(),
+    };
+  }
   const rawFiles = publicRawFiles(page.parsed.frontmatter);
   const markdown = stripDuplicatePublicTitle(await sanitizePublicMarkdown({
     config,
@@ -1375,7 +1394,8 @@ export async function buildSharedRawFilePayload(config, db, requestUrl) {
   const mimeType = publicRawMimeTypeForPath(requestedRawPath);
   if (!mimeType) return null;
   const fullPath = safeBrainPath(config.brainDir, requestedRawPath);
-  const stat = await fs.stat(fullPath).catch(() => null);
+  const stat = await fs.lstat(fullPath).catch(() => null);
+  if (stat?.isSymbolicLink()) return null;
   if (!stat?.isFile()) return null;
   return {
     group_slug: group.slug,
@@ -1411,12 +1431,14 @@ export async function buildPublicRawFilePayload(config, requestUrl) {
   const resolved = await resolvePublicMarkdownPage(config, slug);
   const page = resolved?.page || null;
   if (!page || !isPublicPage(page.parsed)) return null;
-  const rawFiles = publicRawFiles(page.parsed.frontmatter);
+  const attachmentRawPath = attachmentRawPathForPage(resolved.slug, page.parsed);
+  const rawFiles = attachmentRawPath ? [attachmentRawPath] : publicRawFiles(page.parsed.frontmatter);
   if (!rawFiles.includes(requestedRawPath)) return null;
   const mimeType = publicRawMimeTypeForPath(requestedRawPath);
   if (!mimeType) return null;
   const fullPath = safeBrainPath(config.brainDir, requestedRawPath);
-  const stat = await fs.stat(fullPath).catch(() => null);
+  const stat = await fs.lstat(fullPath).catch(() => null);
+  if (stat?.isSymbolicLink()) return null;
   if (!stat?.isFile()) return null;
   return {
     path: requestedRawPath,
@@ -1509,7 +1531,16 @@ async function publicRedirectLocation(config, db, requestUrl) {
   const group = await getSharedGroup(db, slug, { resolveRedirect: true });
   if (group?.visibility === 'public') return `/shared/${group.slug}`;
   const page = await readPublicMarkdownPage(config, slug);
-  if (page && isPublicPage(page.parsed)) return null;
+  if (page && isPublicPage(page.parsed)) {
+    const attachmentRawPath = attachmentRawPathForPage(slug, page.parsed);
+    if (attachmentRawPath && publicRawMimeTypeForPath(attachmentRawPath)) {
+      const fullPath = safeBrainPath(config.brainDir, attachmentRawPath);
+      const stat = await fs.lstat(fullPath).catch(() => null);
+      if (stat?.isSymbolicLink()) return null;
+      if (stat?.isFile()) return publicRawHref(slug, attachmentRawPath);
+    }
+    return null;
+  }
   const redirect = await findPublicRedirectTarget(config, slug);
   if (!redirect) return null;
   return `/public/${redirect.slug}${requestUrl.search || ''}`;
@@ -1585,7 +1616,8 @@ async function sharedRawFilesForPage(config, groupSlug, row, member = null) {
     const mimeType = publicRawMimeTypeForPath(rawPath);
     if (!mimeType) continue;
     const fullPath = safeBrainPath(config.brainDir, rawPath);
-    const stat = await fs.stat(fullPath).catch(() => null);
+    const stat = await fs.lstat(fullPath).catch(() => null);
+    if (stat?.isSymbolicLink()) continue;
     if (!stat?.isFile()) continue;
     rawFiles.push({
       filename: path.posix.basename(rawPath),
@@ -1700,6 +1732,19 @@ function normalizePublicRawQueryPath(value) {
   } catch {
     return '';
   }
+}
+
+function attachmentRawPathForPage(slug, parsed) {
+  const parts = String(slug || '').split('/');
+  if (parts.length !== 3 || parts[1] !== '.raw') return '';
+  const value = parsed?.frontmatter?.raw_file;
+  if (typeof value !== 'string' || !value.trim()) return '';
+  const rawPath = normalizePublicRawQueryPath(value);
+  if (!rawPath) return '';
+  const extension = path.posix.extname(rawPath);
+  if (!extension || extension.toLowerCase() === '.md') return '';
+  const expectedSlug = `${rawPath.slice(0, -extension.length)}`;
+  return expectedSlug === slug ? rawPath : '';
 }
 
 function resolveRawLinkTarget(sourceSlug, target) {

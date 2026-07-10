@@ -28,6 +28,7 @@ This skill guarantees:
 - Rewrite compiled truth when the understanding changed materially
 - Keep the page grounded in actual retrieved or provided source material
 - Keep enrichment proportional to the value of the entity or topic
+- Treat indexed `.raw/*.md` attachment sidecars as document-specific brain pages: enrich them with comprehensive extraction and source-specific synthesis while keeping cross-document compiled belief on subject pages
 - Stop cleanly when the next step requires more source material than is available
 
 ## Workflow
@@ -56,6 +57,7 @@ This skill guarantees:
 - Do not overwrite a strong page with weaker generic wording
 - Do not invent facts or relationship context
 - Do not expand scope from one entity into a broad research project unless the user asked for that
+- Never move an attachment sidecar outside `.raw/` to make it searchable; sidecars are indexed in place
 
 ## Output
 

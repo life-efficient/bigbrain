@@ -19,6 +19,47 @@ import {
 } from '../../src/bigbrain/dashboard.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
+test('public attachment sidecars expose only their bound safe artifact', async () => {
+  const fixture = await createFixture('bigbrain-public-attachment-sidecar-');
+  try {
+    await writeFile(fixture.brainHome, 'deals/.raw/plan.pdf', '%PDF-1.4\nsecret bytes\n%%EOF\n');
+    await writeFile(fixture.brainHome, 'deals/.raw/sibling.pdf', '%PDF-1.4\nsibling\n%%EOF\n');
+    await fs.symlink(path.join(fixture.brainHome, 'deals', '.raw', 'plan.pdf'), path.join(fixture.brainHome, 'deals', '.raw', 'linked.pdf'));
+    await writeMarkdown(fixture.brainHome, 'deals/.raw/plan.md', `---
+title: Confidential Plan
+visibility: public
+raw_file: deals/.raw/plan.pdf
+raw_mime_type: application/pdf
+---
+# Confidential Plan
+
+Private extracted knowledge must not be returned publicly.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const page = await buildPublicPagePayload(config, new URL('/api/public/page?slug=deals/.raw/plan', 'http://127.0.0.1'));
+    assert.equal(page.page_kind, 'attachment');
+    assert.equal(page.markdown, '');
+    assert.doesNotMatch(JSON.stringify(page), /Private extracted knowledge/);
+    const raw = await buildPublicRawFilePayload(config, new URL('/api/public/raw?slug=deals/.raw/plan&path=deals/.raw/plan.pdf', 'http://127.0.0.1'));
+    assert.equal(raw.filename, 'plan.pdf');
+    const sibling = await buildPublicRawFilePayload(config, new URL('/api/public/raw?slug=deals/.raw/plan&path=deals/.raw/sibling.pdf', 'http://127.0.0.1'));
+    assert.equal(sibling, null);
+    const traversal = await buildPublicRawFilePayload(config, new URL('/api/public/raw?slug=deals/.raw/plan&path=deals/.raw/../secret.pdf', 'http://127.0.0.1'));
+    assert.equal(traversal, null);
+    await writeMarkdown(fixture.brainHome, 'deals/.raw/linked.md', `---
+title: Linked Plan
+visibility: public
+raw_file: deals/.raw/linked.pdf
+---
+Private linked extraction.
+`);
+    const linked = await buildPublicRawFilePayload(config, new URL('/api/public/raw?slug=deals/.raw/linked&path=deals/.raw/linked.pdf', 'http://127.0.0.1'));
+    assert.equal(linked, null);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('dashboard graph excludes root infrastructure files from nodes and types', async () => {
   const fixture = await createFixture('bigbrain-dashboard-graph-');
   try {

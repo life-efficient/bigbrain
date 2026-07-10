@@ -3,10 +3,21 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining local installs and hosted brains.
 
-## Unreleased
+## [0.11.0] - 2026-07-10
 
 ### Added
 
+- Added first-class indexed attachment sidecars at
+  `<collection>/.raw/<basename>.md`. Sidecars can contain comprehensive
+  extraction, synthesis, links, timelines, visibility, and group metadata while
+  the neighboring raw binary remains outside the index.
+- Added deterministic sidecar creation and raw-file rename behavior. The
+  `create_raw_file_with_page` tool now derives the sidecar path from `raw_path`
+  and rejects conflicting placement; raw-file renames move and rewrite the
+  same-basename sidecar.
+- Added security coverage proving public attachment pages expose only their
+  exact same-basename safe artifact and never leak private sidecar Markdown,
+  sibling files, traversal targets, or unsupported raw types.
 - Added first-class brain identity with an immutable generated `brain_id`, an
   editable `brain_name`, named initialization, and `bigbrain identity` commands.
 - Formalized one BigBrain runtime instance per brain. Multiple local or hosted
@@ -16,6 +27,11 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ### Changed
 
+- Attachment sidecars are now searchable through the normal lexical and
+  semantic index even when existing brain configs still exclude `.raw/**`.
+- Public attachment-sidecar routes render the declared raw artifact. Ordinary
+  public pages continue to render Markdown and retain their existing explicit
+  `public_raw_files` compatibility behavior.
 - Legacy configs remain readable without modification, including read-only
   hosted config mounts. They receive a stable compatibility identity in memory
   until an explicit initialization or identity update persists the new fields.
@@ -45,9 +61,25 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ### Agent update actions
 
-- Treat this feature set as the upcoming `0.11.0` minor release rather than a
-  `0.10.x` patch: it adds public configuration and CLI behavior without removing
-  existing behavior.
+- Before upgrading, back up or commit each brain. After upgrading, run
+  `npm install`, `npm link`, restart every local or hosted MCP/dashboard
+  instance, and run `bigbrain sync --json` so `.raw/*.md` sidecars enter the
+  lexical and semantic index.
+- Migrate attachment metadata or document-summary pages into deterministic
+  pairs: `<collection>/.raw/<basename>.<ext>` and
+  `<collection>/.raw/<basename>.md`. Preserve comprehensive extracted content
+  in the sidecar and update subject-page links. Existing ordinary pages remain
+  readable, but new `create_raw_file_with_page` calls reject non-sidecar paths.
+- Refresh bundled skills, especially `bigbrain-understand`, `bigbrain-enrich`,
+  `bigbrain-document-ingest`, `bigbrain-meeting-ingest`, and
+  `bigbrain-maintain`, so agents stop creating attachment pages outside `.raw/`.
+- Review public attachments after migration. A public sidecar must declare one
+  existing, safe, same-basename `raw_file`; its `/public/<sidecar-slug>` route
+  serves that artifact and does not publish the sidecar Markdown.
+- Run `bigbrain health --json`, verify attachment links and visibility, then
+  run `npm test`.
+- Treat this as a `0.11.0` minor release rather than a `0.10.x` patch: it adds
+  indexed attachment-page behavior plus public configuration and CLI behavior.
 - Existing MCP registrations such as `[mcp_servers.bigbrain]` remain valid and
   must not be renamed automatically.
 
@@ -57,6 +89,16 @@ actions` section for agents maintaining local installs and hosted brains.
   and use `/shared/<slug>` instead of publishing a markdown page as a group.
 - After a public page rename, verify both `/public/<new-slug>` and the prior
   `/public/<old-slug>` URL.
+
+### Verification
+
+- `npm test`
+- `node ./bin/bigbrain.js schema`
+- Attachment-sidecar sync/search test with an existing config that retains
+  `.raw/**` in `exclude_globs`
+- Public attachment security tests for exact binding, private Markdown
+  non-disclosure, traversal rejection, sibling rejection, unsafe MIME rejection,
+  and symlink rejection
 
 ## [0.10.0] - 2026-07-08
 

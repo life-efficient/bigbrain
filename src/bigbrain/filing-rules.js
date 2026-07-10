@@ -28,11 +28,10 @@ export async function filingRulesForBrain({ config }) {
     pattern: '<collection>/.raw/<filename>',
     create_with_page_tool: 'create_raw_file_with_page',
     guidance: [
-      'Raw files are attachments, not canonical brain pages.',
-      'For uploads such as PDFs, decks, screenshots, spreadsheets, and transcripts, create a markdown page and raw file together when the raw file has brain value.',
-      'Place the raw file directly under the same collection .raw folder as the markdown page it supports, choosing the collection by artifact role rather than file type.',
-      'Use a normal collection page path when the markdown page is the canonical searchable meeting, report, source, deliverable, deal, or project page.',
-      'Use a <collection>/.raw/<slug>.md page path only when the markdown page is a raw-file sidecar whose main purpose is metadata, visibility, groups, or provenance for that raw file.',
+      'Every valuable raw artifact has exactly one same-basename Markdown sidecar under the same owning collection .raw folder.',
+      'Attachment sidecars are first-class indexed brain pages and may contain comprehensive extraction, synthesis, provenance, links, visibility, groups, and access metadata.',
+      'Raw binaries are never indexed directly. Subject pages link to the indexed attachment sidecar and raw artifact.',
+      'When an attachment sidecar is public, its public route renders the declared raw artifact; the sidecar Markdown remains the private searchable representation.',
       'When sharing a raw file through a group or folder view, expose the raw file itself as the shared item; the sidecar markdown only stores metadata for that raw file.',
       'Do not create page-slug folders or other nested folders inside .raw; make filenames collision-safe instead.',
       'Use the owning collection .raw folder for raw attachments; sources/.raw is only for legacy or domain-specific evidence overlays.',
@@ -42,19 +41,19 @@ export async function filingRulesForBrain({ config }) {
     examples: [
       {
         raw_path: 'deals/.raw/exampleco-blind-teaser.pdf',
-        page_path: 'deals/exampleco-blind-teaser',
+        page_path: 'deals/.raw/exampleco-blind-teaser',
       },
       {
         raw_path: 'deliverables/.raw/example-partner-brief.pdf',
-        page_path: 'deliverables/example-partner-brief',
+        page_path: 'deliverables/.raw/example-partner-brief',
       },
       {
         raw_path: 'meetings/.raw/unesco-workshop-sync-transcript.txt',
-        page_path: 'meetings/unesco-workshop-sync',
+        page_path: 'meetings/.raw/unesco-workshop-sync-transcript',
       },
       {
         raw_path: 'writing/.raw/unassigned-evidence-pack.pdf',
-        page_path: 'writing/unassigned-evidence-pack',
+        page_path: 'writing/.raw/unassigned-evidence-pack',
       },
     ],
   };

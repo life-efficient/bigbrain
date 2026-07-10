@@ -54,9 +54,9 @@ This skill guarantees:
    - write or refresh `## Discussion Notes`
 5. If the raw transcript, deck, or notes should stay accessible:
    - attach them at the raw path required by the filing rules, for example `meetings/.raw/<meeting-slug>-transcript.txt`
-   - use `create_raw_file_with_page` when creating the meeting page and raw transcript together
-   - use `create_raw_file` plus a page link and timeline entry when adding raw material to an existing page
-   - link the meeting page to the artifact
+   - use `create_raw_file_with_page` to create the deterministic same-basename indexed sidecar for each artifact
+   - put comprehensive transcript extraction and document-specific synthesis in the sidecar
+   - create or update the canonical meeting page separately and link it to the indexed sidecar and artifact
 6. Identify follow-on updates:
    - pages that gained new durable facts
    - tasks that should be created or updated as individual `tasks/*.md` pages
@@ -68,6 +68,7 @@ This skill guarantees:
 - Do not create a second meeting page when a canonical one already exists
 - Do not erase `## Prep` content just because post-meeting material arrived
 - Do not force raw transcript dumps into the canonical page body
+- Do not create a raw artifact without its same-basename indexed `.raw/*.md` sidecar
 - Do not assume `.artifacts/` when the target brain's filing rules specify `.raw/`
 - Do not turn vague discussion into fake decisions or fake action items
 

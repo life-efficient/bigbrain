@@ -6,8 +6,12 @@ export function shouldSkipSystemPath(relativePath) {
   if (normalized === '.bigbrain' || normalized.startsWith('.bigbrain/')) return true;
   if (normalized === '.bigbrain-state' || normalized.startsWith('.bigbrain-state/')) return true;
   if (normalized === 'archive' || normalized.startsWith('archive/')) return true;
-  const segments = normalized.split('/');
-  return segments.includes('.raw');
+  return false;
+}
+
+export function isAttachmentSidecarPath(relativePath) {
+  const normalized = toPosixPath(relativePath);
+  return normalized.endsWith('.md') && normalized.split('/').includes('.raw');
 }
 
 export function matchesIncludeGlobs(relativePath, includeGlobs) {

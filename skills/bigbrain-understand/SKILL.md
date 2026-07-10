@@ -28,7 +28,7 @@ to use.
 This skill guarantees:
 - Explain the BigBrain brain-home model before giving advice
 - Ground filing and page-shape advice in the live BigBrain schema
-- Distinguish canonical pages from raw attachments under `.raw/`
+- Distinguish subject pages, indexed attachment sidecars, and raw binaries
 - Distinguish meetings from generic entity pages
 - Route the user to a more specific BigBrain skill when one clearly applies
 
@@ -41,7 +41,7 @@ This skill guarantees:
   - `tasks/` as the default home for actionable work and follow-ups
   - owning collection `.raw/` folders as the default home for raw/rendered evidence
   - `inbox/`, `sources/`, and `ops/` as legacy or domain overlays, not generic default destinations
-   - per-collection `.raw/` folders for raw files and generated outputs
+  - per-collection `.raw/` folders containing raw files and their same-basename indexed Markdown sidecars
    - `filing_rules` as the operational source of truth for the active brain
 3. If the question is about a specific item, classify it by primary subject:
    - person -> `people/`
@@ -61,16 +61,18 @@ This skill guarantees:
    - updating people or company pages -> `BigBrain: Enrich`
    - maintenance or repairs -> `BigBrain: Maintain`
    - task-list reconciliation -> `BigBrain: Task Refresh`
-5. If the user is unsure whether something is a page or raw attachment, explain:
-   - canonical page for durable authored knowledge
-   - raw attachment for supporting source inputs or generated deliverables attached to one or more pages
+5. Apply the attachment invariant:
+   - every valuable `<collection>/.raw/<basename>.<ext>` artifact has exactly one `<collection>/.raw/<basename>.md` sidecar
+   - the sidecar is a first-class indexed brain page and may contain comprehensive extraction, synthesis, provenance, links, visibility, and group metadata
+   - the binary is never indexed directly
+   - a public ordinary page renders its Markdown; a public attachment sidecar renders its declared artifact while the Markdown remains the private searchable representation
 
 ## Quality Rules
 
 - File by primary subject, not by source or format
 - Prefer cross-links over duplicate pages
 - Use the same meeting page across prep and post-meeting updates
-- Keep raw transcripts, decks, PDFs, and other attached files under the `.raw/` path specified by `filing_rules`
+- Keep raw transcripts, decks, PDFs, and other attached files plus their indexed same-basename sidecars under the `.raw/` path specified by `filing_rules`
 - When in doubt, recommend `tasks/` for actionable work, `ideas/` for unbuilt possibilities, `protocol/` for repeatable processes, and the owning collection `.raw/` folder for evidence files
 
 ## Output

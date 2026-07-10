@@ -261,7 +261,7 @@ the meeting collection `.raw/` folder.
 
 ## Raw Attachment Shape
 
-Raw attachments live outside the indexed page graph:
+Raw binaries live outside the indexed page graph, while their Markdown sidecars are first-class indexed attachment pages:
 
 ```text
 <collection>/<page-slug>.md
@@ -276,12 +276,11 @@ A canonical markdown page is the searchable context surface. It should usually i
 3. A link to the raw attachment
 4. Optional timeline when provenance or reuse history matters
 
-A raw-file sidecar markdown page is different: it exists to store metadata for a
-specific raw file, such as visibility, groups, provenance, MIME type, and
-sharing state. Raw sidecar markdown belongs inside the same `.raw/` folder as
-the raw file and should not be the public object shown when a user shares a raw
-file. Group and public-folder views should show the actual raw file, while the
-sidecar stores the metadata needed to control and explain that file.
+A raw-file sidecar Markdown page contains the comprehensive searchable representation
+of a specific raw file, including extraction, synthesis, links, visibility, groups,
+provenance, MIME type, and sharing state. It belongs at the same basename inside
+the same `.raw/` folder. It participates in search and links like other brain pages.
+When public, its route renders the raw artifact rather than exposing the sidecar body.
 
 Suggested frontmatter for a canonical page that discusses an attachment:
 
@@ -321,9 +320,9 @@ because an output may become a future input.
 - Historical `inbox/`, `sources/`, and `ops/` pages may remain in existing brains or domain overlays, but new generic material should use `tasks/`, a canonical subject page, or `protocol/`.
 - Do not store attached files directly in entity directories; place them under
   per-collection `.raw/` directories and reference them from canonical pages.
-- Place raw-file sidecar markdown pages under the same `.raw/` directory as
-  their raw files. Do not show those sidecar pages as normal public pages when a
-  group or folder is sharing the raw file.
+- Place every raw-file sidecar at the same basename under the same `.raw/`
+  directory as its artifact. Index the sidecar, never the binary. Public and
+  shared views show the artifact while the sidecar remains the searchable representation.
 - Repo documentation pages such as directory `README.md` files are not part of
   the canonical brain graph and should be excluded from indexing and strict
   page validation.

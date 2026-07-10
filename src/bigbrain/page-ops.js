@@ -107,7 +107,11 @@ export async function createRawFileWithPage({
   mimeType = null,
 }) {
   const rawRelative = normalizeRawPath(rawPath);
-  const pageRelative = normalizePagePath(pagePath);
+  const expectedSidecar = sidecarPathForRawFile(rawRelative);
+  const pageRelative = pagePath ? normalizePagePath(pagePath) : expectedSidecar;
+  if (pageRelative !== expectedSidecar) {
+    throw new Error(`Raw attachment page must use the deterministic sidecar path ${expectedSidecar}.`);
+  }
   assertAllowedPagePath(pageRelative);
 
   const rawFullPath = safeBrainPath(config.brainDir, rawRelative);
@@ -208,8 +212,18 @@ export async function renameRawFile({
   const stats = await fs.stat(fromFullPath);
   if (!stats.isFile()) throw new Error(`Raw file is not a file: ${fromRelative}`);
   if (await exists(toFullPath)) throw new Error(`Raw file already exists: ${toRelative}`);
+  const fromSidecar = sidecarPathForRawFile(fromRelative);
+  const toSidecar = sidecarPathForRawFile(toRelative);
+  const fromSidecarFull = safeBrainPath(config.brainDir, fromSidecar);
+  const toSidecarFull = safeBrainPath(config.brainDir, toSidecar);
+  if (await exists(fromSidecarFull) && await exists(toSidecarFull)) {
+    throw new Error(`Attachment sidecar already exists: ${toSidecar}`);
+  }
   await fs.mkdir(path.dirname(toFullPath), { recursive: true });
   await fs.rename(fromFullPath, toFullPath);
+  if (await exists(fromSidecarFull)) {
+    await fs.rename(fromSidecarFull, toSidecarFull);
+  }
   await pruneEmptyRawParents(config.brainDir, path.dirname(fromFullPath));
   const changed_pages = await rewriteMarkdownReferencesAcrossBrain({
     config,
@@ -329,6 +343,14 @@ export async function updatePageVisibility({ config, pagePath, visibility, timel
   assertAllowedPagePath(relative);
   const nextVisibility = normalizePageVisibility(visibility);
   const existing = await readBrainPage({ config, pagePath: relative });
+  if (nextVisibility === 'public' && isAttachmentSidecarPath(relative)) {
+    const rawPath = requireAttachmentRawFile(existing);
+    await assertPublicRawFileExists(config, rawPath);
+    assertPublicRawTypeAllowed(rawPath);
+    if (publicRawFiles !== undefined && normalizePublicRawFiles(publicRawFiles).some((item) => item !== rawPath)) {
+      throw new Error('Attachment sidecars publish only their same-basename raw_file; public_raw_files cannot expose siblings.');
+    }
+  }
   const now = new Date().toISOString().slice(0, 10);
   let frontmatterRaw = setFrontmatterValue(existing.frontmatter_raw, 'visibility', nextVisibility);
   if (publicRawFiles !== undefined) {
@@ -346,6 +368,20 @@ export async function updatePageVisibility({ config, pagePath, visibility, timel
   });
   await fs.writeFile(safeBrainPath(config.brainDir, relative), markdown, 'utf8');
   return readBrainPage({ config, pagePath: relative });
+}
+
+function isAttachmentSidecarPath(relativePath) {
+  const parts = String(relativePath || '').split('/');
+  return parts.length === 3 && parts[1] === '.raw' && parts[2].endsWith('.md');
+}
+
+function requireAttachmentRawFile(page) {
+  const rawPath = normalizeRawPath(page?.frontmatter?.raw_file);
+  const expectedSidecar = sidecarPathForRawFile(rawPath);
+  if (expectedSidecar !== page.path) {
+    throw new Error(`Attachment sidecar ${page.path} must declare its same-basename raw_file.`);
+  }
+  return rawPath;
 }
 
 export function pageVisibility(frontmatter = {}) {
@@ -448,8 +484,19 @@ export function assertAllowedPagePath(relativePath) {
   const parts = relativePath.split('/');
   if (parts.length < 2) throw new Error('Page path must include a collection folder.');
   if (parts.some((part) => !part || part === '.' || part === '..')) throw new Error(`Invalid page path: ${relativePath}`);
-  if (parts.some((part) => part.startsWith('.'))) throw new Error(`Hidden paths are not allowed: ${relativePath}`);
+  const isAttachmentSidecar = parts.length === 3 && parts[1] === '.raw' && relativePath.endsWith('.md');
+  if (!isAttachmentSidecar && parts.some((part) => part.startsWith('.'))) throw new Error(`Hidden paths are not allowed: ${relativePath}`);
+  if (isAttachmentSidecar && parts[2].startsWith('.')) throw new Error(`Invalid attachment sidecar path: ${relativePath}`);
   if (!relativePath.endsWith('.md')) throw new Error('Page path must end in .md.');
+}
+
+export function sidecarPathForRawFile(rawPath) {
+  const normalized = normalizeRawPath(rawPath);
+  const extension = path.posix.extname(normalized);
+  if (!extension || extension.toLowerCase() === '.md') {
+    throw new Error('Raw attachment must have a non-Markdown file extension.');
+  }
+  return `${normalized.slice(0, -extension.length)}.md`;
 }
 
 function renderPageMarkdown({ frontmatterRaw, title, body, timeline }) {
@@ -632,7 +679,6 @@ async function walkMarkdownFiles(root, current, files = []) {
     }
     if (!dirent.isFile() || !dirent.name.endsWith('.md')) continue;
     const relative = path.relative(root, fullPath).split(path.sep).join('/');
-    if (relative.split('/').includes('.raw')) continue;
     files.push({ fullPath, relative });
   }
   return files;

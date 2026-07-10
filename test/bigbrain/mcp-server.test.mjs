@@ -362,7 +362,7 @@ One page per organization.
     assert.match(organizations.markdown, /One page per organization/);
     assert.equal(rules.result.structuredContent.raw_file_rules.create_with_page_tool, 'create_raw_file_with_page');
     assert.match(rules.result.content[0].text, /Use deliverables\/.raw when the raw file is an owned output/);
-    assert.match(rules.result.content[0].text, /Use a <collection>\/\.raw\/<slug>\.md page path only when the markdown page is a raw-file sidecar/);
+    assert.match(rules.result.content[0].text, /Every valuable raw artifact has exactly one same-basename Markdown sidecar/);
     assert.equal(
       rules.result.structuredContent.raw_file_rules.examples.some((example) => example.raw_path.startsWith('deliverables/.raw/')),
       true,
@@ -519,7 +519,7 @@ test('MCP server uploads raw files with associated brain pages', async () => {
         raw_path: 'sources/.raw/mcp-upload.pdf',
         raw_content_base64: pdfBytes.toString('base64'),
         mime_type: 'application/pdf',
-        page_path: 'sources/mcp-upload',
+        page_path: 'sources/.raw/mcp-upload',
         title: 'MCP Upload',
         body: 'Uploaded through the MCP raw file tool.',
         timeline_entry: 'Uploaded source PDF through MCP.',
@@ -530,15 +530,15 @@ test('MCP server uploads raw files with associated brain pages', async () => {
     assert.equal(created.error, undefined, created.error?.message);
     assert.equal(created.result.structuredContent.raw_file.path, 'sources/.raw/mcp-upload.pdf');
     assert.equal(created.result.structuredContent.raw_file.size, pdfBytes.length);
-    assert.equal(created.result.structuredContent.page.slug, 'sources/mcp-upload');
+    assert.equal(created.result.structuredContent.page.slug, 'sources/.raw/mcp-upload');
     assert.equal(created.result.structuredContent.page.frontmatter.raw_file, 'sources/.raw/mcp-upload.pdf');
-    assert.match(created.result.structuredContent.page.markdown, /- \[mcp-upload\.pdf\]\(\.raw\/mcp-upload\.pdf\)/);
+    assert.match(created.result.structuredContent.page.markdown, /- \[mcp-upload\.pdf\]\(mcp-upload\.pdf\)/);
 
     const storedRaw = await fs.readFile(path.join(fixture.brainHome, 'sources', '.raw', 'mcp-upload.pdf'));
     assert.deepEqual(storedRaw, pdfBytes);
 
     const db = await openDatabase(config);
-    const record = await getPageRecord(db, 'sources/mcp-upload');
+    const record = await getPageRecord(db, 'sources/.raw/mcp-upload');
     assert.equal(record.title, 'MCP Upload');
     assert.match(record.compiled_truth, /Uploaded through the MCP raw file tool/);
   } finally {
