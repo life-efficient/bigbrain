@@ -2,6 +2,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 
 import {
   CANONICAL_SCHEMA_DIRS,
@@ -62,7 +64,10 @@ export async function loadUserEnv(env = process.env, envPath = userEnvPath(env))
   try {
     raw = await fs.readFile(envPath, 'utf8');
   } catch (error) {
-    if (isMissingFileError(error)) return { path: envPath, loaded: [], missing: true };
+    if (isMissingFileError(error)) {
+      const loaded = await loadKeychainApiKey(env);
+      return { path: envPath, loaded, missing: true };
+    }
     throw error;
   }
 
@@ -72,7 +77,18 @@ export async function loadUserEnv(env = process.env, envPath = userEnvPath(env))
     env[key] = value;
     loaded.push(key);
   }
+  loaded.push(...await loadKeychainApiKey(env));
   return { path: envPath, loaded, missing: false };
+}
+
+async function loadKeychainApiKey(env) {
+  const account = env.BIGBRAIN_OPENAI_KEYCHAIN_ACCOUNT;
+  if (!account || env.OPENAI_API_KEY || process.platform !== 'darwin') return [];
+  const { stdout } = await promisify(execFile)('/usr/bin/security', [
+    'find-generic-password', '-s', 'ai.diffusing.bigbrain.openai', '-a', account, '-w',
+  ]);
+  env.OPENAI_API_KEY = stdout.trim();
+  return ['OPENAI_API_KEY'];
 }
 
 export async function loadDefaultBrainHomePointer(env = process.env) {

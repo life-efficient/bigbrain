@@ -21,6 +21,8 @@ async function main() {
   const localPersonSlug = normalizeLocalPersonSlug(options.localPersonSlug || '');
   const localOwnerEmail = options.localOwnerEmail || '';
   const localOwnerName = options.localOwnerName || '';
+  const keychainAccount = options.keychainAccount || '';
+  const electronRunAsNode = Boolean(options.electronRunAsNode);
   const plistPath = options.plistPath || path.join(os.homedir(), 'Library', 'LaunchAgents', `${label}.plist`);
   const logDir = options.logDir || path.join(os.homedir(), '.config', 'bigbrain');
   const nodePath = options.nodePath || process.execPath;
@@ -42,6 +44,8 @@ async function main() {
     stderrPath,
     home: os.homedir(),
     localPersonSlug,
+    keychainAccount,
+    electronRunAsNode,
   });
 
   if (options.dryRun) {
@@ -56,6 +60,8 @@ async function main() {
       localPersonSlug,
       localOwnerEmail,
       localOwnerName,
+      keychainAccount,
+      electronRunAsNode,
       stdoutPath,
       stderrPath,
       wouldEnsureLocalOwner: Boolean(localPersonSlug),
@@ -147,6 +153,12 @@ function parseArgs(args) {
       case '--local-owner-name':
         options.localOwnerName = args[++index];
         break;
+      case '--keychain-account':
+        options.keychainAccount = args[++index];
+        break;
+      case '--electron-run-as-node':
+        options.electronRunAsNode = true;
+        break;
       case '--dry-run':
         options.dryRun = true;
         break;
@@ -176,6 +188,8 @@ function renderLaunchAgentPlist({
   stderrPath,
   home,
   localPersonSlug,
+  keychainAccount,
+  electronRunAsNode,
 }) {
   const args = [
     nodePath,
@@ -204,12 +218,16 @@ ${args.map((arg) => `    <string>${xmlEscape(arg)}</string>`).join('\n')}
   <dict>
     <key>HOME</key>
     <string>${xmlEscape(home)}</string>
-    <key>PATH</key>
+${electronRunAsNode ? `    <key>ELECTRON_RUN_AS_NODE</key>
+    <string>1</string>
+` : ''}    <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>BIGBRAIN_MCP_AUTH_MODE</key>
     <string>none</string>
 ${localPersonSlug ? `    <key>BIGBRAIN_MCP_LOCAL_PERSON_SLUG</key>
     <string>${xmlEscape(localPersonSlug)}</string>
+` : ''}${keychainAccount ? `    <key>BIGBRAIN_OPENAI_KEYCHAIN_ACCOUNT</key>
+    <string>${xmlEscape(keychainAccount)}</string>
 ` : ''}    <key>BIGBRAIN_MCP_GIT_BACKUP</key>
     <string>1</string>
     <key>BIGBRAIN_MCP_SYNC_INTERVAL_MS</key>
