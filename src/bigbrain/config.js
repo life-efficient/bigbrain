@@ -108,9 +108,11 @@ export async function resolveBrainHome({
   throw new Error('No brain home selected. Pass --brain-home, set BIGBRAIN_HOME, or initialize a default brain home.');
 }
 
-export function buildDefaultConfig(brainHome, env = process.env) {
+export function buildDefaultConfig(brainHome, env = process.env, { brainId = null, brainName = null } = {}) {
   const resolvedBrainHome = path.resolve(brainHome);
   return {
+    brain_id: brainId || createBrainId(),
+    brain_name: normalizeBrainName(brainName || defaultBrainName(resolvedBrainHome)),
     brain_dir: resolvedBrainHome,
     schema_dirs: [...CANONICAL_SCHEMA_DIRS],
     storage_backend: 'sqlite',
@@ -132,9 +134,9 @@ export function buildDefaultConfig(brainHome, env = process.env) {
   };
 }
 
-export async function initializeBrainHome(brainHome, { env = process.env } = {}) {
+export async function initializeBrainHome(brainHome, { env = process.env, brainName = null } = {}) {
   const resolvedBrainHome = path.resolve(brainHome);
-  const config = buildDefaultConfig(resolvedBrainHome, env);
+  const config = buildDefaultConfig(resolvedBrainHome, env, { brainName });
   const metaDir = metaDirForBrainHome(resolvedBrainHome, env);
 
   await maybeMigrateLegacyRuntime(resolvedBrainHome, metaDir);
@@ -159,9 +161,15 @@ export async function loadConfig(input = null) {
   const configPath = await resolveConfigPath(input);
   const raw = await readJsonFile(configPath, 'config');
   const brainHome = requireAbsoluteString(raw.brain_dir, 'brain_dir');
-  const derivedDefault = buildDefaultConfig(brainHome);
+  const identity = legacyCompatibleBrainIdentity(raw, brainHome);
+  const derivedDefault = buildDefaultConfig(brainHome, process.env, {
+    brainId: identity.brainId,
+    brainName: identity.brainName,
+  });
 
   const config = {
+    brainId: identity.brainId,
+    brainName: identity.brainName,
     brainHome,
     configPath,
     statePath: path.join(path.dirname(configPath), STATE_FILENAME),
@@ -234,6 +242,20 @@ export async function persistState(statePath, state) {
   await fs.writeFile(statePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
 }
 
+export async function updateBrainName(input, brainName) {
+  const configPath = await resolveConfigPath(input);
+  const raw = await readJsonFile(configPath, 'config');
+  const brainHome = requireAbsoluteString(raw.brain_dir, 'brain_dir');
+  const identity = legacyCompatibleBrainIdentity(raw, brainHome);
+  const next = {
+    ...raw,
+    brain_id: raw.brain_id || identity.brainId,
+    brain_name: normalizeBrainName(brainName),
+  };
+  await fs.writeFile(configPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
+  return loadConfig({ configPath });
+}
+
 async function resolveConfigPath(input) {
   if (typeof input === 'string') return path.resolve(input);
   if (input?.configPath) return path.resolve(input.configPath);
@@ -277,6 +299,8 @@ async function reconcileConfigFile(configPath, desiredConfig) {
   const current = await readJsonFile(configPath, 'config');
   const next = {
     ...current,
+    brain_id: current.brain_id || desiredConfig.brain_id,
+    brain_name: current.brain_name || desiredConfig.brain_name,
     brain_dir: desiredConfig.brain_dir,
   };
   if (current.sqlite_path && path.resolve(current.sqlite_path) === desiredConfig.sqlite_path) delete next.sqlite_path;
@@ -287,6 +311,44 @@ async function reconcileConfigFile(configPath, desiredConfig) {
 function configFileDefaults(config) {
   const { sqlite_path: _sqlitePath, ...stored } = config;
   return stored;
+}
+
+function createBrainId() {
+  return `brn_${crypto.randomUUID()}`;
+}
+
+function defaultBrainName(brainHome) {
+  const basename = path.basename(brainHome).trim();
+  if (!basename) return 'BigBrain';
+  return basename
+    .split(/[-_\s]+/)
+    .filter(Boolean)
+    .map((part) => `${part[0].toUpperCase()}${part.slice(1)}`)
+    .join(' ');
+}
+
+function normalizeBrainName(value) {
+  return requireNonEmptyString(value, 'brain_name').replace(/\s+/g, ' ').trim();
+}
+
+function requireBrainId(value) {
+  const normalized = requireNonEmptyString(value, 'brain_id');
+  if (!/^brn_[0-9a-f-]{36}$/i.test(normalized)) {
+    throw new Error('Invalid config: "brain_id" must be a BigBrain-generated immutable ID.');
+  }
+  return normalized;
+}
+
+function legacyCompatibleBrainIdentity(raw, brainHome) {
+  return {
+    brainId: raw.brain_id ? requireBrainId(raw.brain_id) : legacyBrainId(brainHome),
+    brainName: normalizeBrainName(raw.brain_name || defaultBrainName(brainHome)),
+  };
+}
+
+function legacyBrainId(brainHome) {
+  const hex = crypto.createHash('sha256').update(path.resolve(brainHome)).digest('hex').slice(0, 32);
+  return `brn_${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
 function normalizeStorageBackend(value) {

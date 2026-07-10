@@ -1,4 +1,6 @@
 {
+  "brain_id": "brn_00000000-0000-4000-8000-000000000000",
+  "brain_name": "Personal Brain",
   "brain_dir": "/absolute/path/to/your/brain-home",
   "schema_dirs": [
     "people",

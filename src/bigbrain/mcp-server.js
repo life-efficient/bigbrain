@@ -237,7 +237,7 @@ async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor, 
         return jsonRpcResult(message.id, {
           protocolVersion: message.params?.protocolVersion || DEFAULT_MCP_PROTOCOL_VERSION,
           capabilities: { tools: {} },
-          serverInfo: { name: 'bigbrain', version: '0.1.0' },
+          serverInfo: { name: config.brainName, version: '0.1.0' },
         });
       case 'ping':
         return jsonRpcResult(message.id, {});

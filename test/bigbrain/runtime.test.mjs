@@ -6,7 +6,7 @@ import path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import { configPathForBrainHome, initializeBrainHome, loadConfig, loadUserEnv, metaDirForBrainHome, userEnvPath } from '../../src/bigbrain/config.js';
+import { configPathForBrainHome, initializeBrainHome, loadConfig, loadUserEnv, metaDirForBrainHome, updateBrainName, userEnvPath } from '../../src/bigbrain/config.js';
 import { getHostedBrainGitState, openDatabase } from '../../src/bigbrain/db.js';
 import { filingRulesForBrain } from '../../src/bigbrain/filing-rules.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
@@ -57,8 +57,44 @@ test('init defaults runtime state under the selected brain home', async () => {
     await fs.stat(path.join(brainHome, '.bigbrain-state'));
     await assert.rejects(fs.stat(path.join(env.HOME, '.bigbrain-state', 'brains')));
     const storedConfig = JSON.parse(await fs.readFile(init.configPath, 'utf8'));
+    assert.match(storedConfig.brain_id, /^brn_[0-9a-f-]{36}$/);
+    assert.equal(storedConfig.brain_name, 'Brain Home');
     assert.equal('tasks_file' in storedConfig, false);
     assert.equal('sqlite_path' in storedConfig, false);
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('brain identity supports an explicit editable name and immutable ID', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-identity-'));
+  try {
+    const brainHome = path.join(rootDir, 'brain');
+    const env = { ...process.env, BIGBRAIN_POINTER_PATH: path.join(rootDir, 'pointer'), BIGBRAIN_STATE_ROOT: path.join(rootDir, 'state') };
+    const init = await initializeBrainHome(brainHome, { env, brainName: 'Personal Brain' });
+    const before = await loadConfig({ configPath: init.configPath });
+    assert.equal(before.brainName, 'Personal Brain');
+    const after = await updateBrainName({ configPath: init.configPath }, 'Private Brain');
+    assert.equal(after.brainName, 'Private Brain');
+    assert.equal(after.brainId, before.brainId);
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('legacy read-only config gets stable in-memory identity without a config write', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-legacy-identity-'));
+  try {
+    const brainHome = path.join(rootDir, 'legacy-brain');
+    const configPath = path.join(rootDir, 'config.json');
+    await fs.mkdir(brainHome, { recursive: true });
+    await fs.writeFile(configPath, `${JSON.stringify({ brain_dir: brainHome })}\n`, 'utf8');
+    const before = await fs.readFile(configPath, 'utf8');
+    const first = await loadConfig({ configPath });
+    const second = await loadConfig({ configPath });
+    assert.equal(first.brainId, second.brainId);
+    assert.equal(first.brainName, 'Legacy Brain');
+    assert.equal(await fs.readFile(configPath, 'utf8'), before);
   } finally {
     await fs.rm(rootDir, { recursive: true, force: true });
   }

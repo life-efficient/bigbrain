@@ -2,7 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
 
-import { initializeBrainHome, loadConfig, loadState, loadUserEnv, persistState, resolveBrainHome } from './config.js';
+import { initializeBrainHome, loadConfig, loadState, loadUserEnv, persistState, resolveBrainHome, updateBrainName } from './config.js';
 import { dbDoctor, openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
 import { runHealthCheck } from './health.js';
 import { fullPathFromSlug } from './markdown.js';
@@ -20,6 +20,7 @@ export async function runCli(argv) {
   const { command, args, global } = parseGlobalArgs(argv);
   switch (command) {
     case 'init': return handleInit(args, global);
+    case 'identity': return handleIdentity(args, global);
     case 'recent': return handleRecent(args, global);
     case 'sync': return handleSync(global);
     case 'list': return handleList(args, global);
@@ -49,10 +50,30 @@ export async function runCli(argv) {
   }
 }
 
+async function handleIdentity(args, global) {
+  const action = args[0] || 'show';
+  if (action === 'show') {
+    const config = await loadRuntimeConfig(global);
+    const identity = { brain_id: config.brainId, brain_name: config.brainName };
+    output(global, identity, `${identity.brain_name}\n${identity.brain_id}`);
+    return;
+  }
+  if (action === 'set-name') {
+    const brainName = args.slice(1).join(' ').trim();
+    if (!brainName) throw new Error('Usage: bigbrain identity set-name <name>');
+    const config = await updateBrainName(global.configPath ? { configPath: global.configPath } : { brainHome: global.brainHome || await resolveBrainHome({}) }, brainName);
+    const identity = { brain_id: config.brainId, brain_name: config.brainName };
+    output(global, identity, `Renamed brain to ${identity.brain_name}\nBrain ID: ${identity.brain_id}`);
+    return;
+  }
+  throw new Error(`Unknown identity command: ${action}`);
+}
+
 async function handleInit(args, global) {
-  const brainHome = args[0] ? path.resolve(args[0]) : global.brainHome || path.resolve(process.cwd(), 'bigbrain-home');
-  const result = await initializeBrainHome(brainHome);
-  output(global, result, `Initialized bigbrain home at ${result.brainHome}\nConfig: ${result.configPath}`);
+  const positional = args.filter((arg, index) => index === 0 || args[index - 1] !== '--name').filter((arg) => arg !== '--name');
+  const brainHome = positional[0] ? path.resolve(positional[0]) : global.brainHome || path.resolve(process.cwd(), 'bigbrain-home');
+  const result = await initializeBrainHome(brainHome, { brainName: argValue(args, '--name') || null });
+  output(global, result, `Initialized ${result.config.brain_name} at ${result.brainHome}\nBrain ID: ${result.config.brain_id}\nConfig: ${result.configPath}`);
 }
 
 async function handleRecent(args, global) {
@@ -470,7 +491,9 @@ function printHelp() {
   console.log(`Usage: bigbrain <command> [options]
 
 Commands:
-  init [brain-home]
+  init [brain-home] [--name NAME]
+  identity [show]
+  identity set-name <name>
   sync
   list [--type TYPE]
   get <slug>
