@@ -164,6 +164,11 @@ use quoted `BigBrain: ...` values so the colon remains valid YAML.
 
 ## Brain selection
 
+Ask for the human-facing brain name when creating a new brain. Initialize it
+with `bigbrain init /path/to/brain-home --name "Personal Brain"`. BigBrain
+stores an immutable generated `brain_id` plus the editable `brain_name`; it does
+not store a canonical slug.
+
 BigBrain resolves the brain home without relying on the current directory:
 
 1. `--brain-home /path/to/brain-home`
@@ -337,6 +342,12 @@ node "$repo_root/scripts/install-local-mcp-service.mjs" \
   --local-owner-name "Hani" \
   --local-owner-email hani@example.com
 ```
+
+The default label and port preserve compatibility with existing single-brain
+installs. For an additional local brain, choose a distinct persisted service
+label, port, and Codex MCP registration derived from its name, for example
+`local.bigbrain.research-brain`, port `3334`, and `research_brain`. Do not rename
+those aliases automatically when `brain_name` changes.
 
 Use the target brain owner's real `people/<slug>` page, display name, and email.
 The installer creates or repairs an active local owner row before starting the

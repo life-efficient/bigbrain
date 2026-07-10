@@ -7,6 +7,28 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ### Added
 
+- Added first-class brain identity with an immutable generated `brain_id`, an
+  editable `brain_name`, named initialization, and `bigbrain identity` commands.
+- Formalized one BigBrain runtime instance per brain. Multiple local or hosted
+  brains use isolated services, databases, users, authentication boundaries,
+  secrets, backups, ports, and MCP registrations while sharing the same
+  BigBrain software.
+
+### Changed
+
+- Legacy configs remain readable without modification, including read-only
+  hosted config mounts. They receive a stable compatibility identity in memory
+  until an explicit initialization or identity update persists the new fields.
+- Additional local MCP services can use distinct labels, ports, plist files,
+  and now distinct log filenames. Existing `local.bigbrain.mcp` defaults remain
+  unchanged.
+
+### Deprecated
+
+- Deprecated the conceptual model of multiple brains inside one running
+  BigBrain service. Brain-selection flags and the default-brain pointer remain
+  supported for choosing among isolated instances.
+
 - Added first-class shared groups stored in the runtime database. Groups have
   simple `/shared/<slug>` URLs, ordered member pages, optional redirects, MCP
   read/write tools, and a dedicated public group UI.
@@ -22,6 +44,12 @@ actions` section for agents maintaining local installs and hosted brains.
   redirect to the canonical slug.
 
 ### Agent update actions
+
+- Treat this feature set as the upcoming `0.11.0` minor release rather than a
+  `0.10.x` patch: it adds public configuration and CLI behavior without removing
+  existing behavior.
+- Existing MCP registrations such as `[mcp_servers.bigbrain]` remain valid and
+  must not be renamed automatically.
 
 - Pull the latest BigBrain checkout and restart hosted or local MCP/dashboard
   services that serve public pages before renaming already-shared public pages.

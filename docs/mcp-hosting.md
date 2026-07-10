@@ -4,6 +4,11 @@ BigBrain can expose one configured brain over HTTP as an MCP server. The server
 does not discover or publish every local brain. It serves the `brain_dir` from
 the config used to start `bigbrain mcp`.
 
+One process serves one brain. Do not multiplex several brains through one
+runtime or database. Give every hosted brain its own deployment, database,
+member directory, authentication configuration, secrets, and backup lifecycle.
+Several deployments can run the same BigBrain release independently.
+
 The hosted server is still a knowledge service, not an agent runtime. Agents
 visit it over MCP/API when they need memory, search, query, or controlled
 writes. The agents themselves can live in Codex, Relay, Claude, local scripts,

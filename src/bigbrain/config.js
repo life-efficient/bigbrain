@@ -170,6 +170,7 @@ export async function loadConfig(input = null) {
   const config = {
     brainId: identity.brainId,
     brainName: identity.brainName,
+    brainIdentityPersisted: Boolean(raw.brain_id && raw.brain_name),
     brainHome,
     configPath,
     statePath: path.join(path.dirname(configPath), STATE_FILENAME),

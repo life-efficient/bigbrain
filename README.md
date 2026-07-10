@@ -145,6 +145,26 @@ See:
 
 ## Brain Home
 
+BigBrain is the software; a brain is one isolated knowledge system. Each brain
+has an immutable `brain_id` and an editable `brain_name`. One running BigBrain
+MCP service serves exactly one configured brain, including its own content,
+database, members, authentication boundary, secrets, and backups. A machine may
+run several isolated BigBrain services, each with its own brain home, port, and
+MCP client registration.
+
+Create a named brain or inspect and rename an existing one with:
+
+```sh
+bigbrain init /path/to/personal-brain --name "Personal Brain"
+bigbrain --brain-home /path/to/personal-brain identity show
+bigbrain --brain-home /path/to/personal-brain identity set-name "Private Brain"
+```
+
+MCP registration names and deployment/service labels are client-owned aliases.
+They may be normalized from the brain name during installation, but they are
+persisted independently so renaming a brain does not break existing clients.
+There is intentionally no canonical brain slug.
+
 Running `bigbrain init /path/to/home` creates:
 
 - the canonical top-level page directories

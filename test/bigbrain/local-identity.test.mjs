@@ -155,6 +155,29 @@ test('local MCP installer dry-run reports local owner bootstrapping intent', asy
   }
 });
 
+test('additional local MCP instances get isolated service and log paths', async () => {
+  const fixture = await createFixture('bigbrain-local-multi-instance-');
+  try {
+    const installerPath = path.resolve('scripts/install-local-mcp-service.mjs');
+    const { stdout } = await execFileAsync(process.execPath, [
+      installerPath,
+      '--repo-root', process.cwd(),
+      '--brain-home', fixture.brainHome,
+      '--label', 'local.bigbrain.research-brain',
+      '--port', '3334',
+      '--dry-run',
+    ], { env: fixture.env });
+    const result = JSON.parse(stdout);
+    assert.equal(result.label, 'local.bigbrain.research-brain');
+    assert.equal(result.port, 3334);
+    assert.match(result.plistPath, /local\.bigbrain\.research-brain\.plist$/);
+    assert.match(result.stdoutPath, /local\.bigbrain\.research-brain\.log$/);
+    assert.match(result.stderrPath, /local\.bigbrain\.research-brain\.err\.log$/);
+  } finally {
+    await removeTempFixture(fixture.rootDir);
+  }
+});
+
 test('local identity fixtures do not rewrite the real default brain pointer', async () => {
   const before = await readIfExists(DEFAULT_POINTER_PATH);
   const fixture = await createFixture('bigbrain-local-owner-pointer-isolation-');

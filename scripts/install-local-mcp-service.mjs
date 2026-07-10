@@ -26,6 +26,9 @@ async function main() {
   const nodePath = options.nodePath || process.execPath;
   const bigbrainBin = options.bigbrainBin || path.join(repoRoot, 'bin', 'bigbrain.js');
   const serviceTarget = `gui/${process.getuid?.() ?? await userId()}/${label}`;
+  const logStem = label === DEFAULT_LABEL ? 'bigbrain-mcp' : safeLogStem(label);
+  const stdoutPath = path.join(logDir, `${logStem}.log`);
+  const stderrPath = path.join(logDir, `${logStem}.err.log`);
 
   const plist = renderLaunchAgentPlist({
     label,
@@ -35,8 +38,8 @@ async function main() {
     host,
     port,
     workingDirectory: repoRoot,
-    stdoutPath: path.join(logDir, 'bigbrain-mcp.log'),
-    stderrPath: path.join(logDir, 'bigbrain-mcp.err.log'),
+    stdoutPath,
+    stderrPath,
     home: os.homedir(),
     localPersonSlug,
   });
@@ -53,6 +56,8 @@ async function main() {
       localPersonSlug,
       localOwnerEmail,
       localOwnerName,
+      stdoutPath,
+      stderrPath,
       wouldEnsureLocalOwner: Boolean(localPersonSlug),
     }, null, 2));
     return;
@@ -95,6 +100,10 @@ async function main() {
     localPersonSlug,
     localOwnerEnsured: Boolean(localPersonSlug),
   }, null, 2));
+}
+
+function safeLogStem(label) {
+  return label.toLowerCase().replace(/[^a-z0-9.-]+/g, '-').replace(/^-+|-+$/g, '') || 'bigbrain-mcp';
 }
 
 function parseArgs(args) {

@@ -46,6 +46,8 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
       syncIntervalMs: 0,
       gitBackupEnabled: false,
     });
+    const handshake = await rpc(running.url, 'initialize', { protocolVersion: '2024-11-05' }, 'secret');
+    assert.equal(handshake.result.serverInfo.name, 'Brain');
 
     const publicPage = await fetch(running.url.replace('/mcp', '/public/people/public'), { redirect: 'manual' });
     assert.equal(publicPage.status, 200);

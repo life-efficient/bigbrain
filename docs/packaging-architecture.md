@@ -10,6 +10,20 @@ BigBrain should ship as one runtime with two supported product modes:
 Other deployment shapes are implementation details or roadmap variants. They
 should wrap these two modes rather than define separate products.
 
+## Identity And Isolation
+
+BigBrain is the software. Each brain has an immutable `brain_id` and editable
+`brain_name`, and each running instance serves exactly one brain. Multiple
+brains on one machine are multiple isolated service instances, not tenants
+inside one runtime. Selection mechanisms such as `--brain-home`,
+`BIGBRAIN_HOME`, and the default-brain pointer choose an instance; they do not
+weaken the one-instance-one-brain boundary.
+
+MCP registrations, service labels, deployment names, and ports are installation
+aliases rather than canonical brain identity. Installers may normalize an alias
+from `brain_name`, but must persist it independently so a display-name change
+does not silently rename or disconnect clients.
+
 ## Layering
 
 ```text
