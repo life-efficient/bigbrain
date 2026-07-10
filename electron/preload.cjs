@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('bigbrainDesktop', {
   state: () => ipcRenderer.invoke('desktop:state'),
   createBrain: (input) => ipcRenderer.invoke('desktop:create-brain', input),
+  chooseExistingBrain: () => ipcRenderer.invoke('desktop:choose-existing-brain'),
   activate: (id) => ipcRenderer.invoke('desktop:activate', id),
   rename: (id, name) => ipcRenderer.invoke('desktop:rename', id, name),
   restart: (id) => ipcRenderer.invoke('desktop:restart', id),

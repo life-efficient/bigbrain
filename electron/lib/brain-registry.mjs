@@ -61,6 +61,26 @@ export class BrainRegistry {
     return brain;
   }
 
+  async registerExisting({ id, name, home, ownerName, ownerEmail }) {
+    const registry = await this.load();
+    const resolvedHome = path.resolve(home);
+    const duplicate = registry.brains.find((brain) => brain.id === id || path.resolve(brain.home) === resolvedHome);
+    if (duplicate) throw new Error(`This brain is already registered as ${duplicate.name}.`);
+    const port = await allocatePort(registry.brains.map((brain) => brain.port), this.host);
+    const brain = {
+      id, name: String(name).trim(), home: resolvedHome, port, host: this.host,
+      serviceLabel: `ai.diffusing.bigbrain.${id}`, status: 'setup',
+      owner: { name: String(ownerName).trim(), email: String(ownerEmail).trim().toLowerCase() },
+      aiAccess: { type: 'bring_your_own_key', provider: 'openai' },
+      onboarding: { step: 4, completed: false, error: null },
+      createdAt: new Date().toISOString(), lastOpenedAt: new Date().toISOString(),
+    };
+    registry.brains.push(brain);
+    registry.activeBrainId = id;
+    await this.save(registry);
+    return brain;
+  }
+
   async update(id, updates) {
     const registry = await this.load();
     const index = registry.brains.findIndex((brain) => brain.id === id);

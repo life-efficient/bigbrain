@@ -232,6 +232,11 @@ function registerDesktopIpc() {
   const handlers = {
     "desktop:state": () => desktopController.state(),
     "desktop:create-brain": (_event, input) => desktopController.createBrain(input),
+    "desktop:choose-existing-brain": async () => {
+      const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory"], title: "Choose an existing BigBrain folder" });
+      if (result.canceled || !result.filePaths[0]) return null;
+      return desktopController.inspectExistingBrain(result.filePaths[0]);
+    },
     "desktop:activate": (_event, id) => desktopController.activate(id),
     "desktop:rename": (_event, id, name) => desktopController.rename(id, name),
     "desktop:restart": (_event, id) => desktopController.restart(id),

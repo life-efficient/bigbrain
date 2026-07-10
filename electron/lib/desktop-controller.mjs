@@ -28,9 +28,25 @@ export class DesktopController {
     return true;
   }
 
+  async inspectExistingBrain(home) {
+    if (!home) throw new Error('Choose a brain folder.');
+    const resolvedHome = path.resolve(home);
+    try {
+      await fs.access(path.join(resolvedHome, '.bigbrain-state', 'config.json'));
+    } catch {
+      throw new Error('That folder is not an initialized BigBrain brain. Choose the brain folder containing .bigbrain-state.');
+    }
+    const { loadConfig } = await import(pathToModule(this.appPath, 'src/bigbrain/config.js'));
+    const config = await loadConfig({ brainHome: resolvedHome });
+    return { id: config.brainId, name: config.brainName, home: config.brainHome };
+  }
+
   async createBrain(input) {
     validateInput(input);
-    const draft = await this.registry.createDraft(input);
+    const existing = input.existingHome ? await this.inspectExistingBrain(input.existingHome) : null;
+    const draft = existing
+      ? await this.registry.registerExisting({ ...existing, ownerName: input.ownerName, ownerEmail: input.ownerEmail })
+      : await this.registry.createDraft(input);
     try {
       await this.validateApiKey(input.apiKey);
       await this.keychain.set(draft.id, input.apiKey);
@@ -39,7 +55,7 @@ export class DesktopController {
         import(pathToModule(this.appPath, 'src/bigbrain/config.js')),
         import(pathToModule(this.appPath, 'src/bigbrain/sync.js')),
       ]);
-      await initializeBrainHome(draft.home, { brainName: draft.name });
+      if (!existing) await initializeBrainHome(draft.home, { brainName: draft.name });
       const ownerSlug = `people/${slugify(input.ownerName)}`;
       await this.installService(draft, { ownerSlug });
       const config = await loadConfig({ brainHome: draft.home });
