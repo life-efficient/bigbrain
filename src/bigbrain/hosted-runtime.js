@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { CANONICAL_SCHEMA_DIRS } from './constants.js';
+import { createBrainId } from './config.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const packageRoot = path.resolve(moduleDir, '..', '..');
@@ -76,10 +77,13 @@ async function prepareBrainRepo(options, env) {
   });
 }
 
-async function prepareBigBrainRuntime(options, env) {
+export async function prepareBigBrainRuntime(options, env = process.env) {
   await fs.mkdir(options.runtimeDir, { recursive: true });
+  const existingConfig = await readJsonIfExists(options.configPath);
   await writeIfMissing(options.tasksPath, `# ${options.brainName} Tasks\n\n---\n\n## Timeline\n\n- **${today()}** | Runtime tasks file created for hosted BigBrain.\n`);
   await writeJson(options.configPath, {
+    brain_id: existingConfig?.brain_id || createBrainId(),
+    brain_name: options.brainName,
     brain_dir: options.brainDir,
     tasks_file: options.tasksPath,
     schema_dirs: [...CANONICAL_SCHEMA_DIRS],
@@ -100,6 +104,15 @@ async function prepareBigBrainRuntime(options, env) {
     last_run_summary: null,
     last_seen_files: [],
   }, null, 2)}\n`);
+}
+
+async function readJsonIfExists(filePath) {
+  try {
+    return JSON.parse(await fs.readFile(filePath, 'utf8'));
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
 }
 
 async function seedMembers(options, env) {
@@ -316,4 +329,3 @@ function repoDirName(repoUrl, fallback) {
   const tail = clean.split('/').filter(Boolean).at(-1);
   return tail || slugName(fallback);
 }
-

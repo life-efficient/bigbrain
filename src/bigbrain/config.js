@@ -314,7 +314,7 @@ function configFileDefaults(config) {
   return stored;
 }
 
-function createBrainId() {
+export function createBrainId() {
   return `brn_${crypto.randomUUID()}`;
 }
 

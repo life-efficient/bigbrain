@@ -10,6 +10,44 @@ import { getPageRecord, listMcpAuditLog, openDatabase } from '../../src/bigbrain
 import { upsertMember } from '../../src/bigbrain/members.js';
 import { startMcpServer } from '../../src/bigbrain/mcp-server.js';
 
+test('isolated MCP instances cannot read or search each other\'s brains', async () => {
+  const first = await createFixture('bigbrain-isolation-a-');
+  const second = await createFixture('bigbrain-isolation-b-');
+  let firstServer;
+  let secondServer;
+  try {
+    await fs.writeFile(path.join(first.brainHome, 'people', 'only-a.md'), '# Only Alpha\n\nalpha-isolation-token\n', 'utf8');
+    await fs.writeFile(path.join(second.brainHome, 'people', 'only-b.md'), '# Only Beta\n\nbeta-isolation-token\n', 'utf8');
+    const firstConfig = await loadConfig({ configPath: first.configPath });
+    const secondConfig = await loadConfig({ configPath: second.configPath });
+    firstServer = await startMcpServer({ config: firstConfig, host: '127.0.0.1', port: 0, authToken: 'first-secret', syncIntervalMs: 0 });
+    secondServer = await startMcpServer({ config: secondConfig, host: '127.0.0.1', port: 0, authToken: 'second-secret', syncIntervalMs: 0 });
+
+    const firstOwn = await rpc(firstServer.url, 'tools/call', { name: 'read', arguments: { path: 'people/only-a' } }, 'first-secret');
+    const firstOther = await rpc(firstServer.url, 'tools/call', { name: 'read', arguments: { path: 'people/only-b' } }, 'first-secret');
+    const secondOwn = await rpc(secondServer.url, 'tools/call', { name: 'read', arguments: { path: 'people/only-b' } }, 'second-secret');
+    const secondOther = await rpc(secondServer.url, 'tools/call', { name: 'read', arguments: { path: 'people/only-a' } }, 'second-secret');
+    assert.match(JSON.stringify(firstOwn), /alpha-isolation-token/);
+    assert.ok(firstOther.error);
+    assert.match(JSON.stringify(secondOwn), /beta-isolation-token/);
+    assert.ok(secondOther.error);
+
+    const escaped = await rpc(firstServer.url, 'tools/call', { name: 'read', arguments: { path: '../brain/people/only-b' } }, 'first-secret');
+    assert.ok(escaped.error || /invalid|outside|not found/i.test(JSON.stringify(escaped)));
+
+    const firstHealth = await fetch(firstServer.url.replace('/mcp', '/health')).then((response) => response.json());
+    const secondHealth = await fetch(secondServer.url.replace('/mcp', '/health')).then((response) => response.json());
+    assert.equal(firstHealth.brain_id, firstConfig.brainId);
+    assert.equal(secondHealth.brain_id, secondConfig.brainId);
+    assert.notEqual(firstHealth.brain_id, secondHealth.brain_id);
+  } finally {
+    await firstServer?.close();
+    await secondServer?.close();
+    await fs.rm(first.rootDir, { recursive: true, force: true });
+    await fs.rm(second.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('MCP server lists tools and writes pages through tools/call', async () => {
   const fixture = await createFixture('bigbrain-mcp-server-');
   let running;

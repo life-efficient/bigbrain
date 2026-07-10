@@ -148,7 +148,11 @@ export async function startMcpServer({
         }
       }
       if (request.method === 'GET' && request.url === '/health') {
-        return sendJson(response, 200, { ok: true });
+        return sendJson(response, 200, {
+          ok: true,
+          brain_id: config.brainId,
+          brain_name: config.brainName,
+        });
       }
       if (isDashboardRequest(route.pathname)) {
         if (isDashboardAdminRequest(route.pathname)) {
