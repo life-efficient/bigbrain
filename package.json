@@ -14,7 +14,7 @@
     "sync": "node ./bin/bigbrain.js sync",
     "schema": "node ./bin/bigbrain.js schema",
     "desktop:dev": "node electron/dev-launcher.cjs",
-    "desktop:dist": "electron-builder --mac dmg zip",
+    "desktop:dist": "npm run build:dashboard && electron-builder --mac dmg zip --universal",
     "desktop:dir": "electron-builder --mac dir",
     "test": "node --test test/bigbrain/*.test.mjs"
   },
@@ -50,6 +50,7 @@
     "directories": {
       "output": "dist/electron"
     },
+    "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
     "files": [
       "bin/**/*",
       "electron/**/*",
@@ -61,6 +62,8 @@
     "mac": {
       "icon": "electron/assets/desktop-app-icon.icns",
       "category": "public.app-category.productivity",
+      "identity": null,
+      "hardenedRuntime": false,
       "target": [
         {
           "target": "dmg",

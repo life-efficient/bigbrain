@@ -1,0 +1,70 @@
+name: Release macOS desktop app
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release-macos:
+    runs-on: macos-14
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify tag matches package version
+        if: github.event_name == 'push'
+        run: |
+          expected="v$(node -p "require('./package.json').version")"
+          if [ "$GITHUB_REF_NAME" != "$expected" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package version $expected." >&2
+            exit 1
+          fi
+
+      - name: Run tests
+        run: npm test
+
+      - name: Build unsigned universal macOS packages
+        run: npm run desktop:dist
+
+      - name: Generate SHA-256 checksums
+        working-directory: dist/electron
+        run: shasum -a 256 BigBrain-*-mac-universal.dmg BigBrain-*-mac-universal.zip > SHA256SUMS.txt
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: BigBrain-${{ github.ref_name }}-macOS
+          path: |
+            dist/electron/BigBrain-*-mac-universal.dmg
+            dist/electron/BigBrain-*-mac-universal.zip
+            dist/electron/SHA256SUMS.txt
+          if-no-files-found: error
+
+      - name: Attach packages to GitHub Release
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME"
+          dist/electron/BigBrain-*-mac-universal.dmg
+          dist/electron/BigBrain-*-mac-universal.zip
+          dist/electron/SHA256SUMS.txt
+          --verify-tag
+          --generate-notes
+          --title "BigBrain $GITHUB_REF_NAME"
