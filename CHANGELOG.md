@@ -5,6 +5,20 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## Unreleased
 
+### Fixed
+
+- Public page renames now preserve old public slugs through `redirect_from`
+  metadata. `rename_page` records the previous slug, public page/raw lookups
+  resolve those redirects, and direct `/public/<old-slug>` browser requests
+  redirect to the canonical slug.
+
+### Agent update actions
+
+- Pull the latest BigBrain checkout and restart hosted or local MCP/dashboard
+  services that serve public pages before renaming already-shared public pages.
+- After a public page rename, verify both `/public/<new-slug>` and the prior
+  `/public/<old-slug>` URL.
+
 ## [0.10.0] - 2026-07-08
 
 ### Added

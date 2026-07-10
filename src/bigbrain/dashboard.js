@@ -143,6 +143,15 @@ export async function createDashboardRequestHandler(config, {
         actor = authorization.actor || null;
       }
       if (isPublicAppPath(requestUrl.pathname)) {
+        const redirectLocation = await publicRedirectLocation(config, requestUrl);
+        if (redirectLocation) {
+          res.writeHead(308, {
+            location: redirectLocation,
+            'Cache-Control': 'no-store',
+          });
+          res.end();
+          return;
+        }
         res.writeHead(200, {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store',
@@ -1201,24 +1210,27 @@ export async function buildPagePayload(config, db, requestUrl) {
 export async function buildPublicPagePayload(config, requestUrl) {
   const slug = normalizePublicSlug(requestUrl.searchParams.get('slug')?.trim());
   if (!slug) return null;
-  const page = await readPublicMarkdownPage(config, slug);
+  const resolved = await resolvePublicMarkdownPage(config, slug);
+  const page = resolved?.page || null;
   if (!page || !isPublicPage(page.parsed)) return null;
+  const canonicalSlug = resolved.slug;
   const rawFiles = publicRawFiles(page.parsed.frontmatter);
   const markdown = stripDuplicatePublicTitle(await sanitizePublicMarkdown({
     config,
     markdown: page.parsed.compiledTruth,
-    sourceSlug: slug,
+    sourceSlug: canonicalSlug,
     allowedRawFiles: rawFiles,
   }), page.parsed.title);
-  const linkedRawFiles = publicRawFilesReferencedByMarkdown(markdown, slug, rawFiles);
+  const linkedRawFiles = publicRawFilesReferencedByMarkdown(markdown, canonicalSlug, rawFiles);
   return {
-    slug,
+    slug: canonicalSlug,
+    redirect_to: canonicalSlug !== slug ? `/public/${canonicalSlug}` : null,
     title: page.parsed.title,
     summary: extractPageReaderSummary(page.parsed, markdown),
     markdown,
     raw_files: linkedRawFiles.map((rawPath) => ({
       filename: path.posix.basename(rawPath),
-      url: publicRawHref(slug, rawPath),
+      url: publicRawHref(canonicalSlug, rawPath),
     })),
     updated_at: page.stat.mtime.toISOString(),
   };
@@ -1243,7 +1255,8 @@ export async function buildPublicRawFilePayload(config, requestUrl) {
   if (!slug) return null;
   const requestedRawPath = normalizePublicRawQueryPath(requestUrl.searchParams.get('path'));
   if (!requestedRawPath) return null;
-  const page = await readPublicMarkdownPage(config, slug);
+  const resolved = await resolvePublicMarkdownPage(config, slug);
+  const page = resolved?.page || null;
   if (!page || !isPublicPage(page.parsed)) return null;
   const rawFiles = publicRawFiles(page.parsed.frontmatter);
   if (!rawFiles.includes(requestedRawPath)) return null;
@@ -1254,6 +1267,7 @@ export async function buildPublicRawFilePayload(config, requestUrl) {
   if (!stat?.isFile()) return null;
   return {
     path: requestedRawPath,
+    slug: resolved.slug,
     fullPath,
     filename: path.posix.basename(requestedRawPath),
     mime_type: mimeType,
@@ -1326,6 +1340,68 @@ async function readPublicMarkdownPage(config, slug) {
     if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return null;
     return null;
   }
+}
+
+async function resolvePublicMarkdownPage(config, slug) {
+  const page = await readPublicMarkdownPage(config, slug);
+  if (page && isPublicPage(page.parsed)) return { slug, page };
+  const redirect = await findPublicRedirectTarget(config, slug);
+  if (!redirect) return page ? { slug, page } : null;
+  return redirect;
+}
+
+async function publicRedirectLocation(config, requestUrl) {
+  const slug = normalizePublicSlug(publicSlugFromPublicPath(requestUrl.pathname));
+  if (!slug) return null;
+  const page = await readPublicMarkdownPage(config, slug);
+  if (page && isPublicPage(page.parsed)) return null;
+  const redirect = await findPublicRedirectTarget(config, slug);
+  if (!redirect) return null;
+  return `/public/${redirect.slug}${requestUrl.search || ''}`;
+}
+
+function publicSlugFromPublicPath(pathname) {
+  if (pathname === '/public') return '';
+  const raw = String(pathname || '').replace(/^\/public\/?/, '');
+  try {
+    return decodeURIComponent(raw).replace(/^\/+/, '').replace(/\/+$/, '');
+  } catch {
+    return raw.replace(/^\/+/, '').replace(/\/+$/, '');
+  }
+}
+
+async function findPublicRedirectTarget(config, requestedSlug) {
+  const wanted = normalizePublicSlug(requestedSlug);
+  if (!wanted) return null;
+  const pages = [];
+  await walkMarkdownPages(config.brainDir, config.brainDir, pages);
+  for (const candidateSlug of pages.sort()) {
+    const page = await readPublicMarkdownPage(config, candidateSlug);
+    if (!page || !isPublicPage(page.parsed)) continue;
+    if (publicRedirects(page.parsed.frontmatter).includes(wanted)) return { slug: candidateSlug, page };
+  }
+  return null;
+}
+
+async function walkMarkdownPages(root, current, pages) {
+  const entries = await fs.readdir(current, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (entry.name === '.git' || entry.name === '.bigbrain-state' || entry.name === '.raw') continue;
+    const fullPath = path.join(current, entry.name);
+    if (entry.isDirectory()) {
+      await walkMarkdownPages(root, fullPath, pages);
+      continue;
+    }
+    if (!entry.isFile() || !entry.name.endsWith('.md')) continue;
+    pages.push(path.relative(root, fullPath).replace(/\\/g, '/').replace(/\.md$/i, ''));
+  }
+}
+
+function publicRedirects(frontmatter = {}) {
+  const redirects = Array.isArray(frontmatter.redirect_from)
+    ? frontmatter.redirect_from
+    : [frontmatter.redirect_from];
+  return redirects.map((value) => normalizePublicSlug(value)).filter(Boolean);
 }
 
 function normalizePublicSlug(value) {

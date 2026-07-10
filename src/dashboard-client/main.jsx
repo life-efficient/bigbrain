@@ -522,6 +522,9 @@ function PublicPageApp() {
         if (!slug) throw new Error('Public page not found.');
         const params = new URLSearchParams({ slug });
         const page = await fetchJson(`/api/public/page?${params.toString()}`);
+        if (page.redirect_to && window.location.pathname !== page.redirect_to) {
+          window.history.replaceState(null, '', page.redirect_to);
+        }
         if (!cancelled) setState({ status: 'ready', error: null, page });
       } catch (error) {
         if (!cancelled) {

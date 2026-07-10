@@ -13,6 +13,7 @@ import {
   buildGraphPayload,
   buildPagePayload,
   buildPublicPagePayload,
+  buildPublicRawFilePayload,
 } from '../../src/bigbrain/dashboard.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -269,6 +270,65 @@ test('public page payload exposes only approved body content and safe links', as
       new URL('/api/public/page?slug=projects/secret', 'http://127.0.0.1'),
     );
     assert.equal(privatePayload, null);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('public page payload resolves redirect_from slugs for pages and raw files', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-public-redirect-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice-new.md', [
+      '---',
+      'title: Alice Public',
+      'visibility: public',
+      'redirect_from: [people/alice-old]',
+      'public_raw_files: [sources/.raw/deck.pdf]',
+      '---',
+      '# Alice Public',
+      '',
+      'Visible body with [Deck](../sources/.raw/deck.pdf).',
+    ].join('\n'));
+    await writeMarkdown(fixture.brainHome, 'people/private-target.md', [
+      '---',
+      'title: Private Target',
+      'redirect_from: [people/private-old]',
+      '---',
+      '# Private Target',
+      '',
+      'Not public.',
+    ].join('\n'));
+    await fs.mkdir(path.join(fixture.brainHome, 'sources', '.raw'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'sources', '.raw', 'deck.pdf'), 'pdf bytes');
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const payload = await buildPublicPagePayload(
+      config,
+      new URL('/api/public/page?slug=people/alice-old', 'http://127.0.0.1'),
+    );
+
+    assert.equal(payload.slug, 'people/alice-new');
+    assert.equal(payload.redirect_to, '/public/people/alice-new');
+    assert.match(payload.markdown, /Visible body/);
+    assert.deepEqual(payload.raw_files, [
+      {
+        filename: 'deck.pdf',
+        url: '/api/public/raw?slug=people%2Falice-new&path=sources%2F.raw%2Fdeck.pdf',
+      },
+    ]);
+
+    const rawPayload = await buildPublicRawFilePayload(
+      config,
+      new URL('/api/public/raw?slug=people/alice-old&path=sources/.raw/deck.pdf', 'http://127.0.0.1'),
+    );
+    assert.equal(rawPayload.slug, 'people/alice-new');
+    assert.equal(rawPayload.filename, 'deck.pdf');
+
+    const privateRedirectPayload = await buildPublicPagePayload(
+      config,
+      new URL('/api/public/page?slug=people/private-old', 'http://127.0.0.1'),
+    );
+    assert.equal(privateRedirectPayload, null);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

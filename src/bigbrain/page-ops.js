@@ -292,9 +292,14 @@ export async function renameBrainPage({
   const now = new Date().toISOString().slice(0, 10);
   const nextTitle = title ? requireNonEmpty(title, 'title') : existing.title;
   const nextBody = title ? replaceLeadingHeading(existing.body, existing.title, nextTitle) : existing.body;
-  const frontmatterRaw = title
+  let frontmatterRaw = title
     ? setFrontmatterValue(existing.frontmatter_raw, 'title', nextTitle)
     : existing.frontmatter_raw;
+  frontmatterRaw = setFrontmatterValue(
+    frontmatterRaw,
+    'redirect_from',
+    appendUniqueFrontmatterList(existing.frontmatter.redirect_from, fromRelative.replace(/\.md$/i, '')),
+  );
   const markdown = renderPageMarkdown({
     frontmatterRaw,
     title: nextTitle,
@@ -498,6 +503,11 @@ function setFrontmatterValue(frontmatterRaw, key, value) {
   const next = lines.filter((line) => !new RegExp(`^\\s*${escapeRegExp(key)}\\s*:`).test(line));
   next.push(`${key}: ${formatYamlValue(value)}`);
   return next.filter((line, index, array) => line.trim() || index < array.length - 1).join('\n');
+}
+
+function appendUniqueFrontmatterList(existing, value) {
+  const values = Array.isArray(existing) ? existing : [existing];
+  return [...new Set([...values, value].map((item) => String(item || '').trim()).filter(Boolean))];
 }
 
 function formatYamlValue(value) {
