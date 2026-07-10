@@ -164,7 +164,7 @@ local Postgres/pgvector service or volume
   -> bounded audit logs
 
 GitHub markdown repo
-  -> canonical cortex pages
+  -> canonical brain pages
 ```
 
 Because markdown remains canonical, the database can be rebuilt from git when
@@ -680,10 +680,13 @@ It should be concise and operational.
 
 ## Packaging Posture
 
-BigBrain should package one shared runtime in two supported product modes:
+BigBrain should package one shared runtime in three supported product modes:
 
-- local brain
-- remote brain
+- local brains: distributed through the desktop app/DMG so users do not need a
+  local Git setup or to install Electron themselves
+- hosted brains: secured shared brains operated by us on our infrastructure
+- on-prem brains: secured shared brains using the hosted runtime contract inside
+  a customer-controlled environment
 
 The CLI, Electron desktop shell, macOS LaunchAgent, Docker image, and hosted
 service should wrap the same BigBrain HTTP runtime instead of introducing

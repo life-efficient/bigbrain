@@ -69,16 +69,19 @@ The local desktop app should become a controller for the local service:
 - show the local MCP URL for agent setup
 - configure the local owner identity used for `assignee=me`
 
-## Remote Brain
+## Hosted And On-Prem Brains
 
-The remote mode is the supported shared or hosted setup:
+Hosted and on-prem modes share the same secured service model:
 
-- one hosted BigBrain service serves one configured brain
+- one BigBrain service serves one configured brain
 - markdown/git remains canonical
 - Postgres stores runtime/index and operational state
 - OAuth allowlist protects MCP and dashboard access
-- the hosted service exposes `/mcp`, `/dashboard`, `/connect`, `/public/*`, and
-  `/health`
+- the service exposes `/mcp`, `/dashboard`, `/connect`, `/public/*`,
+  `/shared/*`, and `/health`
+
+Hosted brains are operated by us on our infrastructure. On-prem brains use the
+same runtime contract, but run inside the customer's secured environment.
 
 The same Electron shell may point at a remote dashboard by setting
 `BIGBRAIN_DASHBOARD_URL` or passing `--dashboard-url`. In that mode the desktop
@@ -86,7 +89,7 @@ app is a dashboard wrapper only; service lifecycle is managed by the host.
 
 ## Roadmap Variants
 
-These variants should stay subordinate to local brain and remote brain:
+These variants should stay subordinate to local, hosted, and on-prem brains:
 
 - Docker Compose: a runnable remote-brain hosting shape for development or a
   small server.

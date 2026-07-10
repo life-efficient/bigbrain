@@ -151,6 +151,18 @@ export async function startMcpServer({
         return sendJson(response, 200, { ok: true });
       }
       if (isDashboardRequest(route.pathname)) {
+        if (isDashboardAdminRequest(route.pathname)) {
+          const authorization = authorizeTokenDashboardRequest(request, authConfig);
+          if (!authorization.ok) {
+            response.writeHead(401, {
+              'content-type': 'text/plain; charset=utf-8',
+              'www-authenticate': `Basic realm="${dashboardAuthRealm(authConfig)}", charset="UTF-8"`,
+              'cache-control': 'no-store',
+            });
+            response.end(authorization.message || 'Unauthorized');
+            return;
+          }
+        }
         return dashboardHandler(request, response);
       }
       if (request.method !== 'POST' || !request.url?.startsWith('/mcp')) {
@@ -225,6 +237,39 @@ function isDashboardRequest(pathname) {
     || pathname === '/favicon.ico'
     || pathname.startsWith('/assets/')
     || pathname.startsWith('/api/');
+}
+
+function isDashboardAdminRequest(pathname) {
+  return pathname === '/dashboard'
+    || pathname.startsWith('/dashboard/')
+    || (pathname.startsWith('/api/') && !isDashboardPublicApiRequest(pathname));
+}
+
+function isDashboardPublicApiRequest(pathname) {
+  return pathname === '/api/public/page'
+    || pathname === '/api/public/raw'
+    || pathname === '/api/shared/group'
+    || pathname === '/api/shared/raw';
+}
+
+function authorizeTokenDashboardRequest(request, authConfig) {
+  if (authConfig?.mode !== 'token') return { ok: true };
+  const expected = process.env.DASHBOARD_PASSWORD || authConfig.authToken || process.env.MCP_AUTH_TOKEN || process.env.BIGBRAIN_MCP_TOKEN || '';
+  if (!expected) return { ok: false, message: 'Dashboard authentication is not configured.' };
+
+  const authorization = request.headers.authorization || '';
+  if (authorization.startsWith('Bearer ') && authorization.slice('Bearer '.length) === expected) return { ok: true };
+  if (authorization.startsWith('Basic ')) {
+    const decoded = Buffer.from(authorization.slice('Basic '.length), 'base64').toString('utf8');
+    const password = decoded.includes(':') ? decoded.slice(decoded.indexOf(':') + 1) : decoded;
+    if (password === expected) return { ok: true };
+  }
+  return { ok: false, message: 'Dashboard authentication required.' };
+}
+
+function dashboardAuthRealm(authConfig) {
+  const name = String(authConfig?.appName || authConfig?.serviceName || 'BigBrain').replace(/"/g, '');
+  return `${name} Dashboard`;
 }
 
 async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor, authConfig }) {

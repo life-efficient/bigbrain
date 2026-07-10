@@ -18,10 +18,10 @@ Use one Railway project with two services:
 App environment:
 
 ```text
-BIGBRAIN_HOME=/app/Example Brain/cortex
+BIGBRAIN_HOME=/app/example-brain
 BIGBRAIN_MCP_AUTH_MODE=oauth_allowlist
 BIGBRAIN_MCP_PUBLIC_URL=https://your-service.example.com
-BIGBRAIN_MCP_SERVICE_NAME=Example Brain Cortex
+BIGBRAIN_MCP_SERVICE_NAME=Example Brain
 BIGBRAIN_MCP_ALLOWED_EMAILS=alice@example.com,bob@example.com
 BIGBRAIN_MCP_GOOGLE_CLIENT_ID=...
 BIGBRAIN_MCP_GOOGLE_CLIENT_SECRET=...
@@ -55,7 +55,7 @@ services:
   app:
     build: .
     environment:
-      BIGBRAIN_HOME: /brain/cortex
+      BIGBRAIN_HOME: /brain
       BIGBRAIN_MCP_AUTH_MODE: oauth_allowlist
       BIGBRAIN_MCP_PUBLIC_URL: http://example-brain.local:3333
       DATABASE_URL: postgres://bigbrain:bigbrain@postgres:5432/bigbrain
@@ -85,7 +85,7 @@ that the app is disposable and Postgres has a persistent volume.
 ## Startup Flow
 
 1. Clone or mount the Example Brain markdown repo.
-2. Ensure the BigBrain config points at the Example Brain `cortex` directory and uses
+2. Ensure the BigBrain config points at the Example Brain brain directory and uses
    `storage_backend: "postgres"`.
 3. Start Postgres.
 4. Start BigBrain MCP or the dashboard:

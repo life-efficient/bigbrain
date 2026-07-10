@@ -206,6 +206,17 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(sharedGroupPage.status, 200);
     assert.match(await sharedGroupPage.text(), /dashboard-client\.js/);
 
+    const dashboardUrl = running.url.replace('/mcp', '/dashboard');
+    const dashboardUnauthenticated = await fetch(dashboardUrl, { redirect: 'manual' });
+    assert.equal(dashboardUnauthenticated.status, 401);
+    assert.match(dashboardUnauthenticated.headers.get('www-authenticate'), /Basic realm="BigBrain Dashboard"/);
+
+    const dashboardAuthenticated = await fetch(dashboardUrl, {
+      headers: { authorization: `Basic ${Buffer.from('user:secret').toString('base64')}` },
+    });
+    assert.equal(dashboardAuthenticated.status, 200);
+    assert.match(await dashboardAuthenticated.text(), /dashboard-client\.js/);
+
     const db = await openDatabase(config);
     const record = await getPageRecord(db, 'people/mcp-test');
     assert.equal(record.title, 'MCP Test');
@@ -634,7 +645,7 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
         allowedDomains: [],
         tokenStorePath,
         allowSharedToken: false,
-        serviceName: 'Example Brain Cortex',
+        serviceName: 'Example Brain',
         appName: 'Example Brain',
       },
       syncIntervalMs: 0,
@@ -650,7 +661,7 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
     assert.match(connectHtml, /After that, update your system prompt to include/);
     assert.match(connectHtml, /Anything related to Example Brain should be stored, and searched for from the remote Example Brain brain via MCP/);
     assert.match(connectHtml, /If an expected MCP tool is missing or only part of a server&#39;s tool surface appears, use the BigBrain: Find Missing Tools skill before concluding the tool is unavailable/);
-    assert.match(connectHtml, /\[mcp_servers\.example-brain-cortex\]/);
+    assert.match(connectHtml, /\[mcp_servers\.example-brain\]/);
     assert.match(connectHtml, /aria-label="Copy config"/);
     assert.match(connectHtml, /viewBox="0 0 24 24"/);
     assert.doesNotMatch(connectHtml, /MCP config/);
@@ -743,7 +754,7 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
         allowedDomains: [],
         tokenStorePath,
         allowSharedToken: false,
-        serviceName: 'Example Brain Cortex',
+        serviceName: 'Example Brain',
         appName: 'Example Brain',
       },
       syncIntervalMs: 0,
@@ -895,7 +906,7 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
         allowedDomains: [],
         tokenStorePath,
         allowSharedToken: false,
-        serviceName: 'Example Brain Cortex',
+        serviceName: 'Example Brain',
         appName: 'Example Brain',
       },
       syncIntervalMs: 0,
@@ -1367,7 +1378,7 @@ test('MCP OAuth identity takes precedence over configured member binding', async
         tokenStorePath,
         allowSharedToken: false,
         localPersonSlug: 'people/configured-owner',
-        serviceName: 'Example Brain Cortex',
+        serviceName: 'Example Brain',
         appName: 'Example Brain',
       },
       syncIntervalMs: 0,
@@ -1458,7 +1469,7 @@ test('MCP OAuth allowlist mode exposes Codex-native OAuth endpoints', async () =
         allowedDomains: [],
         tokenStorePath,
         allowSharedToken: false,
-        serviceName: 'Example Brain Cortex',
+        serviceName: 'Example Brain',
       },
       syncIntervalMs: 0,
       gitBackupEnabled: false,

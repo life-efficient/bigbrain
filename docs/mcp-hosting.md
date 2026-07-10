@@ -4,6 +4,15 @@ BigBrain can expose one configured brain over HTTP as an MCP server. The server
 does not discover or publish every local brain. It serves the `brain_dir` from
 the config used to start `bigbrain mcp`.
 
+The same runtime contract covers two shared-brain deployment shapes:
+
+- hosted brains: operated by us on our own infrastructure
+- on-prem brains: deployed into a customer's secured environment
+
+Both shapes should use BigBrain's hosted runtime adapter instead of
+brain-specific wrapper code for route allowlists, dashboard protection, member
+seeding, sync, git backup, public pages, shared groups, and raw-file exposure.
+
 One process serves one brain. Do not multiplex several brains through one
 runtime or database. Give every hosted brain its own deployment, database,
 member directory, authentication configuration, secrets, and backup lifecycle.
@@ -265,7 +274,7 @@ Required environment:
 ```text
 BIGBRAIN_MCP_AUTH_MODE=oauth_allowlist
 BIGBRAIN_MCP_PUBLIC_URL=https://your-service.example.com
-BIGBRAIN_MCP_SERVICE_NAME=Example Brain Cortex
+BIGBRAIN_MCP_SERVICE_NAME=Example Brain
 DATABASE_URL=postgres://...
 BIGBRAIN_MCP_ALLOWED_EMAILS=alice@example.com,bob@example.com
 BIGBRAIN_MCP_ALLOWED_DOMAINS=example.com
@@ -318,7 +327,7 @@ allowlisted.
 For MCP deployments, `/connect` shows a Codex config snippet:
 
 ```toml
-[mcp_servers.example-brain-cortex]
+[mcp_servers.example-brain]
 url = "https://your-service.example.com/mcp"
 ```
 

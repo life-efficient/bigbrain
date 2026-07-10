@@ -63,7 +63,7 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
         allowedDomains: [],
         tokenStorePath,
         allowSharedToken: false,
-        serviceName: 'Example Brain Cortex',
+        serviceName: 'Example Brain',
         appName: 'Example Brain',
       },
     });
@@ -164,7 +164,7 @@ test('hosted dashboard can use active members as the OAuth allowlist', async () 
         allowedDomains: [],
         tokenStorePath: path.join(fixture.rootDir, 'tokens.json'),
         allowSharedToken: false,
-        serviceName: 'Example Brain Cortex',
+        serviceName: 'Example Brain',
         appName: 'Example Brain',
       },
     });
