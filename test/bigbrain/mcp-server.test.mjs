@@ -194,6 +194,14 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     }, 'secret');
     assert.equal(groupRead.result.structuredContent.slug, 'mcp-group');
 
+    const sharedGroupApi = await fetch(running.url.replace('/mcp', '/api/shared/group?slug=mcp-group'));
+    assert.equal(sharedGroupApi.status, 200);
+    assert.equal((await sharedGroupApi.json()).slug, 'mcp-group');
+
+    const sharedGroupPage = await fetch(running.url.replace('/mcp', '/shared/mcp-group'));
+    assert.equal(sharedGroupPage.status, 200);
+    assert.match(await sharedGroupPage.text(), /dashboard-client\.js/);
+
     const db = await openDatabase(config);
     const record = await getPageRecord(db, 'people/mcp-test');
     assert.equal(record.title, 'MCP Test');

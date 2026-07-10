@@ -220,6 +220,8 @@ function isDashboardRequest(pathname) {
     || pathname.startsWith('/dashboard/')
     || pathname === '/public'
     || pathname.startsWith('/public/')
+    || pathname === '/shared'
+    || pathname.startsWith('/shared/')
     || pathname === '/favicon.ico'
     || pathname.startsWith('/assets/')
     || pathname.startsWith('/api/');
