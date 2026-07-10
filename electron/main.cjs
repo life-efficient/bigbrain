@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, dialog, shell } = require("electron");
+const { app, BrowserWindow, Menu, dialog, shell, ipcMain } = require("electron");
 const net = require("net");
 const path = require("path");
 const { pathToFileURL } = require("url");
@@ -16,6 +16,7 @@ let dashboardUrl = null;
 let dashboardOrigin = null;
 let remoteDashboardMode = false;
 let rendererRecoveryAttempts = 0;
+let desktopController = null;
 
 const singleInstanceLock = app.requestSingleInstanceLock();
 
@@ -29,7 +30,16 @@ if (!singleInstanceLock) {
       if (process.platform === "darwin" && app.dock) {
         app.dock.setIcon(APP_ICON_PATH);
       }
-      dashboardUrl = await startDashboardRuntime();
+      const remoteDashboardUrl = resolveRemoteDashboardUrl();
+      if (remoteDashboardUrl) {
+        dashboardUrl = await startDashboardRuntime();
+      } else {
+        const { DesktopController } = await importModule("electron/lib/desktop-controller.mjs");
+        desktopController = new DesktopController({ appPath: app.getAppPath() });
+        registerDesktopIpc();
+        dashboardUrl = pathToFileURL(path.join(__dirname, "desktop.html")).href;
+        dashboardOrigin = "null";
+      }
       createAppMenu();
       createMainWindow();
     } catch (error) {
@@ -107,6 +117,7 @@ function createMainWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       spellcheck: false,
+      preload: path.join(__dirname, "preload.cjs"),
     },
   });
 
@@ -209,10 +220,26 @@ function isTrustedInternalUrl(url) {
   if (!dashboardUrl || !dashboardOrigin) return false;
   try {
     const parsed = new URL(url);
+    if (parsed.protocol === "file:" && parsed.pathname.startsWith(__dirname)) return true;
+    if (desktopController && parsed.hostname === LOCAL_HOST) return true;
     return parsed.origin === dashboardOrigin;
   } catch {
     return false;
   }
+}
+
+function registerDesktopIpc() {
+  const handlers = {
+    "desktop:state": () => desktopController.state(),
+    "desktop:create-brain": (_event, input) => desktopController.createBrain(input),
+    "desktop:activate": (_event, id) => desktopController.activate(id),
+    "desktop:rename": (_event, id, name) => desktopController.rename(id, name),
+    "desktop:restart": (_event, id) => desktopController.restart(id),
+    "desktop:instructions": (_event, id) => desktopController.instructions(id),
+    "desktop:set-default": (_event, id) => desktopController.setDefault(id),
+    "desktop:reveal": (_event, targetPath) => shell.showItemInFolder(targetPath),
+  };
+  for (const [channel, handler] of Object.entries(handlers)) ipcMain.handle(channel, handler);
 }
 
 function isRemoteDashboardAuthUrl(url) {

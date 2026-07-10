@@ -64,6 +64,7 @@
       "category": "public.app-category.productivity",
       "identity": null,
       "hardenedRuntime": false,
+      "x64ArchFiles": "Contents/Resources/app/node_modules/@esbuild/darwin-*/**",
       "target": [
         {
           "target": "dmg",
