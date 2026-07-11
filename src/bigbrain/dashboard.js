@@ -1,6 +1,8 @@
 import http from 'node:http';
+import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
 import { build } from 'esbuild';
@@ -43,6 +45,7 @@ import {
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..');
 const dashboardClientEntry = path.join(repoRoot, 'src', 'dashboard-client', 'main.jsx');
+const execFileAsync = promisify(execFile);
 const dashboardBundleFilename = 'dashboard-client.js';
 const dashboardIconDir = path.join(repoRoot, 'electron', 'assets');
 const faviconPath = path.join(dashboardIconDir, 'favicon.ico');
@@ -1997,6 +2000,7 @@ export async function buildGraphPayload(db, config = null) {
   }))).sort((a, b) => b.degree - a.degree || a.slug.localeCompare(b.slug));
 
   const allowed = new Set(candidateNodes.map((node) => node.slug));
+  const activity = await buildGraphActivity(config, candidateNodes);
   const edges = [];
   for (const node of candidateNodes) {
     for (const link of node.outgoing) {
@@ -2012,6 +2016,7 @@ export async function buildGraphPayload(db, config = null) {
       node_count: candidateNodes.length,
       edge_count: edges.length,
     },
+    activity,
     nodes: candidateNodes.map((node) => ({
       slug: node.slug,
       title: node.title,
@@ -2022,6 +2027,59 @@ export async function buildGraphPayload(db, config = null) {
     })),
     edges,
   };
+}
+
+async function buildGraphActivity(config, nodes) {
+  let gitLog = '';
+  if (config?.brainDir) {
+    try {
+      ({ stdout: gitLog } = await execFileAsync('git', [
+        'log', '--reverse', '--format=%x1e%aI', '--name-only', '--', '.',
+      ], { cwd: config.brainDir, maxBuffer: 16 * 1024 * 1024 }));
+    } catch {
+      // Non-git brains use current page timestamps as a bounded fallback.
+    }
+  }
+  return buildContinuousActivity(nodes, gitLog);
+}
+
+export function buildContinuousActivity(nodes, gitLog = '', todayDay = new Date().toISOString().slice(0, 10)) {
+  const currentPaths = new Set(nodes.map((node) => `${node.slug}.md`));
+  const pathsByDay = new Map();
+  let firstDay = null;
+
+  for (const record of String(gitLog).split('\x1e').filter(Boolean)) {
+    const [timestamp, ...files] = record.trim().split('\n').map((line) => line.trim()).filter(Boolean);
+    const day = timestamp?.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day || '')) continue;
+    if (!firstDay || day < firstDay) firstDay = day;
+    const changed = pathsByDay.get(day) || new Set();
+    for (const file of files) {
+      const normalized = file.replace(/^\.\//, '').replace(/\\/g, '/');
+      if (currentPaths.has(normalized)) changed.add(normalized);
+    }
+    pathsByDay.set(day, changed);
+  }
+
+  if (!firstDay) {
+    const days = nodes.map((node) => String(node.updated_at || '').slice(0, 10)).filter((day) => /^\d{4}-\d{2}-\d{2}$/.test(day));
+    firstDay = days.sort()[0] || null;
+    for (const node of nodes) {
+      const day = String(node.updated_at || '').slice(0, 10);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+      const changed = pathsByDay.get(day) || new Set();
+      changed.add(`${node.slug}.md`);
+      pathsByDay.set(day, changed);
+    }
+  }
+  if (!firstDay) return [];
+
+  const result = [];
+  for (let cursor = Date.parse(`${firstDay}T00:00:00.000Z`), end = Date.parse(`${todayDay}T00:00:00.000Z`); cursor <= end; cursor += 86_400_000) {
+    const day = new Date(cursor).toISOString().slice(0, 10);
+    result.push({ day, count: pathsByDay.get(day)?.size || 0 });
+  }
+  return result;
 }
 
 async function resolveGraphNodeUpdatedAt(config, page) {

@@ -11,6 +11,7 @@ import {
   buildExplorerRecentPayload,
   buildExplorerTreePayload,
   buildGraphPayload,
+  buildContinuousActivity,
   buildPagePayload,
   buildPublicPagePayload,
   buildPublicRawFilePayload,
@@ -117,6 +118,28 @@ test('dashboard graph recent timestamps reflect current markdown file edits', as
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
+});
+
+test('graph activity includes every day since the first brain commit', () => {
+  const nodes = [
+    { slug: 'people/alice', updated_at: '2026-04-29T12:00:00.000Z' },
+    { slug: 'projects/relay', updated_at: '2026-05-01T12:00:00.000Z' },
+  ];
+  const gitLog = [
+    '\x1e2026-04-26T09:00:00+03:00',
+    'people/alice.md',
+    '',
+    '\x1e2026-04-28T12:00:00+03:00',
+    'people/alice.md',
+    'projects/relay.md',
+  ].join('\n');
+  assert.deepEqual(buildContinuousActivity(nodes, gitLog, '2026-04-30'), [
+    { day: '2026-04-26', count: 1 },
+    { day: '2026-04-27', count: 0 },
+    { day: '2026-04-28', count: 2 },
+    { day: '2026-04-29', count: 0 },
+    { day: '2026-04-30', count: 0 },
+  ]);
 });
 
 test('dashboard page payload includes file explorer metadata and nearby links', async () => {

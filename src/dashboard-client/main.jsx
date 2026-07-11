@@ -1538,7 +1538,8 @@ function labelFromSlug(slug) {
     .join(' ');
 }
 
-function buildActivityBuckets(nodes) {
+function buildActivityBuckets(nodes, activity = []) {
+  if (Array.isArray(activity) && activity.length) return activity;
   const counts = new Map();
   for (const node of nodes) {
     const day = dayKeyFromTimestamp(node.updated_at);
@@ -1584,7 +1585,7 @@ const GraphPanel = memo(function GraphPanel({
   const visualizer = graphVisualizers.find((item) => item.id === visualizerId) || graphVisualizers[0];
   const VisualizerComponent = visualizer.Component;
   const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-  const activityBuckets = useMemo(() => buildActivityBuckets(graphNodes), [graphNodes]);
+  const activityBuckets = useMemo(() => buildActivityBuckets(graphNodes, graph?.activity), [graphNodes, graph?.activity]);
   const maxActivityCount = useMemo(() => Math.max(...activityBuckets.map((item) => item.count), 1), [activityBuckets]);
   const [timelineIndex, setTimelineIndex] = useState(-1);
   const latestTimelineIndex = activityBuckets.length - 1;
