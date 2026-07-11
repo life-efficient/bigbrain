@@ -106,7 +106,13 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
 
 function LayoutBackdrop({ layoutStyle, laidOut, theme }) {
   if (layoutStyle === 'spacious') {
-    return null;
+    return (
+      <>
+        {laidOut.clusters?.map((cluster) => (
+          <circle key={cluster.key} cx={cluster.x} cy={cluster.y} r={cluster.radius + 18} fill={theme.graphCluster} fillOpacity="0.025" stroke={theme.graphGrid} strokeOpacity="0.18" />
+        ))}
+      </>
+    );
   }
 
   if (layoutStyle === 'lanes') {

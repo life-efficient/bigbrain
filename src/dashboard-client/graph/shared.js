@@ -145,21 +145,39 @@ export function buildSignalBloomLayout(graph) {
 
 export function buildSpaciousConstellationLayout(graph) {
   const base = normalizeGraph(graph);
-  if (!base.nodes.length) return { ...base, rings: [] };
+  if (!base.nodes.length) return { ...base, clusters: [] };
 
-  const ordered = orderByConnectivity(base.nodes, base.edges);
+  const communities = detectLinkCommunities(base.nodes, base.edges);
   const goldenAngle = Math.PI * (3 - Math.sqrt(5));
   const spacing = 56;
-  ordered.forEach((node, index) => {
-    const distance = spacing * Math.sqrt(index);
-    const angle = index * goldenAngle;
-    node.x = Math.cos(angle) * distance;
-    node.y = Math.sin(angle) * distance;
+  const clusters = communities.map((nodes, clusterIndex) => {
+    const ordered = orderByConnectivity(nodes, base.edges);
+    const radius = Math.max(52, spacing * Math.sqrt(nodes.length) * 0.62);
+    const centerDistance = clusterIndex === 0 ? 0 : 110 + Math.sqrt(clusterIndex) * 190;
+    const centerAngle = clusterIndex * goldenAngle;
+    const x = Math.cos(centerAngle) * centerDistance;
+    const y = Math.sin(centerAngle) * centerDistance;
+    ordered.forEach((node, index) => {
+      const distance = index === 0 ? 0 : Math.min(radius, spacing * Math.sqrt(index) * 0.72);
+      const angle = index * goldenAngle;
+      node.x = x + Math.cos(angle) * distance;
+      node.y = y + Math.sin(angle) * distance;
+    });
+    return { key: ordered[0]?.slug || `cluster-${clusterIndex}`, x, y, radius, count: nodes.length };
   });
 
-  for (let iteration = 0; iteration < 32; iteration += 1) {
-    const springStrength = 0.0032 * (1 - iteration / 48);
+  resolveClusterCollisions(clusters, 80);
+  communities.forEach((nodes, index) => {
+    const cluster = clusters[index];
+    const dx = cluster.x - nodes.reduce((sum, node) => sum + node.x, 0) / nodes.length;
+    const dy = cluster.y - nodes.reduce((sum, node) => sum + node.y, 0) / nodes.length;
+    nodes.forEach((node) => { node.x += dx; node.y += dy; });
+  });
+
+  for (let iteration = 0; iteration < 24; iteration += 1) {
+    const springStrength = 0.0024 * (1 - iteration / 36);
     for (const edge of base.edges) {
+      if (edge.source.community !== edge.target.community) continue;
       const dx = edge.target.x - edge.source.x;
       const dy = edge.target.y - edge.source.y;
       const distance = Math.hypot(dx, dy) || 1;
@@ -175,7 +193,78 @@ export function buildSpaciousConstellationLayout(graph) {
     resolveUnboundedCollisions(base.nodes, 38);
   }
 
-  return fitLayoutToNodeBounds(base, 100);
+  const offsetX = 120 - Math.min(...base.nodes.map((node) => node.x - node.radius));
+  const offsetY = 120 - Math.min(...base.nodes.map((node) => node.y - node.radius));
+  const fitted = fitLayoutToNodeBounds(base, 120);
+  return {
+    ...fitted,
+    clusters: clusters.map((cluster) => ({ ...cluster, x: cluster.x + offsetX, y: cluster.y + offsetY })),
+  };
+}
+
+function detectLinkCommunities(nodes, edges) {
+  const adjacency = new Map(nodes.map((node) => [node.slug, []]));
+  for (const edge of edges) {
+    adjacency.get(edge.source.slug)?.push(edge.target);
+    adjacency.get(edge.target.slug)?.push(edge.source);
+  }
+  const labels = new Map(nodes.map((node) => [node.slug, node.slug]));
+  const ordered = [...nodes].sort(sortByWeight);
+  for (let iteration = 0; iteration < 14; iteration += 1) {
+    let changed = false;
+    for (const node of ordered) {
+      const neighbors = adjacency.get(node.slug) || [];
+      if (!neighbors.length) continue;
+      const scores = new Map();
+      for (const neighbor of neighbors) {
+        const label = labels.get(neighbor.slug);
+        scores.set(label, (scores.get(label) || 0) + 1 + Math.log2(2 + neighbor.degree) * 0.08);
+      }
+      const next = [...scores.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0];
+      if (next && next !== labels.get(node.slug)) {
+        labels.set(node.slug, next);
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+  const groups = new Map();
+  const isolated = [];
+  for (const node of nodes) {
+    if (!(adjacency.get(node.slug) || []).length) {
+      isolated.push(node);
+      continue;
+    }
+    const label = labels.get(node.slug);
+    if (!groups.has(label)) groups.set(label, []);
+    groups.get(label).push(node);
+  }
+  const communities = [...groups.values()].sort((a, b) => b.length - a.length || a[0].slug.localeCompare(b[0].slug));
+  if (isolated.length) communities.push(isolated.sort((a, b) => a.slug.localeCompare(b.slug)));
+  communities.forEach((community, index) => community.forEach((node) => { node.community = index; }));
+  return communities;
+}
+
+function resolveClusterCollisions(clusters, padding) {
+  for (let pass = 0; pass < 80; pass += 1) {
+    for (let i = 0; i < clusters.length; i += 1) {
+      for (let j = i + 1; j < clusters.length; j += 1) {
+        const a = clusters[i];
+        const b = clusters[j];
+        let dx = b.x - a.x;
+        let dy = b.y - a.y;
+        let distance = Math.hypot(dx, dy);
+        if (distance < 0.001) { dx = 0.001; dy = 0; distance = 0.001; }
+        const minimum = a.radius + b.radius + padding;
+        if (distance >= minimum) continue;
+        const overlap = (minimum - distance) / 2;
+        a.x -= (dx / distance) * overlap;
+        a.y -= (dy / distance) * overlap;
+        b.x += (dx / distance) * overlap;
+        b.y += (dy / distance) * overlap;
+      }
+    }
+  }
 }
 
 function resolveUnboundedCollisions(nodes, padding) {

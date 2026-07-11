@@ -121,6 +121,7 @@ test('spacious layout fits its camera bounds to its natural node positions', () 
   assert.equal(layout.nodes.every((node) => node.y >= 0 && node.y <= layout.height), true);
   assert.equal(layout.width < 1280, true);
   assert.equal(layout.height < 920, true);
+  assert.equal(layout.clusters.length >= 2, true);
 });
 
 test('signal bloom keeps small type clusters compact and non-overlapping', () => {
