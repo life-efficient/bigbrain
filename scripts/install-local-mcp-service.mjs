@@ -28,6 +28,7 @@ async function main() {
   const nodePath = options.nodePath || process.execPath;
   const bigbrainBin = options.bigbrainBin || path.join(repoRoot, 'bin', 'bigbrain.js');
   const serviceTarget = `gui/${process.getuid?.() ?? await userId()}/${label}`;
+  const replacementPlist = options.replacePlist ? path.resolve(options.replacePlist) : null;
   const logStem = label === DEFAULT_LABEL ? 'bigbrain-mcp' : safeLogStem(label);
   const stdoutPath = path.join(logDir, `${logStem}.log`);
   const stderrPath = path.join(logDir, `${logStem}.err.log`);
@@ -65,6 +66,7 @@ async function main() {
       stdoutPath,
       stderrPath,
       wouldEnsureLocalOwner: Boolean(localPersonSlug),
+      replacementPlist,
     }, null, 2));
     return;
   }
@@ -86,14 +88,26 @@ async function main() {
   }
   await fs.mkdir(path.dirname(plistPath), { recursive: true });
   await fs.mkdir(logDir, { recursive: true });
-  await fs.writeFile(plistPath, plist, 'utf8');
-
-  await execFileAsync('launchctl', ['bootout', `gui/${process.getuid()}`, plistPath]).catch(() => null);
-  await execFileAsync('launchctl', ['bootstrap', `gui/${process.getuid()}`, plistPath]);
-  await execFileAsync('launchctl', ['kickstart', '-k', serviceTarget]);
-
-  await verifyHealth({ host, port });
-  await verifyMcpTools({ host, port });
+  const previousTarget = await fs.readFile(plistPath).catch(() => null);
+  const previousReplacement = replacementPlist ? await fs.readFile(replacementPlist).catch(() => null) : null;
+  try {
+    if (replacementPlist) await execFileAsync('launchctl', ['bootout', `gui/${process.getuid()}`, replacementPlist]).catch(() => null);
+    await execFileAsync('launchctl', ['bootout', `gui/${process.getuid()}`, plistPath]).catch(() => null);
+    await fs.writeFile(plistPath, plist, 'utf8');
+    await execFileAsync('launchctl', ['bootstrap', `gui/${process.getuid()}`, plistPath]);
+    await execFileAsync('launchctl', ['kickstart', '-k', serviceTarget]);
+    await verifyHealth({ host, port });
+    await verifyMcpTools({ host, port });
+    if (replacementPlist) await fs.rename(replacementPlist, `${replacementPlist}.replaced-${Date.now()}.bak`).catch(() => null);
+  } catch (error) {
+    await execFileAsync('launchctl', ['bootout', `gui/${process.getuid()}`, plistPath]).catch(() => null);
+    if (previousTarget) await fs.writeFile(plistPath, previousTarget); else await fs.rm(plistPath, { force: true });
+    if (previousReplacement && replacementPlist) {
+      await fs.writeFile(replacementPlist, previousReplacement);
+      await execFileAsync('launchctl', ['bootstrap', `gui/${process.getuid()}`, replacementPlist]).catch(() => null);
+    }
+    throw error;
+  }
 
   console.log(JSON.stringify({
     ok: true,
@@ -158,6 +172,9 @@ function parseArgs(args) {
         break;
       case '--electron-run-as-node':
         options.electronRunAsNode = true;
+        break;
+      case '--replace-plist':
+        options.replacePlist = args[++index];
         break;
       case '--dry-run':
         options.dryRun = true;

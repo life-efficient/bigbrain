@@ -41,6 +41,20 @@ test('registry registers an existing brain in place and rejects duplicates', asy
   await assert.rejects(() => registry.registerExisting({ id: brain.id, name: brain.name, home: existingHome, ownerName: 'Ada', ownerEmail: 'ada@example.com' }), /already registered/);
 });
 
+test('registry preserves an existing service port and replacement metadata', async () => {
+  const appSupport = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-registry-existing-service-'));
+  const registry = new BrainRegistry({ appSupport });
+  const brain = await registry.registerExisting({
+    id: '22222222-2222-4222-8222-222222222222', name: 'Migrated Brain', home: path.join(appSupport, 'elsewhere'),
+    ownerName: 'Ada', ownerEmail: 'ada@example.com', port: 4545,
+    replacedService: { label: 'local.bigbrain.mcp', plistPath: '/tmp/local.bigbrain.mcp.plist', port: 4545 },
+  });
+  assert.equal(brain.port, 4545);
+  assert.equal(brain.serviceLabel, 'ai.diffusing.bigbrain.22222222-2222-4222-8222-222222222222');
+  assert.equal(brain.replacedService.label, 'local.bigbrain.mcp');
+  await fs.rm(appSupport, { recursive: true, force: true });
+});
+
 test('connection instructions are brain-specific and contain no credentials', () => {
   const result = connectionInstructions({ name: 'Lecture Brain', host: '127.0.0.1', port: 4123 });
   assert.equal(result.endpoint, 'http://127.0.0.1:4123/mcp');

@@ -5,6 +5,7 @@ import { promisify } from 'node:util';
 import { BrainRegistry } from './brain-registry.mjs';
 import { MacKeychain, redactSecrets } from './keychain.mjs';
 import { connectionInstructions } from './connection-instructions.mjs';
+import { findBrainLaunchAgent } from './launch-agent-discovery.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -38,7 +39,8 @@ export class DesktopController {
     }
     const { loadConfig } = await import(pathToModule(this.appPath, 'src/bigbrain/config.js'));
     const config = await loadConfig({ brainHome: resolvedHome });
-    return { id: config.brainId, name: config.brainName, home: config.brainHome };
+    const existingService = await findBrainLaunchAgent(config.brainHome);
+    return { id: config.brainId, name: config.brainName, home: config.brainHome, port: existingService?.port, replacedService: existingService };
   }
 
   async createBrain(input) {
@@ -76,6 +78,7 @@ export class DesktopController {
     const installer = path.join(this.appPath, 'scripts/install-local-mcp-service.mjs');
     const args = [installer, '--repo-root', this.appPath, '--brain-home', brain.home, '--port', String(brain.port), '--label', brain.serviceLabel,
       '--local-person-slug', ownerSlug, '--local-owner-email', brain.owner.email, '--local-owner-name', brain.owner.name, '--keychain-account', brain.id];
+    if (brain.replacedService?.plistPath && brain.replacedService.label !== brain.serviceLabel) args.push('--replace-plist', brain.replacedService.plistPath);
     if (this.nodePath === process.execPath && process.versions.electron) args.push('--electron-run-as-node');
     await execFileAsync(this.nodePath, args, { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
   }
