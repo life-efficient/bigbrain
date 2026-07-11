@@ -3,6 +3,39 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining local installs and hosted brains.
 
+## [0.12.1] - 2026-07-11
+
+### Fixed
+
+- Restored a continuous graph activity timeline from the brain's first Git
+  commit through today, including explicit zero-activity days.
+- Replaced current-filesystem-mtime-only activity counts with Git-backed daily
+  change counts for current graph pages, while retaining a bounded modification
+  time fallback for non-Git brains.
+- Historical graph rewind now uses each page's first-seen Git date, so nodes that
+  already existed remain visible before their latest modification date.
+
+### Agent update actions
+
+- Pull the release, run `npm install`, and restart each dashboard or local MCP
+  service so the rebuilt dashboard and Git-backed graph history take effect.
+- No brain-page, task-field, filing-rule, database, or folder migration is
+  required.
+- Verify `/api/graph` includes a continuous `activity` array and node
+  `created_at` values, then scrub the graph back to the brain's first commit and
+  confirm historical nodes remain visible.
+- Run `npm test` and `bigbrain health --json`.
+
+### Verification
+
+- `npm test`
+- Personal Brain graph history: 77 continuous days from 2026-04-26 through
+  2026-07-11, including 16 zero-activity days
+- Historical node counts: 20 on 2026-04-26, 68 on 2026-05-01, 265 on
+  2026-06-10, and 289 on 2026-06-15
+- App-managed LaunchAgent health, MCP initialize, and app-closed persistence
+  checks on the Personal Brain
+
 ## [0.12.0] - 2026-07-11
 
 ### Added
