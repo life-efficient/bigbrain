@@ -421,7 +421,11 @@ npm run desktop:dev
 
 That launches a real `.app` wrapper around the built-in dashboard server, so it
 behaves like a normal desktop app in the Dock and can be added to macOS login
-items.
+items. The generated `build/dev/BigBrain.app` is also self-launching: opening it
+from Finder or Spotlight loads this source checkout exactly like
+`npm run desktop:dev`. It is a disposable development artifact and continues to
+use the same brain registry and persistent MCP services; it does not copy brain
+data or install a second service.
 
 By default, the desktop app uses the selected local brain and starts the
 built-in local dashboard server. To wrap a hosted remote brain dashboard with

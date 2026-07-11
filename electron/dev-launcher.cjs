@@ -15,10 +15,11 @@ const TARGET_APP_PATH = path.join(BUILD_DIR, DEV_APP_NAME);
 const TARGET_PLIST_PATH = path.join(TARGET_APP_PATH, "Contents", "Info.plist");
 const TARGET_RESOURCES_DIR = path.join(TARGET_APP_PATH, "Contents", "Resources");
 const TARGET_EXECUTABLE_PATH = path.join(TARGET_APP_PATH, "Contents", "MacOS", "Electron");
+const TARGET_ELECTRON_BINARY_PATH = path.join(TARGET_APP_PATH, "Contents", "MacOS", "Electron-bin");
 const CUSTOM_ICON_SOURCE_PATH = path.join(ROOT_DIR, "electron", "assets", "desktop-app-icon.icns");
 const CUSTOM_ICON_TARGET_PATH = path.join(TARGET_RESOURCES_DIR, "app-icon.icns");
 const STAMP_PATH = path.join(BUILD_DIR, "launcher-stamp.json");
-const LAUNCHER_VERSION = 2;
+const LAUNCHER_VERSION = 3;
 
 main();
 
@@ -36,7 +37,7 @@ function main() {
     return;
   }
 
-  const child = spawn(TARGET_EXECUTABLE_PATH, [ROOT_DIR], {
+  const child = spawn(TARGET_EXECUTABLE_PATH, [], {
     cwd: ROOT_DIR,
     env: process.env,
     stdio: "inherit",
@@ -99,6 +100,28 @@ function prepareDevAppBundle() {
   setPlistValue("CFBundleIconFile", "app-icon.icns");
   setPlistValue("LSApplicationCategoryType", "public.app-category.productivity");
   syncDevAppIcon();
+  installSelfLaunchingExecutable();
+}
+
+function installSelfLaunchingExecutable() {
+  // A copied Electron.app normally expects the application path as its first
+  // command-line argument. Finder and Spotlight cannot provide that argument,
+  // so keep Electron's binary inside this disposable bundle and put a tiny
+  // launcher at CFBundleExecutable. It points only at the source checkout; it
+  // does not copy or start a brain service.
+  if (!fs.existsSync(TARGET_ELECTRON_BINARY_PATH)) {
+    fs.renameSync(TARGET_EXECUTABLE_PATH, TARGET_ELECTRON_BINARY_PATH);
+  }
+
+  const sourcePath = shellSingleQuote(ROOT_DIR);
+  const binaryPath = shellSingleQuote(TARGET_ELECTRON_BINARY_PATH);
+  const launcher = `#!/bin/sh\ncd ${sourcePath} || exit 1\nexec ${binaryPath} ${sourcePath} "$@"\n`;
+  fs.writeFileSync(TARGET_EXECUTABLE_PATH, launcher, { mode: 0o755 });
+  fs.chmodSync(TARGET_EXECUTABLE_PATH, 0o755);
+}
+
+function shellSingleQuote(value) {
+  return `'${String(value).replace(/'/g, `'"'"'`)}'`;
 }
 
 function quitRunningDevApp() {
