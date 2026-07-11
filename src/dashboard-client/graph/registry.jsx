@@ -1,5 +1,6 @@
 import { ComposableGraphVisualizer } from './composable-graph-visualizer.jsx';
 import { SignalBloomVisualizer } from './signal-bloom-visualizer.jsx';
+import { SpaciousConstellationVisualizer } from './spacious-constellation-visualizer.jsx';
 import { VisNetworkVisualizer } from './vis-network-visualizer.jsx';
 
 export const GRAPH_CONTROL_LABELS = {
@@ -53,6 +54,18 @@ export const graphVisualizers = [
     label: 'Custom',
     Component: ComposableGraphVisualizer,
     description: 'Composable monochrome graph renderer',
+    interactionModel: 'custom',
+    controls: ['zoomIn', 'zoomOut', 'resetView'],
+    capabilities: {
+      ownsPan: true,
+      ownsWheelZoom: true,
+    },
+  },
+  {
+    id: 'spacious-constellation',
+    label: 'Constellation',
+    Component: SpaciousConstellationVisualizer,
+    description: 'A spacious connectivity-aware version of the custom graph',
     interactionModel: 'custom',
     controls: ['zoomIn', 'zoomOut', 'resetView'],
     capabilities: {

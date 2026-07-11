@@ -6,6 +6,7 @@ import {
   buildJarvisLayout,
   buildNeuralMeshLayout,
   buildSignalBloomLayout,
+  buildSpaciousConstellationLayout,
   pickLabelNodes,
 } from './shared.js';
 import {
@@ -20,6 +21,7 @@ const LAYOUT_BUILDERS = {
   orbital: buildJarvisLayout,
   lanes: buildNeuralMeshLayout,
   clusters: buildSignalBloomLayout,
+  spacious: buildSpaciousConstellationLayout,
 };
 
 export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisualizer({
@@ -103,6 +105,25 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
 });
 
 function LayoutBackdrop({ layoutStyle, laidOut, theme }) {
+  if (layoutStyle === 'spacious') {
+    return (
+      <>
+        {laidOut.rings?.filter((_, index) => index % 3 === 2).map((radius) => (
+          <ellipse
+            key={radius}
+            cx={laidOut.centerX}
+            cy={laidOut.centerY}
+            rx={radius * 1.22}
+            ry={radius * 0.84}
+            fill="none"
+            stroke={theme.graphGrid}
+            strokeOpacity="0.12"
+          />
+        ))}
+      </>
+    );
+  }
+
   if (layoutStyle === 'lanes') {
     return (
       <>

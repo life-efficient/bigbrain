@@ -143,6 +143,56 @@ export function buildSignalBloomLayout(graph) {
   };
 }
 
+export function buildSpaciousConstellationLayout(graph) {
+  const base = normalizeGraph(graph);
+  if (!base.nodes.length) return { ...base, rings: [] };
+
+  const ordered = orderByConnectivity(base.nodes, base.edges);
+  const ringGap = 58;
+  const nodeGap = 58;
+  const xScale = 1.22;
+  const yScale = 0.84;
+  const rings = [];
+  let cursor = 0;
+  let radius = 0;
+
+  while (cursor < ordered.length) {
+    const capacity = radius === 0 ? 1 : Math.max(6, Math.floor((Math.PI * 2 * radius) / nodeGap));
+    const slice = ordered.slice(cursor, cursor + capacity);
+    rings.push({ radius, nodes: slice });
+    cursor += slice.length;
+    radius += ringGap;
+  }
+
+  const outerRadius = Math.max(0, rings.at(-1)?.radius || 0);
+  const width = Math.max(GRAPH_LAYOUT_SIZE.width, Math.ceil(outerRadius * xScale * 2 + 180));
+  const height = Math.max(GRAPH_LAYOUT_SIZE.height, Math.ceil(outerRadius * yScale * 2 + 180));
+  const centerX = width / 2;
+  const centerY = height / 2;
+
+  for (let ringIndex = 0; ringIndex < rings.length; ringIndex += 1) {
+    const ring = rings[ringIndex];
+    const angleOffset = -Math.PI / 2 + (ringIndex % 2) * (Math.PI / Math.max(1, ring.nodes.length));
+    ring.nodes.forEach((node, index) => {
+      const angle = angleOffset + (index / Math.max(1, ring.nodes.length)) * Math.PI * 2;
+      node.x = centerX + Math.cos(angle) * ring.radius * xScale;
+      node.y = centerY + Math.sin(angle) * ring.radius * yScale;
+    });
+  }
+
+  resolveCollisions(base.nodes, 22, width, height);
+  resolveCollisions(base.nodes, 22, width, height);
+
+  return {
+    ...base,
+    width,
+    height,
+    centerX,
+    centerY,
+    rings: rings.map((ring) => ring.radius).filter(Boolean),
+  };
+}
+
 export function pickLabelNodes(nodes, maxCount = 16) {
   const selected = [];
   const minDistance = 140;
@@ -175,6 +225,33 @@ export function buildCurvedEdgePath(edge, bend = 0.12) {
 
 function sortByWeight(a, b) {
   return (b.degree || 0) - (a.degree || 0) || b.neighbors - a.neighbors || a.slug.localeCompare(b.slug);
+}
+
+function orderByConnectivity(nodes, edges) {
+  const adjacency = new Map(nodes.map((node) => [node.slug, []]));
+  for (const edge of edges) {
+    adjacency.get(edge.source.slug)?.push(edge.target);
+    adjacency.get(edge.target.slug)?.push(edge.source);
+  }
+  for (const neighbors of adjacency.values()) neighbors.sort(sortByWeight);
+
+  const remaining = new Set(nodes.map((node) => node.slug));
+  const seeds = [...nodes].sort(sortByWeight);
+  const ordered = [];
+  for (const seed of seeds) {
+    if (!remaining.has(seed.slug)) continue;
+    const queue = [seed];
+    remaining.delete(seed.slug);
+    while (queue.length) {
+      const node = queue.shift();
+      ordered.push(node);
+      for (const neighbor of adjacency.get(node.slug) || []) {
+        if (!remaining.delete(neighbor.slug)) continue;
+        queue.push(neighbor);
+      }
+    }
+  }
+  return ordered;
 }
 
 function placeOnRings(nodes, { centerX, centerY, rings, gap, startAngle }) {

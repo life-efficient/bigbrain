@@ -5,6 +5,7 @@ import {
   buildJarvisLayout,
   buildNeuralMeshLayout,
   buildSignalBloomLayout,
+  buildSpaciousConstellationLayout,
 } from '../../src/dashboard-client/graph/shared.js';
 import { getGraphNodeColor, getUpdatedNodeColor } from '../../src/dashboard-client/graph/colors.js';
 import { resolveThemeMode } from '../../src/dashboard-client/graph/theme.js';
@@ -43,7 +44,7 @@ test('graph layouts safely handle empty and single-node graphs', () => {
     edges: [],
   };
 
-  for (const builder of [buildJarvisLayout, buildNeuralMeshLayout, buildSignalBloomLayout]) {
+  for (const builder of [buildJarvisLayout, buildNeuralMeshLayout, buildSignalBloomLayout, buildSpaciousConstellationLayout]) {
     const emptyLayout = builder(empty);
     assert.equal(emptyLayout.nodes.length, 0);
     assert.equal(emptyLayout.edges.length, 0);
@@ -70,13 +71,37 @@ test('graph layouts preserve dense graph structure within bounds', () => {
   }
   const graph = { nodes, edges };
 
-  for (const builder of [buildJarvisLayout, buildNeuralMeshLayout, buildSignalBloomLayout]) {
+  for (const builder of [buildJarvisLayout, buildNeuralMeshLayout, buildSignalBloomLayout, buildSpaciousConstellationLayout]) {
     const layout = builder(graph);
     assert.equal(layout.nodes.length, nodes.length);
     assert.equal(layout.edges.length, edges.length);
     for (const node of layout.nodes) {
       assert.equal(node.x >= 0 && node.x <= layout.width, true);
       assert.equal(node.y >= 0 && node.y <= layout.height, true);
+    }
+  }
+});
+
+test('spacious constellation expands dense brains and prevents node collisions', () => {
+  const nodes = Array.from({ length: 320 }, (_, index) => ({
+    slug: `pages/node-${index}`,
+    title: `Node ${index}`,
+    type: index % 4 === 0 ? 'people' : 'pages',
+    degree: 3 + (index % 12),
+  }));
+  const edges = nodes.flatMap((node, index) => [
+    { source: node.slug, target: nodes[(index + 1) % nodes.length].slug },
+    { source: node.slug, target: nodes[(index + 17) % nodes.length].slug },
+  ]);
+  const layout = buildSpaciousConstellationLayout({ nodes, edges });
+
+  assert.equal(layout.width > 1280, true);
+  assert.equal(layout.height > 920, true);
+  for (let i = 0; i < layout.nodes.length; i += 1) {
+    for (let j = i + 1; j < layout.nodes.length; j += 1) {
+      const a = layout.nodes[i];
+      const b = layout.nodes[j];
+      assert.equal(Math.hypot(a.x - b.x, a.y - b.y) + 0.5 >= a.radius + b.radius + 22, true);
     }
   }
 });

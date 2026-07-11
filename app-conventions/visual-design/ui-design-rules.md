@@ -25,3 +25,4 @@ states.
 - Bound entrance effects independently of dataset size. Dense graphs should animate a representative subset of nodes and links while rendering the remainder statically.
 - Memoize static, expensive SVG layers such as link paths and cluster decoration so hover and selection changes only update affected nodes and labels.
 - Reserve blur and glow filters for active or hovered elements. Do not apply GPU-heavy filters or independent infinite animations to every graph element.
+- Offer dense graph layouts that scale their virtual canvas with node count and enforce node separation; do not force every brain into one fixed coordinate space.
