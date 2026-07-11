@@ -122,16 +122,22 @@ This skill guarantees:
      success
 13. If a local always-on MCP service is configured, verify it as a separate
     runtime surface:
-   - inspect `~/Library/LaunchAgents/local.bigbrain.mcp.plist` when present and
-     confirm its `--brain-home` argument points at the selected brain home, not
+   - inspect the selected brain's launchd plist when present, currently often
+     `~/Library/LaunchAgents/local.bigbrain.personal-brain.plist`; older
+     installs may still use `~/Library/LaunchAgents/local.bigbrain.mcp.plist`
+   - confirm its `--brain-home` argument points at the selected brain home, not
      a stale temp fixture
    - check `curl http://127.0.0.1:3333/health`
-   - check `launchctl print "gui/$(id -u)/local.bigbrain.mcp"` on macOS
+   - check the matching launchd label, for example
+     `launchctl print "gui/$(id -u)/local.bigbrain.personal-brain"` on macOS;
+     fall back to `local.bigbrain.mcp` only for legacy installs
    - run a direct MCP `initialize` plus `tools/list` smoke test against
      `http://127.0.0.1:3333/mcp`
-   - run `codex mcp list` and report whether a BigBrain entry is registered
-     with Codex; do not treat absence from this list as proof the service is
-     down when the direct endpoint checks pass
+   - run `codex mcp list` and report whether the current BigBrain MCP entry is
+     registered with Codex; on this machine the active entry is `personal_brain`
+     at `http://127.0.0.1:3333/mcp`, not the older `bigbrain` name
+   - do not treat absence of the old `bigbrain` registration as proof the
+     service is down when the direct endpoint checks pass
    - if Codex registration is expected but missing, report the exact MCP URL
      (`http://127.0.0.1:3333/mcp`) and config follow-up separately from service
      health

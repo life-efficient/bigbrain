@@ -379,11 +379,16 @@ node "$repo_root/scripts/install-local-mcp-service.mjs" \
   --local-owner-email hani@example.com
 ```
 
-This writes a LaunchAgent at:
+This writes a brain-specific LaunchAgent. For example, a local brain named
+`Personal Brain` uses:
 
 ```text
-~/Library/LaunchAgents/local.bigbrain.mcp.plist
+~/Library/LaunchAgents/local.bigbrain.personal-brain.plist
 ```
+
+Older installs may still use `~/Library/LaunchAgents/local.bigbrain.mcp.plist`;
+verify the label that exists on the machine instead of assuming the legacy
+name.
 
 It starts BigBrain with:
 
@@ -392,19 +397,25 @@ bigbrain --brain-home "$brain_home" mcp --host 127.0.0.1 --port 3333
 ```
 
 The service is configured with `RunAtLoad` and `KeepAlive`, so macOS starts it
-at login and restarts it if it exits. Logs are written to:
+at login and restarts it if it exits. Logs are written to brain-specific files
+such as:
 
 ```text
-~/.config/bigbrain/bigbrain-mcp.log
-~/.config/bigbrain/bigbrain-mcp.err.log
+~/.config/bigbrain/local.bigbrain.personal-brain.log
+~/.config/bigbrain/local.bigbrain.personal-brain.err.log
 ```
 
 Verify it is running:
 
 ```bash
 curl http://127.0.0.1:3333/health
-launchctl print "gui/$(id -u)/local.bigbrain.mcp"
+launchctl print "gui/$(id -u)/local.bigbrain.personal-brain"
 ```
+
+Use `codex mcp list` to verify the Codex registration separately from service
+health. On Harry's current machine, the local endpoint is registered as
+`personal_brain` at `http://127.0.0.1:3333/mcp`; absence of an older `bigbrain`
+entry is not a service-health failure.
 
 The MCP endpoint is:
 
