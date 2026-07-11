@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "schemaVersion": "app-conventions/v1",
+  "root": "app-conventions",
+  "requiredFiles": [
+    "README.md",
+    "app-surfaces/README.md",
+    "auth-and-sessions/README.md",
+    "navigation/README.md",
+    "registration/README.md",
+    "email-delivery/README.md",
+    "visual-design/README.md",
+    "visual-design/ui-design-rules.md",
+    "data-and-state/README.md",
+    "local-development/README.md",
+    "schema/app-conventions.schema.json"
+  ],
+  "requiredReadmes": [
+    "README.md",
+    "app-surfaces/README.md",
+    "auth-and-sessions/README.md",
+    "navigation/README.md",
+    "registration/README.md",
+    "email-delivery/README.md",
+    "visual-design/README.md",
+    "data-and-state/README.md",
+    "local-development/README.md"
+  ],
+  "defaultFolders": [
+    "app-surfaces",
+    "auth-and-sessions",
+    "data-and-state",
+    "email-delivery",
+    "local-development",
+    "navigation",
+    "registration",
+    "visual-design"
+  ],
+  "rules": [
+    "Read existing convention files before editing them.",
+    "Create missing required README files with focused starter content.",
+    "Refresh this schema file when the skill schema changes.",
+    "Preserve extra project-specific convention folders unless the user asks for cleanup.",
+    "Keep convention notes actionable and scoped to durable app behavior."
+  ]
+}

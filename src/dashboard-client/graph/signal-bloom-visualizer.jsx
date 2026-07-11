@@ -1,4 +1,4 @@
-import React, { forwardRef, useId, useMemo, useState } from 'react';
+import React, { forwardRef, memo, useId, useMemo, useState } from 'react';
 
 import { getGraphNodeColor } from './colors.js';
 import { buildCurvedEdgePath, buildSignalBloomLayout, pickLabelNodes } from './shared.js';
@@ -9,6 +9,9 @@ import {
   useGraphTheme,
   useGraphViewport,
 } from './visualizer-core.jsx';
+
+const BLOOM_ANIMATED_NODE_LIMIT = 72;
+const BLOOM_ANIMATED_LINK_LIMIT = 120;
 
 /**
  * Signal Bloom is a deliberately theatrical cluster view: page types become
@@ -76,10 +79,10 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
           @keyframes bloom-node-in { 0% { opacity: 0; transform: scale(0); } 65% { opacity: 1; transform: scale(1.28); } 100% { opacity: 1; transform: scale(1); } }
           @keyframes bloom-pulse { 0%, 100% { opacity: .22; } 50% { opacity: .68; } }
           .bloom-sector { transform-box: fill-box; transform-origin: center; animation: bloom-sector-in .75s cubic-bezier(.2,.8,.2,1) both; }
-          .bloom-link { stroke-dasharray: 80; animation: bloom-link-in .9s ease-out both; }
+          .bloom-link-animated { stroke-dasharray: 80; animation: bloom-link-in .9s ease-out both; }
           .bloom-node { transform-box: fill-box; transform-origin: center; animation: bloom-node-in .58s cubic-bezier(.2,.9,.25,1.15) both; }
           .bloom-scan { animation: bloom-pulse 3.6s ease-in-out infinite; }
-          @media (prefers-reduced-motion: reduce) { .bloom-sector, .bloom-link, .bloom-node, .bloom-scan { animation: none !important; } }
+          @media (prefers-reduced-motion: reduce) { .bloom-sector, .bloom-link-animated, .bloom-node, .bloom-scan { animation: none !important; } }
         `}</style>
 
         <rect width={laidOut.width} height={laidOut.height} fill={theme.graphBase} />
@@ -90,26 +93,23 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
         <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
           <BloomSectors laidOut={laidOut} theme={theme} />
           <BloomLinks laidOut={laidOut} theme={theme} />
-          {laidOut.nodes.map((node, index) => {
-            const emphasized = activeSlug === node.slug || hoveredSlug === node.slug;
-            return (
-              <g
-                className="bloom-node"
-                key={node.slug}
-                style={{ cursor: 'pointer', animationDelay: `${Math.min(620, 170 + index * 7)}ms` }}
-                onPointerDown={(event) => event.stopPropagation()}
-                onPointerEnter={() => { if (!isDragging) setHoveredSlug(node.slug); }}
-                onPointerLeave={() => { if (!isDragging) setHoveredSlug((slug) => slug === node.slug ? null : slug); }}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  onActiveSlugChange?.(node.slug);
-                  onNodeOpen?.(node.slug);
-                }}
-              >
-                <BloomNode node={node} nodeStyle={nodeStyle} colorMode={colorMode} emphasized={emphasized} theme={theme} glowId={`${defsId}-signal-glow`} />
-              </g>
-            );
-          })}
+          {laidOut.nodes.map((node, index) => (
+            <BloomNodeItem
+              key={node.slug}
+              node={node}
+              animated={index < BLOOM_ANIMATED_NODE_LIMIT}
+              animationIndex={index}
+              emphasized={activeSlug === node.slug || hoveredSlug === node.slug}
+              isDragging={isDragging}
+              setHoveredSlug={setHoveredSlug}
+              onActiveSlugChange={onActiveSlugChange}
+              onNodeOpen={onNodeOpen}
+              nodeStyle={nodeStyle}
+              colorMode={colorMode}
+              theme={theme}
+              glowId={`${defsId}-signal-glow`}
+            />
+          ))}
         </g>
 
         <GraphFixedLabels nodes={laidOut.nodes} viewport={viewport} labeled={labeled} theme={theme} />
@@ -118,7 +118,7 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
   );
 });
 
-function BloomSectors({ laidOut, theme }) {
+const BloomSectors = memo(function BloomSectors({ laidOut, theme }) {
   return laidOut.clusters.map((cluster, index) => (
     <g className="bloom-sector" key={cluster.type} style={{ animationDelay: `${index * 65}ms` }}>
       <circle cx={cluster.x} cy={cluster.y} r={cluster.radius + 14} fill={theme.graphInset} fillOpacity="0.08" stroke={theme.graphCluster} strokeOpacity="0.56" />
@@ -129,9 +129,9 @@ function BloomSectors({ laidOut, theme }) {
       </text>
     </g>
   ));
-}
+});
 
-function BloomLinks({ laidOut, theme }) {
+const BloomLinks = memo(function BloomLinks({ laidOut, theme }) {
   return laidOut.edges.map((edge, index) => {
     const internal = edge.source.type === edge.target.type;
     const path = buildCurvedEdgePath(edge, internal ? 0.2 : 0.08);
@@ -139,18 +139,52 @@ function BloomLinks({ laidOut, theme }) {
       <g key={edge.key}>
         {internal && <path d={path} fill="none" stroke={theme.graphEdge} strokeOpacity="0.09" strokeWidth="5" />}
         <path
-          className="bloom-link"
+          className={index < BLOOM_ANIMATED_LINK_LIMIT ? 'bloom-link-animated' : undefined}
           d={path}
           fill="none"
           stroke={internal ? theme.graphEdgeStrong : theme.graphEdge}
           strokeOpacity={internal ? 0.48 : 0.22}
           strokeWidth={internal ? 1.15 : 0.8}
-          style={{ animationDelay: `${Math.min(700, 120 + index * 3)}ms` }}
+          style={index < BLOOM_ANIMATED_LINK_LIMIT ? { animationDelay: `${120 + index * 3}ms` } : undefined}
         />
       </g>
     );
   });
-}
+});
+
+const BloomNodeItem = memo(function BloomNodeItem({
+  node,
+  animated,
+  animationIndex,
+  emphasized,
+  isDragging,
+  setHoveredSlug,
+  onActiveSlugChange,
+  onNodeOpen,
+  nodeStyle,
+  colorMode,
+  theme,
+  glowId,
+}) {
+  return (
+    <g
+      className={animated ? 'bloom-node' : undefined}
+      style={animated
+        ? { cursor: 'pointer', animationDelay: `${170 + animationIndex * 7}ms` }
+        : { cursor: 'pointer' }}
+      onPointerDown={(event) => event.stopPropagation()}
+      onPointerEnter={() => { if (!isDragging) setHoveredSlug(node.slug); }}
+      onPointerLeave={() => { if (!isDragging) setHoveredSlug((slug) => slug === node.slug ? null : slug); }}
+      onClick={(event) => {
+        event.stopPropagation();
+        onActiveSlugChange?.(node.slug);
+        onNodeOpen?.(node.slug);
+      }}
+    >
+      <BloomNode node={node} nodeStyle={nodeStyle} colorMode={colorMode} emphasized={emphasized} theme={theme} glowId={glowId} />
+    </g>
+  );
+});
 
 function BloomNode({ node, nodeStyle, colorMode, emphasized, theme, glowId }) {
   const color = getGraphNodeColor(node, colorMode) || theme.graphNodeStroke;
