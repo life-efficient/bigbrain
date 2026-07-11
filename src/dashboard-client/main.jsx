@@ -1595,7 +1595,7 @@ const GraphPanel = memo(function GraphPanel({
   const timelineFilteredNodes = useMemo(() => {
     if (!selectedTimelineDay) return graphNodes;
     return graphNodes.filter((node) => {
-      const day = dayKeyFromTimestamp(node.updated_at);
+      const day = dayKeyFromTimestamp(node.created_at || node.updated_at);
       return !day || day <= selectedTimelineDay;
     });
   }, [graphNodes, selectedTimelineDay]);

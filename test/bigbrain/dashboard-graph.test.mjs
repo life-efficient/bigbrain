@@ -90,6 +90,7 @@ test('dashboard graph excludes root infrastructure files from nodes and types', 
     assert.equal(graph.meta.page_count, 2);
     assert.equal(graph.meta.node_count, 2);
     assert.match(graph.nodes[0].updated_at, /^\d{4}-\d{2}-\d{2}T/);
+    assert.match(graph.nodes[0].created_at, /^\d{4}-\d{2}-\d{2}T/);
     assert.equal(graph.nodes.find((node) => node.slug === 'people/alice').latest_timeline_entry, '2026-06-29 | Latest graph update.');
     assert.deepEqual(graph.edges, [
       { source: 'people/alice', target: 'projects/relay' },

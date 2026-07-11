@@ -2000,7 +2000,7 @@ export async function buildGraphPayload(db, config = null) {
   }))).sort((a, b) => b.degree - a.degree || a.slug.localeCompare(b.slug));
 
   const allowed = new Set(candidateNodes.map((node) => node.slug));
-  const activity = await buildGraphActivity(config, candidateNodes);
+  const history = await buildGraphHistory(config, candidateNodes);
   const edges = [];
   for (const node of candidateNodes) {
     for (const link of node.outgoing) {
@@ -2016,12 +2016,13 @@ export async function buildGraphPayload(db, config = null) {
       node_count: candidateNodes.length,
       edge_count: edges.length,
     },
-    activity,
+    activity: history.activity,
     nodes: candidateNodes.map((node) => ({
       slug: node.slug,
       title: node.title,
       type: node.type,
       updated_at: node.updated_at,
+      created_at: history.createdDays.get(`${node.slug}.md`) || node.updated_at,
       latest_timeline_entry: node.latest_timeline_entry,
       degree: node.degree,
     })),
@@ -2029,7 +2030,7 @@ export async function buildGraphPayload(db, config = null) {
   };
 }
 
-async function buildGraphActivity(config, nodes) {
+async function buildGraphHistory(config, nodes) {
   let gitLog = '';
   if (config?.brainDir) {
     try {
@@ -2040,7 +2041,25 @@ async function buildGraphActivity(config, nodes) {
       // Non-git brains use current page timestamps as a bounded fallback.
     }
   }
-  return buildContinuousActivity(nodes, gitLog);
+  const currentPaths = new Set(nodes.map((node) => `${node.slug}.md`));
+  return {
+    activity: buildContinuousActivity(nodes, gitLog),
+    createdDays: firstSeenDaysByPath(gitLog, currentPaths),
+  };
+}
+
+function firstSeenDaysByPath(gitLog, currentPaths) {
+  const result = new Map();
+  for (const record of String(gitLog).split('\x1e').filter(Boolean)) {
+    const [timestamp, ...files] = record.trim().split('\n').map((line) => line.trim()).filter(Boolean);
+    const day = timestamp?.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day || '')) continue;
+    for (const file of files) {
+      const normalized = file.replace(/^\.\//, '').replace(/\\/g, '/');
+      if (currentPaths.has(normalized) && !result.has(normalized)) result.set(normalized, day);
+    }
+  }
+  return result;
 }
 
 export function buildContinuousActivity(nodes, gitLog = '', todayDay = new Date().toISOString().slice(0, 10)) {
