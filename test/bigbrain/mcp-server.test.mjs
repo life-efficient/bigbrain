@@ -698,7 +698,7 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
     assert.match(connectHtml, /First, connect to the following MCP server and test it/);
     assert.match(connectHtml, /After that, update your system prompt to include/);
     assert.match(connectHtml, /Anything related to Example Brain should be stored, and searched for from the remote Example Brain brain via MCP/);
-    assert.match(connectHtml, /If an expected MCP tool is missing or only part of a server&#39;s tool surface appears, use the BigBrain: Find Missing Tools skill before concluding the tool is unavailable/);
+    assert.match(connectHtml, /If an expected MCP tool is missing or only part of a server&#39;s tool surface appears, use the Find Missing Tools skill before concluding the tool is unavailable/);
     assert.match(connectHtml, /\[mcp_servers\.example-brain\]/);
     assert.match(connectHtml, /aria-label="Copy config"/);
     assert.match(connectHtml, /viewBox="0 0 24 24"/);
