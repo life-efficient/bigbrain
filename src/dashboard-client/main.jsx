@@ -93,6 +93,11 @@ function DashboardApp() {
   const settingsMenuRef = useRef(null);
 
   useEffect(() => {
+    if (window.parent === window) return;
+    window.parent.postMessage({ type: 'bigbrain-dashboard-status', status: state.status }, '*');
+  }, [state.status]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function load() {
