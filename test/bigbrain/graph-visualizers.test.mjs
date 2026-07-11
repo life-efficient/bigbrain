@@ -96,7 +96,6 @@ test('relationship layout groups connected pages and prevents node collisions', 
   const layout = buildSpaciousConstellationLayout({ nodes, edges });
 
   assert.equal(layout.width > 1280, true);
-  assert.equal(layout.communities.length, 1);
   for (let i = 0; i < layout.nodes.length; i += 1) {
     for (let j = i + 1; j < layout.nodes.length; j += 1) {
       const a = layout.nodes[i];
@@ -106,7 +105,7 @@ test('relationship layout groups connected pages and prevents node collisions', 
   }
 });
 
-test('relationship layout gives disconnected groups separate meaningful regions', () => {
+test('spacious layout fits its camera bounds to its natural node positions', () => {
   const nodes = [
     { slug: 'projects/a', title: 'Project A', type: 'projects', degree: 2 },
     { slug: 'people/a', title: 'Person A', type: 'people', degree: 1 },
@@ -118,12 +117,10 @@ test('relationship layout gives disconnected groups separate meaningful regions'
     { source: 'projects/b', target: 'people/b' },
   ];
   const layout = buildSpaciousConstellationLayout({ nodes, edges });
-  const bySlug = new Map(layout.nodes.map((node) => [node.slug, node]));
-  const withinA = Math.hypot(bySlug.get('projects/a').x - bySlug.get('people/a').x, bySlug.get('projects/a').y - bySlug.get('people/a').y);
-  const across = Math.hypot(bySlug.get('projects/a').x - bySlug.get('projects/b').x, bySlug.get('projects/a').y - bySlug.get('projects/b').y);
-
-  assert.equal(layout.communities.length, 2);
-  assert.equal(withinA < across, true);
+  assert.equal(layout.nodes.every((node) => node.x >= 0 && node.x <= layout.width), true);
+  assert.equal(layout.nodes.every((node) => node.y >= 0 && node.y <= layout.height), true);
+  assert.equal(layout.width < 1280, true);
+  assert.equal(layout.height < 920, true);
 });
 
 test('signal bloom keeps small type clusters compact and non-overlapping', () => {

@@ -63,9 +63,9 @@ export const graphVisualizers = [
   },
   {
     id: 'spacious-constellation',
-    label: 'Grouped',
+    label: 'Spacious',
     Component: SpaciousConstellationVisualizer,
-    description: 'Pages grouped by type with their links preserved',
+    description: 'A naturally expanding, well-spaced relationship map',
     interactionModel: 'custom',
     controls: ['zoomIn', 'zoomOut', 'resetView'],
     capabilities: {
@@ -75,7 +75,7 @@ export const graphVisualizers = [
   },
   {
     id: 'jarvis-bloom',
-    label: 'Jarvis Bloom',
+    label: 'Bloom',
     Component: SignalBloomVisualizer,
     description: 'Page-type signal clusters with radar-sector choreography',
     interactionModel: 'custom',

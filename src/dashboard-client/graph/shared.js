@@ -145,103 +145,78 @@ export function buildSignalBloomLayout(graph) {
 
 export function buildSpaciousConstellationLayout(graph) {
   const base = normalizeGraph(graph);
-  if (!base.nodes.length) return { ...base, communities: [] };
+  if (!base.nodes.length) return { ...base, rings: [] };
 
-  const components = findConnectedComponents(base.nodes, base.edges)
-    .sort((a, b) => b.length - a.length || a[0].slug.localeCompare(b[0].slug));
-  const width = Math.max(GRAPH_LAYOUT_SIZE.width, 560 + Math.ceil(Math.sqrt(base.nodes.length)) * 86);
-  const height = Math.max(
-    GRAPH_LAYOUT_SIZE.height,
-    560 + Math.ceil(Math.sqrt(Math.max(...components.map((component) => component.length), 1))) * 86,
-    360 + Math.ceil(components.length / 3) * 300,
-  );
-  const columns = Math.max(1, Math.min(3, Math.ceil(Math.sqrt(components.length))));
-  const cellWidth = width / columns;
-  const rows = Math.ceil(components.length / columns);
-  const cellHeight = height / Math.max(1, rows);
-  const communities = [];
-
-  components.forEach((nodes, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    const centerX = cellWidth * (column + 0.5);
-    const centerY = cellHeight * (row + 0.5);
-    const ordered = orderByConnectivity(nodes, base.edges);
-    const radius = Math.min(cellWidth, cellHeight) * Math.min(0.39, 0.16 + Math.sqrt(nodes.length) * 0.025);
-
-    ordered.forEach((node, nodeIndex) => {
-      if (nodeIndex === 0) {
-        node.x = centerX;
-        node.y = centerY;
-        return;
-      }
-      const angle = nodeIndex * 2.399963229728653;
-      const distance = Math.min(radius, 28 + Math.sqrt(nodeIndex) * 34);
-      node.x = centerX + Math.cos(angle) * distance;
-      node.y = centerY + Math.sin(angle) * distance;
-    });
-
-    communities.push({
-      key: ordered[0]?.slug || `community-${index}`,
-      x: centerX,
-      y: centerY,
-      radius: Math.max(54, radius + 30),
-      count: nodes.length,
-      title: ordered[0]?.title || 'Unlinked pages',
-    });
+  const ordered = orderByConnectivity(base.nodes, base.edges);
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  const spacing = 56;
+  ordered.forEach((node, index) => {
+    const distance = spacing * Math.sqrt(index);
+    const angle = index * goldenAngle;
+    node.x = Math.cos(angle) * distance;
+    node.y = Math.sin(angle) * distance;
   });
 
-  const workingLayout = { ...base, width, height, centerX: width / 2, centerY: height / 2 };
-  relaxLayout(workingLayout, {
-    padding: 28,
-    centerPull: 0,
-    linkPull: 0.024,
-    iterations: 36,
-    anchorPull: 0.045,
-    getAnchor(node) {
-      const componentIndex = components.findIndex((component) => component.includes(node));
-      return communities[componentIndex] || null;
-    },
-  });
-  for (let pass = 0; pass < 200; pass += 1) {
-    resolveCollisions(workingLayout.nodes, 22, width, height);
+  for (let iteration = 0; iteration < 32; iteration += 1) {
+    const springStrength = 0.0032 * (1 - iteration / 48);
+    for (const edge of base.edges) {
+      const dx = edge.target.x - edge.source.x;
+      const dy = edge.target.y - edge.source.y;
+      const distance = Math.hypot(dx, dy) || 1;
+      const desired = 96 + (edge.source.radius + edge.target.radius) * 2;
+      const pull = (distance - desired) * springStrength;
+      const moveX = (dx / distance) * pull * 0.5;
+      const moveY = (dy / distance) * pull * 0.5;
+      edge.source.x += moveX;
+      edge.source.y += moveY;
+      edge.target.x -= moveX;
+      edge.target.y -= moveY;
+    }
+    resolveUnboundedCollisions(base.nodes, 38);
   }
 
-  return {
-    ...workingLayout,
-    width,
-    height,
-    centerX: width / 2,
-    centerY: height / 2,
-    communities,
-  };
+  return fitLayoutToNodeBounds(base, 100);
 }
 
-function findConnectedComponents(nodes, edges) {
-  const adjacency = new Map(nodes.map((node) => [node.slug, new Set()]));
-  for (const edge of edges) {
-    adjacency.get(edge.source.slug)?.add(edge.target.slug);
-    adjacency.get(edge.target.slug)?.add(edge.source.slug);
-  }
-  const nodeMap = new Map(nodes.map((node) => [node.slug, node]));
-  const remaining = new Set(nodeMap.keys());
-  const components = [];
-  while (remaining.size) {
-    const seed = [...remaining].sort()[0];
-    const queue = [seed];
-    const component = [];
-    remaining.delete(seed);
-    while (queue.length) {
-      const slug = queue.shift();
-      component.push(nodeMap.get(slug));
-      for (const neighbor of adjacency.get(slug) || []) {
-        if (!remaining.delete(neighbor)) continue;
-        queue.push(neighbor);
+function resolveUnboundedCollisions(nodes, padding) {
+  for (let i = 0; i < nodes.length; i += 1) {
+    for (let j = i + 1; j < nodes.length; j += 1) {
+      const a = nodes[i];
+      const b = nodes[j];
+      let dx = b.x - a.x;
+      let dy = b.y - a.y;
+      let distance = Math.hypot(dx, dy);
+      if (distance < 0.001) {
+        const angle = ((i * 31 + j * 17) % 360) * (Math.PI / 180);
+        dx = Math.cos(angle) * 0.001;
+        dy = Math.sin(angle) * 0.001;
+        distance = 0.001;
       }
+      const minimum = a.radius + b.radius + padding;
+      if (distance >= minimum) continue;
+      const overlap = (minimum - distance) / 2;
+      const nx = dx / distance;
+      const ny = dy / distance;
+      a.x -= nx * overlap;
+      a.y -= ny * overlap;
+      b.x += nx * overlap;
+      b.y += ny * overlap;
     }
-    components.push(component);
   }
-  return components;
+}
+
+function fitLayoutToNodeBounds(layout, padding) {
+  const minX = Math.min(...layout.nodes.map((node) => node.x - node.radius));
+  const maxX = Math.max(...layout.nodes.map((node) => node.x + node.radius));
+  const minY = Math.min(...layout.nodes.map((node) => node.y - node.radius));
+  const maxY = Math.max(...layout.nodes.map((node) => node.y + node.radius));
+  const width = Math.max(320, maxX - minX + padding * 2);
+  const height = Math.max(240, maxY - minY + padding * 2);
+  for (const node of layout.nodes) {
+    node.x += padding - minX;
+    node.y += padding - minY;
+  }
+  return { ...layout, width, height, centerX: width / 2, centerY: height / 2, rings: [] };
 }
 
 export function pickLabelNodes(nodes, maxCount = 16) {
