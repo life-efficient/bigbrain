@@ -105,6 +105,8 @@ async function main() {
     if (previousReplacement && replacementPlist) {
       await fs.writeFile(replacementPlist, previousReplacement);
       await execFileAsync('launchctl', ['bootstrap', `gui/${process.getuid()}`, replacementPlist]).catch(() => null);
+    } else if (previousTarget) {
+      await execFileAsync('launchctl', ['bootstrap', `gui/${process.getuid()}`, plistPath]).catch(() => null);
     }
     throw error;
   }
