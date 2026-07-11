@@ -108,17 +108,22 @@ function LayoutBackdrop({ layoutStyle, laidOut, theme }) {
   if (layoutStyle === 'spacious') {
     return (
       <>
-        {laidOut.rings?.filter((_, index) => index % 3 === 2).map((radius) => (
-          <ellipse
-            key={radius}
-            cx={laidOut.centerX}
-            cy={laidOut.centerY}
-            rx={radius * 1.22}
-            ry={radius * 0.84}
-            fill="none"
+        {laidOut.communities?.map((community) => (
+          <g key={community.key}>
+            <circle
+            cx={community.x}
+            cy={community.y}
+            r={community.radius}
+            fill={theme.graphCluster}
+            fillOpacity="0.035"
             stroke={theme.graphGrid}
-            strokeOpacity="0.12"
-          />
+            strokeDasharray="5 12"
+            strokeOpacity="0.28"
+            />
+            <text x={community.x - community.radius + 12} y={community.y - community.radius + 22} fill={theme.graphLabel} fillOpacity="0.62" fontSize="11">
+              {community.title.slice(0, 34)} · {community.count}
+            </text>
+          </g>
         ))}
       </>
     );

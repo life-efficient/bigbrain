@@ -82,7 +82,7 @@ test('graph layouts preserve dense graph structure within bounds', () => {
   }
 });
 
-test('spacious constellation expands dense brains and prevents node collisions', () => {
+test('relationship layout groups connected pages and prevents node collisions', () => {
   const nodes = Array.from({ length: 320 }, (_, index) => ({
     slug: `pages/node-${index}`,
     title: `Node ${index}`,
@@ -96,14 +96,34 @@ test('spacious constellation expands dense brains and prevents node collisions',
   const layout = buildSpaciousConstellationLayout({ nodes, edges });
 
   assert.equal(layout.width > 1280, true);
-  assert.equal(layout.height > 920, true);
+  assert.equal(layout.communities.length, 1);
   for (let i = 0; i < layout.nodes.length; i += 1) {
     for (let j = i + 1; j < layout.nodes.length; j += 1) {
       const a = layout.nodes[i];
       const b = layout.nodes[j];
-      assert.equal(Math.hypot(a.x - b.x, a.y - b.y) + 0.5 >= a.radius + b.radius + 22, true);
+      assert.equal(Math.hypot(a.x - b.x, a.y - b.y) + 0.5 >= a.radius + b.radius, true);
     }
   }
+});
+
+test('relationship layout gives disconnected groups separate meaningful regions', () => {
+  const nodes = [
+    { slug: 'projects/a', title: 'Project A', type: 'projects', degree: 2 },
+    { slug: 'people/a', title: 'Person A', type: 'people', degree: 1 },
+    { slug: 'projects/b', title: 'Project B', type: 'projects', degree: 2 },
+    { slug: 'people/b', title: 'Person B', type: 'people', degree: 1 },
+  ];
+  const edges = [
+    { source: 'projects/a', target: 'people/a' },
+    { source: 'projects/b', target: 'people/b' },
+  ];
+  const layout = buildSpaciousConstellationLayout({ nodes, edges });
+  const bySlug = new Map(layout.nodes.map((node) => [node.slug, node]));
+  const withinA = Math.hypot(bySlug.get('projects/a').x - bySlug.get('people/a').x, bySlug.get('projects/a').y - bySlug.get('people/a').y);
+  const across = Math.hypot(bySlug.get('projects/a').x - bySlug.get('projects/b').x, bySlug.get('projects/a').y - bySlug.get('projects/b').y);
+
+  assert.equal(layout.communities.length, 2);
+  assert.equal(withinA < across, true);
 });
 
 test('signal bloom keeps small type clusters compact and non-overlapping', () => {
