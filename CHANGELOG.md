@@ -5,14 +5,61 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## Unreleased
 
+## [0.12.2] - 2026-07-11
+
+### Added
+
+- Added three Jarvis-style graph visualizers and promoted Jarvis Bloom as an
+  available dashboard graph renderer.
+- Added the spacious constellation graph renderer and shared graph visualizer
+  utilities for calmer large-graph layouts.
+- Added app-convention reference notes for dashboard surfaces, navigation,
+  state, auth, registration, local development, email delivery, schema, and
+  visual design.
+
+### Changed
+
+- Optimized Jarvis Bloom graph rendering for denser graph views.
+
 ### Fixed
 
+- The development desktop app can now be launched from Finder more reliably.
+- Existing brain services are migrated more safely, with rollback behavior that
+  restores the app service if migration cannot complete.
+- The dashboard hides the brain selector until the dashboard is ready, avoiding
+  premature selector interactions during startup.
 - Health now validates `*/.raw/*.md` attachment sidecars with a sidecar-specific
   profile instead of inheriting canonical meeting-page heading requirements from
   `meetings/`.
 - Attachment-sidecar health now reports missing or mismatched same-basename raw
   artifact bindings when a neighboring raw artifact exists or a sidecar declares
   `raw_file`.
+- Healthy Git status is no longer counted as a health finding. Git state remains
+  available as `git_status` report metadata, and only states that need attention
+  create `git_status` findings.
+- Git health ignores BigBrain runtime state files under `.bigbrain-state/`, so
+  SQLite write-ahead files cannot create false dirty-repository findings.
+
+### Agent update actions
+
+- Pull the release, run `npm install`, and restart each dashboard or local MCP
+  service so the health and graph-renderer changes take effect.
+- No brain-page, task-field, filing-rule, database, MCP-tool, skill, automation,
+  or folder migration is required.
+- Run `bigbrain sync --json` and `bigbrain health --json`; for a clean,
+  in-sync brain, verify `finding_count` is `0` while `git_status.health_status`
+  is `ok`.
+- For brains with attachment sidecars, verify `*/.raw/*.md` pages pass health
+  without canonical meeting-heading requirements and that same-basename raw
+  artifact bindings are reported only when deterministic.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- `node --test test/bigbrain/runtime.test.mjs`
+- Personal Brain health with the updated runtime: `finding_count: 0`,
+  `git_status.health_status: ok`, and `git_status.needs_attention: false`
 
 ## [0.12.1] - 2026-07-11
 
