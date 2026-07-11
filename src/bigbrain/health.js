@@ -112,11 +112,13 @@ export async function runHealthCheck(config, {
   const gitStatus = await detectGitStatus(config.brainDir);
   if (gitStatus) {
     await upsertHostedBrainGitState(db, hostedBrainGitStateFromStatus(config, gitStatus));
-    await insertHealthFinding(db, {
-      findingType: 'git_status',
-      severity: gitStatus.health_status === 'ok' ? 'low' : 'medium',
-      details: gitStatus,
-    });
+    if (gitStatus.needs_attention) {
+      await insertHealthFinding(db, {
+        findingType: 'git_status',
+        severity: 'medium',
+        details: gitStatus,
+      });
+    }
   }
 
   const cliStatus = await detectCliAvailability({ env, command: cliCommand, cwd: cliCwd });
@@ -389,7 +391,9 @@ async function detectGitStatus(brainDir) {
       execFileAsync('git', ['-C', brainDir, 'rev-parse', 'HEAD']),
       execFileAsync('git', ['-C', brainDir, 'rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}']).catch((error) => ({ error })),
     ]);
-    const lines = statusResult.stdout.trim().split('\n').filter(Boolean);
+    const lines = statusResult.stdout.trim().split('\n')
+      .filter(Boolean)
+      .filter((line) => line.startsWith('## ') || !isIgnoredGitStatusLine(line));
     const localBranch = branchResult.stdout.trim();
     const localHead = headResult.stdout.trim();
     const dirty = lines.some((line) => !line.startsWith('## '));
@@ -460,6 +464,12 @@ async function detectGitStatus(brainDir) {
       latest_error_summary: combined.trim(),
     });
   }
+}
+
+function isIgnoredGitStatusLine(line) {
+  const relativePath = line.slice(3).trim().replace(/^"|"$/g, '');
+  return relativePath === '.bigbrain-state'
+    || relativePath.startsWith('.bigbrain-state/');
 }
 
 function parseUpstreamRef(upstreamRef) {

@@ -852,8 +852,18 @@ Git durability status page.
     await execFileAsync('git', ['-C', fixture.brainHome, 'remote', 'add', 'origin', remoteDir]);
     await execFileAsync('git', ['-C', fixture.brainHome, 'push', '-u', 'origin', 'main']);
 
-    await fs.appendFile(path.join(fixture.brainHome, 'projects/git-health.md'), '\nUncommitted runtime edit.\n', 'utf8');
     const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    await execFileAsync('git', ['-C', fixture.brainHome, 'add', '.']);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'commit', '-m', 'sync state']);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'push']);
+    const cleanReport = await runHealthCheck(config, { cliCommand: process.execPath });
+
+    assert.equal(cleanReport.git_status.sync_status, 'in_sync');
+    assert.equal(cleanReport.git_status.needs_attention, false);
+    assert.equal(cleanReport.findings.some((finding) => finding.finding_type === 'git_status'), false);
+
+    await fs.appendFile(path.join(fixture.brainHome, 'projects/git-health.md'), '\nUncommitted runtime edit.\n', 'utf8');
     await syncBrain({ config, apiKey: null });
     const report = await runHealthCheck(config, { cliCommand: process.execPath });
 
