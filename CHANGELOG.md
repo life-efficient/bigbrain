@@ -3,6 +3,17 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining local installs and hosted brains.
 
+## Unreleased
+
+### Fixed
+
+- Health now validates `*/.raw/*.md` attachment sidecars with a sidecar-specific
+  profile instead of inheriting canonical meeting-page heading requirements from
+  `meetings/`.
+- Attachment-sidecar health now reports missing or mismatched same-basename raw
+  artifact bindings when a neighboring raw artifact exists or a sidecar declares
+  `raw_file`.
+
 ## [0.12.1] - 2026-07-11
 
 ### Fixed

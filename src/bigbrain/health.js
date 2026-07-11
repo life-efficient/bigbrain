@@ -7,7 +7,8 @@ import { promisify } from 'node:util';
 
 import { openDatabase, clearHealthFindings, getBacklinks, getOutgoingLinks, insertHealthFinding, listHealthFindings, listPages, upsertHostedBrainGitState } from './db.js';
 import { fullPathFromSlug, parseMarkdownPage } from './markdown.js';
-import { validatePageShape } from './schema.js';
+import { safeBrainPath } from './page-ops.js';
+import { isAttachmentSidecarSlug, validatePageShape } from './schema.js';
 
 const execFileAsync = promisify(execFile);
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -48,6 +49,15 @@ export async function runHealthCheck(config, {
         severity: severityForFinding(finding.type),
         pageSlug: page.slug,
         details: finding.details ?? {},
+      });
+    }
+
+    for (const issue of await validateAttachmentSidecarBinding(config, parsed)) {
+      await insertHealthFinding(db, {
+        findingType: issue.type,
+        severity: severityForFinding(issue.type),
+        pageSlug: page.slug,
+        details: issue.details ?? {},
       });
     }
 
@@ -173,9 +183,65 @@ export async function runHealthCheck(config, {
 function severityForFinding(findingType) {
   if (findingType === 'missing_frontmatter' || findingType === 'missing_separator') return 'medium';
   if (findingType === 'missing_meeting_heading' || findingType === 'invalid_meeting_prep_heading' || findingType === 'invalid_meeting_prep_structure') return 'medium';
+  if (findingType === 'attachment_sidecar_missing_raw_file' || findingType === 'attachment_sidecar_mismatched_raw_file' || findingType === 'attachment_sidecar_missing_raw_artifact') return 'medium';
   if (findingType === 'nested_raw_file_path') return 'medium';
   if (findingType === 'missing_filing_rules') return 'medium';
   return 'low';
+}
+
+async function validateAttachmentSidecarBinding(config, parsed) {
+  if (!isAttachmentSidecarSlug(parsed.slug)) return [];
+  const rawFile = typeof parsed.frontmatter?.raw_file === 'string' ? parsed.frontmatter.raw_file.trim() : '';
+  const expectedRawBase = expectedRawBaseForSidecar(parsed.slug);
+  if (!rawFile) {
+    if (!await sameBasenameRawArtifactExists(config, expectedRawBase)) return [];
+    return [{
+      type: 'attachment_sidecar_missing_raw_file',
+      details: {
+        expected_raw_file_prefix: expectedRawBase,
+        reason: 'attachment sidecars should declare the same-basename raw_file when they are bound to a raw artifact',
+      },
+    }];
+  }
+  const findings = [];
+  if (!rawFile.startsWith(`${expectedRawBase}.`) || rawFile.endsWith('.md')) {
+    findings.push({
+      type: 'attachment_sidecar_mismatched_raw_file',
+      details: {
+        raw_file: rawFile,
+        expected_shape: `${expectedRawBase}.<non-md-extension>`,
+      },
+    });
+  }
+  const exists = await Promise.resolve()
+    .then(() => safeBrainPath(config.brainDir, rawFile))
+    .then((artifactPath) => fs.stat(artifactPath))
+    .then((stats) => stats.isFile())
+    .catch(() => false);
+  if (!exists) {
+    findings.push({
+      type: 'attachment_sidecar_missing_raw_artifact',
+      details: {
+        raw_file: rawFile,
+      },
+    });
+  }
+  return findings;
+}
+
+async function sameBasenameRawArtifactExists(config, expectedRawBase) {
+  const dir = path.dirname(path.join(config.brainDir, expectedRawBase));
+  const basename = path.basename(expectedRawBase);
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch(() => []);
+  return entries.some((entry) => {
+    if (!entry.isFile()) return false;
+    if (entry.name === `${basename}.md`) return false;
+    return entry.name.startsWith(`${basename}.`);
+  });
+}
+
+function expectedRawBaseForSidecar(slug) {
+  return String(slug || '');
 }
 
 function detectPossibleMisplacedRawSidecar(parsed) {

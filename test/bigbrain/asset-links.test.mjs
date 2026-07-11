@@ -96,6 +96,95 @@ raw_mime_type: application/pdf
   }
 });
 
+test('health validates attachment sidecars without meeting page headings', async () => {
+  const fixture = await createFixture('bigbrain-attachment-sidecar-shape-');
+  try {
+    await writeFile(path.join(fixture.brainHome, 'meetings', '.raw', 'call-transcript.txt'), 'transcript text');
+    await writeMarkdown(fixture.brainHome, 'meetings/.raw/call-transcript.md', `---
+title: Call Transcript
+created: 2026-07-11
+raw_file: meetings/.raw/call-transcript.txt
+raw_mime_type: text/plain
+visibility: internal
+---
+# Call Transcript
+
+## Summary
+
+Searchable representation of the call transcript.
+
+## Provenance
+
+- Raw artifact: [call-transcript.txt](call-transcript.txt)
+
+---
+
+## Timeline
+
+- **2026-07-11** | Created sidecar for transcript artifact.
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const report = await runHealthCheck(config);
+
+    assert.equal(report.findings.some((finding) => finding.page_slug === 'meetings/.raw/call-transcript'), false);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('health flags attachment sidecars without a same-basename raw artifact binding', async () => {
+  const fixture = await createFixture('bigbrain-attachment-sidecar-binding-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'deals/.raw/teaser.md', `---
+title: Teaser
+created: 2026-07-11
+raw_file: deals/.raw/other.pdf
+---
+# Teaser
+
+## Summary
+
+Searchable teaser extraction.
+
+---
+
+## Timeline
+
+- **2026-07-11** | Created sidecar.
+`);
+    await writeMarkdown(fixture.brainHome, 'projects/.raw/brief.md', `---
+title: Brief
+created: 2026-07-11
+---
+# Brief
+
+## Summary
+
+Searchable brief extraction.
+
+---
+
+## Timeline
+
+- **2026-07-11** | Created sidecar.
+`);
+    await writeFile(path.join(fixture.brainHome, 'projects', '.raw', 'brief.pdf'), 'pdf');
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const report = await runHealthCheck(config);
+
+    const byType = new Map(report.findings.map((finding) => [`${finding.page_slug}:${finding.finding_type}`, finding]));
+    assert.equal(byType.has('deals/.raw/teaser:attachment_sidecar_mismatched_raw_file'), true);
+    assert.equal(byType.has('deals/.raw/teaser:attachment_sidecar_missing_raw_artifact'), true);
+    assert.equal(byType.has('projects/.raw/brief:attachment_sidecar_missing_raw_file'), true);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('health accepts canonical pages that link to raw files', async () => {
   const fixture = await createFixture('bigbrain-raw-canonical-health-');
   try {

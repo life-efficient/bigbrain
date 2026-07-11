@@ -185,13 +185,19 @@ export function validatePageShape(parsedPage) {
   if (isRepoDocumentationPage(parsedPage.slug)) return [];
 
   const findings = [];
+  const attachmentSidecar = isAttachmentSidecarSlug(parsedPage.slug);
   if (!parsedPage.hasFrontmatter) findings.push({ type: 'missing_frontmatter' });
   if (!parsedPage.title) findings.push({ type: 'missing_title' });
   if (!parsedPage.compiledTruth.trim()) findings.push({ type: 'missing_compiled_truth' });
   if (requiresSeparator(parsedPage) && !parsedPage.hasSeparator) findings.push({ type: 'missing_separator' });
-  if (PAGE_REQUIRED_TIMELINE_TYPES.has(parsedPage.type) && !parsedPage.timeline.trim()) findings.push({ type: 'missing_timeline' });
-  if (parsedPage.type === 'meetings') findings.push(...validateMeetingPage(parsedPage));
+  if ((attachmentSidecar || PAGE_REQUIRED_TIMELINE_TYPES.has(parsedPage.type)) && !parsedPage.timeline.trim()) findings.push({ type: 'missing_timeline' });
+  if (!attachmentSidecar && parsedPage.type === 'meetings') findings.push(...validateMeetingPage(parsedPage));
   return findings;
+}
+
+export function isAttachmentSidecarSlug(slug) {
+  const parts = String(slug || '').split('/');
+  return parts.length === 3 && parts[1] === '.raw';
 }
 
 function requiresSeparator(parsedPage) {
