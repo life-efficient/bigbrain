@@ -112,10 +112,10 @@ export async function runHealthCheck(config, {
   const gitStatus = await detectGitStatus(config.brainDir);
   if (gitStatus) {
     await upsertHostedBrainGitState(db, hostedBrainGitStateFromStatus(config, gitStatus));
-    if (gitStatus.needs_attention) {
+    if (gitStatus.needs_attention || ['no_repository', 'no_upstream'].includes(gitStatus.sync_status)) {
       await insertHealthFinding(db, {
         findingType: 'git_status',
-        severity: 'medium',
+        severity: ['no_repository', 'no_upstream'].includes(gitStatus.sync_status) ? 'low' : 'medium',
         details: gitStatus,
       });
     }
@@ -447,7 +447,23 @@ async function detectGitStatus(brainDir) {
     const message = error instanceof Error ? error.message : String(error);
     const stderr = typeof error === 'object' && error && 'stderr' in error ? String(error.stderr) : '';
     const combined = `${message}\n${stderr}`;
-    if (/not a git repository/i.test(combined)) return null;
+    if (/not a git repository/i.test(combined)) {
+      return decorateGitStatus({
+        checked_at: checkedAt,
+        clean: true,
+        dirty: false,
+        summary: [],
+        runtime_branch: null,
+        runtime_head: null,
+        canonical_remote: null,
+        canonical_branch: null,
+        canonical_head: null,
+        ahead_count: null,
+        behind_count: null,
+        latest_error_code: 'no_repository',
+        latest_error_summary: 'Git backup is not configured for this brain.',
+      });
+    }
     return decorateGitStatus({
       checked_at: checkedAt,
       clean: false,
@@ -485,7 +501,8 @@ function decorateGitStatus(status) {
   const ahead = status.ahead_count;
   const behind = status.behind_count;
   let syncStatus = 'unknown';
-  if (status.latest_error_code === 'no_upstream') syncStatus = 'no_upstream';
+  if (status.latest_error_code === 'no_repository') syncStatus = 'no_repository';
+  else if (status.latest_error_code === 'no_upstream') syncStatus = 'no_upstream';
   else if (status.latest_error_code) syncStatus = 'error';
   else if (status.dirty) syncStatus = 'dirty';
   else if (ahead > 0 && behind > 0) syncStatus = 'diverged';
@@ -493,7 +510,7 @@ function decorateGitStatus(status) {
   else if (behind > 0) syncStatus = 'behind';
   else if (ahead === 0 && behind === 0) syncStatus = 'in_sync';
 
-  const needsAttention = syncStatus !== 'in_sync';
+  const needsAttention = !['in_sync', 'no_repository', 'no_upstream'].includes(syncStatus);
   return {
     ...status,
     clean: status.dirty === null ? false : !status.dirty,

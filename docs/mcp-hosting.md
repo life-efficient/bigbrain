@@ -13,6 +13,14 @@ Both shapes should use BigBrain's hosted runtime adapter instead of
 brain-specific wrapper code for route allowlists, dashboard protection, member
 seeding, sync, git backup, public pages, shared groups, and raw-file exposure.
 
+Git backup is optional. This keeps local use, workshops, and initial onboarding
+available without requiring every user to create a remote repository. A tracked
+upstream is strongly recommended for hosted brains whose runtime filesystem can
+disappear. The ordinary health check reports a low-severity recommendation when
+Git or a tracked upstream is not configured. Once an upstream is configured, it
+warns when local changes or commits have not been backed up, the runtime has
+diverged from the upstream, or the backup status cannot be verified.
+
 One process serves one brain. Do not multiplex several brains through one
 runtime or database. Give every hosted brain its own deployment, database,
 member directory, authentication configuration, secrets, and backup lifecycle.

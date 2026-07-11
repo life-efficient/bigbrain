@@ -873,6 +873,8 @@ Git durability status page.
     assert.equal(report.git_status.behind_count, 0);
     assert.equal(report.git_status.sync_status, 'dirty');
     assert.equal(report.git_status.needs_attention, true);
+    const gitFinding = report.findings.find((finding) => finding.finding_type === 'git_status');
+    assert.equal(gitFinding.severity, 'medium');
 
     const db = await openDatabase(config);
     const state = await getHostedBrainGitState(db, config.brainDir);
@@ -885,6 +887,58 @@ Git durability status page.
     assert.equal(state.dirty, true);
     assert.equal(state.latest_error_code, null);
     await db.close?.();
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('health treats an unconfigured Git upstream as an optional backup recommendation', async () => {
+  const fixture = await createFixture('bigbrain-git-backup-optional-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'projects/local-only.md', `---
+title: Local Only
+---
+# Local Only
+
+Git backup is optional.
+`);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'init']);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'config', 'user.email', 'test@example.com']);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'config', 'user.name', 'Test User']);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'add', '.']);
+    await execFileAsync('git', ['-C', fixture.brainHome, 'commit', '-m', 'local brain']);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const report = await runHealthCheck(config, { cliCommand: process.execPath });
+
+    assert.equal(report.git_status.sync_status, 'no_upstream');
+    assert.equal(report.git_status.needs_attention, false);
+    assert.equal(report.git_status.health_status, 'ok');
+    const gitFinding = report.findings.find((finding) => finding.finding_type === 'git_status');
+    assert.equal(gitFinding.severity, 'low');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('health treats a brain without Git as an optional backup recommendation', async () => {
+  const fixture = await createFixture('bigbrain-without-git-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'projects/workshop-brain.md', `---
+title: Workshop Brain
+---
+# Workshop Brain
+
+No Git setup is required.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const report = await runHealthCheck(config, { cliCommand: process.execPath });
+
+    assert.equal(report.git_status.sync_status, 'no_repository');
+    assert.equal(report.git_status.needs_attention, false);
+    assert.equal(report.git_status.health_status, 'ok');
+    const gitFinding = report.findings.find((finding) => finding.finding_type === 'git_status');
+    assert.equal(gitFinding.severity, 'low');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

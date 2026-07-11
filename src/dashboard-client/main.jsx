@@ -820,7 +820,7 @@ function formatHealthMessage(item) {
 
   switch (item.finding_type) {
     case 'git_status':
-      return item.details?.clean === false ? 'Working tree has local changes.' : 'Git status needs review.';
+      return formatGitDurabilityMessage(item.details);
     case 'missing_separator':
       return 'Missing required separator in page body.';
     case 'missing_filing_rules':
@@ -832,6 +832,37 @@ function formatHealthMessage(item) {
     default:
       return item.finding_type ? item.finding_type.replaceAll('_', ' ') : 'Health finding';
   }
+}
+
+function formatGitDurabilityMessage(details = {}) {
+  const upstream = [details.canonical_remote, details.canonical_branch].filter(Boolean).join('/');
+  const target = upstream ? ` to ${upstream}` : '';
+  if (details.sync_status === 'no_repository' || details.sync_status === 'no_upstream') {
+    return 'Git backup is not configured. It is optional but recommended.';
+  }
+  if (details.sync_status === 'dirty') {
+    const changeCount = Array.isArray(details.summary)
+      ? details.summary.filter((line) => !String(line).startsWith('## ')).length
+      : 0;
+    return changeCount
+      ? `${changeCount} ${changeCount === 1 ? 'change is' : 'changes are'} not backed up${target}.`
+      : `Local changes are not backed up${target}.`;
+  }
+  if (details.sync_status === 'ahead') {
+    const count = Number(details.ahead_count) || 0;
+    return `${count} ${count === 1 ? 'commit is' : 'commits are'} not backed up${target}.`;
+  }
+  if (details.sync_status === 'behind') {
+    const count = Number(details.behind_count) || 0;
+    return `Runtime is ${count} ${count === 1 ? 'commit' : 'commits'} behind${target || ' its upstream'}.`;
+  }
+  if (details.sync_status === 'diverged') {
+    return `Runtime and${target || ' its upstream'} have diverged.`;
+  }
+  if (details.sync_status === 'error' || details.sync_status === 'unknown') {
+    return 'Git backup status could not be verified.';
+  }
+  return 'Git backup status needs review.';
 }
 
 function deriveHealthSeverity(findings) {

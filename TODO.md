@@ -1,17 +1,18 @@
 # TODO
 
+## Recently Completed
+
+- **2026-07-11 — Hosted-brain Git durability health review:** Done. Kept
+  durability visibility inside the existing health check and API, made Git
+  backup optional with a low-severity recommendation when it is not configured,
+  and added factual warnings when configured changes are not backed up. No
+  successor task is needed for the approved scope.
+
 ## Hosted Brain Service
 
 - Keep packaging focused on the two supported product modes: local brain and
   remote brain. Docker, bundled Postgres, Supabase, and thin clients should be
   implementation details or roadmap variants around those modes.
-- Review and explain the proposed dashboard/API surfacing for hosted-brain git
-  durability health before implementation. Show what is already persisted—
-  canonical upstream head, runtime checkout head, dirty/ahead/behind status,
-  last checked time, latest error, and needs-attention status—then explain in
-  plain language what problem the dashboard/API would solve, who would use it,
-  and the smallest useful UI/API. Walk Harry through the decisions and update
-  the implementation scope only after his feedback.
 - Expand bounded MCP audit logging at tool boundaries for meaningful writes,
   destructive/admin operations, maintenance actions, and auth/security
   failures without storing full request payloads.

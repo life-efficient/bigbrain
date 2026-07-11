@@ -5,6 +5,44 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## Unreleased
 
+## [0.13.0] - 2026-07-11
+
+### Changed
+
+- Reworked the relationship, spacious, and Jarvis Bloom graph layouts so
+  connected pages form clearer communities, dense graphs use their available
+  space more naturally, and the camera fits rendered content more reliably.
+- Persisted dashboard graph visualizer and style preferences in local browser
+  storage.
+- Clarified Git durability health without adding a separate dashboard or API:
+  brains without Git backup receive a low-severity recommendation, while
+  configured backups report factual warnings such as the number of local
+  changes or commits not yet backed up to the tracked upstream.
+
+### Fixed
+
+- Brains without a Git repository or tracked upstream are no longer classified
+  as needing attention merely because optional Git backup is not configured.
+- Git durability warnings now distinguish uncommitted changes, unpushed
+  commits, behind or diverged checkouts, and verification failures.
+
+### Agent update actions
+
+- Pull the release, run `npm install`, and restart each dashboard or local MCP
+  service so the graph and health-message changes take effect.
+- No brain-page, task-field, filing-rule, database, MCP-tool, skill, automation,
+  or folder migration is required.
+- Run `bigbrain health --json`. For a brain without Git backup, verify
+  `git_status.health_status` is `ok` and the Git finding is low severity. For a
+  configured, synchronized brain, verify there is no Git finding.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- `node --test test/bigbrain/runtime.test.mjs`
+- `npm pack --dry-run`
+
 ## [0.12.2] - 2026-07-11
 
 ### Added
