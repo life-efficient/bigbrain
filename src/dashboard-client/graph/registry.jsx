@@ -63,9 +63,9 @@ export const graphVisualizers = [
   },
   {
     id: 'spacious-constellation',
-    label: 'Relationships',
+    label: 'Grouped',
     Component: SpaciousConstellationVisualizer,
-    description: 'Relationship communities with meaningful grouping and hierarchy',
+    description: 'Pages grouped by type with their links preserved',
     interactionModel: 'custom',
     controls: ['zoomIn', 'zoomOut', 'resetView'],
     capabilities: {
