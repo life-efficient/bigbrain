@@ -70,15 +70,37 @@ function formatErrorDetails(error) {
   return String(error);
 }
 
+function loadGraphPreferences() {
+  const defaults = { ...GRAPH_DEFAULTS };
+  try {
+    const saved = JSON.parse(window.localStorage.getItem('bigbrain:graph-preferences') || '{}');
+    const allowed = {
+      visualizerId: new Set(graphVisualizers.map((item) => item.id)),
+      nodeStyle: new Set(GRAPH_NODE_STYLES.map((item) => item.id)),
+      arcStyle: new Set(GRAPH_ARC_STYLES.map((item) => item.id)),
+      layoutStyle: new Set(GRAPH_LAYOUT_STYLES.map((item) => item.id)),
+      labelStyle: new Set(GRAPH_LABEL_STYLES.map((item) => item.id)),
+      colorMode: new Set(GRAPH_COLOR_MODES.map((item) => item.id)),
+    };
+    for (const [key, values] of Object.entries(allowed)) {
+      if (values.has(saved[key])) defaults[key] = saved[key];
+    }
+  } catch {
+    // Invalid or unavailable storage falls back to the registry defaults.
+  }
+  return defaults;
+}
+
 function DashboardApp() {
+  const savedGraphPreferences = useMemo(() => loadGraphPreferences(), []);
   const [state, setState] = useState({ status: 'loading', error: null, data: null });
   const [view, setView] = useState('graph');
-  const [visualizerId, setVisualizerId] = useState(GRAPH_DEFAULTS.visualizerId);
-  const [nodeStyle, setNodeStyle] = useState(GRAPH_DEFAULTS.nodeStyle);
-  const [arcStyle, setArcStyle] = useState(GRAPH_DEFAULTS.arcStyle);
-  const [layoutStyle, setLayoutStyle] = useState(GRAPH_DEFAULTS.layoutStyle);
-  const [labelStyle, setLabelStyle] = useState(GRAPH_DEFAULTS.labelStyle);
-  const [colorMode, setColorMode] = useState(GRAPH_DEFAULTS.colorMode);
+  const [visualizerId, setVisualizerId] = useState(savedGraphPreferences.visualizerId);
+  const [nodeStyle, setNodeStyle] = useState(savedGraphPreferences.nodeStyle);
+  const [arcStyle, setArcStyle] = useState(savedGraphPreferences.arcStyle);
+  const [layoutStyle, setLayoutStyle] = useState(savedGraphPreferences.layoutStyle);
+  const [labelStyle, setLabelStyle] = useState(savedGraphPreferences.labelStyle);
+  const [colorMode, setColorMode] = useState(savedGraphPreferences.colorMode);
   const [themeMode, setThemeMode] = useState('auto');
   const [prefersDark, setPrefersDark] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -91,6 +113,16 @@ function DashboardApp() {
   const visualizerRef = useRef(null);
   const healthMenuRef = useRef(null);
   const settingsMenuRef = useRef(null);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('bigbrain:graph-preferences', JSON.stringify({
+        visualizerId, nodeStyle, arcStyle, layoutStyle, labelStyle, colorMode,
+      }));
+    } catch {
+      // Storage can be unavailable in restricted browser contexts; defaults remain usable.
+    }
+  }, [arcStyle, colorMode, labelStyle, layoutStyle, nodeStyle, visualizerId]);
 
   useEffect(() => {
     if (window.parent === window) return;

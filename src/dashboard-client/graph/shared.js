@@ -110,36 +110,34 @@ export function buildSignalBloomLayout(graph) {
     nodes,
     estimatedRadius: estimateClusterRadius(nodes),
   }));
-  const clusterCenters = buildAdaptiveClusterCenters(clusterEntries, layout.width, layout.height);
-  const clusters = [];
-  for (const entry of clusterEntries) {
-    const center = clusterCenters.get(entry.type) || { x: layout.centerX, y: layout.centerY };
-    const clusterRadius = placePackedCluster(entry.nodes, {
-      centerX: center.x,
-      centerY: center.y,
-    });
-    clusters.push({
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  const clusters = clusterEntries.map((entry, index) => {
+    const distance = index === 0 ? 0 : 120 + Math.sqrt(index) * 260;
+    const angle = index * goldenAngle;
+    return {
       type: entry.type,
-      x: center.x,
-      y: center.y,
-      radius: clusterRadius,
+      x: Math.cos(angle) * distance,
+      y: Math.sin(angle) * distance,
+      radius: entry.estimatedRadius,
+      entry,
+    };
+  });
+  resolveClusterCollisions(clusters, 90);
+  for (const cluster of clusters) {
+    const clusterRadius = placePackedCluster(cluster.entry.nodes, {
+      centerX: cluster.x,
+      centerY: cluster.y,
     });
+    cluster.radius = clusterRadius;
+    delete cluster.entry;
   }
 
-  const clusterCenterMap = new Map(clusters.map((cluster) => [cluster.type, cluster]));
-  relaxLayout(layout, {
-    padding: 18,
-    centerPull: 0.0004,
-    linkPull: 0.0022,
-    iterations: 12,
-    anchorPull: 0.028,
-    getAnchor(node) {
-      return clusterCenterMap.get(node.type) || null;
-    },
-  });
+  const offsetX = 100 - Math.min(...layout.nodes.map((node) => node.x - node.radius));
+  const offsetY = 100 - Math.min(...layout.nodes.map((node) => node.y - node.radius));
+  const fitted = fitLayoutToNodeBounds(layout, 100);
   return {
-    ...layout,
-    clusters,
+    ...fitted,
+    clusters: clusters.map((cluster) => ({ ...cluster, x: cluster.x + offsetX, y: cluster.y + offsetY })),
   };
 }
 

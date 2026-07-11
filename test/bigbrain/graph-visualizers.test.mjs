@@ -141,8 +141,10 @@ test('signal bloom keeps small type clusters compact and non-overlapping', () =>
 
   for (const cluster of layout.clusters) {
     assert.equal(cluster.radius < 70, true);
-    const distanceFromCenter = Math.hypot(cluster.x - layout.centerX, cluster.y - layout.centerY);
-    assert.equal(distanceFromCenter < 240, true);
+    assert.equal(cluster.x - cluster.radius >= 0, true);
+    assert.equal(cluster.x + cluster.radius <= layout.width, true);
+    assert.equal(cluster.y - cluster.radius >= 0, true);
+    assert.equal(cluster.y + cluster.radius <= layout.height, true);
   }
 
   for (let i = 0; i < layout.nodes.length; i += 1) {
