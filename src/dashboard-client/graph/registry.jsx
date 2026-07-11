@@ -1,6 +1,4 @@
 import { ComposableGraphVisualizer } from './composable-graph-visualizer.jsx';
-import { JarvisHudVisualizer } from './jarvis-hud-visualizer.jsx';
-import { NeuralMeshVisualizer } from './neural-mesh-visualizer.jsx';
 import { SignalBloomVisualizer } from './signal-bloom-visualizer.jsx';
 import { VisNetworkVisualizer } from './vis-network-visualizer.jsx';
 
@@ -11,7 +9,7 @@ export const GRAPH_CONTROL_LABELS = {
 };
 
 export const GRAPH_DEFAULTS = {
-  visualizerId: 'jarvis-orbital',
+  visualizerId: 'jarvis-bloom',
   nodeStyle: 'diamond',
   arcStyle: 'curve',
   layoutStyle: 'lanes',
@@ -61,24 +59,6 @@ export const graphVisualizers = [
       ownsPan: true,
       ownsWheelZoom: true,
     },
-  },
-  {
-    id: 'jarvis-orbital',
-    label: 'Jarvis Orbital',
-    Component: JarvisHudVisualizer,
-    description: 'Radar command graph with collision-free orbital spacing',
-    interactionModel: 'custom',
-    controls: ['zoomIn', 'zoomOut', 'resetView'],
-    capabilities: { ownsPan: true, ownsWheelZoom: true },
-  },
-  {
-    id: 'jarvis-mesh',
-    label: 'Jarvis Mesh',
-    Component: NeuralMeshVisualizer,
-    description: 'Structured page-type lanes with animated neural signals',
-    interactionModel: 'custom',
-    controls: ['zoomIn', 'zoomOut', 'resetView'],
-    capabilities: { ownsPan: true, ownsWheelZoom: true },
   },
   {
     id: 'jarvis-bloom',
