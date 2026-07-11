@@ -230,10 +230,7 @@ function DashboardApp() {
       }
 
       const key = event.key.toLowerCase();
-      if (key === 't') {
-        event.preventDefault();
-        setView('tasks');
-      } else if (key === 'g') {
+      if (key === 'g') {
         event.preventDefault();
         setView('graph');
       } else if (key === 'e') {
@@ -315,7 +312,6 @@ function DashboardApp() {
   const healthSeverity = deriveHealthSeverity(healthFindings);
 
   const views = [
-    { id: 'tasks', label: 'Tasks', count: Number.isFinite(tasks?.meta?.open_tasks) ? tasks.meta.open_tasks : 0, shortcut: 'T' },
     { id: 'graph', label: 'Graph', shortcut: 'G' },
     { id: 'explorer', label: 'Explorer', shortcut: 'E' },
   ];
@@ -1641,6 +1637,7 @@ const GraphPanel = memo(function GraphPanel({
       .slice(0, 6);
   }, [filteredGraph]);
   const isCustomRenderer = visualizerId === 'custom';
+  const supportsNodeControls = visualizerId !== 'vis-network';
   const visibleControls = Array.isArray(visualizer.controls)
     ? visualizer.controls.filter((control) => control === 'resetView')
     : [];
@@ -1831,7 +1828,7 @@ const GraphPanel = memo(function GraphPanel({
                   value={nodeStyle}
                   options={GRAPH_NODE_STYLES}
                   onSelect={setNodeStyle}
-                  disabled={!isCustomRenderer}
+                  disabled={!supportsNodeControls}
                 />
                 <GraphStyleOptionGroup
                   label="Arc"
@@ -1858,7 +1855,7 @@ const GraphPanel = memo(function GraphPanel({
                   value={labelStyle}
                   options={GRAPH_LABEL_STYLES}
                   onSelect={setLabelStyle}
-                  disabled={!isCustomRenderer}
+                  disabled={!supportsNodeControls}
                 />
               </div>
             ) : null}
