@@ -195,7 +195,11 @@ async function prepareGitRepo({
 
   await removeStaleGitLock(targetDir);
   await configureGitIdentity(targetDir, identityName, identityEmail, env);
-  await run('git', ['rebase', '--abort'], { cwd: targetDir, env, allowFailure: true });
+  const rebaseInProgress = await exists(path.join(gitDir, 'rebase-merge'))
+    || await exists(path.join(gitDir, 'rebase-apply'));
+  if (rebaseInProgress) {
+    await run('git', ['rebase', '--abort'], { cwd: targetDir, env });
+  }
   await run('git', ['remote', 'set-url', 'origin', repoUrlWithToken(repoUrl, token)], { cwd: targetDir, env });
   await run('git', ['fetch', 'origin', branch], { cwd: targetDir, env });
   await run('git', ['checkout', branch], { cwd: targetDir, env });
