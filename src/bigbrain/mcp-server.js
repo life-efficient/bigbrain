@@ -176,7 +176,6 @@ export async function startMcpServer({
       if (!authorization.ok) {
         await auditMcpSecurityEvent(config, {
           action: 'mcp.security.authentication_failed',
-          status: 'denied',
           reason: authorization.message || 'Unauthorized',
           authMode: authConfig?.mode || null,
         }).catch(() => {});
@@ -317,8 +316,8 @@ async function callTool({ config, params, gitBackupEnabled, actor, authConfig })
   try {
     assertToolAllowed(name, actor);
     const result = await executeToolCall({ config, name, args, gitBackupEnabled, actor, authConfig });
-    if (auditCategoryForTool(name)) {
-      await auditMcpToolCall(config, { actor, name, args, status: 'success' });
+    if (isAuditedTool(name)) {
+      await auditMcpToolCall(config, { actor, name, args });
     }
     return result;
   } catch (error) {
@@ -326,7 +325,6 @@ async function callTool({ config, params, gitBackupEnabled, actor, authConfig })
       actor,
       name,
       args,
-      status: 'error',
       error: error instanceof Error ? error.message : String(error),
     }).catch(() => {});
     throw error;
@@ -512,19 +510,15 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
   }
 }
 
-async function auditMcpToolCall(config, { actor, name, args, status, error = null }) {
-  const category = auditCategoryForTool(name) || 'security';
+async function auditMcpToolCall(config, { actor, name, args, error = null }) {
   const db = await openDatabase(config);
   try {
     await insertMcpAuditLog(db, {
       actorEmail: actor?.email || null,
       action: `mcp.tool.${name || 'unknown'}`,
       details: {
-        status,
-        category,
-        tool_name: name || null,
         arguments: sanitizeAuditArguments(args),
-        error,
+        ...(error ? { error: boundedAuditString(error) } : {}),
       },
     });
   } finally {
@@ -532,14 +526,12 @@ async function auditMcpToolCall(config, { actor, name, args, status, error = nul
   }
 }
 
-async function auditMcpSecurityEvent(config, { action, status, reason, authMode }) {
+async function auditMcpSecurityEvent(config, { action, reason, authMode }) {
   const db = await openDatabase(config);
   try {
     await insertMcpAuditLog(db, {
       action,
       details: {
-        status,
-        category: 'security',
         auth_mode: authMode,
         reason: boundedAuditString(reason),
       },
@@ -549,13 +541,9 @@ async function auditMcpSecurityEvent(config, { action, status, reason, authMode 
   }
 }
 
-function auditCategoryForTool(name) {
+function isAuditedTool(name) {
   const layer = toolPolicy(name)?.layer;
-  if (layer === 'create') return 'write';
-  if (layer === 'publish') return 'administrative';
-  if (layer === 'raw_destructive') return 'destructive';
-  if (layer === 'git_backup' || layer === 'maintenance') return 'maintenance';
-  return null;
+  return ['create', 'publish', 'raw_destructive', 'git_backup', 'maintenance'].includes(layer);
 }
 
 function sanitizeAuditArguments(value) {
