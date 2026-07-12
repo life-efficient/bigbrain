@@ -15,7 +15,10 @@
   implementation details or roadmap variants around those modes.
 - Expand bounded MCP audit logging at tool boundaries for meaningful writes,
   destructive/admin operations, maintenance actions, and auth/security
-  failures without storing full request payloads.
+  failures without storing full request payloads. First increment complete:
+  tool-category filtering, recursive content/secret redaction, and auth/scope
+  failure capture. Next: structured request/actor/resource metadata, retention,
+  and admin-only access/export; see `docs/mcp-audit-logging.md`.
 - Add a tool policy layer for hosted MCP that separates read-only tools,
   append/create tools, destructive raw-file updates/deletes, git backup, and
   maintenance/admin operations by auth mode or scope.

@@ -174,6 +174,12 @@ export async function startMcpServer({
       }
       const authorization = await authorizeMcpRequest(request, authConfig);
       if (!authorization.ok) {
+        await auditMcpSecurityEvent(config, {
+          action: 'mcp.security.authentication_failed',
+          status: 'denied',
+          reason: authorization.message || 'Unauthorized',
+          authMode: authConfig?.mode || null,
+        }).catch(() => {});
         return sendJson(response, authorization.status || 401, jsonRpcError(null, -32001, authorization.message || 'Unauthorized'), {
           authConfig,
           includeResourceMetadata: true,
@@ -308,10 +314,12 @@ async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor, 
 async function callTool({ config, params, gitBackupEnabled, actor, authConfig }) {
   const name = params.name;
   const args = params.arguments || {};
-  assertToolAllowed(name, actor);
   try {
+    assertToolAllowed(name, actor);
     const result = await executeToolCall({ config, name, args, gitBackupEnabled, actor, authConfig });
-    await auditMcpToolCall(config, { actor, name, args, status: 'success' });
+    if (auditCategoryForTool(name)) {
+      await auditMcpToolCall(config, { actor, name, args, status: 'success' });
+    }
     return result;
   } catch (error) {
     await auditMcpToolCall(config, {
@@ -505,6 +513,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
 }
 
 async function auditMcpToolCall(config, { actor, name, args, status, error = null }) {
+  const category = auditCategoryForTool(name) || 'security';
   const db = await openDatabase(config);
   try {
     await insertMcpAuditLog(db, {
@@ -512,6 +521,7 @@ async function auditMcpToolCall(config, { actor, name, args, status, error = nul
       action: `mcp.tool.${name || 'unknown'}`,
       details: {
         status,
+        category,
         tool_name: name || null,
         arguments: sanitizeAuditArguments(args),
         error,
@@ -522,11 +532,37 @@ async function auditMcpToolCall(config, { actor, name, args, status, error = nul
   }
 }
 
+async function auditMcpSecurityEvent(config, { action, status, reason, authMode }) {
+  const db = await openDatabase(config);
+  try {
+    await insertMcpAuditLog(db, {
+      action,
+      details: {
+        status,
+        category: 'security',
+        auth_mode: authMode,
+        reason: boundedAuditString(reason),
+      },
+    });
+  } finally {
+    await db.close?.();
+  }
+}
+
+function auditCategoryForTool(name) {
+  const layer = toolPolicy(name)?.layer;
+  if (layer === 'create') return 'write';
+  if (layer === 'publish') return 'administrative';
+  if (layer === 'raw_destructive') return 'destructive';
+  if (layer === 'git_backup' || layer === 'maintenance') return 'maintenance';
+  return null;
+}
+
 function sanitizeAuditArguments(value) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
   const sanitized = {};
   for (const [key, entry] of Object.entries(value)) {
-    if (key === 'raw_content_base64' || key === 'raw_content_text' || key === 'body') {
+    if (isSensitiveAuditKey(key) || key === 'raw_content_base64' || key === 'raw_content_text' || key === 'body') {
       sanitized[key] = redactedAuditValue(entry);
       continue;
     }
@@ -534,9 +570,33 @@ function sanitizeAuditArguments(value) {
       sanitized[key] = Object.keys(entry).sort();
       continue;
     }
-    sanitized[key] = entry;
+    sanitized[key] = sanitizeAuditValue(entry, key);
   }
   return sanitized;
+}
+
+function sanitizeAuditValue(value, key) {
+  if (value === null || typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    if (AUDIT_IDENTIFIER_KEYS.has(key)) return boundedAuditString(value);
+    return redactedAuditValue(value);
+  }
+  if (Array.isArray(value)) return value.map((entry) => sanitizeAuditValue(entry, key)).slice(0, 20);
+  if (value && typeof value === 'object') return sanitizeAuditArguments(value);
+  return value;
+}
+
+const AUDIT_IDENTIFIER_KEYS = new Set([
+  'path', 'slug', 'old_path', 'new_path', 'page_slug', 'raw_path', 'status',
+  'visibility', 'priority', 'readiness', 'execution_mode', 'assignee',
+]);
+
+function isSensitiveAuditKey(key) {
+  return /(?:token|secret|password|authorization|cookie|api[_-]?key|client[_-]?secret)/i.test(key);
+}
+
+function boundedAuditString(value) {
+  return String(value ?? '').slice(0, 240);
 }
 
 function redactedAuditValue(value) {

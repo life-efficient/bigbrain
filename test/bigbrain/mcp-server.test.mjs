@@ -260,10 +260,12 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(record.title, 'MCP Test');
     assert.match(record.compiled_truth, /Created through the MCP server/);
     const auditRows = await listMcpAuditLog(db);
+    assert.equal(auditRows.some((row) => row.action === 'mcp.tool.read'), false);
     const createdAudit = auditRows.find((row) => row.action === 'mcp.tool.create_page');
     assert.equal(createdAudit.actor_email, null);
     const details = JSON.parse(createdAudit.details_json);
     assert.equal(details.status, 'success');
+    assert.equal(details.category, 'write');
     assert.equal(details.arguments.path, 'people/mcp-test');
     assert.deepEqual(details.arguments.body, { redacted: true, length: 'Created through the MCP server. [PDF](.raw/public.pdf)'.length });
     assert.equal(JSON.stringify(details.arguments).includes('Created through the MCP server'), false);
