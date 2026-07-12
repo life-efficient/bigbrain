@@ -478,7 +478,7 @@ test('MCP server supports raw file CRUD tools', async () => {
       name: 'list_raw_files',
       arguments: { path: 'sources/.raw' },
     }, 'secret');
-    assert.deepEqual(listed.result.structuredContent.map((entry) => entry.path), ['sources/.raw/mcp-crud-renamed.txt']);
+    assert.deepEqual(listed.result.structuredContent.files.map((entry) => entry.path), ['sources/.raw/mcp-crud-renamed.txt']);
 
     const deleted = await rpc(running.url, 'tools/call', {
       name: 'delete_raw_file',
@@ -627,18 +627,19 @@ test('MCP list tool supports limit and ordering params', async () => {
       name: 'list',
       arguments: { path: 'people', recursive: false },
     }, 'secret');
-    assert.deepEqual(alpha.result.structuredContent.map((entry) => entry.path), [
+    assert.equal(Array.isArray(alpha.result.structuredContent), false);
+    assert.deepEqual(alpha.result.structuredContent.pages.map((entry) => entry.path), [
       'people/person-1.md',
       'people/person-2.md',
       'people/person-10.md',
     ]);
-    assert.match(alpha.result.structuredContent[0].created_at, /^\d{4}-\d{2}-\d{2}T/);
+    assert.match(alpha.result.structuredContent.pages[0].created_at, /^\d{4}-\d{2}-\d{2}T/);
 
     const recent = await rpc(running.url, 'tools/call', {
       name: 'list',
       arguments: { path: 'people', recursive: false, order_by: 'updated_at', limit: 2 },
     }, 'secret');
-    assert.deepEqual(recent.result.structuredContent.map((entry) => entry.path), [
+    assert.deepEqual(recent.result.structuredContent.pages.map((entry) => entry.path), [
       'people/person-10.md',
       'people/person-1.md',
     ]);
@@ -972,7 +973,7 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     assert.equal(me.result.structuredContent.member.person_slug, 'people/team-mate');
 
     const members = await rpc(running.url, 'tools/call', { name: 'members/list', arguments: {} }, token);
-    assert.deepEqual(members.result.structuredContent.map((member) => member.person_slug), ['people/team-mate']);
+    assert.deepEqual(members.result.structuredContent.members.map((member) => member.person_slug), ['people/team-mate']);
 
     const created = await rpc(running.url, 'tools/call', {
       name: 'tasks/create',
@@ -1036,19 +1037,20 @@ None.`,
       name: 'tasks/list',
       arguments: { assignee: 'me', status: 'in_progress' },
     }, token);
-    assert.deepEqual(mine.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
+    assert.equal(Array.isArray(mine.result.structuredContent), false);
+    assert.deepEqual(mine.result.structuredContent.tasks.map((task) => task.slug), ['tasks/draft-icaire-update']);
 
     const readyTasks = await rpc(running.url, 'tools/call', {
       name: 'tasks/list',
       arguments: { readiness: 'ready' },
     }, token);
-    assert.deepEqual(readyTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
+    assert.deepEqual(readyTasks.result.structuredContent.tasks.map((task) => task.slug), ['tasks/draft-icaire-update']);
 
     const agentTasks = await rpc(running.url, 'tools/call', {
       name: 'tasks/list',
       arguments: { readiness: 'ready', execution_mode: 'agent' },
     }, token);
-    assert.deepEqual(agentTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
+    assert.deepEqual(agentTasks.result.structuredContent.tasks.map((task) => task.slug), ['tasks/draft-icaire-update']);
 
     const interactiveMode = await rpc(running.url, 'tools/call', {
       name: 'tasks/update',
@@ -1084,7 +1086,7 @@ What final send wording should be used during the guided review session?`,
       name: 'tasks/list',
       arguments: { readiness: 'ready', execution_mode: 'interactive' },
     }, token);
-    assert.deepEqual(interactiveTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update']);
+    assert.deepEqual(interactiveTasks.result.structuredContent.tasks.map((task) => task.slug), ['tasks/draft-icaire-update']);
 
     const userMode = await rpc(running.url, 'tools/call', {
       name: 'tasks/update',
@@ -1101,7 +1103,7 @@ What final send wording should be used during the guided review session?`,
       name: 'tasks/list',
       arguments: { readiness: 'ready', execution_mode: 'agent' },
     }, token);
-    assert.deepEqual(agentTasksAfterModeChange.result.structuredContent, []);
+    assert.deepEqual(agentTasksAfterModeChange.result.structuredContent.tasks, []);
 
     const thinReady = await rpc(running.url, 'tools/call', {
       name: 'tasks/create',
@@ -1122,7 +1124,7 @@ What final send wording should be used during the guided review session?`,
       name: 'tasks/list',
       arguments: {},
     }, token);
-    assert.deepEqual(allTasks.result.structuredContent.map((task) => task.slug), ['tasks/draft-icaire-update', 'tasks/granola-thin-follow-up']);
+    assert.deepEqual(allTasks.result.structuredContent.tasks.map((task) => task.slug), ['tasks/draft-icaire-update', 'tasks/granola-thin-follow-up']);
 
     const rejectedCompletion = await rpc(running.url, 'tools/call', {
       name: 'tasks/update',
@@ -1187,7 +1189,7 @@ What final send wording should be used during the guided review session?`,
       name: 'tasks/list',
       arguments: { status: 'open', readiness: 'underspecified' },
     }, token);
-    assert.deepEqual(underspecifiedTasks.result.structuredContent.map((task) => task.slug), ['tasks/clarify-follow-up']);
+    assert.deepEqual(underspecifiedTasks.result.structuredContent.tasks.map((task) => task.slug), ['tasks/clarify-follow-up']);
 
     const readinessUpdated = await rpc(running.url, 'tools/call', {
       name: 'tasks/update',
@@ -1226,7 +1228,7 @@ None.
       name: 'tasks/list',
       arguments: { readiness: 'ready' },
     }, token);
-    assert.equal(allReadyTasks.result.structuredContent.some((task) => task.slug === 'tasks/clarify-follow-up'), true);
+    assert.equal(allReadyTasks.result.structuredContent.tasks.some((task) => task.slug === 'tasks/clarify-follow-up'), true);
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
@@ -1278,14 +1280,14 @@ test('MCP task tools resolve me to a deterministic local member when auth is dis
       arguments: { assignee: 'me', status: 'open' },
     });
     assert.equal(mine.error, undefined, mine.error?.message);
-    assert.deepEqual(mine.result.structuredContent.map((task) => task.slug), ['tasks/handle-local-assignment']);
+    assert.deepEqual(mine.result.structuredContent.tasks.map((task) => task.slug), ['tasks/handle-local-assignment']);
 
     const explicit = await rpc(running.url, 'tools/call', {
       name: 'tasks/list',
       arguments: { assignee: 'people/local-owner', status: 'open' },
     });
     assert.equal(explicit.error, undefined, explicit.error?.message);
-    assert.deepEqual(explicit.result.structuredContent.map((task) => task.slug), ['tasks/handle-local-assignment']);
+    assert.deepEqual(explicit.result.structuredContent.tasks.map((task) => task.slug), ['tasks/handle-local-assignment']);
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
@@ -1355,7 +1357,7 @@ test('MCP token auth resolves me only through the configured active member', asy
       arguments: { assignee: 'me', status: 'open' },
     }, 'secret');
     assert.equal(mine.error, undefined, mine.error?.message);
-    assert.deepEqual(mine.result.structuredContent.map((task) => task.slug), ['tasks/handle-token-assignment']);
+    assert.deepEqual(mine.result.structuredContent.tasks.map((task) => task.slug), ['tasks/handle-token-assignment']);
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

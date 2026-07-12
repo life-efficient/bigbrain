@@ -331,9 +331,9 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       return toolJson(await toolMe(config, actor, authConfig));
     case 'members/list':
     case 'members_list':
-      return toolJson(await toolMembersList(config, args));
+      return toolJson(await toolMembersList(config, args), { arrayKey: 'members' });
     case 'tasks/list':
-      return toolJson(await toolTasksList(config, args, actor, authConfig));
+      return toolJson(await toolTasksList(config, args, actor, authConfig), { arrayKey: 'tasks' });
     case 'tasks/create': {
       const task = await toolTasksCreate(config, args, actor, authConfig);
       await postWriteMaintenance(config, gitBackupEnabled, actor);
@@ -355,7 +355,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         recursive: args.recursive !== false,
         limit: args.limit,
         orderBy: args.order_by,
-      }));
+      }), { arrayKey: 'pages' });
     case 'read':
       return toolJson(await readBrainPage({ config, pagePath: args.path }));
     case 'get_page_visibility': {
@@ -364,7 +364,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     }
     case 'groups_list': {
       const db = await openDatabase(config);
-      return toolJson(await listSharedGroups(db));
+      return toolJson(await listSharedGroups(db), { arrayKey: 'groups' });
     }
     case 'groups_get': {
       const db = await openDatabase(config);
@@ -381,7 +381,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         recursive: args.recursive !== false,
         limit: args.limit,
         orderBy: args.order_by,
-      }));
+      }), { arrayKey: 'files' });
     case 'read_raw_file':
       return toolJson(await readRawFile({ config, rawPath: args.path }));
     case 'create_raw_file': {
@@ -1237,11 +1237,12 @@ function jsonRpcError(id, code, message) {
   return { jsonrpc: '2.0', id, error: { code, message } };
 }
 
-function toolJson(value) {
+function toolJson(value, { arrayKey = 'items' } = {}) {
   const text = JSON.stringify(value, null, 2);
+  const structuredContent = Array.isArray(value) ? { [arrayKey]: value } : value;
   return {
     content: [{ type: 'text', text }],
-    structuredContent: value,
+    structuredContent,
   };
 }
 
