@@ -1,201 +1,165 @@
 ---
-name: "BigBrain: Granola Ingest"
-version: 1.0.0
-description: |
-  Ingest recent Granola meetings into a selected BigBrain brain when asked to
-  import, sync, backfill, or automate Granola meeting capture.
-triggers:
-  - "granola ingest"
-  - "import granola meetings"
-  - "sync granola meetings"
-  - "backfill granola meetings"
-  - "automate granola meeting capture"
-tools:
-  - shell
-mutating: true
+name: bigbrain-granola-ingest
+description: Ingest recent Granola meetings into a selected BigBrain brain.
 ---
 
 # BigBrain Granola Ingest
 
-Ingest recent Granola meetings into the selected BigBrain brain. Treat the
-brain's live filing rules, user instructions, and local exclusion policy as the
-source of truth.
+Ingest recent Granola meetings into the selected BigBrain brain.
 
-## Contract
+## Contract Checklist
 
-Use this skill when the user asks to import, sync, backfill, or automate Granola
-meetings into BigBrain.
-
-Successful completion means:
-
-- the target brain is the selected BigBrain brain home, resolved through
-  `--brain-home`, `BIGBRAIN_HOME`, or the saved default pointer
-- current brain filing rules are checked before writing
-- Granola access uses a direct Granola MCP server with folder-aware tools when
-  folder exclusions are required
-- user-named or filing-rule-named excluded Granola folders are resolved and
-  skipped before writing pages
-- when excluded folders are required but folder tools or folder filters are
-  unavailable, new meeting ingestion stops instead of risking cross-boundary
-  writes
-- only recent meetings, or meetings since the newest ingested Granola meeting
-  with a small overlap window, are considered unless the user requests a
-  backfill
-- meetings whose Granola title is exactly `New note` or `New Note` are ignored
-  before fetching details, transcripts, or writing pages
-- existing `granola_id` values and raw sidecars are checked before writing
-- duplicate meetings are skipped unless repairing missing sidecars or entity
-  updates
-- meeting pages, raw sidecars, entity pages, and task pages are created or
-  updated only according to the brain filing rules
-- relevant entity pages are updated when meetings add durable information about
-  people, companies or organizations, deals, concepts, projects, or other
-  supported collections; at minimum, add evidence-backed timeline entries for
-  new facts, relationship context, decisions, status changes, or commitments
-- participant identity facts are extracted from the transcript and preserved on
-  the meeting and relevant entity pages when present: self-stated name,
-  role/title, employer or organization, location, mandate/source authority,
-  relationship context, and volunteered contact/channel details
-- unclear or malformed transcript identity/affiliation statements are recorded
-  as explicit unresolved fields instead of being smoothed into generic summaries
-- task work is handled as part of the ingestion run: check existing open,
-  in-progress, and waiting tasks before creating new ones; update matching task
-  pages when meeting evidence changes status, owner, due date, next action, or
-  completion criteria; create new task pages only for concrete assignable
-  follow-ups
-- transcripts are saved verbatim by default after an explicit safety check, with
-  targeted redaction only where unsafe or highly sensitive content appears
-- every substantive ingested meeting has a raw transcript sidecar unless
-  Granola returns no transcript content
-- `bigbrain sync --json` runs after writes
+- Resolve the target brain through the user's selected BigBrain context,
+  `--brain-home`, `BIGBRAIN_HOME`, or the saved default pointer.
+- Read live filing rules before writing.
+- Use direct Granola MCP tools with folder support when folder exclusions are
+  required.
+- Resolve and skip user-named or filing-rule-named excluded Granola folders
+  before writing pages.
+- Stop instead of risking cross-boundary writes when required folder tools or
+  folder filters are unavailable.
+- Consider only recent meetings, or meetings since the newest ingested Granola
+  meeting with a small overlap window, unless the user asks for a backfill.
+- Ignore exact-title `New note` and `New Note` records before fetching details,
+  transcripts, or writing pages.
+- Check existing meeting pages and raw sidecars for duplicate Granola coverage
+  before writing.
+- Create or update meeting pages, raw sidecars, entity pages, and task pages
+  only according to live filing rules.
+- Preserve transcript-backed participant identity, affiliation, relationship,
+  authority, decision, and commitment facts; mark uncertainty explicitly.
+- Update existing task pages before creating new tasks when meeting evidence
+  changes status, owner, due date, next action, or completion criteria.
+- Save transcripts verbatim after safety review; redact only specific unsafe or
+  highly sensitive spans.
+- Run `bigbrain sync --json` after writes.
+- Keep the final user-facing output simple: first line must be a count summary
+  such as `5 meetings ingested`.
 
 ## Workflow
 
 1. Resolve the brain and read filing rules.
    - Work from the selected brain home unless the user names another brain.
-   - Read the top-level `FILING.md` and any relevant collection `FILING.md`
-     files before choosing paths or page types.
-   - Follow the live brain rules rather than hard-coding paths from this skill.
+   - Read the top-level `FILING.md` and relevant collection `FILING.md` files
+     before choosing paths or page types.
+   - Follow live rules rather than hard-coding paths from this skill.
+   - Anti-patterns: guessing paths, writing before reading filing rules,
+     defaulting to the wrong brain
 2. Confirm Granola access.
    - Prefer direct Granola MCP tools such as `get_account_info`,
      `list_meeting_folders`, `list_meetings`, `get_meetings`, and
      `get_meeting_transcript`.
-   - If direct Granola tools are unavailable, use the active harness's MCP
-     discovery process before concluding Granola is unavailable.
+   - Use the active harness's MCP discovery process before concluding Granola is
+     unavailable.
    - Do not use a wrapper that omits folder tools when folder-sensitive
      ingestion is required.
+   - Anti-patterns: using non-folder-aware wrappers, skipping tool discovery,
+     continuing without required authentication
 3. Resolve excluded Granola folders.
    - Check user instructions and brain filing rules for excluded folders or
-     separate workflows.
-   - Use `list_meeting_folders` to find excluded folder IDs, then call
-     `list_meetings` with those folder IDs to build an exclusion set.
-   - If exclusion folders are required and cannot be resolved, report the
-     blocker and do not ingest new meetings.
+     separate ingestion workflows.
+   - Use `list_meeting_folders` and folder-filtered `list_meetings` to build an
+     exclusion set.
+   - Stop if required exclusion folders cannot be resolved.
+   - Anti-patterns: keyword-based exclusion, ignoring required folders, exposing
+     folder IDs in the final report
 4. Check existing coverage.
-   - Search existing meeting pages and raw sidecars for `granola_id:`.
-   - Treat a matching Granola UUID as already ingested even if the title
+   - Search existing meeting pages and raw sidecars for Granola provenance.
+   - Treat matching Granola coverage as already ingested even if the title
      changed.
-   - Determine the newest ingested Granola meeting date. Query from two days
-     before that date to catch late summaries, or use the last 30 days when no
-     prior Granola import exists.
+   - Query from two days before the newest ingested meeting, or the last 30 days
+     when no prior import exists.
+   - Anti-patterns: title-only duplicate checks, no overlap window, duplicate
+     meeting pages
 5. Fetch candidate meetings.
    - Drop exact-title `New note` / `New Note` records before fetching details.
    - Fetch meeting details in batches of at most 10.
    - Fetch transcripts only for new meetings or explicit repair/update work.
+   - Anti-patterns: unbounded backfills, fetching placeholder notes, fetching
+     every transcript before de-duplication
 6. Plan writes.
-   - Skip excluded-folder candidates and report their IDs, titles, dates, and
-     destination workflow when known.
-   - Skip duplicates unless there is a missing transcript, missing source
-     sidecar, or clear entity/task update to apply.
+   - Skip excluded-folder candidates and track only counts for the final report
+     unless exact references are needed for a blocker.
+   - Skip duplicates unless a missing transcript, missing source sidecar, or
+     clear entity/task update needs repair.
    - Create or update one canonical meeting page per ingested meeting.
-   - Run an identity and affiliation pass before writing summaries:
-     - Extract each substantive participant's self-stated name, role/title,
-       employer or organization, location, mandate/source authority,
-       relationship to the brain owner, and volunteered contact/channel details.
-     - If a transcript has a malformed phrase around role or affiliation, quote
-       only a short safe snippet in the internal source note or page and mark
-       the missing field as unresolved, for example `organization: unresolved
-       from transcript`.
-     - Do not infer an employer from the deal name, asset name, message thread,
-       or generic role words unless another source supports that inference.
-     - Add missing durable identity facts to the relevant people,
-       companies/organizations, deal, and meeting pages with Granola meeting ID
-       and date evidence.
-   - Review related people, company/organization, deal, concept, project, or
-     other supported entity pages for durable updates from the meeting before
-     finishing the write plan.
-   - Update relevant entity pages when the meeting adds new facts, relationship
-     context, decisions, status changes, commitments, or other durable state.
-     At minimum, append an evidence-backed timeline entry citing the Granola
-     meeting ID and date; update page body/frontmatter too when the fact is
-     stable enough to belong in the canonical entity record.
-   - Review existing open, in-progress, and waiting task pages for matching or
-     related follow-ups before creating any new task.
-   - Update existing task pages when the meeting changes their status, owner,
-     due date, next action, or completion criteria. Add an evidence-backed
-     timeline entry citing the Granola meeting ID and date.
-   - Create new task pages only for concrete assignable follow-ups with an
-     owner or clear assignee. Use the brain's task tools when available, or
-     write page-backed `tasks/*.md` files that follow the live task filing
-     rules.
+   - Run an identity and affiliation pass before writing summaries.
+   - Review related people, company/organization, deal, concept, project, and
+     supported entity pages for durable updates.
+   - Review open, in-progress, and waiting tasks before creating new tasks.
+   - Anti-patterns: inventing affiliations, creating duplicate tasks, omitting
+     stable entity updates
 7. Review transcript safety before saving.
-   - Explicitly inspect transcripts for unsafe, slanderous, highly personal, or
-     sensitive spans.
-   - Save transcripts verbatim when the review finds no material that should be
-     removed.
-   - Redact only the specific unsafe span, using a marker such as
-     `[redacted: category]`.
-   - If a transcript cannot be fully captured or reviewed, do not save a
-     reconstructed transcript and do not mark the meeting as fully ingested.
+   - Inspect transcripts for unsafe, slanderous, highly personal, or sensitive
+     spans.
+   - Save transcripts verbatim when no targeted redaction is needed.
+   - Redact only the specific unsafe span with a clear redaction marker.
+   - If a transcript cannot be fully captured or reviewed, leave the meeting
+     partial and report the issue.
+   - Anti-patterns: reconstructed transcripts, broad redaction, calling partial
+     capture complete
 8. Write artifacts.
-   - Follow the brain filing rules for page paths and raw sidecar paths.
-   - Preserve Granola metadata, source-note context, and transcript provenance.
-   - Link sidecars from the meeting page when the local page pattern expects it.
-   - Keep entity and task timeline entries evidence-backed and cite the Granola
-     meeting ID/date.
+   - Follow live filing rules for page paths and raw sidecar paths.
+   - Preserve source provenance internally on pages and sidecars.
+   - Link sidecars from meeting pages when the local page pattern expects it.
+   - Keep entity and task timeline entries evidence-backed.
+   - Anti-patterns: writing outside filing rules, unlinked sidecars, unsupported
+     task history
 9. Verify and sync.
-   - Re-scan for duplicate `granola_id` values.
-   - Confirm created or updated pages match the live filing rules.
-   - Confirm relevant entity pages were considered and that any necessary
-     people, company/organization, deal, concept, or project updates were made
-     or explicitly reported as unnecessary.
-   - Confirm transcript sidecars either passed safety review or contain only
-     targeted redactions.
-   - Confirm any task pages created or updated by the run are visible through
-     the brain task surface, such as `tasks/list`, when that tool is available.
+   - Re-scan for duplicate Granola coverage.
+   - Confirm changed pages match live filing rules.
+   - Confirm transcript sidecars passed safety review or contain only targeted
+     redactions.
+   - Confirm task pages are visible through the task surface when available.
    - Run `bigbrain sync --json` from the selected brain root.
+   - Anti-patterns: reporting before sync, skipping read-back, leaving duplicate
+     coverage unresolved
+10. Report simply.
+   - First line must be a plain count sentence: `0 meetings ingested`,
+     `1 meeting ingested`, `5 meetings ingested`, or `2 meetings repaired`.
+   - If multiple outcomes occurred, use one concise first line such as
+     `3 meetings ingested, 1 repaired`.
+   - Add optional headings only when useful: `Issues`, `Errors`, `Warnings`, or
+     `Needs review`.
+   - Do not include IDs, hashes, folder IDs, meeting slugs, page paths, raw
+     paths, or sync JSON unless an error cannot be acted on without the exact
+     reference.
+   - Anti-patterns: leading with audit metadata, dumping verification details,
+     exposing hashes or slugs by default
 
-## Guardrails
+## Anti-Patterns
 
-- Do not duplicate filing rules inside this skill. Always read the live rules.
-- Do not ingest material from user-named excluded Granola folders.
-- Do not rely on title or keyword matching when required folder exclusions
-  cannot be built.
-- Do not create placeholder pages for exact-title `New note` / `New Note`
-  records.
-- Do not flatten role, employer, mandate status, or source authority into vague
-  labels such as `works in investments` when the transcript gives more detail or
-  when the transcript is malformed around the affiliation. Preserve the exact
-  supported fact and the uncertainty separately.
-- Do not invent attendees, decisions, facts, owners, due dates, or task status.
-- Do not omit raw transcript sidecars for substantive meetings when transcript
+- Duplicating filing rules inside this skill instead of reading live rules.
+- Ingesting material from required excluded Granola folders.
+- Relying on title or keyword matching when required folder exclusions cannot be
+  built.
+- Creating placeholder pages for exact-title `New note` / `New Note` records.
+- Flattening uncertain role, employer, mandate, or source-authority facts.
+- Inventing attendees, decisions, facts, owners, due dates, or task status.
+- Omitting raw transcript sidecars for substantive meetings when transcript
   content is available.
-- Do not quote unsafe, slanderous, highly personal, or sensitive text in the
-  final report.
-- Do not ingest old meetings outside the cutoff window unless the user asks for
-  a backfill.
+- Quoting unsafe, slanderous, highly personal, or sensitive text in the final
+  report.
+- Including technical audit identifiers in the final report when a count and
+  issue list is enough.
 
 ## Output
 
-Report briefly:
+Use this shape:
 
-- Granola window checked
-- meetings found, skipped as duplicates, ingested, repaired, or skipped
-- excluded folder IDs used, or the folder-tool blocker
-- meeting pages, entity pages, task pages, and sidecars changed
-- meetings left partial because transcript capture or attachment failed
-- transcript safety result and targeted redaction count
-- unresolved identity, employer, affiliation, or mandate/source-authority fields
-  that need human follow-up
-- `bigbrain sync --json` result
-- warnings or unresolved questions
+```text
+5 meetings ingested
+
+Warnings
+- One transcript was unavailable, so that meeting was left partial.
+```
+
+If nothing changed:
+
+```text
+0 meetings ingested
+```
+
+Only add `Issues`, `Errors`, `Warnings`, or `Needs review` sections when there
+is something the user should act on. Keep IDs, hashes, slugs, page paths, raw
+paths, folder IDs, and sync JSON out of the user-facing output by default.
