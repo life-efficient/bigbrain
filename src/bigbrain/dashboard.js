@@ -9,6 +9,7 @@ import { build } from 'esbuild';
 
 import {
   getBacklinks,
+  getMcpAuditAnalytics,
   getOutgoingLinks,
   getPagesBySlugs,
   getSharedGroup,
@@ -221,6 +222,7 @@ export async function createDashboardRequestHandler(config, {
       if (requestUrl.pathname === '/api/recent') return json(res, await buildRecentPayload(db));
       if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db, config));
       if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
+      if (requestUrl.pathname === '/api/analytics') return json(res, await buildAnalyticsPayload(config, db));
       if (requestUrl.pathname === '/api/page') return json(res, await buildPagePayload(config, db, requestUrl));
       if (requestUrl.pathname === '/api/page/visibility') return json(res, await updateDashboardPageVisibility(config, db, req, actor));
       if (requestUrl.pathname === '/api/preview') return json(res, await buildPreviewPayload(config, db, requestUrl));
@@ -265,6 +267,14 @@ export async function createDashboardRequestHandler(config, {
       res.writeHead(error?.statusCode || 500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
     }
+  };
+}
+
+export async function buildAnalyticsPayload(config, db) {
+  return {
+    retention_days: config.mcpAuditRetentionDays,
+    privacy_note: 'Counts and bounded operational metadata only. Content, prompts, queries, credentials, headers, cookies, IP addresses, and user agents are not stored.',
+    ...await getMcpAuditAnalytics(db),
   };
 }
 
@@ -596,6 +606,33 @@ function renderAppHtml() {
         text-transform: uppercase;
         color: var(--muted);
       }
+      .settings-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
+      .settings-link:hover { border-color: var(--line-strong); background: var(--surface-muted); }
+      .analytics-page { flex: 1; min-height: 0; overflow: auto; display: grid; align-content: start; gap: 18px; padding: 6px 2px 24px; }
+      .analytics-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding: 14px 2px 4px; }
+      .analytics-head h1 { margin: 3px 0 7px; font-size: 34px; }
+      .eyebrow { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+      .retention-pill, .outcome { border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); padding: 7px 10px; font-size: 11px; font-weight: 650; white-space: nowrap; }
+      .analytics-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+      .metric-card { min-height: 118px; display: grid; align-content: space-between; gap: 18px; padding: 17px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+      .metric-card strong { font-size: 32px; letter-spacing: -0.04em; }
+      .metric-card strong.compact { font-size: 17px; letter-spacing: -0.01em; }
+      .analytics-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr; gap: 12px; }
+      .analytics-breakdown, .analytics-recent { padding: 17px; border-radius: 16px; }
+      .analytics-breakdown h2, .analytics-recent h2 { margin: 0 0 14px; font-size: 15px; }
+      .breakdown-row { display: grid; gap: 6px; margin-top: 11px; }
+      .breakdown-row > div { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+      .breakdown-row span { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; }
+      .breakdown-row i { display: block; height: 3px; border-radius: 999px; background: var(--ink); opacity: 0.68; }
+      .analytics-section-head, .analytics-event, .analytics-event > div { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .analytics-event { padding: 12px 0; border-top: 1px solid var(--line); }
+      .analytics-event > div:first-child { min-width: 0; align-items: flex-start; flex-direction: column; gap: 4px; }
+      .analytics-event strong { max-width: 100%; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+      .analytics-event-tail { flex: 0 0 auto; }
+      .outcome { padding: 4px 7px; }
+      .outcome-success { color: #86efac; border-color: rgba(134,239,172,0.24); }
+      .outcome-denied, .outcome-error { color: #fca5a5; border-color: rgba(252,165,165,0.24); }
+      .analytics-privacy { padding: 0 2px; font-size: 12px; line-height: 1.55; }
       .theme-toggle {
         display: inline-flex;
         align-items: center;
@@ -1027,9 +1064,13 @@ function renderAppHtml() {
         .sidecar-shell { position: fixed; top: 0; right: 0; bottom: 0; left: auto; width: min(560px, 92vw); height: 100vh; padding: 0; z-index: 10; }
         .sidecar-panel { border-left: 1px solid var(--line); border-top: 0; border-radius: 0; }
         .sidecar-link-grid { grid-template-columns: 1fr; }
+        .analytics-grid { grid-template-columns: 1fr; }
       }
       @media (max-width: 640px) {
         .sidecar-shell { left: 0; width: 100vw; }
+        .analytics-head { align-items: flex-start; flex-direction: column; }
+        .analytics-metrics { grid-template-columns: 1fr; }
+        .analytics-event { align-items: flex-start; flex-direction: column; }
       }
     </style>
   </head>

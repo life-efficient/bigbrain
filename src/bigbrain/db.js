@@ -1119,6 +1119,48 @@ export async function pruneMcpAuditLog(db, { before, limit = 1000 } = {}) {
   )`).run(before, boundedLimit).changes;
 }
 
+export async function getMcpAuditAnalytics(db, { recentLimit = 12 } = {}) {
+  const boundedLimit = normalizeLimit(recentLimit, 12);
+  if (db.backend === 'postgres') {
+    const [summary, actions, outcomes, resources, recent] = await Promise.all([
+      db.query(`SELECT count(*)::int AS total_events, count(DISTINCT actor_email)::int AS distinct_actors,
+        min(created_at) AS first_event_at, max(created_at) AS last_event_at FROM mcp_audit_log`),
+      db.query(`SELECT action, count(*)::int AS count FROM mcp_audit_log GROUP BY action ORDER BY count DESC, action LIMIT 10`),
+      db.query(`SELECT coalesce(outcome, 'legacy') AS outcome, count(*)::int AS count FROM mcp_audit_log GROUP BY outcome ORDER BY count DESC`),
+      db.query(`SELECT coalesce(resource_type, 'unspecified') AS resource_type, count(*)::int AS count FROM mcp_audit_log GROUP BY resource_type ORDER BY count DESC`),
+      db.query(`SELECT event_id, action, actor_type, resource_type, resource_id, outcome, service_name, brain_name, created_at
+        FROM mcp_audit_log ORDER BY created_at DESC, id DESC LIMIT $1`, [boundedLimit]),
+    ]);
+    return normalizeAuditAnalytics(summary.rows[0], actions.rows, outcomes.rows, resources.rows, recent.rows);
+  }
+  const raw = unwrapSqlite(db);
+  return normalizeAuditAnalytics(
+    raw.prepare(`SELECT count(*) AS total_events, count(DISTINCT actor_email) AS distinct_actors,
+      min(created_at) AS first_event_at, max(created_at) AS last_event_at FROM mcp_audit_log`).get(),
+    raw.prepare(`SELECT action, count(*) AS count FROM mcp_audit_log GROUP BY action ORDER BY count DESC, action LIMIT 10`).all(),
+    raw.prepare(`SELECT coalesce(outcome, 'legacy') AS outcome, count(*) AS count FROM mcp_audit_log GROUP BY outcome ORDER BY count DESC`).all(),
+    raw.prepare(`SELECT coalesce(resource_type, 'unspecified') AS resource_type, count(*) AS count FROM mcp_audit_log GROUP BY resource_type ORDER BY count DESC`).all(),
+    raw.prepare(`SELECT event_id, action, actor_type, resource_type, resource_id, outcome, service_name, brain_name, created_at
+      FROM mcp_audit_log ORDER BY created_at DESC, id DESC LIMIT ?`).all(boundedLimit),
+  );
+}
+
+function normalizeAuditAnalytics(summary, actions, outcomes, resources, recent) {
+  const normalizeCounts = (rows) => rows.map((row) => ({ ...row, count: Number(row.count) }));
+  return {
+    summary: {
+      total_events: Number(summary?.total_events || 0),
+      distinct_actors: Number(summary?.distinct_actors || 0),
+      first_event_at: normalizeTimestamp(summary?.first_event_at),
+      last_event_at: normalizeTimestamp(summary?.last_event_at),
+    },
+    actions: normalizeCounts(actions),
+    outcomes: normalizeCounts(outcomes),
+    resources: normalizeCounts(resources),
+    recent: recent.map((row) => ({ ...row, created_at: normalizeTimestamp(row.created_at) })),
+  };
+}
+
 export async function dbDoctor(config) {
   const db = await openDatabase(config);
   if (db.backend === 'sqlite') {

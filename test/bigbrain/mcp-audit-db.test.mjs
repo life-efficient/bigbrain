@@ -5,7 +5,13 @@ import path from 'node:path';
 import test from 'node:test';
 import { DatabaseSync } from 'node:sqlite';
 
-import { insertMcpAuditLog, listMcpAuditLog, openDatabase, pruneMcpAuditLog } from '../../src/bigbrain/db.js';
+import { getMcpAuditAnalytics, insertMcpAuditLog, listMcpAuditLog, openDatabase, pruneMcpAuditLog } from '../../src/bigbrain/db.js';
+import { buildDefaultConfig } from '../../src/bigbrain/config.js';
+
+test('MCP audit retention defaults to 360 days and remains configurable', () => {
+  assert.equal(buildDefaultConfig('/tmp/brain', {}).mcp_audit_retention_days, 360);
+  assert.equal(buildDefaultConfig('/tmp/brain', { BIGBRAIN_MCP_AUDIT_RETENTION_DAYS: '720' }).mcp_audit_retention_days, 720);
+});
 
 test('SQLite upgrades legacy audit tables and preserves structured records', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-audit-'));
@@ -29,6 +35,10 @@ test('SQLite upgrades legacy audit tables and preserves structured records', asy
   assert.equal(rows[0].request_id, 'req_test');
   assert.equal(rows[0].resource_id, 'people/example');
   assert.equal(rows[1].event_id, null);
+  const analytics = await getMcpAuditAnalytics(db);
+  assert.equal(analytics.summary.total_events, 2);
+  assert.equal(analytics.actions[0].action, 'mcp.tool.create_page');
+  assert.equal('details_json' in analytics.recent[0], false);
   db.raw.close();
 });
 

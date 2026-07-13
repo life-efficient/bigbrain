@@ -107,6 +107,7 @@ function DashboardApp() {
   const [activeGraphSlug, setActiveGraphSlug] = useState(null);
   const [healthOpen, setHealthOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [analytics, setAnalytics] = useState({ status: 'idle', data: null, error: null });
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [assigneeLoading, setAssigneeLoading] = useState(false);
   const defaultAssigneeAppliedRef = useRef(false);
@@ -298,6 +299,18 @@ function DashboardApp() {
     handleGraphNodeOpen(slug);
   });
 
+  const openAnalytics = useEffectEvent(async () => {
+    setSettingsOpen(false);
+    setView('analytics');
+    if (analytics.status === 'ready' || analytics.status === 'loading') return;
+    setAnalytics({ status: 'loading', data: null, error: null });
+    try {
+      setAnalytics({ status: 'ready', data: await fetchJson('/api/analytics'), error: null });
+    } catch (error) {
+      setAnalytics({ status: 'error', data: null, error: error instanceof Error ? error.message : String(error) });
+    }
+  });
+
   const changePageVisibility = useEffectEvent(async (slug, visibility) => {
     if (!slug) return;
     setPreview((current) => current?.slug === slug ? { ...current, visibility_status: 'saving' } : current);
@@ -423,6 +436,10 @@ function DashboardApp() {
                       <span className="settings-label">Theme</span>
                       <ThemeModeToggle themeMode={themeMode} onChange={setThemeMode} />
                     </div>
+                    <button type="button" className="settings-link" role="menuitem" onClick={openAnalytics}>
+                      <span>Analytics</span>
+                      <span className="meta">MCP activity →</span>
+                    </button>
                   </div>
                 ) : null}
               </div>
@@ -524,6 +541,8 @@ function DashboardApp() {
                 explorer={explorer}
               />
             ) : null}
+
+            {view === 'analytics' ? <AnalyticsPanel analytics={analytics} /> : null}
           </div>
 
         </main>
@@ -541,6 +560,64 @@ function DashboardApp() {
       </div>
     </GraphThemeProvider>
   );
+}
+
+function AnalyticsPanel({ analytics }) {
+  const data = analytics.data;
+  const summary = data?.summary || {};
+  return (
+    <section className="analytics-page">
+      <div className="analytics-head">
+        <div>
+          <span className="eyebrow">Operations</span>
+          <h1>Analytics</h1>
+          <p>Meaningful MCP writes, maintenance actions, admin access, and security denials.</p>
+        </div>
+        <div className="retention-pill">{data?.retention_days || 360}-day window</div>
+      </div>
+      {analytics.status === 'loading' ? <ListLoadingState label="Loading analytics" /> : null}
+      {analytics.status === 'error' ? <div className="empty-copy">Analytics unavailable: {analytics.error}</div> : null}
+      {analytics.status === 'ready' ? (
+        <>
+          <div className="analytics-metrics">
+            <MetricCard label="Audit events" value={summary.total_events || 0} />
+            <MetricCard label="Distinct actors" value={summary.distinct_actors || 0} />
+            <MetricCard label="Latest event" value={formatAnalyticsTime(summary.last_event_at)} compact />
+          </div>
+          <div className="analytics-grid">
+            <AnalyticsBreakdown title="Top actions" rows={data.actions} labelKey="action" />
+            <AnalyticsBreakdown title="Outcomes" rows={data.outcomes} labelKey="outcome" />
+            <AnalyticsBreakdown title="Resources" rows={data.resources} labelKey="resource_type" />
+          </div>
+          <div className="analytics-recent card">
+            <div className="analytics-section-head"><h2>Recent events</h2><span className="meta">Bounded metadata only</span></div>
+            {(data.recent || []).map((event) => (
+              <div className="analytics-event" key={event.event_id || `${event.action}:${event.created_at}`}>
+                <div><strong>{event.action}</strong><span className="meta">{event.resource_type || 'No resource'}{event.resource_id ? ` · ${event.resource_id}` : ''}</span></div>
+                <div className="analytics-event-tail"><span className={`outcome outcome-${event.outcome || 'legacy'}`}>{event.outcome || 'legacy'}</span><span className="meta">{formatAnalyticsTime(event.created_at)}</span></div>
+              </div>
+            ))}
+            {data.recent?.length ? null : <div className="empty-copy">No audit events in this retention window yet.</div>}
+          </div>
+          <p className="analytics-privacy">{data.privacy_note}</p>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function MetricCard({ label, value, compact = false }) {
+  return <div className="metric-card"><span className="settings-label">{label}</span><strong className={compact ? 'compact' : ''}>{value}</strong></div>;
+}
+
+function AnalyticsBreakdown({ title, rows = [], labelKey }) {
+  const max = Math.max(1, ...rows.map((row) => Number(row.count || 0)));
+  return <div className="analytics-breakdown card"><h2>{title}</h2>{rows.map((row) => <div className="breakdown-row" key={row[labelKey]}><div><span>{row[labelKey]}</span><strong>{row.count}</strong></div><i style={{ width: `${Math.max(4, Number(row.count || 0) / max * 100)}%` }} /></div>)}</div>;
+}
+
+function formatAnalyticsTime(value) {
+  if (!value) return 'No events';
+  return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
 function PublicPageApp() {
