@@ -2,6 +2,13 @@
 
 ## Recently Completed
 
+- **2026-07-14 — Structured bounded MCP audit logging:** Done. Added
+  request/event correlation, structured actor/resource/outcome and service/brain
+  metadata, additive SQLite/Postgres migrations, configurable bounded retention,
+  and admin-only cursor-paginated list/NDJSON export tools. Audit access is itself
+  audited, ordinary read failures remain outside the stream, and forbidden
+  request/content metadata remains excluded.
+
 - **2026-07-11 — Hosted-brain Git durability health review:** Done. Kept
   durability visibility inside the existing health check and API, made Git
   backup optional with a low-severity recommendation when it is not configured,
@@ -13,12 +20,6 @@
 - Keep packaging focused on the two supported product modes: local brain and
   remote brain. Docker, bundled Postgres, Supabase, and thin clients should be
   implementation details or roadmap variants around those modes.
-- Expand bounded MCP audit logging at tool boundaries for meaningful writes,
-  destructive/admin operations, maintenance actions, and auth/security
-  failures without storing full request payloads. First increment complete:
-  meaningful-tool filtering, recursive content/secret redaction, and auth/scope
-  failure capture. Next: structured request/actor/resource metadata, retention,
-  and admin-only access/export; see `docs/mcp-audit-logging.md`.
 - Add a tool policy layer for hosted MCP that separates read-only tools,
   append/create tools, destructive raw-file updates/deletes, git backup, and
   maintenance/admin operations by auth mode or scope.

@@ -34,12 +34,13 @@ The current compatibility record uses `actor_email`, `action`, `created_at`, and
 }
 ```
 
-The next schema migration should add opaque `event_id` and `request_id`, actor
-type and stable actor/member ID, resource type and identifier, error code when
-applicable, auth mode, and service/brain identity as columns or consistently indexed
-fields. Do not store access tokens, client secrets, IP addresses, user agents,
-or payload hashes by default. Add those only after an explicit privacy and abuse
-investigation requirement.
+The structured schema adds opaque `event_id` and server-generated `request_id`,
+actor type and bounded actor ID, resource type and identifier, outcome and error
+code, auth mode, and service/brain identity. SQLite and Postgres initialization
+upgrade compatibility tables additively, and SQLite-to-Postgres migration
+preserves the structured fields when present. Do not store access tokens, client
+secrets, IP addresses, user agents, or payload hashes by default. Add those only
+after an explicit privacy and abuse investigation requirement.
 
 ## Redaction
 
@@ -53,11 +54,13 @@ investigation requirement.
 
 ## Retention and access
 
-Choose retention before exposing audit reads. Recommended defaults are 90 days
-for hosted brains and 30 days for local brains, configurable per deployment,
-with periodic deletion in bounded batches. Audit reads and exports should require
-`brain:admin`, be paginated, and themselves produce an administrative audit
-event. Database operators remain able to access the table through normal backup
+Retention defaults to 90 days for Postgres-hosted brains and 30 days for local
+SQLite brains. It is configurable with `mcp_audit_retention_days` or
+`BIGBRAIN_MCP_AUDIT_RETENTION_DAYS`; audited operations delete strictly older
+records in bounded batches. The cursor-paginated `audit/list` and `audit/export`
+MCP tools require `brain:admin` and themselves produce an administrative audit
+event. Exports are bounded NDJSON pages of already-sanitized records. Database
+operators remain able to access the table through normal backup
 and incident procedures. Audit records should not be copied into brain markdown,
 search indexes, analytics, or ordinary application logs.
 
@@ -69,6 +72,8 @@ search indexes, analytics, or ordinary application logs.
    with SQLite and Postgres migration coverage.
 3. Add configurable retention cleanup plus admin-only paginated access/export.
 4. Add operational metrics based on tool/action counts, never payload content.
+
+Increments 1-3 are implemented. Operational metrics remain future work.
 
 Verification should cover SQLite and Postgres persistence, every policy layer,
 successful calls and failures, authentication and scope denials, nested secret
