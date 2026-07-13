@@ -2,6 +2,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { randomUUID } from 'node:crypto';
 
 import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
 import { persistState } from './config.js';
@@ -12,8 +13,10 @@ import {
 import {
   getSharedGroup,
   insertMcpAuditLog,
+  listMcpAuditLog,
   listSharedGroups,
   openDatabase,
+  pruneMcpAuditLog,
   upsertSharedGroup,
 } from './db.js';
 import { filingRulesForBrain } from './filing-rules.js';
@@ -172,12 +175,14 @@ export async function startMcpServer({
       if (request.method !== 'POST' || !request.url?.startsWith('/mcp')) {
         return sendJson(response, 404, jsonRpcError(null, -32004, 'Not found'));
       }
+      const requestId = `req_${randomUUID()}`;
       const authorization = await authorizeMcpRequest(request, authConfig);
       if (!authorization.ok) {
         await auditMcpSecurityEvent(config, {
           action: 'mcp.security.authentication_failed',
           reason: authorization.message || 'Unauthorized',
           authMode: authConfig?.mode || null,
+          requestId,
         }).catch(() => {});
         return sendJson(response, authorization.status || 401, jsonRpcError(null, -32001, authorization.message || 'Unauthorized'), {
           authConfig,
@@ -187,8 +192,8 @@ export async function startMcpServer({
 
       const payload = JSON.parse(await readRequestBody(request, { maxBytes: mcpRequestMaxBytes(config) }));
       const result = Array.isArray(payload)
-        ? (await Promise.all(payload.map((message) => handleJsonRpcMessage({ config, message, gitBackupEnabled, actor: authorization.actor, authConfig })))).filter(Boolean)
-        : await handleJsonRpcMessage({ config, message: payload, gitBackupEnabled, actor: authorization.actor, authConfig });
+        ? (await Promise.all(payload.map((message) => handleJsonRpcMessage({ config, message, gitBackupEnabled, actor: authorization.actor, authConfig, requestId })))).filter(Boolean)
+        : await handleJsonRpcMessage({ config, message: payload, gitBackupEnabled, actor: authorization.actor, authConfig, requestId });
       if (!result || (Array.isArray(result) && result.length === 0)) {
         return sendNoContent(response);
       }
@@ -281,7 +286,7 @@ function dashboardAuthRealm(authConfig) {
   return `${name} Dashboard`;
 }
 
-async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor, authConfig }) {
+async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor, authConfig, requestId }) {
   if (!message || message.jsonrpc !== '2.0') return jsonRpcError(message?.id ?? null, -32600, 'Invalid JSON-RPC request.');
   if (message.id === undefined) return null;
 
@@ -298,7 +303,7 @@ async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor, 
       case 'tools/list':
         return jsonRpcResult(message.id, { tools: toolDefinitions().filter((tool) => canCallTool(tool.name, actor)) });
       case 'tools/call':
-        return jsonRpcResult(message.id, await callTool({ config, params: message.params || {}, gitBackupEnabled, actor, authConfig }));
+        return jsonRpcResult(message.id, await callTool({ config, params: message.params || {}, gitBackupEnabled, actor, authConfig, requestId }));
       default:
         return jsonRpcError(message.id, -32601, `Unknown method: ${message.method}`);
     }
@@ -310,22 +315,25 @@ async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor, 
   }
 }
 
-async function callTool({ config, params, gitBackupEnabled, actor, authConfig }) {
+async function callTool({ config, params, gitBackupEnabled, actor, authConfig, requestId }) {
   const name = params.name;
   const args = params.arguments || {};
   try {
     assertToolAllowed(name, actor);
     const result = await executeToolCall({ config, name, args, gitBackupEnabled, actor, authConfig });
     if (isAuditedTool(name)) {
-      await auditMcpToolCall(config, { actor, name, args });
+      await auditMcpToolCall(config, { actor, name, args, authConfig, requestId });
     }
     return result;
   } catch (error) {
-    await auditMcpToolCall(config, {
+    if (isAuditedTool(name) || error instanceof ForbiddenToolError) await auditMcpToolCall(config, {
       actor,
       name,
       args,
+      authConfig,
+      requestId,
       error: error instanceof Error ? error.message : String(error),
+      errorCode: error instanceof ForbiddenToolError ? 'scope_denied' : 'tool_error',
     }).catch(() => {});
     throw error;
   }
@@ -505,32 +513,70 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'maintenance/git_backup':
     case 'maintenance_git_backup':
       return toolJson(await backupGitChanges(config, backupMessage(actor)));
+    case 'audit/list':
+    case 'audit_list':
+      return toolJson(await toolAuditAccess(config, args, 'list'));
+    case 'audit/export':
+    case 'audit_export':
+      return toolJson(await toolAuditAccess(config, args, 'export'));
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
 }
 
-async function auditMcpToolCall(config, { actor, name, args, error = null }) {
+async function auditMcpToolCall(config, { actor, name, args, authConfig, requestId, error = null, errorCode = null }) {
   const db = await openDatabase(config);
   try {
     await insertMcpAuditLog(db, {
       actorEmail: actor?.email || null,
+      actorType: actor?.email === 'shared-token' ? 'shared_token' : actor?.email ? 'member' : 'system',
+      actorId: actor?.email || null,
       action: `mcp.tool.${name || 'unknown'}`,
+      requestId,
+      ...auditResource(name, args),
+      outcome: errorCode === 'scope_denied' ? 'denied' : error ? 'error' : 'success',
+      errorCode,
+      authMode: authConfig?.mode || null,
+      serviceName: authConfig?.serviceName || 'bigbrain-mcp',
+      brainId: config.brainId,
+      brainName: config.brainName,
       details: {
         arguments: sanitizeAuditArguments(args),
         ...(error ? { error: boundedAuditString(error) } : {}),
       },
     });
+    await enforceAuditRetention(db, config);
   } finally {
     await db.close?.();
   }
 }
 
-async function auditMcpSecurityEvent(config, { action, reason, authMode }) {
+function auditResource(name, args = {}) {
+  const candidates = name?.startsWith('groups_') ? [['group', args.slug]]
+    : name?.includes('raw_file') ? [['raw_file', args.raw_path || args.path]]
+      : [['page', args.path || args.slug]];
+  const [resourceType, resourceId] = candidates.find(([, value]) => typeof value === 'string' && value) || [];
+  return { resourceType: resourceType || null, resourceId: resourceId ? boundedAuditString(resourceId) : null };
+}
+
+async function enforceAuditRetention(db, config) {
+  const cutoff = new Date(Date.now() - config.mcpAuditRetentionDays * 86400000).toISOString();
+  await pruneMcpAuditLog(db, { before: cutoff, limit: 1000 });
+}
+
+async function auditMcpSecurityEvent(config, { action, reason, authMode, requestId = null }) {
   const db = await openDatabase(config);
   try {
     await insertMcpAuditLog(db, {
       action,
+      requestId,
+      actorType: 'anonymous',
+      outcome: 'denied',
+      errorCode: 'authentication_failed',
+      authMode,
+      serviceName: 'bigbrain-mcp',
+      brainId: config.brainId,
+      brainName: config.brainName,
       details: {
         auth_mode: authMode,
         reason: boundedAuditString(reason),
@@ -541,9 +587,23 @@ async function auditMcpSecurityEvent(config, { action, reason, authMode }) {
   }
 }
 
+async function toolAuditAccess(config, args, mode) {
+  const db = await openDatabase(config);
+  try {
+    const limit = Math.min(Number(args.limit || 100), 1000);
+    const rows = await listMcpAuditLog(db, { limit: limit + 1, cursor: args.cursor || null });
+    const hasMore = rows.length > limit;
+    const records = rows.slice(0, limit);
+    const result = { records, next_cursor: hasMore ? records.at(-1)?.id || null : null };
+    return mode === 'export' ? { format: 'ndjson', data: records.map((row) => JSON.stringify(row)).join('\n'), ...result } : result;
+  } finally {
+    await db.close?.();
+  }
+}
+
 function isAuditedTool(name) {
   const layer = toolPolicy(name)?.layer;
-  return ['create', 'publish', 'raw_destructive', 'git_backup', 'maintenance'].includes(layer);
+  return ['create', 'publish', 'raw_destructive', 'git_backup', 'maintenance', 'admin'].includes(layer);
 }
 
 function sanitizeAuditArguments(value) {
@@ -1085,6 +1145,16 @@ function toolDefinitions() {
       inputSchema: sharedGroupWriteSchema(),
     },
     {
+      name: 'audit/list',
+      description: 'List bounded MCP audit records using cursor pagination. Requires brain:admin.',
+      inputSchema: auditAccessSchema(),
+    },
+    {
+      name: 'audit/export',
+      description: 'Export one bounded page of MCP audit records as NDJSON. Requires brain:admin.',
+      inputSchema: auditAccessSchema(),
+    },
+    {
       name: 'maintenance/sync',
       description: 'Run BigBrain sync for the selected brain and persist the latest sync state. Requires a maintenance/admin scope on hosted OAuth.',
       inputSchema: {
@@ -1178,8 +1248,19 @@ function toolPolicy(name) {
     maintenance_git_backup: { layer: 'git_backup', scopes: ['brain:git-backup'] },
     'maintenance/sync': { layer: 'maintenance', scopes: ['brain:maintenance'] },
     maintenance_sync: { layer: 'maintenance', scopes: ['brain:maintenance'] },
+    'audit/list': { layer: 'admin', scopes: ['brain:admin'] },
+    audit_list: { layer: 'admin', scopes: ['brain:admin'] },
+    'audit/export': { layer: 'admin', scopes: ['brain:admin'] },
+    audit_export: { layer: 'admin', scopes: ['brain:admin'] },
   };
   return policies[name] || null;
+}
+
+function auditAccessSchema() {
+  return { type: 'object', properties: {
+    limit: { type: 'integer', minimum: 1, maximum: 1000 },
+    cursor: { type: 'integer', minimum: 1 },
+  } };
 }
 
 function membersListSchema() {

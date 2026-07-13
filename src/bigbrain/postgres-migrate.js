@@ -126,10 +126,16 @@ export async function migrateSqliteToPostgres(config) {
       ? sqlite.prepare('SELECT * FROM mcp_audit_log ORDER BY id').all()
       : [];
     for (const audit of auditRows) {
+      const columns = tableColumns(sqlite, 'mcp_audit_log');
+      const value = (name) => columns.has(name) ? audit[name] : null;
       await postgres.query(`
-        INSERT INTO mcp_audit_log (actor_email, action, details_json, created_at)
-        VALUES ($1,$2,$3,$4)
-      `, [audit.actor_email, audit.action, audit.details_json || '{}', audit.created_at]);
+        INSERT INTO mcp_audit_log (event_id, request_id, actor_email, actor_type, actor_id, action,
+          resource_type, resource_id, outcome, error_code, auth_mode, service_name, brain_id, brain_name,
+          details_json, created_at)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+      `, [value('event_id'), value('request_id'), audit.actor_email, value('actor_type'), value('actor_id'), audit.action,
+        value('resource_type'), value('resource_id'), value('outcome'), value('error_code'), value('auth_mode'),
+        value('service_name'), value('brain_id'), value('brain_name'), audit.details_json || '{}', audit.created_at]);
     }
 
     await postgres.query('COMMIT');
@@ -170,4 +176,8 @@ function vectorLiteral(vector) {
 
 function tableExists(db, name) {
   return Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?").get(name));
+}
+
+function tableColumns(db, name) {
+  return new Set(db.prepare(`PRAGMA table_info(${name})`).all().map((row) => row.name));
 }

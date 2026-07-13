@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
 export async function openDatabase(config) {
@@ -84,8 +85,20 @@ export function initializeSqliteSchema(db) {
     );
     CREATE TABLE IF NOT EXISTS mcp_audit_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_id TEXT,
+      request_id TEXT,
       actor_email TEXT,
+      actor_type TEXT,
+      actor_id TEXT,
       action TEXT NOT NULL,
+      resource_type TEXT,
+      resource_id TEXT,
+      outcome TEXT,
+      error_code TEXT,
+      auth_mode TEXT,
+      service_name TEXT,
+      brain_id TEXT,
+      brain_name TEXT,
       details_json TEXT NOT NULL,
       created_at TEXT NOT NULL
     );
@@ -144,6 +157,7 @@ export function initializeSqliteSchema(db) {
   `);
   ensureSqliteSharedGroupColumns(raw);
   ensureSqlitePageKindColumn(raw);
+  ensureSqliteAuditColumns(raw);
 }
 
 export async function initializePostgresSchema(db) {
@@ -243,8 +257,20 @@ export async function initializePostgresSchema(db) {
     );
     CREATE TABLE IF NOT EXISTS mcp_audit_log (
       id BIGSERIAL PRIMARY KEY,
+      event_id TEXT,
+      request_id TEXT,
       actor_email TEXT,
+      actor_type TEXT,
+      actor_id TEXT,
       action TEXT NOT NULL,
+      resource_type TEXT,
+      resource_id TEXT,
+      outcome TEXT,
+      error_code TEXT,
+      auth_mode TEXT,
+      service_name TEXT,
+      brain_id TEXT,
+      brain_name TEXT,
       details_json JSONB NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
@@ -305,7 +331,30 @@ export async function initializePostgresSchema(db) {
     CREATE INDEX IF NOT EXISTS shared_group_pages_group_slug_idx ON shared_group_pages (group_slug, sort_order);
   `);
   await ensurePostgresSharedGroupColumns(db);
+  await ensurePostgresAuditColumns(db);
   await db.query("ALTER TABLE pages ADD COLUMN IF NOT EXISTS page_kind TEXT NOT NULL DEFAULT 'canonical'");
+}
+
+const AUDIT_COLUMNS = {
+  event_id: 'TEXT', request_id: 'TEXT', actor_type: 'TEXT', actor_id: 'TEXT',
+  resource_type: 'TEXT', resource_id: 'TEXT', outcome: 'TEXT', error_code: 'TEXT',
+  auth_mode: 'TEXT', service_name: 'TEXT', brain_id: 'TEXT', brain_name: 'TEXT',
+};
+
+function ensureSqliteAuditColumns(raw) {
+  const columns = new Set(raw.prepare('PRAGMA table_info(mcp_audit_log)').all().map((row) => row.name));
+  for (const [name, type] of Object.entries(AUDIT_COLUMNS)) {
+    if (!columns.has(name)) raw.exec(`ALTER TABLE mcp_audit_log ADD COLUMN ${name} ${type}`);
+  }
+  raw.exec('CREATE UNIQUE INDEX IF NOT EXISTS mcp_audit_log_event_id_idx ON mcp_audit_log (event_id) WHERE event_id IS NOT NULL');
+  raw.exec('CREATE INDEX IF NOT EXISTS mcp_audit_log_request_id_idx ON mcp_audit_log (request_id)');
+}
+
+async function ensurePostgresAuditColumns(db) {
+  const definitions = Object.entries(AUDIT_COLUMNS).map(([name, type]) => `ADD COLUMN IF NOT EXISTS ${name} ${type}`).join(', ');
+  await unwrapPostgres(db).query(`ALTER TABLE mcp_audit_log ${definitions}`);
+  await unwrapPostgres(db).query('CREATE UNIQUE INDEX IF NOT EXISTS mcp_audit_log_event_id_idx ON mcp_audit_log (event_id) WHERE event_id IS NOT NULL');
+  await unwrapPostgres(db).query('CREATE INDEX IF NOT EXISTS mcp_audit_log_request_id_idx ON mcp_audit_log (request_id)');
 }
 
 function ensureSqlitePageKindColumn(raw) {
@@ -1012,39 +1061,62 @@ export async function getHostedBrainGitState(db, brainKey) {
   return normalizeHostedBrainGitState(row);
 }
 
-export async function insertMcpAuditLog(db, { actorEmail = null, action, details = {}, createdAt = null }) {
+export async function insertMcpAuditLog(db, record) {
+  const { actorEmail = null, action, details = {}, createdAt = null } = record;
   const created = createdAt || new Date().toISOString();
+  const values = [record.eventId || `evt_${crypto.randomUUID()}`, record.requestId || null, actorEmail,
+    record.actorType || null, record.actorId || null, action, record.resourceType || null,
+    record.resourceId || null, record.outcome || 'success', record.errorCode || null,
+    record.authMode || null, record.serviceName || null, record.brainId || null, record.brainName || null,
+    JSON.stringify(details || {}), created];
   if (db.backend === 'postgres') {
     await db.query(`
-      INSERT INTO mcp_audit_log (actor_email, action, details_json, created_at)
-      VALUES ($1,$2,$3,$4)
-    `, [actorEmail, action, JSON.stringify(details || {}), created]);
+      INSERT INTO mcp_audit_log (event_id, request_id, actor_email, actor_type, actor_id, action,
+        resource_type, resource_id, outcome, error_code, auth_mode, service_name, brain_id, brain_name, details_json, created_at)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+    `, values);
     return;
   }
-  unwrapSqlite(db).prepare('INSERT INTO mcp_audit_log (actor_email, action, details_json, created_at) VALUES (?, ?, ?, ?)')
-    .run(actorEmail, action, JSON.stringify(details || {}), created);
+  unwrapSqlite(db).prepare(`INSERT INTO mcp_audit_log (event_id, request_id, actor_email, actor_type, actor_id, action,
+    resource_type, resource_id, outcome, error_code, auth_mode, service_name, brain_id, brain_name, details_json, created_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)` ).run(...values);
 }
 
-export async function listMcpAuditLog(db, { limit = 20 } = {}) {
+export async function listMcpAuditLog(db, { limit = 20, cursor = null } = {}) {
   const boundedLimit = normalizeLimit(limit, 20);
   if (db.backend === 'postgres') {
     return (await db.query(`
-      SELECT id, actor_email, action, details_json, created_at
+      SELECT *
       FROM mcp_audit_log
+      WHERE ($2::bigint IS NULL OR id < $2)
       ORDER BY created_at DESC, id DESC
       LIMIT $1
-    `, [boundedLimit])).rows.map((row) => ({
+    `, [boundedLimit, cursor])).rows.map((row) => ({
       ...row,
       created_at: normalizeTimestamp(row.created_at),
       details_json: JSON.stringify(row.details_json ?? {}),
     }));
   }
   return unwrapSqlite(db).prepare(`
-    SELECT id, actor_email, action, details_json, created_at
+    SELECT *
     FROM mcp_audit_log
+    WHERE (? IS NULL OR id < ?)
     ORDER BY created_at DESC, id DESC
     LIMIT ?
-  `).all(boundedLimit);
+  `).all(cursor, cursor, boundedLimit);
+}
+
+export async function pruneMcpAuditLog(db, { before, limit = 1000 } = {}) {
+  const boundedLimit = normalizeLimit(limit, 1000);
+  if (!before) throw new Error('Audit retention cleanup requires a before timestamp.');
+  if (db.backend === 'postgres') {
+    return (await db.query(`DELETE FROM mcp_audit_log WHERE id IN (
+      SELECT id FROM mcp_audit_log WHERE created_at < $1 ORDER BY created_at LIMIT $2
+    ) RETURNING id`, [before, boundedLimit])).rowCount;
+  }
+  return unwrapSqlite(db).prepare(`DELETE FROM mcp_audit_log WHERE id IN (
+    SELECT id FROM mcp_audit_log WHERE created_at < ? ORDER BY created_at LIMIT ?
+  )`).run(before, boundedLimit).changes;
 }
 
 export async function dbDoctor(config) {
