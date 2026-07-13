@@ -54,8 +54,8 @@ after an explicit privacy and abuse investigation requirement.
 
 ## Retention and access
 
-Retention defaults to 90 days for Postgres-hosted brains and 30 days for local
-SQLite brains. It is configurable with `mcp_audit_retention_days` or
+Retention defaults to 360 days for both Postgres-hosted and local SQLite brains.
+Each deployment can override it independently with `mcp_audit_retention_days` or
 `BIGBRAIN_MCP_AUDIT_RETENTION_DAYS`; audited operations delete strictly older
 records in bounded batches. The cursor-paginated `audit/list` and `audit/export`
 MCP tools require `brain:admin` and themselves produce an administrative audit

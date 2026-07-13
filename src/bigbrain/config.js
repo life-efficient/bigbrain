@@ -147,7 +147,11 @@ export function buildDefaultConfig(brainHome, env = process.env, { brainId = nul
       DEFAULT_MAX_EMBEDDING_PAGES_PER_SYNC,
       'BIGBRAIN_MAX_EMBEDDING_PAGES_PER_SYNC',
     ),
-    mcp_audit_retention_days: normalizePositiveInteger(env.BIGBRAIN_MCP_AUDIT_RETENTION_DAYS, 30, 'BIGBRAIN_MCP_AUDIT_RETENTION_DAYS'),
+    mcp_audit_retention_days: normalizePositiveInteger(
+      env.BIGBRAIN_MCP_AUDIT_RETENTION_DAYS === undefined ? undefined : Number(env.BIGBRAIN_MCP_AUDIT_RETENTION_DAYS),
+      360,
+      'BIGBRAIN_MCP_AUDIT_RETENTION_DAYS',
+    ),
   };
 }
 
@@ -212,8 +216,8 @@ export async function loadConfig(input = null) {
       'max_embedding_pages_per_sync',
     ),
     mcpAuditRetentionDays: normalizePositiveInteger(
-      raw.mcp_audit_retention_days ?? (raw.storage_backend === 'postgres' ? 90 : derivedDefault.mcp_audit_retention_days),
-      raw.storage_backend === 'postgres' ? 90 : derivedDefault.mcp_audit_retention_days,
+      raw.mcp_audit_retention_days ?? derivedDefault.mcp_audit_retention_days,
+      derivedDefault.mcp_audit_retention_days,
       'mcp_audit_retention_days',
     ),
   };

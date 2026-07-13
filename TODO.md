@@ -4,7 +4,7 @@
 
 - **2026-07-14 — Structured bounded MCP audit logging:** Done. Added
   request/event correlation, structured actor/resource/outcome and service/brain
-  metadata, additive SQLite/Postgres migrations, configurable bounded retention,
+  metadata, additive SQLite/Postgres migrations, configurable 360-day retention,
   and admin-only cursor-paginated list/NDJSON export tools. Audit access is itself
   audited, ordinary read failures remain outside the stream, and forbidden
   request/content metadata remains excluded.
