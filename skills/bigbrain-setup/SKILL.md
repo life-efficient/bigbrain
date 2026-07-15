@@ -3,15 +3,18 @@ name: "BigBrain: Setup"
 version: 1.0.0
 description: |
   Set up a BigBrain brain home, verify the runtime works, and optionally migrate
-  or import an existing markdown corpus. Use when the user wants to initialize
-  BigBrain, point it at a brain home, configure GitHub backup, or prove search
-  and health work end to end.
+  or import an existing markdown corpus. Connect hosted remote brains to Codex
+  with OAuth by default or an explicit single-operator token fallback. Use when
+  the user wants to initialize BigBrain, point it at a brain home, configure
+  GitHub backup, connect a remote brain, or prove search and health work end to
+  end.
 triggers:
   - "set up BigBrain"
   - "initialize BigBrain"
   - "configure BigBrain"
   - "create a brain home"
   - "migrate into BigBrain"
+  - "connect a remote brain to Codex"
 tools:
   - shell
 mutating: true
@@ -34,6 +37,8 @@ This skill guarantees:
 - Prove search and health work against real content
 - Keep migration additive rather than destructive
 - Stop with a clear blocker if the environment cannot complete setup safely
+- Connect hosted brains through BigBrain's client bootstrap instead of
+  project-specific secret loaders
 
 ## Workflow
 
@@ -74,6 +79,14 @@ This skill guarantees:
    - use `Understand BigBrain` for filing guidance
    - use `BigBrain: Ingest` for new material
    - use `BigBrain: Maintain` for cleanup
+11. When connecting a hosted brain to Codex:
+   - run `bigbrain connect codex <service-url> --name <connection-name>`
+   - keep OAuth as the default for hosted brains
+   - use `--auth token --token-stdin` only for an explicitly trusted
+     single-operator deployment
+   - never pass a token as a command-line argument or print it
+   - verify the reported Codex registration and follow the exact restart or
+     login instruction before claiming the connection is available
 
 ## Guardrails
 
@@ -86,6 +99,8 @@ This skill guarantees:
 - Surface state-root or permissions blockers directly instead of hand-waving them away
 - Do not bind the local unauthenticated MCP service to anything except
   `127.0.0.1`
+- Do not generalize a workbench-specific token file, environment variable, or
+  launch agent; remote connections must be isolated per Codex registration
 
 ## Output
 

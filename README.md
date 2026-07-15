@@ -127,6 +127,24 @@ or on a small server. Supabase is a managed Postgres target for a remote brain.
 A thin client is any agent, browser, or desktop shell pointed at a remote brain
 endpoint.
 
+Connect Codex to a hosted remote brain with the BigBrain-owned bootstrap:
+
+```sh
+bigbrain connect codex https://your-service.example.com/mcp \
+  --name example-brain \
+  --auth oauth
+```
+
+OAuth is the hosted default and gives every connection its own Codex-managed
+credential. Use `--auth token --token-stdin` only for a trusted single-operator
+deployment; never pass a bearer token as an argument or store it in a repository
+or Codex configuration. The command keeps connections isolated by name and
+verifies the Codex registration. Complete the authenticated tool and
+brain-identity check in a fresh Codex task. Existing Codex processes need
+restarting only for the token fallback, not for the standard OAuth flow. See
+[`docs/mcp-hosting.md`](./docs/mcp-hosting.md) for the full auth, verification,
+and migration contract.
+
 The database is service state, not the source of truth for authored knowledge.
 For hosted brains such as Example Brain, markdown in git remains canonical.
 Postgres can always be rebuilt from the markdown repo, but mutable runtime state

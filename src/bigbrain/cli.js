@@ -40,6 +40,7 @@ export async function runCli(argv) {
     case 'eval': return handleEval(args, global);
     case 'dashboard': return handleDashboard(args, global);
     case 'mcp': return handleMcp(args, global);
+    case 'connect': return handleConnect(args, global);
     case '--help':
     case '-h':
     case undefined:
@@ -445,6 +446,22 @@ async function handleMcp(args, global) {
   console.log(`BigBrain MCP server running at ${url}`);
 }
 
+async function handleConnect(args, global) {
+  if (args[0] !== 'codex' || !args[1]) throw new Error('Usage: bigbrain connect codex <service-url> [--name NAME] [--auth oauth|token] [--token-stdin]');
+  const { connectCodex } = await import('./codex-connect.js');
+  const tokenStdin = args.includes('--token-stdin');
+  const result = await connectCodex({
+    serviceUrl: args[1],
+    name: argValue(args, '--name') || '',
+    auth: argValue(args, '--auth') || 'oauth',
+    tokenStdin,
+    token: tokenStdin ? await readStdin() : '',
+  });
+  output(global, result, result.restart_codex_required
+    ? `Connected ${result.name}. Restart Codex before using this token-authenticated brain.`
+    : `Connected ${result.name} with OAuth.`);
+}
+
 async function loadRuntimeConfig(global) {
   if (global.configPath) return loadConfig({ configPath: global.configPath });
   const brainHome = await resolveBrainHome({
@@ -520,6 +537,7 @@ Commands:
   eval compare [--cases PATH] [--modes conservative,balanced,tokenmax] [--markdown]
   dashboard [--host HOST] [--port N] [--no-open]
   mcp [--host HOST] [--port N]
+  connect codex <service-url> [--name NAME] [--auth oauth|token] [--token-stdin]
 
 Global options:
   --brain-home <path>

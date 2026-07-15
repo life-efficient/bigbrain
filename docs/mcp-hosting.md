@@ -332,12 +332,51 @@ For dashboard deployments, send teammates to the service root. They sign in
 with Google and receive a secure dashboard session cookie if their email is
 allowlisted.
 
-For MCP deployments, `/connect` shows a Codex config snippet:
+For MCP deployments, `/connect` shows the first-class Codex connection command:
 
-```toml
-[mcp_servers.example-brain]
-url = "https://your-service.example.com/mcp"
+```sh
+bigbrain connect codex https://your-service.example.com/mcp \
+  --name example-brain \
+  --auth oauth
 ```
+
+OAuth is the default for hosted brains. The command registers the MCP endpoint
+and starts Codex's OAuth login. Codex owns the per-user OAuth credential; BigBrain does
+not copy it into a repository, shell profile, environment file, command line,
+or generated configuration. Each connection has its own MCP name and credential,
+so one Codex installation can connect to multiple remote brains without sharing
+or overwriting authentication state.
+
+The command is idempotent for the same name and endpoint and reports conflicts
+instead of silently replacing another registration. After setup, open a fresh
+Codex task and verify an authenticated tool listing plus the remote brain
+identity. Merely finding a configuration entry or environment variable is not
+end-to-end success; classify a failed live check as unreachable, not logged in,
+or connected to the wrong brain.
+
+Shared-token auth is a fallback only for trusted, single-operator deployments:
+
+```sh
+printf '%s' "$REMOTE_BRAIN_TOKEN" | \
+  bigbrain connect codex https://your-service.example.com/mcp \
+    --name example-brain \
+    --auth token \
+    --token-stdin
+```
+
+Pass the token only through standard input. Do not put it in an argument, source
+file, repository, Codex configuration, shell history, plist, log, or diagnostic
+output. BigBrain stores fallback credentials in a machine-local, owner-only,
+per-connection credential file; names and storage identifiers must not reuse a
+global `BIGBRAIN_MCP_TOKEN` across brains. The command keeps secrets out of
+normal and JSON output. Restart Codex, then verify the authenticated tool
+listing and remote identity in a fresh task.
+
+OAuth connections do not depend on a GUI application's inherited shell
+environment. The token fallback does require a full Codex restart: a running
+macOS application cannot acquire an environment variable that was published
+after it started. Its BigBrain-owned, per-connection loader replaces
+project-specific token loaders.
 
 OAuth access and dashboard session tokens are stored as hashes in
 `BIGBRAIN_MCP_TOKEN_STORE` or, for hosted deployments, the database-backed token

@@ -359,23 +359,23 @@ export function renderConnectPage(authConfig, { error = '' } = {}) {
   const title = escapeHtml(appName);
   const serverName = slugName(authConfig.serviceName);
   const endpoint = `${authConfig.publicUrl}/mcp`;
-  const configSnippet = `First, connect to the following MCP server and test it\n\n[mcp_servers.${serverName}]\nurl = "${endpoint}"\n\nAfter that, update your system prompt to include "Anything related to ${appName} should be stored, and searched for from the remote ${appName} brain via MCP. If an expected MCP tool is missing or only part of a server's tool surface appears, use the Find Missing Tools skill before concluding the tool is unavailable."`;
+  const configSnippet = `Connect this remote brain to Codex with OAuth, then verify the authenticated connection:\n\nbigbrain connect codex ${endpoint} --name ${serverName} --auth oauth\n\nOAuth is the default for hosted brains. Codex stores the resulting per-user credential; this page never exposes a bearer token.\n\nAfter that, update your system prompt to include "Anything related to ${appName} should be stored, and searched for from the remote ${appName} brain via MCP. If an expected MCP tool is missing or only part of a server's tool surface appears, use the Find Missing Tools skill before concluding the tool is unavailable."`;
   const errorHtml = error ? `<div class="notice error">${escapeHtml(error)}</div>` : '';
   return htmlPage(title, `
     <main class="shell">
       <section class="hero">
         <h1>${title}</h1>
-        <p>Give the instructions below to your agent to allow them to query and update the brain.</p>
+        <p>Give the instructions below to your agent to connect Codex securely, verify access, and then query and update the brain.</p>
       </section>
       ${errorHtml}
       <pre id="config" class="copy-box" tabindex="0">${escapeHtml(configSnippet)}</pre>
       <div class="copy-actions">
-        <button class="copy-button" type="button" data-copy-target="config" aria-label="Copy config">
+        <button class="copy-button" type="button" data-copy-target="config" aria-label="Copy instructions">
           <svg class="copy-icon" aria-hidden="true" viewBox="0 0 24 24">
             <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
             <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
           </svg>
-          <span>Copy config</span>
+          <span>Copy instructions</span>
         </button>
       </div>
     </main>

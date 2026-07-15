@@ -5,6 +5,20 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## Unreleased
 
+### Added
+
+- Added a first-class `bigbrain connect codex` workflow for remote brains.
+  Hosted connections use Codex-managed OAuth by default; trusted
+  single-operator deployments can explicitly install an isolated, persistent
+  bearer-token connection without putting the token in Codex configuration or
+  command history.
+
+### Changed
+
+- Updated the hosted `/connect` guidance and BigBrain Setup skill so Codex
+  client provisioning is owned by BigBrain rather than individual workbench
+  repositories.
+
 ## [0.13.0] - 2026-07-11
 
 ### Changed
