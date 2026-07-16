@@ -221,13 +221,14 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
         description: 'Shared through MCP.',
         visibility: 'public',
         redirect_from: ['people/legacy-group-page'],
-        pages: [{ page_slug: 'people/mcp-test', raw_files: ['people/.raw/public.pdf'] }],
+        pages: [{ page_slug: 'people/mcp-test', public_summary: 'Curated public member summary.', raw_files: ['people/.raw/public.pdf'] }],
       },
     }, 'secret');
     assert.equal(group.error, undefined, group.error?.message);
     assert.equal(group.result.structuredContent.public_url, running.url.replace('/mcp', '/shared/mcp-group'));
     assert.deepEqual(group.result.structuredContent.pages.map((page) => page.page_slug), ['people/mcp-test']);
     assert.deepEqual(group.result.structuredContent.pages[0].raw_files, ['people/.raw/public.pdf']);
+    assert.equal(group.result.structuredContent.pages[0].public_summary, 'Curated public member summary.');
 
     const groupRead = await rpc(running.url, 'tools/call', {
       name: 'groups_get',
@@ -235,6 +236,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     }, 'secret');
     assert.equal(groupRead.result.structuredContent.slug, 'mcp-group');
     assert.deepEqual(groupRead.result.structuredContent.pages[0].raw_files, ['people/.raw/public.pdf']);
+    assert.equal(groupRead.result.structuredContent.pages[0].public_summary, 'Curated public member summary.');
 
     const sharedGroupApi = await fetch(running.url.replace('/mcp', '/api/shared/group?slug=mcp-group'));
     assert.equal(sharedGroupApi.status, 200);

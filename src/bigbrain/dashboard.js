@@ -494,7 +494,10 @@ function renderAppHtml() {
       .shared-group-head { align-items: flex-end; }
       .shared-group-head .empty-copy { margin-top: 8px; font-size: 16px; line-height: 1.55; }
       .shared-group-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; align-items: stretch; }
-      .shared-group-card { display: grid; align-content: start; gap: 12px; min-height: 220px; padding: 18px; border: 1px solid #e4e4e7; border-radius: 8px; background: #fff; }
+      .shared-group-card { display: grid; align-content: start; gap: 12px; min-height: 220px; padding: 18px; border: 1px solid #e4e4e7; border-radius: 8px; background: #fff; color: inherit; text-decoration: none; transition: border-color 140ms ease, box-shadow 140ms ease, transform 140ms ease; }
+      .shared-group-card[href] { cursor: pointer; }
+      .shared-group-card[href]:hover { border-color: #a1a1aa; box-shadow: 0 10px 24px rgba(24,24,27,0.08); transform: translateY(-1px); }
+      .shared-group-card[href]:focus-visible { outline: 3px solid rgba(23,86,232,0.28); outline-offset: 3px; }
       .shared-group-card h2 { margin: 0; color: #18181b; font-size: 21px; line-height: 1.2; letter-spacing: 0; }
       .shared-group-card p { margin: 0; color: #52525b; font-size: 14px; line-height: 1.55; }
       .shared-group-card-kind { justify-self: start; padding: 3px 8px; border: 1px solid #d4d4d8; border-radius: 999px; color: #3f3f46; background: #fafafa; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -1352,13 +1355,12 @@ export async function buildSharedGroupPayload(config, db, requestUrl) {
     const row = pageBySlug.get(member.page_slug);
     if (!row) continue;
     const rawFiles = await sharedRawFilesForPage(config, group.slug, row, member);
-    const summary = extractSummaryFromText(row.summary || '') || extractSummaryFromText(row.compiled_truth || '');
     items.push({
       slug: row.slug,
       title: member.label || row.title,
       page_title: row.title,
       type: row.type,
-      summary,
+      summary: member.public_summary || null,
       raw_files: rawFiles,
     });
   }

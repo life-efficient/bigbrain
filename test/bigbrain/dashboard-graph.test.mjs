@@ -440,6 +440,7 @@ test('shared group payload exposes ordered member summaries and safe raw files',
           page_slug: 'deals/platform-one',
           sort_order: 0,
           label: 'Platform One Teaser',
+          public_summary: 'Curated public summary for platform one.',
           raw_files: ['deals/.raw/platform-one.pdf'],
         },
       ],
@@ -455,8 +456,9 @@ test('shared group payload exposes ordered member summaries and safe raw files',
     assert.equal(payload.title, 'Active Deals');
     assert.deepEqual(payload.pages.map((page) => page.slug), ['deals/platform-one', 'deals/platform-two']);
     assert.equal(payload.pages[0].title, 'Platform One Teaser');
-    assert.match(payload.pages[0].summary, /First public-safe teaser summary/);
+    assert.equal(payload.pages[0].summary, 'Curated public summary for platform one.');
     assert.deepEqual(payload.pages[0].raw_files.map((file) => file.filename), ['platform-one.pdf']);
+    assert.equal(payload.pages[1].summary, null);
     assert.deepEqual(payload.pages[1].raw_files, []);
 
     const redirected = await buildSharedGroupPayload(

@@ -1141,7 +1141,7 @@ function toolDefinitions() {
     },
     {
       name: 'groups_upsert',
-      description: 'Create or update a first-class shared group. A public group is served at /shared/<slug> and exposes only selected member summaries plus safe raw attachments from those pages.',
+      description: 'Create or update a first-class shared group. A public group is served at /shared/<slug> and exposes only explicitly curated member summaries plus safe raw attachments.',
       inputSchema: sharedGroupWriteSchema(),
     },
     {
@@ -1324,6 +1324,10 @@ function sharedGroupWriteSchema() {
             slug: { type: 'string' },
             path: { type: 'string' },
             label: { type: 'string' },
+            public_summary: {
+              type: 'string',
+              description: 'Optional curated public description for this group card. When omitted, the public card has no description; private page content is never used as a fallback.',
+            },
             sort_order: { type: 'number' },
             raw_files: {
               type: 'array',
@@ -1332,7 +1336,7 @@ function sharedGroupWriteSchema() {
             },
           },
         },
-        description: 'Ordered member pages. Each item may use page_slug, slug, or path, and may select public raw_files for that member.',
+        description: 'Ordered member pages. Each item may use page_slug, slug, or path, may provide a curated public_summary, and may select public raw_files for that member.',
       },
     },
     required: ['slug', 'title', 'pages'],

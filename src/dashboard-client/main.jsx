@@ -763,22 +763,17 @@ function SharedGroupApp() {
           </div>
         </header>
         <div className="shared-group-grid">
-          {state.group.pages.map((page) => (
-            <section className="shared-group-card" key={page.slug}>
+          {state.group.pages.map((page) => {
+            const href = Array.isArray(page.raw_files) && page.raw_files.length ? page.raw_files[0].url : null;
+            const Card = href ? 'a' : 'section';
+            return (
+            <Card className="shared-group-card" href={href || undefined} key={page.slug}>
               <div className="shared-group-card-kind">{page.type}</div>
               <h2>{page.title}</h2>
               {page.summary ? <p>{page.summary}</p> : null}
-              {Array.isArray(page.raw_files) && page.raw_files.length ? (
-                <div className="shared-group-files">
-                  {page.raw_files.map((file) => (
-                    <a href={file.url} key={file.path || file.url}>
-                      {file.filename}
-                    </a>
-                  ))}
-                </div>
-              ) : null}
-            </section>
-          ))}
+            </Card>
+            );
+          })}
         </div>
       </article>
     </main>
