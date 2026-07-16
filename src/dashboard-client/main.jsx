@@ -768,7 +768,6 @@ function SharedGroupApp() {
             const Card = href ? 'a' : 'section';
             return (
             <Card className="shared-group-card" href={href || undefined} key={page.slug}>
-              <div className="shared-group-card-kind">{page.type}</div>
               <h2>{page.title}</h2>
               {page.summary ? <p>{page.summary}</p> : null}
             </Card>

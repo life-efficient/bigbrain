@@ -500,7 +500,6 @@ function renderAppHtml() {
       .shared-group-card[href]:focus-visible { outline: 3px solid rgba(23,86,232,0.28); outline-offset: 3px; }
       .shared-group-card h2 { margin: 0; color: #18181b; font-size: 21px; line-height: 1.2; letter-spacing: 0; }
       .shared-group-card p { margin: 0; color: #52525b; font-size: 14px; line-height: 1.55; }
-      .shared-group-card-kind { justify-self: start; padding: 3px 8px; border: 1px solid #d4d4d8; border-radius: 999px; color: #3f3f46; background: #fafafa; font-size: 12px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.04em; }
       .shared-group-files { display: grid; gap: 8px; margin-top: 4px; }
       .shared-group-files a { display: block; padding: 10px 11px; border: 1px solid #d4d4d8; border-radius: 8px; color: #18181b; background: #fafafa; text-decoration: none; font-size: 13px; font-weight: 650; overflow-wrap: anywhere; }
       .shared-group-files a:hover { border-color: #a1a1aa; background: #f4f4f5; }
