@@ -190,11 +190,43 @@ output changed.
 Use a concise, plain-language status report. This automation is an update check,
 not a general brain-maintenance report, so do not include command logs, commit
 hashes, template counts, or implementation details in a successful final answer.
+Lead with the user-facing outcome, not the mechanism. Do not open with phrases
+such as "no upstream update was found", "no pull/rebase was needed", "previous
+HEAD", or "final HEAD" unless a failure or blocker makes those details
+actionable.
 
 For a clean no-update run, use this shape:
 
-> BigBrain is already up to date. The local setup is healthy, and no action is
-> needed.
+> BigBrain is already up to date.
+>
+> Applied runtime fixes:
+> - Refreshed active BigBrain automations so they match the bundled templates.
+> - Confirmed bundled BigBrain skills are installed and available.
+>
+> Verification passed:
+> - BigBrain opens and runs from the normal command line.
+> - The automated test suite passed.
+> - The selected brain is healthy and has current filing rules.
+> - The local BigBrain service is running and registered with Codex.
+>
+> No action is needed.
+
+Omit an `Applied runtime fixes` section when nothing changed outside ordinary
+verification. When there were no fixes, say one short sentence instead, for
+example:
+
+> The active skills, automations, filing rules, and local service are healthy.
+
+For successful reports, describe verification by outcome rather than by command:
+- "BigBrain opens and runs from the normal command line", not "`npm link` and
+  CLI smoke passed"
+- "The automated test suite passed", not "`npm test` passed"
+- "The selected brain is healthy", not "`bigbrain health --json` returned zero
+  findings"
+- "The local BigBrain service is running and registered with Codex", not a port,
+  launchd label, tool count, or MCP URL
+- "The active skills and automations match the bundled versions", not template
+  counts, symlink counts, or mismatch counters
 
 For a successful applied update, include a short `What changed` bullet list
 derived from the relevant `CHANGELOG.md` release entries, then close with the
@@ -220,5 +252,5 @@ If something did not work, include enough detail to act on it:
   healthy and whether Codex has a matching MCP registration
 
 Only mention technical details such as command names, paths, commit hashes,
-template mismatch counts, or health fields when they explain a failure,
-blocker, or user-actionable follow-up.
+ports, launchd labels, MCP URLs, template mismatch counts, or health fields when
+they explain a failure, blocker, or user-actionable follow-up.
