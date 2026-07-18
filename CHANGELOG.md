@@ -5,6 +5,8 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## Unreleased
 
+## [0.14.0] - 2026-07-18
+
 ### Added
 
 - Added a first-class `bigbrain connect codex` workflow for remote brains.
@@ -12,12 +14,60 @@ actions` section for agents maintaining local installs and hosted brains.
   single-operator deployments can explicitly install an isolated, persistent
   bearer-token connection without putting the token in Codex configuration or
   command history.
+- Added bounded MCP audit logging with retention controls, migration support,
+  and dashboard visibility for recent MCP activity.
+- Added public-safe shared group dashboard rendering so public group views expose
+  only approved page and raw-file content.
 
 ### Changed
 
 - Updated the hosted `/connect` guidance and BigBrain Setup skill so Codex
   client provisioning is owned by BigBrain rather than individual workbench
   repositories.
+- Simplified `bigbrain-granola-ingest` output guidance for more readable
+  automation reports.
+- Scoped `bigbrain-whats-next` to the current user by default.
+- Tightened `bigbrain-media-ingest` transcript handling guidance.
+- Clarified the `bigbrain-check-update` skill's final report guidance so routine
+  update checks lead with a plain-language status, keep applied runtime fixes
+  readable, and reserve hashes, ports, command names, and MCP implementation
+  details for failures or actionable follow-up.
+- Moved missing MCP tool discovery out of BigBrain's bundled skills and into
+  the shared skills surface.
+
+### Fixed
+
+- Fixed structured MCP collection responses.
+- Avoided false fatal hosted rebase log messages.
+- Removed a redundant shared group type pill from dashboard cards.
+
+### Agent update actions
+
+- Pull the release and run `npm install` plus `npm link` so the active
+  `bigbrain` command, new `bigbrain connect codex` workflow, and bundled skills
+  resolve to the updated checkout.
+- Refresh the bundled BigBrain skills in the active agent runtime, especially
+  `bigbrain-check-update`, `bigbrain-granola-ingest`,
+  `bigbrain-media-ingest`, `bigbrain-setup`, and `bigbrain-whats-next`.
+- Remove any stale BigBrain-owned active install of
+  `bigbrain-find-missing-tools`; use the shared `find-missing-tools` skill
+  instead.
+- Restart each dashboard or local MCP service so MCP audit logging, public group
+  rendering, and hosted connection changes take effect.
+- No brain-page, task-field, filing-rule, folder, or manual database migration
+  is required. Existing SQLite and Postgres MCP audit tables are migrated by the
+  runtime.
+- Run `bigbrain health --json` and verify the bundled skill templates are
+  healthy.
+- For a local MCP service, verify the service starts and recent MCP activity can
+  be recorded without exposing secrets.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- Installed Codex skill symlink resolves to
+  `/Users/hq/projects/bigbrain/skills/bigbrain-check-update/SKILL.md`
 
 ## [0.13.0] - 2026-07-11
 
