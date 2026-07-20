@@ -65,7 +65,7 @@ const execFileAsync = promisify(execFile);
 export async function startMcpServer({
   config,
   host = '0.0.0.0',
-  port = Number(process.env.PORT || 3333),
+  port = Number(process.env.PORT || 55560),
   authToken = process.env.BIGBRAIN_MCP_TOKEN || process.env.MCP_AUTH_TOKEN || null,
   authConfig = buildAuthConfig({ authToken }),
   syncIntervalMs = Number(process.env.BIGBRAIN_MCP_SYNC_INTERVAL_MS || 300000),

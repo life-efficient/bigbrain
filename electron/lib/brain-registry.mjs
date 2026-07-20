@@ -5,7 +5,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 
 export const REGISTRY_VERSION = 1;
-export const DEFAULT_PORT_START = 3333;
+export const DEFAULT_PORT_START = 55560;
 
 export function defaultAppSupport(home = os.homedir()) {
   return path.join(home, 'Library', 'Application Support', 'BigBrain');

@@ -401,7 +401,7 @@ name.
 It starts BigBrain with:
 
 ```bash
-bigbrain --brain-home "$brain_home" mcp --host 127.0.0.1 --port 3333
+bigbrain --brain-home "$brain_home" mcp --host 127.0.0.1 --port 55560
 ```
 
 The service is configured with `RunAtLoad` and `KeepAlive`, so macOS starts it
@@ -416,19 +416,19 @@ such as:
 Verify it is running:
 
 ```bash
-curl http://127.0.0.1:3333/health
+curl http://127.0.0.1:55560/health
 launchctl print "gui/$(id -u)/local.bigbrain.personal-brain"
 ```
 
 Use `codex mcp list` to verify the Codex registration separately from service
 health. On Harry's current machine, the loopback endpoint is registered as
-`personal_brain` at `http://127.0.0.1:3333/mcp`; absence of an older `bigbrain`
+`personal_brain` at `http://127.0.0.1:55560/mcp`; absence of an older `bigbrain`
 entry is not a service-health failure.
 
 The MCP endpoint is:
 
 ```text
-http://127.0.0.1:3333/mcp
+http://127.0.0.1:55560/mcp
 ```
 
 This on-device service uses `BIGBRAIN_MCP_AUTH_MODE=none` and binds only to

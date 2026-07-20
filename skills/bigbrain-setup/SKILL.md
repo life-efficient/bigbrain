@@ -87,7 +87,7 @@ This skill guarantees:
 9. For **Run BigBrain on this device** on macOS, install and start the
    always-on loopback MCP service:
    - `node /path/to/bigbrain/scripts/install-local-mcp-service.mjs --repo-root /path/to/bigbrain --brain-home /path/to/brain-home`
-   - verify `http://127.0.0.1:3333/health`
+   - verify `http://127.0.0.1:55560/health`
    - verify an MCP `initialize` plus `tools/list` smoke test
 10. Prove retrieval works on real content:
    - `bigbrain search "<known term>" --json`

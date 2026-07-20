@@ -60,14 +60,14 @@ services:
     environment:
       BIGBRAIN_HOME: /brain
       BIGBRAIN_MCP_AUTH_MODE: oauth_allowlist
-      BIGBRAIN_MCP_PUBLIC_URL: http://example-brain.local:3333
+      BIGBRAIN_MCP_PUBLIC_URL: http://example-brain.local:55560
       DATABASE_URL: postgres://bigbrain:bigbrain@postgres:5432/bigbrain
     volumes:
       - ./Example Brain:/brain
     depends_on:
       - postgres
     ports:
-      - "3333:3333"
+      - "55560:55560"
 
   postgres:
     image: pgvector/pgvector:pg16

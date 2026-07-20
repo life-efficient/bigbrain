@@ -4,11 +4,11 @@ services:
       context: ../..
       dockerfile: deploy/bundled-postgres/Dockerfile
     environment:
-      PORT: ${BIGBRAIN_SERVICE_PORT:-3333}
+      PORT: ${BIGBRAIN_SERVICE_PORT:-55560}
       BIGBRAIN_HOME: ${BIGBRAIN_HOME:-/brain}
       BIGBRAIN_CONFIG: ${BIGBRAIN_CONFIG:-/config/bigbrain.config.json}
       BIGBRAIN_MCP_AUTH_MODE: ${BIGBRAIN_MCP_AUTH_MODE:-oauth_allowlist}
-      BIGBRAIN_MCP_PUBLIC_URL: ${BIGBRAIN_MCP_PUBLIC_URL:-http://127.0.0.1:3333}
+      BIGBRAIN_MCP_PUBLIC_URL: ${BIGBRAIN_MCP_PUBLIC_URL:-http://127.0.0.1:55560}
       BIGBRAIN_MCP_SERVICE_NAME: ${BIGBRAIN_MCP_SERVICE_NAME:-BigBrain}
       BIGBRAIN_MCP_ALLOWED_EMAILS: ${BIGBRAIN_MCP_ALLOWED_EMAILS:-}
       BIGBRAIN_MCP_GOOGLE_CLIENT_ID: ${BIGBRAIN_MCP_GOOGLE_CLIENT_ID:-}
@@ -22,9 +22,9 @@ services:
       postgres:
         condition: service_healthy
     ports:
-      - "${BIGBRAIN_SERVICE_PORT:-3333}:${BIGBRAIN_SERVICE_PORT:-3333}"
+      - "${BIGBRAIN_SERVICE_PORT:-55560}:${BIGBRAIN_SERVICE_PORT:-55560}"
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:' + (process.env.PORT || 3333) + '/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
+      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:' + (process.env.PORT || 55560) + '/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))\""]
       interval: 30s
       timeout: 5s
       start_period: 20s

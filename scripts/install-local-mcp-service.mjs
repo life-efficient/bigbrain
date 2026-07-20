@@ -3,13 +3,14 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
+import net from 'node:net';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_LABEL = 'local.bigbrain.mcp';
 const DEFAULT_HOST = '127.0.0.1';
-const DEFAULT_PORT = 3333;
+const DEFAULT_PORT = 55560;
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
@@ -93,6 +94,7 @@ async function main() {
   try {
     if (replacementPlist) await execFileAsync('launchctl', ['bootout', `gui/${process.getuid()}`, replacementPlist]).catch(() => null);
     await execFileAsync('launchctl', ['bootout', `gui/${process.getuid()}`, plistPath]).catch(() => null);
+    await assertPortAvailable({ host, port });
     await fs.writeFile(plistPath, plist, 'utf8');
     await execFileAsync('launchctl', ['bootstrap', `gui/${process.getuid()}`, plistPath]);
     await execFileAsync('launchctl', ['kickstart', '-k', serviceTarget]);
@@ -346,6 +348,21 @@ async function postJsonRpc(url, payload) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function assertPortAvailable({ host, port }) {
+  await new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.unref();
+    probe.once('error', (error) => {
+      if (error.code === 'EADDRINUSE') {
+        reject(new Error(`Refusing to start BigBrain: fixed port ${port} is already in use. Stop the conflicting service; BigBrain never selects a fallback port.`));
+      } else {
+        reject(error);
+      }
+    });
+    probe.listen({ host, port, exclusive: true }, () => probe.close(resolve));
+  });
 }
 
 async function userId() {
