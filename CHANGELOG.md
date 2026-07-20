@@ -1,9 +1,17 @@
 # Changelog
 
 BigBrain uses semantic versioning. Each release includes an `Agent update
-actions` section for agents maintaining local installs and hosted brains.
+actions` section for agents maintaining device and server installations.
 
 ## Unreleased
+
+### Changed
+
+- Reframed packaging and onboarding around two action-led paths: run BigBrain
+  on this device or connect to an existing BigBrain service. Hosting ownership,
+  Docker packaging, storage, client type, and private/shared access are now
+  documented as separate deployment or configuration choices rather than
+  competing product modes.
 
 ## [0.14.3] - 2026-07-20
 

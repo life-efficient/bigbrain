@@ -82,6 +82,27 @@ export class BrainRegistry {
     return brain;
   }
 
+  async registerService({ brainId, name, serviceUrl }) {
+    const registry = await this.load();
+    const duplicate = registry.brains.find((brain) => brain.connectionType === 'service' && brain.serviceUrl === serviceUrl);
+    if (duplicate) throw new Error(`This BigBrain service is already connected as ${duplicate.name}.`);
+    const brain = {
+      id: crypto.randomUUID(),
+      brainId,
+      name: String(name).trim(),
+      connectionType: 'service',
+      serviceUrl,
+      status: 'connected',
+      onboarding: { step: 5, completed: true, error: null },
+      createdAt: new Date().toISOString(),
+      lastOpenedAt: new Date().toISOString(),
+    };
+    registry.brains.push(brain);
+    registry.activeBrainId = brain.id;
+    await this.save(registry);
+    return brain;
+  }
+
   async update(id, updates) {
     const registry = await this.load();
     const index = registry.brains.findIndex((brain) => brain.id === id);

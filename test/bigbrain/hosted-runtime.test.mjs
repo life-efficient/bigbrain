@@ -6,6 +6,10 @@ import path from 'node:path';
 
 import { hostedBrainOptionsFromEnv, prepareBigBrainRuntime } from '../../src/bigbrain/hosted-runtime.js';
 
+test('service runtime uses action-led default naming', () => {
+  assert.equal(hostedBrainOptionsFromEnv().brainName, 'BigBrain Service');
+});
+
 test('hosted brain runtime prefers BRAIN_ROOT and keeps BRAIN_SUBDIR as a legacy alias', () => {
   const options = hostedBrainOptionsFromEnv({
     DATA_DIR: '/srv/data',

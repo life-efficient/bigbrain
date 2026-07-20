@@ -1,6 +1,9 @@
 # Example Brain BigBrain Deployment
 
-Example Brain should run as a bundled brain server:
+Example Brain illustrates **Connect to an existing BigBrain** using a
+server-managed deployment. Docker is the canonical server package; the
+deployment can be hosted by us or self-hosted/on-premises without changing the
+product mode.
 
 - Example Brain markdown repo remains canonical content.
 - BigBrain MCP/API service runs as the app process.
@@ -29,7 +32,7 @@ OPENAI_API_KEY=...
 DATABASE_URL=postgres://...
 ```
 
-The BigBrain config for the hosted Example Brain brain should include:
+The BigBrain config for the deployed Example Brain should include:
 
 ```json
 {
@@ -40,7 +43,7 @@ The BigBrain config for the hosted Example Brain brain should include:
 
 Do not rely on app-container files for embeddings or OAuth tokens. With
 `storage_backend: "postgres"`, BigBrain stores OAuth clients, states, codes,
-token hashes, hosted brain git durability health state, and bounded MCP audit
+token hashes, brain Git durability health state, and bounded MCP audit
 log entries in Postgres.
 
 ## Local Network Shape

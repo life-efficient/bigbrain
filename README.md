@@ -47,7 +47,7 @@ Skill routing lives in [`skills/RESOLVER.md`](./skills/RESOLVER.md).
 - a scoped CLI that targets an external brain home
 - a lightweight dashboard
 - OpenAI-native embeddings, grounded query, and enrichment defaults
-- MCP server mode for hosted or shared brains
+- MCP server mode for clients connecting to an existing BigBrain
 - OAuth allowlist support for team MCP access
 - retrieval evals for checking search quality changes
 
@@ -111,23 +111,24 @@ meeting page across the full lifecycle:
 For meetings, `---` and `## Timeline` are optional. The prep workflow should
 update the same meeting page that later receives ingested meeting outcomes.
 
-## Operating Modes
+## Ways To Use BigBrain
 
-BigBrain currently optimizes for two supported product modes:
+BigBrain gives AI persistent memory through two user-facing choices:
 
-- `local brain`: a selected markdown brain home on this machine, local runtime
-  state under `.bigbrain-state/`, and localhost CLI/MCP/dashboard access.
-- `remote brain`: one selected markdown brain served by a hosted BigBrain
-  MCP/API/dashboard endpoint, with durable server state in Postgres.
+- **Run BigBrain on this device:** create or select a markdown brain on this
+  device, keep runtime state under `.bigbrain-state/`, and use localhost
+  CLI/MCP/dashboard access.
+- **Connect to an existing BigBrain:** point an agent, browser, or desktop app
+  at an already-running BigBrain service without managing its lifecycle.
 
-Other shapes, such as Docker Compose, bundled Postgres, Supabase, and thin
-clients, should stack around those two modes instead of becoming separate
-products. Docker or Compose is the practical way to run a remote brain locally
-or on a small server. Supabase is a managed Postgres target for a remote brain.
-A thin client is any agent, browser, or desktop shell pointed at a remote brain
-endpoint.
+Hosting ownership, deployment location, storage, client type, and sharing do
+not create additional product modes. An existing service can be hosted by us
+or self-hosted/on-premises. Docker is the canonical server package, even when
+the service and client run on the same physical machine. Bundled Postgres and
+managed Postgres such as Supabase are storage choices. Either relationship can
+remain private or be shared with approved users.
 
-Connect Codex to a hosted remote brain with the BigBrain-owned bootstrap:
+Connect Codex to an existing BigBrain with the BigBrain-owned bootstrap:
 
 ```sh
 bigbrain connect codex https://your-service.example.com/mcp \
@@ -135,7 +136,7 @@ bigbrain connect codex https://your-service.example.com/mcp \
   --auth oauth
 ```
 
-OAuth is the hosted default and gives every connection its own Codex-managed
+OAuth is the server default and gives every connection its own Codex-managed
 credential. Use `--auth token --token-stdin` only for a trusted single-operator
 deployment; never pass a bearer token as an argument or store it in a repository
 or Codex configuration. The command keeps connections isolated by name and
@@ -146,7 +147,7 @@ restarting only for the token fallback, not for the standard OAuth flow. See
 and migration contract.
 
 The database is service state, not the source of truth for authored knowledge.
-For hosted brains such as Example Brain, markdown in git remains canonical.
+For server deployments such as Example Brain, markdown in git remains canonical.
 Postgres can always be rebuilt from the markdown repo, but mutable runtime state
 such as OAuth clients, grants, hosted git health state, embedding rows, and
 bounded audit logs should persist outside the app container.
@@ -263,19 +264,19 @@ assignees that match active members. External people can still be linked in
 notes, sources, or stakeholder fields; they are not assignable until they are
 added as members.
 
-For a private local MCP service running with `BIGBRAIN_MCP_AUTH_MODE=none`,
+For a private device-managed MCP service running with `BIGBRAIN_MCP_AUTH_MODE=none`,
 `assignee=me` resolves to `BIGBRAIN_MCP_LOCAL_PERSON_SLUG`, the single active
-owner, or the single active member when there is no owner. For local single-user
-brains, bootstrap the local owner during service installation:
+owner, or the single active member when there is no owner. For single-user
+device-managed installations, bootstrap the owner during service installation:
 
 ```sh
 bigbrain members ensure-local-owner people/hani --name Hani --email hani@example.com
 ```
 
-The local service installer can run that bootstrap step and persist
+The device service installer can run that bootstrap step and persist
 `BIGBRAIN_MCP_LOCAL_PERSON_SLUG` in the LaunchAgent when called with
-`--local-person-slug people/hani`. If a local brain has multiple active owners
-or members, set that local person slug explicitly so `me` is deterministic.
+`--local-person-slug people/hani`. If the brain has multiple active owners or
+members, set that local person slug explicitly so `me` is deterministic.
 
 ## Install
 
@@ -445,9 +446,9 @@ from Finder or Spotlight loads this source checkout exactly like
 use the same brain registry and persistent MCP services; it does not copy brain
 data or install a second service.
 
-By default, the desktop app uses the selected local brain and starts the
-built-in local dashboard server. To wrap a hosted remote brain dashboard with
-the same desktop shell, set `BIGBRAIN_DASHBOARD_URL` or pass
+By default, the desktop app runs BigBrain on this device for the selected brain
+and starts the built-in dashboard server. To connect the same desktop shell to
+an existing BigBrain dashboard, set `BIGBRAIN_DASHBOARD_URL` or pass
 `--dashboard-url`:
 
 ```bash

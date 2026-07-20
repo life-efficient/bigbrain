@@ -9,17 +9,25 @@ Ask the user only for choices that change the installation. Ask one question at
 a time, show numbered option answers, mark exactly one answer with
 `(recommended)`, and wait for the user's answer before proceeding.
 
-Ask this first:
+Ask this first. These are the only two primary setup paths:
 
 ```text
-Where should BigBrain run?
+How do you want to set up BigBrain?
 
-1. On this computer (recommended)
-2. On a server
-3. Connect to an already-hosted BigBrain
+1. Run BigBrain on this device (recommended)
+2. Connect to an existing BigBrain
 ```
 
-Ask this before creating or selecting a local brain folder:
+If the user instead wants to deploy a BigBrain service, route that to the
+advanced deployment flow rather than adding a third setup path. Docker is the
+canonical package for server deployment. Hosted-by-us, self-hosted, and
+on-premises are deployment variants; private and shared access are separate
+access choices. Once the service is running, clients use **Connect to an
+existing BigBrain** whether the service is on the same physical machine, on an
+organization's network, or online.
+
+Ask this before creating or selecting a brain folder for **Run BigBrain on this
+device**:
 
 ```text
 Do you want to back up this brain to GitHub?
@@ -32,20 +40,18 @@ If the user chooses no, repeat the warning once in the final setup summary and
 do not configure a GitHub remote.
 
 Ask this only if the brain folder is not obvious from the workspace or existing
-BigBrain config. If asking, use "server" instead of "computer" when the user
-requested server mode. Use the path in
-`~/.config/bigbrain/default-brain-home` as the default expected location when
-that file exists, and display it with `~` instead of the full home directory
-when possible:
+BigBrain config. Use the path in `~/.config/bigbrain/default-brain-home` as the
+default expected location when that file exists, and display it with `~`
+instead of the full home directory when possible:
 
 ```text
-Where on your computer should I store the brain?
+Where on this device should I store the brain?
 
 1. The default (`~/.config/bigbrain/default-brain-home`) (recommended)
 2. Somewhere else (tell me where)
 ```
 
-Ask this only if a server database is needed:
+Ask this only in the advanced deployment flow when a server database is needed:
 
 ```text
 Where should the server database live?
@@ -55,7 +61,8 @@ Where should the server database live?
 3. Another hosted Postgres database
 ```
 
-Ask this only if BigBrain will run on a server or connect to a hosted BigBrain:
+Ask this only when configuring a service's access policy. Treat it as separate
+from where the service is deployed and from how a client connects:
 
 ```text
 Who can use this brain?
@@ -190,7 +197,8 @@ bigbrain init /path/to/brain-home
 
 ## GitHub backup
 
-If the user chooses GitHub backup, configure it before finishing local setup.
+If the user chooses GitHub backup, configure it before finishing setup on this
+device.
 The backup should be a private GitHub repository unless the user explicitly asks
 for a public one.
 
@@ -244,17 +252,17 @@ Use the user's GitHub account through the GitHub MCP server:
    git push -u origin main
    ```
 
-8. Run a no-op backup check after the local MCP service is installed:
+8. Run a no-op backup check after the on-device MCP service is installed:
 
    ```bash
    git status --short
    ```
 
-The local BigBrain MCP service is configured with git backup enabled. Once the
-brain is a git repository with a working GitHub remote, the service can commit
-and push future brain changes. If GitHub MCP setup, repository creation, or push
-authentication fails, report that backup is not complete and do not claim the
-brain is protected.
+The on-device BigBrain MCP service is configured with git backup enabled. Once
+the brain is a git repository with a working GitHub remote, the service can
+commit and push future brain changes. If GitHub MCP setup, repository creation,
+or push authentication fails, report that backup is not complete and do not
+claim the brain is protected.
 
 ## Automation sync command
 
@@ -326,10 +334,10 @@ If `bigbrain` is not found, rerun `npm link` from the BigBrain repo using the
 same Node version and shell environment used by the agent or automation, then
 repair the Codex shell `PATH` as described in One-time setup.
 
-## Install local MCP service
+## Install the on-device MCP service
 
-For local setup on macOS, install and start the always-on local MCP service
-after the CLI and brain home are configured:
+For **Run BigBrain on this device** on macOS, install and start the always-on
+loopback MCP service after the CLI and brain home are configured:
 
 ```bash
 repo_root="$(pwd)"
@@ -344,17 +352,17 @@ node "$repo_root/scripts/install-local-mcp-service.mjs" \
 ```
 
 The default label and port preserve compatibility with existing single-brain
-installs. For an additional local brain, choose a distinct persisted service
-label, port, and Codex MCP registration derived from its name, for example
-`local.bigbrain.research-brain`, port `3334`, and `research_brain`. Do not rename
-those aliases automatically when `brain_name` changes.
+installs. For an additional brain running on this device, choose a distinct
+persisted service label, port, and Codex MCP registration derived from its name,
+for example `local.bigbrain.research-brain`, port `3334`, and `research_brain`.
+Do not rename those aliases automatically when `brain_name` changes.
 
 Use the target brain owner's real `people/<slug>` page, display name, and email.
 The installer creates or repairs an active local owner row before starting the
 service, then persists `BIGBRAIN_MCP_LOCAL_PERSON_SLUG` in the LaunchAgent so
-`assignee=me` works for local single-user brains.
+`assignee=me` works for single-user brains running on this device.
 
-If the local brain already has exactly one active owner/member, `me` can resolve
+If the brain already has exactly one active owner/member, `me` can resolve
 without an explicit slug, but fresh installs should still pass
 `--local-person-slug` so the identity is stable after future collaborators are
 added.
@@ -379,7 +387,7 @@ node "$repo_root/scripts/install-local-mcp-service.mjs" \
   --local-owner-email hani@example.com
 ```
 
-This writes a brain-specific LaunchAgent. For example, a local brain named
+This writes a brain-specific LaunchAgent. For example, a brain named
 `Personal Brain` uses:
 
 ```text
@@ -413,7 +421,7 @@ launchctl print "gui/$(id -u)/local.bigbrain.personal-brain"
 ```
 
 Use `codex mcp list` to verify the Codex registration separately from service
-health. On Harry's current machine, the local endpoint is registered as
+health. On Harry's current machine, the loopback endpoint is registered as
 `personal_brain` at `http://127.0.0.1:3333/mcp`; absence of an older `bigbrain`
 entry is not a service-health failure.
 
@@ -423,12 +431,13 @@ The MCP endpoint is:
 http://127.0.0.1:3333/mcp
 ```
 
-This local service uses `BIGBRAIN_MCP_AUTH_MODE=none` and binds only to
+This on-device service uses `BIGBRAIN_MCP_AUTH_MODE=none` and binds only to
 `127.0.0.1`. In this mode, `assignee=me` resolves to the configured
 `BIGBRAIN_MCP_LOCAL_PERSON_SLUG`, the single active owner, or the single active
-member. Ambiguous local membership fails with setup guidance instead of guessing.
-Do not use this unauthenticated local service for remote or shared brains. For
-server or team access, use the hosted MCP setup in `docs/mcp-hosting.md`.
+member. Ambiguous membership fails with setup guidance instead of guessing.
+Do not expose this unauthenticated loopback service for network-accessible or
+shared access. For Docker, server, or team deployments, use the advanced MCP
+deployment setup in `docs/mcp-hosting.md`.
 
 ## Install automations
 
@@ -442,7 +451,7 @@ cwds = ["<bigbrain-repo>"]
 
 When installing them into the agent runtime, copy the automation directories to
 `${CODEX_HOME:-$HOME/.codex}/automations`, replace `<brain-home>` with the
-real local brain path, and replace `<bigbrain-repo>` with the local BigBrain
+real on-device brain path, and replace `<bigbrain-repo>` with the local BigBrain
 source repo path in the installed copy only:
 
 ```bash
@@ -466,5 +475,5 @@ real cwd. Do not commit those installed files back to the BigBrain repo.
 `updated_at` when checking the active install against the repo templates.
 
 The old scheduled sync and Git backup automations are intentionally not
-installed here. The local event-driven MCP service handles sync/index freshness
-and Git backup for local brains.
+installed here. The on-device event-driven MCP service handles sync/index
+freshness and Git backup for brains running this way.

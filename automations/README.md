@@ -43,4 +43,4 @@ those machine-specific files back into this repo.
 
 The old scheduled sync and Git backup automations are intentionally not bundled
 for install anymore. The local event-driven MCP service handles sync/index
-freshness and Git backup for local brains.
+freshness and Git backup when BigBrain runs on the device.

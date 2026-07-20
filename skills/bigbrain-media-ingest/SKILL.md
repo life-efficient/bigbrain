@@ -45,7 +45,7 @@ This skill guarantees:
    - any timestamp or passage explicitly highlighted by the user, plus the user's stated implication
 4. Preserve the source:
    - complete timestamped transcript, recording, or supporting files under `<collection>/.raw/<filename>`
-   - call `filing_rules` first when using an MCP or remote brain connector
+   - call `filing_rules` first when using an MCP or BigBrain service connector
 5. Create or update the indexed synthesis page:
    - link directly to the raw transcript or media artifact
    - include a concise whole-source summary and useful thematic sections

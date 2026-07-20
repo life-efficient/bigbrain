@@ -1,13 +1,23 @@
 const { contextBridge, ipcRenderer } = require('electron');
+const path = require('path');
+const { fileURLToPath } = require('url');
 
-contextBridge.exposeInMainWorld('bigbrainDesktop', {
-  state: () => ipcRenderer.invoke('desktop:state'),
-  createBrain: (input) => ipcRenderer.invoke('desktop:create-brain', input),
-  chooseExistingBrain: () => ipcRenderer.invoke('desktop:choose-existing-brain'),
-  activate: (id) => ipcRenderer.invoke('desktop:activate', id),
-  rename: (id, name) => ipcRenderer.invoke('desktop:rename', id, name),
-  restart: (id) => ipcRenderer.invoke('desktop:restart', id),
-  instructions: (id) => ipcRenderer.invoke('desktop:instructions', id),
-  setDefault: (id) => ipcRenderer.invoke('desktop:set-default', id),
-  reveal: (path) => ipcRenderer.invoke('desktop:reveal', path),
-});
+const isDesktopShell = process.isMainFrame
+  && location.protocol === 'file:'
+  && path.normalize(fileURLToPath(location.href)) === path.join(__dirname, 'desktop.html');
+
+if (isDesktopShell) {
+  contextBridge.exposeInMainWorld('bigbrainDesktop', {
+    state: () => ipcRenderer.invoke('desktop:state'),
+    createBrain: (input) => ipcRenderer.invoke('desktop:create-brain', input),
+    connectService: (input) => ipcRenderer.invoke('desktop:connect-service', input),
+    openBrain: (id) => ipcRenderer.invoke('desktop:open-brain', id),
+    chooseExistingBrain: () => ipcRenderer.invoke('desktop:choose-existing-brain'),
+    activate: (id) => ipcRenderer.invoke('desktop:activate', id),
+    rename: (id, name) => ipcRenderer.invoke('desktop:rename', id, name),
+    restart: (id) => ipcRenderer.invoke('desktop:restart', id),
+    instructions: (id) => ipcRenderer.invoke('desktop:instructions', id),
+    setDefault: (id) => ipcRenderer.invoke('desktop:set-default', id),
+    reveal: (targetPath) => ipcRenderer.invoke('desktop:reveal', targetPath),
+  });
+}

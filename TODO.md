@@ -23,13 +23,15 @@
   and added factual warnings when configured changes are not backed up. No
   successor task is needed for the approved scope.
 
-## Hosted Brain Service
+## Server-Managed BigBrain
 
-- Keep packaging focused on the two supported product modes: local brain and
-  remote brain. Docker, bundled Postgres, Supabase, and thin clients should be
-  implementation details or roadmap variants around those modes.
-- Add export/import commands for moving runtime state between local SQLite,
-  bundled Postgres, and remote Postgres; markdown import and sqlite-to-postgres
+- Keep packaging focused on the two user-facing actions: **Run BigBrain on this
+  device** and **Connect to an existing BigBrain**. Docker is the canonical
+  server package; hosted-by-us and self-hosted/on-premises are deployment
+  variants; Postgres and Supabase are storage variants; private and shared are
+  access variants.
+- Add export/import commands for moving runtime state between device-local
+  SQLite, bundled Postgres, and managed Postgres; markdown import and sqlite-to-postgres
   migration already exist.
 
 ## Raw File Storage
@@ -105,11 +107,11 @@
   HTTP MCP server.
 - Add dashboard APIs and UI for MCP clients, recent tool calls, sync status,
   embedding backlog, and write attribution.
-- Make the desktop app a local service controller: default brain selection,
+- Make the desktop app a device service controller: default brain selection,
   LaunchAgent install/start/stop/restart, `/health`, direct MCP `tools/list`,
-  local owner identity, and the local MCP URL for agent setup.
+  owner identity, and the device MCP URL for agent setup.
 - Keep the dashboard endpoint-relative so the same UI works against localhost
-  and hosted BigBrain endpoints.
+  and existing BigBrain service endpoints.
 - Add source/ingest logs so agent-written or imported knowledge can be audited
   and reversed.
 - Add agent-readable install and operations docs for deploying, connecting,
@@ -122,8 +124,8 @@
 ## Decided Design Directions
 
 - Keep the dashboard inside the shared BigBrain runtime for now. Package it
-  through wrappers such as CLI, Electron, local service, Docker, and hosted
-  service instead of splitting it into a separate dashboard app.
+  through wrappers such as CLI, Electron, device-managed service, Docker, and
+  server deployment instead of splitting it into a separate dashboard app.
 
 ## Dashboard UI
 

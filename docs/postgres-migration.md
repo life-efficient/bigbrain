@@ -2,12 +2,16 @@
 
 BigBrain supports two storage backends:
 
-- `sqlite`: default local backend under `.bigbrain-state/bigbrain.sqlite`
+- `sqlite`: default device-local backend under `.bigbrain-state/bigbrain.sqlite`
 - `postgres`: server backend using standard Postgres plus `pgvector`
 
 The Postgres backend is intentionally provider-neutral. Railway Postgres,
-local Docker Postgres, self-hosted Postgres, and Supabase Postgres all use the
+Docker Postgres, self-hosted/on-premises Postgres, and Supabase Postgres all use the
 same `DATABASE_URL` contract.
+
+These are storage variants beneath the product relationship, not product modes.
+Docker is the canonical package for server-managed BigBrain, while Supabase is
+one managed Postgres provider.
 
 ## Configure Postgres
 
@@ -37,7 +41,7 @@ bigbrain --config /path/to/config.json db doctor
 
 ## SQLite To Postgres
 
-For an existing local brain:
+For an existing device-managed BigBrain:
 
 1. Keep the config on `storage_backend: "sqlite"`.
 2. Add `"database_url_env": "DATABASE_URL"` to the config.

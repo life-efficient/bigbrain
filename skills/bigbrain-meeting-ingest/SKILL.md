@@ -34,7 +34,7 @@ This skill guarantees:
 ## Workflow
 
 1. Read the target brain's filing rules before writing:
-   - when using an MCP or remote brain connector, call `filing_rules`
+   - when using an MCP or BigBrain service connector, call `filing_rules`
    - use the collection path, raw-file path pattern, and raw-file tools described there
 2. Identify the canonical meeting page:
    - if a prepared meeting page already exists, update that page

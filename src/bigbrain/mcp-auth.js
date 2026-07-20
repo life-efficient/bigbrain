@@ -363,7 +363,7 @@ export function renderConnectPage(authConfig, { error = '' } = {}) {
   const title = escapeHtml(appName);
   const serverName = slugName(authConfig.serviceName);
   const endpoint = `${authConfig.publicUrl}/mcp`;
-  const configSnippet = `Connect this remote brain to Codex with OAuth, then verify the authenticated connection:\n\nbigbrain connect codex ${endpoint} --name ${serverName} --auth oauth\n\nOAuth is the default for hosted brains. Codex stores the resulting per-user credential; this page never exposes a bearer token.\n\nAfter that, update your system prompt to include "Anything related to ${appName} should be stored, and searched for from the remote ${appName} brain via MCP. If an expected MCP tool is missing or only part of a server's tool surface appears, use the Find Missing Tools skill before concluding the tool is unavailable."`;
+  const configSnippet = `Connect Codex to this BigBrain service with OAuth, then verify the authenticated connection:\n\nbigbrain connect codex ${endpoint} --name ${serverName} --auth oauth\n\nOAuth is the default for BigBrain services. Codex stores the resulting per-user credential; this page never exposes a bearer token.\n\nAfter that, update your system prompt to include "Anything related to ${appName} should be stored in, and searched for from ${appName} via MCP. If an expected MCP tool is missing or only part of a server's tool surface appears, use the Find Missing Tools skill before concluding the tool is unavailable."`;
   const errorHtml = error ? `<div class="notice error">${escapeHtml(error)}</div>` : '';
   return htmlPage(title, `
     <main class="shell">

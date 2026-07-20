@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { BrainRegistry, allocatePort } from '../../electron/lib/brain-registry.mjs';
 import { connectionInstructions } from '../../electron/lib/connection-instructions.mjs';
+import { DesktopController, normalizeServiceUrl } from '../../electron/lib/desktop-controller.mjs';
 import { DisabledManagedInferenceClient, DisabledAuthProvider, DisabledEntitlementProvider, NoopUsageMeter } from '../../electron/lib/access-providers.mjs';
 import { redactSecrets } from '../../electron/lib/keychain.mjs';
 
@@ -60,6 +61,62 @@ test('connection instructions are brain-specific and contain no credentials', ()
   assert.equal(result.endpoint, 'http://127.0.0.1:4123/mcp');
   assert.match(result.codex, /lecture-brain/);
   assert.doesNotMatch(JSON.stringify(result), /api.?key|sk-/i);
+});
+
+test('desktop connects to and persists an existing BigBrain service', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-service-registry-'));
+  const registry = new BrainRegistry({ appSupport: root });
+  const requests = [];
+  const controller = new DesktopController({
+    registry,
+    fetchImpl: async (url) => {
+      requests.push(url);
+      return new Response(JSON.stringify({ ok: true, brain_id: 'brn_service', brain_name: 'Company Memory' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    },
+  });
+
+  const brain = await controller.connectService({ serviceUrl: 'https://brain.example.test/dashboard/' });
+  assert.deepEqual(requests, ['https://brain.example.test/health']);
+  assert.equal(brain.name, 'Company Memory');
+  assert.equal(brain.connectionType, 'service');
+  assert.equal(brain.dashboardUrl, 'https://brain.example.test/dashboard');
+  assert.equal(brain.mcpUrl, 'https://brain.example.test/mcp');
+
+  const reloaded = await controller.state();
+  assert.equal(reloaded.activeBrainId, brain.id);
+  assert.equal(reloaded.brains[0].serviceUrl, 'https://brain.example.test');
+  await assert.rejects(() => controller.connectService({ serviceUrl: 'https://brain.example.test/mcp' }), /already connected/);
+  await fs.rm(root, { recursive: true, force: true });
+});
+
+test('service address validation accepts service routes and rejects unsafe URL shapes', () => {
+  assert.equal(normalizeServiceUrl('http://127.0.0.1:3333/mcp'), 'http://127.0.0.1:3333');
+  assert.equal(normalizeServiceUrl('https://brain.example.test/connect/'), 'https://brain.example.test');
+  assert.throws(() => normalizeServiceUrl('file:///tmp/brain'), /http or https/);
+  assert.throws(() => normalizeServiceUrl('https://user:secret@brain.example.test'), /username or password/);
+  assert.throws(() => normalizeServiceUrl('https://brain.example.test?token=secret'), /query parameters/);
+});
+
+test('desktop onboarding exposes two working action-led setup paths', async () => {
+  const desktopSource = await fs.readFile(new URL('../../electron/desktop.js', import.meta.url), 'utf8');
+  const preloadSource = await fs.readFile(new URL('../../electron/preload.cjs', import.meta.url), 'utf8');
+  const mainSource = await fs.readFile(new URL('../../electron/main.cjs', import.meta.url), 'utf8');
+  assert.match(desktopSource, /Run BigBrain on this device/);
+  assert.match(desktopSource, /Connect to an existing BigBrain/);
+  assert.match(desktopSource, /api\.connectService/);
+  assert.match(preloadSource, /desktop:connect-service/);
+  assert.match(preloadSource, /desktop:open-brain/);
+  assert.match(preloadSource, /process\.isMainFrame/);
+  assert.match(preloadSource, /fileURLToPath\(location\.href\)/);
+  assert.match(preloadSource, /path\.join\(__dirname, 'desktop\.html'\)/);
+  assert.match(mainSource, /connectedDashboardOrigins\.has\(parsed\.origin\)/);
+  assert.match(mainSource, /mainWindow\.loadURL\(brain\.dashboardUrl\)/);
+  assert.match(mainSource, /Choose or add brain/);
+  assert.match(mainSource, /will-frame-navigate/);
+  assert.doesNotMatch(desktopSource, /Hosted mode|Choose a mode|<strong>Local<\/strong>|cannot save service connections/);
 });
 
 test('secret redaction protects errors and future provider contracts fail closed', async () => {

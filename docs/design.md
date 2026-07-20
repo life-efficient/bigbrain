@@ -34,7 +34,7 @@ The design goal is to keep the parts that materially help an individual operate:
 - a general-purpose agent platform
 - a heavy remote multi-tenant service
 - the place the agent runtime must live
-- a broad auth and OAuth product beyond what hosted MCP needs
+- a broad auth and OAuth product beyond what server MCP access needs
 - a kitchen-sink workflow framework
 - an opaque always-on autonomous worker swarm
 
@@ -45,7 +45,7 @@ BigBrain is the brain agents visit.
 It is not the agent home.
 ```
 
-Codex, Relay, Claude, local scripts, or hosted team clients should be able to
+Codex, Relay, Claude, device-local scripts, or team clients should be able to
 consult and update BigBrain without BigBrain owning those runtimes. This keeps
 the system portable and makes the brain useful across agent tools.
 
@@ -63,9 +63,10 @@ for agents:
 - the dashboard is a first-class surface for health, graph, tasks, sync, and
   agent activity inspection
 
-This posture still leaves room for hosted or team brains. The hosted form
-should preserve the same contract: agents connect to BigBrain, BigBrain indexes
-and serves the selected brain, and authored knowledge remains in markdown.
+This posture supports both running BigBrain on a device and connecting to an
+existing service. Hosted-by-us, self-hosted, and on-premises deployments all
+preserve the same contract: agents connect to BigBrain, BigBrain indexes and
+serves the selected brain, and authored knowledge remains in markdown.
 
 ## Core Requirements
 
@@ -128,21 +129,22 @@ Without these, the system will drift back into hidden complexity.
 This keeps authored knowledge readable in git while allowing fast graph and
 search operations.
 
-For hosted deployments, the same split applies even when the local SQLite index
-is replaced by Postgres/pgvector. The database should persist embeddings, sync
-projection state, hosted git durability health state, OAuth/session state,
+For server-managed deployments, the same split applies even when the
+device-local SQLite index is replaced by Postgres/pgvector. The database should
+persist embeddings, sync
+projection state, Git durability health state, OAuth/session state,
 bounded audit logs, health reports, and derived indexes, but it should not
 become the canonical authored content store.
 
-## Storage Modes
+## Storage Variants
 
 The storage layer should be adapter-based so BigBrain can run in the simplest
 useful mode and grow without rewriting the product:
 
-- `sqlite`: default local state under `.bigbrain-state/` for personal use.
+- `sqlite`: default device-local state under `.bigbrain-state/` for personal use.
 - `postgres`: durable server state through `DATABASE_URL`, using pgvector when
   semantic embeddings are enabled.
-- `remote-postgres`: the same Postgres adapter pointed at a hosted provider
+- `remote-postgres`: the same Postgres adapter pointed at a managed provider
   such as Supabase when a separate managed database becomes desirable.
 
 Postgres should be a generic BigBrain backend, not a Supabase-specific product
@@ -150,7 +152,7 @@ dependency. Supabase is a valid target because it is Postgres with useful
 managed features, but a bundled server with local Postgres should work with the
 same schema and migration path.
 
-For a hosted brain such as Example Brain, a practical production shape is:
+For a server deployment such as Example Brain, a practical production shape is:
 
 ```text
 app service
@@ -159,7 +161,7 @@ app service
 
 local Postgres/pgvector service or volume
   -> embeddings
-  -> hosted git durability health state
+  -> Git durability health state
   -> OAuth/session state
   -> bounded audit logs
 
@@ -488,7 +490,7 @@ Required maintenance flows:
 
 Automations should be narrow, explicit, idempotent, and inspectable.
 
-### Event-driven local service
+### Event-driven device service
 
 - `sync`
   - detect changed files
@@ -500,7 +502,8 @@ Automations should be narrow, explicit, idempotent, and inspectable.
   - report per-page embedding failures without aborting page and link indexing
 
 - `git-backup`
-  - commit and push brain changes through the local MCP service after writes
+  - commit and push brain changes through the device-managed MCP service after
+    writes
   - avoid scheduled polling when no content changed
 
 ### Required automations
@@ -680,16 +683,22 @@ It should be concise and operational.
 
 ## Packaging Posture
 
-BigBrain should package one shared runtime in three supported product modes:
+BigBrain should package one shared runtime behind two action-led product choices:
 
-- local brains: distributed through the desktop app/DMG so users do not need a
-  local Git setup or to install Electron themselves
-- hosted brains: secured shared brains operated by us on our infrastructure
-- on-prem brains: secured shared brains using the hosted runtime contract inside
-  a customer-controlled environment
+- **Run BigBrain on this device:** the desktop app/DMG creates or selects a
+  brain and manages its service lifecycle on that device.
+- **Connect to an existing BigBrain:** a client uses an already-running service
+  without managing its lifecycle.
 
-The CLI, Electron desktop shell, macOS LaunchAgent, Docker image, and hosted
-service should wrap the same BigBrain HTTP runtime instead of introducing
+Architecture may call these relationships device-managed and server-managed.
+Hosted-by-us, self-hosted, and on-premises are server deployment variants, not
+additional product modes. Docker is the canonical server package, including
+when the service is on the same physical machine as its client. SQLite,
+Postgres, and Supabase are storage variants; private and shared are access
+variants.
+
+The CLI, Electron desktop shell, macOS LaunchAgent, Docker image, and server
+deployment should wrap the same BigBrain HTTP runtime instead of introducing
 parallel dashboard or API implementations. See
 [`packaging-architecture.md`](./packaging-architecture.md).
 
@@ -731,7 +740,7 @@ parallel dashboard or API implementations. See
 - graph visualization
 - task pages
 
-### Milestone 6: hosted brain service
+### Milestone 6: server-managed BigBrain
 
 - Postgres/pgvector storage adapter
 - bundled server deployment recipe
@@ -743,20 +752,22 @@ parallel dashboard or API implementations. See
 ## Useful Inspiration From GBrain
 
 GBrain is useful proof that a markdown-backed agent brain can scale, serve MCP,
-and operate across local and hosted topologies. BigBrain should borrow the
-operational lessons without copying the product center of gravity.
+and operate across device-managed and server-managed topologies. BigBrain
+should borrow the operational lessons without copying the product center of
+gravity.
 
 Ideas worth adapting:
 
-- explicit topologies: local, bundled server, remote database, and thin client
-- stdio MCP for local agents plus HTTP MCP for remote clients
-- scoped remote operations with admin-gated writes and maintenance commands
+- explicit technical topologies: device-managed, bundled server, managed
+  database, and thin client
+- stdio MCP for device-local agents plus HTTP MCP for connected clients
+- scoped connected-client operations with admin-gated writes and maintenance commands
 - a small admin surface for live activity, clients, sync, embeddings, and health
 - install and operations docs written so agents can execute them safely
 - ingestion/source logs so imported or agent-written knowledge is reversible
 - retrieval/query evals for entity lookup, temporal questions, citations, and
   top-k search quality
-- migration commands that make moving between local and hosted backends boring
+- migration commands that make moving between SQLite and server Postgres boring
 
 Things not to copy wholesale:
 
@@ -769,11 +780,11 @@ Things not to copy wholesale:
 
 At least initially, `bigbrain` should not include:
 
-- complex OAuth beyond hosted MCP needs
+- complex OAuth beyond connected MCP clients' needs
 - remote multi-tenant access control
 - general-purpose job orchestration
 - a broad admin product surface unrelated to brain operations
-- many-client MCP hosting as a default local concern
+- many-client MCP hosting as a default device-managed concern
 - an agent runtime or autonomous worker swarm
 
 If needed later, these can be layered on after the core system proves itself.

@@ -1,32 +1,38 @@
 # Hosting BigBrain MCP for a Team
 
 BigBrain can expose one configured brain over HTTP as an MCP server. The server
-does not discover or publish every local brain. It serves the `brain_dir` from
-the config used to start `bigbrain mcp`.
+does not discover or publish every brain on the device. It serves the
+`brain_dir` from the config used to start `bigbrain mcp`.
 
-The same runtime contract covers two shared-brain deployment shapes:
+This is the server-managed relationship behind the user-facing action
+**Connect to an existing BigBrain**. The same runtime contract covers two
+deployment variants:
 
-- hosted brains: operated by us on our own infrastructure
-- on-prem brains: deployed into a customer's secured environment
+- hosted by us: operated on our infrastructure
+- self-hosted/on-premises: deployed into an operator-controlled environment
 
-Both shapes should use BigBrain's hosted runtime adapter instead of
+Both variants should use BigBrain's server runtime adapter instead of
 brain-specific wrapper code for route allowlists, dashboard protection, member
 seeding, sync, git backup, public pages, shared groups, and raw-file exposure.
+Docker is the canonical package for either variant. A Docker deployment remains
+server-managed when it runs on the same physical machine as its client because
+the client connects to an independently managed service.
 
-Git backup is optional. This keeps local use, workshops, and initial onboarding
-available without requiring every user to create a remote repository. A tracked
-upstream is strongly recommended for hosted brains whose runtime filesystem can
-disappear. The ordinary health check reports a low-severity recommendation when
-Git or a tracked upstream is not configured. Once an upstream is configured, it
-warns when local changes or commits have not been backed up, the runtime has
-diverged from the upstream, or the backup status cannot be verified.
+Git backup is optional. This keeps device-local use, workshops, and initial
+onboarding available without requiring every user to create a remote
+repository. A tracked upstream is strongly recommended for server deployments
+whose runtime filesystem can disappear. The ordinary health check reports a
+low-severity recommendation when Git or a tracked upstream is not configured.
+Once an upstream is configured, it warns when local changes or commits have not
+been backed up, the runtime has diverged from the upstream, or the backup status
+cannot be verified.
 
 One process serves one brain. Do not multiplex several brains through one
-runtime or database. Give every hosted brain its own deployment, database,
+runtime or database. Give every deployed brain its own deployment, database,
 member directory, authentication configuration, secrets, and backup lifecycle.
 Several deployments can run the same BigBrain release independently.
 
-The hosted server is still a knowledge service, not an agent runtime. Agents
+The server is still a knowledge service, not an agent runtime. Agents
 visit it over MCP/API when they need memory, search, query, or controlled
 writes. The agents themselves can live in Codex, Relay, Claude, local scripts,
 or other tools.
@@ -43,12 +49,13 @@ bigbrain --config /path/to/config.json mcp --host 0.0.0.0 --port "$PORT"
 Only the configured `brain_dir` is reachable through MCP tools. Page reads,
 lists, creates, and updates are constrained to that brain root.
 
-Use a separate deployment per shared brain. Do not point a hosted deployment at
+Use a separate deployment per shared brain. Do not point a server deployment at
 a personal brain unless that is intentionally what you want to publish.
 
 ## Public Body-Only Pages
 
-Hosted BigBrain can publish individual approved pages at `/public/<slug>`.
+A server-managed BigBrain can publish individual approved pages at
+`/public/<slug>`.
 Public publishing is internal by default: a page is public only when its
 visibility is explicitly set to:
 
@@ -90,18 +97,18 @@ to private pages or raw files are rendered as plain text. Linked pages are never
 published automatically.
 
 To revoke publication, set visibility back to `internal` from the dashboard page
-sidecar or the `set_page_visibility` MCP tool, then sync or redeploy the hosted
-brain as usual. Ordinary page create/update tools ignore visibility fields so
+sidecar or the `set_page_visibility` MCP tool, then sync or redeploy the server
+as usual. Ordinary page create/update tools ignore visibility fields so
 pages are not published by accident.
 
 ## Persistence Boundary
 
-Hosted BigBrain should treat the app container filesystem as disposable. For
+Server deployments should treat the app container filesystem as disposable. For
 redeploy-heavy services, all mutable runtime state must be stored on persistent
 storage:
 
 - embeddings and embedding chunks
-- compact hosted brain git durability state
+- compact brain Git durability state
 - OAuth clients, grants, sessions, and issued MCP tokens
 - bounded MCP audit logs and contribution attribution
 - health findings
@@ -112,16 +119,16 @@ projection and operational ledger. It should be rebuildable from markdown where
 possible, but redeploys should not force re-embedding, re-authentication, or
 loss of activity history.
 
-Preferred hosted storage modes:
+Preferred server storage variants:
 
 - local development: SQLite or local Postgres
 - bundled server: app service plus local Postgres/pgvector with a persistent
   volume or database service
-- managed remote: the same Postgres schema pointed at a remote provider such as
+- managed Postgres: the same Postgres schema pointed at a provider such as
   Supabase when needed
 
 Use a generic `DATABASE_URL` Postgres contract for server deployments. Do not
-make the core hosted model depend on Supabase-specific APIs; Supabase should be
+make the core server model depend on Supabase-specific APIs; Supabase should be
 one possible Postgres target rather than the product boundary.
 
 ## Raw File Uploads
@@ -235,14 +242,14 @@ BigBrain MCP supports these auth modes:
 - `oauth_allowlist`: Google OAuth invite flow that issues per-user MCP tokens
   to allowlisted team members.
 
-Hosted deployments should use `oauth_allowlist`.
+Shared or internet-reachable server deployments should use `oauth_allowlist`.
 
-## Hosted Tool Policy
+## Server Tool Policy
 
-Hosted OAuth MCP tokens are scoped before tools are listed or called. Local
-`none` auth and shared `token` auth remain unscoped for development and trusted
-single-operator deployments. In `oauth_allowlist` mode, per-user tokens use
-these scopes:
+Server OAuth MCP tokens are scoped before tools are listed or called.
+Device-local `none` auth and shared `token` auth remain unscoped for development
+and trusted single-operator deployments. In `oauth_allowlist` mode, per-user
+tokens use these scopes:
 
 - `brain:read`: read-only tools, including `me`, members/tasks listing,
   `search`, `query`, `list`, `read`, `filing_rules`, `list_raw_files`, and
@@ -273,16 +280,16 @@ able to request them. Unsupported or out-of-ceiling scope requests are rejected
 instead of being upgraded to a default grant. Existing scope-less token records
 retain the legacy `brain:read brain:write` interpretation.
 
-The dashboard can use the same `oauth_allowlist` configuration. Local dashboard
-use stays unauthenticated on `127.0.0.1` by default; hosted dashboard deployments
-should bind explicitly and rely on the Google allowlist session:
+The dashboard can use the same `oauth_allowlist` configuration. Device-local
+dashboard use stays unauthenticated on `127.0.0.1` by default; shared server
+deployments should bind explicitly and rely on the Google allowlist session:
 
 ```sh
 bigbrain --config /path/to/config.json dashboard --host 0.0.0.0 --port "$PORT"
 ```
 
 The current file-backed token store is acceptable for local development or
-small persistent-volume deployments. The target hosted model should store token
+small persistent-volume deployments. The target server model should store token
 hashes, OAuth grants, sessions, and client metadata in the persistent database
 so redeploys do not invalidate connected agents.
 
@@ -304,7 +311,7 @@ BIGBRAIN_MCP_GOOGLE_CLIENT_SECRET=...
 Set `BIGBRAIN_MCP_TOKEN_STORE` only for file-backed SQLite or persistent-volume
 deployments. When the BigBrain config uses `storage_backend: "postgres"`, OAuth
 client, state, code, and token records are stored in Postgres instead. Health
-checks also upsert one compact hosted git durability state row per brain,
+checks also upsert one compact server git durability state row per brain,
 including upstream head, runtime checkout head, dirty/ahead/behind status, last
 checked time, latest error, and needs-attention status. MCP audit logs remain a
 separate bounded stream for meaningful writes, destructive/admin operations,
@@ -312,8 +319,8 @@ maintenance actions, and auth/security failures without storing full payloads.
 
 At least one of `BIGBRAIN_MCP_ALLOWED_EMAILS` or
 `BIGBRAIN_MCP_ALLOWED_DOMAINS` must be set, unless active members have already
-been created in the hosted brain database. Members are the durable allowlist
-model for hosted brains:
+been created in the brain database. Members are the durable allowlist model for
+shared server deployments:
 
 ```sh
 bigbrain --config /path/to/config.json members add alice@example.com people/alice --name Alice
@@ -351,16 +358,17 @@ bigbrain connect codex https://your-service.example.com/mcp \
   --auth oauth
 ```
 
-OAuth is the default for hosted brains. The command registers the MCP endpoint
-and starts Codex's OAuth login. Codex owns the per-user OAuth credential; BigBrain does
-not copy it into a repository, shell profile, environment file, command line,
-or generated configuration. Each connection has its own MCP name and credential,
-so one Codex installation can connect to multiple remote brains without sharing
-or overwriting authentication state.
+OAuth is the default when connecting to a shared or internet-reachable
+BigBrain. The command registers the MCP endpoint and starts Codex's OAuth login.
+Codex owns the per-user OAuth credential; BigBrain does not copy it into a
+repository, shell profile, environment file, command line, or generated
+configuration. Each connection has its own MCP name and credential, so one
+Codex installation can connect to multiple BigBrain services without sharing or
+overwriting authentication state.
 
 The command is idempotent for the same name and endpoint and reports conflicts
 instead of silently replacing another registration. After setup, open a fresh
-Codex task and verify an authenticated tool listing plus the remote brain
+Codex task and verify an authenticated tool listing plus the connected brain
 identity. Merely finding a configuration entry or environment variable is not
 end-to-end success; classify a failed live check as unreachable, not logged in,
 or connected to the wrong brain.
@@ -368,7 +376,7 @@ or connected to the wrong brain.
 Shared-token auth is a fallback only for trusted, single-operator deployments:
 
 ```sh
-printf '%s' "$REMOTE_BRAIN_TOKEN" | \
+printf '%s' "$BIGBRAIN_CONNECTION_TOKEN" | \
   bigbrain connect codex https://your-service.example.com/mcp \
     --name example-brain \
     --auth token \
@@ -381,7 +389,7 @@ output. BigBrain stores fallback credentials in a machine-local, owner-only,
 per-connection credential file; names and storage identifiers must not reuse a
 global `BIGBRAIN_MCP_TOKEN` across brains. The command keeps secrets out of
 normal and JSON output. Restart Codex, then verify the authenticated tool
-listing and remote identity in a fresh task.
+listing and connected brain identity in a fresh task.
 
 OAuth connections do not depend on a GUI application's inherited shell
 environment. The token fallback does require a full Codex restart: a running
@@ -390,7 +398,7 @@ after it started. Its BigBrain-owned, per-connection loader replaces
 project-specific token loaders.
 
 OAuth access and dashboard session tokens are stored as hashes in
-`BIGBRAIN_MCP_TOKEN_STORE` or, for hosted deployments, the database-backed token
+`BIGBRAIN_MCP_TOKEN_STORE` or, for server deployments, the database-backed token
 store.
 
 ## Contribution Attribution
@@ -408,22 +416,22 @@ the write came from an OAuth user.
 
 - `/health` returns only `{ "ok": true }`.
 - `/mcp` requires auth unless `BIGBRAIN_MCP_AUTH_MODE=none`.
-- Hosted `dashboard` requires `BIGBRAIN_MCP_AUTH_MODE=oauth_allowlist`; local
-  dashboard remains unauthenticated unless OAuth is configured.
-- In local `none` auth mode, `assignee=me` resolves to
+- Shared server `dashboard` requires `BIGBRAIN_MCP_AUTH_MODE=oauth_allowlist`;
+  device-local dashboard remains unauthenticated unless OAuth is configured.
+- In device-local `none` auth mode, `assignee=me` resolves to
   `BIGBRAIN_MCP_LOCAL_PERSON_SLUG`, the single active owner, or the single active
-  member. Local single-user installs should create that owner with
+  member. Single-user device-managed installs should create that owner with
   `bigbrain members ensure-local-owner people/<slug> --name ... --email ...`
   and install the LaunchAgent with `--local-person-slug people/<slug>`.
   Multiple possible local identities produce a setup error.
 - `/connect`, `/auth/start`, and `/auth/callback` are enabled only in
   `oauth_allowlist` mode.
 - Keep token/session state on persistent storage. Prefer the database-backed
-  store for hosted deployments.
+  store for server deployments.
 - Rotate any shared bootstrap token after migration to per-user tokens.
 - Prefer explicit email allowlists for external collaborators and domain
   allowlists only for domains you fully control.
-- Expose only remote-safe tools by default. Search, query, read, list, and
+- Expose only connected-client-safe tools by default. Search, query, read, list, and
   append-style contributions are safer than destructive raw-file writes,
   reindexing, or git operations. Grant maintenance and publishing scopes only
   to trusted operators.

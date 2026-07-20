@@ -44,7 +44,7 @@ This skill guarantees:
 4. Preserve the original file and searchable representation:
    - store it under `<collection>/.raw/<filename>`
    - create `<collection>/.raw/<basename>.md` with comprehensive extraction, summary, provenance, and links
-   - call `filing_rules` first when using an MCP or remote brain connector
+   - call `filing_rules` first when using an MCP or BigBrain service connector
    - link relevant subject pages to the sidecar and raw attachment
 5. Update or create subject pages only when the document changes durable compiled understanding
 6. Re-index:

@@ -17,6 +17,7 @@ let dashboardOrigin = null;
 let remoteDashboardMode = false;
 let rendererRecoveryAttempts = 0;
 let desktopController = null;
+const connectedDashboardOrigins = new Set();
 
 const singleInstanceLock = app.requestSingleInstanceLock();
 
@@ -36,6 +37,7 @@ if (!singleInstanceLock) {
       } else {
         const { DesktopController } = await importModule("electron/lib/desktop-controller.mjs");
         desktopController = new DesktopController({ appPath: app.getAppPath() });
+        rememberConnectedDashboardOrigins(await desktopController.state());
         registerDesktopIpc();
         dashboardUrl = pathToFileURL(path.join(__dirname, "desktop.html")).href;
         dashboardOrigin = "null";
@@ -141,6 +143,14 @@ function createMainWindow() {
     }
   });
 
+  mainWindow.webContents.on("will-frame-navigate", (event, details) => {
+    const url = details?.url;
+    if (!url || details.isMainFrame) return;
+    if (isTrustedInternalUrl(url) || isRemoteDashboardAuthUrl(url)) return;
+    event.preventDefault();
+    if (isSafeExternalUrl(url)) void shell.openExternal(url);
+  });
+
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
     console.error("Dashboard renderer process exited", details);
     recoverRenderer(`The dashboard renderer stopped unexpectedly (${details.reason || "unknown reason"}).`);
@@ -178,6 +188,16 @@ function createAppMenu() {
       label: APP_DISPLAY_NAME,
       submenu: [
         { role: "about" },
+        {
+          label: "Choose or add brain…",
+          enabled: Boolean(desktopController),
+          click: () => {
+            if (!mainWindow || !desktopController) return;
+            const shellUrl = pathToFileURL(path.join(__dirname, "desktop.html"));
+            shellUrl.searchParams.set("select", "1");
+            void mainWindow.loadURL(shellUrl.href);
+          },
+        },
         { type: "separator" },
         { role: "services" },
         { type: "separator" },
@@ -222,6 +242,7 @@ function isTrustedInternalUrl(url) {
     const parsed = new URL(url);
     if (parsed.protocol === "file:" && parsed.pathname.startsWith(__dirname)) return true;
     if (desktopController && parsed.hostname === LOCAL_HOST) return true;
+    if (connectedDashboardOrigins.has(parsed.origin)) return true;
     return parsed.origin === dashboardOrigin;
   } catch {
     return false;
@@ -230,14 +251,21 @@ function isTrustedInternalUrl(url) {
 
 function registerDesktopIpc() {
   const handlers = {
-    "desktop:state": () => desktopController.state(),
+    "desktop:state": async () => rememberConnectedDashboardOrigins(await desktopController.state()),
     "desktop:create-brain": (_event, input) => desktopController.createBrain(input),
+    "desktop:connect-service": async (_event, input) => rememberConnectedDashboardOrigins(await desktopController.connectService(input)),
+    "desktop:open-brain": async (_event, id) => {
+      const brain = rememberConnectedDashboardOrigins(await desktopController.activate(id));
+      if (brain.connectionType !== "service") throw new Error('Only connected BigBrain services open as a full-window dashboard.');
+      setTimeout(() => { if (mainWindow) void mainWindow.loadURL(brain.dashboardUrl); }, 0);
+      return true;
+    },
     "desktop:choose-existing-brain": async () => {
       const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory"], title: "Choose an existing BigBrain folder" });
       if (result.canceled || !result.filePaths[0]) return null;
       return desktopController.inspectExistingBrain(result.filePaths[0]);
     },
-    "desktop:activate": (_event, id) => desktopController.activate(id),
+    "desktop:activate": async (_event, id) => rememberConnectedDashboardOrigins(await desktopController.activate(id)),
     "desktop:rename": (_event, id, name) => desktopController.rename(id, name),
     "desktop:restart": (_event, id) => desktopController.restart(id),
     "desktop:instructions": (_event, id) => desktopController.instructions(id),
@@ -248,13 +276,26 @@ function registerDesktopIpc() {
 }
 
 function isRemoteDashboardAuthUrl(url) {
-  if (!remoteDashboardMode) return false;
+  if (!remoteDashboardMode && connectedDashboardOrigins.size === 0) return false;
   try {
     const parsed = new URL(url);
     return parsed.protocol === "https:" && parsed.hostname === "accounts.google.com";
   } catch {
     return false;
   }
+}
+
+function rememberConnectedDashboardOrigins(value) {
+  const brains = Array.isArray(value?.brains) ? value.brains : [value];
+  for (const brain of brains) {
+    if (brain?.connectionType !== "service" || !brain.dashboardUrl) continue;
+    try {
+      connectedDashboardOrigins.add(new URL(brain.dashboardUrl).origin);
+    } catch {
+      // The controller validates service URLs before they reach the registry.
+    }
+  }
+  return value;
 }
 
 function isSafeExternalUrl(url) {

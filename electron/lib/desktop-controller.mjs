@@ -10,11 +10,12 @@ import { findBrainLaunchAgent } from './launch-agent-discovery.mjs';
 const execFileAsync = promisify(execFile);
 
 export class DesktopController {
-  constructor({ registry = new BrainRegistry(), keychain = new MacKeychain(), appPath, nodePath = process.execPath } = {}) {
+  constructor({ registry = new BrainRegistry(), keychain = new MacKeychain(), appPath, nodePath = process.execPath, fetchImpl = fetch } = {}) {
     this.registry = registry;
     this.keychain = keychain;
     this.appPath = appPath;
     this.nodePath = nodePath;
+    this.fetchImpl = fetchImpl;
   }
 
   async state() {
@@ -74,6 +75,31 @@ export class DesktopController {
     }
   }
 
+  async connectService(input) {
+    const serviceUrl = normalizeServiceUrl(input?.serviceUrl);
+    let response;
+    try {
+      response = await this.fetchImpl(`${serviceUrl}/health`, { headers: { accept: 'application/json' } });
+    } catch (error) {
+      throw new Error(`Could not reach BigBrain at ${serviceUrl}: ${redactSecrets(error.message)}`);
+    }
+    if (!response.ok) throw new Error(`BigBrain at ${serviceUrl} returned HTTP ${response.status}.`);
+    let health;
+    try {
+      health = await response.json();
+    } catch {
+      throw new Error(`The service at ${serviceUrl} did not return a valid BigBrain health response.`);
+    }
+    if (health?.ok !== true || typeof health.brain_id !== 'string' || typeof health.brain_name !== 'string') {
+      throw new Error(`The service at ${serviceUrl} did not identify itself as BigBrain.`);
+    }
+    return publicBrain(await this.registry.registerService({
+      brainId: health.brain_id,
+      name: health.brain_name,
+      serviceUrl,
+    }));
+  }
+
   async installService(brain, { ownerSlug }) {
     const installer = path.join(this.appPath, 'scripts/install-local-mcp-service.mjs');
     const args = [installer, '--repo-root', this.appPath, '--brain-home', brain.home, '--port', String(brain.port), '--label', brain.serviceLabel,
@@ -92,7 +118,7 @@ export class DesktopController {
     const registry = await this.registry.load();
     const brain = registry.brains.find((item) => item.id === id);
     if (!brain) throw new Error(`Unknown brain: ${id}`);
-    return connectionInstructions(brain);
+    return connectionInstructions(publicBrain(brain));
   }
   async restart(id) {
     const registry = await this.registry.load();
@@ -115,8 +141,25 @@ function slugify(value) { return String(value).toLowerCase().replace(/[^a-z0-9]+
 function validateInput(input) {
   if (!input?.ownerName?.trim() || !input?.ownerEmail?.includes('@')) throw new Error('Name and a valid email are required.');
   if (!input?.name?.trim()) throw new Error('Brain name is required.');
-  if (input.mode && input.mode !== 'local') throw new Error('Only local brains are supported.');
+  if (input.mode && input.mode !== 'local') throw new Error('Run-on-device setup requires local mode.');
 }
 function publicBrain(brain) {
+  if (brain.connectionType === 'service') {
+    return { ...brain, dashboardUrl: `${brain.serviceUrl}/dashboard`, mcpUrl: `${brain.serviceUrl}/mcp` };
+  }
   return { ...brain, dashboardUrl: `http://${brain.host}:${brain.port}/dashboard`, mcpUrl: `http://${brain.host}:${brain.port}/mcp` };
+}
+
+export function normalizeServiceUrl(value) {
+  let parsed;
+  try {
+    parsed = new URL(String(value || '').trim());
+  } catch {
+    throw new Error('Enter a valid BigBrain service address, including http:// or https://.');
+  }
+  if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('BigBrain service addresses must use http or https.');
+  if (parsed.username || parsed.password) throw new Error('BigBrain service addresses cannot include a username or password.');
+  if (parsed.search || parsed.hash) throw new Error('Enter the BigBrain service address without query parameters or a fragment.');
+  parsed.pathname = parsed.pathname.replace(/\/(dashboard|mcp|connect|health)\/?$/, '').replace(/\/$/, '');
+  return parsed.toString().replace(/\/$/, '');
 }

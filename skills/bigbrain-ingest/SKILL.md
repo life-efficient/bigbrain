@@ -28,7 +28,7 @@ aligned with the BigBrain model.
 This skill guarantees:
 - Choose the narrowest fitting ingest subroute instead of using one generic path for everything
 - File new knowledge by primary subject, not by source or format
-- Read and follow the target brain's filing rules before writing through MCP or another remote brain interface
+- Read and follow the target brain's filing rules before writing through MCP or another service-backed interface
 - Preserve raw supporting material according to those filing rules
 - Update an existing canonical page when one already exists
 - Re-sync the index after meaningful brain changes
@@ -51,11 +51,11 @@ Choose the first matching route:
 
 ## Shared Ingest Rules
 
-- Before any MCP or remote brain write, call `filing_rules` and use the paths and tools it specifies
+- Before any MCP or service-backed write, call `filing_rules` and use the paths and tools it specifies
 - Check whether the target page already exists before creating a new one
 - Use one canonical page for the enduring knowledge
 - Use `.raw/` and raw-file tools when the filing rules require raw source preservation there
-- Use `.artifacts/` only when the target brain's filing rules or local brain structure explicitly call for artifacts
+- Use `.artifacts/` only when the target brain's filing rules or directly accessed folder structure explicitly call for artifacts
 - Prefer updating compiled truth above the separator and appending evidence below it
 - Run `bigbrain sync --json` after the write path completes
 

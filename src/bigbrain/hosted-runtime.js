@@ -11,7 +11,7 @@ const packageRoot = path.resolve(moduleDir, '..', '..');
 
 export function hostedBrainOptionsFromEnv(env = process.env, defaults = {}) {
   const dataDir = env.DATA_DIR || defaults.dataDir || '/app/data';
-  const brainName = env.BRAIN_NAME || env.BIGBRAIN_MCP_SERVICE_NAME || defaults.brainName || 'Hosted Brain';
+  const brainName = env.BRAIN_NAME || env.BIGBRAIN_MCP_SERVICE_NAME || defaults.brainName || 'BigBrain Service';
   const appName = env.APP_NAME || env.BRAIN_APP_NAME || env.BIGBRAIN_MCP_APP_NAME || defaults.appName || brainName;
   const brainRepoUrl = env.BRAIN_REPO_URL || env.ICAIRE_REPO_URL || defaults.brainRepoUrl || '';
   const brainBranch = env.BRAIN_BRANCH || env.ICAIRE_BRANCH || defaults.brainBranch || 'main';
@@ -47,7 +47,7 @@ export function hostedBrainOptionsFromEnv(env = process.env, defaults = {}) {
 
 export async function startHostedBrainServer({ env = process.env, defaults = {} } = {}) {
   const options = hostedBrainOptionsFromEnv(env, defaults);
-  if (!options.brainRepoUrl) throw new Error('BRAIN_REPO_URL is required for hosted BigBrain runtime.');
+  if (!options.brainRepoUrl) throw new Error('BRAIN_REPO_URL is required to run the BigBrain service.');
 
   await fs.mkdir(options.dataDir, { recursive: true });
   await logBigBrainVersion();
@@ -80,7 +80,7 @@ async function prepareBrainRepo(options, env) {
 export async function prepareBigBrainRuntime(options, env = process.env) {
   await fs.mkdir(options.runtimeDir, { recursive: true });
   const existingConfig = await readJsonIfExists(options.configPath);
-  await writeIfMissing(options.tasksPath, `# ${options.brainName} Tasks\n\n---\n\n## Timeline\n\n- **${today()}** | Runtime tasks file created for hosted BigBrain.\n`);
+  await writeIfMissing(options.tasksPath, `# ${options.brainName} Tasks\n\n---\n\n## Timeline\n\n- **${today()}** | Runtime tasks file created for the BigBrain service.\n`);
   await writeJson(options.configPath, {
     brain_id: existingConfig?.brain_id || createBrainId(),
     brain_name: options.brainName,

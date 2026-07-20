@@ -1,5 +1,5 @@
 export function connectionInstructions(brain) {
-  const endpoint = `http://${brain.host || '127.0.0.1'}:${brain.port}/mcp`;
+  const endpoint = brain.mcpUrl || `http://${brain.host || '127.0.0.1'}:${brain.port}/mcp`;
   return {
     endpoint,
     generic: `Add an HTTP MCP server named "${brain.name}" with URL:\n${endpoint}`,
