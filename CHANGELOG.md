@@ -5,12 +5,37 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## Unreleased
 
+## [0.14.1] - 2026-07-20
+
 ### Fixed
 
 - Hardened hosted MCP authorization so every advertised tool must have an
   explicit fail-closed policy, new OAuth grants cannot exceed the configured
   server scope ceiling, public group writes require `brain:publish`, and legacy
   `brain:write` remains limited to non-destructive create/update operations.
+
+### Agent update actions
+
+- Pull the release and run `npm install` plus `npm link` so the active
+  `bigbrain` command uses the hardened hosted MCP policy.
+- Restart each hosted MCP service after updating.
+- New OAuth clients now default to `brain:read brain:create`. Before restarting
+  a deployment where allowlisted users must request publishing, destructive
+  raw-file, Git-backup, maintenance, or admin access, set
+  `BIGBRAIN_MCP_OAUTH_ALLOWED_SCOPES` to the exact space- or comma-separated
+  scope ceiling that deployment intends to permit.
+- Existing issued tokens keep their recorded scopes. Scope-less legacy MCP
+  token records continue to mean `brain:read brain:write`; no token-store,
+  database, brain-page, task-field, filing-rule, skill, or automation migration
+  is required.
+- Run `bigbrain health --json` and verify each hosted client sees only the tools
+  allowed by its OAuth scopes.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
 
 ## [0.14.0] - 2026-07-18
 
