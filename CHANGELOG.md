@@ -5,6 +5,28 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## Unreleased
 
+## [0.14.3] - 2026-07-20
+
+### Fixed
+
+- Disabled electron-builder's implicit tag-triggered publishing so the macOS
+  release workflow can finish packaging before its explicit, authenticated
+  GitHub Release upload step.
+
+### Agent update actions
+
+- Pull the release and run `npm install` plus `npm link`.
+- Follow the hosted MCP scope and restart actions in `v0.14.1` when upgrading
+  from `v0.14.0` or earlier; no additional runtime, brain-data, database, task,
+  skill, or automation migration is required for this packaging follow-up.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+- GitHub Actions macOS release packaging and asset upload
+
 ## [0.14.2] - 2026-07-20
 
 ### Fixed

@@ -1,6 +1,6 @@
 {
   "name": "bigbrain",
-  "version": "0.14.2",
+  "version": "0.14.3",
   "license": "MIT",
   "type": "module",
   "main": "electron/main.cjs",
@@ -14,7 +14,7 @@
     "sync": "node ./bin/bigbrain.js sync",
     "schema": "node ./bin/bigbrain.js schema",
     "desktop:dev": "node electron/dev-launcher.cjs",
-    "desktop:dist": "npm run build:dashboard && electron-builder --mac dmg zip --universal",
+    "desktop:dist": "npm run build:dashboard && electron-builder --mac dmg zip --universal --publish never",
     "desktop:dir": "electron-builder --mac dir",
     "test": "node --test test/bigbrain/*.test.mjs"
   },
