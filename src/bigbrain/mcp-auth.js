@@ -17,6 +17,7 @@ const SCOPES = [
   'brain:admin',
   'brain:write',
 ];
+const DEFAULT_OAUTH_SCOPES = ['brain:read', 'brain:create'];
 const LEGACY_WRITE_SCOPE = 'brain:write';
 const DASHBOARD_SCOPE = 'dashboard:read';
 
@@ -39,6 +40,7 @@ export function buildAuthConfig({
     googleClientSecret: env.BIGBRAIN_MCP_GOOGLE_CLIENT_SECRET || env.GOOGLE_CLIENT_SECRET || '',
     allowedEmails,
     allowedDomains,
+    oauthAllowedScopes: parseConfiguredOAuthScopes(env.BIGBRAIN_MCP_OAUTH_ALLOWED_SCOPES),
     tokenStorePath: env.BIGBRAIN_MCP_TOKEN_STORE || '',
     tokenStore: null,
     memberLookup: null,
@@ -152,6 +154,7 @@ export async function registerOAuthClient(authConfig, input = {}) {
   const redirectUris = Array.from(new Set(Array.isArray(input.redirect_uris) ? input.redirect_uris : [])).filter(Boolean);
   if (!redirectUris.length) throw new Error('redirect_uris must include at least one callback URL.');
   const clientId = `${CLIENT_ID_PREFIX}${randomToken(24)}`;
+  const scope = normalizeClientRegistrationScope(input.scope, authConfig);
   const store = await readTokenStore(authConfig);
   store.clients.push({
     client_id: clientId,
@@ -159,7 +162,7 @@ export async function registerOAuthClient(authConfig, input = {}) {
     redirect_uris: redirectUris,
     grant_types: ['authorization_code'],
     response_types: ['code'],
-    scope: input.scope || SCOPES.join(' '),
+    scope,
     token_endpoint_auth_method: 'none',
     created_at: new Date().toISOString(),
   });
@@ -170,7 +173,7 @@ export async function registerOAuthClient(authConfig, input = {}) {
     redirect_uris: redirectUris,
     grant_types: ['authorization_code'],
     response_types: ['code'],
-    scope: input.scope || SCOPES.join(' '),
+    scope,
     token_endpoint_auth_method: 'none',
   };
 }
@@ -184,7 +187,7 @@ export async function createAgentOAuthStart(authConfig, requestUrl) {
   const codeChallenge = url.searchParams.get('code_challenge');
   const codeChallengeMethod = url.searchParams.get('code_challenge_method');
   const state = url.searchParams.get('state') || '';
-  const scope = normalizeScope(url.searchParams.get('scope'));
+  const requestedScope = url.searchParams.get('scope');
 
   if (!clientId || !redirectUri || responseType !== 'code' || !codeChallenge || codeChallengeMethod !== 'S256') {
     throw new Error('client_id, redirect_uri, response_type=code, code_challenge, and code_challenge_method=S256 are required.');
@@ -194,6 +197,7 @@ export async function createAgentOAuthStart(authConfig, requestUrl) {
   const client = store.clients.find((entry) => entry.client_id === clientId);
   if (!client) throw new Error('Unknown client_id.');
   if (!client.redirect_uris.includes(redirectUri)) throw new Error('redirect_uri must match a registered callback URL.');
+  const scope = normalizeAuthorizationScope(requestedScope, client.scope, authConfig);
 
   const googleState = randomToken(24);
   store.states.push({
@@ -269,7 +273,7 @@ export async function completeOAuthCallback(authConfig, { code, state }) {
       client_id: stateRecord.client_id,
       redirect_uri: stateRecord.redirect_uri,
       code_challenge: stateRecord.code_challenge,
-      scope: stateRecord.scope || SCOPES.join(' '),
+      scope: stateRecord.scope || defaultIssuedOAuthScope(authConfig),
       email,
       name: profile.name || email,
       created_at: new Date().toISOString(),
@@ -343,14 +347,14 @@ export async function exchangeAgentOAuthCode(authConfig, params) {
     created_at: new Date().toISOString(),
     last_used_at: null,
     revoked_at: null,
-    scope: record.scope || SCOPES.join(' '),
+    scope: record.scope || defaultIssuedOAuthScope(authConfig),
   });
   pruneStore(store);
   await writeTokenStore(authConfig, store);
   return {
     access_token: token,
     token_type: 'Bearer',
-    scope: record.scope || SCOPES.join(' '),
+    scope: record.scope || defaultIssuedOAuthScope(authConfig),
   };
 }
 
@@ -498,20 +502,66 @@ function parseList(value) {
     .filter(Boolean);
 }
 
-function normalizeScope(scope) {
-  const requested = String(scope || '').split(/\s+/).filter(Boolean);
-  const allowed = requested.filter((entry) => SCOPES.includes(entry));
-  return (allowed.length ? allowed : defaultMcpScopes()).join(' ');
-}
-
 function normalizeIssuedScopes(scope) {
   const requested = String(scope || '').split(/\s+/).filter(Boolean);
+  if (!requested.length) return legacyTokenScopes();
   const allowed = requested.filter((entry) => SCOPES.includes(entry));
-  return allowed.length ? allowed : defaultMcpScopes();
+  return allowed;
 }
 
-function defaultMcpScopes() {
+function legacyTokenScopes() {
   return ['brain:read', LEGACY_WRITE_SCOPE];
+}
+
+function parseConfiguredOAuthScopes(value) {
+  const requested = String(value || '').split(/[\s,]+/).filter(Boolean);
+  if (!requested.length) return [...DEFAULT_OAUTH_SCOPES];
+  const unsupported = requested.filter((entry) => !SCOPES.includes(entry));
+  if (unsupported.length) throw new Error(`Unsupported BIGBRAIN_MCP_OAUTH_ALLOWED_SCOPES value: ${unsupported.join(', ')}`);
+  return Array.from(new Set(requested));
+}
+
+function oauthAllowedScopes(authConfig) {
+  const configured = Array.isArray(authConfig.oauthAllowedScopes)
+    ? authConfig.oauthAllowedScopes.filter((entry) => SCOPES.includes(entry))
+    : DEFAULT_OAUTH_SCOPES;
+  if (!configured.length) throw new Error('At least one hosted OAuth scope must be allowed.');
+  return Array.from(new Set(configured));
+}
+
+function normalizeClientRegistrationScope(scope, authConfig) {
+  const allowed = oauthAllowedScopes(authConfig);
+  if (!String(scope || '').trim()) return defaultOAuthScopes(allowed).join(' ');
+  return normalizeExplicitOAuthScope(scope, allowed).join(' ');
+}
+
+function normalizeAuthorizationScope(scope, clientScope, authConfig) {
+  const serverAllowed = new Set(oauthAllowedScopes(authConfig));
+  const clientAllowed = String(clientScope || '')
+    .split(/\s+/)
+    .filter((entry) => serverAllowed.has(entry));
+  if (!clientAllowed.length) throw new Error('OAuth client has no allowed MCP scopes.');
+  if (!String(scope || '').trim()) return Array.from(new Set(clientAllowed)).join(' ');
+  return normalizeExplicitOAuthScope(scope, clientAllowed).join(' ');
+}
+
+function normalizeExplicitOAuthScope(scope, allowedScopes) {
+  const requested = Array.from(new Set(String(scope || '').split(/\s+/).filter(Boolean)));
+  const allowed = new Set(allowedScopes);
+  const denied = requested.filter((entry) => !SCOPES.includes(entry) || !allowed.has(entry));
+  if (!requested.length || denied.length) {
+    throw new Error(`Requested OAuth scope is not allowed${denied.length ? `: ${denied.join(', ')}` : '.'}`);
+  }
+  return requested;
+}
+
+function defaultOAuthScopes(allowedScopes) {
+  const preferred = DEFAULT_OAUTH_SCOPES.filter((entry) => allowedScopes.includes(entry));
+  return preferred.length ? preferred : [allowedScopes[0]];
+}
+
+function defaultIssuedOAuthScope(authConfig) {
+  return defaultOAuthScopes(oauthAllowedScopes(authConfig)).join(' ');
 }
 
 function slugName(name) {

@@ -72,6 +72,7 @@ export async function startMcpServer({
   gitBackupEnabled = process.env.BIGBRAIN_MCP_GIT_BACKUP === '1',
   gitBackupIntervalMs = Number(process.env.BIGBRAIN_MCP_GIT_BACKUP_INTERVAL_MS || 300000),
 } = {}) {
+  assertToolPolicyComplete();
   if (!authConfig.tokenStore) authConfig.tokenStore = await createMcpAuthStore(config, authConfig);
   let memberDb = null;
   if (authRoutesEnabled(authConfig) && !authConfig.memberLookup) {
@@ -1192,15 +1193,16 @@ function toolDefinitions() {
 function assertToolAllowed(name, actor) {
   if (!canCallTool(name, actor)) {
     const policy = toolPolicy(name);
+    if (!policy) throw new ForbiddenToolError(`${name} is not enabled by hosted MCP tool policy.`);
     throw new ForbiddenToolError(`${name} requires ${policy.scopes.join(' or ')} scope.`);
   }
 }
 
 function canCallTool(name, actor) {
-  const policy = toolPolicy(name);
-  if (!policy) return true;
   const scopes = actorScopes(actor);
   if (scopes === null) return true;
+  const policy = toolPolicy(name);
+  if (!policy) return false;
   if (scopes.has('brain:admin')) return true;
   return policy.scopes.some((scope) => scopes.has(scope));
 }
@@ -1217,43 +1219,51 @@ function actorScopes(actor) {
 }
 
 function toolPolicy(name) {
-  const policies = {
-    me: { layer: 'read', scopes: ['brain:read'] },
-    'members/list': { layer: 'read', scopes: ['brain:read'] },
-    members_list: { layer: 'read', scopes: ['brain:read'] },
-    'tasks/list': { layer: 'read', scopes: ['brain:read'] },
-    search: { layer: 'read', scopes: ['brain:read'] },
-    query: { layer: 'read', scopes: ['brain:read'] },
-    list: { layer: 'read', scopes: ['brain:read'] },
-    read: { layer: 'read', scopes: ['brain:read'] },
-    get_page_visibility: { layer: 'read', scopes: ['brain:read'] },
-    groups_list: { layer: 'read', scopes: ['brain:read'] },
-    groups_get: { layer: 'read', scopes: ['brain:read'] },
-    filing_rules: { layer: 'read', scopes: ['brain:read'] },
-    list_raw_files: { layer: 'read', scopes: ['brain:read'] },
-    read_raw_file: { layer: 'read', scopes: ['brain:read'] },
-    'tasks/create': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-    'tasks/update': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-    create_raw_file: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-    create_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-    create_raw_file_with_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-    update_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-    rename_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-    groups_upsert: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-    set_page_visibility: { layer: 'publish', scopes: ['brain:publish'] },
-    update_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
-    rename_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
-    delete_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
-    'maintenance/git_backup': { layer: 'git_backup', scopes: ['brain:git-backup'] },
-    maintenance_git_backup: { layer: 'git_backup', scopes: ['brain:git-backup'] },
-    'maintenance/sync': { layer: 'maintenance', scopes: ['brain:maintenance'] },
-    maintenance_sync: { layer: 'maintenance', scopes: ['brain:maintenance'] },
-    'audit/list': { layer: 'admin', scopes: ['brain:admin'] },
-    audit_list: { layer: 'admin', scopes: ['brain:admin'] },
-    'audit/export': { layer: 'admin', scopes: ['brain:admin'] },
-    audit_export: { layer: 'admin', scopes: ['brain:admin'] },
-  };
+  const policies = TOOL_POLICIES;
   return policies[name] || null;
+}
+
+const TOOL_POLICIES = {
+  me: { layer: 'read', scopes: ['brain:read'] },
+  'members/list': { layer: 'read', scopes: ['brain:read'] },
+  members_list: { layer: 'read', scopes: ['brain:read'] },
+  'tasks/list': { layer: 'read', scopes: ['brain:read'] },
+  search: { layer: 'read', scopes: ['brain:read'] },
+  query: { layer: 'read', scopes: ['brain:read'] },
+  list: { layer: 'read', scopes: ['brain:read'] },
+  read: { layer: 'read', scopes: ['brain:read'] },
+  get_page_visibility: { layer: 'read', scopes: ['brain:read'] },
+  groups_list: { layer: 'read', scopes: ['brain:read'] },
+  groups_get: { layer: 'read', scopes: ['brain:read'] },
+  filing_rules: { layer: 'read', scopes: ['brain:read'] },
+  list_raw_files: { layer: 'read', scopes: ['brain:read'] },
+  read_raw_file: { layer: 'read', scopes: ['brain:read'] },
+  'tasks/create': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'tasks/update': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  create_raw_file: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  create_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  create_raw_file_with_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  update_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  rename_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  groups_upsert: { layer: 'publish', scopes: ['brain:publish'] },
+  set_page_visibility: { layer: 'publish', scopes: ['brain:publish'] },
+  update_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
+  rename_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
+  delete_raw_file: { layer: 'raw_destructive', scopes: ['brain:raw:destructive'] },
+  'maintenance/git_backup': { layer: 'git_backup', scopes: ['brain:git-backup'] },
+  maintenance_git_backup: { layer: 'git_backup', scopes: ['brain:git-backup'] },
+  'maintenance/sync': { layer: 'maintenance', scopes: ['brain:maintenance'] },
+  maintenance_sync: { layer: 'maintenance', scopes: ['brain:maintenance'] },
+  'audit/list': { layer: 'admin', scopes: ['brain:admin'] },
+  audit_list: { layer: 'admin', scopes: ['brain:admin'] },
+  'audit/export': { layer: 'admin', scopes: ['brain:admin'] },
+  audit_export: { layer: 'admin', scopes: ['brain:admin'] },
+};
+
+function assertToolPolicyComplete() {
+  const advertised = new Set(toolDefinitions().map((tool) => tool.name));
+  const missing = Array.from(advertised).filter((name) => !TOOL_POLICIES[name]);
+  if (missing.length) throw new Error(`MCP tools missing hosted authorization policy: ${missing.join(', ')}`);
 }
 
 function auditAccessSchema() {

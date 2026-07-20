@@ -5,6 +5,13 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## Unreleased
 
+### Fixed
+
+- Hardened hosted MCP authorization so every advertised tool must have an
+  explicit fail-closed policy, new OAuth grants cannot exceed the configured
+  server scope ceiling, public group writes require `brain:publish`, and legacy
+  `brain:write` remains limited to non-destructive create/update operations.
+
 ## [0.14.0] - 2026-07-18
 
 ### Added

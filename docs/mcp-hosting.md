@@ -250,9 +250,10 @@ these scopes:
 - `brain:create`: append/create tools, including task writes, `create_page`,
   `update_page`, `create_raw_file`, and `create_raw_file_with_page`.
 - `brain:publish`: page visibility publishing tools, including
-  `set_page_visibility`.
+  `set_page_visibility` and `groups_upsert`. Public group creation and updates
+  stay in this layer because they can expose curated summaries and raw files.
 - `brain:raw:destructive`: destructive raw-file replacement/deletion through
-  `update_raw_file` and `delete_raw_file`.
+  `update_raw_file`, `rename_raw_file`, and `delete_raw_file`.
 - `brain:git-backup`: explicit git publishing through `maintenance/git_backup`.
 - `brain:maintenance`: explicit maintenance operations such as
   `maintenance/sync`.
@@ -261,6 +262,16 @@ these scopes:
 The older `brain:write` scope is still accepted for append/create tools so
 existing tokens can continue contributing pages and tasks, but it does not grant
 destructive raw-file, git-backup, or maintenance/admin capabilities.
+
+New dynamic OAuth clients receive `brain:read brain:create` by default. The
+server will issue only scopes listed in `BIGBRAIN_MCP_OAUTH_ALLOWED_SCOPES`
+(space- or comma-separated); the default ceiling is also
+`brain:read brain:create`. Add privileged scopes such as `brain:publish`,
+`brain:raw:destructive`, `brain:git-backup`, `brain:maintenance`, or
+`brain:admin` only on deployments where connected allowlisted users should be
+able to request them. Unsupported or out-of-ceiling scope requests are rejected
+instead of being upgraded to a default grant. Existing scope-less token records
+retain the legacy `brain:read brain:write` interpretation.
 
 The dashboard can use the same `oauth_allowlist` configuration. Local dashboard
 use stays unauthenticated on `127.0.0.1` by default; hosted dashboard deployments

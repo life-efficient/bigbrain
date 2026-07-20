@@ -2,6 +2,14 @@
 
 ## Recently Completed
 
+- **2026-07-20 — Hosted MCP authorization policy:** Done. Reconciled the
+  previously shipped scoped tool policy across read, create, publishing,
+  destructive raw-file operations, Git backup, maintenance, and admin access.
+  Hardened it to fail closed when a tool lacks a policy entry, limited new OAuth
+  grants with a server-controlled scope ceiling, kept public group writes behind
+  `brain:publish`, and preserved legacy `brain:write` only for non-destructive
+  create/update operations.
+
 - **2026-07-14 — Structured bounded MCP audit logging:** Done. Added
   request/event correlation, structured actor/resource/outcome and service/brain
   metadata, additive SQLite/Postgres migrations, configurable 360-day retention,
@@ -20,9 +28,6 @@
 - Keep packaging focused on the two supported product modes: local brain and
   remote brain. Docker, bundled Postgres, Supabase, and thin clients should be
   implementation details or roadmap variants around those modes.
-- Add a tool policy layer for hosted MCP that separates read-only tools,
-  append/create tools, destructive raw-file updates/deletes, git backup, and
-  maintenance/admin operations by auth mode or scope.
 - Add export/import commands for moving runtime state between local SQLite,
   bundled Postgres, and remote Postgres; markdown import and sqlite-to-postgres
   migration already exist.
