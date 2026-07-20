@@ -199,7 +199,7 @@ test('CLI dashboard starts the browser dashboard server', async () => {
       '--no-open',
     ], {
       cwd: process.cwd(),
-      env: { ...process.env },
+      env: { ...process.env, NODE_NO_WARNINGS: '1' },
     });
 
     const stdout = [];

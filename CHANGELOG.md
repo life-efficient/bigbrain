@@ -5,6 +5,28 @@ actions` section for agents maintaining local installs and hosted brains.
 
 ## Unreleased
 
+## [0.14.2] - 2026-07-20
+
+### Fixed
+
+- Made the dashboard CLI smoke test suppress Node's expected experimental
+  SQLite warning so the macOS release runner can verify and package the desktop
+  app consistently.
+
+### Agent update actions
+
+- Pull the release and run `npm install` plus `npm link`.
+- Follow the hosted MCP scope and restart actions in `v0.14.1` when upgrading
+  from `v0.14.0` or earlier; no additional runtime, brain-data, database, task,
+  skill, or automation migration is required for this CI-only follow-up.
+- Run `npm test`.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+- GitHub Actions macOS release packaging
+
 ## [0.14.1] - 2026-07-20
 
 ### Fixed
