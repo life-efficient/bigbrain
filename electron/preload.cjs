@@ -7,6 +7,7 @@ const isDesktopShell = process.isMainFrame
 if (isDesktopShell) {
   contextBridge.exposeInMainWorld('bigbrainDesktop', {
     state: () => ipcRenderer.invoke('desktop:state'),
+    discoverBrains: () => ipcRenderer.invoke('desktop:discover-brains'),
     apiKeyOptions: (input) => ipcRenderer.invoke('desktop:api-key-options', input),
     createBrain: (input) => ipcRenderer.invoke('desktop:create-brain', input),
     connectService: (input) => ipcRenderer.invoke('desktop:connect-service', input),

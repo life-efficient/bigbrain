@@ -7,6 +7,7 @@ import { BrainRegistry } from './brain-registry.mjs';
 import { MacKeychain, redactSecrets } from './keychain.mjs';
 import { connectionInstructions } from './connection-instructions.mjs';
 import { findBrainLaunchAgent } from './launch-agent-discovery.mjs';
+import { discoverLocalBrains, findBrainConfigPath } from './brain-discovery.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -19,6 +20,8 @@ export class DesktopController {
     fetchImpl = fetch,
     env = process.env,
     userEnvFile = null,
+    home = null,
+    launchAgentsDir = null,
   } = {}) {
     this.registry = registry;
     this.keychain = keychain;
@@ -26,12 +29,26 @@ export class DesktopController {
     this.nodePath = nodePath;
     this.fetchImpl = fetchImpl;
     this.env = env;
-    this.userEnvFile = userEnvFile || path.join(env.HOME || os.homedir(), '.config', 'bigbrain', '.env');
+    this.home = path.resolve(home || env.HOME || os.homedir());
+    this.launchAgentsDir = launchAgentsDir || path.join(this.home, 'Library', 'LaunchAgents');
+    this.userEnvFile = userEnvFile || path.join(this.home, '.config', 'bigbrain', '.env');
   }
 
   async state() {
     const registry = await this.registry.load();
     return { ...registry, brains: registry.brains.map(publicBrain) };
+  }
+
+  async discoverBrains() {
+    const registry = await this.registry.load();
+    return discoverLocalBrains({
+      home: this.home,
+      env: this.env,
+      appSupport: this.registry.appSupport,
+      launchAgentsDir: this.launchAgentsDir,
+      registeredBrains: registry.brains,
+      fetchImpl: this.fetchImpl,
+    });
   }
 
   async validateApiKey(apiKey) {
@@ -94,14 +111,13 @@ export class DesktopController {
   async inspectExistingBrain(home) {
     if (!home) throw new Error('Choose a brain folder.');
     const resolvedHome = path.resolve(home);
-    try {
-      await fs.access(path.join(resolvedHome, '.bigbrain-state', 'config.json'));
-    } catch {
-      throw new Error('That folder is not an initialized BigBrain brain. Choose the brain folder containing .bigbrain-state.');
+    const configPath = await findBrainConfigPath(resolvedHome, { home: this.home });
+    if (!configPath) {
+      throw new Error('That folder is not an initialized BigBrain brain. Choose the folder that contains the brain files.');
     }
     const { loadConfig } = await import(pathToModule(this.appPath, 'src/bigbrain/config.js'));
-    const config = await loadConfig({ brainHome: resolvedHome });
-    const existingService = await findBrainLaunchAgent(config.brainHome);
+    const config = await loadConfig({ configPath });
+    const existingService = await findBrainLaunchAgent(config.brainHome, { launchAgentsDir: this.launchAgentsDir });
     return { id: config.brainId, name: config.brainName, home: config.brainHome, port: existingService?.port, replacedService: existingService };
   }
 

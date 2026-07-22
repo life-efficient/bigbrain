@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import vm from 'node:vm';
 import { BrainRegistry, allocatePort } from '../../electron/lib/brain-registry.mjs';
 import { connectionInstructions } from '../../electron/lib/connection-instructions.mjs';
 import { DesktopController, normalizeServiceUrl } from '../../electron/lib/desktop-controller.mjs';
@@ -181,12 +182,15 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(desktopSource, /Connect to an existing BigBrain/);
   assert.match(desktopSource, /api\.connectService/);
   assert.match(desktopSource, /api\.apiKeyOptions/);
+  assert.match(desktopSource, /api\.discoverBrains/);
+  assert.match(desktopSource, /Found on this Mac/);
   assert.match(desktopSource, /Enter a different API key/);
   assert.match(desktopSource, /escapeHtml\(option\.label\)/);
   assert.match(desktopSource, /role="radio"/);
   assert.match(desktopSource, /form\.apiKey='';showConnection/);
   assert.match(preloadSource, /desktop:connect-service/);
   assert.match(preloadSource, /desktop:api-key-options/);
+  assert.match(preloadSource, /desktop:discover-brains/);
   assert.match(preloadSource, /desktop:open-brain/);
   assert.match(preloadSource, /process\.isMainFrame/);
   assert.match(preloadSource, /location\.pathname\.endsWith\('\/electron\/desktop\.html'\)/);
@@ -196,10 +200,39 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(mainSource, /Choose or add brain/);
   assert.match(mainSource, /will-frame-navigate/);
   assert.match(mainSource, /desktop:api-key-options/);
+  assert.match(mainSource, /desktop:discover-brains/);
   assert.match(desktopHtml, /--bg:#18181b/);
   assert.match(desktopHtml, /\.primary\{border:1px solid #fafafa;background:#fafafa;color:#18181b/);
   assert.doesNotMatch(desktopHtml, /#207146|#377652|#f4fff7|#f2f4ef/i);
   assert.doesNotMatch(desktopSource, /Hosted mode|Choose a mode|<strong>Local<\/strong>|cannot save service connections/);
+});
+
+test('sandbox-compatible preload executes and exposes the desktop bridge only to the local main frame', async () => {
+  const source = await fs.readFile(new URL('../../electron/preload.cjs', import.meta.url), 'utf8');
+  const exposed = new Map();
+  const electron = {
+    contextBridge: { exposeInMainWorld: (name, value) => exposed.set(name, value) },
+    ipcRenderer: { invoke: () => {}, on: () => {}, removeListener: () => {} },
+  };
+  const run = (processValue, location) => vm.runInNewContext(source, {
+    process: processValue,
+    location,
+    require: (specifier) => {
+      if (specifier === 'electron') return electron;
+      throw new Error(`Unsupported sandbox import: ${specifier}`);
+    },
+  });
+
+  run({ isMainFrame: true }, { protocol: 'file:', pathname: '/Applications/BigBrain.app/Contents/Resources/app.asar/electron/desktop.html' });
+  const bridge = exposed.get('bigbrainDesktop');
+  assert.equal(typeof bridge?.state, 'function');
+  assert.equal(typeof bridge?.discoverBrains, 'function');
+  assert.equal(typeof bridge?.apiKeyOptions, 'function');
+
+  exposed.clear();
+  run({ isMainFrame: false }, { protocol: 'file:', pathname: '/Applications/BigBrain.app/Contents/Resources/app.asar/electron/desktop.html' });
+  run({ isMainFrame: true }, { protocol: 'https:', pathname: '/electron/desktop.html' });
+  assert.equal(exposed.size, 0);
 });
 
 test('secret redaction protects errors and future provider contracts fail closed', async () => {
