@@ -1,5 +1,6 @@
 import http from 'node:http';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
@@ -59,8 +60,12 @@ import {
 import { createMcpAuthStore } from './mcp-auth-store.js';
 import { findActiveMemberByEmail, listMembers, resolveActorMember } from './members.js';
 import { createTaskPage, listTaskPages, updateTaskPage } from './task-ops.js';
+import {
+  BIGBRAIN_APP_VERSION,
+  BIGBRAIN_MCP_PROTOCOL_VERSION,
+  runtimeMetadata,
+} from './runtime-metadata.js';
 
-const DEFAULT_MCP_PROTOCOL_VERSION = '2024-11-05';
 const execFileAsync = promisify(execFile);
 
 export async function startMcpServer({
@@ -152,12 +157,21 @@ export async function startMcpServer({
           return sendHtml(response, 403, renderAuthErrorPage(authConfig, error instanceof Error ? error.message : String(error)));
         }
       }
-      if (request.method === 'GET' && request.url === '/health') {
+      if (request.method === 'GET' && route.pathname === '/live') {
         return sendJson(response, 200, {
           ok: true,
+          status: 'live',
+          runtime: runtimeMetadata(),
+        }, { cacheControl: 'no-store' });
+      }
+      if (request.method === 'GET' && (route.pathname === '/ready' || route.pathname === '/health')) {
+        const readiness = await checkMcpReadiness(config);
+        return sendJson(response, readiness.ok ? 200 : 503, {
+          ...readiness,
           brain_id: config.brainId,
           brain_name: config.brainName,
-        });
+          runtime: runtimeMetadata(),
+        }, { cacheControl: 'no-store' });
       }
       if (isDashboardRequest(route.pathname)) {
         if (isDashboardAdminRequest(route.pathname)) {
@@ -296,9 +310,9 @@ async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor, 
     switch (message.method) {
       case 'initialize':
         return jsonRpcResult(message.id, {
-          protocolVersion: message.params?.protocolVersion || DEFAULT_MCP_PROTOCOL_VERSION,
+          protocolVersion: BIGBRAIN_MCP_PROTOCOL_VERSION,
           capabilities: { tools: {} },
-          serverInfo: { name: config.brainIdentityPersisted ? config.brainName : 'bigbrain', version: '0.1.0' },
+          serverInfo: { name: config.brainIdentityPersisted ? config.brainName : 'bigbrain', version: BIGBRAIN_APP_VERSION },
         });
       case 'ping':
         return jsonRpcResult(message.id, {});
@@ -866,6 +880,48 @@ async function syncAndPersist(config) {
     last_seen_files: [],
   });
   return result;
+}
+
+async function checkMcpReadiness(config) {
+  let db;
+  try {
+    const brain = await fs.stat(config.brainDir);
+    if (!brain.isDirectory()) return notReady('brain_unavailable');
+  } catch {
+    return notReady('brain_unavailable');
+  }
+
+  try {
+    db = await openDatabase(config);
+    return {
+      ok: true,
+      status: 'ready',
+      checks: {
+        brain: 'ok',
+        storage: 'ok',
+      },
+    };
+  } catch {
+    return notReady('storage_unavailable');
+  } finally {
+    try {
+      await db?.close?.();
+    } catch {
+      // Readiness is based on opening storage; cleanup failures are non-fatal here.
+    }
+  }
+}
+
+function notReady(reason) {
+  return {
+    ok: false,
+    status: 'not_ready',
+    reason,
+    checks: {
+      brain: reason === 'brain_unavailable' ? 'unavailable' : 'ok',
+      storage: reason === 'storage_unavailable' ? 'unavailable' : 'not_checked',
+    },
+  };
 }
 
 async function backupGitChanges(config, message) {

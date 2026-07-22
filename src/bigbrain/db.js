@@ -3,6 +3,8 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
+export const BIGBRAIN_STORAGE_SCHEMA_VERSION = 1;
+
 export async function openDatabase(config) {
   if (config.storageBackend === 'postgres') return openPostgresDatabase(config);
   await fs.mkdir(path.dirname(config.sqlitePath), { recursive: true });

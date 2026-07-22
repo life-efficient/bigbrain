@@ -28,8 +28,10 @@ test('bundled postgres deployment template is runnable and verifies expected che
   assert.match(compose, /pgvector\/pgvector:pg16/);
   assert.match(compose, /postgres-data:\/var\/lib\/postgresql\/data/);
   assert.match(compose, /condition: service_healthy/);
-  assert.match(compose, /\/health/);
+  assert.match(compose, /\/ready/);
   assert.match(dockerfile, /HEALTHCHECK/);
+  assert.match(dockerfile, /\/ready/);
+  assert.match(dockerfile, /ARG BIGBRAIN_BUILD_COMMIT/);
   assert.match(dockerfile, /bigbrain\.js --config/);
   assert.match(config, /"storage_backend": "postgres"/);
   assert.match(config, /"database_url_env": "DATABASE_URL"/);

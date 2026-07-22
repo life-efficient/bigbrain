@@ -9,6 +9,65 @@ import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { getPageRecord, listMcpAuditLog, openDatabase } from '../../src/bigbrain/db.js';
 import { upsertMember } from '../../src/bigbrain/members.js';
 import { startMcpServer } from '../../src/bigbrain/mcp-server.js';
+import {
+  BIGBRAIN_API_CONTRACT_VERSION,
+  BIGBRAIN_APP_VERSION,
+  BIGBRAIN_MCP_PROTOCOL_VERSION,
+  BIGBRAIN_STORAGE_SCHEMA_VERSION,
+  runtimeMetadata,
+} from '../../src/bigbrain/runtime-metadata.js';
+
+test('runtime metadata reports release and compatibility information without reflecting arbitrary environment values', () => {
+  const metadata = runtimeMetadata({
+    BIGBRAIN_BUILD_COMMIT: 'abc1234',
+    BIGBRAIN_BUILD_TIMESTAMP: '2026-07-22T10:30:00Z',
+    DATABASE_URL: 'postgres://secret@example.test/brain',
+    BIGBRAIN_MCP_TOKEN: 'super-secret',
+  });
+
+  assert.equal(metadata.application.version, BIGBRAIN_APP_VERSION);
+  assert.equal(metadata.build.commit, 'abc1234');
+  assert.equal(metadata.build.built_at, '2026-07-22T10:30:00.000Z');
+  assert.equal(metadata.contracts.mcp_protocol, BIGBRAIN_MCP_PROTOCOL_VERSION);
+  assert.equal(metadata.contracts.api, BIGBRAIN_API_CONTRACT_VERSION);
+  assert.equal(metadata.storage_schema, BIGBRAIN_STORAGE_SCHEMA_VERSION);
+  assert.deepEqual(metadata.compatibility.api_contract, { minimum: 1, maximum: 1 });
+  assert.deepEqual(metadata.compatibility.storage_schema, { minimum: 1, maximum: 1 });
+  assert.doesNotMatch(JSON.stringify(metadata), /secret|postgres/);
+  assert.equal(runtimeMetadata({ BIGBRAIN_BUILD_COMMIT: 'not-a-commit' }).build.commit, null);
+});
+
+test('readiness fails closed when the configured brain becomes unavailable while liveness remains healthy', async () => {
+  const fixture = await createFixture('bigbrain-mcp-readiness-');
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'secret',
+      syncIntervalMs: 0,
+    });
+    await fs.rename(fixture.brainHome, `${fixture.brainHome}-offline`);
+
+    const readyResponse = await fetch(running.url.replace('/mcp', '/ready'));
+    assert.equal(readyResponse.status, 503);
+    assert.deepEqual(await readyResponse.json().then(({ ok, status, reason, checks }) => ({ ok, status, reason, checks })), {
+      ok: false,
+      status: 'not_ready',
+      reason: 'brain_unavailable',
+      checks: { brain: 'unavailable', storage: 'not_checked' },
+    });
+
+    const liveResponse = await fetch(running.url.replace('/mcp', '/live'));
+    assert.equal(liveResponse.status, 200);
+    assert.equal((await liveResponse.json()).status, 'live');
+  } finally {
+    await running?.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
 
 test('isolated MCP instances cannot read or search each other\'s brains', async () => {
   const first = await createFixture('bigbrain-isolation-a-');
@@ -86,6 +145,25 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     });
     const handshake = await rpc(running.url, 'initialize', { protocolVersion: '2024-11-05' }, 'secret');
     assert.equal(handshake.result.serverInfo.name, 'Brain');
+    assert.equal(handshake.result.serverInfo.version, BIGBRAIN_APP_VERSION);
+    assert.equal(handshake.result.protocolVersion, BIGBRAIN_MCP_PROTOCOL_VERSION);
+    const unsupportedHandshake = await rpc(running.url, 'initialize', { protocolVersion: '2099-01-01' }, 'secret');
+    assert.equal(unsupportedHandshake.result.protocolVersion, BIGBRAIN_MCP_PROTOCOL_VERSION);
+
+    const liveResponse = await fetch(running.url.replace('/mcp', '/live'));
+    assert.equal(liveResponse.status, 200);
+    const live = await liveResponse.json();
+    assert.equal(live.status, 'live');
+    assert.equal(live.runtime.application.version, BIGBRAIN_APP_VERSION);
+    assert.equal('brain_id' in live, false);
+
+    const readyResponse = await fetch(running.url.replace('/mcp', '/ready'));
+    assert.equal(readyResponse.status, 200);
+    const ready = await readyResponse.json();
+    assert.equal(ready.status, 'ready');
+    assert.deepEqual(ready.checks, { brain: 'ok', storage: 'ok' });
+    assert.equal(ready.brain_id, config.brainId);
+    assert.equal(ready.runtime.contracts.api, BIGBRAIN_API_CONTRACT_VERSION);
 
     const publicPage = await fetch(running.url.replace('/mcp', '/public/people/public'), { redirect: 'manual' });
     assert.equal(publicPage.status, 200);
