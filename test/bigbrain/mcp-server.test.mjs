@@ -130,6 +130,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     const listed = await rpc(running.url, 'tools/list', {}, 'secret');
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_page'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'filing_rules'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'about'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file_with_page'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'read_raw_file'), true);
@@ -147,6 +148,15 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.match(visibilityTool.description, /absolute public_url/);
     const getVisibilityTool = listed.result.tools.find((tool) => tool.name === 'get_page_visibility');
     assert.match(getVisibilityTool.description, /public_url is a directly shareable absolute public URL/);
+
+    const about = await rpc(running.url, 'tools/call', { name: 'about', arguments: {} }, 'secret');
+    assert.equal(about.error, undefined, about.error?.message);
+    assert.equal(about.result.structuredContent.brain_id, config.brainId);
+    assert.equal(about.result.structuredContent.manifest.valid, true);
+    assert.equal(about.result.structuredContent.manifest.reviewed, false);
+    assert.equal(about.result.structuredContent.routing.effective_ingestion_mode, 'review');
+    assert.equal(about.result.structuredContent.auth_state, 'local_trusted');
+    assert.equal('updated_by' in about.result.structuredContent.descriptor.provenance, false);
 
     const unauthorized = await fetch(running.url, {
       method: 'POST',

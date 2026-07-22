@@ -20,11 +20,13 @@ export function matchesIncludeGlobs(relativePath, includeGlobs) {
 
 export function isExcludedPath(fullPath, relativePath, excludeGlobs, tasksFile) {
   const normalizedFull = path.resolve(fullPath);
+  const normalizedRelative = toPosixPath(relativePath);
   if (tasksFile && normalizedFull === path.resolve(tasksFile)) return true;
+  if (normalizedRelative === 'BRAIN.md') return true;
 
   return excludeGlobs.some((pattern) => {
     if (path.isAbsolute(pattern)) return path.resolve(pattern) === normalizedFull;
-    return matchesGlob(relativePath, pattern);
+    return matchesGlob(normalizedRelative, pattern);
   });
 }
 

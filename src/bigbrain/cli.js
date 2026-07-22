@@ -3,6 +3,7 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 import { initializeBrainHome, loadConfig, loadState, loadUserEnv, persistState, resolveBrainHome, updateBrainName } from './config.js';
+import { conservativeBrainProfileDraft, loadBrainProfile, parseBrainProfileMarkdown, writeBrainProfile } from './brain-profile.js';
 import { dbDoctor, openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
 import { runHealthCheck } from './health.js';
 import { fullPathFromSlug } from './markdown.js';
@@ -21,6 +22,7 @@ export async function runCli(argv) {
   switch (command) {
     case 'init': return handleInit(args, global);
     case 'identity': return handleIdentity(args, global);
+    case 'about': return handleAbout(args, global);
     case 'recent': return handleRecent(args, global);
     case 'sync': return handleSync(global);
     case 'list': return handleList(args, global);
@@ -68,6 +70,38 @@ async function handleIdentity(args, global) {
     return;
   }
   throw new Error(`Unknown identity command: ${action}`);
+}
+
+async function handleAbout(args, global) {
+  const action = args[0] || 'show';
+  const config = await loadRuntimeConfig(global);
+  if (action === 'show') {
+    const loaded = await loadBrainProfile(config);
+    output(global, loaded.about, renderAboutText(loaded.about));
+    return;
+  }
+  if (action === 'init') {
+    const existing = await loadBrainProfile(config);
+    if (existing.status !== 'missing' && !args.includes('--replace')) {
+      throw new Error('BRAIN.md already exists. Use about set to replace it after review.');
+    }
+    const written = await writeBrainProfile(config, conservativeBrainProfileDraft(config, {
+      updatedBy: 'bigbrain-cli',
+      generationMethod: 'migration',
+    }));
+    output(global, written.about, `Created an unreviewed, review-only ${written.about.manifest.filename} draft.`);
+    return;
+  }
+  if (action === 'set') {
+    const sourcePath = argValue(args, '--from');
+    if (!sourcePath) throw new Error('Usage: bigbrain about set --from <BRAIN.md-or-json>');
+    const raw = await fs.readFile(path.resolve(sourcePath), 'utf8');
+    const profile = sourcePath.toLowerCase().endsWith('.json') ? JSON.parse(raw) : parseBrainProfileMarkdown(raw);
+    const written = await writeBrainProfile(config, profile);
+    output(global, written.about, `Updated ${written.about.manifest.filename}; routing profile status is ${written.about.manifest.reviewed ? 'approved' : 'draft'}.`);
+    return;
+  }
+  throw new Error('about requires "show", "init", or "set".');
 }
 
 async function handleInit(args, global) {
@@ -511,6 +545,9 @@ Commands:
   init [brain-home] [--name NAME]
   identity [show]
   identity set-name <name>
+  about show
+  about init
+  about set --from <BRAIN.md-or-json>
   sync
   list [--type TYPE]
   get <slug>
@@ -559,6 +596,14 @@ function renderSyncText(result) {
     `Sync succeeded. Index now has ${result.index_totals_after_sync.pages} page(s) and ${result.index_totals_after_sync.links} link(s).`,
     `Outstanding: ${result.outstanding_work.pages_needing_embeddings} page(s) need embeddings, ${result.outstanding_work.embedding_chunks_pending} embedding chunk(s) pending, ${result.outstanding_work.pages_with_embedding_failures} embedding failure(s).`,
     `This run: ${result.run_work.pages_embedded} page(s) embedded, ${result.run_work.embedding_chunks_created} embedding chunk(s) created, ${result.run_work.pages_embedding_skipped_by_guard ?? 0} page(s) skipped by embedding guard.`,
+  ].join('\n');
+}
+
+function renderAboutText(about) {
+  return [
+    `${about.brain_name}`,
+    `Profile: ${about.manifest.status}${about.manifest.reviewed ? ', approved' : ', not approved'}`,
+    `Routing: ${about.routing.effective_ingestion_mode}`,
   ].join('\n');
 }
 

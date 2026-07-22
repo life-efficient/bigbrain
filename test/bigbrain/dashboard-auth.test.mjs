@@ -88,6 +88,10 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
     assert.equal(privateApi.status, 302);
     assert.match(privateApi.headers.get('location'), /^\/auth\/start\?redirect=%2Fapi%2Fpage/);
 
+    const privateAbout = await fetch(`${url}/api/about`, { redirect: 'manual' });
+    assert.equal(privateAbout.status, 302);
+    assert.match(privateAbout.headers.get('location'), /^\/auth\/start\?redirect=%2Fapi%2Fabout/);
+
     const privateVisibility = await fetch(`${url}/api/page/visibility`, {
       method: 'POST',
       redirect: 'manual',
@@ -108,6 +112,17 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
     });
     assert.equal(health.status, 200);
     assert.equal(Array.isArray((await health.json()).findings), true);
+
+    const about = await fetch(`${url}/api/about`, {
+      headers: { cookie: `bigbrain_dashboard_session=${sessionToken}` },
+    });
+    assert.equal(about.status, 200);
+    assert.equal(about.headers.get('cache-control'), 'no-store');
+    const aboutJson = await about.json();
+    assert.equal(aboutJson.manifest.valid, true);
+    assert.equal(aboutJson.manifest.reviewed, false);
+    assert.equal(aboutJson.routing.effective_ingestion_mode, 'review');
+    assert.equal('updated_by' in aboutJson.descriptor.provenance, false);
 
     const authenticatedVisibility = await fetch(`${url}/api/page/visibility`, {
       method: 'POST',

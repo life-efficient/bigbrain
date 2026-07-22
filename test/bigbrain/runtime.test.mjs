@@ -6,6 +6,7 @@ import path from 'node:path';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 
+import { loadBrainProfile } from '../../src/bigbrain/brain-profile.js';
 import { configPathForBrainHome, initializeBrainHome, loadConfig, loadUserEnv, metaDirForBrainHome, updateBrainName, userEnvPath } from '../../src/bigbrain/config.js';
 import { getHostedBrainGitState, openDatabase } from '../../src/bigbrain/db.js';
 import { filingRulesForBrain } from '../../src/bigbrain/filing-rules.js';
@@ -77,6 +78,30 @@ test('brain identity supports an explicit editable name and immutable ID', async
     const after = await updateBrainName({ configPath: init.configPath }, 'Private Brain');
     assert.equal(after.brainName, 'Private Brain');
     assert.equal(after.brainId, before.brainId);
+    const profile = await loadBrainProfile(after);
+    assert.equal(profile.profile.identity.brain_name, 'Private Brain');
+    assert.equal(profile.profile.identity.brain_id, before.brainId);
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('CLI shows the conservative routing profile as unapproved review-only metadata', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-about-cli-'));
+  try {
+    const brainHome = path.join(rootDir, 'brain');
+    const env = {
+      ...process.env,
+      BIGBRAIN_POINTER_PATH: path.join(rootDir, 'pointer'),
+      BIGBRAIN_STATE_ROOT: path.join(rootDir, 'state'),
+    };
+    const init = await initializeBrainHome(brainHome, { env, brainName: 'CLI Profile Brain' });
+    const result = await runNode(['./bin/bigbrain.js', '--config', init.configPath, 'about', 'show', '--json'], { cwd: process.cwd() });
+    assert.equal(result.code, 0, result.stderr);
+    const about = JSON.parse(result.stdout);
+    assert.equal(about.brain_name, 'CLI Profile Brain');
+    assert.equal(about.manifest.reviewed, false);
+    assert.equal(about.routing.effective_ingestion_mode, 'review');
   } finally {
     await fs.rm(rootDir, { recursive: true, force: true });
   }

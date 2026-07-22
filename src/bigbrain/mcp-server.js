@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 
 import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
 import { persistState } from './config.js';
+import { authenticatedBrainAbout, loadBrainProfile } from './brain-profile.js';
 import {
   createDashboardRequestHandler,
   dashboardSessionCookie,
@@ -389,6 +390,17 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     }
     case 'filing_rules':
       return toolMarkdown(await filingRulesForBrain({ config }));
+    case 'about': {
+      const loaded = await loadBrainProfile(config);
+      const availableOperations = toolDefinitions()
+        .map((tool) => tool.name)
+        .filter((toolName) => canCallTool(toolName, actor));
+      return toolJson(authenticatedBrainAbout(config, loaded, {
+        authState: actor ? 'authenticated' : 'local_trusted',
+        writable: canCallTool('create_page', actor),
+        availableOperations,
+      }));
+    }
     case 'list_raw_files':
       return toolJson(await listRawFiles({
         config,
@@ -992,6 +1004,14 @@ function toolDefinitions() {
       },
     },
     {
+      name: 'about',
+      description: 'Return the authenticated routing profile and bounded capabilities for this BigBrain instance. Missing, invalid, or unapproved profiles fail closed to review.',
+      inputSchema: {
+        type: 'object',
+        properties: {},
+      },
+    },
+    {
       name: 'filing_rules',
       description: 'Return the selected brain filing rules as combined Markdown, compiled from top-level and collection FILING.md files.',
       inputSchema: {
@@ -1236,6 +1256,7 @@ const TOOL_POLICIES = {
   groups_list: { layer: 'read', scopes: ['brain:read'] },
   groups_get: { layer: 'read', scopes: ['brain:read'] },
   filing_rules: { layer: 'read', scopes: ['brain:read'] },
+  about: { layer: 'read', scopes: ['brain:read'] },
   list_raw_files: { layer: 'read', scopes: ['brain:read'] },
   read_raw_file: { layer: 'read', scopes: ['brain:read'] },
   'tasks/create': { layer: 'create', scopes: ['brain:create', 'brain:write'] },

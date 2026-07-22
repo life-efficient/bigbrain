@@ -21,6 +21,13 @@ import {
   STATE_FILENAME,
   STATE_ROOT_DIRNAME,
 } from './constants.js';
+import {
+  brainProfilePath,
+  conservativeBrainProfileDraft,
+  loadBrainProfile,
+  renderBrainProfileMarkdown,
+  writeBrainProfile,
+} from './brain-profile.js';
 
 export function legacyMetaDirForBrainHome(brainHome) {
   return path.join(path.resolve(brainHome), LEGACY_META_DIRNAME);
@@ -140,7 +147,7 @@ export function buildDefaultConfig(brainHome, env = process.env, { brainId = nul
     dashboard_port: DEFAULT_DASHBOARD_PORT,
     lookback_fallback: '24h',
     include_globs: ['**/*.md'],
-    exclude_globs: ['.git/**', 'archive/**', '.raw/**', '**/README.md', '**/FILING.md'],
+    exclude_globs: ['.git/**', 'archive/**', '.raw/**', '**/README.md', '**/FILING.md', 'BRAIN.md'],
     raw_file_max_bytes: normalizePositiveInteger(env.BIGBRAIN_RAW_FILE_MAX_BYTES, DEFAULT_RAW_FILE_MAX_BYTES, 'BIGBRAIN_RAW_FILE_MAX_BYTES'),
     max_embedding_pages_per_sync: normalizePositiveInteger(
       env.BIGBRAIN_MAX_EMBEDDING_PAGES_PER_SYNC === undefined ? undefined : Number(env.BIGBRAIN_MAX_EMBEDDING_PAGES_PER_SYNC),
@@ -167,6 +174,11 @@ export async function initializeBrainHome(brainHome, { env = process.env, brainN
   }
   await writeIfMissing(configPathForBrainHome(resolvedBrainHome, env), `${JSON.stringify(configFileDefaults(config), null, 2)}\n`);
   await writeIfMissing(statePathForBrainHome(resolvedBrainHome, env), `${JSON.stringify(defaultState(), null, 2)}\n`);
+  await writeIfMissing(brainProfilePath({ brainDir: resolvedBrainHome }), renderBrainProfileMarkdown(conservativeBrainProfileDraft({
+    brainId: config.brain_id,
+    brainName: config.brain_name,
+    brainDir: resolvedBrainHome,
+  }, { updatedBy: 'bigbrain-init', generationMethod: 'migration' })));
   await reconcileConfigFile(configPathForBrainHome(resolvedBrainHome, env), config);
   await saveDefaultBrainHomePointer(resolvedBrainHome, env);
 
@@ -274,13 +286,37 @@ export async function updateBrainName(input, brainName) {
   const raw = await readJsonFile(configPath, 'config');
   const brainHome = requireAbsoluteString(raw.brain_dir, 'brain_dir');
   const identity = legacyCompatibleBrainIdentity(raw, brainHome);
+  const currentConfig = await loadConfig({ configPath });
+  const currentProfile = await loadBrainProfile(currentConfig);
   const next = {
     ...raw,
     brain_id: raw.brain_id || identity.brainId,
     brain_name: normalizeBrainName(brainName),
   };
   await fs.writeFile(configPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
-  return loadConfig({ configPath });
+  try {
+    const nextConfig = await loadConfig({ configPath });
+    if (currentProfile.valid) {
+      await writeBrainProfile(nextConfig, {
+        ...currentProfile.profile,
+        identity: {
+          ...currentProfile.profile.identity,
+          brain_name: nextConfig.brainName,
+        },
+        provenance: {
+          ...currentProfile.profile.provenance,
+          profile_version: currentProfile.profile.provenance.profile_version + 1,
+          updated_at: new Date().toISOString(),
+          updated_by: 'bigbrain-identity',
+          generation_method: 'user-edit',
+        },
+      });
+    }
+    return nextConfig;
+  } catch (error) {
+    await fs.writeFile(configPath, `${JSON.stringify(raw, null, 2)}\n`, 'utf8');
+    throw error;
+  }
 }
 
 async function resolveConfigPath(input) {

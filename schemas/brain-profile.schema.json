@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://bigbrain.local/schemas/brain-profile.schema.json",
+  "title": "BigBrain routing profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "identity", "purpose_tags", "routing", "privacy", "provenance"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["brain_id", "brain_name", "summary"],
+      "properties": {
+        "brain_id": { "type": "string", "minLength": 1 },
+        "brain_name": { "type": "string", "minLength": 1 },
+        "summary": { "type": "string", "minLength": 1 }
+      }
+    },
+    "purpose_tags": { "type": "array", "items": { "type": "string", "minLength": 1 }, "uniqueItems": true },
+    "routing": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ingestion_mode", "include", "exclude", "source_rules", "examples", "mixed_meeting_policy", "minimum_confidence", "approval_required"],
+      "properties": {
+        "ingestion_mode": { "enum": ["auto", "review", "deny"] },
+        "include": { "type": "array", "items": { "type": "string" } },
+        "exclude": { "type": "array", "items": { "type": "string" } },
+        "source_rules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "effect", "value"],
+            "properties": {
+              "type": { "enum": ["granola_folder", "organizer_domain", "account_context"] },
+              "effect": { "enum": ["include", "exclude", "review"] },
+              "value": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "outcome", "metadata", "rationale"],
+            "properties": {
+              "label": { "type": "string", "minLength": 1 },
+              "outcome": { "enum": ["include", "exclude", "review"] },
+              "metadata": {
+                "type": "object",
+                "additionalProperties": false,
+                "minProperties": 1,
+                "properties": {
+                  "title": { "type": "string", "minLength": 1 },
+                  "organizer_domain": { "type": "string", "minLength": 1 },
+                  "attendee_domains": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+                  "folder_names": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+                }
+              },
+              "rationale": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "mixed_meeting_policy": { "enum": ["hold", "single_owner", "approved_scoped_extract"] },
+        "minimum_confidence": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "approval_required": { "type": "boolean" }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sensitivity", "descriptor_visibility", "allowed_routing_metadata"],
+      "properties": {
+        "sensitivity": { "enum": ["private", "confidential-shared", "internal"] },
+        "descriptor_visibility": { "const": "authenticated_only" },
+        "allowed_routing_metadata": {
+          "type": "array",
+          "items": { "enum": ["title", "date", "organizer", "attendee_domains", "folder_membership", "existing_granola_provenance"] },
+          "uniqueItems": true
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["profile_version", "updated_at", "updated_by", "generation_method", "user_guidance_summary", "review_status"],
+      "properties": {
+        "profile_version": { "type": "integer", "minimum": 1 },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "updated_by": { "type": "string", "minLength": 1 },
+        "generation_method": { "enum": ["onboarding-ai", "user-edit", "migration"] },
+        "user_guidance_summary": { "type": "string", "minLength": 1 },
+        "review_status": { "enum": ["draft", "approved"] }
+      }
+    }
+  }
+}

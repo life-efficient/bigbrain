@@ -17,6 +17,7 @@ import {
   openDatabase,
 } from './db.js';
 import { runHealthCheck } from './health.js';
+import { authenticatedBrainAbout, loadBrainProfile } from './brain-profile.js';
 import { fullPathFromSlug, parseMarkdownPage, resolveMarkdownLink, slugFromPath } from './markdown.js';
 import { findActiveMemberByEmail, findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug } from './members.js';
 import {
@@ -218,6 +219,19 @@ export async function createDashboardRequestHandler(config, {
         return;
       }
       if (requestUrl.pathname === '/api/schema') return json(res, { markdown: renderSchemaMarkdown() });
+      if (requestUrl.pathname === '/api/about') {
+        if (req.method !== 'GET') {
+          res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ error: 'About requests require GET.' }));
+          return;
+        }
+        const loaded = await loadBrainProfile(config);
+        return json(res, authenticatedBrainAbout(config, loaded, {
+          authState: actor ? 'authenticated' : 'local_trusted',
+          writable: false,
+          availableOperations: ['read'],
+        }), { noStore: true });
+      }
       if (requestUrl.pathname === '/api/tasks') return json(res, await buildTasksPayload(config, db, requestUrl, { actor }));
       if (requestUrl.pathname === '/api/recent') return json(res, await buildRecentPayload(db));
       if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db, config));
@@ -386,8 +400,11 @@ async function serveSharedRawFile(config, db, res, requestUrl, method = 'GET') {
   });
 }
 
-function json(res, value) {
-  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
+function json(res, value, { noStore = false } = {}) {
+  res.writeHead(200, {
+    'Content-Type': 'application/json; charset=utf-8',
+    ...(noStore ? { 'Cache-Control': 'no-store' } : {}),
+  });
   res.end(JSON.stringify(value, null, 2));
 }
 
@@ -1926,6 +1943,7 @@ function shouldSkipExplorerPath(relativePath, dirent) {
   if (normalized === '.git' || normalized.startsWith('.git/')) return true;
   if (normalized === '.bigbrain' || normalized.startsWith('.bigbrain/')) return true;
   if (normalized === '.bigbrain-state' || normalized.startsWith('.bigbrain-state/')) return true;
+  if (normalized === 'BRAIN.md') return true;
   if (dirent.name.startsWith('.') && dirent.name !== '.raw') return true;
   return false;
 }

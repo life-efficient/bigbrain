@@ -22,3 +22,14 @@ configuration, and app data assumptions.
   bodies, prompts, search queries, headers, credentials, or audit detail payloads.
 - State the active retention period in the view so totals are not mistaken for
   lifetime usage.
+
+## Brain Routing Profiles
+
+- Treat root `BRAIN.md` as version-controlled configuration, not an indexed
+  knowledge page. Exclude it even when a legacy brain has custom include or
+  exclude globs.
+- Missing, invalid, draft, or unapproved profiles fail closed to review and can
+  never authorize automatic ingestion.
+- Keep authored routing policy separate from computed capabilities such as
+  current authentication, writability, health, and available operations.
+- Send `Cache-Control: no-store` with authenticated profile API responses.

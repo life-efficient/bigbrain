@@ -13,3 +13,12 @@ debug surfaces.
   descriptions, tabs, or action buttons. Skeletonize only the unknown value.
 - Use route-level skeletons for panels, cards, tables, counts, and lists while
   live data resolves.
+
+## Brain Profiles
+
+- A brain's purpose and routing policy live in the reserved root `BRAIN.md`
+  manifest and are exposed only through authenticated application surfaces.
+- Keep public `/health` output minimal. Do not add a public `/about` route or
+  expose routing descriptions through public/shared page APIs.
+- Use authenticated `/api/about`, the MCP `about` tool, and CLI `about show` as
+  views over the same normalized profile contract.
