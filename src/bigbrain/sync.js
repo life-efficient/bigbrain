@@ -4,6 +4,7 @@ import path from 'node:path';
 
 import { deletePageIndex, getEmbeddingRecord, listPageSlugs, openDatabase, replaceEmbeddingsForPage, replaceLinksForPage, replacePageIndex } from './db.js';
 import { isAttachmentSidecarPath, isExcludedPath, matchesIncludeGlobs, shouldSkipSystemPath } from './file-selection.js';
+import { isBrainProfileDocument } from './brain-profile.js';
 import { embedTexts } from './openai.js';
 import { extractLinks, parseMarkdownPage, slugFromPath } from './markdown.js';
 
@@ -18,6 +19,7 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
       const slug = slugFromPath(config.brainDir, fullPath);
       const fileStat = await fs.stat(fullPath);
       const raw = await fs.readFile(fullPath, 'utf8');
+      if (slug === 'BRAIN' && isBrainProfileDocument(raw)) continue;
       const parsed = parseMarkdownPage(raw, slug);
       parsed.pageKind = isAttachmentSidecarPath(relativePath(config.brainDir, fullPath)) ? 'attachment' : 'canonical';
       parsed.path = fullPath;

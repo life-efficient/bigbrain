@@ -147,7 +147,7 @@ export function buildDefaultConfig(brainHome, env = process.env, { brainId = nul
     dashboard_port: DEFAULT_DASHBOARD_PORT,
     lookback_fallback: '24h',
     include_globs: ['**/*.md'],
-    exclude_globs: ['.git/**', 'archive/**', '.raw/**', '**/README.md', '**/FILING.md', 'BRAIN.md'],
+    exclude_globs: ['.git/**', 'archive/**', '.raw/**', '**/README.md', '**/FILING.md'],
     raw_file_max_bytes: normalizePositiveInteger(env.BIGBRAIN_RAW_FILE_MAX_BYTES, DEFAULT_RAW_FILE_MAX_BYTES, 'BIGBRAIN_RAW_FILE_MAX_BYTES'),
     max_embedding_pages_per_sync: normalizePositiveInteger(
       env.BIGBRAIN_MAX_EMBEDDING_PAGES_PER_SYNC === undefined ? undefined : Number(env.BIGBRAIN_MAX_EMBEDDING_PAGES_PER_SYNC),

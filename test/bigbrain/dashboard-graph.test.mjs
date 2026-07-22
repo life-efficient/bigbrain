@@ -191,6 +191,7 @@ test('dashboard page payload includes file explorer metadata and nearby links', 
 test('dashboard explorer includes raw folders and classifies obvious file previews', async () => {
   const fixture = await createFixture('bigbrain-dashboard-explorer-');
   try {
+    await writeMarkdown(fixture.brainHome, 'BRAIN.md', '# Existing Brain Notes\n\nKeep this visible.\n');
     await writeMarkdown(fixture.brainHome, 'people/alice.md', '# Alice\n\nHas files.\n');
     await writeFile(fixture.brainHome, 'sources/.raw/deck.pdf', Buffer.from('%PDF-1.4\n%%EOF\n', 'utf8'));
     await writeFile(fixture.brainHome, 'sources/.raw/slides.pptx', Buffer.from('PK\x03\x04fake pptx fixture', 'binary'));
@@ -199,6 +200,7 @@ test('dashboard explorer includes raw folders and classifies obvious file previe
 
     const config = await loadConfig({ configPath: fixture.configPath });
     const tree = await buildExplorerTreePayload(config);
+    assert.ok(tree.root.children.some((entry) => entry.name === 'BRAIN.md'));
     const sources = tree.root.children.find((entry) => entry.name === 'sources');
     const raw = sources.children.find((entry) => entry.name === '.raw');
     assert.equal(raw.type, 'directory');

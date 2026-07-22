@@ -183,11 +183,16 @@ async function handleBrains(args, global) {
     if (!sourcePath) throw new Error('Usage: bigbrain brains import-registry --from <registry.json>');
     const resolved = path.resolve(sourcePath);
     const source = JSON.parse(await fs.readFile(resolved, 'utf8'));
-    const migrated = migrateRegistryV1(source);
+    const hydrated = await hydrateRegistryLocalIdentities(source);
+    const migrated = migrateRegistryV1(hydrated.registry);
     const backup = `${resolved}.v1-backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
     await fs.copyFile(resolved, backup);
     const saved = await catalog.save(migrated);
-    output(global, { catalog: saved, backup }, `Imported ${saved.brains.length} brain(s); preserved the version-1 registry backup.`);
+    output(global, {
+      catalog: saved,
+      backup,
+      unresolved_local_entries: hydrated.unresolvedLocalEntries,
+    }, `Imported ${saved.brains.length} brain(s); preserved the version-1 registry backup.${hydrated.unresolvedLocalEntries.length ? ` ${hydrated.unresolvedLocalEntries.length} local brain(s) still need identity verification.` : ''}`);
     return;
   }
   if (action === 'remove') {
@@ -197,6 +202,46 @@ async function handleBrains(args, global) {
     return;
   }
   throw new Error('brains requires "list", "add-local", "add-remote", "import-registry", or "remove".');
+}
+
+async function hydrateRegistryLocalIdentities(source) {
+  if (!source || typeof source !== 'object' || !Array.isArray(source.brains)) return {
+    registry: source,
+    unresolvedLocalEntries: [],
+  };
+
+  const unresolvedLocalEntries = [];
+  const brains = await Promise.all(source.brains.map(async (legacy) => {
+    if (!legacy || typeof legacy !== 'object' || Array.isArray(legacy) || legacy.connectionType === 'service') {
+      return legacy;
+    }
+    const home = typeof legacy.home === 'string' && legacy.home.trim() ? path.resolve(legacy.home) : null;
+    if (!home) {
+      unresolvedLocalEntries.push({ id: legacy.id ?? null, home: null, reason: 'missing_home' });
+      return legacy;
+    }
+    try {
+      const config = await loadConfig({ brainHome: home });
+      return {
+        ...legacy,
+        brainId: config.brainId,
+        name: config.brainName,
+      };
+    } catch (error) {
+      unresolvedLocalEntries.push({
+        id: legacy.id ?? null,
+        home,
+        reason: 'config_unavailable',
+        message: error.message,
+      });
+      return legacy;
+    }
+  }));
+
+  return {
+    registry: { ...source, brains },
+    unresolvedLocalEntries,
+  };
 }
 
 async function verifyRemoteBrainHealth(endpoint, expectedBrainId) {

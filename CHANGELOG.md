@@ -5,34 +5,118 @@ actions` section for agents maintaining device and server installations.
 
 ## Unreleased
 
+## [0.15.0] - 2026-07-22
+
+### Added
+
+- Added versioned, authenticated `BRAIN.md` purpose profiles; a private
+  machine brain catalog for verified local and remote brains; deterministic
+  metadata-only routing; and an idempotent routing ledger with review, approve,
+  reject, retry, lease, and read-back verification states.
+- Added a single paused, machine-wide `bigbrain-route-granola` automation plus
+  a retired-ID manifest and health checks for duplicate writers, active retired
+  automations, duplicate IDs, and active backup directories.
+- Added desktop support for connecting to an existing BigBrain service and for
+  running multiple isolated local brains with collision-safe service ports.
+- Added secure API-key discovery during desktop onboarding. BigBrain can offer
+  masked choices from `OPENAI_API_KEY`, `~/.config/bigbrain/.env`, and known
+  BigBrain-owned macOS Keychain entries while keeping direct entry available.
+
 ### Changed
 
-- Replaced the per-brain Granola scheduler template with one paused,
-  machine-wide `bigbrain-route-granola` automation. Added a retired-ID manifest
-  and high-severity health findings for duplicate Granola writers, active
-  retired IDs, duplicate automation IDs, and active backup directories in the
-  live automation root.
-- Added versioned `BRAIN.md` purpose/about profiles, an authenticated about
-  surface, a private machine brain catalog, deterministic metadata-only routing,
-  and an idempotent routing ledger with review and retry operations. Automatic
-  routing fails closed unless a destination is verified, reachable,
-  authenticated, writable, and explicitly approved for auto-ingest.
 - Reframed packaging and onboarding around two action-led paths: run BigBrain
   on this device or connect to an existing BigBrain service. Hosting ownership,
   Docker packaging, storage, client type, and private/shared access are now
   documented as separate deployment or configuration choices rather than
   competing product modes.
+- Changed the default MCP service port from `3333` to `55560` for new local and
+  bundled Docker installs. Existing launch agents with an explicit port remain
+  supported, and update verification now discovers that configured port before
+  testing the endpoint.
+- Aligned desktop onboarding with the dark dashboard shell and added standard
+  macOS editing shortcuts to the application menu.
+- Declared the existing Node.js runtime requirement explicitly as Node
+  `>=22.5.0`.
+
+### Fixed
+
+- Refused local service startup when the requested port is already occupied
+  instead of silently colliding with another BigBrain instance.
+- Avoided false Granola-writer conflict findings from non-writer automations
+  that merely mention routing, and kept backup/retired automation conflicts
+  explicit.
+- Restored normal paste behavior in desktop onboarding.
+- Made API-key validation use the desktop controller's injected network client,
+  passed the selected credential correctly to initial sync, rejected forged or
+  stale saved-key identifiers, and cleared manually entered credentials after
+  successful setup.
+- Preserved an existing ordinary root `BRAIN.md` as a searchable and visible
+  knowledge page while keeping routing fail-closed; only profile-shaped
+  `BRAIN.md` files are hidden from the knowledge index and explorer.
+- Made legacy desktop registry import recover canonical `brn_...` identities
+  from each local brain config while preserving backups and active selection.
+- Aligned the packaged brain-profile JSON schema, runtime validation, and MCP
+  `about/update` schema, and made routing-ledger initialization reject future or
+  malformed database schemas without relabeling or partially modifying them.
 
 ### Agent update actions
 
-- Install `bigbrain-route-granola` in its bundled paused state.
-- Do not activate it until all destination profiles are approved and existing
-  `granola_id` provenance is reconciled.
+- Pull the release, run `npm install`, and run `npm link` so the CLI, desktop
+  runtime, schema dependency, and bundled skills resolve to `v0.15.0`.
+- Verify `node --version` is `22.5.0` or newer before installing.
+- Refresh the bundled BigBrain skills, especially `bigbrain-setup`,
+  `bigbrain-onboarding`, and `bigbrain-check-update`.
+- Restart every running dashboard or MCP service, including Docker or other
+  server deployments, so the new authenticated `about` and admin-scoped
+  `about/update` tools are available. Existing tokens do not gain scopes
+  automatically; profile updates through MCP require an owner identity plus
+  `brain:admin` within the server scope ceiling and issued token.
+- For a local service, read the configured `--port` from its launch agent before
+  testing it: new installs default to `55560`, while an existing explicit
+  `3333` service remains valid. Update the Codex MCP registration only if the
+  service endpoint actually changes.
+- Before rebuilding a bundled Docker Compose deployment, inspect its `.env`.
+  To preserve the old endpoint, set `BIGBRAIN_SERVICE_PORT=3333` and
+  `BIGBRAIN_MCP_PUBLIC_URL` to the matching public `3333` URL. To adopt the new
+  `55560` default, update the public URL, reverse proxy, firewall, health checks,
+  and Codex MCP registrations together. Then rebuild/restart and verify
+  `/health` plus a direct MCP `initialize` and `tools/list` check.
+- Install `bigbrain-route-granola` in its bundled paused state. Do not activate
+  it until all destination profiles are approved and existing `granola_id`
+  provenance is reconciled.
 - In one cutover, pause or remove every ID in `automations/retired.json`, move
   rollback copies outside the live automation root, then activate only
   `bigbrain-route-granola`.
 - Run `bigbrain health --json` and require exactly one active Granola writer and
   zero automation conflicts after cutover.
+- Existing brain pages, task fields, filing rules, SQLite/Postgres data, and
+  existing Keychain records need no migration. Existing brains without a
+  `BRAIN.md` remain usable but are held out of automatic routing.
+- An existing ordinary knowledge page named `BRAIN.md` remains visible and
+  indexed. If the owner later opts into routing profiles, rename that knowledge
+  page first; `bigbrain about init` will refuse to overwrite it.
+- To opt an existing local brain into routing, run `bigbrain about init`,
+  review the generated `BRAIN.md` with the owner, approve it with
+  `bigbrain about set --from /path/to/brain/BRAIN.md --approve`, register or
+  verify it with `bigbrain brains add-local /path/to/brain`, and confirm
+  `bigbrain about show --json` reports an approved profile.
+- For a remote brain, approve its profile on that service, then register it:
+
+  ```bash
+  bigbrain brains add-remote --brain-id ID --name NAME --handle HANDLE \
+    --endpoint MCP_URL --authenticated --writable
+  ```
+
+  Verify the profile and catalog entry before enabling the router.
+- Run `bigbrain sync --json`, `bigbrain health --json`, and `npm test`.
+
+### Verification
+
+- `npm test`
+- `node --test test/bigbrain/desktop-controller.test.mjs`
+- `node --test test/bigbrain/brain-profile.test.mjs test/bigbrain/routing-ledger.test.mjs`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+- Local-data compatibility audit against `v0.14.3`
 
 ## [0.14.3] - 2026-07-20
 

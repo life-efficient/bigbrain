@@ -107,6 +107,68 @@ test('CLI shows the conservative routing profile as unapproved review-only metad
   }
 });
 
+test('CLI imports a legacy desktop UUID registry using canonical local brain identity and preserves a backup', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-registry-import-'));
+  try {
+    const home = path.join(rootDir, 'home');
+    const brainHome = path.join(rootDir, 'existing-brain');
+    const registryPath = path.join(rootDir, 'registry.json');
+    const legacyDesktopId = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee';
+    const env = {
+      ...process.env,
+      HOME: home,
+      BIGBRAIN_CONFIG_DIR: path.join(home, '.config', 'bigbrain'),
+      BIGBRAIN_POINTER_PATH: path.join(home, '.config', 'bigbrain', 'default-brain-home'),
+      BIGBRAIN_STATE_ROOT: '',
+      BIGBRAIN_CATALOG_PATH: '',
+    };
+    const initialized = await initializeBrainHome(brainHome, { env, brainName: 'Canonical Local Brain' });
+    const legacyRegistry = {
+      version: 1,
+      activeBrainId: legacyDesktopId,
+      brains: [{
+        id: legacyDesktopId,
+        name: 'Stale Desktop Name',
+        home: brainHome,
+        host: '127.0.0.1',
+        port: 3333,
+        serviceLabel: `ai.diffusing.bigbrain.${legacyDesktopId}`,
+        status: 'running',
+        owner: { name: 'Private Owner', email: 'owner@example.com' },
+        createdAt: '2026-07-01T00:00:00.000Z',
+      }],
+    };
+    const original = `${JSON.stringify(legacyRegistry, null, 2)}\n`;
+    await fs.writeFile(registryPath, original, 'utf8');
+
+    const result = await runNode([
+      './bin/bigbrain.js',
+      'brains',
+      'import-registry',
+      '--from',
+      registryPath,
+      '--json',
+    ], { cwd: process.cwd(), env });
+    assert.equal(result.code, 0, result.stderr);
+    const imported = JSON.parse(result.stdout);
+    assert.deepEqual(imported.unresolved_local_entries, []);
+    assert.equal(imported.catalog.active_entry_id, initialized.config.brain_id);
+    assert.equal(imported.catalog.brains.length, 1);
+    assert.equal(imported.catalog.brains[0].entry_id, initialized.config.brain_id);
+    assert.equal(imported.catalog.brains[0].brain_id, initialized.config.brain_id);
+    assert.equal(imported.catalog.brains[0].brain_name, 'Canonical Local Brain');
+    assert.equal(imported.catalog.brains[0].local.home, brainHome);
+    assert.equal(imported.catalog.brains[0].local.port, 3333);
+    assert.equal(await fs.readFile(registryPath, 'utf8'), original);
+    assert.equal(await fs.readFile(imported.backup, 'utf8'), original);
+    const savedCatalog = JSON.parse(await fs.readFile(path.join(env.BIGBRAIN_CONFIG_DIR, 'brains.json'), 'utf8'));
+    assert.deepEqual(savedCatalog, imported.catalog);
+    assert.doesNotMatch(JSON.stringify(imported.catalog), /owner@example\.com|Private Owner/);
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
+
 test('legacy read-only config gets stable in-memory identity without a config write', async () => {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-legacy-identity-'));
   try {

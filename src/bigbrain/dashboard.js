@@ -17,7 +17,7 @@ import {
   openDatabase,
 } from './db.js';
 import { runHealthCheck } from './health.js';
-import { authenticatedBrainAbout, loadBrainProfile } from './brain-profile.js';
+import { authenticatedBrainAbout, isBrainProfileDocument, loadBrainProfile } from './brain-profile.js';
 import { fullPathFromSlug, parseMarkdownPage, resolveMarkdownLink, slugFromPath } from './markdown.js';
 import { findActiveMemberByEmail, findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug } from './members.js';
 import {
@@ -1913,7 +1913,7 @@ async function explorerEntryForPath(root, fullPath, includeChildren = false) {
   for (const dirent of dirents) {
     const childFullPath = path.join(fullPath, dirent.name);
     const childRelative = path.relative(root, childFullPath).split(path.sep).join('/');
-    if (shouldSkipExplorerPath(childRelative, dirent)) continue;
+    if (await shouldSkipExplorerEntry(childFullPath, childRelative, dirent)) continue;
     children.push(await explorerEntryForPath(root, childFullPath, true));
   }
   children.sort(compareExplorerEntries);
@@ -1926,7 +1926,7 @@ async function explorerRecentFiles(root, fullPath) {
   for (const dirent of dirents) {
     const childFullPath = path.join(fullPath, dirent.name);
     const childRelative = path.relative(root, childFullPath).split(path.sep).join('/');
-    if (shouldSkipExplorerPath(childRelative, dirent)) continue;
+    if (await shouldSkipExplorerEntry(childFullPath, childRelative, dirent)) continue;
     if (dirent.isDirectory()) {
       files.push(...await explorerRecentFiles(root, childFullPath));
       continue;
@@ -1943,9 +1943,16 @@ function shouldSkipExplorerPath(relativePath, dirent) {
   if (normalized === '.git' || normalized.startsWith('.git/')) return true;
   if (normalized === '.bigbrain' || normalized.startsWith('.bigbrain/')) return true;
   if (normalized === '.bigbrain-state' || normalized.startsWith('.bigbrain-state/')) return true;
-  if (normalized === 'BRAIN.md') return true;
   if (dirent.name.startsWith('.') && dirent.name !== '.raw') return true;
   return false;
+}
+
+async function shouldSkipExplorerEntry(fullPath, relativePath, dirent) {
+  if (shouldSkipExplorerPath(relativePath, dirent)) return true;
+  const normalized = String(relativePath || '').replace(/\\/g, '/');
+  if (normalized !== 'BRAIN.md' || !dirent.isFile()) return false;
+  const raw = await fs.readFile(fullPath, 'utf8');
+  return isBrainProfileDocument(raw);
 }
 
 function compareExplorerEntries(a, b) {

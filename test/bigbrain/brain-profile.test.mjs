@@ -6,9 +6,11 @@ import path from 'node:path';
 
 import {
   BRAIN_PROFILE_FILENAME,
+  BRAIN_PROFILE_JSON_SCHEMA,
   authenticatedBrainAbout,
   conservativeBrainProfileDraft,
   loadBrainProfile,
+  normalizeBrainProfile,
   writeBrainProfile,
 } from '../../src/bigbrain/brain-profile.js';
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
@@ -52,6 +54,26 @@ test('missing and invalid profiles fail closed', async () => {
   }
 });
 
+test('an existing ordinary root BRAIN.md remains indexed while routing fails closed', async () => {
+  const fixture = await createFixture('bigbrain-profile-name-collision-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await fs.writeFile(
+      path.join(fixture.brainHome, BRAIN_PROFILE_FILENAME),
+      '---\ntitle: Brain Notes\n---\n\n# Brain Notes\n\nExisting knowledge page from before routing profiles.\n',
+      'utf8',
+    );
+
+    const loaded = await loadBrainProfile(config);
+    assert.equal(loaded.status, 'invalid');
+    assert.equal(loaded.about.routing.auto_write_allowed, false);
+    const sync = await syncBrain({ config, apiKey: null });
+    assert.equal(sync.indexed_pages, 1);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('profile writes enforce immutable runtime identity and explicit auto approval policy', async () => {
   const fixture = await createFixture('bigbrain-profile-write-');
   try {
@@ -67,6 +89,35 @@ test('profile writes enforce immutable runtime identity and explicit auto approv
 
     profile.identity.brain_id = 'brn_wrong';
     await assert.rejects(writeBrainProfile(config, profile), /immutable runtime brain_id/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('published profile schema and runtime enforce the same scalar boundaries', async () => {
+  const fixture = await createFixture('bigbrain-profile-schema-parity-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const valid = conservativeBrainProfileDraft(config, { updatedBy: 'people/owner' });
+    assert.equal(normalizeBrainProfile(valid, config).schema_version, BRAIN_PROFILE_JSON_SCHEMA.properties.schema_version.const);
+    assert.equal(BRAIN_PROFILE_JSON_SCHEMA.properties.routing.properties.include.items.minLength, 1);
+    assert.equal(BRAIN_PROFILE_JSON_SCHEMA.properties.provenance.properties.updated_by.pattern, '^[A-Za-z0-9][A-Za-z0-9/_-]*$');
+
+    const stringVersion = structuredClone(valid);
+    stringVersion.schema_version = '1';
+    assert.throws(() => normalizeBrainProfile(stringVersion, config), /schema_version/);
+
+    const blankInclude = structuredClone(valid);
+    blankInclude.routing.include = [''];
+    assert.throws(() => normalizeBrainProfile(blankInclude, config), /non-empty string/);
+
+    const unsafeActor = structuredClone(valid);
+    unsafeActor.provenance.updated_by = 'owner@example.com';
+    assert.throws(() => normalizeBrainProfile(unsafeActor, config), /not an email address/);
+
+    const stringConfidence = structuredClone(valid);
+    stringConfidence.routing.minimum_confidence = '0.8';
+    assert.throws(() => normalizeBrainProfile(stringConfidence, config), /null or a number/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

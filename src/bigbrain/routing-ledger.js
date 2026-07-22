@@ -40,15 +40,36 @@ export async function openRoutingLedger({
   await fs.mkdir(path.dirname(resolvedPath), { recursive: true, mode: 0o700 });
   await fs.chmod(path.dirname(resolvedPath), 0o700).catch(() => {});
   const db = new DatabaseSync(resolvedPath);
-  initializeRoutingLedgerSchema(db);
+  try {
+    initializeRoutingLedgerSchema(db);
+  } catch (error) {
+    db.close();
+    throw error;
+  }
   await fs.chmod(resolvedPath, 0o600).catch(() => {});
   return new RoutingLedger({ db, ledgerPath: resolvedPath, now, randomUUID });
 }
 
 export function initializeRoutingLedgerSchema(db) {
-  db.exec(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA foreign_keys = ON;
+  const currentVersion = Number(db.prepare('PRAGMA user_version').get().user_version);
+  if (currentVersion > ROUTING_LEDGER_SCHEMA_VERSION) {
+    throw new Error(`Routing ledger schema version ${currentVersion} is newer than supported version ${ROUTING_LEDGER_SCHEMA_VERSION}.`);
+  }
+  if (currentVersion < 0 || !Number.isInteger(currentVersion)) {
+    throw new Error(`Invalid routing ledger schema version: ${currentVersion}.`);
+  }
+
+  db.exec('PRAGMA foreign_keys = ON;');
+  if (currentVersion === ROUTING_LEDGER_SCHEMA_VERSION) {
+    assertRoutingLedgerSchema(db);
+    db.exec('PRAGMA journal_mode = WAL;');
+    return;
+  }
+
+  db.exec('PRAGMA journal_mode = WAL;');
+  db.exec('BEGIN IMMEDIATE;');
+  try {
+    db.exec(`
     CREATE TABLE IF NOT EXISTS routes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       source TEXT NOT NULL,
@@ -86,8 +107,35 @@ export function initializeRoutingLedgerSchema(db) {
     );
     CREATE INDEX IF NOT EXISTS route_events_route_idx
       ON route_events (route_id, id);
-    PRAGMA user_version = ${ROUTING_LEDGER_SCHEMA_VERSION};
-  `);
+    `);
+    assertRoutingLedgerSchema(db);
+    db.exec(`PRAGMA user_version = ${ROUTING_LEDGER_SCHEMA_VERSION};`);
+    db.exec('COMMIT;');
+  } catch (error) {
+    db.exec('ROLLBACK;');
+    throw new Error(`Cannot initialize routing ledger schema version ${ROUTING_LEDGER_SCHEMA_VERSION}: ${error.message}`);
+  }
+}
+
+function assertRoutingLedgerSchema(db) {
+  assertTableColumns(db, 'routes', [
+    'id', 'source', 'source_item_id', 'metadata_hash', 'policy_revision',
+    'selected_brain_id', 'decision_state', 'reason_codes_json', 'confidence_band',
+    'approval_state', 'approval_actor_id', 'approval_at', 'approval_expires_at',
+    'lease_token', 'lease_expires_at', 'attempt_count', 'destination_verification_ref',
+    'last_error_code', 'created_at', 'updated_at',
+  ]);
+  assertTableColumns(db, 'route_events', [
+    'id', 'route_id', 'event_type', 'from_state', 'to_state', 'actor_id',
+    'reason_code', 'created_at',
+  ]);
+}
+
+function assertTableColumns(db, table, expectedColumns) {
+  const actualColumns = db.prepare(`PRAGMA table_info(${table})`).all().map((column) => column.name);
+  if (actualColumns.length !== expectedColumns.length || expectedColumns.some((column) => !actualColumns.includes(column))) {
+    throw new Error(`Routing ledger table ${table} does not match schema version ${ROUTING_LEDGER_SCHEMA_VERSION}.`);
+  }
 }
 
 export class RoutingLedger {

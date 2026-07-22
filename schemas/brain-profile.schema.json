@@ -24,8 +24,8 @@
       "required": ["ingestion_mode", "include", "exclude", "source_rules", "examples", "mixed_meeting_policy", "minimum_confidence", "approval_required"],
       "properties": {
         "ingestion_mode": { "enum": ["auto", "review", "deny"] },
-        "include": { "type": "array", "items": { "type": "string" } },
-        "exclude": { "type": "array", "items": { "type": "string" } },
+        "include": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "exclude": { "type": "array", "items": { "type": "string", "minLength": 1 } },
         "source_rules": {
           "type": "array",
           "items": {
@@ -89,7 +89,7 @@
       "properties": {
         "profile_version": { "type": "integer", "minimum": 1 },
         "updated_at": { "type": "string", "format": "date-time" },
-        "updated_by": { "type": "string", "minLength": 1 },
+        "updated_by": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9/_-]*$" },
         "generation_method": { "enum": ["onboarding-ai", "user-edit", "migration"] },
         "user_guidance_summary": { "type": "string", "minLength": 1 },
         "review_status": { "enum": ["draft", "approved"] }

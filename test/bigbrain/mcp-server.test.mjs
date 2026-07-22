@@ -131,6 +131,9 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_page'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'filing_rules'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'about'), true);
+    const aboutUpdateTool = listed.result.tools.find((tool) => tool.name === 'about/update');
+    assert.equal(aboutUpdateTool.inputSchema.properties.profile.properties.schema_version.const, 1);
+    assert.deepEqual(aboutUpdateTool.inputSchema.properties.profile.required, ['schema_version', 'identity', 'purpose_tags', 'routing', 'privacy', 'provenance']);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file_with_page'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'read_raw_file'), true);

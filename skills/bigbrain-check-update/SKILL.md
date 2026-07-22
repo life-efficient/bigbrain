@@ -135,20 +135,23 @@ This skill guarantees:
      installs may still use `~/Library/LaunchAgents/local.bigbrain.mcp.plist`
    - confirm its `--brain-home` argument points at the selected brain home, not
      a stale temp fixture
-   - check `curl http://127.0.0.1:55560/health`
+   - read the configured `--port` from the matching launch agent and use that
+     port for endpoint checks; new installs default to `55560`, while explicit
+     legacy installs may still use `3333`
+   - check `curl http://127.0.0.1:<configured-port>/health`
    - check the matching launchd label, for example
      `launchctl print "gui/$(id -u)/local.bigbrain.personal-brain"` on macOS;
      fall back to `local.bigbrain.mcp` only for legacy installs
    - run a direct MCP `initialize` plus `tools/list` smoke test against
-     `http://127.0.0.1:55560/mcp`
+     `http://127.0.0.1:<configured-port>/mcp`
    - run `codex mcp list` and report whether the current BigBrain MCP entry is
      registered with Codex; on this machine the active entry is `personal_brain`
-     at `http://127.0.0.1:55560/mcp`, not the older `bigbrain` name
+     at the configured local MCP endpoint, not the older `bigbrain` name
    - do not treat absence of the old `bigbrain` registration as proof the
      service is down when the direct endpoint checks pass
    - if Codex registration is expected but missing, report the exact MCP URL
-     (`http://127.0.0.1:55560/mcp`) and config follow-up separately from service
-     health
+     (`http://127.0.0.1:<configured-port>/mcp`) and config follow-up separately
+     from service health
 
 ## Filing-Rule Update Policy
 

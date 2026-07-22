@@ -1,6 +1,6 @@
 {
   "name": "bigbrain",
-  "version": "0.14.3",
+  "version": "0.15.0",
   "license": "MIT",
   "type": "module",
   "main": "electron/main.cjs",
@@ -85,5 +85,8 @@
   },
   "allowScripts": {
     "electron@42.5.0": true
+  },
+  "engines": {
+    "node": ">=22.5.0"
   }
 }

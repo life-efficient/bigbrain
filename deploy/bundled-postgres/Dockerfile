@@ -6,6 +6,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY bin ./bin
+COPY schemas ./schemas
 COPY src ./src
 COPY README.md LICENSE ./
 

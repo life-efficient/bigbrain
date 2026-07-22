@@ -1,7 +1,11 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createRequire } from 'node:module';
 
 import yaml from 'js-yaml';
+
+const require = createRequire(import.meta.url);
+export const BRAIN_PROFILE_JSON_SCHEMA = require('../../schemas/brain-profile.schema.json');
 
 export const BRAIN_PROFILE_FILENAME = 'BRAIN.md';
 export const BRAIN_PROFILE_SCHEMA_VERSION = 1;
@@ -144,7 +148,7 @@ export async function saveBrainProfileRevision(config, profile, {
 export function normalizeBrainProfile(input, config) {
   requireObject(input, 'Brain profile');
   assertKeys(input, ['schema_version', 'identity', 'purpose_tags', 'routing', 'privacy', 'provenance'], 'Brain profile');
-  if (Number(input.schema_version) !== BRAIN_PROFILE_SCHEMA_VERSION) {
+  if (input.schema_version !== BRAIN_PROFILE_SCHEMA_VERSION) {
     throw new Error(`Unsupported brain profile schema_version: ${input.schema_version ?? 'missing'}.`);
   }
 
@@ -211,6 +215,16 @@ export function parseBrainProfileMarkdown(markdown) {
   const parsed = yaml.load(String(markdown).slice(4, end));
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error(`${BRAIN_PROFILE_FILENAME} frontmatter must be an object.`);
   return parsed;
+}
+
+export function isBrainProfileDocument(markdown) {
+  try {
+    const parsed = parseBrainProfileMarkdown(markdown);
+    return Object.hasOwn(parsed, 'schema_version')
+      && ['identity', 'routing', 'privacy', 'provenance'].some((key) => Object.hasOwn(parsed, key));
+  } catch {
+    return false;
+  }
 }
 
 export function renderBrainProfileMarkdown(profile) {
@@ -287,9 +301,8 @@ function requireBoolean(value, name) {
 }
 
 function requirePositiveInteger(value, name) {
-  const number = Number(value);
-  if (!Number.isInteger(number) || number < 1) throw new Error(`${name} must be a positive integer.`);
-  return number;
+  if (typeof value !== 'number' || !Number.isInteger(value) || value < 1) throw new Error(`${name} must be a positive integer.`);
+  return value;
 }
 
 function requireIsoDate(value, name) {
@@ -332,10 +345,11 @@ function requireActorLabel(value) {
 }
 
 function normalizeConfidence(value) {
-  if (value === null || value === undefined || value === '') return null;
-  const number = Number(value);
-  if (!Number.isFinite(number) || number < 0 || number > 1) throw new Error('routing.minimum_confidence must be null or a number from 0 to 1.');
-  return number;
+  if (value === null) return null;
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error('routing.minimum_confidence must be null or a number from 0 to 1.');
+  }
+  return value;
 }
 
 function normalizeSourceRules(value) {

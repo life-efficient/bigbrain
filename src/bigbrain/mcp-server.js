@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 
 import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
 import { persistState } from './config.js';
-import { authenticatedBrainAbout, loadBrainProfile, saveBrainProfileRevision } from './brain-profile.js';
+import { BRAIN_PROFILE_JSON_SCHEMA, authenticatedBrainAbout, loadBrainProfile, saveBrainProfileRevision } from './brain-profile.js';
 import {
   createDashboardRequestHandler,
   dashboardSessionCookie,
@@ -1029,7 +1029,7 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
-          profile: { type: 'object' },
+          profile: BRAIN_PROFILE_JSON_SCHEMA,
           approve: { type: 'boolean' },
         },
         required: ['profile', 'approve'],

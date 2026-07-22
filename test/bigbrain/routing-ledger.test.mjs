@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 import {
   defaultRoutingLedgerPath,
@@ -169,6 +170,73 @@ test('schema contains routing metadata but no transcript, prompt, or participant
   }
 });
 
+test('version 1 ledgers reopen without losing routes or events', async () => {
+  const fixture = await createFixture();
+  try {
+    fixture.ledger.discover({
+      source: 'granola', sourceItemId: 'persisted-meeting', metadataHash: HASH_A, policyRevision: 'policy-v1',
+    });
+    fixture.ledger.close();
+    fixture.ledger = await openRoutingLedger({ ledgerPath: fixture.ledgerPath });
+
+    const route = fixture.ledger.get({ source: 'granola', sourceItemId: 'persisted-meeting' });
+    assert.equal(route.metadata_hash, HASH_A);
+    assert.deepEqual(
+      fixture.ledger.listEvents({ source: 'granola', sourceItemId: 'persisted-meeting' }).map((event) => event.event_type),
+      ['discovered'],
+    );
+    assert.equal(fixture.ledger.db.prepare('PRAGMA user_version').get().user_version, ROUTING_LEDGER_SCHEMA_VERSION);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test('future routing-ledger versions are rejected without modifying the database', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-routing-ledger-future-'));
+  const ledgerPath = path.join(rootDir, 'routing-ledger.sqlite');
+  const db = new DatabaseSync(ledgerPath);
+  db.exec(`
+    CREATE TABLE future_data (value TEXT NOT NULL);
+    INSERT INTO future_data (value) VALUES ('preserve-me');
+    PRAGMA user_version = 2;
+  `);
+  db.close();
+  try {
+    await assert.rejects(openRoutingLedger({ ledgerPath }), /newer than supported version 1/);
+    const inspected = new DatabaseSync(ledgerPath);
+    try {
+      assert.equal(inspected.prepare('PRAGMA user_version').get().user_version, 2);
+      assert.equal(inspected.prepare('SELECT value FROM future_data').get().value, 'preserve-me');
+      assert.equal(inspected.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'routes'").get().count, 0);
+    } finally {
+      inspected.close();
+    }
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('malformed version 0 routing tables are rejected without being stamped or partially initialized', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-routing-ledger-malformed-'));
+  const ledgerPath = path.join(rootDir, 'routing-ledger.sqlite');
+  const db = new DatabaseSync(ledgerPath);
+  db.exec('CREATE TABLE routes (id INTEGER PRIMARY KEY);');
+  db.close();
+  try {
+    await assert.rejects(openRoutingLedger({ ledgerPath }), /Cannot initialize routing ledger schema version 1/);
+    const inspected = new DatabaseSync(ledgerPath);
+    try {
+      assert.equal(inspected.prepare('PRAGMA user_version').get().user_version, 0);
+      assert.deepEqual(inspected.prepare('PRAGMA table_info(routes)').all().map((column) => column.name), ['id']);
+      assert.equal(inspected.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'route_events'").get().count, 0);
+    } finally {
+      inspected.close();
+    }
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
+
 async function createFixture({ now = () => new Date('2026-07-22T00:00:00.000Z'), uuids = [] } = {}) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-routing-ledger-'));
   const ledgerPath = path.join(rootDir, 'machine', 'routing-ledger.sqlite');
@@ -178,13 +246,14 @@ async function createFixture({ now = () => new Date('2026-07-22T00:00:00.000Z'),
     now,
     randomUUID: () => uuids[uuidIndex++] || `lease-${uuidIndex}`,
   });
-  return {
+  const fixture = {
     rootDir,
     ledgerPath,
     ledger,
     cleanup: async () => {
-      ledger.close();
+      fixture.ledger.close();
       await fs.rm(rootDir, { recursive: true, force: true });
     },
   };
+  return fixture;
 }
