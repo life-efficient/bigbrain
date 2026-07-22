@@ -12,6 +12,7 @@
     "visual-design/README.md",
     "visual-design/ui-design-rules.md",
     "data-and-state/README.md",
+    "deployment/README.md",
     "local-development/README.md",
     "schema/app-conventions.schema.json"
   ],
@@ -24,12 +25,14 @@
     "email-delivery/README.md",
     "visual-design/README.md",
     "data-and-state/README.md",
+    "deployment/README.md",
     "local-development/README.md"
   ],
   "defaultFolders": [
     "app-surfaces",
     "auth-and-sessions",
     "data-and-state",
+    "deployment",
     "email-delivery",
     "local-development",
     "navigation",

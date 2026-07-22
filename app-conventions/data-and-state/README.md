@@ -33,3 +33,14 @@ configuration, and app data assumptions.
 - Keep authored routing policy separate from computed capabilities such as
   current authentication, writability, health, and available operations.
 - Send `Cache-Control: no-store` with authenticated profile API responses.
+
+## Application Updates
+
+- Treat application binaries, local service runtimes, and brain data as
+  separate state. Updating BigBrain must not rewrite markdown brain content.
+- Persist the selected update channel and last successful check outside the
+  brain home. Never store release credentials or update tokens in a brain.
+- Version runtime and storage contracts independently. Refuse readiness when a
+  database is newer than the running binary supports.
+- Stage updates before activation and retain the previous working runtime until
+  the new runtime passes readiness and MCP handshake checks.

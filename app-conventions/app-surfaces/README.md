@@ -22,3 +22,15 @@ debug surfaces.
   expose routing descriptions through public/shared page APIs.
 - Use authenticated `/api/about`, the MCP `about` tool, and CLI `about show` as
   views over the same normalized profile contract.
+
+## Updates
+
+- Show the installed BigBrain version and a manual **Check for Updates** action
+  in the desktop app even when background checks are enabled.
+- A desktop-managed local MCP updates with the desktop. Explain that shared
+  scope before asking the user to restart.
+- A desktop connected to a remote BigBrain may report the remote version and
+  update availability, but must never mutate or restart that service.
+- Keep update states explicit: checking, available, downloading, ready to
+  restart, current, deferred, and failed. Preserve the last usable app surface
+  when an update check fails.
