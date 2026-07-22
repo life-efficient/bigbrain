@@ -5,6 +5,105 @@ actions` section for agents maintaining device and server installations.
 
 ## Unreleased
 
+## [0.16.0] - 2026-07-22
+
+### Added
+
+- Added automatic discovery of existing brains during desktop onboarding. The
+  app checks the saved default pointer, `BIGBRAIN_HOME`, desktop-managed brain
+  folders, current and historical runtime layouts, BigBrain LaunchAgents,
+  known loopback service ports, and bounded locations under `~/projects` and
+  `~/Documents`. Running services and stopped local brain repositories are
+  merged and shown as selectable choices while manual folder and service URL
+  entry remain available.
+- Added a safe `bigbrain update` workflow for source installations, including
+  stable and beta channels, dirty/diverged/detached checkout protection,
+  signed-tag verification support, explicit major-version approval, and
+  machine-readable results and exit codes.
+- Added automatic update delivery for packaged macOS desktop installations and
+  a separate six-hour LaunchAgent updater for headless macOS source installs.
+  Desktop-managed local MCP services are reconciled with the packaged app;
+  remote services and server deployments remain operator-managed.
+- Added versioned MCP runtime metadata plus `/live` and `/ready` endpoints.
+  Release tags now publish signed and notarized desktop packages, Electron
+  update metadata, and a multi-platform server image at
+  `ghcr.io/life-efficient/bigbrain`.
+
+### Changed
+
+- Changed bundled Docker health checks from `/health` to the readiness-specific
+  `/ready` endpoint. `/health` remains supported as a backward-compatible
+  readiness alias, while `/live` reports process liveness without requiring
+  brain storage to be available.
+- Changed local MCP installation to install the stable headless updater by
+  default for source installs. Packaged desktop installs skip that scheduler
+  because the desktop application owns their update lifecycle; operators can
+  explicitly use `--no-auto-update` for manually managed source checkouts.
+- Changed MCP initialization and health responses to report the actual BigBrain
+  application, MCP protocol, storage schema, and available build-provenance
+  metadata needed for safe update verification.
+- Hardened release-tag matching and source-update selection so malformed,
+  mismatched, unsigned when required, or incompatible releases fail closed.
+
+### Fixed
+
+- Fixed the v0.15.0 packaged desktop onboarding crash caused by importing the
+  unavailable Node `path` module from Electron's sandboxed preload. The secure
+  preload now exposes the desktop bridge without disabling sandboxing.
+- Added executable sandbox regression coverage so preload failures cannot pass
+  solely through source-text assertions.
+- Removed the need to know both a brain folder and a running service address
+  when onboarding can discover either one safely on the local Mac.
+- Made the scheduled headless updater prefer a stable Node executable path so
+  login and periodic runs do not depend on an interactive shell setup.
+
+### Agent update actions
+
+- Existing v0.15.0 desktop installations cannot receive this first automatic
+  desktop update because that release did not yet contain the updater. Install
+  the signed BigBrain v0.16.0 DMG or ZIP manually once; later desktop releases
+  will be offered automatically. After launch, confirm onboarding opens and
+  detected brains appear under **Found on this Mac**.
+- For a source installation, pull `v0.16.0`, run `npm install`, and run
+  `npm link`. Restart every dashboard and MCP service from that checkout so
+  runtime metadata and readiness checks report the new version.
+- Existing headless macOS source installs are not scheduled automatically until
+  the new updater is installed. Install or repair it explicitly:
+
+  ```bash
+  node scripts/install-headless-updater.mjs \
+    --repo-root /path/to/bigbrain \
+    --channel stable
+  ```
+
+  Then run `bigbrain update --check --json`. Keep `--no-auto-update` only for a
+  checkout whose update lifecycle is deliberately managed another way.
+- For bundled Docker or other server deployments, pull and pin
+  `ghcr.io/life-efficient/bigbrain:0.16.0` by its published digest, preserve the
+  existing database and brain volumes, restart the deployment, and verify
+  `/live`, `/ready`, `/health`, and an MCP `initialize` request. Running server
+  containers never self-update.
+- Update monitoring so `/live` is used for process liveness and `/ready` for
+  traffic readiness. Existing `/health` probes remain compatible and now fail
+  with HTTP 503 when the configured brain directory or storage is unavailable.
+- Existing brain pages, task fields and enums, filing rules, skills,
+  automations, SQLite/Postgres data, API keys, desktop registry entries, and
+  default-brain pointer files require no migration. Discovery reads historical
+  runtime layouts without modifying them.
+- Run `bigbrain sync --json`, `bigbrain health --json`, and `npm test`. For a
+  local MCP service, require `/ready` to report `ok: true` and confirm its
+  runtime version is `0.16.0` after restart.
+
+### Verification
+
+- `npm test`
+- `node --test test/bigbrain/brain-discovery.test.mjs test/bigbrain/desktop-controller.test.mjs`
+- `node --test test/bigbrain/update.test.mjs test/bigbrain/headless-updater.test.mjs test/bigbrain/desktop-updater.test.mjs test/bigbrain/managed-service-reconciler.test.mjs`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+- Clean packaged-app onboarding smoke test with sandboxed preload and local
+  brain discovery
+- Local-data compatibility audit against `v0.15.0`
+
 ## [0.15.0] - 2026-07-22
 
 ### Added
