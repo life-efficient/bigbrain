@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { renderUpdaterLaunchAgent } from '../../scripts/install-headless-updater.mjs';
+import { renderUpdaterLaunchAgent, resolveStableNodePath } from '../../scripts/install-headless-updater.mjs';
 import { findRepoLaunchAgents, runHeadlessUpdate } from '../../scripts/run-headless-update.mjs';
 
 test('headless updater launch agent checks stable releases every six hours', () => {
@@ -15,6 +15,15 @@ test('headless updater launch agent checks stable releases every six hours', () 
   assert.match(plist, /<integer>21600<\/integer>/);
   assert.match(plist, /<string>--channel<\/string><string>stable<\/string>/);
   assert.match(plist, /<key>RunAtLoad<\/key><true\/>/);
+});
+
+test('headless updater prefers a stable Node executable path', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-node-path-'));
+  const stable = path.join(root, 'bin', 'node');
+  await fs.mkdir(path.dirname(stable), { recursive: true });
+  await fs.writeFile(stable, '');
+  assert.equal(await resolveStableNodePath({ candidates: [path.join(root, 'missing'), stable, '/versioned/node'] }), stable);
+  await fs.rm(root, { recursive: true, force: true });
 });
 
 test('headless updater restarts and verifies MCP services only after an applied update', async () => {

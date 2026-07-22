@@ -45,7 +45,7 @@ export async function installHeadlessUpdater({
   channel = 'stable',
   intervalSeconds = DEFAULT_INTERVAL_SECONDS,
   label = DEFAULT_LABEL,
-  nodePath = process.execPath,
+  nodePath = null,
   plistPath,
   logDir = path.join(os.homedir(), '.config', 'bigbrain'),
   dryRun = false,
@@ -55,12 +55,13 @@ export async function installHeadlessUpdater({
   if (!['stable', 'beta'].includes(channel)) throw new Error('--channel must be stable or beta.');
   if (!Number.isInteger(Number(intervalSeconds)) || Number(intervalSeconds) < 3600) throw new Error('--interval-seconds must be at least 3600.');
   const resolvedRepo = path.resolve(repoRoot);
+  const resolvedNodePath = nodePath || await resolveStableNodePath();
   const runnerPath = path.join(resolvedRepo, 'scripts', 'run-headless-update.mjs');
   await fs.access(runnerPath);
   const targetPlist = plistPath || path.join(os.homedir(), 'Library', 'LaunchAgents', `${label}.plist`);
   const stdoutPath = path.join(logDir, 'bigbrain-updater.log');
   const stderrPath = path.join(logDir, 'bigbrain-updater.err.log');
-  const plist = renderUpdaterLaunchAgent({ label, nodePath, runnerPath, repoRoot: resolvedRepo, channel, intervalSeconds, stdoutPath, stderrPath });
+  const plist = renderUpdaterLaunchAgent({ label, nodePath: resolvedNodePath, runnerPath, repoRoot: resolvedRepo, channel, intervalSeconds, stdoutPath, stderrPath });
   const result = { ok: true, label, plistPath: targetPlist, repoRoot: resolvedRepo, channel, intervalSeconds: Number(intervalSeconds), runnerPath };
   if (dryRun) return { ...result, plist };
   if (process.platform !== 'darwin') throw new Error('The scheduled headless updater currently supports macOS launchd only.');
@@ -70,6 +71,18 @@ export async function installHeadlessUpdater({
   await fs.writeFile(targetPlist, plist, 'utf8');
   await execFileImpl('launchctl', ['bootstrap', `gui/${process.getuid()}`, targetPlist]);
   return result;
+}
+
+export async function resolveStableNodePath({ candidates = ['/opt/homebrew/bin/node', '/usr/local/bin/node', process.execPath] } = {}) {
+  for (const candidate of candidates) {
+    try {
+      await fs.access(candidate);
+      return candidate;
+    } catch {
+      // Try the next stable executable location.
+    }
+  }
+  throw new Error('Could not find a Node.js executable for the scheduled updater.');
 }
 
 function xmlEscape(value) {
