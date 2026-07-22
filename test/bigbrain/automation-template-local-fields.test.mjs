@@ -42,6 +42,85 @@ cwds = ["<brain-home>"]
   }
 });
 
+test('health flags duplicate, retired, and backup Granola writers in the live automation root', async () => {
+  const fixture = await createFixture('bigbrain-automation-conflicts-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const templateDir = path.join(fixture.rootDir, 'templates', 'automations');
+    const activeDir = path.join(fixture.rootDir, 'active', 'automations');
+    await fs.mkdir(templateDir, { recursive: true });
+    await fs.writeFile(path.join(templateDir, 'retired.json'), JSON.stringify({
+      automation_ids: ['legacy-granola-ingest'],
+    }), 'utf8');
+    await writeAutomationToml(activeDir, 'legacy-granola-ingest', automation({
+      id: 'legacy-granola-ingest',
+      name: 'Legacy Granola Ingest',
+    }));
+    await writeAutomationToml(activeDir, 'legacy-granola-ingest.before-cutover', automation({
+      id: 'legacy-granola-ingest',
+      name: 'Legacy Granola Ingest Backup',
+    }));
+    await writeAutomationToml(activeDir, 'bigbrain-route-granola', automation({
+      id: 'bigbrain-route-granola',
+      name: 'BigBrain Route Granola',
+    }));
+
+    const report = await runHealthCheck(config, {
+      cliCommand: process.execPath,
+      automationTemplateDir: templateDir,
+      automationActiveDir: activeDir,
+      skillTemplateDir: path.join(fixture.rootDir, 'skills'),
+      skillActiveDir: path.join(fixture.rootDir, 'active', 'skills'),
+    });
+
+    assert.equal(report.automation_conflict_status.active_granola_writer_count, 3);
+    assert.deepEqual(
+      new Set(report.automation_conflict_status.conflicts.map((conflict) => conflict.type)),
+      new Set([
+        'multiple_active_granola_writers',
+        'retired_automation_active',
+        'active_backup_in_live_automation_root',
+        'duplicate_automation_id',
+      ]),
+    );
+    assert.equal(
+      report.findings.filter((finding) => finding.finding_type === 'automation_conflict').every((finding) => finding.severity === 'high'),
+      true,
+    );
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('health accepts one paused router alongside no active Granola writers', async () => {
+  const fixture = await createFixture('bigbrain-automation-paused-router-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const templateDir = path.join(fixture.rootDir, 'templates', 'automations');
+    const activeDir = path.join(fixture.rootDir, 'active', 'automations');
+    await fs.mkdir(templateDir, { recursive: true });
+    await fs.writeFile(path.join(templateDir, 'retired.json'), JSON.stringify({ automation_ids: [] }), 'utf8');
+    await writeAutomationToml(activeDir, 'bigbrain-route-granola', automation({
+      id: 'bigbrain-route-granola',
+      name: 'BigBrain Route Granola',
+      status: 'PAUSED',
+    }));
+
+    const report = await runHealthCheck(config, {
+      cliCommand: process.execPath,
+      automationTemplateDir: templateDir,
+      automationActiveDir: activeDir,
+      skillTemplateDir: path.join(fixture.rootDir, 'skills'),
+      skillActiveDir: path.join(fixture.rootDir, 'active', 'skills'),
+    });
+
+    assert.equal(report.automation_conflict_status.active_granola_writer_count, 0);
+    assert.equal(report.automation_conflict_status.conflict_count, 0);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function createFixture(prefix) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   const pointerPath = path.join(rootDir, 'pointer');
@@ -55,4 +134,15 @@ async function writeAutomationToml(automationRoot, id, content) {
   const fullPath = path.join(automationRoot, id, 'automation.toml');
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
   await fs.writeFile(fullPath, content, 'utf8');
+}
+
+function automation({ id, name, status = 'ACTIVE' }) {
+  return `version = 1
+id = "${id}"
+kind = "cron"
+name = "${name}"
+prompt = "Ingest and route Granola meetings."
+status = "${status}"
+rrule = "FREQ=DAILY;BYHOUR=4"
+`;
 }

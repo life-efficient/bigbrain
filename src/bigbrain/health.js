@@ -147,6 +147,18 @@ export async function runHealthCheck(config, {
     });
   }
 
+  const automationConflictStatus = await detectAutomationConflictStatus({
+    templateDir: automationTemplateDir,
+    activeDir: automationActiveDir,
+  });
+  for (const conflict of automationConflictStatus.conflicts) {
+    await insertHealthFinding(db, {
+      findingType: 'automation_conflict',
+      severity: 'high',
+      details: conflict,
+    });
+  }
+
   const skillTemplateStatus = await detectSkillTemplateStatus({
     templateDir: skillTemplateDir,
     activeDir: skillActiveDir ?? await resolveActiveSkillsDir(env, skillTemplateDir),
@@ -178,6 +190,7 @@ export async function runHealthCheck(config, {
     filing_rules_status: filingRuleStatus,
     cli_status: cliStatus,
     automation_template_status: automationTemplateStatus,
+    automation_conflict_status: automationConflictStatus,
     skill_template_status: skillTemplateStatus,
   };
 }
@@ -767,6 +780,113 @@ async function detectAutomationTemplateStatus({ templateDir, activeDir }) {
     checked_count: checks.length,
     mismatch_count: checks.filter((check) => check.status !== 'match').length,
     checks,
+  };
+}
+
+async function detectAutomationConflictStatus({ templateDir, activeDir }) {
+  const retiredPath = path.join(templateDir, 'retired.json');
+  const retiredIds = await fs.readFile(retiredPath, 'utf8')
+    .then((raw) => JSON.parse(raw)?.automation_ids ?? [])
+    .catch((error) => {
+      if (error?.code === 'ENOENT') return [];
+      throw error;
+    });
+  const entries = activeDir
+    ? await fs.readdir(activeDir, { withFileTypes: true }).catch((error) => {
+      if (error?.code === 'ENOENT') return [];
+      throw error;
+    })
+    : [];
+  const installed = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const filePath = path.join(activeDir, entry.name, 'automation.toml');
+    const raw = await fs.readFile(filePath, 'utf8').catch((error) => {
+      if (error?.code === 'ENOENT') return null;
+      throw error;
+    });
+    if (raw === null) continue;
+    installed.push({
+      directory: entry.name,
+      path: filePath,
+      id: automationTomlString(raw, 'id') ?? entry.name,
+      name: automationTomlString(raw, 'name') ?? '',
+      prompt: automationTomlString(raw, 'prompt') ?? '',
+      status: (automationTomlString(raw, 'status') ?? '').toUpperCase(),
+    });
+  }
+
+  const activeGranolaWriters = installed.filter((automation) => (
+    automation.status === 'ACTIVE'
+    && /granola/i.test(`${automation.id} ${automation.name} ${automation.prompt}`)
+    && /(ingest|route|review|write)/i.test(`${automation.id} ${automation.name} ${automation.prompt}`)
+  ));
+  const conflicts = [];
+  if (activeGranolaWriters.length > 1) {
+    conflicts.push({
+      type: 'multiple_active_granola_writers',
+      count: activeGranolaWriters.length,
+      automations: activeGranolaWriters.map(publicAutomationRef),
+    });
+  }
+
+  for (const automation of installed) {
+    if (automation.status === 'ACTIVE' && retiredIds.includes(automation.id)) {
+      conflicts.push({
+        type: 'retired_automation_active',
+        automation: publicAutomationRef(automation),
+      });
+    }
+    if (/\.before-|\.backup-|\.bak$/i.test(automation.directory) && automation.status === 'ACTIVE') {
+      conflicts.push({
+        type: 'active_backup_in_live_automation_root',
+        automation: publicAutomationRef(automation),
+      });
+    }
+  }
+
+  const byId = new Map();
+  for (const automation of installed) {
+    if (!byId.has(automation.id)) byId.set(automation.id, []);
+    byId.get(automation.id).push(automation);
+  }
+  for (const [id, matches] of byId) {
+    if (matches.length < 2) continue;
+    conflicts.push({
+      type: 'duplicate_automation_id',
+      id,
+      automations: matches.map(publicAutomationRef),
+    });
+  }
+
+  return {
+    active_dir: activeDir,
+    installed_count: installed.length,
+    active_granola_writer_count: activeGranolaWriters.length,
+    active_granola_writers: activeGranolaWriters.map(publicAutomationRef),
+    retired_automation_ids: [...retiredIds].sort(),
+    conflict_count: conflicts.length,
+    conflicts,
+  };
+}
+
+function automationTomlString(raw, key) {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const match = String(raw).match(new RegExp(`^${escaped}\\s*=\\s*"((?:\\\\.|[^"\\\\])*)"`, 'm'));
+  if (!match) return null;
+  try {
+    return JSON.parse(`"${match[1]}"`);
+  } catch {
+    return match[1];
+  }
+}
+
+function publicAutomationRef(automation) {
+  return {
+    directory: automation.directory,
+    id: automation.id,
+    name: automation.name,
+    status: automation.status,
   };
 }
 

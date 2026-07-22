@@ -307,8 +307,14 @@ done
 The bundled automations currently include:
 
 - `bigbrain-check-update`
-- `bigbrain-ingest-granola`
+- `bigbrain-route-granola` (installed paused until routing cutover)
 - `bigbrain-nightly-maintenance`
+
+The router is the sole supported machine-wide Granola writer. Before activating
+it, register and verify every destination brain, approve each brain's
+`BRAIN.md`, reconcile existing `granola_id` provenance, and pause or remove all
+retired Granola automations listed in `automations/retired.json`. Put rollback
+copies outside the live automation root.
 
 The automation environment must be able to write there. Read-only access is not
 sufficient because sync updates `bigbrain.sqlite`, `state.json`, and SQLite
@@ -461,7 +467,7 @@ brain_home="/path/to/brain-home"
 bigbrain_repo="$repo_root"
 
 mkdir -p "$automation_root"
-for id in bigbrain-check-update bigbrain-nightly-maintenance; do
+for id in bigbrain-check-update bigbrain-route-granola bigbrain-nightly-maintenance; do
   rm -rf "$automation_root/$id"
   cp -R "$repo_root/automations/$id" "$automation_root/$id"
   perl -0pi -e "s#<brain-home>#$brain_home#g" "$automation_root/$id/automation.toml"
@@ -473,6 +479,9 @@ The active install may contain machine-local paths because the runtime needs a
 real cwd. Do not commit those installed files back to the BigBrain repo.
 `bigbrain health --json` ignores install-local `cwds`, `created_at`, and
 `updated_at` when checking the active install against the repo templates.
+It also fails health when retired or duplicate Granola writers remain active.
+Keep `bigbrain-route-granola` paused until the profile and provenance cutover is
+complete.
 
 The old scheduled sync and Git backup automations are intentionally not
 installed here. The on-device event-driven MCP service handles sync/index

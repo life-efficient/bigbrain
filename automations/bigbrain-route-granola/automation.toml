@@ -1,0 +1,13 @@
+version = 1
+id = "bigbrain-route-granola"
+kind = "cron"
+name = "BigBrain Route Granola"
+prompt = "Operate the single machine-wide Granola ingestion route. Read the private BigBrain machine catalog and authenticated about profile for every registered brain. Use only safe Granola routing metadata; never place transcript, summary, notes, participant names, or meeting content in the catalog or routing ledger. Discover recent Granola items once, skip exact-title New note / New Note records, and make a deterministic routing decision using approved BRAIN.md rules. Hard exclusions override all other signals. Auto-ingest only when exactly one verified, reachable, authenticated, writable brain has an approved auto-ingest profile and the decision meets that profile's confidence threshold with a clear margin. Exact permitted source-folder rules may select a destination directly. Hold ambiguous, mixed-purpose, unprofiled, unhealthy, or unverified items for review; never fan one meeting out to multiple brains automatically. Before writing, acquire the routing-ledger lease and check destination provenance by granola_id. Use the destination brain's authenticated filing_rules and meeting-ingest workflow, preserve approved raw sidecars only inside that destination, then read back the canonical meeting and provenance before marking the ledger verified. A failed read-back is a failed route, not success. Process all approved profiles, including future brains, without adding another scheduled automation. Finish with a privacy-safe report of discovered, auto-routed, held, skipped, failed, and verified counts by brain; do not include meeting titles, people, transcripts, or content in the report."
+status = "PAUSED"
+rrule = "FREQ=DAILY;BYHOUR=4;BYMINUTE=15;BYSECOND=0"
+model = "gpt-5.5"
+reasoning_effort = "low"
+execution_environment = "local"
+cwds = ["<bigbrain-repo>"]
+created_at = 1784736000000
+updated_at = 1784736000000

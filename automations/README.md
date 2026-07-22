@@ -11,7 +11,9 @@ and execution settings.
 placeholders. The active installed automation should replace them with the local
 brain home path or BigBrain source repo path for that machine.
 `bigbrain health --json` compares active automations against these templates
-while ignoring install-local `cwds`, `created_at`, and `updated_at` fields.
+while ignoring install-local `cwds`, `created_at`, and `updated_at` fields. It
+also reports duplicate Granola writers, active retired IDs, duplicate IDs, and
+active backup directories left inside the live automation root.
 
 Do not store credentials, access tokens, or machine-local paths in this repo.
 Machine-local values belong only in the active agent install, Git config,
@@ -30,13 +32,20 @@ brain_home="/path/to/brain-home"
 bigbrain_repo="$repo_root"
 
 mkdir -p "$automation_root"
-for id in bigbrain-check-update bigbrain-ingest-granola bigbrain-nightly-maintenance; do
+for id in bigbrain-check-update bigbrain-route-granola bigbrain-nightly-maintenance; do
   rm -rf "$automation_root/$id"
   cp -R "$repo_root/automations/$id" "$automation_root/$id"
   perl -0pi -e "s#<brain-home>#$brain_home#g" "$automation_root/$id/automation.toml"
   perl -0pi -e "s#<bigbrain-repo>#$bigbrain_repo#g" "$automation_root/$id/automation.toml"
 done
 ```
+
+`bigbrain-route-granola` is the only supported machine-wide Granola writer. It
+ships paused so a machine can first register and verify its brains, approve each
+brain's `BRAIN.md`, and reconcile prior provenance. Activate it only in the same
+cutover that pauses or removes every retired Granola writer listed in
+`retired.json`. Keep rollback bundles outside the live automation root; Codex
+may treat any active `automation.toml` below that root as runnable.
 
 Keep the resulting local `cwds` entries in the active install only. Do not copy
 those machine-specific files back into this repo.

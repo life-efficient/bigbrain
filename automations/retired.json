@@ -1,0 +1,8 @@
+{
+  "automation_ids": [
+    "bigbrain-ingest-granola",
+    "granola-brain-ingest",
+    "granola-icaire-review",
+    "icaire-ingest-granola"
+  ]
+}

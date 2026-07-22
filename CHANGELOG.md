@@ -7,11 +7,32 @@ actions` section for agents maintaining device and server installations.
 
 ### Changed
 
+- Replaced the per-brain Granola scheduler template with one paused,
+  machine-wide `bigbrain-route-granola` automation. Added a retired-ID manifest
+  and high-severity health findings for duplicate Granola writers, active
+  retired IDs, duplicate automation IDs, and active backup directories in the
+  live automation root.
+- Added versioned `BRAIN.md` purpose/about profiles, an authenticated about
+  surface, a private machine brain catalog, deterministic metadata-only routing,
+  and an idempotent routing ledger with review and retry operations. Automatic
+  routing fails closed unless a destination is verified, reachable,
+  authenticated, writable, and explicitly approved for auto-ingest.
 - Reframed packaging and onboarding around two action-led paths: run BigBrain
   on this device or connect to an existing BigBrain service. Hosting ownership,
   Docker packaging, storage, client type, and private/shared access are now
   documented as separate deployment or configuration choices rather than
   competing product modes.
+
+### Agent update actions
+
+- Install `bigbrain-route-granola` in its bundled paused state.
+- Do not activate it until all destination profiles are approved and existing
+  `granola_id` provenance is reconciled.
+- In one cutover, pause or remove every ID in `automations/retired.json`, move
+  rollback copies outside the live automation root, then activate only
+  `bigbrain-route-granola`.
+- Run `bigbrain health --json` and require exactly one active Granola writer and
+  zero automation conflicts after cutover.
 
 ## [0.14.3] - 2026-07-20
 

@@ -99,6 +99,13 @@ This skill guarantees:
      manual follow-up instead
    - do not stop at listing found automations; install or refresh every safe
      automation before proceeding
+   - preserve the bundled `PAUSED` state of `bigbrain-route-granola` until an
+     explicit routing cutover has verified destination profiles and provenance
+   - read `automations/retired.json`; never restore a retired Granola automation
+     merely because an older active copy or another repo still contains it
+   - report and stop before enabling writes if more than one active Granola
+     writer, a duplicate automation ID, or an active backup directory exists
+     in the live automation root
 11. Apply release-specific actions:
    - execute every relevant `Agent update actions` item from `CHANGELOG.md`
      that applies to the local setup
@@ -108,7 +115,8 @@ This skill guarantees:
      `filing_rules` when an MCP-backed brain is configured
    - for new skills or automations, confirm active installs were refreshed
    - for removed skills or automations, remove stale BigBrain-owned active
-     installs when safe, or report the manual cleanup needed
+     installs when safe, or report the manual cleanup needed; place any rollback
+     bundle outside the live automation root
 12. Verify the updated checkout and active install:
    - `npm test`
    - `bigbrain health --json` against the default brain when configured
