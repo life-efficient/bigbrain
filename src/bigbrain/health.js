@@ -818,8 +818,8 @@ async function detectAutomationConflictStatus({ templateDir, activeDir }) {
 
   const activeGranolaWriters = installed.filter((automation) => (
     automation.status === 'ACTIVE'
-    && /granola/i.test(`${automation.id} ${automation.name} ${automation.prompt}`)
-    && /(ingest|route|review|write)/i.test(`${automation.id} ${automation.name} ${automation.prompt}`)
+    && /granola/i.test(`${automation.id} ${automation.name}`)
+    && /(ingest|route|review|write)/i.test(`${automation.id} ${automation.name}`)
   ));
   const conflicts = [];
   if (activeGranolaWriters.length > 1) {

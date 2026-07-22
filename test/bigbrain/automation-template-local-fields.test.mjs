@@ -121,6 +121,37 @@ test('health accepts one paused router alongside no active Granola writers', asy
   }
 });
 
+test('health does not mistake a non-Granola workflow that mentions the router for a writer', async () => {
+  const fixture = await createFixture('bigbrain-automation-non-writer-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const templateDir = path.join(fixture.rootDir, 'templates', 'automations');
+    const activeDir = path.join(fixture.rootDir, 'active', 'automations');
+    await fs.mkdir(templateDir, { recursive: true });
+    await fs.writeFile(path.join(templateDir, 'retired.json'), JSON.stringify({ automation_ids: [] }), 'utf8');
+    await writeAutomationToml(activeDir, 'sync-board-and-brain', `version = 1
+id = "sync-board-and-brain"
+kind = "cron"
+name = "Sync Board And Brain"
+prompt = "Do not call Granola; the BigBrain router owns Granola ingestion."
+status = "ACTIVE"
+rrule = "FREQ=DAILY;BYHOUR=8"
+`);
+
+    const report = await runHealthCheck(config, {
+      cliCommand: process.execPath,
+      automationTemplateDir: templateDir,
+      automationActiveDir: activeDir,
+      skillTemplateDir: path.join(fixture.rootDir, 'skills'),
+      skillActiveDir: path.join(fixture.rootDir, 'active', 'skills'),
+    });
+
+    assert.equal(report.automation_conflict_status.active_granola_writer_count, 0);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function createFixture(prefix) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   const pointerPath = path.join(rootDir, 'pointer');
