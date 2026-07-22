@@ -15,12 +15,14 @@ test('discovers current, historical, pointed, and running local brains without d
   const legacy = path.join(home, 'bigbrain-home');
   const intermediate = path.join(home, 'Documents', 'brain');
   const externallyIndexed = path.join(home, 'elsewhere', 'notes');
+  const nestedProject = path.join(home, 'projects', 'client-brain', 'cortex');
 
   await writeConfig(path.join(pointed, '.bigbrain-state', 'config.json'), pointed, 'brn_pointed', 'Personal Brain');
   await writeConfig(path.join(managed, '.bigbrain-state', 'config.json'), managed, 'brn_managed', 'Managed Brain');
   await writeConfig(path.join(legacy, '.bigbrain', 'config.json'), legacy, 'brn_legacy', 'Legacy Brain');
   await writeConfig(path.join(intermediate, '.bigbrain-state', 'brains', 'old-id', 'config.json'), intermediate, 'brn_intermediate', 'Intermediate Brain');
   await writeConfig(path.join(home, '.bigbrain-state', 'brains', 'external-id', 'config.json'), externallyIndexed, 'brn_external', 'Indexed Brain');
+  await writeConfig(path.join(nestedProject, '.bigbrain-state', 'config.json'), nestedProject, 'brn_nested', 'Nested Project Brain');
   await fs.mkdir(path.join(home, '.config', 'bigbrain'), { recursive: true });
   await fs.writeFile(path.join(home, '.config', 'bigbrain', 'default-brain-home'), `${pointed}\n`);
   await fs.mkdir(agents, { recursive: true });
@@ -40,7 +42,7 @@ test('discovers current, historical, pointed, and running local brains without d
     },
   });
 
-  assert.deepEqual(brains.map((brain) => brain.id).sort(), ['brn_external', 'brn_intermediate', 'brn_legacy', 'brn_pointed']);
+  assert.deepEqual(brains.map((brain) => brain.id).sort(), ['brn_external', 'brn_intermediate', 'brn_legacy', 'brn_nested', 'brn_pointed']);
   const personal = brains.find((brain) => brain.id === 'brn_pointed');
   assert.equal(personal.status, 'running');
   assert.equal(personal.serviceUrl, 'http://127.0.0.1:55560');

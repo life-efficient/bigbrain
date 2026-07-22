@@ -42,6 +42,12 @@ export async function discoverLocalBrains({
   for (const agent of agents) addHome(agent.home, 'BigBrain service');
 
   for (const conventional of conventionalHomes(homeDir)) addHome(conventional, 'Common BigBrain location');
+  for (const [root, source] of [
+    [path.join(homeDir, 'projects'), 'Projects folder'],
+    [path.join(homeDir, 'Documents'), 'Documents folder'],
+  ]) {
+    for (const discoveredHome of await shallowBrainHomes(root)) addHome(discoveredHome, source);
+  }
   for (const configPath of await indexedConfigPaths(homeDir)) {
     const raw = await readJson(configPath);
     addHome(raw?.brain_dir, 'Previous BigBrain runtime');
@@ -139,6 +145,26 @@ function conventionalHomes(home) {
 async function indexedConfigPaths(home) {
   const root = path.join(home, '.bigbrain-state', 'brains');
   return (await directoryNames(root)).map((child) => path.join(root, child, 'config.json'));
+}
+
+async function shallowBrainHomes(root, { maxDepth = 2, maxDirectories = 250 } = {}) {
+  const found = [];
+  const queue = [{ directory: root, depth: 0 }];
+  let visited = 0;
+  while (queue.length && visited < maxDirectories) {
+    const { directory, depth } = queue.shift();
+    visited += 1;
+    if (await isFile(path.join(directory, CURRENT_CONFIG)) || await isFile(path.join(directory, LEGACY_CONFIG))) {
+      found.push(directory);
+      continue;
+    }
+    if (depth >= maxDepth) continue;
+    for (const name of await directoryNames(directory)) {
+      if (name.startsWith('.') || ['node_modules', 'dist', 'build'].includes(name)) continue;
+      queue.push({ directory: path.join(directory, name), depth: depth + 1 });
+    }
+  }
+  return found;
 }
 
 async function directoryNames(directory) {
