@@ -102,6 +102,7 @@ test('service address validation accepts service routes and rejects unsafe URL s
 
 test('desktop onboarding exposes two working action-led setup paths', async () => {
   const desktopSource = await fs.readFile(new URL('../../electron/desktop.js', import.meta.url), 'utf8');
+  const desktopHtml = await fs.readFile(new URL('../../electron/desktop.html', import.meta.url), 'utf8');
   const preloadSource = await fs.readFile(new URL('../../electron/preload.cjs', import.meta.url), 'utf8');
   const mainSource = await fs.readFile(new URL('../../electron/main.cjs', import.meta.url), 'utf8');
   assert.match(desktopSource, /Run BigBrain on this device/);
@@ -116,6 +117,9 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(mainSource, /mainWindow\.loadURL\(brain\.dashboardUrl\)/);
   assert.match(mainSource, /Choose or add brain/);
   assert.match(mainSource, /will-frame-navigate/);
+  assert.match(desktopHtml, /--bg:#18181b/);
+  assert.match(desktopHtml, /\.primary\{border:1px solid #fafafa;background:#fafafa;color:#18181b/);
+  assert.doesNotMatch(desktopHtml, /#207146|#377652|#f4fff7|#f2f4ef/i);
   assert.doesNotMatch(desktopSource, /Hosted mode|Choose a mode|<strong>Local<\/strong>|cannot save service connections/);
 });
 

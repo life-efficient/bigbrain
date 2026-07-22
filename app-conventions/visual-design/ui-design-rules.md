@@ -26,3 +26,9 @@ states.
 - Memoize static, expensive SVG layers such as link paths and cluster decoration so hover and selection changes only update affected nodes and labels.
 - Reserve blur and glow filters for active or hovered elements. Do not apply GPU-heavy filters or independent infinite animations to every graph element.
 - Offer dense graph layouts that scale their virtual canvas with node count and enforce node separation; do not force every brain into one fixed coordinate space.
+
+## Desktop Shell Theming
+
+- Treat onboarding as part of the desktop shell, not as a separate branded surface.
+- Reuse the dashboard's dark neutral palette, translucent surfaces, borders, text hierarchy, and monochrome controls.
+- Primary onboarding actions use the shell's white-on-dark emphasis. Do not introduce an unrelated accent color for setup buttons, choices, or focus states.
