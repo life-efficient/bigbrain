@@ -189,8 +189,8 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(preloadSource, /desktop:api-key-options/);
   assert.match(preloadSource, /desktop:open-brain/);
   assert.match(preloadSource, /process\.isMainFrame/);
-  assert.match(preloadSource, /fileURLToPath\(location\.href\)/);
-  assert.match(preloadSource, /path\.join\(__dirname, 'desktop\.html'\)/);
+  assert.match(preloadSource, /location\.pathname\.endsWith\('\/electron\/desktop\.html'\)/);
+  assert.doesNotMatch(preloadSource, /require\(['"](?:path|url)['"]\)/);
   assert.match(mainSource, /connectedDashboardOrigins\.has\(parsed\.origin\)/);
   assert.match(mainSource, /mainWindow\.loadURL\(brain\.dashboardUrl\)/);
   assert.match(mainSource, /Choose or add brain/);
