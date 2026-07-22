@@ -17,6 +17,8 @@ let dashboardOrigin = null;
 let remoteDashboardMode = false;
 let rendererRecoveryAttempts = 0;
 let desktopController = null;
+let desktopUpdater = null;
+let promptedUpdateVersion = null;
 const connectedDashboardOrigins = new Set();
 
 const singleInstanceLock = app.requestSingleInstanceLock();
@@ -42,8 +44,11 @@ if (!singleInstanceLock) {
         dashboardUrl = pathToFileURL(path.join(__dirname, "desktop.html")).href;
         dashboardOrigin = "null";
       }
+      initializeDesktopUpdater();
+      registerUpdateIpc();
       createAppMenu();
       createMainWindow();
+      desktopUpdater.start();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       dialog.showErrorBox("BigBrain failed to start", message);
@@ -199,6 +204,24 @@ function createAppMenu() {
           },
         },
         { type: "separator" },
+        {
+          label: "Check for Updates…",
+          enabled: desktopUpdater?.snapshot().canCheck ?? false,
+          click: () => void handleManualUpdateCheck(),
+        },
+        ...(desktopUpdater?.snapshot().canRestart ? [{
+          label: "Restart to Install Update",
+          click: () => desktopUpdater.restartToInstall(),
+        }] : []),
+        {
+          label: updateMenuStatusLabel(),
+          enabled: false,
+        },
+        {
+          label: "Connected services update separately",
+          enabled: false,
+        },
+        { type: "separator" },
         { role: "services" },
         { type: "separator" },
         { role: "hide" },
@@ -246,6 +269,66 @@ function createAppMenu() {
   ];
 
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+}
+
+function initializeDesktopUpdater() {
+  const { DesktopUpdater } = require("./lib/desktop-updater.cjs");
+  const adapter = app.isPackaged ? require("electron-updater").autoUpdater : {};
+  desktopUpdater = new DesktopUpdater({
+    adapter,
+    version: app.getVersion(),
+    isPackaged: app.isPackaged,
+  });
+  desktopUpdater.on("state", (state) => {
+    createAppMenu();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send("desktop:update-state", state);
+    }
+    if (state.phase === "downloaded" && state.updateVersion !== promptedUpdateVersion) {
+      promptedUpdateVersion = state.updateVersion || "downloaded";
+      void promptToRestartForUpdate(state);
+    }
+  });
+}
+
+function registerUpdateIpc() {
+  ipcMain.handle("desktop:update-state", () => desktopUpdater.snapshot());
+  ipcMain.handle("desktop:check-for-updates", () => desktopUpdater.check());
+  ipcMain.handle("desktop:restart-to-update", () => desktopUpdater.restartToInstall());
+}
+
+function updateMenuStatusLabel() {
+  const state = desktopUpdater?.snapshot();
+  if (!state) return `Version ${app.getVersion()}`;
+  return `Version ${state.version} · ${state.message}`;
+}
+
+async function handleManualUpdateCheck() {
+  const state = await desktopUpdater.check();
+  if (["available", "downloading", "downloaded"].includes(state.phase)) {
+    if (state.phase === "downloaded") await promptToRestartForUpdate(state);
+    return;
+  }
+  await dialog.showMessageBox(mainWindow, {
+    type: state.phase === "error" ? "warning" : "info",
+    title: "BigBrain Updates",
+    message: state.message,
+    detail: `You are running BigBrain ${state.version}. Connected BigBrain services are not changed by desktop updates.`,
+    buttons: ["OK"],
+  });
+}
+
+async function promptToRestartForUpdate(state) {
+  const result = await dialog.showMessageBox(mainWindow, {
+    type: "info",
+    title: "BigBrain Update Ready",
+    message: state.updateVersion ? `BigBrain ${state.updateVersion} is ready to install.` : "A BigBrain update is ready to install.",
+    detail: "Restart the desktop app to finish. Connected BigBrain services are not changed.",
+    buttons: ["Restart BigBrain", "Later"],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (result.response === 0) desktopUpdater.restartToInstall();
 }
 
 function isTrustedInternalUrl(url) {

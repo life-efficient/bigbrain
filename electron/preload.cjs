@@ -18,5 +18,13 @@ if (isDesktopShell) {
     instructions: (id) => ipcRenderer.invoke('desktop:instructions', id),
     setDefault: (id) => ipcRenderer.invoke('desktop:set-default', id),
     reveal: (targetPath) => ipcRenderer.invoke('desktop:reveal', targetPath),
+    updateState: () => ipcRenderer.invoke('desktop:update-state'),
+    checkForUpdates: () => ipcRenderer.invoke('desktop:check-for-updates'),
+    restartToUpdate: () => ipcRenderer.invoke('desktop:restart-to-update'),
+    onUpdateState: (listener) => {
+      const handler = (_event, state) => listener(state);
+      ipcRenderer.on('desktop:update-state', handler);
+      return () => ipcRenderer.removeListener('desktop:update-state', handler);
+    },
   });
 }

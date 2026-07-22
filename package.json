@@ -30,6 +30,7 @@
     "@tiptap/markdown": "^3.23.5",
     "@tiptap/react": "^3.23.5",
     "@tiptap/starter-kit": "^3.23.5",
+    "electron-updater": "^6.8.9",
     "esbuild": "^0.28.1",
     "js-yaml": "^4.3.0",
     "pg": "^8.21.0",
@@ -52,6 +53,11 @@
       "output": "dist/electron"
     },
     "artifactName": "${productName}-${version}-mac-${arch}.${ext}",
+    "publish": {
+      "provider": "github",
+      "owner": "life-efficient",
+      "repo": "bigbrain"
+    },
     "files": [
       "bin/**/*",
       "electron/**/*",
