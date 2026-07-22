@@ -12,3 +12,15 @@ behavior.
   draft remains unapproved until an owner explicitly reviews it.
 - Never return owner email addresses, credential values, local paths, service
   labels, or raw parser diagnostics in an `about` response.
+
+## Desktop API-Key Onboarding
+
+- Detect credentials only from explicit BigBrain sources: the app environment,
+  `~/.config/bigbrain/.env`, and BigBrain-owned macOS Keychain entries.
+- Show the source and only the final four characters. Never send a complete
+  detected credential to the renderer, brain, registry, or logs.
+- Keep direct API-key entry available alongside detected choices and validate
+  the selected credential before completing setup.
+- Resolve a detected choice again in the main process when it is submitted;
+  renderer-provided source identifiers are not authority to read arbitrary
+  Keychain records.

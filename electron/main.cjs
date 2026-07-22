@@ -264,6 +264,7 @@ function isTrustedInternalUrl(url) {
 function registerDesktopIpc() {
   const handlers = {
     "desktop:state": async () => rememberConnectedDashboardOrigins(await desktopController.state()),
+    "desktop:api-key-options": (_event, input) => desktopController.availableApiKeys(input),
     "desktop:create-brain": (_event, input) => desktopController.createBrain(input),
     "desktop:connect-service": async (_event, input) => rememberConnectedDashboardOrigins(await desktopController.connectService(input)),
     "desktop:open-brain": async (_event, id) => {

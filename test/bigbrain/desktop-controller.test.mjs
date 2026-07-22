@@ -100,6 +100,78 @@ test('service address validation accepts service routes and rejects unsafe URL s
   assert.throws(() => normalizeServiceUrl('https://brain.example.test?token=secret'), /query parameters/);
 });
 
+test('desktop discovers only masked API-key descriptors from explicit BigBrain sources', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-api-key-discovery-'));
+  const userEnvFile = path.join(root, '.env');
+  await fs.writeFile(userEnvFile, "export OPENAI_API_KEY='sk-file-2222'\n");
+  const registry = {
+    load: async () => ({ brains: [
+      { id: 'local-brain', name: '<Research & Notes>' },
+      { id: 'remote-brain', name: 'Remote', connectionType: 'service' },
+      { id: 'missing-brain', name: 'Missing key' },
+    ] }),
+  };
+  const keychain = {
+    get: async (id) => {
+      if (id === 'local-brain') return 'sk-keychain-3333';
+      throw new Error('Keychain lookup denied: sk-do-not-leak');
+    },
+  };
+  const controller = new DesktopController({
+    registry,
+    keychain,
+    env: { HOME: root, OPENAI_API_KEY: 'sk-environment-1111' },
+    userEnvFile,
+  });
+
+  const options = await controller.availableApiKeys();
+  assert.deepEqual(options, [
+    { id: 'environment', label: 'OPENAI_API_KEY', detail: 'Available to the BigBrain app', masked: 'OpenAI key ending in 1111' },
+    { id: 'bigbrain-env-file', label: 'BigBrain configuration', detail: '~/.config/bigbrain/.env', masked: 'OpenAI key ending in 2222' },
+    { id: 'keychain:local-brain', label: '<Research & Notes>', detail: 'Stored in macOS Keychain', masked: 'OpenAI key ending in 3333' },
+  ]);
+  const serialized = JSON.stringify(options);
+  assert.doesNotMatch(serialized, /sk-environment|sk-file|sk-keychain|sk-do-not-leak/);
+  assert.doesNotMatch(serialized, /remote-brain/);
+  await fs.rm(root, { recursive: true, force: true });
+});
+
+test('API-key discovery deduplicates secrets and selected sources are resolved again in the main process', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-api-key-resolution-'));
+  const userEnvFile = path.join(root, '.env');
+  await fs.writeFile(userEnvFile, 'OPENAI_API_KEY="sk-shared-4444"\n');
+  const registry = { load: async () => ({ brains: [{ id: 'brain-one', name: 'One' }] }) };
+  const keychain = { get: async () => 'sk-keychain-5555' };
+  const controller = new DesktopController({
+    registry,
+    keychain,
+    env: { HOME: root, OPENAI_API_KEY: 'sk-shared-4444' },
+    userEnvFile,
+  });
+
+  assert.equal((await controller.availableApiKeys()).length, 2);
+  assert.equal(await controller.resolveApiKey({ apiKeySource: 'environment' }), 'sk-shared-4444');
+  assert.equal(await controller.resolveApiKey({ apiKeySource: 'keychain:brain-one' }), 'sk-keychain-5555');
+  assert.equal(await controller.resolveApiKey({ apiKeySource: 'manual', apiKey: '  sk-manual-6666  ' }), 'sk-manual-6666');
+  await assert.rejects(() => controller.resolveApiKey({ apiKeySource: 'keychain:tampered' }), /no longer available/);
+  await assert.rejects(() => controller.resolveApiKey({ apiKeySource: 'unknown-source' }), /valid API key source/);
+  await fs.rm(root, { recursive: true, force: true });
+});
+
+test('API-key validation uses the injected client without exposing the credential', async () => {
+  const requests = [];
+  const controller = new DesktopController({
+    fetchImpl: async (url, options) => {
+      requests.push({ url, options });
+      return new Response('{}', { status: 200 });
+    },
+  });
+  await controller.validateApiKey('sk-validation-7777');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, 'https://api.openai.com/v1/models');
+  assert.equal(requests[0].options.headers.Authorization, 'Bearer sk-validation-7777');
+});
+
 test('desktop onboarding exposes two working action-led setup paths', async () => {
   const desktopSource = await fs.readFile(new URL('../../electron/desktop.js', import.meta.url), 'utf8');
   const desktopHtml = await fs.readFile(new URL('../../electron/desktop.html', import.meta.url), 'utf8');
@@ -108,7 +180,13 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(desktopSource, /Run BigBrain on this device/);
   assert.match(desktopSource, /Connect to an existing BigBrain/);
   assert.match(desktopSource, /api\.connectService/);
+  assert.match(desktopSource, /api\.apiKeyOptions/);
+  assert.match(desktopSource, /Enter a different API key/);
+  assert.match(desktopSource, /escapeHtml\(option\.label\)/);
+  assert.match(desktopSource, /role="radio"/);
+  assert.match(desktopSource, /form\.apiKey='';showConnection/);
   assert.match(preloadSource, /desktop:connect-service/);
+  assert.match(preloadSource, /desktop:api-key-options/);
   assert.match(preloadSource, /desktop:open-brain/);
   assert.match(preloadSource, /process\.isMainFrame/);
   assert.match(preloadSource, /fileURLToPath\(location\.href\)/);
@@ -117,6 +195,7 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(mainSource, /mainWindow\.loadURL\(brain\.dashboardUrl\)/);
   assert.match(mainSource, /Choose or add brain/);
   assert.match(mainSource, /will-frame-navigate/);
+  assert.match(mainSource, /desktop:api-key-options/);
   assert.match(desktopHtml, /--bg:#18181b/);
   assert.match(desktopHtml, /\.primary\{border:1px solid #fafafa;background:#fafafa;color:#18181b/);
   assert.doesNotMatch(desktopHtml, /#207146|#377652|#f4fff7|#f2f4ef/i);

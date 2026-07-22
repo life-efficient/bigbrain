@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -10,12 +11,22 @@ import { findBrainLaunchAgent } from './launch-agent-discovery.mjs';
 const execFileAsync = promisify(execFile);
 
 export class DesktopController {
-  constructor({ registry = new BrainRegistry(), keychain = new MacKeychain(), appPath, nodePath = process.execPath, fetchImpl = fetch } = {}) {
+  constructor({
+    registry = new BrainRegistry(),
+    keychain = new MacKeychain(),
+    appPath,
+    nodePath = process.execPath,
+    fetchImpl = fetch,
+    env = process.env,
+    userEnvFile = null,
+  } = {}) {
     this.registry = registry;
     this.keychain = keychain;
     this.appPath = appPath;
     this.nodePath = nodePath;
     this.fetchImpl = fetchImpl;
+    this.env = env;
+    this.userEnvFile = userEnvFile || path.join(env.HOME || os.homedir(), '.config', 'bigbrain', '.env');
   }
 
   async state() {
@@ -25,9 +36,59 @@ export class DesktopController {
 
   async validateApiKey(apiKey) {
     if (!apiKey?.startsWith('sk-')) throw new Error('Enter a valid OpenAI API key.');
-    const response = await fetch('https://api.openai.com/v1/models', { headers: { Authorization: `Bearer ${apiKey}` } });
+    const response = await this.fetchImpl('https://api.openai.com/v1/models', { headers: { Authorization: `Bearer ${apiKey}` } });
     if (!response.ok) throw new Error(`OpenAI rejected this API key (HTTP ${response.status}).`);
     return true;
+  }
+
+  async availableApiKeys({ existingHome = null } = {}) {
+    const candidates = [];
+    if (this.env.OPENAI_API_KEY) {
+      candidates.push({ id: 'environment', label: 'OPENAI_API_KEY', detail: 'Available to the BigBrain app', secret: this.env.OPENAI_API_KEY });
+    }
+
+    const fileKey = await readOpenAiKeyFromEnvFile(this.userEnvFile);
+    if (fileKey) {
+      candidates.push({ id: 'bigbrain-env-file', label: 'BigBrain configuration', detail: '~/.config/bigbrain/.env', secret: fileKey });
+    }
+
+    const registry = await this.registry.load();
+    const allowedBrains = registry.brains.filter((brain) => brain.connectionType !== 'service');
+    if (existingHome) {
+      const existing = await this.inspectExistingBrain(existingHome);
+      if (!allowedBrains.some((brain) => brain.id === existing.id)) allowedBrains.push(existing);
+    }
+    for (const brain of allowedBrains) {
+      const secret = await this.keychain.get(brain.id).catch(() => null);
+      if (secret) candidates.push({ id: `keychain:${brain.id}`, label: brain.name, detail: 'Stored in macOS Keychain', secret });
+    }
+
+    const seen = new Set();
+    return candidates.flatMap((candidate) => {
+      const secret = candidate.secret.trim();
+      if (!secret || seen.has(secret)) return [];
+      seen.add(secret);
+      return [{ id: candidate.id, label: candidate.label, detail: candidate.detail, masked: maskApiKey(secret) }];
+    });
+  }
+
+  async resolveApiKey(input) {
+    const source = input?.apiKeySource || 'manual';
+    if (source === 'manual') return input?.apiKey?.trim() || '';
+    if (source === 'environment') return this.env.OPENAI_API_KEY?.trim() || '';
+    if (source === 'bigbrain-env-file') return await readOpenAiKeyFromEnvFile(this.userEnvFile) || '';
+    if (source.startsWith('keychain:')) {
+      const brainId = source.slice('keychain:'.length);
+      const registry = await this.registry.load();
+      let allowed = registry.brains.some((brain) => brain.connectionType !== 'service' && brain.id === brainId);
+      if (!allowed && input?.existingHome) {
+        const existing = await this.inspectExistingBrain(input.existingHome);
+        allowed = existing.id === brainId;
+      }
+      if (!allowed) throw new Error('That saved API key is no longer available. Choose another key.');
+      return await this.keychain.get(brainId).catch(() => '');
+    }
+    throw new Error('Choose a valid API key source.');
   }
 
   async inspectExistingBrain(home) {
@@ -47,12 +108,13 @@ export class DesktopController {
   async createBrain(input) {
     validateInput(input);
     const existing = input.existingHome ? await this.inspectExistingBrain(input.existingHome) : null;
+    const apiKey = await this.resolveApiKey(input);
+    await this.validateApiKey(apiKey);
     const draft = existing
       ? await this.registry.registerExisting({ ...existing, ownerName: input.ownerName, ownerEmail: input.ownerEmail })
       : await this.registry.createDraft(input);
     try {
-      await this.validateApiKey(input.apiKey);
-      await this.keychain.set(draft.id, input.apiKey);
+      await this.keychain.set(draft.id, apiKey);
       const [{ initializeBrainHome }, { loadConfig }, { syncBrain }] = await Promise.all([
         import(pathToModule(this.appPath, 'src/bigbrain/config.js')),
         import(pathToModule(this.appPath, 'src/bigbrain/config.js')),
@@ -62,7 +124,7 @@ export class DesktopController {
       const ownerSlug = `people/${slugify(input.ownerName)}`;
       await this.installService(draft, { ownerSlug });
       const config = await loadConfig({ brainHome: draft.home });
-      await syncBrain({ config, env: { ...process.env, OPENAI_API_KEY: input.apiKey } }).catch(() => null);
+      await syncBrain({ config, apiKey }).catch(() => null);
       const brain = await this.registry.update(draft.id, {
         status: 'running',
         owner: { ...draft.owner, personSlug: ownerSlug },
@@ -137,6 +199,30 @@ export class DesktopController {
 }
 
 function pathToModule(root, relative) { return new URL(`file://${path.join(root, relative)}`).href; }
+function maskApiKey(value) { return `OpenAI key ending in ${String(value).slice(-4)}`; }
+async function readOpenAiKeyFromEnvFile(filePath) {
+  let raw;
+  try {
+    raw = await fs.readFile(filePath, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+  for (const line of raw.split(/\r?\n/)) {
+    const normalized = line.trim().replace(/^export\s+/, '');
+    if (!normalized || normalized.startsWith('#')) continue;
+    const match = normalized.match(/^OPENAI_API_KEY\s*=\s*(.*)$/);
+    if (!match) continue;
+    return unquoteEnvValue(match[1].trim());
+  }
+  return null;
+}
+function unquoteEnvValue(value) {
+  if (value.length >= 2 && ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'")))) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
 function slugify(value) { return String(value).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'owner'; }
 function validateInput(input) {
   if (!input?.ownerName?.trim() || !input?.ownerEmail?.includes('@')) throw new Error('Name and a valid email are required.');
