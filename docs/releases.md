@@ -14,6 +14,18 @@ Every release must update:
 - `package-lock.json`
 - `CHANGELOG.md`
 
+One release tag publishes the matching desktop and server artifacts:
+
+- a signed and notarized universal macOS DMG and ZIP
+- Electron update metadata (`latest-mac.yml` and blockmaps)
+- a multi-architecture server image at
+  `ghcr.io/life-efficient/bigbrain:<version>` plus its immutable digest
+
+The macOS release job requires the protected `MACOS_CERTIFICATE_P12`,
+`MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and
+`APPLE_TEAM_ID` repository secrets. Do not publish an unsigned artifact to the
+stable desktop update feed.
+
 ## Changelog Contract
 
 Each release entry must include `Agent update actions`. That section is the
@@ -60,5 +72,19 @@ ask the user.
    ```
 
 7. If a GitHub Release is created, copy the matching changelog entry.
+8. Confirm the GitHub Release contains `latest-mac.yml`, ZIP/DMG blockmaps, and
+   signed desktop packages.
+9. Confirm the matching GHCR image exists for both `linux/amd64` and
+   `linux/arm64`, then record the production digest before promotion.
+
+## Update Policy
+
+- The desktop checks automatically and keeps a manual **Check for Updates**
+  action. It updates only itself and desktop-managed local MCP services.
+- Headless source installs use `bigbrain update --apply` through the scheduled
+  updater. Dirty, detached, diverged, and major-version updates stop safely.
+- Server deployments pull a tagged image, pin its digest, and are promoted by
+  deployment automation or an operator. Running containers never self-update.
+- Keep database and markdown backups separate from application artifacts.
 
 Do not tag a release if required tests or agent update actions are unknown.

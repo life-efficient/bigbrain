@@ -70,8 +70,7 @@
     "mac": {
       "icon": "electron/assets/desktop-app-icon.icns",
       "category": "public.app-category.productivity",
-      "identity": null,
-      "hardenedRuntime": false,
+      "hardenedRuntime": true,
       "x64ArchFiles": "Contents/Resources/app/node_modules/**/esbuild",
       "target": [
         {

@@ -18,6 +18,17 @@ OAuth records.
 
 ## Run
 
+Released deployments use the published image selected by `BIGBRAIN_IMAGE`.
+Pin an immutable digest in production, for example:
+
+```sh
+BIGBRAIN_IMAGE=ghcr.io/life-efficient/bigbrain@sha256:... docker compose --env-file .env pull app
+BIGBRAIN_IMAGE=ghcr.io/life-efficient/bigbrain@sha256:... docker compose --env-file .env up -d app
+```
+
+The local `build:` definition remains available for development with
+`docker compose --env-file .env up --build`.
+
 From this directory:
 
 ```sh

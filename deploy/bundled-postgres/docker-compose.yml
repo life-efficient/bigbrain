@@ -1,5 +1,6 @@
 services:
   app:
+    image: ${BIGBRAIN_IMAGE:-ghcr.io/life-efficient/bigbrain:latest}
     build:
       context: ../..
       dockerfile: deploy/bundled-postgres/Dockerfile

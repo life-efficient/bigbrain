@@ -26,6 +26,7 @@ test('bundled postgres deployment template is runnable and verifies expected che
   ]);
 
   assert.match(compose, /pgvector\/pgvector:pg16/);
+  assert.match(compose, /ghcr\.io\/life-efficient\/bigbrain:latest/);
   assert.match(compose, /postgres-data:\/var\/lib\/postgresql\/data/);
   assert.match(compose, /condition: service_healthy/);
   assert.match(compose, /\/ready/);

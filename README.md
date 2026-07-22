@@ -31,6 +31,11 @@ bigbrain query "what should I know about this project?"
 
 Pass `--brain-home /path/to/brain-home` when targeting a non-default brain.
 
+Check for a compatible BigBrain release with `bigbrain update --check`. Source
+installations can apply one with `bigbrain update --apply`; headless macOS
+installations can use `scripts/install-headless-updater.mjs` to run that safe
+update path automatically and verify the MCP service after restart.
+
 ## Agent Setup
 
 Agent setup lives in [`INSTALL_FOR_AGENTS.md`](./INSTALL_FOR_AGENTS.md).
