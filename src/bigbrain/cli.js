@@ -149,6 +149,35 @@ async function handleBrains(args, global) {
     output(global, value, `Added ${config.brainName} to the machine catalog.`);
     return;
   }
+  if (action === 'add-remote') {
+    const brainId = argValue(args, '--brain-id');
+    const brainName = argValue(args, '--name');
+    const handle = argValue(args, '--handle');
+    const endpoint = argValue(args, '--endpoint');
+    if (!brainId || !brainName || !handle || !endpoint) {
+      throw new Error('Usage: bigbrain brains add-remote --brain-id ID --name NAME --handle HANDLE --endpoint MCP_URL [--authenticated] [--writable]');
+    }
+    const health = await verifyRemoteBrainHealth(endpoint, brainId);
+    const now = new Date().toISOString();
+    const value = await catalog.upsert({
+      brain_id: brainId,
+      brain_name: brainName,
+      kind: 'remote',
+      connection: { type: 'codex_mcp', handle, endpoint },
+      verification: { state: 'verified', verified_at: now },
+      profile: { state: 'unknown', schema_version: null, profile_version: null },
+      access: {
+        auth_state: args.includes('--authenticated') ? 'authenticated' : 'unknown',
+        writability: args.includes('--writable') ? 'writable' : 'unknown',
+      },
+      health: { status: 'healthy', checked_at: now },
+      local: null,
+      created_at: now,
+      updated_at: now,
+    });
+    output(global, { catalog: value, health }, `Added verified remote brain ${brainName} to the machine catalog.`);
+    return;
+  }
   if (action === 'import-registry') {
     const sourcePath = argValue(args, '--from') || args[1];
     if (!sourcePath) throw new Error('Usage: bigbrain brains import-registry --from <registry.json>');
@@ -167,7 +196,21 @@ async function handleBrains(args, global) {
     output(global, removed, `Removed ${removed.brain_name} from the machine catalog.`);
     return;
   }
-  throw new Error('brains requires "list", "add-local", "import-registry", or "remove".');
+  throw new Error('brains requires "list", "add-local", "add-remote", "import-registry", or "remove".');
+}
+
+async function verifyRemoteBrainHealth(endpoint, expectedBrainId) {
+  const url = new URL(endpoint);
+  url.pathname = '/health';
+  url.search = '';
+  url.hash = '';
+  const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
+  if (!response.ok) throw new Error(`Remote brain health returned HTTP ${response.status}.`);
+  const health = await response.json();
+  if (health?.ok !== true || health?.brain_id !== expectedBrainId) {
+    throw new Error('Remote health did not confirm the expected canonical brain_id.');
+  }
+  return { ok: true, brain_id: health.brain_id, brain_name: health.brain_name ?? null };
 }
 
 async function handleGranola(args, global) {
@@ -660,6 +703,7 @@ Commands:
   about set --from <BRAIN.md-or-json> [--approve]
   brains list
   brains add-local <brain-home> [--handle HANDLE]
+  brains add-remote --brain-id ID --name NAME --handle HANDLE --endpoint MCP_URL [--authenticated] [--writable]
   brains import-registry --from <registry.json>
   brains remove <brain-id>
   granola decide --from <routing-input.json>
