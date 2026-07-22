@@ -22,8 +22,53 @@ test('stable ignores prereleases while beta selects the newest prerelease', asyn
 
     assert.equal(stable.status, 'update_available');
     assert.equal(stable.available_version, '1.1.0');
+    assert.deepEqual(stable.tag_verification, {
+      mode: 'permissive',
+      signature: 'unverified',
+      version_match: 'verified',
+      on_tracked_upstream: true,
+    });
     assert.equal(beta.status, 'update_available');
     assert.equal(beta.available_version, '1.2.0-beta.1');
+  } finally {
+    await fs.rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('check blocks a release tag whose package version does not match', async () => {
+  const fixture = await createReleaseFixture();
+  try {
+    await release(fixture.publisher, '1.1.0', 'v1.2.0');
+    const report = await checkForUpdate({ repoRoot: fixture.checkout });
+
+    assert.equal(report.status, 'blocked');
+    assert.equal(report.reason, 'release_tag_version_mismatch');
+    assert.equal(report.available_version, '1.2.0');
+    assert.equal(report.tagged_package_version, '1.1.0');
+    assert.equal(report.tag_verification.version_match, 'failed');
+    assert.equal(report.tag_verification.on_tracked_upstream, true);
+    assert.equal(updateExitCode(report), 2);
+  } finally {
+    await fs.rm(fixture.root, { recursive: true, force: true });
+  }
+});
+
+test('strict signed-tag mode blocks an unsigned release while permissive mode reports it', async () => {
+  const fixture = await createReleaseFixture();
+  try {
+    await release(fixture.publisher, '1.1.0', 'v1.1.0');
+    const permissive = await checkForUpdate({ repoRoot: fixture.checkout });
+    assert.equal(permissive.status, 'update_available');
+    assert.equal(permissive.tag_verification.mode, 'permissive');
+    assert.equal(permissive.tag_verification.signature, 'unverified');
+
+    const strict = await checkForUpdate({ repoRoot: fixture.checkout, requireSignedTags: true });
+    assert.equal(strict.status, 'blocked');
+    assert.equal(strict.reason, 'release_tag_signature_unverified');
+    assert.equal(strict.tag_verification.mode, 'strict');
+    assert.equal(strict.tag_verification.signature, 'unverified');
+    assert.equal(strict.tag_verification.version_match, 'verified');
+    assert.equal(updateExitCode(strict), 2);
   } finally {
     await fs.rm(fixture.root, { recursive: true, force: true });
   }

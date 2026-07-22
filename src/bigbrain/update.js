@@ -11,6 +11,7 @@ const DEFAULT_REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.ur
 export async function checkForUpdate({
   repoRoot = process.env.BIGBRAIN_REPO || DEFAULT_REPO_ROOT,
   channel = process.env.BIGBRAIN_UPDATE_CHANNEL || 'stable',
+  requireSignedTags = process.env.BIGBRAIN_UPDATE_REQUIRE_SIGNED_TAGS === '1',
   run = runCommand,
   now = () => new Date().toISOString(),
 } = {}) {
@@ -25,6 +26,13 @@ export async function checkForUpdate({
     available_version: null,
     current_ref: null,
     available_ref: null,
+    tracked_upstream: null,
+    tag_verification: {
+      mode: requireSignedTags ? 'strict' : 'permissive',
+      signature: 'not_checked',
+      version_match: 'not_checked',
+      on_tracked_upstream: false,
+    },
     checked_at: now(),
     reason: null,
   };
@@ -44,6 +52,7 @@ export async function checkForUpdate({
       return { ...base, status: 'blocked', reason: 'tracked_upstream_required' };
     }
     const upstreamRef = upstream.stdout.trim();
+    base.tracked_upstream = upstreamRef;
     const remote = upstreamRef.split('/')[0];
     await run('git', ['fetch', '--prune', '--tags', remote], { cwd: resolvedRepo });
 
@@ -70,6 +79,33 @@ export async function checkForUpdate({
 
     base.available_version = formatSemver(selected.semver);
     base.available_ref = selected.tag;
+    base.tag_verification.on_tracked_upstream = true;
+    const taggedPackageResult = await gitResult(run, resolvedRepo, ['show', `${selected.tag}:package.json`]);
+    let taggedPackageVersion = null;
+    if (taggedPackageResult.ok) {
+      try {
+        taggedPackageVersion = JSON.parse(taggedPackageResult.stdout).version;
+      } catch {
+        taggedPackageVersion = null;
+      }
+    }
+    const expectedVersion = selected.tag.slice(1);
+    if (taggedPackageVersion !== expectedVersion) {
+      base.tag_verification.version_match = 'failed';
+      return {
+        ...base,
+        status: 'blocked',
+        reason: 'release_tag_version_mismatch',
+        tagged_package_version: taggedPackageVersion,
+      };
+    }
+    base.tag_verification.version_match = 'verified';
+
+    const signature = await gitResult(run, resolvedRepo, ['verify-tag', selected.tag]);
+    base.tag_verification.signature = signature.ok ? 'verified' : 'unverified';
+    if (requireSignedTags && !signature.ok) {
+      return { ...base, status: 'blocked', reason: 'release_tag_signature_unverified' };
+    }
     const currentSemver = parseSemver(packageJson.version);
     if (!currentSemver) throw new Error(`Current package version is not valid SemVer: ${packageJson.version}`);
 
@@ -84,12 +120,13 @@ export async function checkForUpdate({
 export async function applyUpdate({
   repoRoot = process.env.BIGBRAIN_REPO || DEFAULT_REPO_ROOT,
   channel = process.env.BIGBRAIN_UPDATE_CHANNEL || 'stable',
+  requireSignedTags = process.env.BIGBRAIN_UPDATE_REQUIRE_SIGNED_TAGS === '1',
   allowMajor = false,
   run = runCommand,
   postUpdate = true,
   now = () => new Date().toISOString(),
 } = {}) {
-  const check = await checkForUpdate({ repoRoot, channel, run, now });
+  const check = await checkForUpdate({ repoRoot, channel, requireSignedTags, run, now });
   const report = { ...check, action: 'apply' };
   if (check.status !== 'update_available') return report;
 
@@ -240,6 +277,8 @@ function humanReason(reason) {
     release_history_diverged: 'local commits do not fast-forward to the release',
     tracked_upstream_required: 'the current branch has no tracked upstream',
     major_update_requires_approval: 'major releases require --allow-major',
+    release_tag_version_mismatch: 'the release tag does not match its package version',
+    release_tag_signature_unverified: 'strict mode could not verify the release tag signature',
   })[reason] || String(reason || 'manual attention is required').replaceAll('_', ' ');
 }
 

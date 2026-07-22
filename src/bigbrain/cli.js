@@ -704,6 +704,7 @@ async function handleUpdate(args, global) {
   const options = {
     channel,
     repoRoot: process.env.BIGBRAIN_REPO,
+    requireSignedTags: args.includes('--require-signed-tags') ? true : undefined,
   };
   const report = wantsApply
     ? await applyUpdate({ ...options, allowMajor: args.includes('--allow-major') })
@@ -801,8 +802,8 @@ Commands:
   dashboard [--host HOST] [--port N] [--no-open]
   mcp [--host HOST] [--port N]
   connect codex <service-url> [--name NAME] [--auth oauth|token] [--token-stdin]
-  update --check [--channel stable|beta]
-  update --apply [--channel stable|beta] [--allow-major]
+  update --check [--channel stable|beta] [--require-signed-tags]
+  update --apply [--channel stable|beta] [--allow-major] [--require-signed-tags]
 
 Global options:
   --brain-home <path>
