@@ -5,6 +5,42 @@ actions` section for agents maintaining device and server installations.
 
 ## Unreleased
 
+## [0.16.1] - 2026-07-22
+
+### Fixed
+
+- Allowed the release pipeline to publish an explicitly unsigned universal
+  macOS DMG and ZIP when Apple Developer signing credentials are unavailable,
+  instead of failing before any desktop or server artifacts are published.
+- Kept unsigned packages out of the automatic-update feed: their filenames end
+  in `-unsigned`, the release includes `UNSIGNED-MACOS.txt`, and no
+  `latest-mac.yml` or blockmaps are attached.
+- Preserved the signed and notarized publishing path for a future release once
+  Apple Developer credentials are configured.
+
+### Agent update actions
+
+- Treat the v0.16.1 macOS DMG and ZIP as manual, unsigned downloads. macOS will
+  initially block BigBrain because the developer cannot be verified. After the
+  first launch attempt, open **System Settings → Privacy & Security**, choose
+  **Open Anyway**, authenticate, and confirm **Open**. Managed Macs may prevent
+  this override.
+- Do not configure v0.16.1 as an automatic desktop update. Verify the GitHub
+  Release has no `latest-mac.yml` or blockmaps before sharing it.
+- Existing source-install, headless-updater, and server actions from v0.16.0
+  remain applicable. Use version `0.16.1` for the source tag and server image.
+- No brain pages, task fields, filing rules, skills, automations, database data,
+  API keys, registry entries, or default-brain pointers require migration.
+- Run `bigbrain sync --json`, `bigbrain health --json`, and `npm test`.
+
+### Verification
+
+- `npm test`
+- `npm_config_cache=/private/tmp/bigbrain-npm-cache npm pack --dry-run`
+- GitHub Actions unsigned universal macOS packaging and asset-name verification
+- GitHub Release verification that automatic-update metadata is absent
+- Multi-architecture GHCR image verification
+
 ## [0.16.0] - 2026-07-22
 
 ### Added

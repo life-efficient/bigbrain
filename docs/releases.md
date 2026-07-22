@@ -16,15 +16,19 @@ Every release must update:
 
 One release tag publishes the matching desktop and server artifacts:
 
-- a signed and notarized universal macOS DMG and ZIP
-- Electron update metadata (`latest-mac.yml` and blockmaps)
+- when Apple credentials are configured, a signed and notarized universal
+  macOS DMG and ZIP plus Electron update metadata (`latest-mac.yml` and
+  blockmaps)
+- otherwise, explicitly named `-unsigned` DMG and ZIP manual downloads with a
+  Gatekeeper warning and no automatic-update metadata
 - a multi-architecture server image at
   `ghcr.io/life-efficient/bigbrain:<version>` plus its immutable digest
 
 The macOS release job requires the protected `MACOS_CERTIFICATE_P12`,
 `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and
-`APPLE_TEAM_ID` repository secrets. Do not publish an unsigned artifact to the
-stable desktop update feed.
+`APPLE_TEAM_ID` repository secrets. Unsigned artifacts may be offered only as
+clearly labelled manual downloads; never publish them to the stable desktop
+update feed.
 
 ## Changelog Contract
 
@@ -72,15 +76,18 @@ ask the user.
    ```
 
 7. If a GitHub Release is created, copy the matching changelog entry.
-8. Confirm the GitHub Release contains `latest-mac.yml`, ZIP/DMG blockmaps, and
-   signed desktop packages.
+8. For a signed release, confirm the GitHub Release contains `latest-mac.yml`,
+   ZIP/DMG blockmaps, and signed desktop packages. For an unsigned release,
+   confirm the assets are named `-unsigned`, include `UNSIGNED-MACOS.txt`, and
+   contain no `latest-mac.yml` or blockmaps.
 9. Confirm the matching GHCR image exists for both `linux/amd64` and
    `linux/arm64`, then record the production digest before promotion.
 
 ## Update Policy
 
-- The desktop checks automatically and keeps a manual **Check for Updates**
-  action. It updates only itself and desktop-managed local MCP services.
+- Signed desktop releases are eligible for automatic updates and keep a manual
+  **Check for Updates** action. Unsigned releases are manual downloads only and
+  must never include automatic-update metadata.
 - Headless source installs use `bigbrain update --apply` through the scheduled
   updater. Dirty, detached, diverged, and major-version updates stop safely.
 - Server deployments pull a tagged image, pin its digest, and are promoted by

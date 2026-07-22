@@ -95,3 +95,17 @@ test('desktop exposes update status and manual controls without a service-update
   assert.match(desktopHtml, /id="update-control"/);
   assert.doesNotMatch(mainSource, /desktop:update-service|desktopController\.update/);
 });
+
+test('release workflow labels unsigned packages and excludes them from the automatic-update feed', async () => {
+  const workflow = await fs.readFile(new URL('../../.github/workflows/release-macos.yml', import.meta.url), 'utf8');
+  assert.match(workflow, /Determine macOS distribution mode/);
+  assert.match(workflow, /Build signed and notarized universal macOS packages/);
+  assert.match(workflow, /Build unsigned universal macOS packages/);
+  assert.match(workflow, /CSC_IDENTITY_AUTO_DISCOVERY: false/);
+  assert.match(workflow, /mac-universal-unsigned\.dmg/);
+  assert.match(workflow, /mac-universal-unsigned\.zip/);
+  assert.match(workflow, /UNSIGNED-MACOS\.txt/);
+  assert.match(workflow, /rm -f .*latest-mac\.yml/);
+  assert.match(workflow, /Attach unsigned packages to GitHub Release/);
+  assert.match(workflow, /steps\.signing\.outputs\.enabled != 'true'/);
+});

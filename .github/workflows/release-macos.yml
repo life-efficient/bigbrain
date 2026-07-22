@@ -44,14 +44,47 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Determine macOS distribution mode
+        id: signing
+        run: |
+          if [[ -n "$CSC_LINK" && -n "$CSC_KEY_PASSWORD" && -n "$APPLE_ID" && -n "$APPLE_APP_SPECIFIC_PASSWORD" && -n "$APPLE_TEAM_ID" ]]; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "Building signed and notarized macOS packages."
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Apple signing credentials are unavailable; building explicitly unsigned manual-download packages."
+          fi
+
       - name: Build signed and notarized universal macOS packages
+        if: steps.signing.outputs.enabled == 'true'
         run: npm run desktop:dist -- --config.mac.notarize=true
+
+      - name: Build unsigned universal macOS packages
+        if: steps.signing.outputs.enabled != 'true'
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: |
+          unset CSC_LINK CSC_KEY_PASSWORD APPLE_ID APPLE_APP_SPECIFIC_PASSWORD APPLE_TEAM_ID
+          npm run desktop:dist
+          cd dist/electron
+          for package in BigBrain-*-mac-universal.dmg BigBrain-*-mac-universal.zip; do
+            extension="${package##*.}"
+            mv "$package" "${package%.*}-unsigned.$extension"
+          done
+          rm -f BigBrain-*-mac-universal.dmg.blockmap BigBrain-*-mac-universal.zip.blockmap latest-mac.yml
+          printf '%s\n' \
+            'UNSIGNED MACOS BUILD' \
+            'This app is not signed or notarized by Apple.' \
+            'macOS will require a manual Privacy & Security > Open Anyway override.' \
+            'This build is intentionally excluded from the automatic-update feed.' \
+            > UNSIGNED-MACOS.txt
 
       - name: Generate SHA-256 checksums
         working-directory: dist/electron
-        run: shasum -a 256 BigBrain-*-mac-universal.dmg BigBrain-*-mac-universal.zip > SHA256SUMS.txt
+        run: shasum -a 256 BigBrain-*-mac-universal*.dmg BigBrain-*-mac-universal*.zip > SHA256SUMS.txt
 
-      - name: Upload workflow artifacts
+      - name: Upload signed workflow artifacts
+        if: steps.signing.outputs.enabled == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: BigBrain-${{ github.ref_name }}-macOS
@@ -64,8 +97,20 @@ jobs:
             dist/electron/SHA256SUMS.txt
           if-no-files-found: error
 
-      - name: Attach packages to GitHub Release
-        if: github.event_name == 'push'
+      - name: Upload unsigned workflow artifacts
+        if: steps.signing.outputs.enabled != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: BigBrain-${{ github.ref_name }}-macOS-unsigned
+          path: |
+            dist/electron/BigBrain-*-mac-universal-unsigned.dmg
+            dist/electron/BigBrain-*-mac-universal-unsigned.zip
+            dist/electron/SHA256SUMS.txt
+            dist/electron/UNSIGNED-MACOS.txt
+          if-no-files-found: error
+
+      - name: Attach signed packages to GitHub Release
+        if: github.event_name == 'push' && steps.signing.outputs.enabled == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -86,6 +131,29 @@ jobs:
               dist/electron/BigBrain-*-mac-universal.zip.blockmap \
               dist/electron/latest-mac.yml \
               dist/electron/SHA256SUMS.txt \
+              --verify-tag \
+              --generate-notes \
+              --title "BigBrain $GITHUB_REF_NAME"
+          fi
+
+      - name: Attach unsigned packages to GitHub Release
+        if: github.event_name == 'push' && steps.signing.outputs.enabled != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" \
+              dist/electron/BigBrain-*-mac-universal-unsigned.dmg \
+              dist/electron/BigBrain-*-mac-universal-unsigned.zip \
+              dist/electron/SHA256SUMS.txt \
+              dist/electron/UNSIGNED-MACOS.txt \
+              --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              dist/electron/BigBrain-*-mac-universal-unsigned.dmg \
+              dist/electron/BigBrain-*-mac-universal-unsigned.zip \
+              dist/electron/SHA256SUMS.txt \
+              dist/electron/UNSIGNED-MACOS.txt \
               --verify-tag \
               --generate-notes \
               --title "BigBrain $GITHUB_REF_NAME"
