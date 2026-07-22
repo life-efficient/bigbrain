@@ -16,6 +16,7 @@ const SECRET_KEY = /(?:token|secret|password|authorization|cookie|api[_-]?key|cr
 const BRAIN_ID = /^brn_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function defaultMachineCatalogDir(env = process.env) {
+  if (env.BIGBRAIN_MACHINE_HOME) return path.resolve(env.BIGBRAIN_MACHINE_HOME);
   if (env.BIGBRAIN_CONFIG_DIR) return path.resolve(env.BIGBRAIN_CONFIG_DIR);
   return path.join(path.resolve(env.HOME || os.homedir()), '.config', 'bigbrain');
 }

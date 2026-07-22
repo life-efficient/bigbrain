@@ -6,7 +6,7 @@ import { randomUUID } from 'node:crypto';
 
 import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
 import { persistState } from './config.js';
-import { authenticatedBrainAbout, loadBrainProfile } from './brain-profile.js';
+import { authenticatedBrainAbout, loadBrainProfile, saveBrainProfileRevision } from './brain-profile.js';
 import {
   createDashboardRequestHandler,
   dashboardSessionCookie,
@@ -399,6 +399,18 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         authState: actor ? 'authenticated' : 'local_trusted',
         writable: canCallTool('create_page', actor),
         availableOperations,
+      }));
+    }
+    case 'about/update': {
+      const member = await resolveProfileEditor(config, actor, authConfig);
+      const written = await saveBrainProfileRevision(config, args.profile, {
+        updatedBy: member?.person_slug || 'bigbrain-admin',
+        approve: args.approve === true,
+      });
+      return toolJson(authenticatedBrainAbout(config, written, {
+        authState: actor ? 'authenticated' : 'local_trusted',
+        writable: true,
+        availableOperations: toolDefinitions().map((tool) => tool.name).filter((toolName) => canCallTool(toolName, actor)),
       }));
     }
     case 'list_raw_files':
@@ -1012,6 +1024,18 @@ function toolDefinitions() {
       },
     },
     {
+      name: 'about/update',
+      description: 'Replace the versioned brain routing profile. Requires administrative authority. Set approve=true only after the owner reviewed the complete profile.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          profile: { type: 'object' },
+          approve: { type: 'boolean' },
+        },
+        required: ['profile', 'approve'],
+      },
+    },
+    {
       name: 'filing_rules',
       description: 'Return the selected brain filing rules as combined Markdown, compiled from top-level and collection FILING.md files.',
       inputSchema: {
@@ -1257,6 +1281,7 @@ const TOOL_POLICIES = {
   groups_get: { layer: 'read', scopes: ['brain:read'] },
   filing_rules: { layer: 'read', scopes: ['brain:read'] },
   about: { layer: 'read', scopes: ['brain:read'] },
+  'about/update': { layer: 'admin', scopes: ['brain:admin'] },
   list_raw_files: { layer: 'read', scopes: ['brain:read'] },
   read_raw_file: { layer: 'read', scopes: ['brain:read'] },
   'tasks/create': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
@@ -1280,6 +1305,17 @@ const TOOL_POLICIES = {
   'audit/export': { layer: 'admin', scopes: ['brain:admin'] },
   audit_export: { layer: 'admin', scopes: ['brain:admin'] },
 };
+
+async function resolveProfileEditor(config, actor, authConfig) {
+  const db = await openDatabase(config);
+  try {
+    const member = await resolveActorMember(db, actor, memberResolutionFromAuthConfig(authConfig));
+    if (member && member.role !== 'owner') throw new Error('Only a brain owner may update the routing profile.');
+    return member;
+  } finally {
+    await db.close?.();
+  }
+}
 
 function assertToolPolicyComplete() {
   const advertised = new Set(toolDefinitions().map((tool) => tool.name));

@@ -121,6 +121,26 @@ export async function writeBrainProfile(config, profile) {
   return profileResult({ config, profilePath, profile: normalized, status: 'valid', valid: true, errors: [] });
 }
 
+export async function saveBrainProfileRevision(config, profile, {
+  updatedBy,
+  approve = false,
+  generationMethod = 'user-edit',
+  now = new Date(),
+} = {}) {
+  const existing = await loadBrainProfile(config);
+  return writeBrainProfile(config, {
+    ...profile,
+    provenance: {
+      ...(profile?.provenance || {}),
+      profile_version: existing.valid ? existing.profile.provenance.profile_version + 1 : 1,
+      updated_at: now.toISOString(),
+      updated_by: requireActorLabel(updatedBy),
+      generation_method: requireEnum(generationMethod, GENERATION_METHODS, 'provenance.generation_method'),
+      review_status: approve ? 'approved' : 'draft',
+    },
+  });
+}
+
 export function normalizeBrainProfile(input, config) {
   requireObject(input, 'Brain profile');
   assertKeys(input, ['schema_version', 'identity', 'purpose_tags', 'routing', 'privacy', 'provenance'], 'Brain profile');

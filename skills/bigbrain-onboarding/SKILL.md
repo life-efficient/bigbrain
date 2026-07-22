@@ -23,6 +23,8 @@ This skill guarantees:
 - Preserve uncertainty as notes or open questions instead of inventing facts
 - End by filing all gathered information into the brain appropriately
 - Sync the index after meaningful writes
+- Create or update a versioned brain-purpose profile only after the user reviews
+  and approves it
 
 ## Before Asking
 
@@ -34,6 +36,8 @@ This skill guarantees:
    - use BigBrain tools when available, especially `filing_rules`
    - otherwise read existing top-level folders and representative pages
 3. If the brain is not initialized, use `BigBrain: Setup` first.
+4. Run `bigbrain about show --json` and note whether `BRAIN.md` is missing,
+   invalid, draft, or approved. A generated draft is not user approval.
 
 ## Interview Rules
 
@@ -99,6 +103,23 @@ brain?
 Route supplied material through the relevant BigBrain ingest skill instead of
 folding complex documents into this onboarding flow.
 
+5. Brain purpose and routing:
+
+```text
+What should always belong in this brain, and what must never be stored here?
+```
+
+Offer a small set of relevant purpose choices plus optional free-form guidance.
+Use the answer to propose a complete `BRAIN.md` profile with a concise summary,
+include/exclude rules, sensitivity, allowed routing metadata, and synthetic
+positive/negative examples. Set `routing.ingestion_mode: auto` unless the user
+chooses review or deny. Keep `mixed_meeting_policy: hold` by default.
+
+Show the full proposed profile in plain language and ask for explicit approval
+before writing it. Until approved, keep `provenance.review_status: draft`; after
+approval set it to `approved`, increment `profile_version`, and write it through
+`bigbrain about set --from <reviewed-file>`.
+
 After the final question, file all gathered information into the brain
 appropriately before ending the interaction. Then thank the user and tell them
 they can add more information like this at any time.
@@ -116,6 +137,8 @@ they can add more information like this at any time.
 - Use markdown links between related pages where obvious.
 - Mark unknowns explicitly, for example `Open question:` or `Needs detail:`.
 - Do not write sensitive secrets, credentials, or private keys into the brain.
+- Do not put transcript excerpts, real participant lists, credentials, or owner
+  email addresses in `BRAIN.md` routing examples or provenance.
 
 ## Verification
 

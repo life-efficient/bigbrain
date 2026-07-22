@@ -3,7 +3,10 @@ import path from 'node:path';
 import { spawn } from 'node:child_process';
 
 import { initializeBrainHome, loadConfig, loadState, loadUserEnv, persistState, resolveBrainHome, updateBrainName } from './config.js';
-import { conservativeBrainProfileDraft, loadBrainProfile, parseBrainProfileMarkdown, writeBrainProfile } from './brain-profile.js';
+import { conservativeBrainProfileDraft, loadBrainProfile, parseBrainProfileMarkdown, saveBrainProfileRevision, writeBrainProfile } from './brain-profile.js';
+import { MachineCatalog, migrateRegistryV1 } from './machine-catalog.js';
+import { routeGranolaMeeting } from './granola-router.js';
+import { openRoutingLedger } from './routing-ledger.js';
 import { dbDoctor, openDatabase, getBacklinks, getOutgoingLinks, listPages } from './db.js';
 import { runHealthCheck } from './health.js';
 import { fullPathFromSlug } from './markdown.js';
@@ -23,6 +26,8 @@ export async function runCli(argv) {
     case 'init': return handleInit(args, global);
     case 'identity': return handleIdentity(args, global);
     case 'about': return handleAbout(args, global);
+    case 'brains': return handleBrains(args, global);
+    case 'granola': return handleGranola(args, global);
     case 'recent': return handleRecent(args, global);
     case 'sync': return handleSync(global);
     case 'list': return handleList(args, global);
@@ -97,11 +102,116 @@ async function handleAbout(args, global) {
     if (!sourcePath) throw new Error('Usage: bigbrain about set --from <BRAIN.md-or-json>');
     const raw = await fs.readFile(path.resolve(sourcePath), 'utf8');
     const profile = sourcePath.toLowerCase().endsWith('.json') ? JSON.parse(raw) : parseBrainProfileMarkdown(raw);
-    const written = await writeBrainProfile(config, profile);
+    const written = await saveBrainProfileRevision(config, profile, {
+      updatedBy: 'bigbrain-cli',
+      approve: args.includes('--approve'),
+    });
     output(global, written.about, `Updated ${written.about.manifest.filename}; routing profile status is ${written.about.manifest.reviewed ? 'approved' : 'draft'}.`);
     return;
   }
   throw new Error('about requires "show", "init", or "set".');
+}
+
+async function handleBrains(args, global) {
+  const action = args[0] || 'list';
+  const catalog = new MachineCatalog();
+  if (action === 'list') {
+    const value = await catalog.load();
+    output(global, value, renderBrainsText(value));
+    return;
+  }
+  if (action === 'add-local') {
+    if (!args[1]) throw new Error('Usage: bigbrain brains add-local <brain-home> [--handle HANDLE]');
+    const config = await loadConfig({ brainHome: path.resolve(args[1]) });
+    const profile = await loadBrainProfile(config);
+    const now = new Date().toISOString();
+    const value = await catalog.upsert({
+      brain_id: config.brainId,
+      brain_name: config.brainName,
+      kind: 'local',
+      connection: {
+        type: 'local_runtime',
+        handle: argValue(args, '--handle') || `local:${config.brainId}`,
+        endpoint: null,
+      },
+      verification: { state: 'verified', verified_at: now },
+      profile: {
+        state: profile.valid ? (profile.profile.provenance.review_status === 'approved' ? 'valid' : 'draft') : profile.status,
+        schema_version: profile.valid ? profile.profile.schema_version : null,
+        profile_version: profile.valid ? profile.profile.provenance.profile_version : null,
+      },
+      access: { auth_state: 'local_trusted', writability: 'writable' },
+      health: { status: 'healthy', checked_at: now },
+      local: { home: config.brainHome, host: null, port: config.dashboardPort, service_label: null, service_status: 'unknown' },
+      created_at: now,
+      updated_at: now,
+    });
+    output(global, value, `Added ${config.brainName} to the machine catalog.`);
+    return;
+  }
+  if (action === 'import-registry') {
+    const sourcePath = argValue(args, '--from') || args[1];
+    if (!sourcePath) throw new Error('Usage: bigbrain brains import-registry --from <registry.json>');
+    const resolved = path.resolve(sourcePath);
+    const source = JSON.parse(await fs.readFile(resolved, 'utf8'));
+    const migrated = migrateRegistryV1(source);
+    const backup = `${resolved}.v1-backup-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+    await fs.copyFile(resolved, backup);
+    const saved = await catalog.save(migrated);
+    output(global, { catalog: saved, backup }, `Imported ${saved.brains.length} brain(s); preserved the version-1 registry backup.`);
+    return;
+  }
+  if (action === 'remove') {
+    if (!args[1]) throw new Error('Usage: bigbrain brains remove <brain-id>');
+    const removed = await catalog.remove(args[1]);
+    output(global, removed, `Removed ${removed.brain_name} from the machine catalog.`);
+    return;
+  }
+  throw new Error('brains requires "list", "add-local", "import-registry", or "remove".');
+}
+
+async function handleGranola(args, global) {
+  const action = args[0];
+  if (action === 'decide') {
+    const inputPath = argValue(args, '--from');
+    if (!inputPath) throw new Error('Usage: bigbrain granola decide --from <routing-input.json>');
+    const input = JSON.parse(await fs.readFile(path.resolve(inputPath), 'utf8'));
+    const decision = routeGranolaMeeting(input);
+    output(global, decision, renderGranolaDecisionText(decision));
+    return;
+  }
+  if (action !== 'routes') throw new Error('granola requires "decide" or "routes".');
+  const routeAction = args[1] || 'list';
+  const ledger = await openRoutingLedger();
+  try {
+    if (routeAction === 'list') {
+      const state = argValue(args, '--state');
+      const routes = ledger.list({ states: state || null, limit: Number(argValue(args, '--limit') || 100) });
+      output(global, routes, renderRoutesText(routes));
+      return;
+    }
+    const source = requireOption(args, '--source');
+    const sourceItemId = requireOption(args, '--item');
+    const actorId = argValue(args, '--actor') || 'people/owner';
+    if (routeAction === 'approve') {
+      const route = ledger.approve({ source, sourceItemId, actorId, selectedBrainId: argValue(args, '--brain') });
+      output(global, route, 'Approved held route.');
+      return;
+    }
+    if (routeAction === 'reject') {
+      const route = ledger.reject({ source, sourceItemId, actorId, reasonCode: argValue(args, '--reason') || 'user_rejected' });
+      output(global, route, 'Rejected held route.');
+      return;
+    }
+    if (routeAction === 'retry') {
+      const route = ledger.retry({ source, sourceItemId, actorId });
+      output(global, route, 'Queued failed route for retry.');
+      return;
+    }
+    throw new Error('granola routes requires "list", "approve", "reject", or "retry".');
+  } finally {
+    ledger.close();
+  }
 }
 
 async function handleInit(args, global) {
@@ -547,7 +657,16 @@ Commands:
   identity set-name <name>
   about show
   about init
-  about set --from <BRAIN.md-or-json>
+  about set --from <BRAIN.md-or-json> [--approve]
+  brains list
+  brains add-local <brain-home> [--handle HANDLE]
+  brains import-registry --from <registry.json>
+  brains remove <brain-id>
+  granola decide --from <routing-input.json>
+  granola routes list [--state held|failed] [--limit N]
+  granola routes approve --source granola --item ID --brain BRAIN_ID [--actor PERSON_SLUG]
+  granola routes reject --source granola --item ID [--reason CODE] [--actor PERSON_SLUG]
+  granola routes retry --source granola --item ID [--actor PERSON_SLUG]
   sync
   list [--type TYPE]
   get <slug>
@@ -605,6 +724,24 @@ function renderAboutText(about) {
     `Profile: ${about.manifest.status}${about.manifest.reviewed ? ', approved' : ', not approved'}`,
     `Routing: ${about.routing.effective_ingestion_mode}`,
   ].join('\n');
+}
+
+function renderBrainsText(catalog) {
+  if (!catalog.brains.length) return 'No brains are registered in the machine catalog.';
+  return catalog.brains.map((brain) => (
+    `${brain.brain_name}  ${brain.kind}  ${brain.verification.state}  profile:${brain.profile.state}  ${brain.health.status}`
+  )).join('\n');
+}
+
+function renderGranolaDecisionText(decision) {
+  return decision.decision === 'route'
+    ? `Route to ${decision.selected_brain_id}.`
+    : `Hold for review: ${decision.reason_codes.join(', ')}.`;
+}
+
+function renderRoutesText(routes) {
+  if (!routes.length) return 'No matching Granola routes.';
+  return routes.map((route) => `${route.decision_state}  ${route.selected_brain_id || 'unassigned'}  ${route.reason_codes.join(',') || 'no reason'}`).join('\n');
 }
 
 function renderRecentText(report) {
@@ -701,6 +838,12 @@ function requireFirstArg(args, message) {
 function argValue(args, name) {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : null;
+}
+
+function requireOption(args, name) {
+  const value = argValue(args, name);
+  if (!value) throw new Error(`Missing required option: ${name}`);
+  return value;
 }
 
 function openBrowser(url) {
