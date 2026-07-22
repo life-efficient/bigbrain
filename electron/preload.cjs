@@ -1,10 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
-const path = require('path');
-const { fileURLToPath } = require('url');
 
 const isDesktopShell = process.isMainFrame
   && location.protocol === 'file:'
-  && path.normalize(fileURLToPath(location.href)) === path.join(__dirname, 'desktop.html');
+  && location.pathname.endsWith('/electron/desktop.html');
 
 if (isDesktopShell) {
   contextBridge.exposeInMainWorld('bigbrainDesktop', {
