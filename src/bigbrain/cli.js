@@ -18,6 +18,7 @@ import { renderSchemaMarkdown, recommendFolderForInput, schemaDescription } from
 import { queryBrain, searchBrain, searchModesReport } from './search.js';
 import { syncBrain } from './sync.js';
 import { resolveWindow } from './time.js';
+import { applyUpdate, checkForUpdate, renderUpdateText, updateExitCode } from './update.js';
 
 export async function runCli(argv) {
   await loadUserEnv();
@@ -48,6 +49,7 @@ export async function runCli(argv) {
     case 'dashboard': return handleDashboard(args, global);
     case 'mcp': return handleMcp(args, global);
     case 'connect': return handleConnect(args, global);
+    case 'update': return handleUpdate(args, global);
     case '--help':
     case '-h':
     case undefined:
@@ -694,6 +696,22 @@ async function handleConnect(args, global) {
     : `Connected ${result.name} with OAuth.`);
 }
 
+async function handleUpdate(args, global) {
+  const wantsCheck = args.includes('--check');
+  const wantsApply = args.includes('--apply');
+  if (wantsCheck && wantsApply) throw new Error('Use either --check or --apply, not both.');
+  const channel = argValue(args, '--channel') || process.env.BIGBRAIN_UPDATE_CHANNEL || 'stable';
+  const options = {
+    channel,
+    repoRoot: process.env.BIGBRAIN_REPO,
+  };
+  const report = wantsApply
+    ? await applyUpdate({ ...options, allowMajor: args.includes('--allow-major') })
+    : await checkForUpdate(options);
+  output(global, report, renderUpdateText(report));
+  return updateExitCode(report);
+}
+
 async function loadRuntimeConfig(global) {
   if (global.configPath) return loadConfig({ configPath: global.configPath });
   const brainHome = await resolveBrainHome({
@@ -783,6 +801,8 @@ Commands:
   dashboard [--host HOST] [--port N] [--no-open]
   mcp [--host HOST] [--port N]
   connect codex <service-url> [--name NAME] [--auth oauth|token] [--token-stdin]
+  update --check [--channel stable|beta]
+  update --apply [--channel stable|beta] [--allow-major]
 
 Global options:
   --brain-home <path>
