@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { renderUpdaterLaunchAgent, resolveStableNodePath } from '../../scripts/install-headless-updater.mjs';
+import { installHeadlessUpdater, renderUpdaterLaunchAgent, resolveStableNodePath } from '../../scripts/install-headless-updater.mjs';
 import { findRepoLaunchAgents, runHeadlessUpdate } from '../../scripts/run-headless-update.mjs';
 
 test('headless updater launch agent checks stable releases every six hours', () => {
@@ -23,6 +23,30 @@ test('headless updater prefers a stable Node executable path', async () => {
   await fs.mkdir(path.dirname(stable), { recursive: true });
   await fs.writeFile(stable, '');
   assert.equal(await resolveStableNodePath({ candidates: [path.join(root, 'missing'), stable, '/versioned/node'] }), stable);
+  await fs.rm(root, { recursive: true, force: true });
+});
+
+test('headless updater installer restores the previous launch agent when activation fails', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-updater-rollback-'));
+  const plistPath = path.join(root, 'updater.plist');
+  const previous = '<plist>previous</plist>';
+  await fs.writeFile(plistPath, previous);
+  let bootstrapCalls = 0;
+  await assert.rejects(() => installHeadlessUpdater({
+    repoRoot: path.resolve(import.meta.dirname, '..', '..'),
+    nodePath: process.execPath,
+    plistPath,
+    logDir: root,
+    execFileImpl: async (command, args) => {
+      if (command === 'launchctl' && args[0] === 'bootstrap') {
+        bootstrapCalls += 1;
+        if (bootstrapCalls === 1) throw new Error('activation failed');
+      }
+      return { stdout: '' };
+    },
+  }), /activation failed/);
+  assert.equal(await fs.readFile(plistPath, 'utf8'), previous);
+  assert.equal(bootstrapCalls, 2);
   await fs.rm(root, { recursive: true, force: true });
 });
 

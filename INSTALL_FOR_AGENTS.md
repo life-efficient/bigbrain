@@ -431,8 +431,8 @@ health. On Harry's current machine, the loopback endpoint is registered as
 `personal_brain` at `http://127.0.0.1:55560/mcp`; absence of an older `bigbrain`
 entry is not a service-health failure.
 
-For a headless source installation, install the separate updater after the MCP
-service is healthy:
+For a headless source installation, the local MCP installer also installs the
+separate stable-channel updater by default. To install or repair it directly:
 
 ```bash
 node scripts/install-headless-updater.mjs \
@@ -451,6 +451,10 @@ node scripts/run-headless-update.mjs \
   --repo-root /path/to/bigbrain \
   --channel stable
 ```
+
+Pass `--no-auto-update` to `install-local-mcp-service.mjs` only when the user
+explicitly wants to manage source updates themselves. Packaged desktop installs
+do not install this scheduler because the desktop owns their update lifecycle.
 
 The MCP endpoint is:
 

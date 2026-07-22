@@ -24,6 +24,7 @@ async function main() {
   const localOwnerName = options.localOwnerName || '';
   const keychainAccount = options.keychainAccount || '';
   const electronRunAsNode = Boolean(options.electronRunAsNode);
+  const installAutomaticUpdater = !electronRunAsNode && !options.noAutoUpdate;
   const plistPath = options.plistPath || path.join(os.homedir(), 'Library', 'LaunchAgents', `${label}.plist`);
   const logDir = options.logDir || path.join(os.homedir(), '.config', 'bigbrain');
   const nodePath = options.nodePath || process.execPath;
@@ -64,6 +65,7 @@ async function main() {
       localOwnerName,
       keychainAccount,
       electronRunAsNode,
+      installAutomaticUpdater,
       stdoutPath,
       stderrPath,
       wouldEnsureLocalOwner: Boolean(localPersonSlug),
@@ -100,6 +102,10 @@ async function main() {
     await execFileAsync('launchctl', ['kickstart', '-k', serviceTarget]);
     await verifyHealth({ host, port });
     await verifyMcpTools({ host, port });
+    if (installAutomaticUpdater) {
+      const { installHeadlessUpdater } = await import('./install-headless-updater.mjs');
+      await installHeadlessUpdater({ repoRoot, channel: options.updateChannel || 'stable' });
+    }
     if (replacementPlist) await fs.rename(replacementPlist, `${replacementPlist}.replaced-${Date.now()}.bak`).catch(() => null);
   } catch (error) {
     await execFileAsync('launchctl', ['bootout', `gui/${process.getuid()}`, plistPath]).catch(() => null);
@@ -123,6 +129,7 @@ async function main() {
     healthUrl: `http://${host}:${port}/health`,
     localPersonSlug,
     localOwnerEnsured: Boolean(localPersonSlug),
+    automaticUpdaterInstalled: installAutomaticUpdater,
   }, null, 2));
 }
 
@@ -176,6 +183,12 @@ function parseArgs(args) {
         break;
       case '--electron-run-as-node':
         options.electronRunAsNode = true;
+        break;
+      case '--no-auto-update':
+        options.noAutoUpdate = true;
+        break;
+      case '--update-channel':
+        options.updateChannel = args[++index];
         break;
       case '--replace-plist':
         options.replacePlist = args[++index];

@@ -150,6 +150,7 @@ test('local MCP installer dry-run reports local owner bootstrapping intent', asy
     assert.equal(result.localOwnerName, 'Installer Local');
     assert.equal(result.localOwnerEmail, 'installer-local@example.test');
     assert.equal(result.wouldEnsureLocalOwner, true);
+    assert.equal(result.installAutomaticUpdater, true);
   } finally {
     await removeTempFixture(fixture.rootDir);
   }

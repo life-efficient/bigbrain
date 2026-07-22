@@ -67,9 +67,22 @@ export async function installHeadlessUpdater({
   if (process.platform !== 'darwin') throw new Error('The scheduled headless updater currently supports macOS launchd only.');
   await fs.mkdir(path.dirname(targetPlist), { recursive: true });
   await fs.mkdir(logDir, { recursive: true });
-  await execFileImpl('launchctl', ['bootout', `gui/${process.getuid()}`, targetPlist]).catch(() => null);
-  await fs.writeFile(targetPlist, plist, 'utf8');
-  await execFileImpl('launchctl', ['bootstrap', `gui/${process.getuid()}`, targetPlist]);
+  const launchDomain = `gui/${process.getuid()}`;
+  const previous = await fs.readFile(targetPlist).catch(() => null);
+  try {
+    await execFileImpl('launchctl', ['bootout', launchDomain, targetPlist]).catch(() => null);
+    await fs.writeFile(targetPlist, plist, 'utf8');
+    await execFileImpl('launchctl', ['bootstrap', launchDomain, targetPlist]);
+  } catch (error) {
+    await execFileImpl('launchctl', ['bootout', launchDomain, targetPlist]).catch(() => null);
+    if (previous) {
+      await fs.writeFile(targetPlist, previous);
+      await execFileImpl('launchctl', ['bootstrap', launchDomain, targetPlist]).catch(() => null);
+    } else {
+      await fs.rm(targetPlist, { force: true });
+    }
+    throw error;
+  }
   return result;
 }
 
