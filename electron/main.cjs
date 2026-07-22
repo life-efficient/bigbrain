@@ -19,6 +19,7 @@ let rendererRecoveryAttempts = 0;
 let desktopController = null;
 let desktopUpdater = null;
 let promptedUpdateVersion = null;
+let localServiceUpdateState = { phase: "idle", message: "Local MCP services are checked after launch." };
 const connectedDashboardOrigins = new Set();
 
 const singleInstanceLock = app.requestSingleInstanceLock();
@@ -49,6 +50,7 @@ if (!singleInstanceLock) {
       createAppMenu();
       createMainWindow();
       desktopUpdater.start();
+      void startManagedServiceReconciliation();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       dialog.showErrorBox("BigBrain failed to start", message);
@@ -218,7 +220,15 @@ function createAppMenu() {
           enabled: false,
         },
         {
-          label: "Connected services update separately",
+          label: "Desktop-managed local MCP updates with BigBrain",
+          enabled: false,
+        },
+        {
+          label: "Remote services update separately",
+          enabled: false,
+        },
+        {
+          label: localServiceUpdateState.message,
           enabled: false,
         },
         { type: "separator" },
@@ -271,6 +281,68 @@ function createAppMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+async function startManagedServiceReconciliation() {
+  if (!desktopController) return;
+  localServiceUpdateState = { phase: "checking", message: "Checking desktop-managed local MCP services…" };
+  createAppMenu();
+  sendLocalServiceUpdateState();
+  try {
+    const { ManagedServiceReconciler, probeManagedService } = await importModule("electron/lib/managed-service-reconciler.mjs");
+    const reconciler = new ManagedServiceReconciler({
+      appVersion: app.getVersion(),
+      listBrains: async () => (await desktopController.state()).brains,
+      probe: (brain) => probeManagedService(brain),
+      reinstall: (brain) => desktopController.installService(brain, { ownerSlug: brain.owner?.personSlug || "" }),
+      report: reportManagedServiceReconciliation,
+    });
+    await reconciler.reconcile();
+  } catch (error) {
+    await reportManagedServiceReconciliation({
+      phase: "error",
+      managedCount: 0,
+      current: 0,
+      updated: 0,
+      failed: 1,
+      results: [{ name: "Local MCP", status: "failed", message: error instanceof Error ? error.message : String(error) }],
+    });
+  }
+}
+
+async function reportManagedServiceReconciliation(summary) {
+  localServiceUpdateState = {
+    ...summary,
+    message: localServiceUpdateMessage(summary),
+  };
+  createAppMenu();
+  sendLocalServiceUpdateState();
+  if (!summary.failed) return;
+  const failures = summary.results
+    .filter((result) => result.status === "failed")
+    .map((result) => `${result.name}: ${result.message}`)
+    .join("\n");
+  await dialog.showMessageBox(mainWindow, {
+    type: "warning",
+    title: "Local BigBrain MCP Needs Attention",
+    message: "BigBrain could not update one or more desktop-managed local MCP services.",
+    detail: `${failures}\n\nRemote BigBrain services were not changed.`,
+    buttons: ["OK"],
+  });
+}
+
+function localServiceUpdateMessage(summary) {
+  if (summary.phase === "none") return "No desktop-managed local MCP services";
+  if (summary.phase === "updated") return `Local MCP updated with BigBrain ${app.getVersion()}`;
+  if (summary.phase === "current") return `Local MCP is current with BigBrain ${app.getVersion()}`;
+  if (summary.phase === "error") return `${summary.failed} local MCP update${summary.failed === 1 ? "" : "s"} failed`;
+  return "Checking desktop-managed local MCP services…";
+}
+
+function sendLocalServiceUpdateState() {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("desktop:local-service-update-state", localServiceUpdateState);
+  }
+}
+
 function initializeDesktopUpdater() {
   const { DesktopUpdater } = require("./lib/desktop-updater.cjs");
   const adapter = app.isPackaged ? require("electron-updater").autoUpdater : {};
@@ -295,6 +367,7 @@ function registerUpdateIpc() {
   ipcMain.handle("desktop:update-state", () => desktopUpdater.snapshot());
   ipcMain.handle("desktop:check-for-updates", () => desktopUpdater.check());
   ipcMain.handle("desktop:restart-to-update", () => desktopUpdater.restartToInstall());
+  ipcMain.handle("desktop:local-service-update-state", () => localServiceUpdateState);
 }
 
 function updateMenuStatusLabel() {
@@ -313,7 +386,7 @@ async function handleManualUpdateCheck() {
     type: state.phase === "error" ? "warning" : "info",
     title: "BigBrain Updates",
     message: state.message,
-    detail: `You are running BigBrain ${state.version}. Connected BigBrain services are not changed by desktop updates.`,
+    detail: `You are running BigBrain ${state.version}. Desktop-managed local MCP services update with the app; remote services update separately.`,
     buttons: ["OK"],
   });
 }
@@ -323,7 +396,7 @@ async function promptToRestartForUpdate(state) {
     type: "info",
     title: "BigBrain Update Ready",
     message: state.updateVersion ? `BigBrain ${state.updateVersion} is ready to install.` : "A BigBrain update is ready to install.",
-    detail: "Restart the desktop app to finish. Connected BigBrain services are not changed.",
+    detail: "Restart the desktop app to finish. Desktop-managed local MCP services will be reconciled after launch; remote services are not changed.",
     buttons: ["Restart BigBrain", "Later"],
     defaultId: 0,
     cancelId: 1,

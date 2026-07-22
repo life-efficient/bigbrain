@@ -22,10 +22,16 @@ if (isDesktopShell) {
     updateState: () => ipcRenderer.invoke('desktop:update-state'),
     checkForUpdates: () => ipcRenderer.invoke('desktop:check-for-updates'),
     restartToUpdate: () => ipcRenderer.invoke('desktop:restart-to-update'),
+    localServiceUpdateState: () => ipcRenderer.invoke('desktop:local-service-update-state'),
     onUpdateState: (listener) => {
       const handler = (_event, state) => listener(state);
       ipcRenderer.on('desktop:update-state', handler);
       return () => ipcRenderer.removeListener('desktop:update-state', handler);
+    },
+    onLocalServiceUpdateState: (listener) => {
+      const handler = (_event, state) => listener(state);
+      ipcRenderer.on('desktop:local-service-update-state', handler);
+      return () => ipcRenderer.removeListener('desktop:local-service-update-state', handler);
     },
   });
 }

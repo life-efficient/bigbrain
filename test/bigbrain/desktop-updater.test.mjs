@@ -84,7 +84,10 @@ test('desktop exposes update status and manual controls without a service-update
     fs.readFile(new URL('../../electron/desktop.html', import.meta.url), 'utf8'),
   ]);
   assert.match(mainSource, /Check for Updates…/);
-  assert.match(mainSource, /Connected services update separately/);
+  assert.match(mainSource, /Desktop-managed local MCP updates with BigBrain/);
+  assert.match(mainSource, /Remote services update separately/);
+  assert.match(mainSource, /startManagedServiceReconciliation/);
+  assert.match(mainSource, /connectionType !== 'service'|ManagedServiceReconciler/);
   assert.match(mainSource, /desktopUpdater\.start\(\)/);
   assert.match(preloadSource, /desktop:check-for-updates/);
   assert.match(preloadSource, /desktop:restart-to-update/);
