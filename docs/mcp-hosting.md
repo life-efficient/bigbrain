@@ -52,6 +52,42 @@ lists, creates, and updates are constrained to that brain root.
 Use a separate deployment per shared brain. Do not point a server deployment at
 a personal brain unless that is intentionally what you want to publish.
 
+## Private Canonical Page Links
+
+Every markdown page has a stable private dashboard route:
+
+```text
+/dashboard/page/<brain_id>/<canonical-slug>
+```
+
+For a device-managed service, the MCP `read` and `get_page_visibility`
+responses include a directly clickable loopback link:
+
+```text
+http://127.0.0.1:55560/dashboard/page/brn_01234567-89ab-4cde-8fab-0123456789ab/organizations/acme-intralog
+```
+
+Use the returned `local_url`; do not guess a port or brain ID. The response also
+includes `brain_id`, `page_url`, and `page_url_path`. `local_url` is non-null
+only when the service is actually bound to loopback and has no configured
+hosted public origin.
+
+The brain ID in this route is an identity assertion against the one brain served
+by that process. It never selects a different brain or filesystem root. Missing
+pages, malformed slugs, traversal attempts, and mismatched brain IDs return
+`404`.
+
+On a server-managed deployment, `page_url` uses the configured service origin
+and the same route remains behind the existing dashboard authentication. It is
+not a public-sharing link. An unauthenticated remote request is denied or sent
+through the configured OAuth flow. Agents should return:
+
+- `local_url` when it is present and the user wants to view the private page on
+  the same device
+- `page_url` when the user is authorized to view the protected server dashboard
+- `public_url` only after explicit publication and only when the user asked for
+  a public sharing link
+
 ## Public Body-Only Pages
 
 A server-managed BigBrain can publish individual approved pages at
@@ -79,7 +115,8 @@ the `public_url` field is an absolute, directly shareable URL such as
 `https://your-service.example.com/public/ops/example-onboarding`. The response
 also keeps `path`, `slug`, `visibility`, `public_raw_files`, and
 `public_url_path` for callers that need the canonical brain slug or relative
-route. Internal pages return `public_url: null`.
+route. The private `page_url` remains separate. Internal pages return
+`public_url: null`.
 
 The body-only JSON surface is:
 

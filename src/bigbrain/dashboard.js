@@ -39,6 +39,7 @@ import {
   safeBrainPath,
   updatePageVisibility,
 } from './page-ops.js';
+import { canonicalPagePath, normalizeCanonicalPageSlug, parseCanonicalPagePath } from './page-links.js';
 import {
   PUBLIC_RAW_CONTENT_SECURITY_POLICY,
   publicRawMimeTypeForPath,
@@ -159,6 +160,31 @@ export async function createDashboardRequestHandler(config, {
           return;
         }
         actor = authorization.actor || null;
+      }
+      const canonicalRouteBasePath = canonicalPageRouteBasePath(requestUrl.pathname, normalizedBasePath);
+      if (canonicalRouteBasePath !== null) {
+        if (req.method !== 'GET') {
+          res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ error: 'Canonical page routes require GET.' }));
+          return;
+        }
+        let target;
+        try {
+          target = parseCanonicalPagePath(requestUrl.pathname, { basePath: canonicalRouteBasePath });
+        } catch {
+          target = null;
+        }
+        if (!target || target.brainId !== config.brainId || !await canonicalPageExists(config, target.slug)) {
+          res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end('Page not found');
+          return;
+        }
+        res.writeHead(200, {
+          'Content-Type': 'text/html; charset=utf-8',
+          'Cache-Control': 'no-store',
+        });
+        res.end(renderAppHtml());
+        return;
       }
       if (isPublicAppPath(requestUrl.pathname)) {
         const redirectLocation = await publicRedirectLocation(config, db, requestUrl);
@@ -438,6 +464,14 @@ function normalizeDashboardBasePath(basePath) {
 function isDashboardAppPath(pathname, basePath) {
   if (!basePath) return pathname === '/' || pathname === '/index.html';
   return pathname === basePath || pathname === `${basePath}/` || pathname === `${basePath}/index.html`;
+}
+
+function canonicalPageRouteBasePath(pathname, basePath) {
+  const value = String(pathname || '');
+  const configuredPrefix = `${basePath}/page/`.replace(/^\/\//, '/');
+  if (value.startsWith(configuredPrefix)) return basePath;
+  if (!basePath && value.startsWith('/dashboard/page/')) return '/dashboard';
+  return null;
 }
 
 function isPublicAppPath(pathname) {
@@ -1360,6 +1394,16 @@ export async function buildPagePayload(config, db, requestUrl) {
   return buildPagePayloadForSlug(config, db, slug);
 }
 
+async function canonicalPageExists(config, slug) {
+  try {
+    const fullPath = resolveBrainMarkdownPath(config.brainDir, slug);
+    const stat = await fs.stat(fullPath);
+    return stat.isFile();
+  } catch {
+    return false;
+  }
+}
+
 export async function buildSharedGroupPayload(config, db, requestUrl) {
   const requestedSlug = publicSlugFromSharedPath(requestUrl.pathname) || requestUrl.searchParams.get('slug')?.trim();
   const group = await getSharedGroup(db, requestedSlug, { resolveRedirect: true });
@@ -1534,15 +1578,18 @@ export async function updateDashboardPageVisibility(config, db, req, actor = nul
 }
 
 async function buildPagePayloadForSlug(config, db, slug) {
-  const fullPath = resolveBrainMarkdownPath(config.brainDir, slug);
+  const canonicalSlug = normalizeCanonicalPageSlug(slug);
+  const fullPath = resolveBrainMarkdownPath(config.brainDir, canonicalSlug);
   const raw = await fs.readFile(fullPath, 'utf8');
-  const parsed = parseMarkdownPage(raw, slug);
+  const parsed = parseMarkdownPage(raw, canonicalSlug);
   const stat = await fs.stat(fullPath);
-  const outgoing = db ? await getOutgoingLinks(db, slug) : [];
-  const backlinks = db ? await getBacklinks(db, slug) : [];
+  const outgoing = db ? await getOutgoingLinks(db, canonicalSlug) : [];
+  const backlinks = db ? await getBacklinks(db, canonicalSlug) : [];
   const relativePath = path.relative(config.brainDir, fullPath);
   return {
-    slug,
+    slug: canonicalSlug,
+    brain_id: config.brainId,
+    page_url_path: canonicalPagePath(config.brainId, canonicalSlug),
     title: parsed.title,
     type: parsed.type,
     path: relativePath,

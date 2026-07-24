@@ -40,6 +40,7 @@ import {
   updateBrainPage,
   updatePageVisibility,
 } from './page-ops.js';
+import { canonicalPagePath, canonicalPageUrl, isLoopbackHost } from './page-links.js';
 import { queryBrain, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
 import {
@@ -77,7 +78,7 @@ const execFileAsync = promisify(execFile);
 
 export async function startMcpServer({
   config,
-  host = '0.0.0.0',
+  host = '127.0.0.1',
   port = Number(process.env.PORT || 55560),
   authToken = process.env.BIGBRAIN_MCP_TOKEN || process.env.MCP_AUTH_TOKEN || null,
   authConfig = buildAuthConfig({ authToken }),
@@ -239,7 +240,9 @@ export async function startMcpServer({
 
   const address = server.address();
   const resolvedPort = typeof address === 'object' && address ? address.port : port;
-  const localOrigin = `http://${host === '0.0.0.0' ? '127.0.0.1' : host}:${resolvedPort}`;
+  const displayHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host;
+  const localOrigin = `http://${displayHost.includes(':') ? `[${displayHost}]` : displayHost}:${resolvedPort}`;
+  authConfig.runtimeLocalUrl = isLoopbackHost(host) && !authConfig.publicUrl ? localOrigin : null;
   authConfig.runtimePublicUrl = authConfig.publicUrl || localOrigin;
 
   return {
@@ -400,10 +403,14 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         orderBy: args.order_by,
       }), { arrayKey: 'pages' });
     case 'read':
-      return toolJson(await readBrainPage({ config, pagePath: args.path }));
+      return toolJson(pageWithCanonicalLink(
+        await readBrainPage({ config, pagePath: args.path }),
+        config,
+        authConfig,
+      ));
     case 'get_page_visibility': {
       const page = await readBrainPage({ config, pagePath: args.path });
-      return toolJson(pageVisibilityToolResponse(page, authConfig));
+      return toolJson(pageVisibilityToolResponse(page, config, authConfig));
     }
     case 'groups_list': {
       const db = await openDatabase(config);
@@ -545,7 +552,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         timelineEntry: timelineWithActor(args.timeline_entry || `Visibility set to ${visibility}.`, actor),
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor);
-      return toolJson(pageVisibilityToolResponse(page, authConfig));
+      return toolJson(pageVisibilityToolResponse(page, config, authConfig));
     }
     case 'groups_upsert': {
       const db = await openDatabase(config);
@@ -705,7 +712,7 @@ function redactedAuditValue(value) {
   return { redacted: true, length };
 }
 
-function pageVisibilityToolResponse(page, authConfig) {
+function pageVisibilityToolResponse(page, config, authConfig) {
   const visibility = pageVisibility(page.frontmatter);
   const publicUrlPath = visibility === 'public' ? `/public/${page.slug}` : null;
   return {
@@ -716,6 +723,33 @@ function pageVisibilityToolResponse(page, authConfig) {
     public_url: publicUrlPath ? absolutePublicUrl(authConfig, publicUrlPath) : null,
     public_url_path: publicUrlPath,
     public_raw_files: publicRawFiles(page.frontmatter),
+    ...canonicalPageLinkFields(page, authConfig, config.brainId),
+  };
+}
+
+function pageWithCanonicalLink(page, config, authConfig) {
+  return {
+    ...page,
+    brain_id: config.brainId,
+    ...canonicalPageLinkFields(page, authConfig, config.brainId),
+  };
+}
+
+function canonicalPageLinkFields(page, authConfig, explicitBrainId = null) {
+  const brainId = explicitBrainId || authConfig?.brainId;
+  if (!brainId) return {};
+  const pageUrlPath = canonicalPagePath(brainId, page.slug);
+  const localOrigin = authConfig?.runtimeLocalUrl || null;
+  const protectedOrigin = authConfig?.publicUrl
+    || localOrigin
+    || (authConfig?.runtimePublicUrl && !/^http:\/\/127\.0\.0\.1(?::|$)/.test(authConfig.runtimePublicUrl)
+      ? authConfig.runtimePublicUrl
+      : null);
+  return {
+    brain_id: brainId,
+    page_url: protectedOrigin ? canonicalPageUrl(protectedOrigin, brainId, page.slug) : null,
+    page_url_path: pageUrlPath,
+    local_url: localOrigin ? canonicalPageUrl(localOrigin, brainId, page.slug) : null,
   };
 }
 
@@ -1121,7 +1155,7 @@ function toolDefinitions() {
     },
     {
       name: 'read',
-      description: 'Read one markdown page from the brain.',
+      description: 'Read one markdown page from the brain. The response includes a stable private page_url and a loopback local_url when this instance is running locally.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1132,7 +1166,7 @@ function toolDefinitions() {
     },
     {
       name: 'get_page_visibility',
-      description: 'Return whether one markdown page is internal or public. When public, public_url is a directly shareable absolute public URL. Internal is the default and fallback visibility.',
+      description: 'Return one page private viewing link and whether it is internal or public. local_url is a stable loopback-only link when this instance runs locally; page_url remains protected remotely. When public, public_url is a directly shareable absolute public URL.',
       inputSchema: pageVisibilitySchema({ requireVisibility: false }),
     },
     {

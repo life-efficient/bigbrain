@@ -17,6 +17,7 @@ import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
 import { resolveExplorerLinkPath } from './explorer-links.js';
 import { MarkdownDocument } from './markdown.jsx';
+import { privatePageRouteFromPath } from './page-links.js';
 
 class DashboardErrorBoundary extends React.Component {
   constructor(props) {
@@ -620,6 +621,53 @@ function formatAnalyticsTime(value) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
+function PrivatePageApp({ route }) {
+  const [state, setState] = useState({ status: 'loading', error: null, page: null });
+
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      try {
+        const params = new URLSearchParams({ slug: route.slug });
+        const page = await fetchJson(`/api/page?${params.toString()}`);
+        if (!cancelled) setState({ status: 'ready', error: null, page });
+      } catch {
+        if (!cancelled) setState({ status: 'error', error: 'Page not found.', page: null });
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [route.slug]);
+
+  if (state.status === 'loading') {
+    return <main className="public-main"><article className="public-document"><div className="empty-copy">Loading page…</div></article></main>;
+  }
+
+  if (state.status === 'error') {
+    return <main className="public-main"><article className="public-document"><h1>Page not found</h1><p className="empty-copy">{state.error}</p></article></main>;
+  }
+
+  return (
+    <main className="public-main">
+      <article className="public-document private-document">
+        <header className="public-document-head">
+          <div>
+            <div className="meta">{state.page.path}</div>
+            <h1>{state.page.title}</h1>
+          </div>
+        </header>
+        <MarkdownDocument
+          markdown={state.page.markdown}
+          sourceSlug={state.page.slug}
+          emptyLabel="This page is empty."
+        />
+      </article>
+    </main>
+  );
+}
+
 function PublicPageApp() {
   const [state, setState] = useState({ status: 'loading', error: null, page: null });
   const [rawFileView, setRawFileView] = useState('list');
@@ -781,7 +829,9 @@ function SharedGroupApp() {
 
 function RootApp() {
   if (isSharedGroupLocation(window.location.pathname)) return <SharedGroupApp />;
-  return isPublicPageLocation(window.location.pathname) ? <PublicPageApp /> : <DashboardApp />;
+  if (isPublicPageLocation(window.location.pathname)) return <PublicPageApp />;
+  const privatePageRoute = privatePageRouteFromPath(window.location.pathname);
+  return privatePageRoute ? <PrivatePageApp route={privatePageRoute} /> : <DashboardApp />;
 }
 
 function isPublicPageLocation(pathname) {

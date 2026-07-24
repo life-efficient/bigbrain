@@ -7,6 +7,15 @@ actions` section for agents maintaining device and server installations.
 
 ### Added
 
+- Added stable private page links for local and hosted dashboards. MCP page
+  reads and visibility checks now return canonical page URLs containing the
+  immutable brain ID and page slug; loopback links are emitted only for actual
+  loopback listeners, while hosted links retain existing dashboard auth.
+- Added fail-closed canonical page routing for missing pages, malformed paths,
+  traversal attempts, and mismatched brain identities without changing the
+  explicit body-only public visibility model.
+- Changed the generic MCP listener default to loopback. Server deployments
+  continue to bind explicitly through their configured `HOST`.
 - Added compact, bounded `tasks/summary` retrieval with multi-status filtering,
   tri-state Open Questions metadata, and best-effort cursor pagination, while
   preserving the existing full `tasks/list` response.

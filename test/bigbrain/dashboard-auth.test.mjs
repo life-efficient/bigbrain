@@ -88,6 +88,14 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
     assert.equal(privateApi.status, 302);
     assert.match(privateApi.headers.get('location'), /^\/auth\/start\?redirect=%2Fapi%2Fpage/);
 
+    const privatePagePath = `/dashboard/page/${config.brainId}/people/public`;
+    const unauthenticatedPrivatePage = await fetch(`${url}${privatePagePath}`, { redirect: 'manual' });
+    assert.equal(unauthenticatedPrivatePage.status, 302);
+    assert.match(
+      unauthenticatedPrivatePage.headers.get('location'),
+      new RegExp(`^/auth/start\\?redirect=${encodeURIComponent(privatePagePath).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+    );
+
     const privateAbout = await fetch(`${url}/api/about`, { redirect: 'manual' });
     assert.equal(privateAbout.status, 302);
     assert.match(privateAbout.headers.get('location'), /^\/auth\/start\?redirect=%2Fapi%2Fabout/);
@@ -106,6 +114,12 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
     });
     assert.equal(authenticated.status, 200);
     assert.match(await authenticated.text(), /<title>Dashboard<\/title>/);
+
+    const authenticatedPrivatePage = await fetch(`${url}${privatePagePath}`, {
+      headers: { cookie: `bigbrain_dashboard_session=${sessionToken}` },
+    });
+    assert.equal(authenticatedPrivatePage.status, 200);
+    assert.match(await authenticatedPrivatePage.text(), /dashboard-client\.js/);
 
     const health = await fetch(`${url}/api/health`, {
       headers: { cookie: `bigbrain_dashboard_session=${sessionToken}` },

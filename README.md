@@ -352,6 +352,15 @@ completed during this run. Legacy top-level fields such as `indexed_pages`,
 `indexed_links`, `embeddings_generated`, and `embedding_chunks_generated` remain
 available for compatibility.
 
+For a clickable private page link, call the MCP `read` or
+`get_page_visibility` tool and use its returned `local_url`. A local link has
+the stable form
+`http://127.0.0.1:<port>/dashboard/page/<brain_id>/<canonical-slug>`.
+Do not construct the port or brain ID manually. Hosted `page_url` values use
+the same private route behind dashboard authentication; `public_url` remains a
+separate, explicit body-only publication surface. See
+[`docs/mcp-hosting.md`](./docs/mcp-hosting.md#private-canonical-page-links).
+
 Tasks are authored as individual markdown pages under `tasks/*.md`. The old
 single-file `ops/tasks.md` refresh workflow is deprecated and no longer exposed
 by the CLI.

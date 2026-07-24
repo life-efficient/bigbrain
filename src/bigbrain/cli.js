@@ -675,7 +675,7 @@ async function handleDashboard(args, global) {
 async function handleMcp(args, global) {
   const config = await loadRuntimeConfig(global);
   const port = Number(argValue(args, '--port') || process.env.PORT || 55560);
-  const host = argValue(args, '--host') || process.env.HOST || '0.0.0.0';
+  const host = argValue(args, '--host') || process.env.HOST || '127.0.0.1';
   const { url } = await startMcpServer({ config, host, port });
   console.log(`BigBrain MCP server running at ${url}`);
 }

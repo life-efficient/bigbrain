@@ -99,6 +99,16 @@ test('isolated MCP instances cannot read or search each other\'s brains', async 
     assert.equal(firstHealth.brain_id, firstConfig.brainId);
     assert.equal(secondHealth.brain_id, secondConfig.brainId);
     assert.notEqual(firstHealth.brain_id, secondHealth.brain_id);
+
+    const crossBrainRoute = firstServer.url.replace(
+      '/mcp',
+      `/dashboard/page/${secondConfig.brainId}/people/only-b`,
+    );
+    const crossBrainPage = await fetch(crossBrainRoute, {
+      headers: { authorization: `Basic ${Buffer.from('user:first-secret').toString('base64')}` },
+    });
+    assert.equal(crossBrainPage.status, 404);
+    assert.doesNotMatch(await crossBrainPage.text(), /beta-isolation-token/);
   } finally {
     await firstServer?.close();
     await secondServer?.close();
@@ -279,6 +289,23 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(privateVisibility.result.structuredContent.visibility, 'internal');
     assert.equal(privateVisibility.result.structuredContent.public_url, null);
     assert.equal(privateVisibility.result.structuredContent.public_url_path, null);
+    assert.equal(privateVisibility.result.structuredContent.brain_id, config.brainId);
+    assert.equal(
+      privateVisibility.result.structuredContent.local_url,
+      running.url.replace('/mcp', `/dashboard/page/${config.brainId}/people/mcp-test`),
+    );
+    assert.equal(privateVisibility.result.structuredContent.page_url, privateVisibility.result.structuredContent.local_url);
+    assert.equal(
+      privateVisibility.result.structuredContent.page_url_path,
+      `/dashboard/page/${config.brainId}/people/mcp-test`,
+    );
+    const unauthenticatedPrivatePage = await fetch(privateVisibility.result.structuredContent.local_url);
+    assert.equal(unauthenticatedPrivatePage.status, 401);
+    const authenticatedPrivatePage = await fetch(privateVisibility.result.structuredContent.local_url, {
+      headers: { authorization: `Basic ${Buffer.from('user:secret').toString('base64')}` },
+    });
+    assert.equal(authenticatedPrivatePage.status, 200);
+    assert.match(await authenticatedPrivatePage.text(), /dashboard-client\.js/);
 
     const published = await rpc(running.url, 'tools/call', {
       name: 'set_page_visibility',
@@ -302,6 +329,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(visibility.result.structuredContent.visibility, 'public');
     assert.equal(visibility.result.structuredContent.public_url, running.url.replace('/mcp', '/public/people/mcp-test'));
     assert.equal(visibility.result.structuredContent.public_url_path, '/public/people/mcp-test');
+    assert.equal(visibility.result.structuredContent.local_url, privateVisibility.result.structuredContent.local_url);
     assert.deepEqual(visibility.result.structuredContent.public_raw_files, ['people/.raw/public.pdf']);
 
     const group = await rpc(running.url, 'tools/call', {
@@ -981,6 +1009,11 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
     assert.equal(published.result.structuredContent.visibility, 'public');
     assert.equal(published.result.structuredContent.public_url, 'https://brain.example.test/public/people/create-allowed');
     assert.equal(published.result.structuredContent.public_url_path, '/public/people/create-allowed');
+    assert.equal(
+      published.result.structuredContent.page_url,
+      `https://brain.example.test/dashboard/page/${config.brainId}/people/create-allowed`,
+    );
+    assert.equal(published.result.structuredContent.local_url, null);
     const publicGroup = await rpc(running.url, 'tools/call', {
       name: 'groups_upsert',
       arguments: {
