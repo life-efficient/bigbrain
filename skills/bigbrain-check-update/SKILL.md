@@ -99,8 +99,8 @@ This skill guarantees:
      manual follow-up instead
    - do not stop at listing found automations; install or refresh every safe
      automation before proceeding
-   - preserve the bundled `PAUSED` state of `bigbrain-route-granola` until an
-     explicit routing cutover has verified destination profiles and provenance
+   - preserve the bundled state of `bigbrain-route-granola`; after the explicit
+     2026-07-24 routing cutover, the expected bundled state is `ACTIVE`
    - read `automations/retired.json`; never restore a retired Granola automation
      merely because an older active copy or another repo still contains it
    - report and stop before enabling writes if more than one active Granola
