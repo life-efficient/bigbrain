@@ -1,21 +1,41 @@
 ---
-name: bigbrain-granola-ingest
-description: Ingest recent Granola meetings into a selected BigBrain brain.
+name: "BigBrain: Granola Ingest"
+version: 1.1.0
+description: |
+  Ingest recent Granola meetings into BigBrain. Supports both selected-brain
+  ingestion and the machine-wide unified router mode used by the Granola
+  automation.
 ---
 
-# BigBrain Granola Ingest
+# BigBrain: Granola Ingest
 
-Ingest recent Granola meetings into the selected BigBrain brain.
+Ingest recent Granola meetings into BigBrain.
+
+Use selected-brain mode when a target brain is already selected. Use
+machine-wide routing mode when the automation needs to discover all registered
+brains, choose the one correct destination, and delegate the destination write.
 
 ## Contract Checklist
 
 - Resolve the target brain through the user's selected BigBrain context,
-  `--brain-home`, `BIGBRAIN_HOME`, or the saved default pointer.
+  `--brain-home`, `BIGBRAIN_HOME`, or the saved default pointer, unless running
+  in machine-wide routing mode.
+- In machine-wide routing mode, resolve the private BigBrain machine catalog and
+  authenticated about/profile contracts for registered brains.
 - Read live filing rules before writing.
 - Use direct Granola MCP tools with folder support when folder exclusions are
   required.
 - Resolve and skip user-named or filing-rule-named excluded Granola folders
   before writing pages.
+- In machine-wide routing mode, apply destination hard rules, source-folder
+  rules, auth/write state, health, and approved purpose profiles before any
+  model-assisted classification.
+- In machine-wide routing mode, auto-ingest only when exactly one verified,
+  reachable, authenticated, writable brain has an approved auto-ingest profile
+  and a clear routing margin; otherwise hold for review.
+- Never store transcript, summary, notes, participant names, credentials, or
+  meeting content in the machine catalog or routing ledger.
+- Never fan one meeting out to multiple brains automatically.
 - Stop instead of risking cross-boundary writes when required folder tools or
   folder filters are unavailable.
 - Consider only recent meetings, or meetings since the newest ingested Granola
@@ -40,6 +60,10 @@ Ingest recent Granola meetings into the selected BigBrain brain.
 
 1. Resolve the brain and read filing rules.
    - Work from the selected brain home unless the user names another brain.
+   - In machine-wide routing mode, resolve candidate brains from the private
+     machine catalog, confirm each candidate's auth state, write state, health,
+     and approved about/profile status, then choose the destination before
+     reading that destination's filing rules.
    - Read the top-level `FILING.md` and relevant collection `FILING.md` files
      before choosing paths or page types.
    - Follow live rules rather than hard-coding paths from this skill.
@@ -65,6 +89,8 @@ Ingest recent Granola meetings into the selected BigBrain brain.
      folder IDs in the final report
 4. Check existing coverage.
    - Search existing meeting pages and raw sidecars for Granola provenance.
+   - In machine-wide routing mode, also check the global routing ledger and
+     destination provenance by Granola ID before attempting any write.
    - Treat matching Granola coverage as already ingested even if the title
      changed.
    - Query from two days before the newest ingested meeting, or the last 30 days
@@ -78,6 +104,16 @@ Ingest recent Granola meetings into the selected BigBrain brain.
    - Anti-patterns: unbounded backfills, fetching placeholder notes, fetching
      every transcript before de-duplication
 6. Plan writes.
+   - In machine-wide routing mode, apply deterministic destination rules before
+     write planning: folder ownership, exclusions, approval gates, health, auth,
+     write permission, and profile policy.
+   - In machine-wide routing mode, use model-assisted classification only on
+     allowed routing metadata; fetch transcript or summary for classification
+     only when all relevant profiles allow local transcript-assisted routing and
+     metadata is insufficient.
+   - In machine-wide routing mode, hold the item when scores are close, multiple
+     destinations match, the destination would require approval, or the correct
+     destination is unavailable.
    - Skip excluded-folder candidates and track only counts for the final report
      unless exact references are needed for a blocker.
    - Skip duplicates unless a missing transcript, missing source sidecar, or
@@ -100,6 +136,12 @@ Ingest recent Granola meetings into the selected BigBrain brain.
      capture complete
 8. Write artifacts.
    - Follow live filing rules for page paths and raw sidecar paths.
+   - In machine-wide routing mode, delegate the destination write to the selected
+     brain's live filing rules and meeting-ingest behavior; do not duplicate
+     that brain's filing rules in the router.
+   - In machine-wide routing mode, preserve approved raw sidecars only inside
+     the selected destination and do not broadcast meeting content to candidate
+     brains.
    - Preserve source provenance internally on pages and sidecars.
    - Link sidecars from meeting pages when the local page pattern expects it.
    - Keep entity and task timeline entries evidence-backed.
@@ -107,6 +149,9 @@ Ingest recent Granola meetings into the selected BigBrain brain.
      task history
 9. Verify and sync.
    - Re-scan for duplicate Granola coverage.
+   - In machine-wide routing mode, read back the canonical meeting page,
+     provenance, transcript sidecar when created, and any affected stable
+     pages/tasks before marking the route verified.
    - Confirm changed pages match live filing rules.
    - Confirm transcript sidecars passed safety review or contain only targeted
      redactions.
@@ -142,6 +187,10 @@ Ingest recent Granola meetings into the selected BigBrain brain.
   report.
 - Including technical audit identifiers in the final report when a count and
   issue list is enough.
+- Falling back to Personal Brain when the correct routed destination is
+  unavailable.
+- Storing secrets, credentials, transcript content, summaries, participant
+  lists, or model prompts in the machine catalog or routing ledger.
 
 ## Output
 

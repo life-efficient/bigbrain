@@ -2,7 +2,7 @@ version = 1
 id = "bigbrain-route-granola"
 kind = "cron"
 name = "BigBrain Route Granola"
-prompt = "Use the BigBrain: Route Granola skill. Operate the single machine-wide Granola ingestion route, delegate destination writes to each selected brain's live filing_rules and meeting-ingest behavior, and finish with a privacy-safe count report. Do not include meeting titles, people, transcripts, summaries, notes, participant names, credentials, or private content in the report."
+prompt = "Use the BigBrain: Granola Ingest skill in machine-wide routing mode. Operate the single machine-wide Granola ingestion route, delegate destination writes to each selected brain's live filing_rules and meeting-ingest behavior, and finish with a privacy-safe count report. Do not include meeting titles, people, transcripts, summaries, notes, participant names, credentials, or private content in the report."
 status = "ACTIVE"
 rrule = "FREQ=DAILY;BYHOUR=4;BYMINUTE=15;BYSECOND=0"
 model = "gpt-5.5"
