@@ -551,8 +551,12 @@ Automations should be narrow, explicit, idempotent, and inspectable.
   - fanout should create autonomous prompts for ready `agent` tasks and guided
     step-by-step prompts for ready `interactive` tasks
   - assignees are active members, not arbitrary `people/*` pages
-  - use MCP `tasks/list`, `tasks/create`, and `tasks/update` for agent task
-    reads and writes
+  - use MCP `tasks/summary` for compact bounded ranking, then `tasks/get` only
+    for selected task handoffs that need full body, timeline, source, and open
+    questions; keep full `tasks/list` behavior for compatibility
+  - use read-only `tasks/hygiene` for advisory stale/backlog findings; never
+    auto-archive from age or metadata signals
+  - use MCP `tasks/create` and `tasks/update` only for authorized writes
 
 - `freshness`
   - inspect recent conversations, meetings, or file changes

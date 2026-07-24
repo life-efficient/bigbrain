@@ -253,8 +253,13 @@ must be `YYYY-MM-DD` when present. Keep the current task context above the
 separator, structured as Summary, What Counts as Completed, Body Context, Open
 Questions, and Anti-Patterns, and append evidence or state changes under
 `## Timeline`.
-Use the MCP task tools
-(`tasks/list`, `tasks/create`, `tasks/update`) when writing through an agent.
+Use compact `tasks/summary` metadata for ranking and `tasks/get` for the full
+body, timeline, sources, and open questions of selected handoff tasks. The
+legacy `tasks/list` keeps its full-record response for compatibility.
+`tasks/hygiene` provides a bounded read-only audit of likely stale, overdue,
+unassigned, invalid-assignee, or backlogged work; its findings are advisory and
+never mutate or archive tasks. Use `tasks/create` and `tasks/update` only for
+explicitly authorized writes.
 For new intake, create or update a task by default when the item is actionable,
 needs an owner, needs status, or represents follow-up work. Historical
 `inbox/` pages may remain in existing brains, but there is no inbox API or

@@ -39,11 +39,13 @@ record, then wait for an explicit fanout or execution request.
 
 Use the BigBrain MCP task endpoint as the source of truth:
 
-1. Call `tasks/list` twice by default, scoped to the authenticated member:
-   first with `status: "in_progress", assignee: "me"`, then with
-   `status: "open", assignee: "me"`.
-2. If `tasks/list` is not visible, use targeted Codex tool discovery for the
-   BigBrain `tasks/list` tool before falling back to runtime or code inspection.
+1. Call `tasks/summary` once by default with
+   `statuses: ["in_progress", "open"]`, `assignee: "me"`, and a bounded
+   `limit`. This compact endpoint is the ranking source and intentionally omits
+   task bodies, timelines, sources, markdown, and exact open-question text.
+2. If `tasks/summary` is not visible, use targeted Codex tool discovery for the
+   BigBrain `tasks/summary` tool before falling back to the legacy full
+   `tasks/list` workflow.
 3. Resolve assignee scope before listing tasks:
    - For a generic request such as "what's next", and for "my tasks" or
      "assigned to me", pass `assignee: "me"`.
@@ -52,18 +54,19 @@ Use the BigBrain MCP task endpoint as the source of truth:
    - Omit `assignee` only when the user explicitly asks for all-team,
      everyone's, or unassigned-across-the-team work.
    - For a named priority such as `p0`, `p1`, `p2`, or `p3`, pass `priority`.
-   - For a named status, pass that `status`; otherwise use both default calls.
-4. Use the returned task title, body, priority, assignees, source, and slug to
-   identify the most useful next work. Use slugs internally for lookup and
-   continuity, but do not normally show them in the snapshot output.
+   - For named statuses, pass them in `statuses`; otherwise use both defaults.
+4. Use only the returned compact metadata to rank work. Use slugs internally
+   for continuity, but do not normally show them in the snapshot output.
 5. Within the resolved assignee scope, prefer `in_progress` tasks first, then
    high-priority `open` tasks. Keep `waiting` tasks separate unless the user
    asks for them.
-6. Treat `readiness` and `execution_mode` as useful hints, then read the task
-   body. If `## Open Questions` contains substantive questions, put the task in
-   the input-needed section even when frontmatter says `readiness: "ready"`,
-   unless the task is clearly an interactive guided session whose purpose is to
-   answer those questions with the user.
+6. Preserve the compact Open Questions safety signal:
+   - `open_questions_state: "present"` belongs in the input-needed section even
+     when frontmatter says `readiness: "ready"`.
+   - `open_questions_state: "missing"` is unknown, not equivalent to no open
+     questions; keep it out of autonomous ready work and flag it for review.
+   - `open_questions_state: "none"` may be ranked normally.
+   - Do not fetch full task content during snapshot discovery or ranking.
 7. Classify the remaining tasks with `readiness` and `execution_mode`:
    - `readiness: "ready"` plus `execution_mode: "agent"` means the task can
      appear in the normal next-work numbered list and can be fanned out as an
@@ -126,7 +129,10 @@ Default output is capped at 8 numbered items. Keep the snapshot short:
 
 If the user agrees to launch threads or receive prompts, immediately use the
 BigBrain: Fanout Tasks workflow on the same task scope and filters, preserving
-the resolved assignee filter. Do not ask the user to repeat the scope.
+the resolved assignee filter and selected slugs. That workflow must call
+`tasks/get` for each selected task so its full body, timeline, sources, and
+exact open questions are preserved and rechecked before handoff. Do not ask the
+user to repeat the scope.
 
 If no actionable BigBrain task pages match the requested filters, say that
 directly and offer to run BigBrain: Roadmap Tasks only if the user wants new
@@ -135,8 +141,10 @@ tasks proposed from current brain evidence.
 ## Quality Rules
 
 - Treat MCP task data as authoritative for task status and assignees.
-- Never issue an unscoped `tasks/list` call by default. Omit `assignee` only
+- Never issue an unscoped `tasks/summary` call by default. Omit `assignee` only
   when the user explicitly requests an all-team view.
+- Do not call `tasks/get`, `read`, or full `tasks/list` merely to rank or
+  summarize candidates.
 - Do not use local `TODO.md` discovery for this skill.
 - Do not mutate tasks while producing the snapshot.
 - If the user follows up with answers or additional context, use that context

@@ -30,6 +30,87 @@ export async function listTaskPages({ config, db, assignee = null, status = null
     .sort(compareTasks);
 }
 
+export async function getTaskPage({ config, db, path: taskPath } = {}) {
+  const relative = normalizeTaskPagePath(taskPath);
+  const page = await readBrainPage({ config, pagePath: relative });
+  return decorateTaskPage(page, memberMapByPersonSlug(await listActiveMembers(db)));
+}
+
+export async function listTaskSummaries({
+  config,
+  db,
+  assignee = null,
+  statuses = ['in_progress', 'open'],
+  priority = null,
+  readiness = null,
+  executionMode = null,
+  limit = 20,
+  cursor = 0,
+  actor = null,
+  memberResolution = {},
+} = {}) {
+  const normalizedStatuses = normalizeStatusList(statuses, ['in_progress', 'open']);
+  const tasks = await listTaskPages({
+    config,
+    db,
+    assignee,
+    priority,
+    readiness,
+    executionMode,
+    actor,
+    memberResolution,
+  });
+  const matching = tasks
+    .filter((task) => normalizedStatuses.includes(task.status))
+    .sort(compareSnapshotTasks);
+  const page = paginate(matching, { limit, cursor });
+  return {
+    tasks: page.items.map(compactTaskSummary),
+    total: matching.length,
+    next_cursor: page.nextCursor,
+    generated_at: new Date().toISOString(),
+  };
+}
+
+export async function auditTaskHygiene({
+  config,
+  db,
+  assignee = null,
+  statuses = ['in_progress', 'open', 'waiting'],
+  staleDays = 30,
+  limit = 50,
+  cursor = 0,
+  actor = null,
+  memberResolution = {},
+  now = new Date(),
+} = {}) {
+  const normalizedStatuses = normalizeStatusList(statuses, ['in_progress', 'open', 'waiting']);
+  const normalizedStaleDays = normalizePositiveInteger(staleDays, 30, 3650, 'stale_days');
+  const currentTime = now instanceof Date ? now.getTime() : new Date(now).getTime();
+  if (!Number.isFinite(currentTime)) throw new Error('now must be a valid date.');
+  const tasks = await listTaskPages({
+    config,
+    db,
+    assignee,
+    actor,
+    memberResolution,
+  });
+  const findings = tasks
+    .filter((task) => normalizedStatuses.includes(task.status))
+    .map((task) => hygieneFinding(task, { currentTime, staleDays: normalizedStaleDays }))
+    .filter(Boolean)
+    .sort((a, b) => hygieneSeverity(b) - hygieneSeverity(a) || compareSnapshotTasks(a, b));
+  const page = paginate(findings, { limit, cursor });
+  return {
+    findings: page.items,
+    total: findings.length,
+    next_cursor: page.nextCursor,
+    stale_days: normalizedStaleDays,
+    generated_at: new Date(currentTime).toISOString(),
+    mutating: false,
+  };
+}
+
 export async function createTaskPage({
   config,
   db,
@@ -227,6 +308,84 @@ function decorateParsedTask(parsed, memberMap, updatedAt = null, pagePath = null
   };
 }
 
+function compactTaskSummary(task) {
+  const openQuestions = openQuestionsMetadata(task.body);
+  return {
+    slug: task.slug,
+    title: task.title,
+    status: task.status,
+    readiness: task.readiness,
+    execution_mode: task.execution_mode,
+    priority: task.priority,
+    due: task.due,
+    assignee_slugs: task.assignee_slugs,
+    open_questions_state: openQuestions.state,
+    open_question_count: openQuestions.count,
+    has_substantive_open_questions: openQuestions.state === 'missing'
+      ? null
+      : openQuestions.state === 'present',
+    updated_at: task.updated_at,
+  };
+}
+
+function openQuestionsMetadata(body) {
+  const lines = String(body || '').split('\n');
+  const headingIndex = lines.findIndex((line) => /^##\s+Open Questions\s*$/i.test(line.trim()));
+  if (headingIndex < 0) return { state: 'missing', count: null };
+  const section = [];
+  for (const line of lines.slice(headingIndex + 1)) {
+    if (/^##\s+/.test(line.trim())) break;
+    section.push(line);
+  }
+  const normalized = section.join('\n')
+    .replace(/^\s*[-*]\s*/gm, '')
+    .replace(/^\s*\[[ xX]\]\s*/gm, '')
+    .trim();
+  if (!normalized || /^(?:none|none at present|no open questions|n\/a|not applicable)[.!]?\s*$/i.test(normalized)) {
+    return { state: 'none', count: 0 };
+  }
+  const count = section
+    .map((line) => line.replace(/^\s*[-*]\s*/, '').replace(/^\s*\[[ xX]\]\s*/, '').trim())
+    .filter(Boolean)
+    .length;
+  return { state: 'present', count: Math.max(1, count) };
+}
+
+function hygieneFinding(task, { currentTime, staleDays }) {
+  const signals = [];
+  const ageDays = task.updated_at
+    ? Math.max(0, Math.floor((currentTime - Date.parse(task.updated_at)) / 86_400_000))
+    : null;
+  if (task.due && Date.parse(`${task.due}T23:59:59.999Z`) < currentTime) signals.push('overdue');
+  if (!task.assignee_slugs.length) signals.push('unassigned');
+  if (task.invalid_assignees.length) signals.push('invalid_assignee');
+  if (ageDays !== null && ageDays >= staleDays) {
+    if (task.status === 'in_progress') signals.push('stale_in_progress');
+    if (task.status === 'open') signals.push('backlogged_open');
+    if (task.status === 'waiting') signals.push('stale_waiting');
+    if (task.readiness === 'underspecified') signals.push('underspecified_backlog');
+  }
+  if (!signals.length) return null;
+  return {
+    ...compactTaskSummary(task),
+    age_days: ageDays,
+    signals,
+  };
+}
+
+function hygieneSeverity(finding) {
+  const weights = {
+    overdue: 5,
+    invalid_assignee: 4,
+    stale_in_progress: 3,
+    stale_waiting: 2,
+    backlogged_open: 1,
+    underspecified_backlog: 1,
+    unassigned: 1,
+  };
+  return finding.signals.reduce((total, signal) => total + (weights[signal] || 0), 0);
+}
+
 function normalizeTaskSlug(value) {
   const normalized = normalizeTaskPagePath(value).replace(/\.md$/i, '');
   return normalized;
@@ -278,6 +437,34 @@ function normalizeExecutionMode(value) {
   return normalized;
 }
 
+function normalizeStatusList(value, fallback) {
+  const values = Array.isArray(value) ? value : value === null || value === undefined ? fallback : [value];
+  const normalized = Array.from(new Set(values.map(normalizeStatus)));
+  if (!normalized.length) throw new Error('statuses must include at least one task status.');
+  return normalized;
+}
+
+function normalizePositiveInteger(value, fallback, maximum, fieldName) {
+  const normalized = value === null || value === undefined ? fallback : Number(value);
+  if (!Number.isInteger(normalized) || normalized < 1 || normalized > maximum) {
+    throw new Error(`${fieldName} must be an integer between 1 and ${maximum}.`);
+  }
+  return normalized;
+}
+
+function paginate(items, { limit, cursor }) {
+  const normalizedLimit = normalizePositiveInteger(limit, 20, 100, 'limit');
+  const normalizedCursor = cursor === null || cursor === undefined ? 0 : Number(cursor);
+  if (!Number.isInteger(normalizedCursor) || normalizedCursor < 0) {
+    throw new Error('cursor must be a non-negative integer.');
+  }
+  const selected = items.slice(normalizedCursor, normalizedCursor + normalizedLimit);
+  const nextCursor = normalizedCursor + selected.length < items.length
+    ? normalizedCursor + selected.length
+    : null;
+  return { items: selected, nextCursor };
+}
+
 function assertCompletionHandoff({
   nextStatus,
   previousStatus = null,
@@ -310,6 +497,14 @@ function compareTasks(a, b) {
     || dueSortValue(a.due) - dueSortValue(b.due)
     || String(b.updated_at || '').localeCompare(String(a.updated_at || ''))
     || a.slug.localeCompare(b.slug);
+}
+
+function compareSnapshotTasks(a, b) {
+  return statusRank(a.status) - statusRank(b.status) || compareTasks(a, b);
+}
+
+function statusRank(status) {
+  return { in_progress: 0, open: 1, waiting: 2, done: 3, archived: 4 }[status] ?? 5;
 }
 
 function priorityRank(priority) {

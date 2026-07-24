@@ -59,7 +59,14 @@ import {
 } from './mcp-auth.js';
 import { createMcpAuthStore } from './mcp-auth-store.js';
 import { findActiveMemberByEmail, listMembers, resolveActorMember } from './members.js';
-import { createTaskPage, listTaskPages, updateTaskPage } from './task-ops.js';
+import {
+  auditTaskHygiene,
+  createTaskPage,
+  getTaskPage,
+  listTaskPages,
+  listTaskSummaries,
+  updateTaskPage,
+} from './task-ops.js';
 import {
   BIGBRAIN_APP_VERSION,
   BIGBRAIN_MCP_PROTOCOL_VERSION,
@@ -364,6 +371,12 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       return toolJson(await toolMembersList(config, args), { arrayKey: 'members' });
     case 'tasks/list':
       return toolJson(await toolTasksList(config, args, actor, authConfig), { arrayKey: 'tasks' });
+    case 'tasks/summary':
+      return toolJson(await toolTasksSummary(config, args, actor, authConfig));
+    case 'tasks/get':
+      return toolJson(await toolTasksGet(config, args));
+    case 'tasks/hygiene':
+      return toolJson(await toolTasksHygiene(config, args, actor, authConfig));
     case 'tasks/create': {
       const task = await toolTasksCreate(config, args, actor, authConfig);
       await postWriteMaintenance(config, gitBackupEnabled, actor);
@@ -778,6 +791,55 @@ async function toolTasksList(config, args, actor, authConfig) {
   }
 }
 
+async function toolTasksSummary(config, args, actor, authConfig) {
+  const db = await openDatabase(config);
+  try {
+    return await listTaskSummaries({
+      config,
+      db,
+      assignee: args.assignee || null,
+      statuses: args.statuses,
+      priority: args.priority || null,
+      readiness: args.readiness || null,
+      executionMode: args.execution_mode || null,
+      limit: args.limit,
+      cursor: args.cursor,
+      actor,
+      memberResolution: memberResolutionFromAuthConfig(authConfig),
+    });
+  } finally {
+    await db.close?.();
+  }
+}
+
+async function toolTasksGet(config, args) {
+  const db = await openDatabase(config);
+  try {
+    return await getTaskPage({ config, db, path: args.path });
+  } finally {
+    await db.close?.();
+  }
+}
+
+async function toolTasksHygiene(config, args, actor, authConfig) {
+  const db = await openDatabase(config);
+  try {
+    return await auditTaskHygiene({
+      config,
+      db,
+      assignee: args.assignee || null,
+      statuses: args.statuses,
+      staleDays: args.stale_days,
+      limit: args.limit,
+      cursor: args.cursor,
+      actor,
+      memberResolution: memberResolutionFromAuthConfig(authConfig),
+    });
+  } finally {
+    await db.close?.();
+  }
+}
+
 async function toolTasksCreate(config, args, actor, authConfig) {
   const db = await openDatabase(config);
   try {
@@ -983,6 +1045,27 @@ function toolDefinitions() {
       name: 'tasks/list',
       description: 'List task pages under tasks/, optionally filtered by assignee, status, priority, readiness, or execution_mode. Use assignee=me for the authenticated member.',
       inputSchema: tasksListSchema(),
+    },
+    {
+      name: 'tasks/summary',
+      description: 'List bounded compact task metadata for ranking without returning task bodies, timelines, sources, markdown, or open-question text. Defaults to in_progress and open. Use tasks/get only after selecting a task that needs full handoff context.',
+      inputSchema: tasksSummarySchema(),
+    },
+    {
+      name: 'tasks/get',
+      description: 'Read one selected task with its full body, timeline, sources, and open questions. Use after compact ranking when the task has been selected for handoff or detailed review.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Task slug or markdown path under tasks/.' },
+        },
+        required: ['path'],
+      },
+    },
+    {
+      name: 'tasks/hygiene',
+      description: 'Run a read-only bounded audit for likely stale, overdue, unassigned, invalid-assignee, or backlogged tasks. This tool never mutates or archives tasks.',
+      inputSchema: tasksHygieneSchema(),
     },
     {
       name: 'tasks/create',
@@ -1328,6 +1411,9 @@ const TOOL_POLICIES = {
   'members/list': { layer: 'read', scopes: ['brain:read'] },
   members_list: { layer: 'read', scopes: ['brain:read'] },
   'tasks/list': { layer: 'read', scopes: ['brain:read'] },
+  'tasks/summary': { layer: 'read', scopes: ['brain:read'] },
+  'tasks/get': { layer: 'read', scopes: ['brain:read'] },
+  'tasks/hygiene': { layer: 'read', scopes: ['brain:read'] },
   search: { layer: 'read', scopes: ['brain:read'] },
   query: { layer: 'read', scopes: ['brain:read'] },
   list: { layer: 'read', scopes: ['brain:read'] },
@@ -1404,6 +1490,44 @@ function tasksListSchema() {
       priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
       readiness: { type: 'string', enum: ['underspecified', 'ready'] },
       execution_mode: { type: 'string', enum: ['agent', 'user', 'interactive'], description: 'Who can execute the task: agent for autonomous agent-completable work, interactive for guided work needing user judgement/review/decisions, user only for real-world actions Codex cannot perform.' },
+    },
+  };
+}
+
+function tasksSummarySchema() {
+  return {
+    type: 'object',
+    properties: {
+      assignee: { type: 'string', description: 'Active member person slug such as people/hani, or me for the authenticated member.' },
+      statuses: {
+        type: 'array',
+        items: { type: 'string', enum: ['open', 'in_progress', 'waiting', 'done', 'archived'] },
+        minItems: 1,
+        uniqueItems: true,
+      },
+      priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'] },
+      readiness: { type: 'string', enum: ['underspecified', 'ready'] },
+      execution_mode: { type: 'string', enum: ['agent', 'user', 'interactive'] },
+      limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
+      cursor: { type: 'integer', minimum: 0, description: 'Best-effort offset cursor for the current task snapshot.' },
+    },
+  };
+}
+
+function tasksHygieneSchema() {
+  return {
+    type: 'object',
+    properties: {
+      assignee: { type: 'string', description: 'Optional active member person slug, or me for the authenticated member.' },
+      statuses: {
+        type: 'array',
+        items: { type: 'string', enum: ['open', 'in_progress', 'waiting', 'done', 'archived'] },
+        minItems: 1,
+        uniqueItems: true,
+      },
+      stale_days: { type: 'integer', minimum: 1, maximum: 3650, default: 30 },
+      limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+      cursor: { type: 'integer', minimum: 0, description: 'Best-effort offset cursor for the current task snapshot.' },
     },
   };
 }

@@ -906,6 +906,9 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
 
     const readTools = toolNames(await rpc(running.url, 'tools/list', {}, readToken));
     assert.equal(readTools.includes('read'), true);
+    assert.equal(readTools.includes('tasks/summary'), true);
+    assert.equal(readTools.includes('tasks/get'), true);
+    assert.equal(readTools.includes('tasks/hygiene'), true);
     assert.equal(readTools.includes('get_page_visibility'), true);
     assert.equal(readTools.includes('groups_list'), true);
     assert.equal(readTools.includes('groups_get'), true);
@@ -1102,6 +1105,9 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     const listed = await rpc(running.url, 'tools/list', {}, token);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'me'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks/list'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks/summary'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks/get'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks/hygiene'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks_list'), false);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks/enrich'), false);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'tasks_enrich'), false);
@@ -1110,6 +1116,12 @@ test('MCP task tools resolve the authenticated member and manage task pages', as
     assert.deepEqual(listTool.inputSchema.properties.status.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
     assert.deepEqual(listTool.inputSchema.properties.readiness.enum, ['underspecified', 'ready']);
     assert.deepEqual(listTool.inputSchema.properties.execution_mode.enum, ['agent', 'user', 'interactive']);
+    const summaryTool = listed.result.tools.find((tool) => tool.name === 'tasks/summary');
+    assert.deepEqual(summaryTool.inputSchema.properties.statuses.items.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
+    assert.equal(summaryTool.inputSchema.properties.limit.maximum, 100);
+    const hygieneTool = listed.result.tools.find((tool) => tool.name === 'tasks/hygiene');
+    assert.equal(hygieneTool.inputSchema.properties.stale_days.default, 30);
+    assert.equal(hygieneTool.inputSchema.properties.limit.maximum, 100);
     const createTool = listed.result.tools.find((tool) => tool.name === 'tasks/create');
     assert.deepEqual(createTool.inputSchema.properties.status.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
     assert.deepEqual(createTool.inputSchema.properties.readiness.enum, ['underspecified', 'ready']);
@@ -1272,6 +1284,60 @@ What final send wording should be used during the guided review session?`,
       arguments: {},
     }, token);
     assert.deepEqual(allTasks.result.structuredContent.tasks.map((task) => task.slug), ['tasks/draft-icaire-update', 'tasks/granola-thin-follow-up']);
+    assert.equal(typeof allTasks.result.structuredContent.tasks[0].body, 'string');
+    assert.equal(typeof allTasks.result.structuredContent.tasks[0].timeline, 'string');
+    assert.equal(typeof allTasks.result.structuredContent.tasks[0].markdown, 'string');
+    assert.deepEqual(allTasks.result.structuredContent.tasks[0].source_slugs, ['initiatives/gfeai-2026']);
+
+    const compactFirst = await rpc(running.url, 'tools/call', {
+      name: 'tasks/summary',
+      arguments: { assignee: 'me', statuses: ['in_progress', 'open'], limit: 1 },
+    }, token);
+    assert.equal(compactFirst.error, undefined, compactFirst.error?.message);
+    assert.equal(compactFirst.result.structuredContent.total, 2);
+    assert.equal(compactFirst.result.structuredContent.next_cursor, 1);
+    assert.deepEqual(compactFirst.result.structuredContent.tasks.map((task) => task.slug), ['tasks/draft-icaire-update']);
+    assert.deepEqual(compactFirst.result.structuredContent.tasks[0].open_questions_state, 'present');
+    assert.equal(compactFirst.result.structuredContent.tasks[0].has_substantive_open_questions, true);
+    for (const omitted of ['body', 'timeline', 'markdown', 'source_slugs', 'assignees']) {
+      assert.equal(omitted in compactFirst.result.structuredContent.tasks[0], false);
+    }
+    assert.doesNotMatch(JSON.stringify(compactFirst.result), /What final send wording/);
+
+    const compactSecond = await rpc(running.url, 'tools/call', {
+      name: 'tasks/summary',
+      arguments: { assignee: 'me', statuses: ['in_progress', 'open'], limit: 1, cursor: 1 },
+    }, token);
+    assert.deepEqual(compactSecond.result.structuredContent.tasks.map((task) => task.slug), ['tasks/granola-thin-follow-up']);
+    assert.equal(compactSecond.result.structuredContent.next_cursor, null);
+    assert.equal(compactSecond.result.structuredContent.tasks[0].open_questions_state, 'missing');
+    assert.equal(compactSecond.result.structuredContent.tasks[0].has_substantive_open_questions, null);
+
+    const selected = await rpc(running.url, 'tools/call', {
+      name: 'tasks/get',
+      arguments: { path: 'tasks/draft-icaire-update' },
+    }, token);
+    assert.equal(selected.error, undefined, selected.error?.message);
+    assert.match(selected.result.structuredContent.body, /What final send wording/);
+    assert.match(selected.result.structuredContent.timeline, /Marked as user-executed/);
+    assert.deepEqual(selected.result.structuredContent.source_slugs, ['initiatives/gfeai-2026']);
+    assert.equal(typeof selected.result.structuredContent.markdown, 'string');
+
+    const invalidCompactLimit = await rpc(running.url, 'tools/call', {
+      name: 'tasks/summary',
+      arguments: { limit: 101 },
+    }, token);
+    assert.match(invalidCompactLimit.error.message, /limit must be an integer between 1 and 100/);
+    const invalidCompactCursor = await rpc(running.url, 'tools/call', {
+      name: 'tasks/summary',
+      arguments: { cursor: -1 },
+    }, token);
+    assert.match(invalidCompactCursor.error.message, /cursor must be a non-negative integer/);
+    const nonTaskGet = await rpc(running.url, 'tools/call', {
+      name: 'tasks/get',
+      arguments: { path: 'people/team-mate' },
+    }, token);
+    assert.match(nonTaskGet.error.message, /Task path must live under tasks/);
 
     const rejectedCompletion = await rpc(running.url, 'tools/call', {
       name: 'tasks/update',
@@ -1376,8 +1442,117 @@ None.
       arguments: { readiness: 'ready' },
     }, token);
     assert.equal(allReadyTasks.result.structuredContent.tasks.some((task) => task.slug === 'tasks/clarify-follow-up'), true);
+    const explicitNoneSummary = await rpc(running.url, 'tools/call', {
+      name: 'tasks/summary',
+      arguments: { statuses: ['open'], readiness: 'ready' },
+    }, token);
+    const clarifiedSummary = explicitNoneSummary.result.structuredContent.tasks.find((task) => task.slug === 'tasks/clarify-follow-up');
+    assert.equal(clarifiedSummary.open_questions_state, 'none');
+    assert.equal(clarifiedSummary.open_question_count, 0);
+    assert.equal(clarifiedSummary.has_substantive_open_questions, false);
   } finally {
     if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('MCP task hygiene audit reports advisory backlog signals without mutating task files', async () => {
+  const fixture = await createFixture('bigbrain-mcp-task-hygiene-');
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const db = await openDatabase(config);
+    await upsertMember(db, {
+      email: 'local@example.test',
+      name: 'Local Owner',
+      person_slug: 'people/local-owner',
+      role: 'owner',
+    });
+    await db.close?.();
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: { mode: 'none', tokenStorePath: '', localPersonSlug: 'people/local-owner' },
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const fixtures = [
+      { title: 'Stale active work', status: 'in_progress', assignees: ['me'], readiness: 'ready' },
+      { title: 'Old waiting work', status: 'waiting', assignees: ['me'], readiness: 'ready' },
+      { title: 'Old unclear backlog', status: 'open', assignees: [], readiness: 'underspecified' },
+      { title: 'Fresh assigned work', status: 'open', assignees: ['me'], readiness: 'ready' },
+    ];
+    for (const task of fixtures) {
+      const created = await rpc(running.url, 'tools/call', {
+        name: 'tasks/create',
+        arguments: {
+          ...task,
+          body: `${task.title} body.`,
+          timeline_entry: `Created ${task.title.toLowerCase()} test fixture.`,
+        },
+      });
+      assert.equal(created.error, undefined, created.error?.message);
+    }
+    const oldTime = new Date(Date.now() - 60 * 86_400_000);
+    for (const slug of ['stale-active-work', 'old-waiting-work', 'old-unclear-backlog']) {
+      await fs.utimes(path.join(fixture.brainHome, 'tasks', `${slug}.md`), oldTime, oldTime);
+    }
+
+    const taskPaths = (await fs.readdir(path.join(fixture.brainHome, 'tasks')))
+      .filter((name) => name.endsWith('.md'))
+      .map((name) => path.join(fixture.brainHome, 'tasks', name));
+    const before = new Map(await Promise.all(taskPaths.map(async (file) => {
+      const stat = await fs.stat(file);
+      return [file, { content: await fs.readFile(file, 'utf8'), mtimeMs: stat.mtimeMs }];
+    })));
+
+    const audit = await rpc(running.url, 'tools/call', {
+      name: 'tasks/hygiene',
+      arguments: { stale_days: 30, limit: 2 },
+    });
+    assert.equal(audit.error, undefined, audit.error?.message);
+    assert.equal(audit.result.structuredContent.mutating, false);
+    assert.equal(audit.result.structuredContent.total, 3);
+    assert.equal(audit.result.structuredContent.findings.length, 2);
+    assert.equal(audit.result.structuredContent.next_cursor, 2);
+    assert.equal(JSON.stringify(audit.result.structuredContent).includes('Fresh assigned work'), false);
+    assert.doesNotMatch(JSON.stringify(audit.result.structuredContent), /stale active work test fixture/i);
+    for (const omitted of ['body', 'timeline', 'markdown', 'source_slugs', 'assignees']) {
+      assert.equal(omitted in audit.result.structuredContent.findings[0], false);
+    }
+    const firstPageSignals = Object.fromEntries(
+      audit.result.structuredContent.findings.map((finding) => [finding.slug, finding.signals]),
+    );
+    assert.deepEqual(firstPageSignals['tasks/stale-active-work'], ['stale_in_progress']);
+    assert.deepEqual(firstPageSignals['tasks/old-unclear-backlog'], ['unassigned', 'backlogged_open', 'underspecified_backlog']);
+
+    const auditSecond = await rpc(running.url, 'tools/call', {
+      name: 'tasks/hygiene',
+      arguments: { stale_days: 30, limit: 2, cursor: 2 },
+    });
+    assert.deepEqual(auditSecond.result.structuredContent.findings.map((finding) => finding.slug), ['tasks/old-waiting-work']);
+    assert.equal(auditSecond.result.structuredContent.next_cursor, null);
+
+    const waitingOnly = await rpc(running.url, 'tools/call', {
+      name: 'tasks/hygiene',
+      arguments: { statuses: ['waiting'], stale_days: 30 },
+    });
+    assert.deepEqual(waitingOnly.result.structuredContent.findings.map((finding) => finding.slug), ['tasks/old-waiting-work']);
+    const invalidStaleDays = await rpc(running.url, 'tools/call', {
+      name: 'tasks/hygiene',
+      arguments: { stale_days: 0 },
+    });
+    assert.match(invalidStaleDays.error.message, /stale_days must be an integer between 1 and 3650/);
+
+    for (const [file, expected] of before) {
+      const stat = await fs.stat(file);
+      assert.equal(await fs.readFile(file, 'utf8'), expected.content);
+      assert.equal(stat.mtimeMs, expected.mtimeMs);
+    }
+  } finally {
+    await running?.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
 });

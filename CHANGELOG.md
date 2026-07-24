@@ -5,6 +5,18 @@ actions` section for agents maintaining device and server installations.
 
 ## Unreleased
 
+### Added
+
+- Added compact, bounded `tasks/summary` retrieval with multi-status filtering,
+  tri-state Open Questions metadata, and best-effort cursor pagination, while
+  preserving the existing full `tasks/list` response.
+- Added `tasks/get` for full detail retrieval only after a task is selected for
+  handoff, plus a read-only `tasks/hygiene` audit for advisory stale, overdue,
+  assignment, and backlog signals.
+- Updated bundled BigBrain What's Next and fanout skills to rank compact
+  metadata and defer full task bodies, timelines, sources, and exact open
+  questions until selected handoff.
+
 ## [0.16.1] - 2026-07-22
 
 ### Fixed

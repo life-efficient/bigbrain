@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain Task Hygiene"
+  short_description: "Audit stale and backlogged BigBrain tasks without changing them"
+  default_prompt: "Use $bigbrain-task-hygiene to run a compact read-only audit of my active BigBrain tasks. Show likely stale, overdue, unassigned, invalid-assignee, or backlogged work as advisory findings, and do not mutate or archive anything."

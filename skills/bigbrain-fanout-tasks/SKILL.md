@@ -60,18 +60,16 @@ Use the BigBrain MCP task endpoint as the source of truth:
    - If there is no recoverable current task scope and no explicit broad scope,
      ask the user which tasks to fan out instead of defaulting to the whole
      active queue.
-2. Call `tasks/list` only for the resolved scope:
-   - For broad queue scope, call `tasks/list` twice by default: first with
-     `status: "in_progress"`, then with `status: "open"`.
+2. Use compact metadata to resolve the selected task set:
+   - For broad queue scope, call `tasks/summary` once with
+     `statuses: ["in_progress", "open"]`.
    - For selected task numbers from a `What's Next` snapshot, reuse the snapshot
-     task records when available; otherwise call `tasks/list` for the necessary
-     status/filter and match by slug/title.
-   - For slugs or titles from the current conversation, call the narrowest
-     available `tasks/list` filters, then match by slug/title from the MCP
-     records; do not launch unrelated tasks merely because they share a status
-     or priority.
-3. If `tasks/list` is not visible, use targeted Codex tool discovery for the
-   BigBrain `tasks/list` tool before falling back to runtime or code inspection.
+     metadata when available; otherwise call `tasks/summary` with the narrowest
+     filters and match by slug/title.
+   - Do not retrieve full content for unselected candidates.
+3. If `tasks/summary` or `tasks/get` is not visible, use targeted Codex tool
+   discovery for those exact BigBrain tools before falling back to legacy full
+   `tasks/list`.
 4. Honor explicit scoping in the user's request:
    - For "my tasks" or "assigned to me", pass `assignee: "me"`.
    - For "for people/name" or "assigned to people/name", pass that assignee
@@ -79,15 +77,15 @@ Use the BigBrain MCP task endpoint as the source of truth:
    - For a named priority such as `p0`, `p1`, `p2`, or `p3`, pass `priority`.
    - For a named status, pass that `status`; otherwise use the resolved scope
      rules above.
-5. Use the returned task title, body, priority, assignees, source, and slug to
-   create one prompt per task. The prompt itself must contain the task context
-   needed to begin; do not make the worker fetch or read the task page before
-   starting.
-6. Treat `readiness` and `execution_mode` as useful hints, then read the task
-   body. If `## Open Questions` contains substantive questions, keep the task
-   out of worker prompt blocks and list it as needing input, unless the task is
-   clearly an interactive guided session whose purpose is to answer those
-   questions with the user.
+5. After the user has selected the handoff set, call `tasks/get` once per
+   selected slug. Preserve each selected task's full body, timeline, sources,
+   assignees, and exact open questions in the handoff analysis. Do not call
+   `tasks/get` for candidates that were not selected.
+6. Recheck current status, readiness, execution mode, and full
+   `## Open Questions` content from each selected record immediately before
+   handoff. Keep tasks with substantive questions out of autonomous worker
+   prompts unless the task is clearly an interactive guided session whose
+   purpose is to answer those questions with the user.
 7. Classify the remaining tasks with `readiness` and `execution_mode`. Generate
    autonomous handoff prompts for tasks with `readiness: "ready"` and
    `execution_mode: "agent"`. Generate guided-session prompts for tasks with
@@ -175,6 +173,8 @@ Then provide the shortest useful set of copyable worker prompts.
 ## Quality Rules
 
 - Treat MCP task data as authoritative for task status and assignees.
+- Use compact metadata for discovery and full `tasks/get` records only for the
+  selected handoff set.
 - Do not use local `TODO.md` discovery for this skill.
 - Do not mutate tasks while fanning them out.
 - Do not fan out the whole active queue merely because the skill was invoked.
