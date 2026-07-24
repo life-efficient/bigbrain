@@ -37,6 +37,11 @@ test('canonical page links are deterministic and preserve canonical identity', (
   assert.equal(isLoopbackHost('::1'), true);
   assert.equal(isLoopbackHost('0.0.0.0'), false);
   assert.equal(isLoopbackHost('brain.example.test'), false);
+  const previouslyAcceptedBrainId = `brn_${'a'.repeat(35)}-`;
+  assert.match(
+    canonicalPagePath(previouslyAcceptedBrainId, 'organizations/acme-intralog'),
+    new RegExp(`/dashboard/page/${previouslyAcceptedBrainId}/organizations/acme-intralog$`),
+  );
 });
 
 test('canonical page links reject malformed IDs, traversal, separators, and encoded input', () => {
@@ -69,6 +74,7 @@ test('loopback dashboard route opens one known page and defaults to 404 for miss
   let server;
   try {
     await writeMarkdown(fixture.brainHome, 'organizations/acme-intralog.md', '# Acme Intralog\n\nCanonical local page body.\n');
+    await writeMarkdown(fixture.brainHome, 'FILING.md', '# Brain Filing\n\nRoot filing rules remain readable.\n');
     const config = await loadConfig({ configPath: fixture.configPath });
     server = await startDashboard(config, { host: '127.0.0.1', port: 0 });
     const origin = serverOrigin(server);
@@ -87,6 +93,12 @@ test('loopback dashboard route opens one known page and defaults to 404 for miss
     assert.equal(page.page_url_path, serviceRoute);
     assert.equal(page.title, 'Acme Intralog');
     assert.match(page.markdown, /Canonical local page body/);
+    const rootPayload = await fetch(`${origin}/api/page?slug=FILING`);
+    assert.equal(rootPayload.status, 200);
+    const rootPage = await rootPayload.json();
+    assert.equal(rootPage.slug, 'FILING');
+    assert.equal(rootPage.page_url_path, null);
+    assert.match(rootPage.markdown, /Root filing rules remain readable/);
 
     const missing = await fetch(`${origin}${canonicalPagePath(config.brainId, 'organizations/missing', { basePath: '' })}`);
     assert.equal(missing.status, 404);
@@ -106,6 +118,7 @@ test('MCP defaults to loopback and returns an exact clickable local URL without 
   let running;
   try {
     await writeMarkdown(fixture.brainHome, 'organizations/acme-intralog.md', '# Acme Intralog\n\nCanonical MCP page body.\n');
+    await writeMarkdown(fixture.brainHome, 'FILING.md', '# Brain Filing\n\nRoot MCP read remains compatible.\n');
     const config = await loadConfig({ configPath: fixture.configPath });
     running = await startMcpServer({
       config,
@@ -144,6 +157,23 @@ test('MCP defaults to loopback and returns an exact clickable local URL without 
       `http://127.0.0.1:55559/page/${config.brainId}/organizations/acme-intralog`,
     );
     assert.equal((await fetch(expected)).status, 200);
+
+    const rootReadResponse = await fetch(running.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 2,
+        method: 'tools/call',
+        params: { name: 'read', arguments: { path: 'FILING.md' } },
+      }),
+    });
+    const rootRead = await rootReadResponse.json();
+    assert.equal(rootRead.error, undefined);
+    assert.equal(rootRead.result.structuredContent.path, 'FILING.md');
+    assert.equal(rootRead.result.structuredContent.local_url, null);
+    assert.equal(rootRead.result.structuredContent.page_url, null);
+    assert.match(rootRead.result.structuredContent.body, /Root MCP read remains compatible/);
   } finally {
     await running?.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

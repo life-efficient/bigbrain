@@ -7,7 +7,7 @@ export const LOCAL_PAGE_LINK_HOST = '127.0.0.1';
 export const LOCAL_PAGE_LINK_PORT = 55559;
 export const LOCAL_PAGE_LINK_ORIGIN = `http://${LOCAL_PAGE_LINK_HOST}:${LOCAL_PAGE_LINK_PORT}`;
 
-const BRAIN_ID_PATTERN = /^brn_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const BRAIN_ID_PATTERN = /^brn_[0-9a-f-]{36}$/i;
 
 export function normalizeCanonicalPageSlug(input) {
   const value = String(input || '').trim();

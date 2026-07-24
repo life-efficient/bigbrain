@@ -1,6 +1,6 @@
 {
   "name": "bigbrain",
-  "version": "0.16.1",
+  "version": "0.17.0",
   "license": "MIT",
   "type": "module",
   "main": "electron/main.cjs",

@@ -1,4 +1,4 @@
-const BRAIN_ID_PATTERN = /^brn_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const BRAIN_ID_PATTERN = /^brn_[0-9a-f-]{36}$/i;
 
 export function privatePageRouteFromPath(pathname) {
   const match = String(pathname || '').match(/^(?:\/dashboard)?\/page\/([^/]+)\/(.+)$/);

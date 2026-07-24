@@ -3,7 +3,7 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining device and server installations.
 
-## Unreleased
+## [0.17.0] - 2026-07-24
 
 ### Added
 
@@ -15,17 +15,67 @@ actions` section for agents maintaining device and server installations.
 - Added fail-closed canonical page routing for missing pages, malformed paths,
   traversal attempts, and mismatched brain identities without changing the
   explicit body-only public visibility model.
-- Changed the generic MCP listener default to loopback. Server deployments
-  continue to bind explicitly through their configured `HOST`.
 - Added compact, bounded `tasks/summary` retrieval with multi-status filtering,
   tri-state Open Questions metadata, and best-effort cursor pagination, while
   preserving the existing full `tasks/list` response.
 - Added `tasks/get` for full detail retrieval only after a task is selected for
   handoff, plus a read-only `tasks/hygiene` audit for advisory stale, overdue,
   assignment, and backlog signals.
+- Added the bundled BigBrain Task Hygiene skill for bounded, read-only backlog
+  audits.
+- Added machine-wide destination routing to BigBrain Granola Ingest and made
+  the single Granola routing automation a thin invocation of that skill.
+
+### Changed
+
+- Changed the generic MCP listener default to loopback. Server deployments
+  continue to bind explicitly through their configured `HOST`.
 - Updated bundled BigBrain What's Next and fanout skills to rank compact
   metadata and defer full task bodies, timelines, sources, and exact open
   questions until selected handoff.
+- Updated BigBrain Check Update to recognize the active unified Granola router
+  and preserve exactly one machine-wide automation.
+
+### Agent update actions
+
+- Source installs: update to `v0.17.0`, run `npm install` and `npm link`, then
+  restart the desktop app and every local dashboard/MCP service so the loopback
+  resolver and refreshed MCP tool catalog are loaded.
+- Desktop installs: install and restart BigBrain `v0.17.0`. With the desktop app
+  running and the target brain already connected, verify that an MCP-provided
+  link shaped like
+  `http://127.0.0.1:55559/page/<brain-id>/<canonical-slug>` opens the page.
+  Agents must return `local_url` rather than guessing the brain ID or path.
+  `page_url` remains authenticated, and `public_url` remains available only
+  after explicit page publication.
+- Server and custom MCP deployments: set `HOST` or `--host` explicitly. Use
+  `0.0.0.0` only behind the existing authenticated reverse-proxy boundary;
+  otherwise the new safe default binds to `127.0.0.1`. Deploy or pin the
+  `ghcr.io/life-efficient/bigbrain:0.17.0` image digest, restart, and verify
+  `/ready`, MCP initialization/tool listing, unauthenticated denial of private
+  page routes, and authenticated page access.
+- Refresh the bundled BigBrain What's Next, Fanout Tasks, Task Hygiene, Granola
+  Ingest, and Check Update skills. Refresh the machine-wide Granola automation
+  template and verify exactly one active Granola writer. Do not create a second
+  routing automation, and do not enable destination writes until candidate
+  brains have approved profiles plus healthy authenticated write access.
+- No brain pages, persisted task fields or enums, filing rules, database rows,
+  registry entries, API keys, OAuth records, or default-brain pointers require
+  migration. The new task endpoints reuse existing task parsing and preserve
+  `tasks/list`.
+- Run `bigbrain sync --json`, `bigbrain health --json`, and `npm test`.
+
+### Verification
+
+- `npm run build:dashboard`
+- Focused desktop resolver, canonical page routing, traversal, brain isolation,
+  OAuth/token authorization, MCP, and public-visibility tests
+- `npm test`
+- `npm pack --dry-run`
+- Local-data compatibility audit covering persisted task values, filing rules,
+  runtime state, storage schemas, skills, automations, and install/update paths
+- Release workflow verification for signed or explicitly unsigned macOS
+  artifacts and the multi-architecture GHCR image digest
 
 ## [0.16.1] - 2026-07-22
 

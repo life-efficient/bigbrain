@@ -738,7 +738,17 @@ function pageWithCanonicalLink(page, config, authConfig) {
 function canonicalPageLinkFields(page, authConfig, explicitBrainId = null) {
   const brainId = explicitBrainId || authConfig?.brainId;
   if (!brainId) return {};
-  const pageUrlPath = canonicalPagePath(brainId, page.slug);
+  let pageUrlPath;
+  try {
+    pageUrlPath = canonicalPagePath(brainId, page.slug);
+  } catch {
+    return {
+      brain_id: brainId,
+      page_url: null,
+      page_url_path: null,
+      local_url: null,
+    };
+  }
   const localOrigin = authConfig?.runtimeLocalUrl || null;
   const protectedOrigin = authConfig?.publicUrl
     || localOrigin

@@ -1578,18 +1578,24 @@ export async function updateDashboardPageVisibility(config, db, req, actor = nul
 }
 
 async function buildPagePayloadForSlug(config, db, slug) {
-  const canonicalSlug = normalizeCanonicalPageSlug(slug);
-  const fullPath = resolveBrainMarkdownPath(config.brainDir, canonicalSlug);
+  const pageSlug = normalizeDashboardPageSlug(slug);
+  const fullPath = resolveBrainMarkdownPath(config.brainDir, pageSlug);
   const raw = await fs.readFile(fullPath, 'utf8');
-  const parsed = parseMarkdownPage(raw, canonicalSlug);
+  const parsed = parseMarkdownPage(raw, pageSlug);
   const stat = await fs.stat(fullPath);
-  const outgoing = db ? await getOutgoingLinks(db, canonicalSlug) : [];
-  const backlinks = db ? await getBacklinks(db, canonicalSlug) : [];
+  const outgoing = db ? await getOutgoingLinks(db, pageSlug) : [];
+  const backlinks = db ? await getBacklinks(db, pageSlug) : [];
   const relativePath = path.relative(config.brainDir, fullPath);
+  let pageUrlPath = null;
+  try {
+    pageUrlPath = canonicalPagePath(config.brainId, pageSlug);
+  } catch {
+    // Root infrastructure documents remain readable but do not get page links.
+  }
   return {
-    slug: canonicalSlug,
+    slug: pageSlug,
     brain_id: config.brainId,
-    page_url_path: canonicalPagePath(config.brainId, canonicalSlug),
+    page_url_path: pageUrlPath,
     title: parsed.title,
     type: parsed.type,
     path: relativePath,
@@ -1610,6 +1616,19 @@ async function buildPagePayloadForSlug(config, db, slug) {
         .map((link) => ({ slug: link.from_slug, label: link.link_text || link.from_slug })),
     },
   };
+}
+
+function normalizeDashboardPageSlug(slug) {
+  try {
+    return normalizeCanonicalPageSlug(slug);
+  } catch {
+    const value = String(slug || '').trim().replace(/\.md$/i, '');
+    if (!value || value.includes('/') || value.includes('\\') || value.includes('%')
+      || value.includes('?') || value.includes('#') || value === '.' || value === '..') {
+      throw new Error('Invalid dashboard page slug.');
+    }
+    return value;
+  }
 }
 
 async function readPublicMarkdownPage(config, slug) {
