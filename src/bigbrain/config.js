@@ -169,6 +169,7 @@ export async function initializeBrainHome(brainHome, { env = process.env, brainN
 
   await maybeMigrateLegacyRuntime(resolvedBrainHome, metaDir);
   await fs.mkdir(metaDir, { recursive: true });
+  await ensureLocalRuntimeIgnored(resolvedBrainHome, metaDir);
   for (const dir of config.schema_dirs) {
     await fs.mkdir(path.join(resolvedBrainHome, dir), { recursive: true });
   }
@@ -188,6 +189,29 @@ export async function initializeBrainHome(brainHome, { env = process.env, brainN
     statePath: statePathForBrainHome(resolvedBrainHome, env),
     config,
   };
+}
+
+async function ensureLocalRuntimeIgnored(brainHome, metaDir) {
+  const relativeMetaDir = path.relative(brainHome, metaDir);
+  if (!relativeMetaDir || relativeMetaDir.startsWith('..') || path.isAbsolute(relativeMetaDir)) return;
+
+  const ignoreEntry = `${relativeMetaDir.split(path.sep).join('/')}/`;
+  const gitignorePath = path.join(brainHome, '.gitignore');
+  let current = '';
+  try {
+    current = await fs.readFile(gitignorePath, 'utf8');
+  } catch (error) {
+    if (!isMissingFileError(error)) throw error;
+  }
+
+  const normalizedTarget = ignoreEntry.replace(/^\/|\/$/g, '');
+  const alreadyIgnored = current.split(/\r?\n/).some((line) => (
+    line.trim().replace(/^\/|\/$/g, '') === normalizedTarget
+  ));
+  if (alreadyIgnored) return;
+
+  const separator = current.length > 0 && !current.endsWith('\n') ? '\n' : '';
+  await fs.writeFile(gitignorePath, `${current}${separator}${ignoreEntry}\n`, 'utf8');
 }
 
 export async function loadConfig(input = null) {

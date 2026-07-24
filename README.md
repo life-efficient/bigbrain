@@ -1,139 +1,233 @@
-# bigbrain
+# BigBrain
 
-Copy this into your agent (Codex/Claude Code)
+BigBrain is a local-first knowledge runtime for AI agents and humans working
+against the same durable memory.
+
+Your knowledge stays in ordinary Markdown files and can be backed up with Git.
+BigBrain adds the layer agents need around those files: indexing, hybrid
+retrieval, grounded answers, controlled writes, health checks, automations,
+MCP access, and a dashboard.
+
+> **The short version:** Markdown and Git hold the knowledge you own. BigBrain
+> turns it into memory that agents can reliably store, retrieve, and maintain.
+
+## Start Here
+
+The easiest setup is agent-led. Copy this into Codex or Claude Code:
 
 ```text
-Install and set up BigBrain by following https://github.com/life-efficient/bigbrain/blob/main/INSTALL_FOR_AGENTS.md.
+Install and set up BigBrain v0.17.0 by following https://github.com/life-efficient/bigbrain/blob/v0.17.0/INSTALL_FOR_AGENTS.md.
 ```
 
-`bigbrain` is a local-first knowledge runtime for agents and humans working
-against the same markdown brain.
-
-It exists to make durable memory practical: agents can add, search, query,
-validate, and refresh a git-backed knowledge base without turning the knowledge
-base into application state. Markdown and git stay canonical. BigBrain provides
-the runtime layer around that corpus: indexing, retrieval, health checks, task
-refresh, MCP access, automations, and a dashboard.
-
-The code lives in this repo. The actual brain pages live in a selected markdown
-brain home. Runtime state, config, and indexes live outside this source repo,
-normally under the selected brain home at `.bigbrain-state/`.
-
-## Quick Start
+Or install it manually:
 
 ```bash
-cd /path/to/bigbrain
+git clone https://github.com/life-efficient/bigbrain.git
+cd bigbrain
+npm install
 npm link
-bigbrain init /path/to/brain-home
+
+bigbrain init /path/to/brain-home --name "My Brain"
 bigbrain sync --json
-bigbrain query "what should I know about this project?"
+bigbrain query "What should I know about this project?"
 ```
 
-Pass `--brain-home /path/to/brain-home` when targeting a non-default brain.
+Requirements:
 
-Check for a compatible BigBrain release with `bigbrain update --check`. Source
-installations can apply one with `bigbrain update --apply`; headless macOS
-installations can use `scripts/install-headless-updater.mjs` to run that safe
-update path automatically and verify the MCP service after restart.
+- Node.js 22.5 or newer
+- an OpenAI API key for semantic search, reranking, and generated answers
+- no API key is required for Markdown storage, indexing, links, or lexical search
 
-## Agent Setup
+BigBrain is local-first, not necessarily local-only. When an OpenAI API key is
+configured, sync sends page text for embeddings, search can send the query and
+candidate snippets for reranking, and `query` sends the question plus retrieved
+context for grounded answer generation. Without a key, those stages are skipped.
 
-Agent setup lives in [`INSTALL_FOR_AGENTS.md`](./INSTALL_FOR_AGENTS.md).
-Skill routing lives in [`skills/RESOLVER.md`](./skills/RESOLVER.md).
+See [`INSTALL_FOR_AGENTS.md`](./INSTALL_FOR_AGENTS.md) for guided setup and
+[`skills/RESOLVER.md`](./skills/RESOLVER.md) for agent skill routing.
 
-## Features
+## The Two Parts of BigBrain
 
-- MECE markdown file structure
-- linked database
-- relative markdown links and backlinks
-- hybrid search with keyword + semantic fusion
-- explicit automations for consistency and freshness
-- git-backed durability
-- a scoped CLI that targets an external brain home
-- a lightweight dashboard
-- OpenAI-native embeddings, grounded query, and enrichment defaults
-- MCP server mode for clients connecting to an existing BigBrain
-- OAuth allowlist support for team MCP access
-- retrieval evals for checking search quality changes
+BigBrain has two primary elements:
 
-## Brain Model
+| | Storage | Retrieval |
+| --- | --- | --- |
+| Purpose | Keep durable, inspectable knowledge | Find the right context when an agent needs it |
+| Canonical layer | Markdown files, optionally backed by Git | The original Markdown pages returned as sources |
+| Runtime layer | SQLite locally or Postgres on a server | Lexical search, embeddings, ranking, and grounded synthesis |
+| Core principle | The database is not the authored source of truth | Search remains useful even when AI-powered stages are unavailable |
 
-`bigbrain` treats the brain as three related surfaces:
+```mermaid
+flowchart LR
+    A["Markdown pages and raw files"] --> B["BigBrain sync"]
+    A --> G["Optional Git backup"]
+    B --> C["SQLite or Postgres index"]
+    C --> D["Lexical retrieval"]
+    C --> E["Semantic retrieval"]
+    D --> F["Ranked sources"]
+    E --> F
+    F --> H["Search results or grounded answer"]
+```
 
-- canonical brain pages under typed top-level directories like `people/`,
-  `organizations/`, `deals/`, `projects/`, `ideas/`, `meetings/`, `tasks/`,
-  `concepts/`, `writing/`, and `protocol/`
-- first-class indexed attachment sidecars under per-collection `.raw/` directories
-- raw binaries beside those sidecars
+## 1. Storage
 
-Subject pages and attachment sidecars are both authored, indexed knowledge pages.
-Every valuable raw artifact has exactly one same-basename Markdown sidecar beside
-it. Sidecars may contain comprehensive extraction and synthesis and control the
-artifact's visibility and groups. Raw binaries are never indexed directly. When
-a sidecar is public, its public route renders the artifact rather than exposing
-the private searchable Markdown body.
+BigBrain deliberately separates authored knowledge from runtime state.
 
-Examples of raw attachments:
+### Canonical knowledge
 
-- transcript dumps
-- source decks and PDFs
-- generated diagrams or images
-- spreadsheets and financial models
-- sendable proposals, contracts, and briefs
+The brain home contains the files people and agents author:
 
-Raw attachments live under the same collection as the markdown page they
-support. The default shape is:
+- Markdown pages organized by subject
+- relative Markdown links between pages
+- task pages with explicit status and ownership
+- raw files such as PDFs, transcripts, decks, images, and spreadsheets
+- same-basename Markdown sidecars that make raw files searchable
+
+Markdown remains readable without BigBrain and can be versioned, reviewed,
+backed up, or moved with normal Git and filesystem tools.
+
+The default page collections are:
 
 ```text
-<collection>/.raw/<filename>
-<collection>/.raw/<basename>.md
-<collection>/.raw/<filename>
+people/          organizations/   deals/
+projects/        ideas/           meetings/
+tasks/           concepts/        writing/
+protocol/        archive/
 ```
 
-Do not nest page-slug folders or any other folders inside `.raw`; use
-collision-safe filenames such as `meeting-slug-transcript.txt` or
-`report-slug-final.pdf`.
+File by primary subject, not by source or format. The active brain's
+`filing_rules` output is the operational source of truth for exact paths.
 
-Prefer the owning collection whenever one is clear: for example, deal-owned
-teasers and models belong in `deals/.raw/`, meeting transcripts belong in
-`meetings/.raw/`, writing exports belong in `writing/.raw/`, and protocol
-templates belong in `protocol/.raw/`. The `filing_rules` tool is the operational
-source of truth for the active brain; legacy `sources/.raw/` and `.artifacts/`
-directories remain readable when a specific brain's filing rules require them.
+### Raw files and sidecars
 
-Repo documentation pages such as `README.md` files are not canonical brain
-pages and should be ignored by indexing and schema validation.
+Raw files live under the collection they support:
 
-Meeting pages are a separate authored class. They can share the same canonical
-meeting page across the full lifecycle:
+```text
+<collection>/.raw/<basename>.<ext>
+<collection>/.raw/<basename>.md
+```
 
-- optional pre-meeting `## Prep`
-- post-meeting `## Summary`
-- `## Key Decisions`
-- `## Action Items`
-- `## Discussion Notes`
+The binary is not indexed directly. Its same-basename Markdown sidecar is the
+private, searchable representation and can hold extraction, synthesis,
+provenance, links, visibility, and group metadata.
 
-For meetings, `---` and `## Timeline` are optional. The prep workflow should
-update the same meeting page that later receives ingested meeting outcomes.
+### Runtime state
 
-## Ways To Use BigBrain
+`bigbrain sync` parses the Markdown corpus and builds a derived runtime
+projection containing:
 
-BigBrain gives AI persistent memory through two user-facing choices:
+- page metadata and searchable text
+- forward links and backlinks
+- lexical search indexes
+- embedding chunks and vectors
+- recent activity, health, and automation state
+- member, authentication, and audit state for server deployments
 
-- **Run BigBrain on this device:** create or select a markdown brain on this
-  device, keep runtime state under `.bigbrain-state/`, and use localhost
-  CLI/MCP/dashboard access.
-- **Connect to an existing BigBrain:** point an agent, browser, or desktop app
-  at an already-running BigBrain service without managing its lifecycle.
+For a device-managed brain, this normally lives under:
 
-Hosting ownership, deployment location, storage, client type, and sharing do
-not create additional product modes. An existing service can be hosted by us
-or self-hosted/on-premises. Docker is the canonical server package, even when
-the service and client run on the same physical machine. Bundled Postgres and
-managed Postgres such as Supabase are storage choices. Either relationship can
-remain private or be shared with approved users.
+```text
+<brain-home>/.bigbrain-state/
+```
 
-Connect Codex to an existing BigBrain with the BigBrain-owned bootstrap:
+BigBrain automatically adds this directory to the brain home's `.gitignore`.
+Never commit or publish it: it can contain the SQLite index, member records,
+authentication state, and bounded audit history.
+
+SQLite is the default local backend. Production server deployments normally use
+Postgres and pgvector. In both cases, authored Markdown remains canonical; the
+searchable projection can be rebuilt from it. Mutable operational state such as
+OAuth grants and audit history should still be persisted and backed up
+appropriately.
+
+## 2. Retrieval
+
+BigBrain separates **search** from **query**:
+
+- `get` directly reads a known canonical page.
+- `links` and `backlinks` inspect explicit relationships in the indexed graph.
+- `search` returns ranked pages and snippets. It does not generate an answer.
+- `query` runs the same retrieval pipeline, then generates a concise answer
+  grounded in the retrieved context with citations back to source page slugs.
+
+### How retrieval works today
+
+For each request, BigBrain currently:
+
+1. **Classifies the query intent** as an entity lookup, temporal question,
+   event question, or general search so ranking can weight evidence differently.
+2. **Optionally expands the query** into up to two alternate searches in
+   `tokenmax` mode. The original query always remains included.
+3. **Runs lexical retrieval** over indexed titles, summaries, compiled truth,
+   timelines, and page text.
+4. **Runs semantic retrieval** by embedding the query and comparing it with
+   stored page chunks. For SQLite this uses cosine similarity in-process; for
+   Postgres it uses pgvector.
+5. **Keeps the best semantic chunk per page** so one long page does not crowd
+   out the rest of the result set.
+6. **Fuses lexical and semantic rankings** using weighted reciprocal-rank
+   fusion.
+7. **Adds deterministic boosts** for exact page or slug matches, aliases, title
+   phrases, ordered title tokens, and full title-token coverage.
+8. **Reranks the candidate set with OpenAI** in `balanced` and `tokenmax` modes.
+   If that step fails, BigBrain keeps the pre-rerank order.
+9. **Returns ranked sources** with snippets and optional score explanations.
+10. **For `query`, synthesizes a grounded answer** from those sources and cites
+    the supporting page slugs. If generation is unavailable, the retrieved
+    context is still returned.
+
+Semantic retrieval, reranking, query expansion, and answer generation require
+`OPENAI_API_KEY`. When those stages are unavailable, BigBrain degrades to
+lexical retrieval and reports what was skipped instead of silently guessing.
+
+### Search modes
+
+| Mode | Query expansion | OpenAI reranking | Default results |
+| --- | ---: | ---: | ---: |
+| `conservative` | No | No | 10 |
+| `balanced` (default) | No | Yes | 10 |
+| `tokenmax` | Yes | Yes | 25 |
+
+Use `--explain` to inspect retrieval evidence and score components:
+
+```bash
+bigbrain search "Ariana Properties" --mode balanced --explain
+bigbrain query "What changed in this deal?" --mode tokenmax --explain
+```
+
+BigBrain also includes synthetic and private retrieval evals so ranking changes
+can be tested rather than judged from a handful of anecdotes. See
+[`docs/design.md`](./docs/design.md#hybrid-retrieval) for the retrieval design
+and run `bigbrain eval retrieval` for the public suite.
+
+## Local and Remote Operation
+
+There are two user-facing ways to run BigBrain. The knowledge model is the same
+in both; what changes is who manages the service and where its runtime state
+lives.
+
+| | Run BigBrain on this device | Connect to an existing BigBrain |
+| --- | --- | --- |
+| Best for | Personal use, private work, local development | Teams, shared brains, always-on access |
+| Service owner | You and the local BigBrain installation | A hosted, self-hosted, or on-prem operator |
+| Canonical knowledge | Markdown in a local brain home, optionally Git-backed | Markdown in the service's selected brain home or Git-backed content repo |
+| Runtime database | SQLite by default | Postgres/pgvector by default |
+| Access | Loopback CLI, MCP, and dashboard | HTTPS MCP and dashboard |
+| Authentication | None on trusted loopback by default | OAuth allowlist by default |
+| Lifecycle | Local CLI, desktop app, or LaunchAgent | Independently managed server or Docker deployment |
+
+“Remote” describes the relationship between the client and the BigBrain
+service. It does not require BigBrain-operated hosting. The service can be:
+
+- hosted by the BigBrain operator
+- self-hosted in your own cloud
+- deployed on-premises
+- running on the same physical machine but managed as an independent service
+
+Docker is the canonical server package. A client connects to a remote or
+server-managed brain without taking responsibility for its process, database,
+backups, or upgrades.
+
+Connect Codex to an existing service with:
 
 ```sh
 bigbrain connect codex https://your-service.example.com/mcp \
@@ -141,345 +235,178 @@ bigbrain connect codex https://your-service.example.com/mcp \
   --auth oauth
 ```
 
-OAuth is the server default and gives every connection its own Codex-managed
-credential. Use `--auth token --token-stdin` only for a trusted single-operator
-deployment; never pass a bearer token as an argument or store it in a repository
-or Codex configuration. The command keeps connections isolated by name and
-verifies the Codex registration. Complete the authenticated tool and
-brain-identity check in a fresh Codex task. Existing Codex processes need
-restarting only for the token fallback, not for the standard OAuth flow. See
-[`docs/mcp-hosting.md`](./docs/mcp-hosting.md) for the full auth, verification,
-and migration contract.
+See [`docs/packaging-architecture.md`](./docs/packaging-architecture.md) for the
+full packaging model and [`docs/mcp-hosting.md`](./docs/mcp-hosting.md) for
+deployment and authentication.
 
-The database is service state, not the source of truth for authored knowledge.
-For server deployments such as Example Brain, markdown in git remains canonical.
-Postgres can always be rebuilt from the markdown repo, but mutable runtime state
-such as OAuth clients, grants, hosted git health state, embedding rows, and
-bounded audit logs should persist outside the app container.
+## Shared Multi-Person BigBrain
 
-## Architecture
+A shared BigBrain is one isolated BigBrain service serving one configured
+brain. It is not a multi-tenant database containing unrelated brains.
 
-See:
+Each shared deployment has its own:
 
-- [`CHANGELOG.md`](./CHANGELOG.md)
-- [`docs/design.md`](./docs/design.md)
-- [`docs/packaging-architecture.md`](./docs/packaging-architecture.md)
-- [`docs/mcp-hosting.md`](./docs/mcp-hosting.md)
-- [`docs/postgres-migration.md`](./docs/postgres-migration.md)
-- [`docs/example-brain-deployment.md`](./docs/example-brain-deployment.md)
-- [`docs/releases.md`](./docs/releases.md)
-- [`src/bigbrain/README.md`](./src/bigbrain/README.md)
-- [`TODO.md`](./TODO.md)
+- Markdown corpus and Git history
+- Postgres database and embeddings
+- member directory
+- authentication boundary and secrets
+- backup lifecycle
+- bounded audit log
 
-## Brain Home
+### Identity and access
 
-BigBrain is the software; a brain is one isolated knowledge system. Each brain
-has an immutable `brain_id` and an editable `brain_name`. One running BigBrain
-MCP service serves exactly one configured brain, including its own content,
-database, members, authentication boundary, secrets, and backups. A machine may
-run several isolated BigBrain services, each with its own brain home, port, and
-MCP client registration.
-
-Create a named brain or inspect and rename an existing one with:
+Each member maps an authenticated email address to a canonical `people/<slug>`
+page:
 
 ```sh
-bigbrain init /path/to/personal-brain --name "Personal Brain"
-bigbrain --brain-home /path/to/personal-brain identity show
-bigbrain --brain-home /path/to/personal-brain identity set-name "Private Brain"
+bigbrain members add alice@example.com people/alice \
+  --name Alice \
+  --role member
 ```
 
-MCP registration names and deployment/service labels are client-owned aliases.
-They may be normalized from the brain name during installation, but they are
-persisted independently so renaming a brain does not break existing clients.
-There is intentionally no canonical brain slug.
+OAuth allowlisting gives each connected person or agent its own credential.
+The current hosted OAuth flow uses Google identities.
+Server tools are exposed according to explicit scopes:
 
-Running `bigbrain init /path/to/home` creates:
+- `brain:read` for reading, listing, search, query, and raw-file access
+- `brain:create` for page, task, and raw-file contributions
+- `brain:publish` for deliberately publishing pages or shared groups
+- separate privileged scopes for destructive raw-file operations, Git backup,
+  maintenance, and administration
 
-- the canonical top-level page directories
-- `tasks/` for page-backed task records
-- `<brain-home>/.bigbrain-state/config.json`
-- `<brain-home>/.bigbrain-state/state.json`
-- `<brain-home>/.bigbrain-state/bigbrain.sqlite`
+New OAuth clients receive read and create access by default, subject to the
+server's configured scope ceiling. Internet-reachable shared deployments should
+use OAuth rather than a shared bearer token.
 
-An example config shape is in [`bigbrain.config.example.json`](./bigbrain.config.example.json).
+### Collaboration model
 
-## Members And Assignments
+- Everyone reads from and contributes to the same canonical brain.
+- Only active members can be assigned work in `tasks/*.md`.
+- `assignee=me` resolves to the authenticated member.
+- MCP contributions can be attributed to the authenticated email in page
+  timelines, Git backup messages, and bounded audit records.
+- Writes can trigger sync and, when enabled, Git backup so the shared index and
+  durable corpus stay aligned.
+- Concurrent updates to the same page are currently last-writer-wins; BigBrain
+  does not yet provide page locking or revision-conflict detection.
+- Private brain access and public sharing are separate. Publishing a page,
+  attachment, or curated group requires an explicit visibility action.
 
-Brain `people/*.md` pages can describe anyone. Assignable work is restricted to
-active members in the runtime `members` table. A member maps an OAuth/email
-identity to a canonical person page:
+Agents remain separate from the knowledge service. Codex, Claude, Relay,
+browsers, and local scripts can all connect to the same BigBrain over MCP while
+BigBrain provides the shared memory and access boundary.
 
-```sh
-bigbrain members add hani@example.com people/hani --name Hani --role owner
-```
+## Brain Model
 
-Task pages live under `tasks/*.md`. Use one page per assignable task:
+Canonical pages live under typed top-level directories. A normal page contains:
+
+1. YAML frontmatter
+2. a title and short executive summary
+3. compiled truth or current state
+4. open threads where relevant
+5. an append-only timeline or evidence log
+
+Meeting pages use one canonical file across preparation and follow-up, with
+sections such as `Prep`, `Summary`, `Key Decisions`, `Action Items`, and
+`Discussion Notes`.
+
+Task pages are individual files under `tasks/`:
 
 ```yaml
 ---
 title: Follow up on proposal
 status: open
-readiness: underspecified
+readiness: ready
 execution_mode: agent
 priority: p1
-assignees: [people/hani]
+assignees: [people/alice]
 source: [meetings/proposal-review]
-due: 2026-07-01
+due: 2026-07-31
 ---
 ```
 
-Task identity is derived from the `tasks/` path. Legacy `type: task`
-frontmatter may appear, but it is optional and not used for behavior.
-Valid statuses are `open`, `in_progress`, `waiting`, `done`, and `archived`.
-Use `open` for known work that is not actively being worked, `in_progress` for
-active work currently underway, `waiting` for work paused on an external
-dependency, reply, approval, access, or date, `done` for completed work, and
-`archived` for work intentionally closed without treating it as active. Valid
-readiness values are `underspecified` and `ready`; treat readiness as an
-agent-authored handoff hint. Use `underspecified` when useful work cannot begin
-without more context, and use `ready` when the task appears specified enough to
-work. Status and readiness are independent: a task can be `open` but
-`underspecified`, or `in_progress` and `ready`. Open questions in the task body
-can still cause what's-next or fanout output to ask for user input. Valid
-execution modes are `agent`, `interactive`, and `user`. Use
-`agent` only when Codex or another agent can complete the task autonomously with
-the available context, tools, and files. Use `interactive` when Codex can
-advance the task but needs the user's judgement, preferences, review, or
-decisions along the way. Use `user` only when the task requires a real-world
-action Codex cannot meaningfully perform, such as sending a personal WhatsApp,
-conducting a meeting, signing a physical document, or obtaining approval. Valid
-priorities are `p0`, `p1`, `p2`, and `p3`. `due` is optional and
-must be `YYYY-MM-DD` when present. Keep the current task context above the
-separator, structured as Summary, What Counts as Completed, Body Context, Open
-Questions, and Anti-Patterns, and append evidence or state changes under
-`## Timeline`.
-Use compact `tasks/summary` metadata for ranking and `tasks/get` for the full
-body, timeline, sources, and open questions of selected handoff tasks. The
-legacy `tasks/list` keeps its full-record response for compatibility.
-`tasks/hygiene` provides a bounded read-only audit of likely stale, overdue,
-unassigned, invalid-assignee, or backlogged work; its findings are advisory and
-never mutate or archive tasks. Use `tasks/create` and `tasks/update` only for
-explicitly authorized writes.
-For new intake, create or update a task by default when the item is actionable,
-needs an owner, needs status, or represents follow-up work. Historical
-`inbox/` pages may remain in existing brains, but there is no inbox API or
-dashboard workflow; do not use inbox as a parallel task queue.
-When marking a task `done` or `archived`, include a completion handoff in the
-timeline: either `Next task: tasks/<slug>` or
-`No successor task needed: <reason>`.
-Do not use `ops/tasks.md` or recreate a single-file task list.
+Valid task statuses are `open`, `in_progress`, `waiting`, `done`, and
+`archived`. Execution mode distinguishes autonomous agent work (`agent`),
+guided work needing judgement (`interactive`), and real-world work only the
+person can do (`user`).
 
-The dashboard and `bigbrain tasks --assignee people/hani` only resolve
-assignees that match active members. External people can still be linked in
-notes, sources, or stakeholder fields; they are not assignable until they are
-added as members.
+Run `bigbrain schema` for the live page and filing contract.
 
-For a private device-managed MCP service running with `BIGBRAIN_MCP_AUTH_MODE=none`,
-`assignee=me` resolves to `BIGBRAIN_MCP_LOCAL_PERSON_SLUG`, the single active
-owner, or the single active member when there is no owner. For single-user
-device-managed installations, bootstrap the owner during service installation:
-
-```sh
-bigbrain members ensure-local-owner people/hani --name Hani --email hani@example.com
-```
-
-The device service installer can run that bootstrap step and persist
-`BIGBRAIN_MCP_LOCAL_PERSON_SLUG` in the LaunchAgent when called with
-`--local-person-slug people/hani`. If the brain has multiple active owners or
-members, set that local person slug explicitly so `me` is deterministic.
-
-## Install
-
-Install the CLI globally from this repo:
+## Common Commands
 
 ```bash
-cd /path/to/bigbrain
-npm link
+bigbrain init /path/to/brain-home --name "My Brain"
+bigbrain sync --json
+bigbrain search "query terms"
+bigbrain query "grounded question"
+bigbrain links people/alice
+bigbrain backlinks people/alice
+bigbrain recent --since 24h
+bigbrain tasks --assignee people/alice
+bigbrain health --json
+bigbrain schema
+bigbrain dashboard
+bigbrain eval retrieval
+bigbrain update --check
 ```
 
-After linking, `bigbrain` should work from any working directory. The CLI does
-not depend on the current directory for normal use. It resolves the target brain
-home in this order:
+Target a non-default brain with `--brain-home /path/to/brain-home`.
+
+BigBrain resolves the brain home in this order:
 
 1. `--brain-home /path/to/brain-home`
 2. `BIGBRAIN_HOME=/path/to/brain-home`
-3. the saved default pointer at `~/.config/bigbrain/default-brain-home`
+3. `~/.config/bigbrain/default-brain-home`
 
-The runtime config, state, and SQLite index live under the selected brain home
-at `.bigbrain-state/` by default. Because that directory is already inside one
-brain home, it does not contain an extra `brains/<brain-id>/` nesting. Agents or
-automations that run `bigbrain sync` must be able to write there because sync
-updates the SQLite index and state file. `BIGBRAIN_STATE_ROOT` remains available
-as an explicit override for tests or unusual deployments; when set, it can hold
-multiple brain runtimes under hashed subdirectories.
-
-Automation run markers should live beside the runtime state under
-`.bigbrain-state/automation-runs/` with names such as `nightly-maintenance/`.
-Do not write runtime state into the BigBrain source repo.
-
-Machine-local BigBrain secrets live outside the source repo and brain home in
-`${HOME}/.config/bigbrain/.env`. The CLI loads that file before commands run and
-does not override variables already set in the process environment. Put
-`OPENAI_API_KEY=...` there to enable embeddings, semantic search, and generated
-answers.
-
-## Commands
-
-```bash
-bigbrain init /path/to/brain-home
-bigbrain sync
-bigbrain search "query terms"
-bigbrain query "grounded question"
-bigbrain eval retrieval
-bigbrain eval export
-bigbrain eval replay --against baseline.ndjson
-bigbrain eval compare
-bigbrain health
-bigbrain schema
-bigbrain dashboard
-bigbrain migrate /path/to/existing/brain
-```
-
-Pass `--brain-home /path/to/brain-home` when targeting a non-default brain.
-
-`bigbrain sync --json` reports index totals separately from run work and
-outstanding work. `index_totals_after_sync.pages` and
-`index_totals_after_sync.links` are the current index size after sync, not new
-items from this run. `outstanding_work.pages_needing_embeddings` and
-`outstanding_work.embedding_chunks_pending` report what remains to be done.
-`run_work.pages_embedded` and `run_work.embedding_chunks_created` report work
-completed during this run. Legacy top-level fields such as `indexed_pages`,
-`indexed_links`, `embeddings_generated`, and `embedding_chunks_generated` remain
-available for compatibility.
-
-For a clickable private page link, call the MCP `read` or
-`get_page_visibility` tool and use its returned `local_url`. A local link has
-the stable form
-`http://127.0.0.1:55559/page/<brain_id>/<canonical-slug>`. The loopback-only
-desktop resolver opens the matching connected local or hosted brain; it does
-not proxy content or bypass hosted authentication. Do not construct the port or
-brain ID manually. Hosted `page_url` values use the private dashboard route
-behind authentication; `public_url` remains a separate, explicit body-only
-publication surface. See
-[`docs/mcp-hosting.md`](./docs/mcp-hosting.md#private-canonical-page-links).
-
-Tasks are authored as individual markdown pages under `tasks/*.md`. The old
-single-file `ops/tasks.md` refresh workflow is deprecated and no longer exposed
-by the CLI.
-
-## Retrieval Evals
-
-BigBrain includes a GBrain-style retrieval eval suite for checking whether
-ranking changes improve or damage source selection.
-
-The built-in suite uses synthetic, non-sensitive fixtures and covers these
-families:
-
-- `title-substring`
-- `generic-to-named`
-- `alias-synonym`
-- `multi-chunk-dilution`
-- `short-vs-rich`
-- `graph-relationship`
-- `hard-negative`
-
-Run the public synthetic quality suite:
-
-```bash
-bigbrain eval retrieval
-bigbrain eval retrieval --json
-```
-
-Reports include Hit@1, Hit@3, MRR, recall@k, hard-negative cleanliness,
-per-family summaries, gates, warnings, and one `_meta.metric_glossary` block in
-JSON output.
-
-Private real-brain cases should live outside this repo. The default private
-case path is:
+Machine-local secrets live outside both the source repo and brain home:
 
 ```text
-~/.config/bigbrain/evals/retrieval-cases.jsonl
+~/.config/bigbrain/.env
 ```
 
-Run private cases:
+Add `OPENAI_API_KEY=...` there to enable embeddings, semantic retrieval,
+reranking, and generated answers.
+
+## Dashboard and Desktop App
+
+Start the local dashboard:
 
 ```bash
-bigbrain eval retrieval --private
-bigbrain eval retrieval --cases /path/to/cases.jsonl
+bigbrain dashboard
 ```
 
-Private cases warn by default. Use `--fail-on-private-regression` when a
-private suite should fail the command. Use `--redact` when generating shareable
-reports; it removes query text and replaces slugs with stable opaque IDs.
-
-Case files can be JSON or JSONL. Existing fields remain compatible:
-
-```json
-{
-  "id": "private-target",
-  "family": "title-substring",
-  "query": "Private Eval",
-  "expected_slug": "people/private-eval",
-  "acceptable_slugs": [],
-  "relevant_slugs": ["people/private-eval"],
-  "forbidden_slugs": []
-}
-```
-
-Export and replay baselines:
-
-```bash
-bigbrain eval export --private > baseline.ndjson
-bigbrain eval replay --against baseline.ndjson
-```
-
-Replay reports mean Jaccard@k, top-1 stability, moved queries, and latency
-deltas where available.
-
-Compare modes:
-
-```bash
-bigbrain eval compare --private --modes conservative,balanced,tokenmax
-bigbrain eval compare --private --markdown
-```
-
-## Tests
-
-```bash
-npm test
-```
-
-## Desktop App
-
-The dashboard can also run as a Mac desktop app.
-
-For local development:
+For desktop development:
 
 ```bash
 npm run desktop:dev
 ```
 
-That launches a real `.app` wrapper around the built-in dashboard server, so it
-behaves like a normal desktop app in the Dock and can be added to macOS login
-items. The generated `build/dev/BigBrain.app` is also self-launching: opening it
-from Finder or Spotlight loads this source checkout exactly like
-`npm run desktop:dev`. It is a disposable development artifact and continues to
-use the same brain registry and persistent MCP services; it does not copy brain
-data or install a second service.
-
-By default, the desktop app runs BigBrain on this device for the selected brain
-and starts the built-in dashboard server. To connect the same desktop shell to
-an existing BigBrain dashboard, set `BIGBRAIN_DASHBOARD_URL` or pass
-`--dashboard-url`:
+To point the desktop shell at an existing BigBrain dashboard:
 
 ```bash
-BIGBRAIN_DASHBOARD_URL=https://your-service.example.com/dashboard npm run desktop:dev
+BIGBRAIN_DASHBOARD_URL=https://your-service.example.com/dashboard \
+  npm run desktop:dev
 ```
 
-To build distributable artifacts:
+Build distributable macOS artifacts with `npm run desktop:dist`.
+
+## Documentation
+
+- [Design and data model](./docs/design.md)
+- [Packaging architecture](./docs/packaging-architecture.md)
+- [MCP hosting and authentication](./docs/mcp-hosting.md)
+- [Postgres migration](./docs/postgres-migration.md)
+- [Example server deployment](./docs/example-brain-deployment.md)
+- [Releases and updates](./docs/releases.md)
+- [Changelog](./CHANGELOG.md)
+- [Current roadmap](./TODO.md)
+
+## Development
 
 ```bash
-npm run desktop:dist
+npm test
+npm run build:dashboard
+npm pack --dry-run
 ```
 
-This writes the packaged app outputs to `dist/electron/`.
+BigBrain is released under the [MIT License](./LICENSE).

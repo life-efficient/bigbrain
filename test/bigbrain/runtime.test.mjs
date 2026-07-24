@@ -56,12 +56,38 @@ test('init defaults runtime state under the selected brain home', async () => {
     const init = await initializeBrainHome(brainHome, { env });
     assert.equal(init.configPath, path.join(brainHome, '.bigbrain-state', 'config.json'));
     await fs.stat(path.join(brainHome, '.bigbrain-state'));
+    assert.equal(await fs.readFile(path.join(brainHome, '.gitignore'), 'utf8'), '.bigbrain-state/\n');
     await assert.rejects(fs.stat(path.join(env.HOME, '.bigbrain-state', 'brains')));
     const storedConfig = JSON.parse(await fs.readFile(init.configPath, 'utf8'));
     assert.match(storedConfig.brain_id, /^brn_[0-9a-f-]{36}$/);
     assert.equal(storedConfig.brain_name, 'Brain Home');
     assert.equal('tasks_file' in storedConfig, false);
     assert.equal('sqlite_path' in storedConfig, false);
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('init preserves existing gitignore rules and adds the local runtime once', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-init-gitignore-'));
+  try {
+    const brainHome = path.join(rootDir, 'brain-home');
+    await fs.mkdir(brainHome, { recursive: true });
+    await fs.writeFile(path.join(brainHome, '.gitignore'), 'private-notes.md', 'utf8');
+    const env = {
+      ...process.env,
+      HOME: path.join(rootDir, 'home'),
+      BIGBRAIN_POINTER_PATH: path.join(rootDir, 'pointer'),
+      BIGBRAIN_STATE_ROOT: undefined,
+    };
+
+    await initializeBrainHome(brainHome, { env });
+    await initializeBrainHome(brainHome, { env });
+
+    assert.equal(
+      await fs.readFile(path.join(brainHome, '.gitignore'), 'utf8'),
+      'private-notes.md\n.bigbrain-state/\n',
+    );
   } finally {
     await fs.rm(rootDir, { recursive: true, force: true });
   }

@@ -238,7 +238,8 @@ Use the user's GitHub account through the GitHub MCP server:
    `brain`, `bigbrain-home`, or the user's chosen brain name.
 
 7. Initialize git in the brain home if needed, set the GitHub repository as
-   `origin`, commit the current brain contents, and push:
+   `origin`, verify that local runtime state is ignored, commit the current
+   brain contents, and push:
 
    ```bash
    cd /path/to/brain-home
@@ -247,10 +248,20 @@ Use the user's GitHub account through the GitHub MCP server:
    git remote get-url origin >/dev/null 2>&1 \
      && git remote set-url origin https://github.com/<owner>/<repo>.git \
      || git remote add origin https://github.com/<owner>/<repo>.git
+   grep -qxF '.bigbrain-state/' .gitignore
    git add -A
+   if git ls-files --error-unmatch .bigbrain-state >/dev/null 2>&1; then
+     echo "Refusing backup: .bigbrain-state is tracked" >&2
+     exit 1
+   fi
    git commit -m "Initialize BigBrain backup"
    git push -u origin main
    ```
+
+   Never commit or push `.bigbrain-state/`. It can contain the SQLite index,
+   member records, authentication state, and bounded audit history. `bigbrain
+   init` adds the ignore rule automatically; if the verification fails, rerun
+   `bigbrain init /path/to/brain-home` and stop rather than staging the brain.
 
 8. Run a no-op backup check after the on-device MCP service is installed:
 

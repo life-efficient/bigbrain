@@ -1036,8 +1036,15 @@ async function backupGitChanges(config, message) {
   if (!status.stdout.trim()) return { committed: false, pushed: false };
 
   const relativeBrainDir = path.relative(repoRoot, config.brainDir) || '.';
+  const runtimePathPrefix = relativeBrainDir === '.' ? '' : `${relativeBrainDir}/`;
   await git(repoRoot, ['pull', '--rebase', '--autostash']);
-  await git(repoRoot, ['add', relativeBrainDir]);
+  await git(repoRoot, [
+    'add',
+    '--',
+    relativeBrainDir,
+    `:(exclude)${runtimePathPrefix}.bigbrain-state`,
+    `:(exclude)${runtimePathPrefix}.bigbrain-state/**`,
+  ]);
   const staged = await git(repoRoot, ['diff', '--cached', '--quiet']).catch((error) => error);
   if (staged && staged.code === 0) return { committed: false, pushed: false };
   if (staged && staged.code !== 1) throw staged;
