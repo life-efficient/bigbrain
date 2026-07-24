@@ -69,7 +69,7 @@ export class BrainRegistry {
     const port = existingPort || await allocatePort(registry.brains.map((brain) => brain.port), this.host);
     if (registry.brains.some((brain) => brain.port === port)) throw new Error(`Port ${port} is already assigned to another registered brain.`);
     const brain = {
-      id, name: String(name).trim(), home: resolvedHome, port, host: this.host,
+      id, brainId: id, name: String(name).trim(), home: resolvedHome, port, host: this.host,
       serviceLabel: `ai.diffusing.bigbrain.${id}`, replacedService, status: 'setup',
       owner: { name: String(ownerName).trim(), email: String(ownerEmail).trim().toLowerCase() },
       aiAccess: { type: 'bring_your_own_key', provider: 'openai' },

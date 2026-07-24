@@ -9,8 +9,9 @@ actions` section for agents maintaining device and server installations.
 
 - Added stable private page links for local and hosted dashboards. MCP page
   reads and visibility checks now return canonical page URLs containing the
-  immutable brain ID and page slug; loopback links are emitted only for actual
-  loopback listeners, while hosted links retain existing dashboard auth.
+  immutable brain ID and page slug. A fixed desktop resolver on
+  `127.0.0.1:55559` opens the matching connected brain while hosted page routes
+  retain existing dashboard auth.
 - Added fail-closed canonical page routing for missing pages, malformed paths,
   traversal attempts, and mismatched brain identities without changing the
   explicit body-only public visibility model.

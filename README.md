@@ -355,10 +355,12 @@ available for compatibility.
 For a clickable private page link, call the MCP `read` or
 `get_page_visibility` tool and use its returned `local_url`. A local link has
 the stable form
-`http://127.0.0.1:<port>/dashboard/page/<brain_id>/<canonical-slug>`.
-Do not construct the port or brain ID manually. Hosted `page_url` values use
-the same private route behind dashboard authentication; `public_url` remains a
-separate, explicit body-only publication surface. See
+`http://127.0.0.1:55559/page/<brain_id>/<canonical-slug>`. The loopback-only
+desktop resolver opens the matching connected local or hosted brain; it does
+not proxy content or bypass hosted authentication. Do not construct the port or
+brain ID manually. Hosted `page_url` values use the private dashboard route
+behind authentication; `public_url` remains a separate, explicit body-only
+publication surface. See
 [`docs/mcp-hosting.md`](./docs/mcp-hosting.md#private-canonical-page-links).
 
 Tasks are authored as individual markdown pages under `tasks/*.md`. The old

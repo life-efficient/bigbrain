@@ -12,6 +12,7 @@ const REMOTE_DASHBOARD_URL_ENV = "BIGBRAIN_DASHBOARD_URL";
 
 let mainWindow = null;
 let dashboardServer = null;
+let localPageLinkServer = null;
 let dashboardUrl = null;
 let dashboardOrigin = null;
 let remoteDashboardMode = false;
@@ -41,6 +42,11 @@ if (!singleInstanceLock) {
         const { DesktopController } = await importModule("electron/lib/desktop-controller.mjs");
         desktopController = new DesktopController({ appPath: app.getAppPath() });
         rememberConnectedDashboardOrigins(await desktopController.state());
+        const { startLocalPageLinkServer } = await importModule("electron/lib/local-page-link-server.mjs");
+        localPageLinkServer = await startLocalPageLinkServer({
+          resolveBrain: (brainId) => desktopController.resolveCanonicalBrain(brainId),
+          openPage: openCanonicalPage,
+        });
         registerDesktopIpc();
         dashboardUrl = pathToFileURL(path.join(__dirname, "desktop.html")).href;
         dashboardOrigin = "null";
@@ -74,6 +80,10 @@ if (!singleInstanceLock) {
     if (dashboardServer) {
       await new Promise((resolve) => dashboardServer.close(resolve));
       dashboardServer = null;
+    }
+    if (localPageLinkServer) {
+      await new Promise((resolve) => localPageLinkServer.close(resolve));
+      localPageLinkServer = null;
     }
   });
 
@@ -443,6 +453,16 @@ function registerDesktopIpc() {
     "desktop:reveal": (_event, targetPath) => shell.showItemInFolder(targetPath),
   };
   for (const [channel, handler] of Object.entries(handlers)) ipcMain.handle(channel, handler);
+}
+
+async function openCanonicalPage({ brain, targetUrl }) {
+  rememberConnectedDashboardOrigins(brain);
+  await desktopController.activate(brain.id);
+  if (!mainWindow || mainWindow.isDestroyed()) throw new Error("BigBrain window is unavailable.");
+  if (mainWindow.isMinimized()) mainWindow.restore();
+  await mainWindow.loadURL(targetUrl);
+  mainWindow.show();
+  mainWindow.focus();
 }
 
 function isRemoteDashboardAuthUrl(url) {

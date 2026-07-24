@@ -93,6 +93,40 @@ test('desktop connects to and persists an existing BigBrain service', async () =
   await fs.rm(root, { recursive: true, force: true });
 });
 
+test('desktop resolves canonical brain identity without treating it as a registry selector', async () => {
+  const canonicalBrainId = 'brn_01234567-89ab-4cde-8fab-0123456789ab';
+  const controller = new DesktopController({
+    registry: {
+      load: async () => ({
+        brains: [{
+          id: 'desktop-entry',
+          name: 'Local Brain',
+          host: '127.0.0.1',
+          port: 55560,
+          status: 'running',
+        }],
+      }),
+    },
+    fetchImpl: async (url) => {
+      assert.equal(url, 'http://127.0.0.1:55560/health');
+      return new Response(JSON.stringify({
+        ok: true,
+        brain_id: canonicalBrainId,
+        brain_name: 'Local Brain',
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+  });
+
+  const resolved = await controller.resolveCanonicalBrain(canonicalBrainId);
+  assert.equal(resolved.id, 'desktop-entry');
+  assert.equal(resolved.brainId, canonicalBrainId);
+  assert.equal(resolved.dashboardUrl, 'http://127.0.0.1:55560/dashboard');
+  await assert.rejects(
+    () => controller.resolveCanonicalBrain('brn_aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'),
+    /Unknown canonical brain/,
+  );
+});
+
 test('service address validation accepts service routes and rejects unsafe URL shapes', () => {
   assert.equal(normalizeServiceUrl('http://127.0.0.1:3333/mcp'), 'http://127.0.0.1:3333');
   assert.equal(normalizeServiceUrl('https://brain.example.test/connect/'), 'https://brain.example.test');

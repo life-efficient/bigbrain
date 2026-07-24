@@ -40,7 +40,7 @@ import {
   updateBrainPage,
   updatePageVisibility,
 } from './page-ops.js';
-import { canonicalPagePath, canonicalPageUrl, isLoopbackHost } from './page-links.js';
+import { canonicalPagePath, canonicalPageUrl, isLoopbackHost, localPageUrl } from './page-links.js';
 import { queryBrain, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
 import {
@@ -749,7 +749,7 @@ function canonicalPageLinkFields(page, authConfig, explicitBrainId = null) {
     brain_id: brainId,
     page_url: protectedOrigin ? canonicalPageUrl(protectedOrigin, brainId, page.slug) : null,
     page_url_path: pageUrlPath,
-    local_url: localOrigin ? canonicalPageUrl(localOrigin, brainId, page.slug) : null,
+    local_url: localPageUrl(brainId, page.slug),
   };
 }
 
@@ -1155,7 +1155,7 @@ function toolDefinitions() {
     },
     {
       name: 'read',
-      description: 'Read one markdown page from the brain. The response includes a stable private page_url and a loopback local_url when this instance is running locally.',
+      description: 'Read one markdown page from the brain. The response includes a protected page_url and a stable loopback local_url for the BigBrain desktop resolver.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1166,7 +1166,7 @@ function toolDefinitions() {
     },
     {
       name: 'get_page_visibility',
-      description: 'Return one page private viewing link and whether it is internal or public. local_url is a stable loopback-only link when this instance runs locally; page_url remains protected remotely. When public, public_url is a directly shareable absolute public URL.',
+      description: 'Return one page private viewing link and whether it is internal or public. local_url opens the connected brain through the loopback-only BigBrain desktop resolver; page_url remains protected remotely. When public, public_url is a directly shareable absolute public URL.',
       inputSchema: pageVisibilitySchema({ requireVisibility: false }),
     },
     {

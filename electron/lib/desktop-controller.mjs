@@ -142,6 +142,7 @@ export class DesktopController {
       const config = await loadConfig({ brainHome: draft.home });
       await syncBrain({ config, apiKey }).catch(() => null);
       const brain = await this.registry.update(draft.id, {
+        brainId: config.brainId,
         status: 'running',
         owner: { ...draft.owner, personSlug: ownerSlug },
         onboarding: { step: 5, completed: true, error: null },
@@ -188,6 +189,19 @@ export class DesktopController {
   }
 
   async activate(id) { return publicBrain(await this.registry.activate(id)); }
+  async resolveCanonicalBrain(brainId) {
+    const registry = await this.registry.load();
+    for (const brain of registry.brains) {
+      let canonicalBrainId = brain.brainId || null;
+      if (!canonicalBrainId && brain.connectionType !== 'service' && brain.port) {
+        const host = brain.host || '127.0.0.1';
+        const health = await fetchBrainHealth(`http://${host}:${brain.port}`, this.fetchImpl).catch(() => null);
+        canonicalBrainId = health?.brainId || null;
+      }
+      if (canonicalBrainId === brainId) return publicBrain({ ...brain, brainId: canonicalBrainId });
+    }
+    throw new Error(`Unknown canonical brain: ${brainId}`);
+  }
   async rename(id, name) {
     if (!name?.trim()) throw new Error('Brain name is required.');
     return publicBrain(await this.registry.update(id, { name: name.trim() }));
@@ -250,6 +264,14 @@ function publicBrain(brain) {
     return { ...brain, dashboardUrl: `${brain.serviceUrl}/dashboard`, mcpUrl: `${brain.serviceUrl}/mcp` };
   }
   return { ...brain, dashboardUrl: `http://${brain.host}:${brain.port}/dashboard`, mcpUrl: `http://${brain.host}:${brain.port}/mcp` };
+}
+
+async function fetchBrainHealth(serviceUrl, fetchImpl) {
+  const response = await fetchImpl(`${serviceUrl}/health`, { headers: { accept: 'application/json' } });
+  if (!response.ok) return null;
+  const health = await response.json();
+  if (health?.ok !== true || typeof health.brain_id !== 'string') return null;
+  return { brainId: health.brain_id, brainName: health.brain_name || null };
 }
 
 export function normalizeServiceUrl(value) {

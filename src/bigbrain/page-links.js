@@ -3,6 +3,9 @@ import path from 'node:path';
 import { assertAllowedPagePath } from './page-ops.js';
 
 export const CANONICAL_PAGE_ROUTE = '/dashboard/page';
+export const LOCAL_PAGE_LINK_HOST = '127.0.0.1';
+export const LOCAL_PAGE_LINK_PORT = 55559;
+export const LOCAL_PAGE_LINK_ORIGIN = `http://${LOCAL_PAGE_LINK_HOST}:${LOCAL_PAGE_LINK_PORT}`;
 
 const BRAIN_ID_PATTERN = /^brn_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -42,6 +45,10 @@ export function canonicalPagePath(brainId, slug, { basePath = '/dashboard' } = {
 export function canonicalPageUrl(origin, brainId, slug, options = {}) {
   const normalizedOrigin = requireHttpOrigin(origin);
   return new URL(canonicalPagePath(brainId, slug, options), `${normalizedOrigin}/`).toString();
+}
+
+export function localPageUrl(brainId, slug, { origin = LOCAL_PAGE_LINK_ORIGIN } = {}) {
+  return canonicalPageUrl(origin, brainId, slug, { basePath: '' });
 }
 
 export function parseCanonicalPagePath(pathname, { basePath = '/dashboard' } = {}) {

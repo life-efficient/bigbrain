@@ -60,30 +60,33 @@ Every markdown page has a stable private dashboard route:
 /dashboard/page/<brain_id>/<canonical-slug>
 ```
 
-For a device-managed service, the MCP `read` and `get_page_visibility`
-responses include a directly clickable loopback link:
+The MCP `read` and `get_page_visibility` responses include a directly clickable,
+stable loopback link:
 
 ```text
-http://127.0.0.1:55560/dashboard/page/brn_01234567-89ab-4cde-8fab-0123456789ab/organizations/acme-intralog
+http://127.0.0.1:55559/page/brn_01234567-89ab-4cde-8fab-0123456789ab/organizations/acme-intralog
 ```
 
 Use the returned `local_url`; do not guess a port or brain ID. The response also
-includes `brain_id`, `page_url`, and `page_url_path`. `local_url` is non-null
-only when the service is actually bound to loopback and has no configured
-hosted public origin.
+includes `brain_id`, `page_url`, and `page_url_path`. The BigBrain desktop app
+owns port `55559`, listens only on `127.0.0.1`, resolves the immutable brain ID
+against its connected brains, and opens the matching private dashboard route.
+The desktop app must be running and the brain must already be connected. The
+resolver does not proxy page content or store remote credentials.
 
 The brain ID in this route is an identity assertion against the one brain served
 by that process. It never selects a different brain or filesystem root. Missing
 pages, malformed slugs, traversal attempts, and mismatched brain IDs return
 `404`.
 
-On a server-managed deployment, `page_url` uses the configured service origin
-and the same route remains behind the existing dashboard authentication. It is
-not a public-sharing link. An unauthenticated remote request is denied or sent
-through the configured OAuth flow. Agents should return:
+On a server-managed deployment, the desktop resolver opens `page_url` at the
+configured service origin. That route remains behind the existing dashboard
+authentication. It is not a public-sharing link. An unauthenticated remote
+request is denied or sent through the configured OAuth flow. Agents should
+return:
 
-- `local_url` when it is present and the user wants to view the private page on
-  the same device
+- `local_url` when the user wants to open the private page in their connected
+  local BigBrain desktop app
 - `page_url` when the user is authorized to view the protected server dashboard
 - `public_url` only after explicit publication and only when the user asked for
   a public sharing link

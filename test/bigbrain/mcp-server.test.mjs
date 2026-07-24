@@ -292,16 +292,19 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(privateVisibility.result.structuredContent.brain_id, config.brainId);
     assert.equal(
       privateVisibility.result.structuredContent.local_url,
+      `http://127.0.0.1:55559/page/${config.brainId}/people/mcp-test`,
+    );
+    assert.equal(
+      privateVisibility.result.structuredContent.page_url,
       running.url.replace('/mcp', `/dashboard/page/${config.brainId}/people/mcp-test`),
     );
-    assert.equal(privateVisibility.result.structuredContent.page_url, privateVisibility.result.structuredContent.local_url);
     assert.equal(
       privateVisibility.result.structuredContent.page_url_path,
       `/dashboard/page/${config.brainId}/people/mcp-test`,
     );
-    const unauthenticatedPrivatePage = await fetch(privateVisibility.result.structuredContent.local_url);
+    const unauthenticatedPrivatePage = await fetch(privateVisibility.result.structuredContent.page_url);
     assert.equal(unauthenticatedPrivatePage.status, 401);
-    const authenticatedPrivatePage = await fetch(privateVisibility.result.structuredContent.local_url, {
+    const authenticatedPrivatePage = await fetch(privateVisibility.result.structuredContent.page_url, {
       headers: { authorization: `Basic ${Buffer.from('user:secret').toString('base64')}` },
     });
     assert.equal(authenticatedPrivatePage.status, 200);
@@ -1013,7 +1016,10 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
       published.result.structuredContent.page_url,
       `https://brain.example.test/dashboard/page/${config.brainId}/people/create-allowed`,
     );
-    assert.equal(published.result.structuredContent.local_url, null);
+    assert.equal(
+      published.result.structuredContent.local_url,
+      `http://127.0.0.1:55559/page/${config.brainId}/people/create-allowed`,
+    );
     const publicGroup = await rpc(running.url, 'tools/call', {
       name: 'groups_upsert',
       arguments: {

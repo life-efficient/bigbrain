@@ -138,8 +138,11 @@ test('MCP defaults to loopback and returns an exact clickable local URL without 
       '/mcp',
       `/dashboard/page/${config.brainId}/organizations/acme-intralog`,
     );
-    assert.equal(payload.result.structuredContent.local_url, expected);
     assert.equal(payload.result.structuredContent.page_url, expected);
+    assert.equal(
+      payload.result.structuredContent.local_url,
+      `http://127.0.0.1:55559/page/${config.brainId}/organizations/acme-intralog`,
+    );
     assert.equal((await fetch(expected)).status, 200);
   } finally {
     await running?.close();
