@@ -1878,13 +1878,16 @@ test('MCP OAuth allowlist mode exposes Codex-native OAuth endpoints', async () =
 
     const protectedMetadata = await fetch(running.url.replace('/mcp', '/.well-known/oauth-protected-resource/mcp'));
     assert.equal(protectedMetadata.status, 200);
-    assert.deepEqual((await protectedMetadata.json()).authorization_servers, ['https://brain.example.test']);
+    const protectedMetadataJson = await protectedMetadata.json();
+    assert.deepEqual(protectedMetadataJson.authorization_servers, ['https://brain.example.test']);
+    assert.deepEqual(protectedMetadataJson.scopes_supported, ['brain:read', 'brain:create']);
 
     const authMetadata = await fetch(running.url.replace('/mcp', '/.well-known/oauth-authorization-server'));
     assert.equal(authMetadata.status, 200);
     const authMetadataJson = await authMetadata.json();
     assert.equal(authMetadataJson.registration_endpoint, 'https://brain.example.test/oauth/register');
     assert.deepEqual(authMetadataJson.code_challenge_methods_supported, ['S256']);
+    assert.deepEqual(authMetadataJson.scopes_supported, ['brain:read', 'brain:create']);
 
     const registration = await fetch(running.url.replace('/mcp', '/oauth/register'), {
       method: 'POST',
