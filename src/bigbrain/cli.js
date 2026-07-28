@@ -151,17 +151,18 @@ async function handleBrains(args, global) {
     const handle = argValue(args, '--handle');
     const endpoint = argValue(args, '--endpoint');
     if (!brainId || !brainName || !handle || !endpoint) {
-      throw new Error('Usage: bigbrain brains add-remote --brain-id ID --name NAME --handle HANDLE --endpoint MCP_URL [--authenticated] [--writable]');
+      throw new Error('Usage: bigbrain brains add-remote --brain-id ID --name NAME --handle HANDLE --endpoint MCP_URL [--authenticated] [--writable] [--profile-valid]');
     }
     const health = await verifyRemoteBrainHealth(endpoint, brainId);
     const now = new Date().toISOString();
+    const profileValid = args.includes('--profile-valid');
     const value = await catalog.upsert({
       brain_id: brainId,
       brain_name: brainName,
       kind: 'remote',
       connection: { type: 'codex_mcp', handle, endpoint },
       verification: { state: 'verified', verified_at: now },
-      profile: { state: 'unknown', schema_version: null, profile_version: null },
+      profile: { state: profileValid ? 'valid' : 'unknown', schema_version: profileValid ? 1 : null, profile_version: null },
       access: {
         auth_state: args.includes('--authenticated') ? 'authenticated' : 'unknown',
         writability: args.includes('--writable') ? 'writable' : 'unknown',
@@ -761,7 +762,7 @@ Commands:
   about set --from <BRAIN.md-or-json>
   brains list
   brains add-local <brain-home> [--handle HANDLE]
-  brains add-remote --brain-id ID --name NAME --handle HANDLE --endpoint MCP_URL [--authenticated] [--writable]
+  brains add-remote --brain-id ID --name NAME --handle HANDLE --endpoint MCP_URL [--authenticated] [--writable] [--profile-valid]
   brains import-registry --from <registry.json>
   brains remove <brain-id>
   granola decide --from <routing-input.json>
