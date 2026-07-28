@@ -3,6 +3,116 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining device and server installations.
 
+## [0.18.0] - 2026-07-28
+
+### Added
+
+- Added role-based access control for brain members. Built-in owner, admin,
+  editor, and read-only roles now gate MCP operations, and authenticated admins
+  can manage non-owner members, custom roles, permissions, and page-edit path
+  scopes through `members/upsert`, `roles/list`, and `roles/upsert`.
+- Added persistent role and path-permission storage for SQLite and Postgres.
+  Existing `member` and `viewer` values remain supported as aliases for
+  `editor` and `read-only`.
+- Added a desktop-only brain selector that stays available across local and
+  hosted dashboards without exposing other connected brains on their public
+  dashboard URLs.
+
+### Changed
+
+- Replaced the rich Granola routing profile with a small authenticated
+  description contract. `BRAIN.md` now contains only schema version, immutable
+  brain identity, brain name, and a plain-language meeting-ingestion
+  description. Machine-wide routing compares allowed meeting metadata against
+  descriptions and holds ambiguous, unavailable, unauthenticated, or
+  non-writable destinations for review.
+- Renamed the Granola automation display name to **BigBrain Ingest Granola
+  Meetings** while retaining the stable `bigbrain-route-granola` automation ID,
+  and changed successful reports to group ingested meeting titles by
+  destination brain without exposing participants, notes, transcripts, IDs, or
+  paths.
+- Aligned OAuth discovery metadata with the scopes the deployment can actually
+  grant. Role management requires both the member's brain role and the
+  `brain:admin` OAuth scope on hosted deployments.
+- Clarified local markdown, SQLite, Postgres, and Git storage responsibilities
+  across the installation and architecture documentation.
+
+### Fixed
+
+- Moved the macOS desktop brain selector into the dashboard header beside Graph
+  and Explorer, and moved update failures into a compact clickable popover in
+  the same composited view.
+- Limited macOS traffic-light clearance to the header so graph and explorer
+  content use the normal page gutter.
+- Removed full-viewBox graph backdrop fills that appeared as a square or
+  rectangular tile when responsive SVG visualizers were letterboxed.
+
+### Agent update actions
+
+- Source installs: update to `v0.18.0`, run `npm install` and `npm link`, then
+  restart the desktop app and every local dashboard/MCP service so the new
+  profile contract, role tables, tool catalog, and desktop preload are loaded.
+- Migrate every `BRAIN.md` created for `v0.17.0`. Preserve the existing
+  immutable brain ID and brain name, replace the old purpose tags, routing,
+  privacy, and provenance blocks with this JSON-equivalent shape, and choose a
+  concise description that clearly distinguishes the brain:
+
+  ```json
+  {
+    "schema_version": 1,
+    "identity": {
+      "brain_id": "<existing-brain-id>",
+      "brain_name": "<existing-brain-name>",
+      "description": "<what meetings belong in this brain>"
+    }
+  }
+  ```
+
+  Write the reviewed description with
+  `bigbrain --brain-home /path/to/brain about set --from /path/to/description.json`,
+  then verify it with
+  `bigbrain --brain-home /path/to/brain about show --json`. Until this succeeds,
+  machine-wide meeting routing will require approval instead of writing.
+- Refresh the bundled BigBrain Ingest Granola Meetings, Onboarding, and Check
+  Update skills plus the `bigbrain-route-granola` automation template. Keep
+  exactly one machine-wide Granola writer and verify the refreshed automation
+  displays **BigBrain Ingest Granola Meetings**.
+- Role storage is created automatically when each brain database opens. No
+  manual SQLite or Postgres migration is required. Existing `member` roles
+  normalize to `editor`; existing `viewer` roles normalize to `read-only`.
+  Verify `members/list` and `roles/list`, then review custom path restrictions
+  before granting write access.
+- Hosted deployments that need member or role administration must include
+  `brain:admin` in their configured OAuth scope ceiling and require affected
+  clients to reauthorize for that scope. Read/create clients can retain their
+  existing scopes. Restart the deployment and verify OAuth discovery advertises
+  only grantable scopes.
+- Desktop installs: install and restart BigBrain `v0.18.0`. Verify the brain
+  selector appears only in the desktop dashboard header, Graph and Explorer
+  retain the normal page gutter, and the update-status popover is clickable.
+- Server deployments: deploy or pin
+  `ghcr.io/life-efficient/bigbrain:0.18.0` by digest, preserve database and brain
+  volumes, restart, and verify `/live`, `/ready`, OAuth discovery, MCP tool
+  listing, `members/list`, and `roles/list`.
+- No task page paths or persisted task `status`, `readiness`, `priority`,
+  `execution_mode`, `assignees`, or `source` values require migration. Run
+  `bigbrain sync --json`, `bigbrain health --json`, and `npm test`.
+
+### Verification
+
+- `npm run build:dashboard`
+- Focused brain-description, catalog, Granola routing, OAuth scope, role
+  authorization, desktop toolbar, graph visualizer, and packaged-app tests
+- Official MCP task listing against existing task fixtures, plus a release diff
+  confirming task paths and persisted field enums are unchanged from `v0.17.0`
+- `npm test`
+- `npm pack --dry-run`
+- Local-data compatibility audit covering BRAIN.md profiles, task fields,
+  filing rules, roles, SQLite/Postgres storage, skills, automations, OAuth,
+  desktop services, and server update paths
+- Release workflow verification for signed or explicitly unsigned macOS
+  artifacts and the multi-architecture GHCR image digest
+
 ## [0.17.0] - 2026-07-24
 
 ### Added
