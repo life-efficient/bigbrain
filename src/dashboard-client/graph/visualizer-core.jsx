@@ -8,6 +8,9 @@ import React, {
 } from 'react';
 
 import { clamp } from './shared.js';
+
+export const DEFAULT_GRAPH_LABEL_FONT_SIZE = 11;
+export const PRESET_GRAPH_LABEL_FONT_SIZE = 15;
 import { getGraphThemeTokens } from './theme.js';
 
 const GraphThemeContext = createContext(getGraphThemeTokens('light'));
@@ -222,7 +225,13 @@ export function GraphNodeLabel({ node, theme, visible }) {
   );
 }
 
-export function GraphFixedLabels({ nodes, viewport, labeled, theme }) {
+export function GraphFixedLabels({
+  nodes,
+  viewport,
+  labeled,
+  theme,
+  fontSize = DEFAULT_GRAPH_LABEL_FONT_SIZE,
+}) {
   return (
     <g className="graph-fixed-labels" pointerEvents="none">
       {nodes.map((node) => {
@@ -234,7 +243,7 @@ export function GraphFixedLabels({ nodes, viewport, labeled, theme }) {
             key={node.slug}
             x={x}
             y={y}
-            fontSize="11"
+            fontSize={fontSize}
             fill={theme.graphMutedLabel}
             letterSpacing="0.02em"
           >

@@ -2,7 +2,7 @@ import React, { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useR
 import { Network } from 'vis-network/standalone';
 
 import { TYPE_COLORS, getGraphNodeColor } from './colors.js';
-import { useGraphTheme } from './visualizer-core.jsx';
+import { PRESET_GRAPH_LABEL_FONT_SIZE, useGraphTheme } from './visualizer-core.jsx';
 
 export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ graph, onNodeOpen, activeSlug, onActiveSlugChange, colorMode = 'updated' }, ref) {
   const theme = useGraphTheme();
@@ -77,7 +77,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
           font: {
             face: '"SF Mono", "IBM Plex Mono", ui-monospace, monospace',
             color: theme.graphLabel,
-            size: 12,
+            size: PRESET_GRAPH_LABEL_FONT_SIZE,
             strokeWidth: 0,
           },
           borderWidth: 1.5,

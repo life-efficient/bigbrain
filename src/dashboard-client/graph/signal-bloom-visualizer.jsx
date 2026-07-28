@@ -6,6 +6,7 @@ import {
   GraphBackdropDefs,
   GraphFixedLabels,
   GraphTypeDefs,
+  PRESET_GRAPH_LABEL_FONT_SIZE,
   useGraphTheme,
   useGraphViewport,
 } from './visualizer-core.jsx';
@@ -107,7 +108,13 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
           ))}
         </g>
 
-        <GraphFixedLabels nodes={laidOut.nodes} viewport={viewport} labeled={labeled} theme={theme} />
+        <GraphFixedLabels
+          nodes={laidOut.nodes}
+          viewport={viewport}
+          labeled={labeled}
+          theme={theme}
+          fontSize={PRESET_GRAPH_LABEL_FONT_SIZE}
+        />
       </svg>
     </div>
   );

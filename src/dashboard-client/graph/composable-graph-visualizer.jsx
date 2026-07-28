@@ -32,6 +32,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   layoutStyle = 'orbital',
   labelStyle = 'selected',
   colorMode = 'updated',
+  labelFontSize,
   activeSlug = null,
   onActiveSlugChange,
 }, ref) {
@@ -94,7 +95,13 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
           />
         </g>
 
-        <GraphFixedLabels nodes={laidOut.nodes} viewport={viewport} labeled={labeled} theme={theme} />
+        <GraphFixedLabels
+          nodes={laidOut.nodes}
+          viewport={viewport}
+          labeled={labeled}
+          theme={theme}
+          fontSize={labelFontSize}
+        />
       </svg>
     </div>
   );

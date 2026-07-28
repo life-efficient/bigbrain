@@ -24,6 +24,23 @@ test('responsive graph visualizers do not paint letterboxed viewBox backdrops', 
   }
 });
 
+test('preset graph views use larger node labels without changing the custom baseline', async () => {
+  const [core, composable, spacious, bloom, visNetwork] = await Promise.all([
+    'visualizer-core.jsx',
+    'composable-graph-visualizer.jsx',
+    'spacious-constellation-visualizer.jsx',
+    'signal-bloom-visualizer.jsx',
+    'vis-network-visualizer.jsx',
+  ].map((file) => fs.readFile(new URL(`../../src/dashboard-client/graph/${file}`, import.meta.url), 'utf8')));
+
+  assert.match(core, /DEFAULT_GRAPH_LABEL_FONT_SIZE = 11/);
+  assert.match(core, /PRESET_GRAPH_LABEL_FONT_SIZE = 15/);
+  assert.match(composable, /fontSize=\{labelFontSize\}/);
+  assert.match(spacious, /labelFontSize=\{PRESET_GRAPH_LABEL_FONT_SIZE\}/);
+  assert.match(bloom, /fontSize=\{PRESET_GRAPH_LABEL_FONT_SIZE\}/);
+  assert.match(visNetwork, /size: PRESET_GRAPH_LABEL_FONT_SIZE/);
+});
+
 test('resolveThemeMode respects auto and manual modes', () => {
   assert.equal(resolveThemeMode('auto', true), 'dark');
   assert.equal(resolveThemeMode('auto', false), 'light');
