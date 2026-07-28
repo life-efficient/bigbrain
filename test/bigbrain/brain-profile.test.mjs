@@ -25,7 +25,7 @@ test('brain init creates a routing description excluded from indexing', async ()
     assert.equal(loaded.profile.identity.brain_id, config.brainId);
     assert.equal(loaded.profile.identity.brain_name, config.brainName);
     assert.match(loaded.profile.identity.description, /has not set a routing description yet/);
-    assert.equal(loaded.about.routing.auto_write_allowed, false);
+    assert.equal(loaded.about.meeting_ingestion_approval_required, true);
 
     const sync = await syncBrain({ config, apiKey: null });
     assert.equal(sync.indexed_pages, 0);
@@ -41,13 +41,12 @@ test('missing and invalid descriptions fail closed', async () => {
     await fs.rm(path.join(fixture.brainHome, BRAIN_PROFILE_FILENAME));
     const missing = await loadBrainProfile(config);
     assert.equal(missing.status, 'missing');
-    assert.equal(missing.about.routing.effective_ingestion_mode, 'review');
-    assert.equal(missing.about.routing.auto_write_allowed, false);
+    assert.equal(missing.about.meeting_ingestion_approval_required, true);
 
     await fs.writeFile(path.join(fixture.brainHome, BRAIN_PROFILE_FILENAME), 'not a description\n', 'utf8');
     const invalid = await loadBrainProfile(config);
     assert.equal(invalid.status, 'invalid');
-    assert.equal(invalid.about.routing.auto_write_allowed, false);
+    assert.equal(invalid.about.meeting_ingestion_approval_required, true);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -65,7 +64,7 @@ test('an existing ordinary root BRAIN.md remains indexed while routing fails clo
 
     const loaded = await loadBrainProfile(config);
     assert.equal(loaded.status, 'invalid');
-    assert.equal(loaded.about.routing.auto_write_allowed, false);
+    assert.equal(loaded.about.meeting_ingestion_approval_required, true);
     const sync = await syncBrain({ config, apiKey: null });
     assert.equal(sync.indexed_pages, 1);
   } finally {
@@ -81,7 +80,7 @@ test('description writes enforce immutable runtime identity and allow auto write
     profile.identity.description = 'Private personal and commercial memory, excluding shared organization work.';
     const written = await writeBrainProfile(config, profile);
     const about = authenticatedBrainAbout(config, written, { writable: true, availableOperations: ['read', 'write'] });
-    assert.equal(about.routing.auto_write_allowed, true);
+    assert.equal(about.meeting_ingestion_approval_required, false);
 
     profile.identity.brain_id = 'brn_wrong';
     await assert.rejects(writeBrainProfile(config, profile), /immutable runtime brain_id/);

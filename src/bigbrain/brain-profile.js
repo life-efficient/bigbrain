@@ -132,7 +132,7 @@ export function authenticatedBrainAbout(config, loaded, {
   availableOperations = ['read'],
   serviceVersion = null,
 } = {}) {
-  const effectiveIngestionMode = loaded.valid ? 'auto' : 'review';
+  const meetingIngestionApprovalRequired = !(Boolean(writable) && loaded.valid);
   return {
     schema_version: BRAIN_PROFILE_SCHEMA_VERSION,
     brain_id: config.brainId,
@@ -149,15 +149,12 @@ export function authenticatedBrainAbout(config, loaded, {
       filing_rules: true,
       read: true,
       write: Boolean(writable),
-      routing_profile: loaded.valid,
+      meeting_ingestion_profile: loaded.valid,
       available_operations: [...availableOperations],
     },
     auth_state: authState,
     service_version: serviceVersion,
-    routing: {
-      auto_write_allowed: Boolean(writable) && effectiveIngestionMode === 'auto',
-      effective_ingestion_mode: effectiveIngestionMode,
-    },
+    meeting_ingestion_approval_required: meetingIngestionApprovalRequired,
   };
 }
 

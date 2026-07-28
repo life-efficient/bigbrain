@@ -127,7 +127,7 @@ test('CLI shows the conservative routing description metadata', async () => {
     const about = JSON.parse(result.stdout);
     assert.equal(about.brain_name, 'CLI Profile Brain');
     assert.equal(about.manifest.reviewed, true);
-    assert.equal(about.routing.effective_ingestion_mode, 'auto');
+    assert.equal(about.meeting_ingestion_approval_required, true);
   } finally {
     await fs.rm(rootDir, { recursive: true, force: true });
   }

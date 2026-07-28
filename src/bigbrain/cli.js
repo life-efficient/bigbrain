@@ -93,7 +93,7 @@ async function handleAbout(args, global) {
       throw new Error('BRAIN.md already exists. Use about set to replace it.');
     }
     const written = await writeBrainProfile(config, conservativeBrainProfileDraft(config));
-    output(global, written.about, `Created ${written.about.manifest.filename} routing description.`);
+    output(global, written.about, `Created ${written.about.manifest.filename} meeting-ingestion description.`);
     return;
   }
   if (action === 'set') {
@@ -102,7 +102,7 @@ async function handleAbout(args, global) {
     const raw = await fs.readFile(path.resolve(sourcePath), 'utf8');
     const profile = sourcePath.toLowerCase().endsWith('.json') ? JSON.parse(raw) : parseBrainProfileMarkdown(raw);
     const written = await saveBrainProfileRevision(config, profile, { updatedBy: 'bigbrain-cli' });
-    output(global, written.about, `Updated ${written.about.manifest.filename} routing description.`);
+    output(global, written.about, `Updated ${written.about.manifest.filename} meeting-ingestion description.`);
     return;
   }
   throw new Error('about requires "show", "init", or "set".');
@@ -827,7 +827,7 @@ function renderAboutText(about) {
   return [
     `${about.brain_name}`,
     `Description: ${about.manifest.status}`,
-    `Routing: ${about.routing.effective_ingestion_mode}`,
+    `Meeting ingestion approval required: ${about.meeting_ingestion_approval_required ? 'yes' : 'no'}`,
   ].join('\n');
 }
 

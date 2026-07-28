@@ -1247,7 +1247,7 @@ function toolDefinitions() {
     },
     {
       name: 'about',
-      description: 'Return the authenticated brain routing description and bounded capabilities for this BigBrain instance. Missing or invalid descriptions fail closed to review.',
+      description: 'Return the authenticated brain meeting-ingestion description and bounded capabilities for this BigBrain instance. Missing or invalid descriptions require approval.',
       inputSchema: {
         type: 'object',
         properties: {},
@@ -1255,7 +1255,7 @@ function toolDefinitions() {
     },
     {
       name: 'about/update',
-      description: 'Replace the brain routing description. Requires administrative authority.',
+      description: 'Replace the brain meeting-ingestion description. Requires owner authority.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1548,7 +1548,7 @@ async function resolveProfileEditor(config, actor, authConfig) {
   const db = await openDatabase(config);
   try {
     const member = await resolveActorMember(db, actor, memberResolutionFromAuthConfig(authConfig));
-    if (member && !(await roleAllows(db, member.role, 'about_update'))) throw new Error('Only a brain owner may update the routing description.');
+    if (member && !(await roleAllows(db, member.role, 'about_update'))) throw new Error('Only a brain owner may update the meeting-ingestion description.');
     return member;
   } finally {
     await db.close?.();

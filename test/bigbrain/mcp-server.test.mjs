@@ -245,7 +245,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(about.result.structuredContent.brain_id, config.brainId);
     assert.equal(about.result.structuredContent.manifest.valid, true);
     assert.equal(about.result.structuredContent.manifest.reviewed, true);
-    assert.equal(about.result.structuredContent.routing.effective_ingestion_mode, 'auto');
+    assert.equal(about.result.structuredContent.meeting_ingestion_approval_required, false);
     assert.equal(about.result.structuredContent.auth_state, 'local_trusted');
     assert.equal(typeof about.result.structuredContent.descriptor.identity.description, 'string');
 
