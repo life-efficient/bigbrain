@@ -327,13 +327,6 @@ export async function updateBrainName(input, brainName) {
           ...currentProfile.profile.identity,
           brain_name: nextConfig.brainName,
         },
-        provenance: {
-          ...currentProfile.profile.provenance,
-          profile_version: currentProfile.profile.provenance.profile_version + 1,
-          updated_at: new Date().toISOString(),
-          updated_by: 'bigbrain-identity',
-          generation_method: 'user-edit',
-        },
       });
     }
     return nextConfig;

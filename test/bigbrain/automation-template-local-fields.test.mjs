@@ -62,7 +62,7 @@ test('health flags duplicate, retired, and backup Granola writers in the live au
     }));
     await writeAutomationToml(activeDir, 'bigbrain-route-granola', automation({
       id: 'bigbrain-route-granola',
-      name: 'BigBrain Route Granola',
+      name: 'BigBrain Ingest Granola Meetings',
     }));
 
     const report = await runHealthCheck(config, {
@@ -102,7 +102,7 @@ test('health accepts one paused router alongside no active Granola writers', asy
     await fs.writeFile(path.join(templateDir, 'retired.json'), JSON.stringify({ automation_ids: [] }), 'utf8');
     await writeAutomationToml(activeDir, 'bigbrain-route-granola', automation({
       id: 'bigbrain-route-granola',
-      name: 'BigBrain Route Granola',
+      name: 'BigBrain Ingest Granola Meetings',
       status: 'PAUSED',
     }));
 

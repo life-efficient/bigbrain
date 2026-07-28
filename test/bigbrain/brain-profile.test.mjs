@@ -16,16 +16,15 @@ import {
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
-test('brain init creates a conservative unreviewed routing profile excluded from indexing', async () => {
+test('brain init creates a routing description excluded from indexing', async () => {
   const fixture = await createFixture('bigbrain-profile-init-');
   try {
     const config = await loadConfig({ configPath: fixture.configPath });
     const loaded = await loadBrainProfile(config);
     assert.equal(loaded.valid, true);
     assert.equal(loaded.profile.identity.brain_id, config.brainId);
-    assert.equal(loaded.profile.routing.ingestion_mode, 'review');
-    assert.equal(loaded.profile.routing.approval_required, true);
-    assert.equal(loaded.profile.provenance.review_status, 'draft');
+    assert.equal(loaded.profile.identity.brain_name, config.brainName);
+    assert.match(loaded.profile.identity.description, /has not set a routing description yet/);
     assert.equal(loaded.about.routing.auto_write_allowed, false);
 
     const sync = await syncBrain({ config, apiKey: null });
@@ -35,7 +34,7 @@ test('brain init creates a conservative unreviewed routing profile excluded from
   }
 });
 
-test('missing and invalid profiles fail closed', async () => {
+test('missing and invalid descriptions fail closed', async () => {
   const fixture = await createFixture('bigbrain-profile-fail-closed-');
   try {
     const config = await loadConfig({ configPath: fixture.configPath });
@@ -45,7 +44,7 @@ test('missing and invalid profiles fail closed', async () => {
     assert.equal(missing.about.routing.effective_ingestion_mode, 'review');
     assert.equal(missing.about.routing.auto_write_allowed, false);
 
-    await fs.writeFile(path.join(fixture.brainHome, BRAIN_PROFILE_FILENAME), 'not a profile\n', 'utf8');
+    await fs.writeFile(path.join(fixture.brainHome, BRAIN_PROFILE_FILENAME), 'not a description\n', 'utf8');
     const invalid = await loadBrainProfile(config);
     assert.equal(invalid.status, 'invalid');
     assert.equal(invalid.about.routing.auto_write_allowed, false);
@@ -60,7 +59,7 @@ test('an existing ordinary root BRAIN.md remains indexed while routing fails clo
     const config = await loadConfig({ configPath: fixture.configPath });
     await fs.writeFile(
       path.join(fixture.brainHome, BRAIN_PROFILE_FILENAME),
-      '---\ntitle: Brain Notes\n---\n\n# Brain Notes\n\nExisting knowledge page from before routing profiles.\n',
+      '---\ntitle: Brain Notes\n---\n\n# Brain Notes\n\nExisting knowledge page from before routing descriptions.\n',
       'utf8',
     );
 
@@ -74,15 +73,12 @@ test('an existing ordinary root BRAIN.md remains indexed while routing fails clo
   }
 });
 
-test('profile writes enforce immutable runtime identity and explicit auto approval policy', async () => {
+test('description writes enforce immutable runtime identity and allow auto writes when writable', async () => {
   const fixture = await createFixture('bigbrain-profile-write-');
   try {
     const config = await loadConfig({ configPath: fixture.configPath });
-    const profile = conservativeBrainProfileDraft(config, { updatedBy: 'people/owner' });
-    profile.identity.summary = 'Private personal and commercial memory, excluding shared organization work.';
-    profile.routing.ingestion_mode = 'auto';
-    profile.routing.approval_required = false;
-    profile.provenance.review_status = 'approved';
+    const profile = conservativeBrainProfileDraft(config);
+    profile.identity.description = 'Private personal and commercial memory, excluding shared organization work.';
     const written = await writeBrainProfile(config, profile);
     const about = authenticatedBrainAbout(config, written, { writable: true, availableOperations: ['read', 'write'] });
     assert.equal(about.routing.auto_write_allowed, true);
@@ -94,30 +90,22 @@ test('profile writes enforce immutable runtime identity and explicit auto approv
   }
 });
 
-test('published profile schema and runtime enforce the same scalar boundaries', async () => {
+test('published description schema and runtime enforce the same scalar boundaries', async () => {
   const fixture = await createFixture('bigbrain-profile-schema-parity-');
   try {
     const config = await loadConfig({ configPath: fixture.configPath });
-    const valid = conservativeBrainProfileDraft(config, { updatedBy: 'people/owner' });
+    const valid = conservativeBrainProfileDraft(config);
     assert.equal(normalizeBrainProfile(valid, config).schema_version, BRAIN_PROFILE_JSON_SCHEMA.properties.schema_version.const);
-    assert.equal(BRAIN_PROFILE_JSON_SCHEMA.properties.routing.properties.include.items.minLength, 1);
-    assert.equal(BRAIN_PROFILE_JSON_SCHEMA.properties.provenance.properties.updated_by.pattern, '^[A-Za-z0-9][A-Za-z0-9/_-]*$');
+    assert.deepEqual(BRAIN_PROFILE_JSON_SCHEMA.required, ['schema_version', 'identity']);
+    assert.deepEqual(BRAIN_PROFILE_JSON_SCHEMA.properties.identity.required, ['brain_id', 'brain_name', 'description']);
 
     const stringVersion = structuredClone(valid);
     stringVersion.schema_version = '1';
     assert.throws(() => normalizeBrainProfile(stringVersion, config), /schema_version/);
 
-    const blankInclude = structuredClone(valid);
-    blankInclude.routing.include = [''];
-    assert.throws(() => normalizeBrainProfile(blankInclude, config), /non-empty string/);
-
-    const unsafeActor = structuredClone(valid);
-    unsafeActor.provenance.updated_by = 'owner@example.com';
-    assert.throws(() => normalizeBrainProfile(unsafeActor, config), /not an email address/);
-
-    const stringConfidence = structuredClone(valid);
-    stringConfidence.routing.minimum_confidence = '0.8';
-    assert.throws(() => normalizeBrainProfile(stringConfidence, config), /null or a number/);
+    const blankDescription = structuredClone(valid);
+    blankDescription.identity.description = '';
+    assert.throws(() => normalizeBrainProfile(blankDescription, config), /non-empty string/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

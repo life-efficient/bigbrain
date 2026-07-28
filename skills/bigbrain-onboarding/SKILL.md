@@ -36,8 +36,8 @@ This skill guarantees:
    - use BigBrain tools when available, especially `filing_rules`
    - otherwise read existing top-level folders and representative pages
 3. If the brain is not initialized, use `BigBrain: Setup` first.
-4. Run `bigbrain about show --json` and note whether `BRAIN.md` is missing,
-   invalid, draft, or approved. A generated draft is not user approval.
+4. Run `bigbrain about show --json` and note whether `BRAIN.md` has a valid
+   description or is missing/invalid.
 
 ## Interview Rules
 
@@ -103,22 +103,17 @@ brain?
 Route supplied material through the relevant BigBrain ingest skill instead of
 folding complex documents into this onboarding flow.
 
-5. Brain purpose and routing:
+5. Brain description:
 
 ```text
-What should always belong in this brain, and what must never be stored here?
+What is this brain for?
 ```
 
-Offer a small set of relevant purpose choices plus optional free-form guidance.
-Use the answer to propose a complete `BRAIN.md` profile with a concise summary,
-include/exclude rules, sensitivity, allowed routing metadata, and synthetic
-positive/negative examples. Set `routing.ingestion_mode: auto` unless the user
-chooses review or deny. Keep `mixed_meeting_policy: hold` by default.
-
-Show the full proposed profile in plain language and ask for explicit approval
-before writing it. Until approved, keep `provenance.review_status: draft`; after
-approval set it to `approved`, increment `profile_version`, and write it through
-`bigbrain about set --from <reviewed-file>`.
+Use the answer to propose a concise `BRAIN.md` description. The Granola router
+uses only this description to classify candidate meetings across brains; do not
+create purpose tags, include/exclude lists, synthetic examples, privacy blocks,
+or approval fields. Write it through `bigbrain about set --from <file>` once the
+description is clear.
 
 After the final question, file all gathered information into the brain
 appropriately before ending the interaction. Then thank the user and tell them

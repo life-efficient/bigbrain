@@ -134,9 +134,9 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
     assert.equal(about.headers.get('cache-control'), 'no-store');
     const aboutJson = await about.json();
     assert.equal(aboutJson.manifest.valid, true);
-    assert.equal(aboutJson.manifest.reviewed, false);
-    assert.equal(aboutJson.routing.effective_ingestion_mode, 'review');
-    assert.equal('updated_by' in aboutJson.descriptor.provenance, false);
+    assert.equal(aboutJson.manifest.reviewed, true);
+    assert.equal(aboutJson.routing.effective_ingestion_mode, 'auto');
+    assert.equal(typeof aboutJson.descriptor.identity.description, 'string');
 
     const authenticatedVisibility = await fetch(`${url}/api/page/visibility`, {
       method: 'POST',

@@ -10,18 +10,12 @@ const TRANSCRIPT_FIELDS = new Set([
   'transcript_text',
 ]);
 
-const SOURCE_RULE_FIELDS = Object.freeze({
-  granola_folder: 'folder_names',
-  organizer_domain: 'organizer_domain',
-  account_context: 'account_context',
-});
-
 /**
  * Decide where one Granola meeting may be written.
  *
- * This function deliberately accepts only already-loaded metadata, profiles,
- * runtime state, and classifier scores. It performs no I/O and never inspects
- * meeting summaries or transcripts.
+ * This function deliberately accepts only already-loaded meeting metadata,
+ * brain descriptions, runtime state, and classifier scores. It performs no I/O
+ * and never inspects meeting summaries or transcripts.
  */
 export function routeGranolaMeeting({
   meeting,
@@ -31,7 +25,7 @@ export function routeGranolaMeeting({
   minimumMargin = DEFAULT_GRANOLA_ROUTE_MARGIN,
 } = {}) {
   const metadata = normalizeMeetingMetadata(meeting);
-  const candidates = normalizeBrains(brains, scores).map((candidate) => evaluateSourceRules(candidate, metadata));
+  const candidates = normalizeBrains(brains, scores);
   const options = { defaultThreshold, minimumMargin };
   validateDecisionOptions(options);
 
@@ -42,25 +36,7 @@ export function routeGranolaMeeting({
     return held('no_candidate_brains', candidates);
   }
 
-  const hardIncludes = candidates.filter((candidate) => candidate.hardIncluded && !candidate.hardExcluded);
-  if (hardIncludes.length > 1) {
-    return held('multiple_hard_includes', candidates, {
-      candidate_brain_ids: hardIncludes.map((candidate) => candidate.brainId),
-    });
-  }
-  if (hardIncludes.length === 1) {
-    return decideCandidate(hardIncludes[0], candidates, {
-      routeReason: 'hard_source_include',
-      holdPrefix: 'hard_include',
-    });
-  }
-
-  const ranked = candidates
-    .filter((candidate) => !candidate.hardExcluded)
-    .sort(compareCandidates);
-  if (ranked.length === 0) {
-    return held('all_candidates_excluded', candidates);
-  }
+  const ranked = [...candidates].sort(compareCandidates);
 
   const first = ranked[0];
   if (first.confidence === null) {
@@ -85,7 +61,7 @@ export function routeGranolaMeeting({
   }
 
   return decideCandidate(first, candidates, {
-    routeReason: 'classification_confident',
+    routeReason: 'description_match_confident',
     holdPrefix: 'selected_destination',
   });
 }
@@ -113,37 +89,10 @@ function decideCandidate(candidate, candidates, { routeReason, holdPrefix }) {
 
 function destinationGate(candidate) {
   if (!candidate.profileValid) return 'profile_invalid';
-  if (!candidate.profileApproved) return 'profile_unapproved';
-  if (candidate.ingestionMode === 'deny') return 'denied';
-  if (candidate.ingestionMode !== 'auto' || candidate.approvalRequired) return 'review_required';
   if (!candidate.verified) return 'unverified';
   if (!candidate.authenticated) return 'unauthenticated';
   if (!candidate.writable) return 'unwritable';
   return null;
-}
-
-function evaluateSourceRules(candidate, metadata) {
-  const matches = candidate.sourceRules.filter((rule) => sourceRuleMatches(rule, metadata));
-  return {
-    ...candidate,
-    hardExcluded: matches.some((rule) => rule.effect === 'exclude'),
-    hardIncluded: matches.some((rule) => rule.effect === 'include'),
-    reviewMatched: matches.some((rule) => rule.effect === 'review'),
-    matchedRules: matches,
-  };
-}
-
-function sourceRuleMatches(rule, metadata) {
-  const field = SOURCE_RULE_FIELDS[rule.type];
-  if (!field) return false;
-  const actual = metadata[field];
-  if (Array.isArray(actual)) return actual.some((value) => exactRuleValue(rule.type, value) === exactRuleValue(rule.type, rule.value));
-  return actual !== null && exactRuleValue(rule.type, actual) === exactRuleValue(rule.type, rule.value);
-}
-
-function exactRuleValue(type, value) {
-  const string = String(value).trim();
-  return type === 'organizer_domain' ? string.toLowerCase() : string;
 }
 
 function normalizeMeetingMetadata(meeting) {
@@ -173,38 +122,20 @@ function normalizeBrains(brains, scores) {
     const name = `brains[${index}]`;
     requireObject(brain, name);
     const profile = requireObject(brain.profile, `${name}.profile`);
-    const routing = requireObject(profile.routing, `${name}.profile.routing`);
-    const provenance = requireObject(profile.provenance, `${name}.profile.provenance`);
     const brainId = requiredString(brain.brain_id ?? profile.identity?.brain_id, `${name}.brain_id`);
     if (seen.has(brainId)) throw new Error(`brains contains duplicate brain_id: ${brainId}.`);
     seen.add(brainId);
+    const description = requiredString(profile.identity?.description ?? profile.identity?.summary, `${name}.profile.identity.description`);
     const confidence = normalizeConfidence(brain.confidence ?? scores[brainId], `${name}.confidence`);
     return {
       brainId,
+      description,
       confidence,
       profileValid: brain.profile_valid === true,
-      profileApproved: provenance.review_status === 'approved',
-      ingestionMode: routing.ingestion_mode,
-      approvalRequired: routing.approval_required === true,
-      minimumConfidence: normalizeConfidence(routing.minimum_confidence, `${name}.profile.routing.minimum_confidence`),
-      sourceRules: normalizeSourceRules(routing.source_rules ?? [], `${name}.profile.routing.source_rules`),
+      minimumConfidence: normalizeConfidence(brain.minimum_confidence, `${name}.minimum_confidence`),
       verified: brain.verified === true,
       authenticated: brain.authenticated === true,
       writable: brain.writable === true,
-    };
-  });
-}
-
-function normalizeSourceRules(rules, name) {
-  if (!Array.isArray(rules)) throw new Error(`${name} must be an array.`);
-  return rules.map((rule, index) => {
-    requireObject(rule, `${name}[${index}]`);
-    if (!Object.hasOwn(SOURCE_RULE_FIELDS, rule.type)) throw new Error(`${name}[${index}].type is unsupported.`);
-    if (!['include', 'exclude', 'review'].includes(rule.effect)) throw new Error(`${name}[${index}].effect is unsupported.`);
-    return {
-      type: rule.type,
-      effect: rule.effect,
-      value: requiredString(rule.value, `${name}[${index}].value`),
     };
   });
 }
@@ -229,9 +160,6 @@ function publicCandidates(candidates) {
   return candidates.map((candidate) => ({
     brain_id: candidate.brainId,
     confidence: candidate.confidence,
-    hard_excluded: candidate.hardExcluded,
-    hard_included: candidate.hardIncluded,
-    review_rule_matched: candidate.reviewMatched,
     gate: destinationGate(candidate),
   }));
 }

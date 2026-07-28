@@ -41,11 +41,11 @@ done
 ```
 
 `bigbrain-route-granola` is the only supported machine-wide Granola writer. It
-ships paused so a machine can first register and verify its brains, approve each
-brain's `BRAIN.md`, and reconcile prior provenance. Activate it only in the same
-cutover that pauses or removes every retired Granola writer listed in
-`retired.json`. Keep rollback bundles outside the live automation root; Codex
-may treat any active `automation.toml` below that root as runnable.
+ships paused so a machine can first register and verify its brains, set each
+brain's `BRAIN.md` description, and reconcile prior provenance. Activate it only
+in the same cutover that pauses or removes every retired Granola writer listed
+in `retired.json`. Keep rollback bundles outside the live automation root;
+Codex may treat any active `automation.toml` below that root as runnable.
 
 Keep the resulting local `cwds` entries in the active install only. Do not copy
 those machine-specific files back into this repo.

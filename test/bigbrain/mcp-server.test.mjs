@@ -221,7 +221,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(listed.result.tools.some((tool) => tool.name === 'about'), true);
     const aboutUpdateTool = listed.result.tools.find((tool) => tool.name === 'about/update');
     assert.equal(aboutUpdateTool.inputSchema.properties.profile.properties.schema_version.const, 1);
-    assert.deepEqual(aboutUpdateTool.inputSchema.properties.profile.required, ['schema_version', 'identity', 'purpose_tags', 'routing', 'privacy', 'provenance']);
+    assert.deepEqual(aboutUpdateTool.inputSchema.properties.profile.required, ['schema_version', 'identity']);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file_with_page'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_raw_file'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'read_raw_file'), true);
@@ -244,10 +244,10 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(about.error, undefined, about.error?.message);
     assert.equal(about.result.structuredContent.brain_id, config.brainId);
     assert.equal(about.result.structuredContent.manifest.valid, true);
-    assert.equal(about.result.structuredContent.manifest.reviewed, false);
-    assert.equal(about.result.structuredContent.routing.effective_ingestion_mode, 'review');
+    assert.equal(about.result.structuredContent.manifest.reviewed, true);
+    assert.equal(about.result.structuredContent.routing.effective_ingestion_mode, 'auto');
     assert.equal(about.result.structuredContent.auth_state, 'local_trusted');
-    assert.equal('updated_by' in about.result.structuredContent.descriptor.provenance, false);
+    assert.equal(typeof about.result.structuredContent.descriptor.identity.description, 'string');
 
     const unauthorized = await fetch(running.url, {
       method: 'POST',

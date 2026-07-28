@@ -102,7 +102,7 @@ This skill guarantees:
    - preserve the bundled state of `bigbrain-route-granola`; after the explicit
      2026-07-24 routing cutover, the expected bundled state is `ACTIVE`
    - keep the `bigbrain-route-granola` automation as a thin invocation of
-     `BigBrain: Granola Ingest` in machine-wide routing mode; routing is a
+     `BigBrain Ingest Granola Meetings` in machine-wide routing mode; routing is a
      feature of that ingest skill, not a separate skill
    - read `automations/retired.json`; never restore a retired Granola automation
      merely because an older active copy or another repo still contains it

@@ -112,7 +112,7 @@ test('brain identity supports an explicit editable name and immutable ID', async
   }
 });
 
-test('CLI shows the conservative routing profile as unapproved review-only metadata', async () => {
+test('CLI shows the conservative routing description metadata', async () => {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-about-cli-'));
   try {
     const brainHome = path.join(rootDir, 'brain');
@@ -126,8 +126,8 @@ test('CLI shows the conservative routing profile as unapproved review-only metad
     assert.equal(result.code, 0, result.stderr);
     const about = JSON.parse(result.stdout);
     assert.equal(about.brain_name, 'CLI Profile Brain');
-    assert.equal(about.manifest.reviewed, false);
-    assert.equal(about.routing.effective_ingestion_mode, 'review');
+    assert.equal(about.manifest.reviewed, true);
+    assert.equal(about.routing.effective_ingestion_mode, 'auto');
   } finally {
     await fs.rm(rootDir, { recursive: true, force: true });
   }

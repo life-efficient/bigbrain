@@ -90,13 +90,10 @@ async function handleAbout(args, global) {
   if (action === 'init') {
     const existing = await loadBrainProfile(config);
     if (existing.status !== 'missing' && !args.includes('--replace')) {
-      throw new Error('BRAIN.md already exists. Use about set to replace it after review.');
+      throw new Error('BRAIN.md already exists. Use about set to replace it.');
     }
-    const written = await writeBrainProfile(config, conservativeBrainProfileDraft(config, {
-      updatedBy: 'bigbrain-cli',
-      generationMethod: 'migration',
-    }));
-    output(global, written.about, `Created an unreviewed, review-only ${written.about.manifest.filename} draft.`);
+    const written = await writeBrainProfile(config, conservativeBrainProfileDraft(config));
+    output(global, written.about, `Created ${written.about.manifest.filename} routing description.`);
     return;
   }
   if (action === 'set') {
@@ -104,11 +101,8 @@ async function handleAbout(args, global) {
     if (!sourcePath) throw new Error('Usage: bigbrain about set --from <BRAIN.md-or-json>');
     const raw = await fs.readFile(path.resolve(sourcePath), 'utf8');
     const profile = sourcePath.toLowerCase().endsWith('.json') ? JSON.parse(raw) : parseBrainProfileMarkdown(raw);
-    const written = await saveBrainProfileRevision(config, profile, {
-      updatedBy: 'bigbrain-cli',
-      approve: args.includes('--approve'),
-    });
-    output(global, written.about, `Updated ${written.about.manifest.filename}; routing profile status is ${written.about.manifest.reviewed ? 'approved' : 'draft'}.`);
+    const written = await saveBrainProfileRevision(config, profile, { updatedBy: 'bigbrain-cli' });
+    output(global, written.about, `Updated ${written.about.manifest.filename} routing description.`);
     return;
   }
   throw new Error('about requires "show", "init", or "set".');
@@ -138,9 +132,9 @@ async function handleBrains(args, global) {
       },
       verification: { state: 'verified', verified_at: now },
       profile: {
-        state: profile.valid ? (profile.profile.provenance.review_status === 'approved' ? 'valid' : 'draft') : profile.status,
+        state: profile.valid ? 'valid' : profile.status,
         schema_version: profile.valid ? profile.profile.schema_version : null,
-        profile_version: profile.valid ? profile.profile.provenance.profile_version : null,
+        profile_version: null,
       },
       access: { auth_state: 'local_trusted', writability: 'writable' },
       health: { status: 'healthy', checked_at: now },
@@ -764,7 +758,7 @@ Commands:
   identity set-name <name>
   about show
   about init
-  about set --from <BRAIN.md-or-json> [--approve]
+  about set --from <BRAIN.md-or-json>
   brains list
   brains add-local <brain-home> [--handle HANDLE]
   brains add-remote --brain-id ID --name NAME --handle HANDLE --endpoint MCP_URL [--authenticated] [--writable]
@@ -831,7 +825,7 @@ function renderSyncText(result) {
 function renderAboutText(about) {
   return [
     `${about.brain_name}`,
-    `Profile: ${about.manifest.status}${about.manifest.reviewed ? ', approved' : ', not approved'}`,
+    `Description: ${about.manifest.status}`,
     `Routing: ${about.routing.effective_ingestion_mode}`,
   ].join('\n');
 }

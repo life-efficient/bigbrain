@@ -439,7 +439,6 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       const member = await resolveProfileEditor(config, actor, authConfig);
       const written = await saveBrainProfileRevision(config, args.profile, {
         updatedBy: member?.person_slug || 'bigbrain-admin',
-        approve: args.approve === true,
       });
       return toolJson(authenticatedBrainAbout(config, written, {
         authState: actor ? 'authenticated' : 'local_trusted',
@@ -1207,7 +1206,7 @@ function toolDefinitions() {
     },
     {
       name: 'about',
-      description: 'Return the authenticated routing profile and bounded capabilities for this BigBrain instance. Missing, invalid, or unapproved profiles fail closed to review.',
+      description: 'Return the authenticated brain routing description and bounded capabilities for this BigBrain instance. Missing or invalid descriptions fail closed to review.',
       inputSchema: {
         type: 'object',
         properties: {},
@@ -1215,14 +1214,13 @@ function toolDefinitions() {
     },
     {
       name: 'about/update',
-      description: 'Replace the versioned brain routing profile. Requires administrative authority. Set approve=true only after the owner reviewed the complete profile.',
+      description: 'Replace the brain routing description. Requires administrative authority.',
       inputSchema: {
         type: 'object',
         properties: {
           profile: BRAIN_PROFILE_JSON_SCHEMA,
-          approve: { type: 'boolean' },
         },
-        required: ['profile', 'approve'],
+        required: ['profile'],
       },
     },
     {
@@ -1503,7 +1501,7 @@ async function resolveProfileEditor(config, actor, authConfig) {
   const db = await openDatabase(config);
   try {
     const member = await resolveActorMember(db, actor, memberResolutionFromAuthConfig(authConfig));
-    if (member && member.role !== 'owner') throw new Error('Only a brain owner may update the routing profile.');
+    if (member && member.role !== 'owner') throw new Error('Only a brain owner may update the routing description.');
     return member;
   } finally {
     await db.close?.();
