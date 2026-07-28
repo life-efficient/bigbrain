@@ -77,10 +77,6 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
           <GraphTypeDefs idPrefix={defsId} />
         </defs>
 
-        <rect width={laidOut.width} height={laidOut.height} fill={theme.graphBase} />
-        <rect width={laidOut.width} height={laidOut.height} fill={`url(#${defsId}-surface-gradient)`} opacity="0.3" />
-        <rect width={laidOut.width} height={laidOut.height} fill={`url(#${defsId}-scanline-pattern)`} opacity="0.18" />
-
         <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
           <LayoutBackdrop layoutStyle={layoutStyle} laidOut={laidOut} theme={theme} />
           <ArcLayer arcStyle={arcStyle} laidOut={laidOut} theme={theme} />
@@ -118,7 +114,6 @@ function LayoutBackdrop({ layoutStyle, laidOut, theme }) {
   if (layoutStyle === 'lanes') {
     return (
       <>
-        <rect width={laidOut.width} height={laidOut.height} fill={theme.graphBase} opacity="0.18" />
         {laidOut.lanes?.map((x) => (
           <line
             key={x}

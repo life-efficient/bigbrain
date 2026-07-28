@@ -77,10 +77,6 @@ export const NeuralMeshVisualizer = forwardRef(function NeuralMeshVisualizer({
           @media (prefers-reduced-motion: reduce) { .neural-mesh-graph .mesh-boot { opacity:1; animation:none; } .neural-mesh-graph .mesh-scan,.neural-mesh-graph .mesh-pulse { animation:none; } }
         `}</style>
 
-        <rect width={laidOut.width} height={laidOut.height} fill={theme.graphBase} />
-        <rect width={laidOut.width} height={laidOut.height} fill={`url(#${defsId}-surface-gradient)`} opacity="0.46" />
-        <rect width={laidOut.width} height={laidOut.height} fill={`url(#${defsId}-grid-pattern)`} opacity="0.11" />
-
         <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
           {laidOut.lanes.map((lane, index) => (
             <g key={lane.type} className="mesh-boot" style={{ animationDelay: `${Math.min(index * 55, 420)}ms` }}>

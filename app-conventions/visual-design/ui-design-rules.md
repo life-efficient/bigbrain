@@ -26,6 +26,7 @@ states.
 - Memoize static, expensive SVG layers such as link paths and cluster decoration so hover and selection changes only update affected nodes and labels.
 - Reserve blur and glow filters for active or hovered elements. Do not apply GPU-heavy filters or independent infinite animations to every graph element.
 - Offer dense graph layouts that scale their virtual canvas with node count and enforce node separation; do not force every brain into one fixed coordinate space.
+- Keep graph canvases transparent within the viewer. Do not paint a full viewBox-sized backdrop that exposes SVG letterboxing as a square or rectangular tile.
 
 ## Desktop Shell Theming
 

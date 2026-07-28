@@ -85,11 +85,6 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
           @media (prefers-reduced-motion: reduce) { .bloom-sector, .bloom-link-animated, .bloom-node, .bloom-scan { animation: none !important; } }
         `}</style>
 
-        <rect width={laidOut.width} height={laidOut.height} fill={theme.graphBase} />
-        <rect width={laidOut.width} height={laidOut.height} fill={`url(#${defsId}-surface-gradient)`} opacity="0.32" />
-        <rect width={laidOut.width} height={laidOut.height} fill={`url(#${defsId}-grid-pattern)`} opacity="0.14" />
-        <rect width={laidOut.width} height={laidOut.height} fill={`url(#${defsId}-bloom-vignette)`} />
-
         <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
           <BloomSectors laidOut={laidOut} theme={theme} />
           <BloomLinks laidOut={laidOut} theme={theme} />

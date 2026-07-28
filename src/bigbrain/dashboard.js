@@ -509,7 +509,6 @@ function renderAppHtml() {
         --accent-strong: #ffffff;
         --warm: #d4d4d8;
         --danger: #a44545;
-        --graph-bg: #18181B;
         --shadow-soft: 0 18px 48px rgba(0,0,0,0.26);
         --shadow-float: 0 24px 54px rgba(0,0,0,0.34);
         --pre-bg: #09090b;
@@ -849,13 +848,13 @@ function renderAppHtml() {
       .graph-stats { display: flex; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: 12px; font-weight: 400; }
       .graph-stat strong { color: var(--ink); font-weight: 500; }
       .graph-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; margin-left: auto; }
-      .graph-wrap { height: 520px; overflow: hidden; position: relative; border-radius: 18px; background: var(--graph-bg); border: 1px solid rgba(148,163,184,0.18); }
+      .graph-wrap { height: 520px; overflow: hidden; position: relative; border-radius: 18px; background: transparent; border: 1px solid rgba(148,163,184,0.18); }
       .graph-wrap-expanded { flex: 1; min-height: 0; height: auto; }
       .graph-canvas-shell { position: relative; height: 100%; width: 100%; }
       .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
       .graph-svg:active { cursor: grabbing; }
       .force-shell canvas { border-radius: 18px; }
-      .futuristic-graph { background: #18181B; }
+      .futuristic-graph { background: transparent; }
       .graph-pulse-line { animation: graph-pulse 7s linear infinite; }
       .graph-activity-panel { position: absolute; right: 14px; top: 14px; z-index: 4; width: min(270px, calc(100% - 28px)); display: grid; gap: 0; padding: 0; border: 1px solid transparent; border-radius: 12px; background: transparent; box-shadow: none; backdrop-filter: blur(0); transition: padding 180ms ease, gap 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, backdrop-filter 180ms ease; }
       .graph-activity-panel:hover, .graph-activity-panel:focus-within { gap: 9px; padding: 10px 12px; border-color: rgba(212,212,216,0.18); background: rgba(12,12,14,0.82); box-shadow: 0 18px 42px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(18px); }

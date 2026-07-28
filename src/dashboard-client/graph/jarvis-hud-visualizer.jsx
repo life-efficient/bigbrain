@@ -67,10 +67,6 @@ export const JarvisHudVisualizer = forwardRef(function JarvisHudVisualizer({
           </filter>
         </defs>
 
-        <rect width={laidOut.width} height={laidOut.height} fill="#03070d" />
-        <rect width={laidOut.width} height={laidOut.height} fill={`url(#${defsId}-grid-pattern)`} opacity="0.38" />
-        <rect width={laidOut.width} height={laidOut.height} fill={`url(#${defsId}-scanline-pattern)`} opacity="0.24" />
-
         <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
           <RadarField layout={laidOut} defsId={defsId} />
 

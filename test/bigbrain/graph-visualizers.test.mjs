@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
 
 import {
   buildJarvisLayout,
@@ -9,6 +10,19 @@ import {
 } from '../../src/dashboard-client/graph/shared.js';
 import { getGraphNodeColor, getUpdatedNodeColor } from '../../src/dashboard-client/graph/colors.js';
 import { resolveThemeMode } from '../../src/dashboard-client/graph/theme.js';
+
+test('responsive graph visualizers do not paint letterboxed viewBox backdrops', async () => {
+  const sources = await Promise.all([
+    'composable-graph-visualizer.jsx',
+    'signal-bloom-visualizer.jsx',
+    'neural-mesh-visualizer.jsx',
+    'jarvis-hud-visualizer.jsx',
+  ].map((file) => fs.readFile(new URL(`../../src/dashboard-client/graph/${file}`, import.meta.url), 'utf8')));
+
+  for (const source of sources) {
+    assert.doesNotMatch(source, /<rect width=\{laidOut\.width\} height=\{laidOut\.height\}/);
+  }
+});
 
 test('resolveThemeMode respects auto and manual modes', () => {
   assert.equal(resolveThemeMode('auto', true), 'dark');
