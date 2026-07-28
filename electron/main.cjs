@@ -1,16 +1,21 @@
-const { app, BrowserWindow, Menu, dialog, shell, ipcMain } = require("electron");
+const { app, BrowserWindow, Menu, WebContentsView, dialog, shell, ipcMain } = require("electron");
 const net = require("net");
 const path = require("path");
 const { pathToFileURL } = require("url");
+const { dashboardPartition, dashboardViewBounds, isAllowedDashboardNavigation } = require("./lib/dashboard-view-policy.cjs");
 
 const APP_DISPLAY_NAME = "BigBrain";
 const LOCAL_HOST = "127.0.0.1";
 const DEFAULT_WINDOW_SIZE = { width: 1079, height: 945 };
+const DESKTOP_CHROME_HEIGHT = 104;
 const APP_ICON_PATH = path.join(__dirname, "assets", "desktop-icon.png");
 const MAX_RENDERER_RECOVERY_ATTEMPTS = 2;
 const REMOTE_DASHBOARD_URL_ENV = "BIGBRAIN_DASHBOARD_URL";
 
 let mainWindow = null;
+let dashboardView = null;
+let dashboardViewBrainId = null;
+let activeDashboardOrigin = null;
 let dashboardServer = null;
 let localPageLinkServer = null;
 let dashboardUrl = null;
@@ -193,8 +198,16 @@ function createMainWindow() {
   });
 
   mainWindow.on("closed", () => {
+    if (dashboardView && !dashboardView.webContents.isDestroyed()) {
+      dashboardView.webContents.close();
+    }
+    dashboardView = null;
+    dashboardViewBrainId = null;
+    activeDashboardOrigin = null;
     mainWindow = null;
   });
+
+  mainWindow.on("resize", layoutDashboardView);
 
   loadDashboardWindow();
 }
@@ -210,6 +223,7 @@ function createAppMenu() {
           enabled: Boolean(desktopController),
           click: () => {
             if (!mainWindow || !desktopController) return;
+            setDashboardViewVisible(false);
             const shellUrl = pathToFileURL(path.join(__dirname, "desktop.html"));
             shellUrl.searchParams.set("select", "1");
             void mainWindow.loadURL(shellUrl.href);
@@ -436,10 +450,10 @@ function registerDesktopIpc() {
     "desktop:connect-service": async (_event, input) => rememberConnectedDashboardOrigins(await desktopController.connectService(input)),
     "desktop:open-brain": async (_event, id) => {
       const brain = rememberConnectedDashboardOrigins(await desktopController.activate(id));
-      if (brain.connectionType !== "service") throw new Error('Only connected BigBrain services open as a full-window dashboard.');
-      setTimeout(() => { if (mainWindow) void mainWindow.loadURL(brain.dashboardUrl); }, 0);
+      await loadBrainDashboard(brain);
       return true;
     },
+    "desktop:set-dashboard-visible": (_event, visible) => setDashboardViewVisible(Boolean(visible)),
     "desktop:choose-existing-brain": async () => {
       const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory"], title: "Choose an existing BigBrain folder" });
       if (result.canceled || !result.filePaths[0]) return null;
@@ -460,7 +474,8 @@ async function openCanonicalPage({ brain, targetUrl }) {
   await desktopController.activate(brain.id);
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error("BigBrain window is unavailable.");
   if (mainWindow.isMinimized()) mainWindow.restore();
-  await mainWindow.loadURL(targetUrl);
+  await ensureDesktopShell();
+  await loadDashboardViewUrl(targetUrl, brain.id);
   mainWindow.show();
   mainWindow.focus();
 }
@@ -504,6 +519,105 @@ function loadDashboardWindow() {
     console.error("Dashboard load failed", message);
     showLoadFailure(message);
   });
+}
+
+async function ensureDesktopShell() {
+  if (!mainWindow || !desktopController) return;
+  const shellUrl = pathToFileURL(path.join(__dirname, "desktop.html")).href;
+  if (mainWindow.webContents.getURL().split("?")[0] === shellUrl) return;
+  setDashboardViewVisible(false);
+  await mainWindow.loadURL(shellUrl);
+}
+
+async function loadBrainDashboard(brain) {
+  if (!brain?.dashboardUrl) throw new Error("This brain does not expose a dashboard.");
+  rememberConnectedDashboardOrigins(brain);
+  await loadDashboardViewUrl(brain.dashboardUrl, brain.id);
+}
+
+async function loadDashboardViewUrl(url, brainId) {
+  if (!mainWindow || !desktopController) throw new Error("The desktop shell is unavailable.");
+  activeDashboardOrigin = new URL(url).origin;
+  const view = ensureDashboardView(brainId);
+  layoutDashboardView();
+  view.setVisible(true);
+  try {
+    await view.webContents.loadURL(url);
+    rendererRecoveryAttempts = 0;
+  } catch (error) {
+    view.setVisible(false);
+    throw error;
+  }
+}
+
+function ensureDashboardView(brainId) {
+  if (dashboardView && !dashboardView.webContents.isDestroyed() && dashboardViewBrainId === brainId) return dashboardView;
+  if (dashboardView && !dashboardView.webContents.isDestroyed()) {
+    mainWindow.contentView.removeChildView(dashboardView);
+    dashboardView.webContents.close();
+  }
+  dashboardView = new WebContentsView({
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      spellcheck: false,
+      partition: dashboardPartition(brainId),
+    },
+  });
+  dashboardViewBrainId = brainId;
+  dashboardView.setBackgroundColor("#18181b");
+  mainWindow.contentView.addChildView(dashboardView);
+  configureDashboardWebContents(dashboardView.webContents);
+  return dashboardView;
+}
+
+function configureDashboardWebContents(webContents) {
+  webContents.setWindowOpenHandler(({ url }) => {
+    if (isAllowedDashboardNavigation(url, activeDashboardOrigin)) {
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          webPreferences: {
+            contextIsolation: true,
+            nodeIntegration: false,
+            sandbox: true,
+            session: webContents.session,
+          },
+        },
+      };
+    }
+    if (isSafeExternalUrl(url)) void shell.openExternal(url);
+    return { action: "deny" };
+  });
+  webContents.on("will-navigate", (event, url) => {
+    if (isAllowedDashboardNavigation(url, activeDashboardOrigin)) return;
+    event.preventDefault();
+    if (isSafeExternalUrl(url)) void shell.openExternal(url);
+  });
+  webContents.session.setPermissionRequestHandler((_requestingWebContents, _permission, callback) => callback(false));
+  webContents.on("render-process-gone", (_event, details) => {
+    console.error("Dashboard renderer process exited", details);
+    setDashboardViewVisible(false);
+  });
+  webContents.on("unresponsive", () => {
+    console.error("Dashboard renderer became unresponsive");
+  });
+  webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
+    if (!isMainFrame || errorCode === -3) return;
+    console.error("Dashboard failed to load", { errorCode, errorDescription, validatedUrl });
+  });
+}
+
+function layoutDashboardView() {
+  if (!mainWindow || !dashboardView) return;
+  dashboardView.setBounds(dashboardViewBounds(mainWindow.getContentSize(), DESKTOP_CHROME_HEIGHT));
+}
+
+function setDashboardViewVisible(visible) {
+  if (!dashboardView || dashboardView.webContents.isDestroyed()) return false;
+  dashboardView.setVisible(visible);
+  return true;
 }
 
 function recoverRenderer(message) {

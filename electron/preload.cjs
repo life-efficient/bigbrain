@@ -12,6 +12,7 @@ if (isDesktopShell) {
     createBrain: (input) => ipcRenderer.invoke('desktop:create-brain', input),
     connectService: (input) => ipcRenderer.invoke('desktop:connect-service', input),
     openBrain: (id) => ipcRenderer.invoke('desktop:open-brain', id),
+    setDashboardVisible: (visible) => ipcRenderer.invoke('desktop:set-dashboard-visible', visible),
     chooseExistingBrain: () => ipcRenderer.invoke('desktop:choose-existing-brain'),
     activate: (id) => ipcRenderer.invoke('desktop:activate', id),
     rename: (id, name) => ipcRenderer.invoke('desktop:rename', id, name),

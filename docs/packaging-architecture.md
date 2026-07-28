@@ -95,10 +95,15 @@ operator-controlled environment. Docker is the canonical server package for
 both. A Docker service on the client's physical machine is still
 server-managed because the client connects to an independently managed service.
 
-The same Electron shell may point at an existing service dashboard by setting
-`BIGBRAIN_DASHBOARD_URL` or passing `--dashboard-url`. In this relationship the
-desktop app is a dashboard wrapper only; service lifecycle is managed by the
-host.
+The normal Electron app owns the local registry and brain selector. It keeps
+that desktop chrome visible while loading the selected local or hosted service
+dashboard in an isolated content view. Each service dashboard remains
+single-brain and does not discover or switch to other services.
+
+Setting `BIGBRAIN_DASHBOARD_URL` or passing `--dashboard-url` is an explicit
+fixed-dashboard mode for kiosk or thin-client deployments. It intentionally
+bypasses the multi-brain desktop shell; service lifecycle remains managed by
+the host.
 
 ## Deployment, Storage, And Access Variants
 
