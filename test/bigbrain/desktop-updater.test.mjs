@@ -76,10 +76,11 @@ test('unsigned and unpublished builds fail with useful, non-technical messages',
   assert.doesNotMatch(friendlyUpdateError(new Error('request failed at https://example.test?token=secret')), /token=secret/);
 });
 
-test('desktop exposes update status and manual controls without a service-update command', async () => {
-  const [mainSource, preloadSource, desktopSource, desktopHtml] = await Promise.all([
+test('desktop exposes compact inline update controls without a service-update command', async () => {
+  const [mainSource, preloadSource, dashboardPreloadSource, desktopSource, desktopHtml] = await Promise.all([
     fs.readFile(new URL('../../electron/main.cjs', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../electron/preload.cjs', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../electron/dashboard-preload.cjs', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../electron/desktop.js', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../electron/desktop.html', import.meta.url), 'utf8'),
   ]);
@@ -91,8 +92,12 @@ test('desktop exposes update status and manual controls without a service-update
   assert.match(mainSource, /desktopUpdater\.start\(\)/);
   assert.match(preloadSource, /desktop:check-for-updates/);
   assert.match(preloadSource, /desktop:restart-to-update/);
-  assert.match(desktopSource, /Check for updates/);
-  assert.match(desktopHtml, /id="update-control"/);
+  assert.match(dashboardPreloadSource, /desktop:check-for-updates/);
+  assert.match(dashboardPreloadSource, /desktop:restart-to-update/);
+  assert.match(dashboardPreloadSource, /Check for updates/);
+  assert.match(dashboardPreloadSource, /className = 'popover'/);
+  assert.doesNotMatch(desktopSource, /renderUpdateControl|initUpdateControl/);
+  assert.doesNotMatch(desktopHtml, /id="update-control"/);
   assert.doesNotMatch(mainSource, /desktop:update-service|desktopController\.update/);
 });
 

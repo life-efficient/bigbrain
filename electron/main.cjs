@@ -7,7 +7,7 @@ const { dashboardPartition, dashboardViewBounds, isAllowedDashboardNavigation } 
 const APP_DISPLAY_NAME = "BigBrain";
 const LOCAL_HOST = "127.0.0.1";
 const DEFAULT_WINDOW_SIZE = { width: 1079, height: 945 };
-const DESKTOP_CHROME_HEIGHT = 104;
+const DESKTOP_CHROME_HEIGHT = 0;
 const APP_ICON_PATH = path.join(__dirname, "assets", "desktop-icon.png");
 const MAX_RENDERER_RECOVERY_ATTEMPTS = 2;
 const REMOTE_DASHBOARD_URL_ENV = "BIGBRAIN_DASHBOARD_URL";
@@ -380,6 +380,9 @@ function initializeDesktopUpdater() {
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send("desktop:update-state", state);
     }
+    if (dashboardView && !dashboardView.webContents.isDestroyed()) {
+      dashboardView.webContents.send("desktop:update-state", state);
+    }
     if (state.phase === "downloaded" && state.updateVersion !== promptedUpdateVersion) {
       promptedUpdateVersion = state.updateVersion || "downloaded";
       void promptToRestartForUpdate(state);
@@ -451,6 +454,13 @@ function registerDesktopIpc() {
     "desktop:open-brain": async (_event, id) => {
       const brain = rememberConnectedDashboardOrigins(await desktopController.activate(id));
       await loadBrainDashboard(brain);
+      return true;
+    },
+    "desktop:show-selector": async () => {
+      setDashboardViewVisible(false);
+      const shellUrl = pathToFileURL(path.join(__dirname, "desktop.html"));
+      shellUrl.searchParams.set("select", "1");
+      await mainWindow.loadURL(shellUrl.href);
       return true;
     },
     "desktop:set-dashboard-visible": (_event, visible) => setDashboardViewVisible(Boolean(visible)),
@@ -563,6 +573,7 @@ function ensureDashboardView(brainId) {
       sandbox: true,
       spellcheck: false,
       partition: dashboardPartition(brainId),
+      preload: path.join(__dirname, "dashboard-preload.cjs"),
     },
   });
   dashboardViewBrainId = brainId;

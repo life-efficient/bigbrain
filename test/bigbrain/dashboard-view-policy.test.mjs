@@ -15,18 +15,18 @@ test('dashboard content views use stable isolated persistent partitions per brai
   assert.match(dashboardPartition('brain-one'), /^persist:bigbrain-dashboard-[a-f0-9]{24}$/);
 });
 
-test('dashboard content view stays below fixed desktop chrome', () => {
-  assert.deepEqual(dashboardViewBounds([1079, 945], 104), {
+test('dashboard content view fills the window so desktop controls share its topline', () => {
+  assert.deepEqual(dashboardViewBounds([1079, 945], 0), {
     x: 0,
-    y: 104,
+    y: 0,
     width: 1079,
-    height: 841,
+    height: 945,
   });
-  assert.deepEqual(dashboardViewBounds([0, 40], 104), {
+  assert.deepEqual(dashboardViewBounds([0, 40], 0), {
     x: 0,
-    y: 104,
+    y: 0,
     width: 1,
-    height: 1,
+    height: 40,
   });
 });
 
