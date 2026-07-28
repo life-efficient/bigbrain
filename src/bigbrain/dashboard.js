@@ -588,11 +588,9 @@ function renderAppHtml() {
       .view-nav { display: flex; gap: 10px; flex-wrap: wrap; }
       .view-nav-header { justify-content: center; justify-self: center; }
       .view-nav, .topline-actions, .settings-dropdown, .health-dropdown { -webkit-app-region: no-drag; }
-      html.bigbrain-desktop main { padding-left: 80px; }
-      html.bigbrain-desktop .topline { grid-template-columns: minmax(190px, 1fr) auto minmax(190px, 1fr); }
+      html.bigbrain-desktop .topline { grid-template-columns: minmax(190px, 1fr) auto minmax(190px, 1fr); padding-left: 60px; }
       @media (max-width: 820px) {
-        html.bigbrain-desktop main { padding-left: 74px; padding-right: 14px; }
-        html.bigbrain-desktop .topline { grid-template-columns: minmax(150px, 1fr) auto minmax(150px, 1fr); gap: 8px; }
+        html.bigbrain-desktop .topline { grid-template-columns: minmax(150px, 1fr) auto minmax(150px, 1fr); gap: 8px; padding-left: 58px; }
         html.bigbrain-desktop .view-nav, html.bigbrain-desktop .topline-actions { gap: 8px; }
       }
       @media (max-width: 740px) {

@@ -34,4 +34,5 @@ states.
 - Reuse the dashboard's dark neutral palette, translucent surfaces, borders, text hierarchy, and monochrome controls.
 - Primary onboarding actions use the shell's white-on-dark emphasis. Do not introduce an unrelated accent color for setup buttons, choices, or focus states.
 - Keep active-dashboard controls in one compact top row. Desktop-only controls must occupy the dashboard's existing header slots instead of creating a second stacked toolbar.
+- On macOS, apply traffic-light clearance to the desktop dashboard topline only. Graphs and all content below the header use the normal page gutter.
 - Put transient update details and recovery actions in anchored popovers. Controls, menus, and popovers must live in the same composited view so a child content layer cannot cover or intercept them.

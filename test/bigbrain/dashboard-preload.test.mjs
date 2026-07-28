@@ -30,3 +30,9 @@ test('desktop update status is compact by default and reveals its action in a po
   assert.match(source, /Check for updates/);
   assert.match(source, /Restart to update/);
 });
+
+test('macOS traffic-light clearance applies only to the desktop dashboard topline', async () => {
+  const source = await fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8');
+  assert.match(source, /html\.bigbrain-desktop \.topline \{[^}]*padding-left: 60px;/);
+  assert.doesNotMatch(source, /html\.bigbrain-desktop main \{[^}]*padding-left:/);
+});
