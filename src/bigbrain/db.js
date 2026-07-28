@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
+import { ensureDefaultRoles, ensureDefaultRolesSync } from './roles.js';
 
 export const BIGBRAIN_STORAGE_SCHEMA_VERSION = 1;
 
@@ -131,6 +132,23 @@ export function initializeSqliteSchema(db) {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS roles (
+      role_key TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      builtin INTEGER NOT NULL DEFAULT 0,
+      permissions_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS role_path_permissions (
+      role_key TEXT NOT NULL,
+      path_prefix TEXT NOT NULL,
+      can_edit INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (role_key, path_prefix)
+    );
     CREATE TABLE IF NOT EXISTS shared_groups (
       slug TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -161,6 +179,7 @@ export function initializeSqliteSchema(db) {
   ensureSqliteSharedGroupColumns(raw);
   ensureSqlitePageKindColumn(raw);
   ensureSqliteAuditColumns(raw);
+  ensureDefaultRolesSync(raw);
 }
 
 export async function initializePostgresSchema(db) {
@@ -308,6 +327,23 @@ export async function initializePostgresSchema(db) {
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS roles (
+      role_key TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL DEFAULT '',
+      builtin BOOLEAN NOT NULL DEFAULT false,
+      permissions_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS role_path_permissions (
+      role_key TEXT NOT NULL REFERENCES roles(role_key) ON DELETE CASCADE,
+      path_prefix TEXT NOT NULL,
+      can_edit BOOLEAN NOT NULL DEFAULT false,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL,
+      PRIMARY KEY (role_key, path_prefix)
+    );
     CREATE TABLE IF NOT EXISTS shared_groups (
       slug TEXT PRIMARY KEY,
       title TEXT NOT NULL,
@@ -337,6 +373,7 @@ export async function initializePostgresSchema(db) {
   await ensurePostgresSharedGroupColumns(db);
   await ensurePostgresAuditColumns(db);
   await db.query("ALTER TABLE pages ADD COLUMN IF NOT EXISTS page_kind TEXT NOT NULL DEFAULT 'canonical'");
+  await ensureDefaultRoles(db);
 }
 
 const AUDIT_COLUMNS = {

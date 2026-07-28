@@ -1970,6 +1970,120 @@ test('MCP OAuth allowlist mode exposes Codex-native OAuth endpoints', async () =
   }
 });
 
+test('MCP member roles manage custom roles and scope page edits by path', async () => {
+  const fixture = await createFixture('bigbrain-mcp-rbac-');
+  const adminToken = 'bbmcp_rbac-admin';
+  const editorToken = 'bbmcp_rbac-editor';
+  const tokenStorePath = path.join(fixture.rootDir, 'tokens.json');
+  await fs.writeFile(tokenStorePath, `${JSON.stringify({
+    tokens: [
+      scopedToken(adminToken, 'admin@example.com', 'brain:read brain:admin brain:create'),
+      scopedToken(editorToken, 'editor@example.com', 'brain:read brain:create'),
+    ],
+    states: [],
+    clients: [],
+    codes: [],
+  }, null, 2)}\n`);
+
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const db = await openDatabase(config);
+    await upsertMember(db, {
+      email: 'admin@example.com',
+      name: 'Admin',
+      person_slug: 'people/admin',
+      role: 'admin',
+      status: 'active',
+    });
+    await upsertMember(db, {
+      email: 'editor@example.com',
+      name: 'Editor',
+      person_slug: 'people/editor',
+      role: 'deal-editor',
+      status: 'active',
+    });
+    await db.close?.();
+
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: {
+        mode: 'oauth_allowlist',
+        authToken: null,
+        publicUrl: 'https://brain.example.test',
+        provider: 'google',
+        googleClientId: 'client-id',
+        googleClientSecret: 'client-secret',
+        allowedEmails: ['admin@example.com', 'editor@example.com'],
+        allowedDomains: [],
+        tokenStorePath,
+        allowSharedToken: false,
+        serviceName: 'Example Brain',
+        appName: 'Example Brain',
+      },
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const roles = await rpc(running.url, 'tools/call', {
+      name: 'roles/upsert',
+      arguments: {
+        key: 'deal-editor',
+        name: 'Deal Editor',
+        permissions: { read: true, page_edit: true },
+        page_edit_paths: ['deals'],
+      },
+    }, adminToken);
+    assert.equal(roles.error, undefined, roles.error?.message);
+    assert.equal(roles.result.structuredContent.role.key, 'deal-editor');
+    assert.deepEqual(roles.result.structuredContent.role.page_edit_paths, ['deals']);
+
+    const allowed = await rpc(running.url, 'tools/call', {
+      name: 'create_page',
+      arguments: {
+        path: 'deals/scoped-note',
+        title: 'Scoped Note',
+        body: 'Allowed path.',
+        timeline_entry: 'Created inside scope.',
+      },
+    }, editorToken);
+    assert.equal(allowed.error, undefined, allowed.error?.message);
+
+    const denied = await rpc(running.url, 'tools/call', {
+      name: 'create_page',
+      arguments: {
+        path: 'people/out-of-scope',
+        title: 'Out of Scope',
+        body: 'Denied path.',
+        timeline_entry: 'Should be denied.',
+      },
+    }, editorToken);
+    assert.equal(denied.error.code, -32003);
+    assert.match(denied.error.message, /not allowed for role deal-editor on people\/out-of-scope/);
+
+    const aboutDenied = await rpc(running.url, 'tools/call', {
+      name: 'about/update',
+      arguments: {
+        profile: {
+          schema_version: 1,
+          identity: {
+            brain_id: config.brainId,
+            brain_name: config.brainName,
+            description: 'A test brain.',
+          },
+        },
+      },
+    }, adminToken);
+    assert.equal(aboutDenied.error.code, -32003);
+    assert.match(aboutDenied.error.message, /not allowed for role admin/);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function rpc(url, method, params, token) {
   const response = await fetch(url, {
     method: 'POST',

@@ -1,3 +1,5 @@
+import { normalizeRoleKey } from './roles.js';
+
 export async function listMembers(db, { status = null } = {}) {
   const rows = db.backend === 'postgres'
     ? (status
@@ -160,7 +162,7 @@ function normalizeMemberInput(member) {
     name: String(member?.name || email).trim(),
     person_slug: personSlug,
     status: normalizeEnum(member?.status, ['active', 'inactive', 'invited'], 'active'),
-    role: normalizeEnum(member?.role, ['owner', 'member', 'viewer'], 'member'),
+    role: normalizeRoleKey(member?.role || 'editor'),
     oauth_provider: member?.oauth_provider || member?.oauthProvider || null,
     oauth_subject: member?.oauth_subject || member?.oauthSubject || null,
   };
@@ -173,7 +175,7 @@ function normalizeMember(row) {
     name: String(row.name || row.email || '').trim(),
     person_slug: normalizePersonSlug(row.person_slug),
     status: row.status || 'active',
-    role: row.role || 'member',
+    role: normalizeRoleKey(row.role || 'editor'),
     oauth_provider: row.oauth_provider || null,
     oauth_subject: row.oauth_subject || null,
     created_at: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,

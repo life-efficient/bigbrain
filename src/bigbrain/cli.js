@@ -508,7 +508,7 @@ async function handleMembers(args, global) {
         email,
         person_slug: personSlug,
         name: argValue(args, '--name') || email,
-        role: argValue(args, '--role') || 'member',
+        role: argValue(args, '--role') || 'editor',
         status: argValue(args, '--status') || 'active',
       });
       output(global, member, `Added ${member.email} as ${member.person_slug}.`);
@@ -788,7 +788,7 @@ Commands:
   tasks [--assignee people/name]
   members [--status active|inactive|invited]
   members ensure-local-owner <people/slug> [--name NAME] [--email EMAIL]
-  members add <email> <people/slug> [--name NAME] [--role owner|member|viewer] [--status active|inactive|invited]
+  members add <email> <people/slug> [--name NAME] [--role owner|admin|editor|read-only|custom-role] [--status active|inactive|invited]
   eval retrieval [--mode conservative|balanced|tokenmax] [--limit N] [--cases PATH] [--private] [--redact]
   eval export [--cases PATH] [--mode MODE] [--limit N] [--redact]
   eval replay --against baseline.ndjson [--mode MODE] [--limit N]

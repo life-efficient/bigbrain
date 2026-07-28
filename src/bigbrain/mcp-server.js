@@ -59,7 +59,8 @@ import {
   renderOAuthCompletePage,
 } from './mcp-auth.js';
 import { createMcpAuthStore } from './mcp-auth-store.js';
-import { findActiveMemberByEmail, listMembers, resolveActorMember } from './members.js';
+import { findActiveMemberByEmail, listMembers, resolveActorMember, upsertMember } from './members.js';
+import { getRole, isOwnerRole, listRoles, roleAllows, roleCanEditPath, upsertCustomRole } from './roles.js';
 import {
   auditTaskHygiene,
   createTaskPage,
@@ -346,6 +347,7 @@ async function callTool({ config, params, gitBackupEnabled, actor, authConfig, r
   const args = params.arguments || {};
   try {
     assertToolAllowed(name, actor);
+    await assertRoleAllowed({ config, name, args, actor, authConfig });
     const result = await executeToolCall({ config, name, args, gitBackupEnabled, actor, authConfig });
     if (isAuditedTool(name)) {
       await auditMcpToolCall(config, { actor, name, args, authConfig, requestId });
@@ -372,6 +374,15 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'members/list':
     case 'members_list':
       return toolJson(await toolMembersList(config, args), { arrayKey: 'members' });
+    case 'members/upsert':
+    case 'members_upsert':
+      return toolJson(await toolMembersUpsert(config, args, actor, authConfig));
+    case 'roles/list':
+    case 'roles_list':
+      return toolJson(await toolRolesList(config), { arrayKey: 'roles' });
+    case 'roles/upsert':
+    case 'roles_upsert':
+      return toolJson(await toolRolesUpsert(config, args), { arrayKey: 'roles' });
     case 'tasks/list':
       return toolJson(await toolTasksList(config, args, actor, authConfig), { arrayKey: 'tasks' });
     case 'tasks/summary':
@@ -1092,6 +1103,36 @@ function toolDefinitions() {
       inputSchema: membersListSchema(),
     },
     {
+      name: 'members/upsert',
+      description: 'Create or update a BigBrain member and assign one role. Owners can manage every role; admins can manage non-owner members.',
+      inputSchema: memberUpsertSchema(),
+    },
+    {
+      name: 'members_upsert',
+      description: 'Alias for members/upsert for clients that do not support slash tool names.',
+      inputSchema: memberUpsertSchema(),
+    },
+    {
+      name: 'roles/list',
+      description: 'List default and custom BigBrain roles, including page edit path scopes.',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'roles_list',
+      description: 'Alias for roles/list for clients that do not support slash tool names.',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'roles/upsert',
+      description: 'Create or update one custom BigBrain role. Custom roles can scope page edit permissions by path prefix.',
+      inputSchema: roleUpsertSchema(),
+    },
+    {
+      name: 'roles_upsert',
+      description: 'Alias for roles/upsert for clients that do not support slash tool names.',
+      inputSchema: roleUpsertSchema(),
+    },
+    {
       name: 'tasks/list',
       description: 'List task pages under tasks/, optionally filtered by assignee, status, priority, readiness, or execution_mode. Use assignee=me for the authenticated member.',
       inputSchema: tasksListSchema(),
@@ -1459,6 +1500,12 @@ const TOOL_POLICIES = {
   me: { layer: 'read', scopes: ['brain:read'] },
   'members/list': { layer: 'read', scopes: ['brain:read'] },
   members_list: { layer: 'read', scopes: ['brain:read'] },
+  'members/upsert': { layer: 'members_manage', scopes: ['brain:admin'] },
+  members_upsert: { layer: 'members_manage', scopes: ['brain:admin'] },
+  'roles/list': { layer: 'read', scopes: ['brain:read'] },
+  roles_list: { layer: 'read', scopes: ['brain:read'] },
+  'roles/upsert': { layer: 'roles_manage', scopes: ['brain:admin'] },
+  roles_upsert: { layer: 'roles_manage', scopes: ['brain:admin'] },
   'tasks/list': { layer: 'read', scopes: ['brain:read'] },
   'tasks/summary': { layer: 'read', scopes: ['brain:read'] },
   'tasks/get': { layer: 'read', scopes: ['brain:read'] },
@@ -1501,10 +1548,116 @@ async function resolveProfileEditor(config, actor, authConfig) {
   const db = await openDatabase(config);
   try {
     const member = await resolveActorMember(db, actor, memberResolutionFromAuthConfig(authConfig));
-    if (member && member.role !== 'owner') throw new Error('Only a brain owner may update the routing description.');
+    if (member && !(await roleAllows(db, member.role, 'about_update'))) throw new Error('Only a brain owner may update the routing description.');
     return member;
   } finally {
     await db.close?.();
+  }
+}
+
+async function toolRolesList(config) {
+  const db = await openDatabase(config);
+  try {
+    return await listRoles(db);
+  } finally {
+    await db.close?.();
+  }
+}
+
+async function toolRolesUpsert(config, args) {
+  const db = await openDatabase(config);
+  try {
+    const role = await upsertCustomRole(db, {
+      key: args.key,
+      name: args.name,
+      description: args.description,
+      permissions: args.permissions || { read: true, page_edit: true },
+      page_edit_paths: args.page_edit_paths || [],
+    });
+    return { roles: await listRoles(db), role };
+  } finally {
+    await db.close?.();
+  }
+}
+
+async function toolMembersUpsert(config, args, actor, authConfig) {
+  const db = await openDatabase(config);
+  try {
+    const actorMember = await resolveActorMember(db, actor, memberResolutionFromAuthConfig(authConfig));
+    const targetRole = args.role || 'editor';
+    if (!(await getRole(db, targetRole))) throw new Error(`Unknown role: ${targetRole}`);
+    if (actorMember && !isOwnerRole(actorMember.role) && isOwnerRole(targetRole)) {
+      throw new Error('Only a brain owner may assign or unassign owners.');
+    }
+    const existing = (await listMembers(db)).find((member) => member.email === String(args.email || '').trim().toLowerCase());
+    if (actorMember && !isOwnerRole(actorMember.role) && existing && isOwnerRole(existing.role)) {
+      throw new Error('Only a brain owner may change owners.');
+    }
+    return upsertMember(db, {
+      email: args.email,
+      name: args.name,
+      person_slug: args.person_slug,
+      status: args.status || 'active',
+      role: targetRole,
+    });
+  } finally {
+    await db.close?.();
+  }
+}
+
+async function assertRoleAllowed({ config, name, args, actor, authConfig }) {
+  const permission = rolePermissionForTool(name);
+  if (!permission) return;
+  const db = await openDatabase(config);
+  try {
+    const member = await resolveActorMember(db, actor, memberResolutionFromAuthConfig(authConfig));
+    if (!member) {
+      const hasConfiguredMembers = (await listMembers(db)).length > 0;
+      if (actor?.email && hasConfiguredMembers && permission !== 'read') throw new ForbiddenToolError(`${name} requires an active brain member role.`);
+      return;
+    }
+    if (!(await roleAllows(db, member.role, permission))) throw new ForbiddenToolError(`${name} is not allowed for role ${member.role}.`);
+    if (permission === 'page_edit') {
+      for (const pagePath of pageEditPathsForTool(name, args)) {
+        if (!(await roleCanEditPath(db, member.role, pagePath))) {
+          throw new ForbiddenToolError(`${name} is not allowed for role ${member.role} on ${pagePath}.`);
+        }
+      }
+    }
+  } finally {
+    await db.close?.();
+  }
+}
+
+function rolePermissionForTool(name) {
+  const policy = toolPolicy(name);
+  if (!policy) return null;
+  if (policy.layer === 'read') return 'read';
+  if (policy.layer === 'create') return 'page_edit';
+  if (policy.layer === 'publish') return 'publish';
+  if (policy.layer === 'raw_destructive') return 'raw_destructive';
+  if (policy.layer === 'git_backup') return 'git_backup';
+  if (policy.layer === 'maintenance') return 'maintenance';
+  if (policy.layer === 'admin') return ['about/update'].includes(name) ? 'about_update' : 'audit';
+  if (policy.layer === 'members_manage') return 'members_manage';
+  if (policy.layer === 'roles_manage') return 'roles_manage';
+  return null;
+}
+
+function pageEditPathsForTool(name, args) {
+  switch (name) {
+    case 'create_page':
+    case 'update_page':
+      return [args.path].filter(Boolean);
+    case 'rename_page':
+      return [args.from_path, args.to_path].filter(Boolean);
+    case 'tasks/create':
+    case 'tasks/update':
+      return [args.path || args.slug || 'tasks'].filter(Boolean);
+    case 'create_raw_file_with_page':
+      return [args.page_path].filter(Boolean);
+    default:
+      return [];
   }
 }
 
@@ -1527,6 +1680,48 @@ function membersListSchema() {
     properties: {
       status: { type: 'string', enum: ['active', 'inactive', 'invited'] },
     },
+  };
+}
+
+function memberUpsertSchema() {
+  return {
+    type: 'object',
+    properties: {
+      email: { type: 'string' },
+      person_slug: { type: 'string', description: 'People page slug such as people/hani.' },
+      name: { type: 'string' },
+      role: { type: 'string', description: 'Role key such as owner, admin, editor, read-only, or a custom role key.' },
+      status: { type: 'string', enum: ['active', 'inactive', 'invited'] },
+    },
+    required: ['email', 'person_slug', 'role'],
+  };
+}
+
+function roleUpsertSchema() {
+  return {
+    type: 'object',
+    properties: {
+      key: { type: 'string', description: 'Lowercase custom role key. Built-in roles cannot be changed through this tool.' },
+      name: { type: 'string' },
+      description: { type: 'string' },
+      permissions: {
+        type: 'object',
+        properties: {
+          read: { type: 'boolean' },
+          page_edit: { type: 'boolean' },
+          publish: { type: 'boolean' },
+          raw_destructive: { type: 'boolean' },
+          maintenance: { type: 'boolean' },
+          git_backup: { type: 'boolean' },
+        },
+      },
+      page_edit_paths: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Path prefixes this custom role can edit, such as deals or meetings. Empty string means all pages.',
+      },
+    },
+    required: ['key', 'name'],
   };
 }
 

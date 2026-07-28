@@ -136,7 +136,7 @@ async function seedMembers(options, env) {
       '--name',
       member.name || member.email,
       '--role',
-      member.role || 'member',
+      member.role || 'editor',
       '--status',
       member.status || 'active',
     ], { cwd: packageRoot, env });
