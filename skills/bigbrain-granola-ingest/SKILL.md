@@ -14,7 +14,8 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
 - Live destination filing rules are read before paths, page types, entities, tasks, or raw sidecars are chosen.
 - Existing Granola coverage is checked before creating or repairing pages.
 - Substantive meetings get canonical meeting pages and transcript sidecars when transcripts are available and safe to store.
-- Durable entity, deal, project, concept, and task updates are made only when supported by meeting evidence and destination filing rules.
+- Attendee and represented-organization pages are created or updated after the meeting record is verified.
+- Durable entity, deal, project, concept, and task updates are made only when supported by meeting evidence, destination filing rules, and mention depth.
 - The destination brain is synced and read back before reporting success.
 - Final output is count-first, grouped by brain, and privacy-safe.
 
@@ -71,14 +72,27 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
    - Keep entity and task timeline entries evidence-backed and concise.
    - Never store transcript, summary, notes, participant names, credentials, or private meeting content in the machine catalog or routing ledger.
    - Anti-patterns: writing raw files outside the owning collection, losing source provenance, storing private content in routing state, making public pages or raw files without explicit approval, placing technical audit data in user-facing content
-9. Verify and sync.
+9. Verify meeting artifacts.
    - Re-scan for duplicate Granola coverage after writes.
-   - Read back the canonical meeting page, provenance, transcript sidecar when created, and any affected stable pages or tasks.
+   - Read back the canonical meeting page, provenance, and transcript sidecar when created.
+   - Confirm meeting pages and sidecars match live filing rules before expanding entity pages.
+   - Treat missing provenance, broken source links, duplicate coverage, or mismatched transcript sidecars as repair work before entity expansion.
+   - Anti-patterns: creating entity pages from an unverified meeting page, skipping meeting read-back, ignoring duplicate coverage after writes, treating a missing sidecar as success
+10. Create or update entity pages.
+   - Create or update pages for meeting attendees when they are identified with enough confidence from Granola metadata, transcript evidence, user clarification, or existing brain context.
+   - Create or update the organization represented by each attendee when the affiliation is transcript-backed, user-confirmed, or otherwise explicitly evidenced.
+   - Create or update other entities mentioned in detail only when the meeting contains enough durable context for a useful standalone page under the destination filing rules.
+   - Keep lightly mentioned people, organizations, companies, deals, products, places, and concepts embedded in the meeting summary instead of creating full pages.
+   - Link created or updated entity pages back to the canonical meeting page and link the meeting page to the entity pages when the destination pattern expects it.
+   - Mark uncertain identities, affiliations, roles, authority, and entity names explicitly instead of converting them into firm facts.
+   - Anti-patterns: creating pages for every named entity, treating a passing mention as a durable entity, guessing attendee affiliations, overwriting existing entity facts without read-back, leaving attendee pages unlinked from the meeting
+11. Sync and final read-back.
+   - Read back any affected stable pages, entity pages, deal/project pages, and tasks after entity expansion.
    - Confirm changed pages match live filing rules.
    - Run `bigbrain sync --json` from the selected brain root or use the destination brain's live sync tool.
    - Treat sync warnings and read-back mismatches as issues to report or repair before success.
-   - Anti-patterns: reporting success before read-back, skipping sync, ignoring duplicate coverage after writes, hiding sync failures
-10. Report results.
+   - Anti-patterns: reporting success before final read-back, skipping sync, hiding sync failures, ignoring stale task or entity links
+12. Report results.
    - First line must be a plain count sentence: `0 meetings ingested`, `1 meeting ingested`, `5 meetings ingested`, or `2 meetings repaired`.
    - If multiple outcomes occurred, use one concise first line such as `3 meetings ingested, 1 repaired`.
    - When one or more meetings were ingested, add a heading for each destination brain that received at least one meeting and list each ingested meeting as one bullet underneath.
