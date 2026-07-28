@@ -32,7 +32,14 @@ test('desktop update status is compact by default and reveals its action in a po
 });
 
 test('macOS traffic-light clearance applies only to the desktop dashboard topline', async () => {
-  const source = await fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8');
+  const [source, clientSource] = await Promise.all([
+    fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
+  ]);
   assert.match(source, /html\.bigbrain-desktop \.topline \{[^}]*padding-left: 60px;/);
   assert.doesNotMatch(source, /html\.bigbrain-desktop main \{[^}]*padding-left:/);
+  assert.match(clientSource, /className="desktop-drag-strip" aria-hidden="true"/);
+  assert.match(source, /\.topline \{[^}]*-webkit-app-region: no-drag;/);
+  assert.match(source, /html\.bigbrain-desktop \.desktop-drag-strip \{[^}]*height: 14px;[^}]*-webkit-app-region: drag;/);
+  assert.doesNotMatch(source, /\.topline \{[^}]*-webkit-app-region: drag;/);
 });

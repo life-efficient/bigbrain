@@ -582,12 +582,14 @@ function renderAppHtml() {
       h2 { margin: 0 0 14px; font-size: 20px; }
       h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
       p { color: var(--muted); margin: 0; }
-      .topline { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 16px; margin-bottom: 18px; -webkit-app-region: drag; user-select: none; }
+      .desktop-drag-strip { display: none; }
+      .topline { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 16px; margin-bottom: 18px; -webkit-app-region: no-drag; user-select: none; }
       .topline-brand { display: flex; align-items: center; justify-self: start; min-width: 0; width: 100%; }
       .topline-actions { display: flex; align-items: center; gap: 12px; justify-self: end; }
       .view-nav { display: flex; gap: 10px; flex-wrap: wrap; }
       .view-nav-header { justify-content: center; justify-self: center; }
       .view-nav, .topline-actions, .settings-dropdown, .health-dropdown { -webkit-app-region: no-drag; }
+      html.bigbrain-desktop .desktop-drag-strip { display: block; position: absolute; z-index: 20; top: 0; left: 74px; right: 14px; height: 14px; -webkit-app-region: drag; }
       html.bigbrain-desktop .topline { grid-template-columns: minmax(190px, 1fr) auto minmax(190px, 1fr); padding-left: 60px; }
       @media (max-width: 820px) {
         html.bigbrain-desktop .topline { grid-template-columns: minmax(150px, 1fr) auto minmax(150px, 1fr); gap: 8px; padding-left: 58px; }

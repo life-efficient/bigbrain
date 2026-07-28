@@ -397,6 +397,7 @@ function DashboardApp() {
     <GraphThemeProvider resolvedTheme={resolvedTheme}>
       <div className={`page-shell theme-${resolvedTheme} view-${view} ${preview ? 'preview-open' : ''}`} data-theme-mode={themeMode}>
         <main>
+          <div className="desktop-drag-strip" aria-hidden="true" />
           <div className="topline">
             <div className="topline-brand" aria-hidden="true" />
             <div className="view-nav view-nav-header">
