@@ -37,4 +37,5 @@ states.
 - Keep active-dashboard controls in one compact top row. Desktop-only controls must occupy the dashboard's existing header slots instead of creating a second stacked toolbar.
 - On macOS, apply traffic-light clearance to the desktop dashboard topline only. Graphs and all content below the header use the normal page gutter.
 - Use a thin dedicated drag strip above the macOS dashboard header. The visible topline and every header control must remain outside draggable regions.
+- In composited desktop windows, only the currently visible surface may contribute a draggable region. Disable shell drag regions while an overlaid dashboard view is active.
 - Put transient update details and recovery actions in anchored popovers. Controls, menus, and popovers must live in the same composited view so a child content layer cannot cover or intercept them.

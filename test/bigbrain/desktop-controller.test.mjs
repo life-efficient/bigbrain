@@ -228,6 +228,7 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(preloadSource, /desktop:discover-brains/);
   assert.match(preloadSource, /desktop:open-brain/);
   assert.match(preloadSource, /desktop:set-dashboard-visible/);
+  assert.match(preloadSource, /desktop:dashboard-visibility/);
   assert.match(preloadSource, /process\.isMainFrame/);
   assert.match(preloadSource, /location\.pathname\.endsWith\('\/electron\/desktop\.html'\)/);
   assert.doesNotMatch(preloadSource, /require\(['"](?:path|url)['"]\)/);
@@ -236,8 +237,11 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(mainSource, /partition: dashboardPartition\(brainId\)/);
   assert.match(mainSource, /preload: path\.join\(__dirname, "dashboard-preload\.cjs"\)/);
   assert.match(mainSource, /const DESKTOP_CHROME_HEIGHT = 0/);
+  assert.match(mainSource, /mainWindow\.webContents\.send\("desktop:dashboard-visibility", visible\)/);
   assert.match(mainSource, /sandbox: true/);
   assert.match(mainSource, /await loadBrainDashboard\(brain\)/);
+  assert.match(mainSource, /layoutDashboardView\(\);\s+setDashboardViewVisible\(true\);/);
+  assert.match(mainSource, /catch \(error\) \{\s+setDashboardViewVisible\(false\);/);
   assert.doesNotMatch(mainSource, /mainWindow\.loadURL\(brain\.dashboardUrl\)/);
   assert.match(desktopSource, /await api\.openBrain\(brain\.id\)/);
   assert.doesNotMatch(desktopSource, /<iframe/);
@@ -252,6 +256,9 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(mainSource, /desktop:discover-brains/);
   assert.match(desktopHtml, /--bg:#18181b/);
   assert.doesNotMatch(desktopHtml, /id="update-control"/);
+  assert.match(desktopHtml, /\.dashboard-visible \.title-strip\{-webkit-app-region:no-drag\}/);
+  assert.match(desktopHtml, /\.title-strip\{[^}]*height:14px;[^}]*-webkit-app-region:drag\}/);
+  assert.match(desktopSource, /onDashboardVisibility\(visible=>document\.documentElement\.classList\.toggle\('dashboard-visible',visible\)\)/);
   assert.match(desktopHtml, /\.primary\{border:1px solid #fafafa;background:#fafafa;color:#18181b/);
   assert.doesNotMatch(desktopHtml, /#207146|#377652|#f4fff7|#f2f4ef/i);
   assert.doesNotMatch(desktopSource, /Hosted mode|Choose a mode|<strong>Local<\/strong>|cannot save service connections/);

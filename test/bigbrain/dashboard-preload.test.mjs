@@ -40,6 +40,7 @@ test('macOS traffic-light clearance applies only to the desktop dashboard toplin
   assert.doesNotMatch(source, /html\.bigbrain-desktop main \{[^}]*padding-left:/);
   assert.match(clientSource, /className="desktop-drag-strip" aria-hidden="true"/);
   assert.match(source, /\.topline \{[^}]*-webkit-app-region: no-drag;/);
+  assert.match(source, /\.view-nav, \.view-chip, \.topline-actions, \.topline-actions > \*, \.settings-button, \.health-button,[^{]*\{ -webkit-app-region: no-drag; \}/);
   assert.match(source, /html\.bigbrain-desktop \.desktop-drag-strip \{[^}]*height: 14px;[^}]*-webkit-app-region: drag;/);
   assert.doesNotMatch(source, /\.topline \{[^}]*-webkit-app-region: drag;/);
 });

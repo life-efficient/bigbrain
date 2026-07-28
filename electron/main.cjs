@@ -550,12 +550,12 @@ async function loadDashboardViewUrl(url, brainId) {
   activeDashboardOrigin = new URL(url).origin;
   const view = ensureDashboardView(brainId);
   layoutDashboardView();
-  view.setVisible(true);
+  setDashboardViewVisible(true);
   try {
     await view.webContents.loadURL(url);
     rendererRecoveryAttempts = 0;
   } catch (error) {
-    view.setVisible(false);
+    setDashboardViewVisible(false);
     throw error;
   }
 }
@@ -628,6 +628,9 @@ function layoutDashboardView() {
 function setDashboardViewVisible(visible) {
   if (!dashboardView || dashboardView.webContents.isDestroyed()) return false;
   dashboardView.setVisible(visible);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("desktop:dashboard-visibility", visible);
+  }
   return true;
 }
 

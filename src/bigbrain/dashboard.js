@@ -588,7 +588,7 @@ function renderAppHtml() {
       .topline-actions { display: flex; align-items: center; gap: 12px; justify-self: end; }
       .view-nav { display: flex; gap: 10px; flex-wrap: wrap; }
       .view-nav-header { justify-content: center; justify-self: center; }
-      .view-nav, .topline-actions, .settings-dropdown, .health-dropdown { -webkit-app-region: no-drag; }
+      .view-nav, .view-chip, .topline-actions, .topline-actions > *, .settings-button, .health-button, .settings-dropdown, .health-dropdown { -webkit-app-region: no-drag; }
       html.bigbrain-desktop .desktop-drag-strip { display: block; position: absolute; z-index: 20; top: 0; left: 74px; right: 14px; height: 14px; -webkit-app-region: drag; }
       html.bigbrain-desktop .topline { grid-template-columns: minmax(190px, 1fr) auto minmax(190px, 1fr); padding-left: 60px; }
       @media (max-width: 820px) {

@@ -13,6 +13,11 @@ if (isDesktopShell) {
     connectService: (input) => ipcRenderer.invoke('desktop:connect-service', input),
     openBrain: (id) => ipcRenderer.invoke('desktop:open-brain', id),
     setDashboardVisible: (visible) => ipcRenderer.invoke('desktop:set-dashboard-visible', visible),
+    onDashboardVisibility: (listener) => {
+      const handler = (_event, visible) => listener(Boolean(visible));
+      ipcRenderer.on('desktop:dashboard-visibility', handler);
+      return () => ipcRenderer.removeListener('desktop:dashboard-visibility', handler);
+    },
     chooseExistingBrain: () => ipcRenderer.invoke('desktop:choose-existing-brain'),
     activate: (id) => ipcRenderer.invoke('desktop:activate', id),
     rename: (id, name) => ipcRenderer.invoke('desktop:rename', id, name),
