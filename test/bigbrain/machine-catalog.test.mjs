@@ -121,6 +121,21 @@ test('catalog persists verified local and remote entries and updates by canonica
   }
 });
 
+test('valid description catalog entries do not require a profile version', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-machine-catalog-description-'));
+  const catalog = new MachineCatalog({ catalogPath: path.join(root, 'catalog.json') });
+  try {
+    const local = verifiedLocal(path.join(root, 'brain'));
+    local.profile.profile_version = null;
+    const saved = await catalog.upsert(local);
+    assert.equal(saved.brains[0].profile.state, 'valid');
+    assert.equal(saved.brains[0].profile.schema_version, 1);
+    assert.equal(saved.brains[0].profile.profile_version, null);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('catalog rejects duplicate handles, credential fields, and credential-bearing endpoints', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-machine-catalog-secret-'));
   const catalog = new MachineCatalog({ catalogPath: path.join(root, 'catalog.json') });

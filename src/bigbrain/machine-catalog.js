@@ -207,8 +207,8 @@ function normalizeBrainEntry(value, { requireCanonicalId = false } = {}) {
   const profileState = requireEnum(profile.state, PROFILE_STATES, 'profile.state');
   const profileSchemaVersion = optionalPositiveInteger(profile.schema_version, 'profile.schema_version');
   const profileVersion = optionalPositiveInteger(profile.profile_version, 'profile.profile_version');
-  if (profileState === 'valid' && (!profileSchemaVersion || !profileVersion)) {
-    throw new Error('Valid profiles require schema_version and profile_version.');
+  if (profileState === 'valid' && !profileSchemaVersion) {
+    throw new Error('Valid profiles require schema_version.');
   }
   const healthStatus = requireEnum(health.status, HEALTH_STATES, 'health.status');
   const healthCheckedAt = optionalIsoDate(health.checked_at);
