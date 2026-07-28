@@ -53,7 +53,9 @@ the destination write.
   highly sensitive spans.
 - Run `bigbrain sync --json` after writes.
 - Keep the final user-facing output simple: first line must be a count summary
-  such as `5 meetings ingested`.
+  such as `5 meetings ingested`, followed by one heading for each brain that
+  had at least one meeting ingested and one bullet per ingested meeting under
+  that brain.
 
 ## Workflow
 
@@ -128,6 +130,13 @@ the destination write.
      `1 meeting ingested`, `5 meetings ingested`, or `2 meetings repaired`.
    - If multiple outcomes occurred, use one concise first line such as
      `3 meetings ingested, 1 repaired`.
+   - When one or more meetings were ingested, add a section for each
+     destination brain that received at least one meeting. Use the brain name as
+     the heading and list each ingested meeting as one bullet underneath.
+   - Meeting bullets may include only the meeting title and high-level outcome,
+     such as `ingested`, `repaired`, or `left partial`. Do not include
+     participants, private summaries, transcripts, notes, credentials, IDs,
+     slugs, raw paths, or page paths.
    - Add optional headings only when useful: `Issues`, `Errors`, `Warnings`, or
      `Needs review`.
    - Do not include IDs, hashes, folder IDs, meeting slugs, page paths, raw
@@ -162,6 +171,13 @@ Use this shape:
 
 ```text
 5 meetings ingested
+
+Personal Brain
+- Quarterly planning sync ingested
+- Health protocol review ingested
+
+ICAIRE Brain
+- Programme standup ingested
 
 Warnings
 - One transcript was unavailable, so that meeting was left partial.
