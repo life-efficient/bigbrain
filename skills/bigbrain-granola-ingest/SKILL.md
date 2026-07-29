@@ -14,7 +14,7 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
 - Machine-wide routing ingests every processable meeting; when no specialized brain clearly wins, route to Personal Brain if it is reachable and writable.
 - Live destination filing rules are read before paths, page types, entities, tasks, or raw sidecars are chosen.
 - Existing Granola coverage is checked before creating or repairing pages.
-- Substantive meetings get canonical meeting pages and transcript sidecars when transcripts are available and safe to store.
+- Substantive meetings get canonical meeting pages and full raw transcript sidecars when transcripts are available and safe to store.
 - Attendee and represented-organization pages are created or updated after the meeting record is verified.
 - Durable entity, deal, project, concept, and task updates are made only when supported by meeting evidence, destination filing rules, and mention depth.
 - The destination brain is synced and read back before reporting success.
@@ -65,9 +65,11 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
 7. Review and preserve transcripts.
    - Inspect transcripts for unsafe, slanderous, highly personal, or sensitive spans before saving.
    - Save transcripts verbatim when no targeted redaction is needed.
+   - Use the fetched transcript payload as the raw attachment content; never use a placeholder, pointer, provenance note, summary, or "see source" text as the raw transcript.
+   - If the destination write API creates a raw file and page together, still verify the raw file content or metadata after the write before calling the meeting complete.
    - Redact only the specific unsafe span with a clear redaction marker.
    - If a transcript cannot be fully captured or reviewed, leave the meeting partial and report the issue.
-   - Anti-patterns: omitting transcript sidecars for substantive meetings, broad redaction without cause, storing unsafe spans verbatim, claiming complete ingest when transcript capture failed
+   - Anti-patterns: omitting transcript sidecars for substantive meetings, broad redaction without cause, storing unsafe spans verbatim, writing a placeholder transcript attachment, claiming complete ingest when transcript capture failed
 8. Write pages and sidecars.
    - Follow live filing rules for page paths, raw paths, sidecar paths, frontmatter, links, and timeline entries.
    - Preserve source provenance internally on meeting pages and sidecars.
@@ -78,9 +80,11 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
 9. Verify meeting artifacts.
    - Re-scan for duplicate Granola coverage after writes.
    - Read back the canonical meeting page, provenance, and transcript sidecar when created.
+   - For raw transcript attachments, confirm the stored attachment is full-text by checking the read-back content or size against the fetched transcript payload.
+   - If the raw attachment is missing, tiny, placeholder-like, truncated, or otherwise inconsistent with the fetched transcript, repair it before syncing or report the meeting as partial.
    - Confirm meeting pages and sidecars match live filing rules before expanding entity pages.
    - Treat missing provenance, broken source links, duplicate coverage, or mismatched transcript sidecars as repair work before entity expansion.
-   - Anti-patterns: creating entity pages from an unverified meeting page, skipping meeting read-back, ignoring duplicate coverage after writes, treating a missing sidecar as success
+   - Anti-patterns: creating entity pages from an unverified meeting page, skipping meeting read-back, ignoring duplicate coverage after writes, treating a missing sidecar as success, treating placeholder raw text as a transcript
 10. Create or update entity pages.
    - Create or update pages for meeting attendees when they are identified with enough confidence from Granola metadata, transcript evidence, user clarification, or existing brain context.
    - Create or update the organization represented by each attendee when the affiliation is transcript-backed, user-confirmed, or otherwise explicitly evidenced.
