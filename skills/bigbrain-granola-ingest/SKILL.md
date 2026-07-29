@@ -11,13 +11,14 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
 
 - The active brain or routed destination is resolved before any write.
 - Machine-wide routing uses each reachable brain's live description as the routing source of truth.
+- Machine-wide routing ingests every processable meeting; when no specialized brain clearly wins, route to Personal Brain if it is reachable and writable.
 - Live destination filing rules are read before paths, page types, entities, tasks, or raw sidecars are chosen.
 - Existing Granola coverage is checked before creating or repairing pages.
 - Substantive meetings get canonical meeting pages and transcript sidecars when transcripts are available and safe to store.
 - Attendee and represented-organization pages are created or updated after the meeting record is verified.
 - Durable entity, deal, project, concept, and task updates are made only when supported by meeting evidence, destination filing rules, and mention depth.
 - The destination brain is synced and read back before reporting success.
-- Final output is count-first, grouped by brain, and privacy-safe.
+- Final output is count-first, grouped by destination-brain headings with meeting-title bullets, and privacy-safe.
 
 ## Workflow
 
@@ -26,8 +27,10 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
    - In machine-wide routing mode, list registered machine-wide brains first, then read each reachable brain's live description and authenticated capability/about state.
    - Consider only brains that are reachable, authenticated, writable, and have a valid description.
    - Route machine-wide candidates by comparing allowed meeting metadata to brain descriptions only; do not use per-brain examples, purpose tags, source rules, profile approval state, or private filing hints as routing inputs.
-   - Hold the item for review when no single brain has a clear description-match margin or when the likely destination is unavailable.
-   - Anti-patterns: reading filing rules before knowing candidate brains, routing from examples or keyword lists, falling back to Personal Brain, fan-out to multiple brains, writing to an unavailable brain
+   - Prefer the specialized brain when a clear description match exists.
+   - If no specialized brain clearly wins and Personal Brain is reachable, authenticated, writable, and has a valid description, route to Personal Brain as the fallback destination.
+   - Hold the item for review only when the likely destination is unavailable, Personal Brain fallback is unavailable, required folder exclusions cannot be enforced, or the meeting cannot be fetched safely enough to ingest.
+   - Anti-patterns: reading filing rules before knowing candidate brains, routing from examples or keyword lists, treating unclear specialized routing as ambiguous when Personal Brain is available, fan-out to multiple brains, writing to an unavailable brain
 2. Read destination filing rules.
    - Read the selected destination's top-level `FILING.md` and relevant collection filing rules before choosing paths or page types.
    - Treat live filing rules as authoritative for meeting pages, raw transcript sidecars, entity pages, deal/project updates, and tasks.
@@ -51,7 +54,7 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
    - In machine-wide routing mode, also check the global routing ledger and destination provenance by Granola ID before attempting any write.
    - Treat matching Granola coverage as already ingested even if the title changed.
    - Skip duplicates unless a missing transcript, missing sidecar, stale participant/entity link, or clear task/status update needs repair.
-   - Anti-patterns: duplicate meeting pages, relying on title-only dedupe, ignoring changed titles with same Granola ID, repairing pages without a concrete gap
+   - Anti-patterns: duplicate meeting pages, relying on title-only dedupe, ignoring changed titles with same Granola ID, skipping a new processable meeting because it feels low-value, repairing pages without a concrete gap
 6. Plan destination writes.
    - Create or update one canonical meeting page per ingested meeting.
    - Run an identity and affiliation pass before writing summaries; preserve transcript-backed participant identity, affiliation, relationship, authority, decision, and commitment facts.
@@ -95,17 +98,19 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
 12. Report results.
    - First line must be a plain count sentence: `0 meetings ingested`, `1 meeting ingested`, `5 meetings ingested`, or `2 meetings repaired`.
    - If multiple outcomes occurred, use one concise first line such as `3 meetings ingested, 1 repaired`.
-   - When one or more meetings were ingested, add a heading for each destination brain that received at least one meeting and list each ingested meeting as one bullet underneath.
-   - Meeting bullets may include only the meeting title and high-level outcome, such as `ingested`, `repaired`, or `left partial`.
-   - Add optional `Issues`, `Errors`, `Warnings`, or `Needs review` sections only when the user should act.
+   - When one or more meetings were ingested, always add a heading for each destination brain that received at least one meeting and list each ingested meeting as one bullet underneath.
+   - Meeting bullets must include the meeting title and high-level outcome, such as `ingested`, `repaired`, or `left partial`.
+   - Add `Needs attention`, `Issues`, `Errors`, or `Warnings` headings only when the user should act; place every non-ingest blocker, unavailable destination, unavailable transcript, or held item under one of those headings.
+   - If the user requests a privacy-safe count-only report, omit meeting titles only when they explicitly override this skill's normal heading-and-bullet output.
    - Keep IDs, hashes, slugs, page paths, raw paths, folder IDs, sync JSON, participants, private summaries, transcripts, notes, credentials, and private content out of the user-facing output by default.
-   - Anti-patterns: exposing private content in the report, listing technical identifiers by default, burying the count summary, omitting brain headings after successful ingest
+   - Anti-patterns: exposing private content in the report, listing technical identifiers by default, burying the count summary, omitting brain headings after successful ingest, hiding attention items in prose, reporting only counts after an ingest
 
 ## Anti-Patterns
 
 - Treating the router as a source of per-brain filing policy instead of reading live destination rules.
 - Reintroducing purpose tags, approved profiles, examples, or source rules as machine-wide routing gates.
 - Using ambiguous meeting titles or keywords as a substitute for brain-description classification.
+- Leaving processable meetings un-ingested when Personal Brain is reachable and writable as the fallback destination.
 - Crossing brain boundaries when routing confidence, authentication, write access, or folder exclusion enforcement is unclear.
 - Inventing facts, decisions, owners, due dates, task status, affiliations, or participant identities.
 - Storing secrets, credentials, transcript content, summaries, participant lists, notes, or model prompts in machine-wide routing state.
@@ -119,14 +124,14 @@ Use this shape:
 5 meetings ingested
 
 Personal Brain
-- Quarterly planning sync ingested
-- Health protocol review ingested
+- Quarterly planning sync - ingested
+- Health protocol review - ingested
 
 ICAIRE Brain
-- Programme standup ingested
+- Programme standup - ingested
 
-Warnings
-- One transcript was unavailable, so that meeting was left partial.
+Needs attention
+- One destination was unavailable, so its matching meeting was not ingested.
 ```
 
 If nothing changed:
