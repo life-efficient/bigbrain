@@ -9,6 +9,7 @@ const LOCAL_HOST = "127.0.0.1";
 const DEFAULT_WINDOW_SIZE = { width: 1079, height: 945 };
 const DESKTOP_CHROME_HEIGHT = 0;
 const APP_ICON_PATH = path.join(__dirname, "assets", "desktop-icon.png");
+const LOAD_FAILURE_PAGE_PATH = path.join(__dirname, "load-failure.html");
 const MAX_RENDERER_RECOVERY_ATTEMPTS = 2;
 const REMOTE_DASHBOARD_URL_ENV = "BIGBRAIN_DASHBOARD_URL";
 
@@ -22,6 +23,8 @@ let dashboardUrl = null;
 let dashboardOrigin = null;
 let remoteDashboardMode = false;
 let rendererRecoveryAttempts = 0;
+let pendingLoadFailureMessage = "The dashboard did not finish loading.";
+let loadFailureActive = false;
 let desktopController = null;
 let desktopUpdater = null;
 let promptedUpdateVersion = null;
@@ -185,6 +188,10 @@ function createMainWindow() {
 
   mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedUrl) => {
     if (errorCode === -3) return;
+    if (isLoadFailurePage(validatedUrl)) {
+      dialog.showErrorBox("BigBrain dashboard unavailable", errorDescription || `Recovery page failed with code ${errorCode}`);
+      return;
+    }
     if (validatedUrl && !isTrustedInternalUrl(validatedUrl)) return;
     console.error("Dashboard failed to load", { errorCode, errorDescription, validatedUrl });
     showLoadFailure(errorDescription || `Load failed with code ${errorCode}`);
@@ -395,6 +402,11 @@ function registerUpdateIpc() {
   ipcMain.handle("desktop:check-for-updates", () => desktopUpdater.check());
   ipcMain.handle("desktop:restart-to-update", () => desktopUpdater.restartToInstall());
   ipcMain.handle("desktop:local-service-update-state", () => localServiceUpdateState);
+  ipcMain.handle("desktop:load-failure-state", () => ({ message: pendingLoadFailureMessage }));
+  ipcMain.handle("desktop:reload-dashboard", () => {
+    loadDashboardWindow();
+    return true;
+  });
 }
 
 function updateMenuStatusLabel() {
@@ -524,6 +536,7 @@ function isSafeExternalUrl(url) {
 
 function loadDashboardWindow() {
   if (!mainWindow || !dashboardUrl) return;
+  loadFailureActive = false;
   void mainWindow.loadURL(dashboardUrl).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error("Dashboard load failed", message);
@@ -652,42 +665,22 @@ function showLoadFailure(message) {
     dialog.showErrorBox("BigBrain dashboard unavailable", message);
     return;
   }
-  const escapedMessage = escapeHtml(message);
-  const html = `<!doctype html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>BigBrain dashboard unavailable</title>
-  <style>
-    body { margin: 0; min-height: 100vh; display: grid; place-items: center; font: 14px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f7f7f4; color: #20201d; }
-    main { width: min(640px, calc(100vw - 48px)); border: 1px solid #d8d5cc; border-radius: 8px; background: #fff; padding: 24px; box-shadow: 0 18px 48px rgba(30, 28, 24, 0.12); }
-    h1 { margin: 0 0 8px; font-size: 20px; }
-    p { margin: 0 0 16px; color: #57534a; line-height: 1.5; }
-    pre { overflow: auto; white-space: pre-wrap; word-break: break-word; border: 1px solid #e5e2da; border-radius: 8px; padding: 12px; background: #f8f8f6; }
-    button { border: 1px solid #222; border-radius: 6px; background: #222; color: #fff; padding: 8px 12px; font: inherit; cursor: pointer; }
-  </style>
-</head>
-<body>
-  <main>
-    <h1>Dashboard unavailable</h1>
-    <p>The desktop window could not load the local dashboard. Reloading may fix a temporary renderer failure.</p>
-    <button onclick="location.href='${dashboardUrl}'">Reload dashboard</button>
-    <pre>${escapedMessage}</pre>
-  </main>
-</body>
-</html>`;
-  void mainWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`).catch((error) => {
+  if (loadFailureActive) return;
+  loadFailureActive = true;
+  pendingLoadFailureMessage = String(message || "The dashboard did not finish loading.");
+  setDashboardViewVisible(false);
+  void mainWindow.loadFile(LOAD_FAILURE_PAGE_PATH).catch((error) => {
     dialog.showErrorBox("BigBrain dashboard unavailable", error instanceof Error ? error.message : String(error));
   });
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+function isLoadFailurePage(url) {
+  if (!url) return false;
+  try {
+    return new URL(url).href.split("?")[0] === pathToFileURL(LOAD_FAILURE_PAGE_PATH).href;
+  } catch {
+    return false;
+  }
 }
 
 async function importModule(relativePath) {

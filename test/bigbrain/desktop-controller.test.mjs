@@ -231,6 +231,7 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(preloadSource, /desktop:dashboard-visibility/);
   assert.match(preloadSource, /process\.isMainFrame/);
   assert.match(preloadSource, /location\.pathname\.endsWith\('\/electron\/desktop\.html'\)/);
+  assert.match(preloadSource, /location\.pathname\.endsWith\('\/electron\/load-failure\.html'\)/);
   assert.doesNotMatch(preloadSource, /require\(['"](?:path|url)['"]\)/);
   assert.match(mainSource, /connectedDashboardOrigins\.has\(parsed\.origin\)/);
   assert.match(mainSource, /new WebContentsView/);
@@ -262,6 +263,25 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(desktopHtml, /\.primary\{border:1px solid #fafafa;background:#fafafa;color:#18181b/);
   assert.doesNotMatch(desktopHtml, /#207146|#377652|#f4fff7|#f2f4ef/i);
   assert.doesNotMatch(desktopSource, /Hosted mode|Choose a mode|<strong>Local<\/strong>|cannot save service connections/);
+});
+
+test('desktop load failures use a compact local recovery page instead of an encoded data URL', async () => {
+  const [mainSource, preloadSource, failureHtml, failureSource] = await Promise.all([
+    fs.readFile(new URL('../../electron/main.cjs', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../electron/preload.cjs', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../electron/load-failure.html', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../electron/load-failure.js', import.meta.url), 'utf8'),
+  ]);
+  assert.match(mainSource, /mainWindow\.loadFile\(LOAD_FAILURE_PAGE_PATH\)/);
+  assert.doesNotMatch(mainSource, /data:text\/html/);
+  assert.match(mainSource, /if \(loadFailureActive\) return;/);
+  assert.match(mainSource, /loadFailureActive = false;\s+void mainWindow\.loadURL\(dashboardUrl\)/);
+  assert.match(mainSource, /desktop:load-failure-state/);
+  assert.match(mainSource, /desktop:reload-dashboard/);
+  assert.match(preloadSource, /bigbrainLoadFailure/);
+  assert.match(failureHtml, /Reload BigBrain/);
+  assert.match(failureSource, /api\.reload\(\)/);
+  assert.doesNotMatch(failureHtml, /data:text\/html/);
 });
 
 test('sandbox-compatible preload executes and exposes the desktop bridge only to the local main frame', async () => {

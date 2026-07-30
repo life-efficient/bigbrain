@@ -3,6 +3,9 @@ const { contextBridge, ipcRenderer } = require('electron');
 const isDesktopShell = process.isMainFrame
   && location.protocol === 'file:'
   && location.pathname.endsWith('/electron/desktop.html');
+const isLoadFailurePage = process.isMainFrame
+  && location.protocol === 'file:'
+  && location.pathname.endsWith('/electron/load-failure.html');
 
 if (isDesktopShell) {
   contextBridge.exposeInMainWorld('bigbrainDesktop', {
@@ -39,5 +42,12 @@ if (isDesktopShell) {
       ipcRenderer.on('desktop:local-service-update-state', handler);
       return () => ipcRenderer.removeListener('desktop:local-service-update-state', handler);
     },
+  });
+}
+
+if (isLoadFailurePage) {
+  contextBridge.exposeInMainWorld('bigbrainLoadFailure', {
+    state: () => ipcRenderer.invoke('desktop:load-failure-state'),
+    reload: () => ipcRenderer.invoke('desktop:reload-dashboard'),
   });
 }
