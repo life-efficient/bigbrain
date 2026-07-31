@@ -105,9 +105,8 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
    - When one or more meetings were ingested, always add a heading for each destination brain that received at least one meeting and list each ingested meeting as one bullet underneath.
    - Meeting bullets must include the meeting title and high-level outcome, such as `ingested`, `repaired`, or `left partial`.
    - Add `Needs attention`, `Issues`, `Errors`, or `Warnings` headings only when the user should act; place every non-ingest blocker, unavailable destination, unavailable transcript, or held item under one of those headings.
-   - If the user requests a privacy-safe count-only report, omit meeting titles only when they explicitly override this skill's normal heading-and-bullet output.
    - Keep IDs, hashes, slugs, page paths, raw paths, folder IDs, sync JSON, participants, private summaries, transcripts, notes, credentials, and private content out of the user-facing output by default.
-   - Anti-patterns: exposing private content in the report, listing technical identifiers by default, burying the count summary, omitting brain headings after successful ingest, hiding attention items in prose, reporting only counts after an ingest
+   - Anti-patterns: exposing private content in the report, listing technical identifiers by default, burying the count summary, omitting brain headings after successful ingest, hiding attention items in prose
 
 ## Anti-Patterns
 
