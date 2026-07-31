@@ -18,7 +18,7 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
 - Attendee and represented-organization pages are created or updated after the meeting record is verified.
 - Durable entity, deal, project, concept, and task updates are made only when supported by meeting evidence, destination filing rules, and mention depth.
 - The destination brain is synced and read back before reporting success.
-- Final output is count-first, grouped by destination-brain headings with meeting-title bullets, and privacy-safe.
+- Final output is count-first, grouped by destination-brain headings with meeting-title bullets and created-page sub-bullets, and privacy-safe.
 
 ## Workflow
 
@@ -104,9 +104,12 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
    - If multiple outcomes occurred, use one concise first line such as `3 meetings ingested, 1 repaired`.
    - When one or more meetings were ingested, always add a heading for each destination brain that received at least one meeting and list each ingested meeting as one bullet underneath.
    - Meeting bullets must include the meeting title and high-level outcome, such as `ingested`, `repaired`, or `left partial`.
+   - Under each meeting bullet, add indented sub-bullets for any non-meeting pages newly created from that meeting's content, grouped by page type when useful, such as `Tasks: ...`, `People: ...`, `Organizations: ...`, `Projects: ...`, `Deals: ...`, `Concepts: ...`, or the destination brain's own page type labels.
+   - Do not list the canonical meeting page or raw transcript sidecar as created pages; those are assumed artifacts of a successful ingest.
+   - If no non-meeting pages were created for a meeting, omit created-page sub-bullets for that meeting.
    - Add `Needs attention`, `Issues`, `Errors`, or `Warnings` headings only when the user should act; place every non-ingest blocker, unavailable destination, unavailable transcript, or held item under one of those headings.
    - Keep IDs, hashes, slugs, page paths, raw paths, folder IDs, sync JSON, participants, private summaries, transcripts, notes, credentials, and private content out of the user-facing output by default.
-   - Anti-patterns: exposing private content in the report, listing technical identifiers by default, burying the count summary, omitting brain headings after successful ingest, hiding attention items in prose
+   - Anti-patterns: exposing private content in the report, listing technical identifiers by default, burying the count summary, omitting brain headings after successful ingest, hiding attention items in prose, listing assumed meeting pages as created pages
 
 ## Anti-Patterns
 
@@ -128,10 +131,14 @@ Use this shape:
 
 Personal Brain
 - Quarterly planning sync - ingested
+  - Tasks: Prepare budget options, Schedule partner follow-up
+  - Organizations: Example Foundation
 - Health protocol review - ingested
 
 ICAIRE Brain
 - Programme standup - ingested
+  - People: New facilitator profile
+  - Projects: Cohort delivery tracker
 
 Needs attention
 - One destination was unavailable, so its matching meeting was not ingested.
