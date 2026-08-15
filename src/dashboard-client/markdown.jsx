@@ -34,7 +34,13 @@ function buildExtensions() {
   ];
 }
 
-export function MarkdownDocument({ markdown, sourceSlug, onRelativeLinkClick, emptyLabel = '' }) {
+export function MarkdownDocument({
+  markdown,
+  sourceSlug,
+  onRelativeLinkClick,
+  shouldHandleRelativeLink = isRelativeMarkdownHref,
+  emptyLabel = '',
+}) {
   const markdownText = typeof markdown === 'string' ? markdown : '';
   const editor = useEditor(
     {
@@ -71,10 +77,10 @@ export function MarkdownDocument({ markdown, sourceSlug, onRelativeLinkClick, em
         const target = event.target instanceof Element ? event.target : null;
         const anchor = target?.closest('a');
         const href = anchor?.getAttribute('href')?.trim();
-        if (!href || !isRelativeMarkdownHref(href)) return;
+        if (!href || !onRelativeLinkClick || !isRelativeMarkdownHref(href) || !shouldHandleRelativeLink(href)) return;
         event.preventDefault();
         event.stopPropagation();
-        onRelativeLinkClick?.({ href, sourceSlug });
+        onRelativeLinkClick({ href, sourceSlug });
       }}
     >
       <EditorContent editor={editor} />

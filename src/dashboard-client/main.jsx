@@ -17,7 +17,7 @@ import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
 import { resolveExplorerLinkPath } from './explorer-links.js';
 import { MarkdownDocument } from './markdown.jsx';
-import { privatePageRouteFromPath } from './page-links.js';
+import { privatePageHrefFromMarkdown, privatePageRouteFromPath } from './page-links.js';
 
 class DashboardErrorBoundary extends React.Component {
   constructor(props) {
@@ -625,6 +625,20 @@ function formatAnalyticsTime(value) {
 function PrivatePageApp({ route }) {
   const [state, setState] = useState({ status: 'loading', error: null, page: null });
 
+  function privatePageHref(href, sourceSlug) {
+    return privatePageHrefFromMarkdown({
+      pathname: window.location.pathname,
+      brainId: route.brainId,
+      sourceSlug,
+      href,
+    });
+  }
+
+  function openPrivatePageLink({ href, sourceSlug }) {
+    const destination = privatePageHref(href, sourceSlug);
+    if (destination) window.location.assign(destination);
+  }
+
   useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -662,6 +676,8 @@ function PrivatePageApp({ route }) {
         <MarkdownDocument
           markdown={state.page.markdown}
           sourceSlug={state.page.slug}
+          onRelativeLinkClick={openPrivatePageLink}
+          shouldHandleRelativeLink={(href) => Boolean(privatePageHref(href, state.page.slug))}
           emptyLabel="This page is empty."
         />
       </article>

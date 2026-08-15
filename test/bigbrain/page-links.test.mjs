@@ -15,7 +15,10 @@ import {
   normalizeCanonicalPageSlug,
   parseCanonicalPagePath,
 } from '../../src/bigbrain/page-links.js';
-import { privatePageRouteFromPath } from '../../src/dashboard-client/page-links.js';
+import {
+  privatePageHrefFromMarkdown,
+  privatePageRouteFromPath,
+} from '../../src/dashboard-client/page-links.js';
 
 test('canonical page links are deterministic and preserve canonical identity', () => {
   const brainId = 'brn_01234567-89ab-4cde-8fab-0123456789ab';
@@ -67,6 +70,44 @@ test('canonical page links reject malformed IDs, traversal, separators, and enco
     () => parseCanonicalPagePath(`/dashboard/page/${brainId}/organizations/%5cacme`),
     /Malformed canonical page route/,
   );
+});
+
+test('private page markdown links resolve across brain collections without hijacking other hrefs', () => {
+  const brainId = 'brn_01234567-89ab-4cde-8fab-0123456789ab';
+  const sourceSlug = 'organizations/jadwa-investment';
+  const pathname = `/dashboard/page/${brainId}/${sourceSlug}`;
+  const resolve = (href) => privatePageHrefFromMarkdown({ pathname, brainId, sourceSlug, href });
+
+  for (const collection of ['organizations', 'people', 'projects', 'tasks']) {
+    for (const suffix of ['', '.md']) {
+      assert.equal(
+        resolve(`../${collection}/linked-page${suffix}`),
+        `/dashboard/page/${brainId}/${collection}/linked-page`,
+      );
+    }
+  }
+  assert.equal(resolve('same-directory.md'), `/dashboard/page/${brainId}/organizations/same-directory`);
+  assert.equal(resolve('./same-directory'), `/dashboard/page/${brainId}/organizations/same-directory`);
+  assert.equal(resolve('people/root-slug.md'), `/dashboard/page/${brainId}/people/root-slug`);
+  assert.equal(resolve('../people/linked-page.md#timeline'), `/dashboard/page/${brainId}/people/linked-page#timeline`);
+  assert.equal(
+    privatePageHrefFromMarkdown({ pathname: pathname.replace('/dashboard', ''), brainId, sourceSlug, href: '../people/linked-page.md' }),
+    `/page/${brainId}/people/linked-page`,
+  );
+
+  for (const href of [
+    'https://example.com/page.md',
+    'mailto:person@example.com',
+    '#timeline',
+    '/public/people/alice',
+    '../sources/.raw/deck.pdf',
+    'image.png',
+    '../../outside.md',
+    '../people/alice.md?download=1',
+    '../people/%2e%2e.md',
+  ]) {
+    assert.equal(resolve(href), null, href);
+  }
 });
 
 test('loopback dashboard route opens one known page and defaults to 404 for missing, malformed, or other-brain targets', async () => {
