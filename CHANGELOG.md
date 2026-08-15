@@ -3,6 +3,80 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining device and server installations.
 
+## [0.19.0] - 2026-08-16
+
+### Changed
+
+- Machine-wide Granola ingestion now routes otherwise unclear but processable
+  meetings to Personal Brain when it is reachable, authenticated, writable,
+  and safely eligible, while continuing to prefer a clearly matched specialist
+  brain and hold unsafe or unavailable destinations.
+- Granola ingestion now verifies full transcript attachments before expanding
+  verified attendees, represented organizations, and sufficiently durable
+  related entities. It updates existing tasks when meeting evidence changes
+  them, then syncs and reads back the affected pages.
+- Granola reports remain count-first and privacy-safe while grouping meeting
+  titles by destination brain, listing newly created non-meeting pages by type,
+  and placing blockers under a clear attention heading. The automation keeps
+  its stable ID, name, active state, schedule, and model.
+- Increased node-label size in preset graph views while preserving the compact
+  label size in Custom.
+
+### Fixed
+
+- Fixed canonical private Brain pages so relative Markdown links navigate
+  across organizations, people, projects, tasks, and same-directory pages with
+  or without `.md`, including `../` paths and heading anchors. External URLs,
+  root-relative URLs, raw-file links, and non-Markdown targets retain their
+  existing behavior.
+- Prevented macOS dashboard controls from being covered by draggable header or
+  hidden shell regions while retaining a dedicated window drag strip.
+- Replaced racing desktop dashboard-recovery loads with one local recovery page
+  and a working reload bridge.
+
+### Agent update actions
+
+- Source installs: update to `v0.19.0`, run `npm install` and `npm link`, then
+  restart the desktop app and every local dashboard/MCP service that serves the
+  dashboard so the rebuilt client and Electron changes are loaded.
+- Refresh the installed BigBrain Granola Ingest skill and the
+  `bigbrain-route-granola` automation template. Keep exactly one active
+  machine-wide Granola writer and verify its stable ID, active state, schedule,
+  and model remain unchanged.
+- Machine-wide routing behavior changed: unclear but processable meetings can
+  now fall back to Personal Brain instead of remaining held. Before leaving the
+  automation active, verify Personal Brain has the intended description, is
+  reachable, authenticated, and writable, and that required Granola folder
+  exclusions can be enforced.
+- Desktop installs: install and restart BigBrain `v0.19.0`. Verify dashboard
+  controls remain clickable, window dragging works, preset graph labels are
+  readable, and relative links on a canonical private page open the intended
+  Brain page.
+- Server deployments: deploy or pin
+  `ghcr.io/life-efficient/bigbrain:0.19.0` by digest, preserve database and
+  brain volumes, restart, and verify `/live`, `/ready`, MCP tool listing, and
+  authenticated private-page navigation.
+- No brain pages, filing rules, task paths or persisted task fields, database
+  schemas or rows, `BRAIN.md` profiles, member roles, OAuth records, API keys,
+  registry entries, or default-brain pointers require migration. Run
+  `bigbrain sync --json`, `bigbrain health --json`, and `npm test`.
+
+### Verification
+
+- `npm run build:dashboard`
+- Focused canonical-page, dashboard assignment, explorer-link, desktop preload,
+  desktop recovery, and graph visualizer tests
+- Rendered Personal Brain checks for cross-directory and same-directory Jadwa
+  links, plus regression coverage for organizations, people, projects, tasks,
+  optional `.md` suffixes, `../` paths, anchors, external URLs, and raw files
+- Granola skill and automation contract audit
+- Official MCP task listing against existing task fixtures, plus a release diff
+  confirming task paths and persisted field enums are unchanged from `v0.18.0`
+- `npm test`
+- `npm pack --dry-run`
+- Local-data compatibility audit covering task fields, filing rules, profiles,
+  roles, storage, skills, automations, desktop services, and server update paths
+
 ## [0.18.0] - 2026-07-28
 
 ### Added
