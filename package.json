@@ -5,7 +5,8 @@
   "type": "module",
   "main": "electron/main.cjs",
   "bin": {
-    "bigbrain": "./bin/bigbrain.js"
+    "bigbrain": "./bin/bigbrain.js",
+    "bigbrain-granola-ledger": "./bin/bigbrain-granola-ledger.js"
   },
   "scripts": {
     "build:dashboard": "node ./scripts/build-dashboard-client.mjs",

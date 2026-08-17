@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-export const ROUTING_LEDGER_SCHEMA_VERSION = 1;
+export const ROUTING_LEDGER_SCHEMA_VERSION = 2;
 export const ROUTE_STATES = Object.freeze([
   'discovered',
   'classified',
@@ -69,7 +69,8 @@ export function initializeRoutingLedgerSchema(db) {
   db.exec('PRAGMA journal_mode = WAL;');
   db.exec('BEGIN IMMEDIATE;');
   try {
-    db.exec(`
+    if (currentVersion === 0) {
+      db.exec(`
     CREATE TABLE IF NOT EXISTS routes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       source TEXT NOT NULL,
@@ -107,6 +108,17 @@ export function initializeRoutingLedgerSchema(db) {
     );
     CREATE INDEX IF NOT EXISTS route_events_route_idx
       ON route_events (route_id, id);
+      `);
+    } else {
+      assertRoutingLedgerCoreSchema(db);
+    }
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS source_cursors (
+        source TEXT PRIMARY KEY,
+        meeting_timestamp TEXT NOT NULL,
+        source_item_id TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
     `);
     assertRoutingLedgerSchema(db);
     db.exec(`PRAGMA user_version = ${ROUTING_LEDGER_SCHEMA_VERSION};`);
@@ -118,6 +130,13 @@ export function initializeRoutingLedgerSchema(db) {
 }
 
 function assertRoutingLedgerSchema(db) {
+  assertRoutingLedgerCoreSchema(db);
+  assertTableColumns(db, 'source_cursors', [
+    'source', 'meeting_timestamp', 'source_item_id', 'updated_at',
+  ]);
+}
+
+function assertRoutingLedgerCoreSchema(db) {
   assertTableColumns(db, 'routes', [
     'id', 'source', 'source_item_id', 'metadata_hash', 'policy_revision',
     'selected_brain_id', 'decision_state', 'reason_codes_json', 'confidence_band',
@@ -202,6 +221,42 @@ export class RoutingLedger {
       LIMIT ?
     `).all(...parameters);
     return rows.map(decodeRoute);
+  }
+
+  getCursor({ source }) {
+    const normalizedSource = requireOpaque(source, 'source');
+    return this.db.prepare(`
+      SELECT source, meeting_timestamp, source_item_id, updated_at
+      FROM source_cursors WHERE source = ?
+    `).get(normalizedSource) || null;
+  }
+
+  advanceCursor({ source, meetingTimestamp, sourceItemId }) {
+    const normalizedSource = requireOpaque(source, 'source');
+    const normalizedTimestamp = normalizeIsoTimestamp(meetingTimestamp, 'meetingTimestamp');
+    const normalizedItemId = requireOpaque(sourceItemId, 'sourceItemId', 256);
+    const updatedAt = this.timestamp();
+
+    return this.transaction(() => {
+      const current = this.getCursor({ source: normalizedSource });
+      if (current && compareCursorPosition(
+        normalizedTimestamp,
+        normalizedItemId,
+        current.meeting_timestamp,
+        current.source_item_id,
+      ) <= 0) {
+        return { ...current, advanced: false };
+      }
+      this.db.prepare(`
+        INSERT INTO source_cursors (source, meeting_timestamp, source_item_id, updated_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT (source) DO UPDATE SET
+          meeting_timestamp = excluded.meeting_timestamp,
+          source_item_id = excluded.source_item_id,
+          updated_at = excluded.updated_at
+      `).run(normalizedSource, normalizedTimestamp, normalizedItemId, updatedAt);
+      return { ...this.getCursor({ source: normalizedSource }), advanced: true };
+    });
   }
 
   recordDecision({
@@ -353,6 +408,28 @@ export class RoutingLedger {
       `).run(leaseToken, expiresAt, now, current.id, now);
       if (Number(result.changes) === 0) return null;
       this.insertEvent(current.id, 'lease_acquired', current.decision_state, 'writing', null, null, now);
+      return this.get(identity);
+    });
+  }
+
+  renewLease({ source, sourceItemId, leaseToken, durationMs = DEFAULT_LEASE_DURATION_MS }) {
+    const identity = normalizeRouteIdentity({ source, sourceItemId });
+    const token = requireOpaque(leaseToken, 'leaseToken');
+    const leaseDuration = normalizePositiveInteger(durationMs, 'durationMs');
+    const now = this.timestamp();
+    const expiresAt = new Date(Date.parse(now) + leaseDuration).toISOString();
+
+    return this.transaction(() => {
+      const current = requireExistingRoute(this.get(identity), identity);
+      const result = this.db.prepare(`
+        UPDATE routes SET lease_expires_at = ?, updated_at = ?
+        WHERE id = ? AND decision_state = 'writing' AND lease_token = ?
+          AND lease_expires_at > ?
+      `).run(expiresAt, now, current.id, token, now);
+      if (Number(result.changes) === 0) {
+        throw new Error('The routing lease is missing, expired, or owned by another worker.');
+      }
+      this.insertEvent(current.id, 'lease_renewed', 'writing', 'writing', null, null, now);
       return this.get(identity);
     });
   }
@@ -521,6 +598,12 @@ function normalizeIsoTimestamp(value, name) {
   const milliseconds = Date.parse(timestamp);
   if (!timestamp || !Number.isFinite(milliseconds)) throw new Error(`${name} must be an ISO timestamp.`);
   return new Date(milliseconds).toISOString();
+}
+
+function compareCursorPosition(leftTimestamp, leftItemId, rightTimestamp, rightItemId) {
+  const timestampComparison = leftTimestamp.localeCompare(rightTimestamp);
+  if (timestampComparison !== 0) return timestampComparison;
+  return leftItemId.localeCompare(rightItemId);
 }
 
 function requireExistingRoute(route, identity) {

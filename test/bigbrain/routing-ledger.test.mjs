@@ -29,6 +29,44 @@ test('default ledger path is machine-local and environment-injectable', () => {
   );
 });
 
+test('source cursor advances monotonically by meeting timestamp and source item ID', async () => {
+  let clock = new Date('2026-08-14T00:00:00.000Z');
+  const fixture = await createFixture({ now: () => clock });
+  try {
+    assert.equal(fixture.ledger.getCursor({ source: 'granola' }), null);
+    const first = fixture.ledger.advanceCursor({
+      source: 'granola', meetingTimestamp: '2026-08-12T15:30:00+03:00', sourceItemId: 'meeting-b',
+    });
+    assert.equal(first.meeting_timestamp, '2026-08-12T12:30:00.000Z');
+    assert.equal(first.source_item_id, 'meeting-b');
+    assert.equal(first.advanced, true);
+
+    clock = new Date('2026-08-14T00:01:00.000Z');
+    const older = fixture.ledger.advanceCursor({
+      source: 'granola', meetingTimestamp: '2026-08-11T12:30:00.000Z', sourceItemId: 'meeting-z',
+    });
+    assert.equal(older.source_item_id, 'meeting-b');
+    assert.equal(older.advanced, false);
+
+    const lowerTieBreaker = fixture.ledger.advanceCursor({
+      source: 'granola', meetingTimestamp: '2026-08-12T12:30:00.000Z', sourceItemId: 'meeting-a',
+    });
+    assert.equal(lowerTieBreaker.source_item_id, 'meeting-b');
+    assert.equal(lowerTieBreaker.advanced, false);
+
+    const higherTieBreaker = fixture.ledger.advanceCursor({
+      source: 'granola', meetingTimestamp: '2026-08-12T12:30:00.000Z', sourceItemId: 'meeting-c',
+    });
+    assert.equal(higherTieBreaker.source_item_id, 'meeting-c');
+    assert.equal(higherTieBreaker.advanced, true);
+    assert.throws(() => fixture.ledger.advanceCursor({
+      source: 'granola', meetingTimestamp: 'not-a-date', sourceItemId: 'meeting-d',
+    }), /meetingTimestamp must be an ISO timestamp/);
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
 test('discovery is idempotent by source and source item ID', async () => {
   const fixture = await createFixture();
   try {
@@ -78,6 +116,13 @@ test('held routes require approval before an atomic write lease', async () => {
     assert.equal(lease.decision_state, 'writing');
     assert.equal(lease.attempt_count, 1);
     assert.ok(lease.lease_token);
+    assert.equal(fixture.ledger.acquireLease({ source: 'granola', sourceItemId: 'meeting-2' }), null);
+
+    const renewed = fixture.ledger.renewLease({
+      source: 'granola', sourceItemId: 'meeting-2', leaseToken: lease.lease_token, durationMs: 120_000,
+    });
+    assert.equal(renewed.decision_state, 'writing');
+    assert.equal(renewed.lease_expires_at, '2026-07-22T00:02:00.000Z');
     assert.equal(fixture.ledger.acquireLease({ source: 'granola', sourceItemId: 'meeting-2' }), null);
 
     assert.throws(() => fixture.ledger.markVerified({
@@ -170,13 +215,16 @@ test('schema contains routing metadata but no transcript, prompt, or participant
   }
 });
 
-test('version 1 ledgers reopen without losing routes or events', async () => {
+test('version 1 ledgers migrate without losing routes or events', async () => {
   const fixture = await createFixture();
   try {
     fixture.ledger.discover({
       source: 'granola', sourceItemId: 'persisted-meeting', metadataHash: HASH_A, policyRevision: 'policy-v1',
     });
     fixture.ledger.close();
+    const legacy = new DatabaseSync(fixture.ledgerPath);
+    legacy.exec('DROP TABLE source_cursors; PRAGMA user_version = 1;');
+    legacy.close();
     fixture.ledger = await openRoutingLedger({ ledgerPath: fixture.ledgerPath });
 
     const route = fixture.ledger.get({ source: 'granola', sourceItemId: 'persisted-meeting' });
@@ -198,14 +246,14 @@ test('future routing-ledger versions are rejected without modifying the database
   db.exec(`
     CREATE TABLE future_data (value TEXT NOT NULL);
     INSERT INTO future_data (value) VALUES ('preserve-me');
-    PRAGMA user_version = 2;
+    PRAGMA user_version = 3;
   `);
   db.close();
   try {
-    await assert.rejects(openRoutingLedger({ ledgerPath }), /newer than supported version 1/);
+    await assert.rejects(openRoutingLedger({ ledgerPath }), /newer than supported version 2/);
     const inspected = new DatabaseSync(ledgerPath);
     try {
-      assert.equal(inspected.prepare('PRAGMA user_version').get().user_version, 2);
+      assert.equal(inspected.prepare('PRAGMA user_version').get().user_version, 3);
       assert.equal(inspected.prepare('SELECT value FROM future_data').get().value, 'preserve-me');
       assert.equal(inspected.prepare("SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'routes'").get().count, 0);
     } finally {
@@ -223,7 +271,7 @@ test('malformed version 0 routing tables are rejected without being stamped or p
   db.exec('CREATE TABLE routes (id INTEGER PRIMARY KEY);');
   db.close();
   try {
-    await assert.rejects(openRoutingLedger({ ledgerPath }), /Cannot initialize routing ledger schema version 1/);
+    await assert.rejects(openRoutingLedger({ ledgerPath }), /Cannot initialize routing ledger schema version 2/);
     const inspected = new DatabaseSync(ledgerPath);
     try {
       assert.equal(inspected.prepare('PRAGMA user_version').get().user_version, 0);
