@@ -37,6 +37,10 @@ test('supported Granola ledger runner covers preflight, dedupe, claim, verify, a
       'inspect', '--source', 'granola', '--item', 'meeting-1',
     ], { env });
     assert.equal(inspection.route.decision_state, 'approved');
+    await assert.rejects(runGranolaLedgerCommand([
+      'advance', '--source', 'granola', '--item', 'meeting-1',
+      '--meeting-timestamp', '2026-08-17T12:00:00.000Z',
+    ], { env }), /requires a verified route/);
 
     const claim = await runGranolaLedgerCommand([
       'claim', '--source', 'granola', '--item', 'meeting-1', '--duration-ms', '60000',
@@ -61,8 +65,8 @@ test('supported Granola ledger runner covers preflight, dedupe, claim, verify, a
     ], { env });
     assert.equal(advanced.cursor.advanced, true);
     const regressed = await runGranolaLedgerCommand([
-      'advance', '--source', 'granola', '--item', 'meeting-0',
-      '--meeting-timestamp', '2026-08-17T12:00:00.000Z',
+      'advance', '--source', 'granola', '--item', 'meeting-1',
+      '--meeting-timestamp', '2026-08-17T11:59:59.000Z',
     ], { env });
     assert.equal(regressed.cursor.advanced, false);
   } finally {
