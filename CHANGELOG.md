@@ -3,7 +3,7 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining device and server installations.
 
-## [Unreleased]
+## [0.19.1] - 2026-08-17
 
 ### Changed
 
@@ -12,6 +12,33 @@ actions` section for agents maintaining device and server installations.
   and sharing boundary, expand organization acronyms on first use, and avoid
   naming users, referencing other brains, or assuming which brains users can
   access.
+
+### Agent update actions
+
+- Source installs: update to `v0.19.1`, run `npm install` and `npm link`, then
+  restart every local dashboard and MCP service so the refreshed tool
+  descriptions and published schema are loaded.
+- Server deployments: deploy or pin
+  `ghcr.io/life-efficient/bigbrain:0.19.1` by digest, preserve database and
+  Brain volumes, restart, and verify `/live`, `/ready`, and MCP tool listing.
+  Confirm `about/update` exposes the new self-contained description guidance.
+- Existing Brain descriptions remain valid and are not changed automatically.
+  After rollout, an authenticated owner may separately apply each approved
+  description with `about/update`, then read it back through the same Brain's
+  `about` tool.
+- No Brain pages, task paths or persisted task fields, filing rules, database
+  schemas or rows, member roles, OAuth records, API keys, registry entries,
+  default-Brain pointers, or existing `BRAIN.md` profiles require migration.
+  Run `bigbrain sync --json`, `bigbrain health --json`, and `npm test`.
+
+### Verification
+
+- Brain-profile schema and MCP tool-description regression tests
+- `npm test`
+- `npm pack --dry-run`
+- Local-data compatibility diff against `v0.19.0`, confirming no runtime
+  validator, task schema, filing rule, database, role, OAuth, or persisted
+  profile shape changed
 
 ## [0.19.0] - 2026-08-16
 
