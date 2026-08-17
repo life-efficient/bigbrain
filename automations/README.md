@@ -11,7 +11,9 @@ and execution settings.
 placeholders. The active installed automation should replace them with the local
 brain home path or BigBrain source repo path for that machine.
 `bigbrain health --json` compares active automations against these templates
-while ignoring install-local `cwds`, `created_at`, and `updated_at` fields. It
+while ignoring install-local `cwds`, `target`, `created_at`, and `updated_at`
+fields. Granola ingestion must target the saved writable BigBrain project on
+the local machine rather than a projectless sandbox. It
 also reports duplicate Granola writers, active retired IDs, duplicate IDs, and
 active backup directories left inside the live automation root.
 
@@ -40,12 +42,13 @@ for id in bigbrain-check-update bigbrain-route-granola bigbrain-nightly-maintena
 done
 ```
 
-`bigbrain-route-granola` is the only supported machine-wide Granola writer. It
-ships paused so a machine can first register and verify its brains, set each
-brain's `BRAIN.md` description, and reconcile prior provenance. Activate it only
-in the same cutover that pauses or removes every retired Granola writer listed
-in `retired.json`. Keep rollback bundles outside the live automation root;
-Codex may treat any active `automation.toml` below that root as runnable.
+`bigbrain-route-granola` is the only supported machine-wide Granola writer.
+Before leaving it active, register and verify every destination, set each
+brain's `BRAIN.md` description, reconcile prior provenance, confirm the routing
+ledger is writable and schema-compatible, and pause or remove every retired
+Granola writer listed in `retired.json`. Keep rollback bundles outside the live
+automation root; Codex may treat any active `automation.toml` below that root as
+runnable.
 
 Keep the resulting local `cwds` entries in the active install only. Do not copy
 those machine-specific files back into this repo.

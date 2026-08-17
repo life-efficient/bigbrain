@@ -2,11 +2,11 @@ version = 1
 id = "bigbrain-route-granola"
 kind = "cron"
 name = "BigBrain Ingest Granola Meetings"
-prompt = "Use the BigBrain Ingest Granola Meetings skill in machine-wide routing mode. Operate the single machine-wide Granola ingestion route, route candidates by each brain's description only, delegate destination writes to each selected brain's live filing_rules and meeting-ingest behavior, and finish with the output format defined in the skill."
+prompt = "Use $bigbrain-granola-ingest to run one bounded machine-wide Granola ingestion from the saved BigBrain project. Use the current supported BigBrain workflow and live registered Brain services, not removed CLI commands or obsolete dispatcher references. Before meeting discovery, verify the machine-global routing ledger is writable and schema-compatible. For each new stable Granola ID, record the route and acquire an atomic lease before any destination write. Route only from each reachable Brain's live description, with Personal Brain as the fallback when no specialized Brain clearly wins. Confirm the selected destination remains authenticated and writable, read its live filing rules, write through that Brain's MCP, preserve provenance, read back every artifact, and protect against duplicate Granola IDs. Mark the route verified and advance the monotonic cursor only after destination read-back succeeds. Leave held, unavailable, failed, or partial items unadvanced and report them without private meeting content. Process no more than eight new meetings in one run. If the ledger preflight fails, stop before discovery."
 status = "ACTIVE"
 rrule = "FREQ=DAILY;BYHOUR=4;BYMINUTE=15;BYSECOND=0"
-model = "gpt-5.5"
-reasoning_effort = "low"
+model = "gpt-5.6-sol"
+reasoning_effort = "medium"
 execution_environment = "local"
 cwds = ["<bigbrain-repo>"]
 created_at = 1784736000000

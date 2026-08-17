@@ -1075,7 +1075,9 @@ updated_at = 2
 `;
 
     await writeAutomationToml(templateDir, 'bigbrain-frequent-sync', automation);
-    await writeAutomationToml(activeDir, 'bigbrain-frequent-sync', automation.replace('updated_at = 2', 'updated_at = 3'));
+    await writeAutomationToml(activeDir, 'bigbrain-frequent-sync', automation
+      .replace('updated_at = 2', 'updated_at = 3')
+      .replace('created_at = 1', 'target = { type = "project", project_id = "local-project" }\ncreated_at = 1'));
 
     const report = await runHealthCheck(config, {
       cliCommand: process.execPath,
