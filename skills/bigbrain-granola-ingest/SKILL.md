@@ -20,6 +20,32 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
 - The destination brain is synced and read back before reporting success.
 - Final output is count-first, grouped by destination-brain headings with meeting-title bullets and created-page sub-bullets, and privacy-safe.
 
+## Scheduled machine-wide ledger control
+
+Scheduled machine-wide runs use the repo-owned `bigbrain-granola-ledger` JSON
+helper. Do not use removed `bigbrain granola cursor` or low-level
+`bigbrain granola routes` write commands.
+
+1. Run `bigbrain-granola-ledger preflight --source granola` before discovery.
+   Stop when the ledger is not writable, its schema is incompatible, integrity
+   is not `ok`, or foreign-key violations are present.
+2. Run `bigbrain-granola-ledger inspect --source granola --item ID` before
+   recording a route. A verified route is a duplicate and permits no new write.
+3. Record one decision with `bigbrain-granola-ledger record`, then atomically
+   claim an approved route with `bigbrain-granola-ledger claim`. A response with
+   `claimed: false` permits no worker and no destination write.
+4. Keep the lease token private. Use `renew` while work continues. After every
+   destination write and same-Brain read-back succeeds, use `verify` with a
+   non-sensitive verification reference. Use `fail` with a non-sensitive error
+   code for a terminal failure.
+5. Use `advance` only after the matching route is verified. The helper enforces
+   that gate and monotonic cursor ordering. Held, failed, partial, unavailable,
+   or merely claimed routes never advance the cursor.
+
+See `docs/granola-routing-ledger.md` in the BigBrain repository for the exact
+invocations. Never pass meeting titles, participants, summaries, transcripts,
+prompts, credentials, or other private content to the ledger helper.
+
 ## Workflow
 
 1. Resolve candidate brains and routing context.

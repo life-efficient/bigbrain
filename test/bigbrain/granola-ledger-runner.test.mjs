@@ -6,6 +6,15 @@ import path from 'node:path';
 
 import { runGranolaLedgerCommand } from '../../src/bigbrain/granola-ledger-runner.js';
 
+test('bundled Granola skill uses the supported ledger helper and rejects removed commands', async () => {
+  const skill = await fs.readFile(new URL('../../skills/bigbrain-granola-ingest/SKILL.md', import.meta.url), 'utf8');
+  assert.match(skill, /bigbrain-granola-ledger preflight --source granola/);
+  assert.match(skill, /bigbrain-granola-ledger inspect --source granola --item ID/);
+  assert.match(skill, /bigbrain-granola-ledger claim/);
+  assert.match(skill, /matching route is verified/);
+  assert.match(skill, /Do not use removed `bigbrain granola cursor`/);
+});
+
 test('supported Granola ledger runner covers preflight, dedupe, claim, verify, and cursor advance', async () => {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-granola-ledger-runner-'));
   const ledgerPath = path.join(rootDir, 'routing-ledger.sqlite');
