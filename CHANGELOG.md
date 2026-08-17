@@ -3,6 +3,79 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining device and server installations.
 
+## [0.19.2] - 2026-08-17
+
+### Added
+
+- Added the supported `bigbrain-granola-ledger` helper for privacy-minimized
+  Granola routing-ledger preflight, route recording, atomic claims, lease
+  renewal, verified completion, failure handling, and monotonic cursor advance.
+
+### Changed
+
+- Upgraded the machine-global routing ledger to schema version 2 with a
+  persisted source cursor. Existing version 1 routes and event history migrate
+  in place without being discarded.
+- Refreshed the Granola ingest skill and automation contract to use the
+  supported ledger helper rather than removed `bigbrain granola cursor` and
+  `bigbrain granola routes claim` commands.
+- Granola automation health comparison now treats its saved project target as
+  install-local configuration, like its local working directory and timestamps.
+
+### Fixed
+
+- Restored compatibility with healthy schema-version-2 routing ledgers created
+  by the earlier dispatcher implementation, while preserving route history and
+  cursor state.
+- Prevented cursor advancement unless the matching source item is already in a
+  verified route state.
+- Replaced the obsolete projectless dispatcher prompt with one bounded
+  machine-wide ingest running from a saved writable BigBrain project. It keeps
+  claims, provenance, same-Brain read-back, duplicate protection, and
+  verified-only cursor advancement without relying on removed CLI commands or
+  references.
+
+### Agent update actions
+
+- Before upgrading a machine with an existing routing ledger, create a separate
+  backup of `~/.config/bigbrain/routing-ledger.sqlite` and verify its SQLite
+  integrity. Preserve that backup outside the live ledger path.
+- Source installs: update to `v0.19.2`, run `npm install` and `npm link`, then
+  verify `bigbrain-granola-ledger preflight --source granola --json` reports a
+  writable schema-version-2 ledger with no integrity or foreign-key errors.
+  Version 1 ledgers migrate automatically and retain routes and events.
+- Do not restore the removed `bigbrain granola cursor` or `bigbrain granola
+  routes claim` commands. Scheduled and interactive routing must use the
+  supported `bigbrain-granola-ledger` workflow documented by the bundled
+  Granola ingest skill.
+- Refresh the installed `bigbrain-granola-ingest` skill and
+  `bigbrain-route-granola` automation. Keep the automation attached to the
+  saved writable BigBrain project, preserve its stable ID, schedule, model,
+  active state, and machine-local target, and confirm it is the only active
+  Granola writer.
+- Server deployments: deploy or pin
+  `ghcr.io/life-efficient/bigbrain:0.19.2` by digest, preserve database and
+  Brain volumes, restart, and verify `/live`, `/ready`, authenticated `about`,
+  writable capability, and owning-MCP read-back. The routing ledger remains
+  private machine-local state and must not be copied into a hosted Brain.
+- No Brain pages, filing rules, task paths or persisted task fields, member
+  roles, OAuth records, API keys, registry entries, default-Brain pointers, or
+  `BRAIN.md` profiles require migration. Run `bigbrain sync --json`,
+  `bigbrain health --json`, `npm test`, and `npm pack --dry-run`.
+
+### Verification
+
+- Schema-version-1 to version-2 migration with route and event preservation
+- Writable preflight, atomic claim exclusion, lease renewal, verified-only
+  cursor advance, monotonic cursor ordering, and duplicate-route protection
+- Bundled skill contract regression forbidding removed Granola CLI commands
+- Automation-template health with an install-local saved-project target
+- Bounded live Granola route with owning-Brain provenance, raw transcript
+  byte-for-byte read-back, destination page and task read-back, verified ledger
+  completion, cursor advance, and duplicate claim rejection
+- `npm test`
+- `npm pack --dry-run`
+
 ## [0.19.1] - 2026-08-17
 
 ### Changed
