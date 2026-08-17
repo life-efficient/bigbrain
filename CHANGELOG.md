@@ -3,6 +3,16 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining device and server installations.
 
+## [Unreleased]
+
+### Changed
+
+- Clarified the MCP `about/update` contract and published profile schema so
+  routing descriptions stay concise and self-contained, define their own scope
+  and sharing boundary, expand organization acronyms on first use, and avoid
+  naming users, referencing other brains, or assuming which brains users can
+  access.
+
 ## [0.19.0] - 2026-08-16
 
 ### Changed

@@ -1247,7 +1247,7 @@ function toolDefinitions() {
     },
     {
       name: 'about',
-      description: 'Return the authenticated brain meeting-ingestion description and bounded capabilities for this BigBrain instance. Missing or invalid descriptions require approval.',
+      description: 'Return the authenticated routing description and bounded capabilities for this BigBrain instance. Missing or invalid descriptions require approval.',
       inputSchema: {
         type: 'object',
         properties: {},
@@ -1255,7 +1255,7 @@ function toolDefinitions() {
     },
     {
       name: 'about/update',
-      description: 'Replace the brain meeting-ingestion description. Requires owner authority.',
+      description: 'Replace the brain routing description. Keep it concise and self-contained: define what belongs here and the appropriate sharing or confidentiality boundary, expand organization names before acronyms on first use, do not name a specific user or owner, do not refer to other brains, and do not assume which other brains users can access. Requires owner authority.',
       inputSchema: {
         type: 'object',
         properties: {

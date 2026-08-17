@@ -97,6 +97,11 @@ test('published description schema and runtime enforce the same scalar boundarie
     assert.equal(normalizeBrainProfile(valid, config).schema_version, BRAIN_PROFILE_JSON_SCHEMA.properties.schema_version.const);
     assert.deepEqual(BRAIN_PROFILE_JSON_SCHEMA.required, ['schema_version', 'identity']);
     assert.deepEqual(BRAIN_PROFILE_JSON_SCHEMA.properties.identity.required, ['brain_id', 'brain_name', 'description']);
+    const descriptionSchema = BRAIN_PROFILE_JSON_SCHEMA.properties.identity.properties.description;
+    assert.match(descriptionSchema.description, /concise, self-contained routing description/);
+    assert.match(descriptionSchema.description, /Do not name a specific user or owner/);
+    assert.match(descriptionSchema.description, /refer to other brains/);
+    assert.match(descriptionSchema.description, /assume which other brains users can access/);
 
     const stringVersion = structuredClone(valid);
     stringVersion.schema_version = '1';
