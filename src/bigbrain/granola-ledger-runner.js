@@ -49,9 +49,9 @@ export async function runGranolaLedgerCommand(args, { env = process.env } = {}) 
         metadataHash: optionalValue(args, '--metadata-hash'),
         policyRevision: requireValue(args, '--policy-revision'),
       });
-      const route = discovered.already_exists
-        ? discovered
-        : ledger.recordDecision({
+      const canRecordDecision = !discovered.already_exists || discovered.decision_state === 'discovered';
+      const route = canRecordDecision
+        ? ledger.recordDecision({
           ...identity,
           decision: requireValue(args, '--decision'),
           selectedBrainId: optionalValue(args, '--brain'),
@@ -59,7 +59,8 @@ export async function runGranolaLedgerCommand(args, { env = process.env } = {}) 
           policyRevision: requireValue(args, '--policy-revision'),
           reasonCodes: values(args, '--reason'),
           confidenceBand: optionalValue(args, '--confidence') || 'unknown',
-        });
+        })
+        : discovered;
       return { ok: true, operation, already_exists: discovered.already_exists, route };
     }
     if (operation === 'claim') {

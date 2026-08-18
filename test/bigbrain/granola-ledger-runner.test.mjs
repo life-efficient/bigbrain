@@ -82,3 +82,25 @@ test('supported Granola ledger runner covers preflight, dedupe, claim, verify, a
     await fs.rm(rootDir, { recursive: true, force: true });
   }
 });
+
+test('record resumes a discovery row left by an invalid decision attempt', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-granola-ledger-recovery-'));
+  const ledgerPath = path.join(rootDir, 'routing-ledger.sqlite');
+  const env = { BIGBRAIN_ROUTING_LEDGER_PATH: ledgerPath };
+  try {
+    await assert.rejects(runGranolaLedgerCommand([
+      'record', '--source', 'granola', '--item', 'meeting-recovery', '--decision', 'auto',
+      '--brain', 'brn_personal', '--policy-revision', 'policy-v1', '--confidence', 'unsupported',
+    ], { env }), /confidenceBand/);
+
+    const recovered = await runGranolaLedgerCommand([
+      'record', '--source', 'granola', '--item', 'meeting-recovery', '--decision', 'auto',
+      '--brain', 'brn_personal', '--policy-revision', 'policy-v1', '--confidence', 'high',
+    ], { env });
+    assert.equal(recovered.already_exists, true);
+    assert.equal(recovered.route.decision_state, 'approved');
+    assert.equal(recovered.route.selected_brain_id, 'brn_personal');
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
