@@ -686,8 +686,8 @@ async function handleConnect(args, global) {
     tokenStdin,
     token: tokenStdin ? await readStdin() : '',
   });
-  output(global, result, result.restart_codex_required
-    ? `Connected ${result.name}. Restart Codex before using this token-authenticated brain.`
+  output(global, result, result.auth === 'token'
+    ? `Connected ${result.name} through a secure local credential bridge. Open a fresh Codex task to use it.`
     : `Connected ${result.name} with OAuth.`);
 }
 

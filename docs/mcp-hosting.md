@@ -427,15 +427,20 @@ Pass the token only through standard input. Do not put it in an argument, source
 file, repository, Codex configuration, shell history, plist, log, or diagnostic
 output. BigBrain stores fallback credentials in a machine-local, owner-only,
 per-connection credential file; names and storage identifiers must not reuse a
-global `BIGBRAIN_MCP_TOKEN` across brains. The command keeps secrets out of
-normal and JSON output. Restart Codex, then verify the authenticated tool
-listing and connected brain identity in a fresh task.
+global `BIGBRAIN_MCP_TOKEN` across brains. It registers a local stdio credential
+bridge that reads the protected file directly and forwards MCP traffic to the
+hosted HTTPS endpoint. The bridge rereads the file for every remote request, so
+token rotation does not depend on inherited GUI-process environment or require
+an application restart. The command keeps secrets out of normal output, JSON
+output, Codex configuration, process arguments, and logs. Open a fresh Codex
+task, then verify the authenticated tool listing and connected brain identity.
 
 OAuth connections do not depend on a GUI application's inherited shell
-environment. The token fallback does require a full Codex restart: a running
-macOS application cannot acquire an environment variable that was published
-after it started. Its BigBrain-owned, per-connection loader replaces
-project-specific token loaders.
+environment. The token fallback also avoids that dependency by using the local
+credential bridge. Re-running the same connection command rotates the protected
+credential atomically and reuses the matching bridge registration. Matching
+legacy BigBrain HTTP bearer registrations are migrated to the bridge; endpoint
+conflicts remain protected from replacement.
 
 OAuth access and dashboard session tokens are stored as hashes in
 `BIGBRAIN_MCP_TOKEN_STORE` or, for server deployments, the database-backed token

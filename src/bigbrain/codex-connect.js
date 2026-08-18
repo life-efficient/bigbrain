@@ -36,10 +36,11 @@ export function tokenEnvironmentName(serverName) {
 
 export async function connectCodex(options, dependencies = {}) {
   const execFile = dependencies.execFile || execFileDefault;
+  const fileSystem = dependencies.fs || fs;
   const home = dependencies.home || os.homedir();
   const platform = dependencies.platform || process.platform;
   const nodePath = dependencies.nodePath || process.execPath;
-  const loaderPath = dependencies.loaderPath || fileURLToPath(new URL('../../scripts/load-codex-mcp-token.mjs', import.meta.url));
+  const bridgePath = dependencies.bridgePath || fileURLToPath(new URL('../../bin/bigbrain-mcp-http-stdio-bridge.js', import.meta.url));
   const endpoint = normalizeMcpEndpoint(options.serviceUrl);
   const name = deriveServerName(endpoint, options.name || '');
   const auth = options.auth || 'oauth';
@@ -50,65 +51,151 @@ export async function connectCodex(options, dependencies = {}) {
     if (!options.tokenStdin) throw new Error('Token authentication requires --token-stdin.');
     token = String(options.token || '').trim();
     if (!token) throw new Error('No token was provided on stdin.');
-    if (platform !== 'darwin') throw new Error('Persistent token authentication currently supports macOS only.');
   }
 
-  await ensureCodexRegistration({ execFile, name, endpoint, auth, envName: auth === 'token' ? tokenEnvironmentName(name) : null });
   if (auth === 'oauth') {
+    await ensureOAuthRegistration({ execFile, name, endpoint });
     await execFile('codex', ['mcp', 'login', name]);
     return { ok: true, name, endpoint, auth, restart_codex_required: false };
   }
 
-  const envName = tokenEnvironmentName(name);
   const connectionDir = path.join(home, '.config', 'bigbrain', 'connections', name);
-  const envPath = path.join(connectionDir, 'token');
-  const label = `local.bigbrain.codex-token.${name.replace(/[^a-z0-9.-]+/g, '-')}`;
-  const plistPath = path.join(home, 'Library', 'LaunchAgents', `${label}.plist`);
-  const serviceTarget = `gui/${dependencies.uid ?? process.getuid()}/${label}`;
-  await fs.mkdir(connectionDir, { recursive: true, mode: 0o700 });
-  await fs.chmod(connectionDir, 0o700);
-  await fs.writeFile(envPath, `${token}\n`, { mode: 0o600 });
-  await fs.chmod(envPath, 0o600);
-  await fs.mkdir(path.dirname(plistPath), { recursive: true });
-  await fs.writeFile(plistPath, renderTokenLaunchAgent({ label, nodePath, loaderPath, envPath, envName }), 'utf8');
-  await execFile('launchctl', ['bootout', `gui/${dependencies.uid ?? process.getuid()}`, plistPath]).catch(() => null);
-  await execFile('launchctl', ['bootstrap', `gui/${dependencies.uid ?? process.getuid()}`, plistPath]);
-  await execFile('launchctl', ['kickstart', '-k', serviceTarget]);
-  const loaded = await execFile('launchctl', ['getenv', envName]);
-  if (!String(loaded.stdout || '').trim()) throw new Error('The token loader started, but the Codex environment variable was not published.');
-  return { ok: true, name, endpoint, auth, env_var: envName, restart_codex_required: true };
+  const tokenPath = path.join(connectionDir, 'token');
+  const previousToken = await readOptionalFile(fileSystem, tokenPath);
+  await writePrivateTokenFile({ fileSystem, connectionDir, tokenPath, token });
+  let registration;
+  try {
+    registration = await ensureTokenBridgeRegistration({ execFile, name, endpoint, nodePath, bridgePath, tokenPath });
+  } catch (error) {
+    await restoreTokenFile({ fileSystem, connectionDir, tokenPath, previousToken });
+    throw error;
+  }
+  await cleanupLegacyTokenLaunchAgent({
+    execFile,
+    fileSystem,
+    home,
+    name,
+    platform,
+    uid: dependencies.uid ?? (typeof process.getuid === 'function' ? process.getuid() : null),
+  });
+  return {
+    ok: true,
+    name,
+    endpoint,
+    auth,
+    transport: 'stdio_bridge',
+    migrated_legacy_registration: registration.migrated,
+    restart_codex_required: false,
+    new_task_required: true,
+  };
 }
 
-async function ensureCodexRegistration({ execFile, name, endpoint, auth, envName }) {
-  let existing = null;
-  try {
-    const result = await execFile('codex', ['mcp', 'get', name, '--json']);
-    existing = JSON.parse(result.stdout);
-  } catch {
-    // A missing registration is the normal first-run path.
-  }
+async function ensureOAuthRegistration({ execFile, name, endpoint }) {
+  const existing = await getCodexRegistration(execFile, name);
   if (existing) {
-    const existingUrl = existing.url || existing.transport?.url || existing.transport?.streamable_http?.url;
-    const existingEnv = existing.bearer_token_env_var || existing.transport?.bearer_token_env_var || existing.transport?.streamable_http?.bearer_token_env_var || null;
-    if (existingUrl === endpoint && existingEnv === (auth === 'token' ? envName : null)) return;
+    const existingUrl = httpRegistration(existing).url;
+    if (existingUrl === endpoint && !httpRegistration(existing).bearerTokenEnv) return;
     throw new Error(`Codex MCP server "${name}" already exists with different connection settings.`);
   }
-  const args = ['mcp', 'add', name, '--url', endpoint];
-  if (auth === 'token') args.push('--bearer-token-env-var', envName);
-  await execFile('codex', args);
+  await execFile('codex', ['mcp', 'add', name, '--url', endpoint]);
 }
 
-export function renderTokenLaunchAgent({ label, nodePath, loaderPath, envPath, envName }) {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict>
-<key>Label</key><string>${xml(label)}</string>
-<key>ProgramArguments</key><array><string>${xml(nodePath)}</string><string>${xml(loaderPath)}</string><string>${xml(envPath)}</string><string>${xml(envName)}</string></array>
-<key>RunAtLoad</key><true/>
-</dict></plist>
-`;
+async function ensureTokenBridgeRegistration({ execFile, name, endpoint, nodePath, bridgePath, tokenPath }) {
+  const desiredArgs = [bridgePath, endpoint, tokenPath];
+  const existing = await getCodexRegistration(execFile, name);
+  if (!existing) {
+    await addTokenBridgeRegistration({ execFile, name, nodePath, desiredArgs });
+    return { migrated: false };
+  }
+  const stdio = stdioRegistration(existing);
+  if (stdio.command === nodePath && arraysEqual(stdio.args, desiredArgs)) return { migrated: false };
+  const legacy = httpRegistration(existing);
+  if (legacy.url !== endpoint || !legacy.bearerTokenEnv) {
+    throw new Error(`Codex MCP server "${name}" already exists with different connection settings.`);
+  }
+  await execFile('codex', ['mcp', 'remove', name]);
+  try {
+    await addTokenBridgeRegistration({ execFile, name, nodePath, desiredArgs });
+  } catch (error) {
+    await execFile('codex', [
+      'mcp', 'add', name, '--url', legacy.url, '--bearer-token-env-var', legacy.bearerTokenEnv,
+    ]).catch(() => null);
+    throw error;
+  }
+  return { migrated: true };
 }
 
-function xml(value) {
-  return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&apos;');
+async function getCodexRegistration(execFile, name) {
+  try {
+    const result = await execFile('codex', ['mcp', 'get', name, '--json']);
+    return JSON.parse(result.stdout);
+  } catch {
+    return null;
+  }
+}
+
+function addTokenBridgeRegistration({ execFile, name, nodePath, desiredArgs }) {
+  return execFile('codex', ['mcp', 'add', name, '--', nodePath, ...desiredArgs]);
+}
+
+function httpRegistration(existing) {
+  const transport = existing.transport?.streamable_http || existing.transport || existing;
+  return {
+    url: existing.url || transport?.url || null,
+    bearerTokenEnv: existing.bearer_token_env_var || transport?.bearer_token_env_var || null,
+  };
+}
+
+function stdioRegistration(existing) {
+  const transport = existing.transport?.stdio || existing.transport || existing;
+  if (transport?.type && transport.type !== 'stdio') return { command: null, args: [] };
+  return { command: transport?.command || null, args: transport?.args || [] };
+}
+
+async function writePrivateTokenFile({ fileSystem, connectionDir, tokenPath, token }) {
+  await fileSystem.mkdir(connectionDir, { recursive: true, mode: 0o700 });
+  await fileSystem.chmod(connectionDir, 0o700);
+  const tempPath = `${tokenPath}.${crypto.randomUUID()}.tmp`;
+  try {
+    await fileSystem.writeFile(tempPath, `${token}\n`, { mode: 0o600, flag: 'wx' });
+    await fileSystem.chmod(tempPath, 0o600);
+    await fileSystem.rename(tempPath, tokenPath);
+  } finally {
+    await fileSystem.rm(tempPath, { force: true }).catch(() => null);
+  }
+}
+
+async function restoreTokenFile({ fileSystem, connectionDir, tokenPath, previousToken }) {
+  if (previousToken === null) {
+    await fileSystem.rm(tokenPath, { force: true }).catch(() => null);
+    return;
+  }
+  await writePrivateTokenFile({ fileSystem, connectionDir, tokenPath, token: previousToken.trim() });
+}
+
+async function readOptionalFile(fileSystem, filePath) {
+  try {
+    return await fileSystem.readFile(filePath, 'utf8');
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+async function cleanupLegacyTokenLaunchAgent({ execFile, fileSystem, home, name, platform, uid }) {
+  if (platform !== 'darwin' || uid === null) return;
+  const label = `local.bigbrain.codex-token.${name.replace(/[^a-z0-9.-]+/g, '-')}`;
+  const plistPath = path.join(home, 'Library', 'LaunchAgents', `${label}.plist`);
+  try {
+    await fileSystem.access(plistPath);
+  } catch {
+    return;
+  }
+  await execFile('launchctl', ['bootout', `gui/${uid}`, plistPath]).catch(() => null);
+  await fileSystem.rm(plistPath, { force: true });
+  await execFile('launchctl', ['unsetenv', tokenEnvironmentName(name)]).catch(() => null);
+}
+
+function arraysEqual(left, right) {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
 }
