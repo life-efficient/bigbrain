@@ -7,6 +7,17 @@ import path from 'node:path';
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
 
+test('media ingest skill enforces YouTube video-title and channel-suffix naming', async () => {
+  const skillPath = new URL('../../skills/bigbrain-media-ingest/SKILL.md', import.meta.url);
+  const skill = await fs.readFile(skillPath, 'utf8');
+
+  assert.match(skill, /<exact YouTube video title> - <exact YouTube channel name>/);
+  assert.match(skill, /<slugified video title>-<slugified channel name>/);
+  assert.match(skill, /Keep the channel name as the final suffix/);
+  assert.match(skill, /Do not use a generated topic label/);
+  assert.match(skill, /directly read back the canonical page and source sidecar/);
+});
+
 test('health accepts active skill symlinks that match repo skills', async () => {
   const fixture = await createFixture('bigbrain-skill-template-health-');
   try {
