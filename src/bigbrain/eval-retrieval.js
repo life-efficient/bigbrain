@@ -284,7 +284,7 @@ export async function runRetrievalEvalOnConfig({
   failOnRegression = false,
   redact = false,
 }) {
-  const normalizedCases = validateCases(cases);
+  const normalizedCases = validateRetrievalEvalCases(cases);
   const normalizedArm = normalizeRetrievalAblationArm(arm);
   if (normalizedArm && RETRIEVAL_ABLATION_ARMS[normalizedArm].semantic && !apiKey) {
     throw new Error(`Retrieval ablation arm ${normalizedArm} requires configured OpenAI API access.`);
@@ -306,7 +306,7 @@ export async function runRetrievalEvalOnConfig({
         strictRetrieval: Boolean(normalizedArm && RETRIEVAL_ABLATION_ARMS[normalizedArm].semantic),
       });
       const latencyMs = Math.round(performance.now() - started);
-      results.push(scoreCase({ testCase, search, latencyMs, redact }));
+      results.push(scoreRetrievalEvalCase({ testCase, search, latencyMs, redact }));
     }
     return buildEvalReport({ mode, arm: normalizedArm, limit, results, caseSource, failOnRegression, redact });
   } finally {
@@ -322,12 +322,12 @@ export async function loadRetrievalEvalCases(filePath) {
   if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
     try {
       const parsed = JSON.parse(trimmed);
-      return validateCases(Array.isArray(parsed) ? parsed : parsed.cases);
+      return validateRetrievalEvalCases(Array.isArray(parsed) ? parsed : parsed.cases);
     } catch (error) {
       if (!trimmed.includes('\n')) throw error;
     }
   }
-  return validateCases(trimmed
+  return validateRetrievalEvalCases(trimmed
     .split('\n')
     .filter((line) => line.trim() && !line.trim().startsWith('#'))
     .map((line) => JSON.parse(line)));
@@ -359,6 +359,9 @@ export async function exportRetrievalEvalBaseline({
     expected_slug: result.expected_slug,
     relevant_slugs: result.relevant_slugs,
     forbidden_slugs: result.forbidden_slugs,
+    supporting_slugs: result.supporting_slugs,
+    distractor_slugs: result.distractor_slugs,
+    required_source_groups: result.required_source_groups,
     result_slugs: result.result_slugs,
     top_slug: result.top_slug,
     latency_ms: result.latency_ms,
@@ -386,6 +389,9 @@ export async function replayRetrievalEvalBaseline({
     expected_slug: row.expected_slug,
     relevant_slugs: row.relevant_slugs,
     forbidden_slugs: row.forbidden_slugs,
+    supporting_slugs: row.supporting_slugs,
+    distractor_slugs: row.distractor_slugs,
+    required_source_groups: row.required_source_groups,
   }));
   const effectiveMode = mode || baseline[0]?.mode || DEFAULT_MODE;
   const effectiveArm = normalizeRetrievalAblationArm(arm || baseline[0]?.arm || null);
@@ -600,7 +606,7 @@ export function renderRetrievalCompareText(report, { markdown = false } = {}) {
   ].join('\n');
 }
 
-function scoreCase({ testCase, search, latencyMs, redact }) {
+export function scoreRetrievalEvalCase({ testCase, search, latencyMs, redact = false }) {
   const slugs = search.fused.map((row) => row.slug);
   const relevantSlugs = testCase.relevant_slugs.length ? testCase.relevant_slugs : [testCase.expected_slug].filter(Boolean);
   const ranks = relevantSlugs
@@ -610,6 +616,25 @@ function scoreCase({ testCase, search, latencyMs, redact }) {
   const forbiddenHits = testCase.forbidden_slugs.filter((slug) => slugs.includes(slug));
   const negativeClean = testCase.forbidden_slugs.length ? forbiddenHits.length === 0 : null;
   const recallHits = relevantSlugs.filter((slug) => slugs.includes(slug)).length;
+  const expectedRank = slugs.indexOf(testCase.expected_slug);
+  const supportingHits = testCase.supporting_slugs.filter((slug) => slugs.includes(slug));
+  const supportingRecall = testCase.supporting_slugs.length
+    ? supportingHits.length / testCase.supporting_slugs.length
+    : null;
+  const distractorHits = testCase.distractor_slugs.filter((slug) => slugs.includes(slug));
+  const distractorRanks = distractorHits.map((slug) => slugs.indexOf(slug));
+  const distractorClean = testCase.distractor_slugs.length ? distractorHits.length === 0 : null;
+  const expectedOutranksDistractors = distractorRanks.length
+    ? expectedRank >= 0 && distractorRanks.every((rank) => expectedRank < rank)
+    : null;
+  const satisfiedSourceGroups = testCase.required_source_groups
+    .filter((group) => group.some((slug) => slugs.includes(slug)));
+  const missingSourceGroups = testCase.required_source_groups
+    .filter((group) => !group.some((slug) => slugs.includes(slug)));
+  const requiredSourceGroupRecall = testCase.required_source_groups.length
+    ? satisfiedSourceGroups.length / testCase.required_source_groups.length
+    : null;
+  const sourceGroupsSatisfied = requiredSourceGroupRecall === null || requiredSourceGroupRecall === 1;
   const query = redact ? null : testCase.query;
   return {
     id: testCase.id,
@@ -620,6 +645,13 @@ function scoreCase({ testCase, search, latencyMs, redact }) {
     relevant_slugs: redact ? relevantSlugs.map(redactSlug) : relevantSlugs,
     forbidden_slugs: redact ? testCase.forbidden_slugs.map(redactSlug) : testCase.forbidden_slugs,
     forbidden_hits: redact ? forbiddenHits.map(redactSlug) : forbiddenHits,
+    supporting_slugs: redact ? testCase.supporting_slugs.map(redactSlug) : testCase.supporting_slugs,
+    supporting_hits: redact ? supportingHits.map(redactSlug) : supportingHits,
+    distractor_slugs: redact ? testCase.distractor_slugs.map(redactSlug) : testCase.distractor_slugs,
+    distractor_hits: redact ? distractorHits.map(redactSlug) : distractorHits,
+    required_source_groups: redact ? redactSlugGroups(testCase.required_source_groups) : testCase.required_source_groups,
+    satisfied_source_groups: redact ? redactSlugGroups(satisfiedSourceGroups) : satisfiedSourceGroups,
+    missing_source_groups: redact ? redactSlugGroups(missingSourceGroups) : missingSourceGroups,
     top_slug: redact ? redactSlug(slugs[0] ?? null) : slugs[0] ?? null,
     rank: bestRank >= 0 ? bestRank + 1 : null,
     reciprocal_rank: bestRank >= 0 ? 1 / (bestRank + 1) : 0,
@@ -627,8 +659,23 @@ function scoreCase({ testCase, search, latencyMs, redact }) {
     hit_at_3: bestRank >= 0 && bestRank < 3,
     hit_at_5: bestRank >= 0 && bestRank < 5,
     recall_at_k: relevantSlugs.length ? recallHits / relevantSlugs.length : 0,
+    endpoint_rank: bestRank >= 0 ? bestRank + 1 : null,
+    endpoint_reciprocal_rank: bestRank >= 0 ? 1 / (bestRank + 1) : 0,
+    endpoint_hit_at_1: bestRank === 0,
+    endpoint_hit_at_3: bestRank >= 0 && bestRank < 3,
+    endpoint_hit_at_5: bestRank >= 0 && bestRank < 5,
+    endpoint_recall_at_k: relevantSlugs.length ? recallHits / relevantSlugs.length : 0,
+    expected_rank: expectedRank >= 0 ? expectedRank + 1 : null,
+    expected_reciprocal_rank: expectedRank >= 0 ? 1 / (expectedRank + 1) : 0,
+    expected_hit_at_1: expectedRank === 0,
+    expected_hit_at_3: expectedRank >= 0 && expectedRank < 3,
+    expected_hit_at_5: expectedRank >= 0 && expectedRank < 5,
+    supporting_recall_at_k: supportingRecall,
+    distractor_clean: distractorClean,
+    expected_outranks_distractors: expectedOutranksDistractors,
+    required_source_group_recall: requiredSourceGroupRecall,
     negative_clean: negativeClean,
-    passed: bestRank >= 0 && negativeClean !== false,
+    passed: bestRank >= 0 && negativeClean !== false && sourceGroupsSatisfied,
     result_slugs: redact ? slugs.map(redactSlug) : slugs,
     latency_ms: latencyMs,
     warnings: search.warnings,
@@ -636,7 +683,7 @@ function scoreCase({ testCase, search, latencyMs, redact }) {
 }
 
 function buildEvalReport({ mode, arm = null, limit, results, caseSource = 'fixture', failOnRegression = false, redact = false }) {
-  const metrics = summarizeResults(results);
+  const metrics = summarizeRetrievalEvalResults(results);
   const familyMetrics = summarizeFamilies(results);
   const gates = evaluateGates({ familyMetrics, failOnRegression });
   const warnings = [
@@ -664,12 +711,20 @@ function buildEvalReport({ mode, arm = null, limit, results, caseSource = 'fixtu
   };
 }
 
-function summarizeResults(results) {
+export function summarizeRetrievalEvalResults(results) {
   const hitAt1 = results.filter((result) => result.hit_at_1).length;
   const hitAt3 = results.filter((result) => result.hit_at_3).length;
   const hitAt5 = results.filter((result) => result.hit_at_5).length;
   const negativeCases = results.filter((result) => result.negative_clean !== null);
   const negativeClean = negativeCases.filter((result) => result.negative_clean).length;
+  const supportingCases = results.filter((result) => result.supporting_recall_at_k !== null);
+  const distractorCases = results.filter((result) => result.distractor_clean !== null);
+  const expectedVsDistractorCases = results.filter((result) => result.expected_outranks_distractors !== null);
+  const sourceGroupCases = results.filter((result) => result.required_source_group_recall !== null);
+  const sourceGroupsSatisfied = sourceGroupCases.filter((result) => result.required_source_group_recall === 1).length;
+  const expectedHitAt1 = results.filter((result) => result.expected_hit_at_1).length;
+  const expectedHitAt3 = results.filter((result) => result.expected_hit_at_3).length;
+  const expectedHitAt5 = results.filter((result) => result.expected_hit_at_5).length;
   return {
     hit_at_1: hitAt1,
     hit_at_1_rate: rate(results, (result) => result.hit_at_1),
@@ -679,6 +734,42 @@ function summarizeResults(results) {
     hit_at_5_rate: rate(results, (result) => result.hit_at_5),
     mrr: mean(results.map((result) => result.reciprocal_rank)),
     recall_at_k: mean(results.map((result) => result.recall_at_k)),
+    endpoint_hit_at_1: hitAt1,
+    endpoint_hit_at_1_rate: rate(results, (result) => result.endpoint_hit_at_1),
+    endpoint_hit_at_3: hitAt3,
+    endpoint_hit_at_3_rate: rate(results, (result) => result.endpoint_hit_at_3),
+    endpoint_hit_at_5: hitAt5,
+    endpoint_hit_at_5_rate: rate(results, (result) => result.endpoint_hit_at_5),
+    endpoint_mrr: mean(results.map((result) => result.endpoint_reciprocal_rank)),
+    endpoint_recall_at_k: mean(results.map((result) => result.endpoint_recall_at_k)),
+    expected_hit_at_1: expectedHitAt1,
+    expected_hit_at_1_rate: rate(results, (result) => result.expected_hit_at_1),
+    expected_hit_at_3: expectedHitAt3,
+    expected_hit_at_3_rate: rate(results, (result) => result.expected_hit_at_3),
+    expected_hit_at_5: expectedHitAt5,
+    expected_hit_at_5_rate: rate(results, (result) => result.expected_hit_at_5),
+    expected_mrr: mean(results.map((result) => result.expected_reciprocal_rank)),
+    supporting_case_count: supportingCases.length,
+    supporting_recall_at_k: supportingCases.length
+      ? mean(supportingCases.map((result) => result.supporting_recall_at_k))
+      : null,
+    distractor_case_count: distractorCases.length,
+    distractor_clean: distractorCases.filter((result) => result.distractor_clean).length,
+    distractor_clean_rate: distractorCases.length
+      ? rate(distractorCases, (result) => result.distractor_clean)
+      : null,
+    expected_vs_distractor_case_count: expectedVsDistractorCases.length,
+    expected_outranks_distractors_rate: expectedVsDistractorCases.length
+      ? rate(expectedVsDistractorCases, (result) => result.expected_outranks_distractors)
+      : null,
+    required_source_group_case_count: sourceGroupCases.length,
+    required_source_group_recall: sourceGroupCases.length
+      ? mean(sourceGroupCases.map((result) => result.required_source_group_recall))
+      : null,
+    required_source_groups_satisfied: sourceGroupsSatisfied,
+    required_source_groups_satisfied_rate: sourceGroupCases.length
+      ? sourceGroupsSatisfied / sourceGroupCases.length
+      : null,
     negative_case_count: negativeCases.length,
     negative_clean: negativeClean,
     negative_clean_rate: negativeCases.length ? negativeClean / negativeCases.length : 1,
@@ -695,7 +786,7 @@ function summarizeFamilies(results) {
   }
   return Object.fromEntries([...grouped.entries()].map(([family, rows]) => [family, {
     case_count: rows.length,
-    ...summarizeResults(rows),
+    ...summarizeRetrievalEvalResults(rows),
   }]));
 }
 
@@ -725,7 +816,7 @@ function gateFailures(familyMetrics, gates) {
   return failures;
 }
 
-function validateCases(cases) {
+export function validateRetrievalEvalCases(cases) {
   if (!Array.isArray(cases) || cases.length === 0) throw new Error('Retrieval eval requires at least one case.');
   const ids = new Set();
   return cases.map((testCase, index) => {
@@ -746,6 +837,15 @@ function validateCases(cases) {
     const forbiddenSlugs = uniqueStrings(testCase.forbidden_slugs);
     const overlap = finalRelevantSlugs.filter((slug) => forbiddenSlugs.includes(slug));
     if (overlap.length) throw new Error(`Retrieval eval case ${id} marks slug(s) as both relevant and forbidden: ${overlap.join(', ')}.`);
+    const supportingSlugs = uniqueStrings(testCase.supporting_slugs);
+    const distractorSlugs = uniqueStrings(testCase.distractor_slugs);
+    const endpointSlugs = uniqueStrings([expectedSlug, ...finalRelevantSlugs].filter(Boolean));
+    assertDisjointCaseLabels(id, 'endpoint', endpointSlugs, 'supporting', supportingSlugs);
+    assertDisjointCaseLabels(id, 'endpoint', endpointSlugs, 'distractor', distractorSlugs);
+    assertDisjointCaseLabels(id, 'supporting', supportingSlugs, 'distractor', distractorSlugs);
+    assertDisjointCaseLabels(id, 'supporting', supportingSlugs, 'forbidden', forbiddenSlugs);
+    assertDisjointCaseLabels(id, 'distractor', distractorSlugs, 'forbidden', forbiddenSlugs);
+    const requiredSourceGroups = slugGroups(testCase.required_source_groups, id);
     const family = optionalCaseString(testCase.family) || 'default';
     return {
       id,
@@ -755,6 +855,9 @@ function validateCases(cases) {
       acceptable_slugs: acceptableSlugs,
       relevant_slugs: finalRelevantSlugs,
       forbidden_slugs: forbiddenSlugs,
+      supporting_slugs: supportingSlugs,
+      distractor_slugs: distractorSlugs,
+      required_source_groups: requiredSourceGroups,
       notes: optionalCaseString(testCase.notes) || null,
       metadata: testCase.metadata && typeof testCase.metadata === 'object' ? testCase.metadata : {},
     };
@@ -789,6 +892,29 @@ function stringArray(value) {
 
 function uniqueStrings(value) {
   return [...new Set(stringArray(value))];
+}
+
+function slugGroups(value, caseId) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error(`Retrieval eval case ${caseId} required_source_groups must be an array.`);
+  return value.map((group, index) => {
+    const normalized = uniqueStrings(group);
+    if (!normalized.length) {
+      throw new Error(`Retrieval eval case ${caseId} required_source_groups[${index}] must contain at least one slug.`);
+    }
+    return normalized;
+  });
+}
+
+function assertDisjointCaseLabels(caseId, leftLabel, left, rightLabel, right) {
+  const overlap = left.filter((slug) => right.includes(slug));
+  if (overlap.length) {
+    throw new Error(`Retrieval eval case ${caseId} marks slug(s) as both ${leftLabel} and ${rightLabel}: ${overlap.join(', ')}.`);
+  }
+}
+
+function redactSlugGroups(groups) {
+  return groups.map((group) => group.map(redactSlug));
 }
 
 function jaccardAtK(left, right, k) {
