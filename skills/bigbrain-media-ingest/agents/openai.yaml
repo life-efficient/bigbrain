@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Media Ingest"
-  short_description: "Ingest media with complete evidence and deterministic YouTube naming"
-  default_prompt: "Use $bigbrain-media-ingest to ingest time-based media, preserve complete raw support, name YouTube transcript pages with the exact video title and channel suffix, update the canonical subject, and verify the result."
+  short_description: "Preserve media and write a faithful chronological exposition"
+  default_prompt: "Use $bigbrain-media-ingest to preserve the complete source transcript and create a comprehensive chronological prose exposition in BigBrain, with optional canonical enrichment only when genuinely useful."
