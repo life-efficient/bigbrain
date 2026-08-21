@@ -22,7 +22,11 @@ export const GRAPH_NODE_STYLES = [
   { id: 'orb', label: 'Orb' },
   { id: 'diamond', label: 'Diamond' },
   { id: 'hex', label: 'Hex' },
-  { id: 'icon', label: 'Icon' },
+  { id: 'icon', label: 'Icon Ring' },
+  { id: 'icon-bare', label: 'Icon Bare' },
+  { id: 'icon-solid', label: 'Icon Solid' },
+  { id: 'icon-soft', label: 'Icon Soft' },
+  { id: 'icon-hex', label: 'Icon Hex' },
 ];
 
 export const GRAPH_ARC_STYLES = [

@@ -1,4 +1,4 @@
-import React, { forwardRef, useId, useMemo, useState } from 'react';
+import React, { forwardRef, memo, useId, useMemo, useState } from 'react';
 
 import { getGraphNodeColor } from './colors.js';
 import { GraphTypeIcon } from './graph-type-icon.jsx';
@@ -81,7 +81,10 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
           <GraphTypeDefs idPrefix={defsId} />
         </defs>
 
-        <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
+        <g
+          transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}
+          style={{ '--graph-node-scale': Math.min(1, 1 / viewport.scale) }}
+        >
           <LayoutBackdrop layoutStyle={layoutStyle} laidOut={laidOut} theme={theme} />
           <ArcLayer arcStyle={arcStyle} laidOut={laidOut} theme={theme} />
           <NodeLayer
@@ -217,7 +220,7 @@ function LayoutBackdrop({ layoutStyle, laidOut, theme }) {
   );
 }
 
-function ArcLayer({ arcStyle, laidOut, theme }) {
+const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
   return (
     <>
       {laidOut.edges.map((edge) => {
@@ -274,9 +277,9 @@ function ArcLayer({ arcStyle, laidOut, theme }) {
       })}
     </>
   );
-}
+});
 
-function NodeLayer({
+const NodeLayer = memo(function NodeLayer({
   nodeStyle,
   colorMode,
   laidOut,
@@ -291,6 +294,7 @@ function NodeLayer({
   return laidOut.nodes.map((node) => (
     <g
       key={node.slug}
+      className="graph-node-screen-scale"
       onPointerDown={(event) => {
         event.stopPropagation();
       }}
@@ -312,7 +316,7 @@ function NodeLayer({
       {renderNodeShape(node, nodeStyle, theme, activeSlug === node.slug || hoveredSlug === node.slug, colorMode)}
     </g>
   ));
-}
+});
 
 function renderNodeShape(node, nodeStyle, theme, emphasized, colorMode) {
   const hitRadius = Math.max(14, node.radius * 2.9);
@@ -323,7 +327,8 @@ function renderNodeShape(node, nodeStyle, theme, emphasized, colorMode) {
   const innerOpacity = nodeColor
     ? (emphasized ? '0.62' : '0.38')
     : (emphasized ? '0.82' : '0.52');
-  if (nodeStyle === 'icon') {
+  if (nodeStyle.startsWith('icon')) {
+    const variant = nodeStyle === 'icon' ? 'ring' : nodeStyle.replace('icon-', '');
     return (
       <>
         <circle
@@ -339,6 +344,7 @@ function renderNodeShape(node, nodeStyle, theme, emphasized, colorMode) {
           color={outerStroke}
           emphasized={emphasized}
           background={theme.graphBase}
+          variant={variant}
         />
       </>
     );

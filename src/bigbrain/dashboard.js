@@ -855,6 +855,7 @@ function renderAppHtml() {
       .graph-canvas-shell { position: relative; height: 100%; width: 100%; }
       .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
       .graph-svg:active { cursor: grabbing; }
+      .graph-node-screen-scale { transform-box: fill-box; transform-origin: center; transform: scale(var(--graph-node-scale, 1)); }
       .force-shell canvas { border-radius: 18px; }
       .vis-network-surface { opacity: 0.52; transform-origin: 0 0; will-change: transform; }
       .vis-network-booted .vis-network-surface { animation: vis-network-materialize 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }

@@ -88,7 +88,10 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
           @media (prefers-reduced-motion: reduce) { .bloom-sector, .bloom-link-animated, .bloom-node, .bloom-scan { animation: none !important; } }
         `}</style>
 
-        <g transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}>
+        <g
+          transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}
+          style={{ '--graph-node-scale': Math.min(1, 1 / viewport.scale) }}
+        >
           <BloomSectors laidOut={laidOut} theme={theme} />
           <BloomLinks laidOut={laidOut} theme={theme} />
           {laidOut.nodes.map((node, index) => (
@@ -192,7 +195,9 @@ const BloomNodeItem = memo(function BloomNodeItem({
         onNodeOpen?.(node.slug);
       }}
     >
-      <BloomNode node={node} nodeStyle={nodeStyle} colorMode={colorMode} emphasized={emphasized} theme={theme} glowId={glowId} />
+      <g className="graph-node-screen-scale">
+        <BloomNode node={node} nodeStyle={nodeStyle} colorMode={colorMode} emphasized={emphasized} theme={theme} glowId={glowId} />
+      </g>
     </g>
   );
 });
@@ -200,11 +205,12 @@ const BloomNodeItem = memo(function BloomNodeItem({
 function BloomNode({ node, nodeStyle, colorMode, emphasized, theme, glowId }) {
   const color = getGraphNodeColor(node, colorMode) || theme.graphNodeStroke;
   const size = node.radius * (emphasized ? 1.95 : 1.62);
-  if (nodeStyle === 'icon') {
+  if (nodeStyle.startsWith('icon')) {
+    const variant = nodeStyle === 'icon' ? 'ring' : nodeStyle.replace('icon-', '');
     return (
       <>
         <circle cx={node.x} cy={node.y} r={Math.max(15, size * 1.75)} fill="#fff" fillOpacity="0.001" />
-        <GraphTypeIcon node={node} color={color} emphasized={emphasized} background={theme.graphBase} />
+        <GraphTypeIcon node={node} color={color} emphasized={emphasized} background={theme.graphBase} variant={variant} />
       </>
     );
   }

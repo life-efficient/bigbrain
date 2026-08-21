@@ -216,9 +216,32 @@ test('icon nodes cover built-in schema types and use stable custom fallbacks', a
     fs.readFile(new URL('../../src/dashboard-client/graph/registry.jsx', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/dashboard-client/graph/graph-type-icon.jsx', import.meta.url), 'utf8'),
   ]);
-  assert.match(registry, /\{ id: 'icon', label: 'Icon' \}/);
+  for (const [id, label] of [
+    ['icon', 'Icon Ring'],
+    ['icon-bare', 'Icon Bare'],
+    ['icon-solid', 'Icon Solid'],
+    ['icon-soft', 'Icon Soft'],
+    ['icon-hex', 'Icon Hex'],
+  ]) {
+    assert.match(registry, new RegExp(`\\{ id: '${id}', label: '${label}' \\}`));
+  }
   assert.match(iconSource, /color=\{color\}/);
   assert.match(iconSource, /stroke=\{color\}/);
+  assert.match(iconSource, /variant === 'bare' \|\| variant === 'solid'/);
+  assert.match(iconSource, /variant === 'hex'/);
+});
+
+test('graph zoom keeps node glyphs screen-sized while expanding relationships', async () => {
+  const [composable, bloom, dashboard] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/graph/composable-graph-visualizer.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/signal-bloom-visualizer.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
+  ]);
+  assert.match(composable, /'--graph-node-scale': Math\.min\(1, 1 \/ viewport\.scale\)/);
+  assert.match(bloom, /'--graph-node-scale': Math\.min\(1, 1 \/ viewport\.scale\)/);
+  assert.match(composable, /className="graph-node-screen-scale"/);
+  assert.match(bloom, /className="graph-node-screen-scale"/);
+  assert.match(dashboard, /\.graph-node-screen-scale \{[^}]*transform: scale\(var\(--graph-node-scale, 1\)\)/);
 });
 
 test('vis network boot and MCP activity animations are bounded and accessible', async () => {
