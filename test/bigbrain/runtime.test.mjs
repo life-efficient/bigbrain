@@ -894,6 +894,8 @@ Unrelated background evidence for the decoy page.
     assert.equal(rerankCalls, 0);
     assert.equal(semantic.lexical.length, 0);
     assert.equal(semantic.fused[0].slug, 'projects/semantic-target');
+    assert.equal(semantic.fused[0].page_kind, 'canonical');
+    assert.match(semantic.fused[0].updated_at, /^\d{4}-\d{2}-\d{2}T/);
     assert.equal(semantic.fused[0].boosts.length, 0);
 
     const fusion = await searchBrain({

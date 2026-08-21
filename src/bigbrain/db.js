@@ -630,14 +630,14 @@ export async function getPagesBySlugs(db, slugs) {
   if (slugs.length === 0) return [];
   if (db.backend === 'postgres') {
     return (await db.query(`
-      SELECT slug, title, type, summary, compiled_truth, frontmatter_json
+      SELECT slug, title, type, page_kind, summary, compiled_truth, frontmatter_json, updated_at
       FROM pages
       WHERE slug = ANY($1::text[])
     `, [slugs])).rows;
   }
   const placeholders = slugs.map(() => '?').join(', ');
   return unwrapSqlite(db).prepare(`
-    SELECT slug, title, type, summary, compiled_truth, frontmatter_json
+    SELECT slug, title, type, page_kind, summary, compiled_truth, frontmatter_json, updated_at
     FROM pages
     WHERE slug IN (${placeholders})
   `).all(...slugs);
@@ -896,7 +896,7 @@ export async function lexicalSearch(db, query, limit = 10) {
       WITH search AS (
         SELECT websearch_to_tsquery('simple', $1) AS q
       )
-      SELECT p.slug, p.title, p.type, p.page_kind, p.summary, p.frontmatter_json,
+      SELECT p.slug, p.title, p.type, p.page_kind, p.summary, p.frontmatter_json, p.updated_at,
              ts_headline('simple', p.compiled_truth, search.q, 'StartSel=[, StopSel=], MaxWords=20, MinWords=5') AS snippet,
              ts_rank_cd(
                to_tsvector('simple', p.title || ' ' || p.summary || ' ' || p.compiled_truth || ' ' || p.timeline || ' ' || p.body_text),
@@ -910,7 +910,7 @@ export async function lexicalSearch(db, query, limit = 10) {
     return result.rows;
   }
   return unwrapSqlite(db).prepare(`
-    SELECT p.slug, p.title, p.type, p.page_kind, p.summary, p.frontmatter_json,
+    SELECT p.slug, p.title, p.type, p.page_kind, p.summary, p.frontmatter_json, p.updated_at,
            snippet(pages_fts, 3, '[', ']', ' … ', 10) AS snippet,
            bm25(pages_fts) AS lexical_score
     FROM pages_fts
@@ -933,6 +933,7 @@ export async function semanticSearch(db, queryVector, limit = 10) {
            p.type,
            p.page_kind,
            p.summary,
+           p.updated_at,
            1 - (e.embedding <=> $1::vector) AS semantic_score
     FROM embeddings e
     JOIN pages p ON p.slug = e.page_slug
@@ -946,6 +947,7 @@ export async function semanticSearch(db, queryVector, limit = 10) {
     type: row.type ?? null,
     page_kind: row.page_kind ?? 'canonical',
     summary: row.summary ?? '',
+    updated_at: normalizeTimestampValue(row.updated_at),
     snippet: row.chunk_text.slice(0, 240),
     chunk_id: row.chunk_id,
     chunk_text: row.chunk_text,

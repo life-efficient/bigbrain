@@ -320,8 +320,10 @@ async function semanticSearchLists({ db, config, queries, limit, apiKey }) {
           slug: row.page_slug,
           title: metadata?.title ?? row.page_slug,
           type: metadata?.type ?? null,
+          page_kind: metadata?.page_kind ?? 'canonical',
           summary: metadata?.summary ?? '',
           frontmatter_json: metadata?.frontmatter_json,
+          updated_at: metadata?.updated_at ?? null,
           snippet: row.chunk_text.slice(0, 240),
           chunk_id: row.chunk_id,
           chunk_text: row.chunk_text,
@@ -368,7 +370,9 @@ function fuseRankedLists(lists, limit) {
         if (!existing.summary && row.summary) existing.summary = row.summary;
         if (!existing.title && row.title) existing.title = row.title;
         if (!existing.type && row.type) existing.type = row.type;
+        if (!existing.page_kind && row.page_kind) existing.page_kind = row.page_kind;
         if (!existing.frontmatter_json && row.frontmatter_json) existing.frontmatter_json = row.frontmatter_json;
+        if (!existing.updated_at && row.updated_at) existing.updated_at = row.updated_at;
         if (source === 'semantic' && (!existing.chunk_id || Number(row.semantic_score ?? 0) > Number(existing.semantic_score ?? 0))) {
           existing.chunk_id = row.chunk_id ?? existing.chunk_id ?? null;
           existing.chunk_text = row.chunk_text ?? row.snippet ?? existing.chunk_text ?? '';
@@ -383,8 +387,10 @@ function fuseRankedLists(lists, limit) {
           slug: row.slug,
           title: row.title ?? row.slug,
           type: row.type ?? null,
+          page_kind: row.page_kind ?? 'canonical',
           summary: row.summary ?? '',
           frontmatter_json: row.frontmatter_json,
+          updated_at: row.updated_at ?? null,
           snippet: row.snippet ?? '',
           chunk_id: row.chunk_id ?? null,
           chunk_text: row.chunk_text ?? row.snippet ?? '',
@@ -646,8 +652,10 @@ async function addAliasCandidates({ db, results, query }) {
       slug: page.slug,
       title: page.title ?? page.slug,
       type: page.type ?? null,
+      page_kind: page.page_kind ?? 'canonical',
       summary: page.summary ?? '',
       frontmatter_json: page.frontmatter_json,
+      updated_at: page.updated_at ?? null,
       snippet: page.summary || page.compiled_truth?.slice(0, 240) || '',
       chunk_id: null,
       chunk_text: '',
