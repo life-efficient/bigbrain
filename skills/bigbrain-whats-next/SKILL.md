@@ -1,158 +1,156 @@
 ---
-name: "BigBrain: What's Next"
-version: 1.0.0
-description: |
-  Provide a concise snapshot of what should be done next from in-progress and
-  open BigBrain task pages exposed through the BigBrain MCP task tools. Use when the user
-  asks what's next, wants a short task snapshot, or wants to decide what to
-  work on before optionally fanning out Codex threads with full handoff prompts.
-triggers:
-  - "what's next"
-  - "what is next"
-  - "what should I do next"
-  - "next BigBrain tasks"
-  - "snapshot of what needs to be done"
-  - "what needs to be done next"
-tools:
-  - mcp
-mutating: false
+name: bigbrain-whats-next
+description: Use when the user wants a prioritized task snapshot across all registered BigBrain Brains or a user-requested subset such as their Personal Brain.
 ---
 
 # BigBrain: What's Next
 
-Use this skill when the user wants a short, decision-ready snapshot of active
-and ready BigBrain task pages. BigBrain tasks are page-backed records under
-`tasks/*.md`; do not read or reconstruct old `ops/tasks.md` task lists.
+Build one read-only, decision-ready task snapshot across the requested registered Brains, then retrieve full context only for tasks the user selects.
 
-This skill is related to `bigbrain-fanout-tasks`, but it does not create
-handoff threads by default. It summarizes the next work first, then offers to
-fan out Codex threads if the user wants to start the work.
+## Contract Checklist
 
-If the user answers questions from the input-needed section or provides
-additional task context after a snapshot, treat that as task-enrichment input.
-Do not start executing the task in the same thread unless the user explicitly
-asks you to work on it here. Working on tasks in the same thread where
-`What's Next` ran is an anti-pattern by default; enrich or clarify the task
-record, then wait for an explicit fanout or execution request.
+- Discover Brains from `bigbrain brains list --json`; never hardcode Personal, ICAIRE, Dealmaking, or another Brain list.
+- Query every registered, verified Brain by default. If the user names a Brain, filter the registry before querying tasks.
+- Treat the catalog as discovery only. Verify each Brain through its own live authenticated `about` response, exact Brain ID match, and read capability.
+- Resolve every Brain through its registered `connection.handle`; never substitute Personal Brain for an unavailable Brain.
+- Call `me` and paginated `tasks/summary` through each in-scope Brain.
+- Preserve Brain ID, name, and handle on every normalized task. Rank across Brains without merging similarly titled tasks.
+- Use compact task metadata only for discovery and ranking. Do not fetch bodies, timelines, sources, markdown, attachments, or exact open questions.
+- Continue when one Brain fails, while reporting partial coverage and the concrete reason.
+- Keep the snapshot read-only. Use the owning Brain's `tasks/get` only after the user selects a task for clarification or handoff.
+- Query local TODO files or other non-Brain task sources only when the user explicitly asks.
+
+## Scope And Filters
+
+Use the machine catalog as the Brain registry:
+
+```sh
+bigbrain brains list --json
+```
+
+For a generic request such as “what's next”, “my tasks”, or “what should I do next”, query all verified registered Brains. For an explicit Brain scope such as “what's next in my personal brain”, “what's next in ICAIRE”, or “tasks in Dealmaking”, filter the catalog before live verification and task retrieval.
+
+Match a requested Brain case-insensitively against the full Brain name and its natural short form, or exactly against `brain_id` or `connection.handle`. A phrase such as “personal brain” selects Personal Brain only. If a name matches no registered Brain or is materially ambiguous, show the registered names and ask for the intended scope rather than guessing.
+
+Preserve user-requested task filters across every selected Brain:
+
+- Default assignee: `me`.
+- Default statuses: `in_progress` and `open`.
+- Use a named assignee, status, priority, readiness, or execution mode when requested.
+- Omit the assignee only when the user explicitly asks for all-team, everyone's, or unassigned work.
+- Include waiting, done, or archived tasks only when explicitly requested.
 
 ## Workflow
 
-Use the BigBrain MCP task endpoint as the source of truth:
+1. Resolve scope from the live registry.
+   - Run `bigbrain brains list --json` before querying a task endpoint.
+   - Start with every catalog entry whose verification state is `verified`.
+   - Apply any user-requested Brain filter before resolving MCP tools.
+   - Record the names and count of selected registered Brains for exact coverage reporting.
+   - Include non-Brain task sources only when explicitly requested.
+   - Anti-patterns: hardcoding known Brains, discovering Brains from installed skills, querying the current Brain only, applying the Brain filter after task retrieval
+2. Resolve and verify each Brain independently.
+   - Use `connection.handle` to locate that Brain's `about`, `me`, `tasks/summary`, and later `tasks/get` tools.
+   - If expected tools are hidden, use targeted tool discovery and `$find-missing-tools` before declaring the Brain unavailable.
+   - Call authenticated `about` and require an exact `about.brain_id` match, usable authentication, a valid live profile or manifest, and `capabilities.read: true`.
+   - Do not require write capability for this read-only workflow and do not treat stale catalog timestamps as live authority.
+   - Run independent Brain checks concurrently when the runtime permits.
+   - On a failure, mark only that Brain unavailable and continue.
+   - Anti-patterns: guessing MCP aliases, trusting catalog health as current, accepting an identity mismatch, requiring write access, failing the whole snapshot because one Brain is unavailable
+3. Resolve the authenticated member and task filters.
+   - Call `me` separately through each verified Brain before using `assignee: me`; member slugs can differ between Brains.
+   - Apply the same resolved task filters to every selected Brain.
+   - If `me` fails for one Brain, report that Brain unavailable for personal-task filtering instead of listing everybody's tasks.
+   - Anti-patterns: assuming one member slug works everywhere, silently dropping an assignee filter, changing filters between Brains, including closed work by default
+4. Retrieve every compact summary page.
+   - Call each owning Brain's `tasks/summary` with the resolved filters, `limit: 100`, and the initial cursor accepted by that tool.
+   - Follow `next_cursor` with identical filters until it is null.
+   - Capture only the stable task slug or ID, title, Brain attribution, status, priority, due date, assignee match, readiness, execution mode, `open_questions_state`, open-question count, waiting or blocked state, and update time.
+   - Do not call `tasks/get` during discovery or ranking.
+   - Anti-patterns: stopping after the first page, using full task listings by default, retrieving exact questions before selection, losing Brain attribution
+5. Normalize and rank globally.
+   - Use Brain ID plus task slug as the deduplication key and deterministic tie-breaker.
+   - Prefer `in_progress` work, then higher priority, explicit due dates, and current-user assignment.
+   - Ready work requires `readiness: ready`, `execution_mode: agent` or `interactive`, and `open_questions_state: none`.
+   - Put `open_questions_state: present`, underspecified work, and other input-dependent tasks under `I also need your input on a few tasks:`.
+   - Treat `open_questions_state: missing` as unknown and keep it out of autonomous ready work.
+   - Put `execution_mode: user` under `There are a few things I can't physically help with:`.
+   - Anti-patterns: merging tasks by title across Brains, ranking body prose, treating missing metadata as ready, placing user-only work in the agent-ready list
+6. Report a concise snapshot with exact coverage.
+   - Start with `What's Next` and state `X/Y registered Brains queried` for the selected scope.
+   - Label every task with its owning Brain name, including when only one Brain was requested.
+   - Cap the default ready list at eight items unless the user asks for more.
+   - Omit empty user-action and input-needed sections.
+   - Add `Unavailable Brains` whenever an in-scope registered Brain could not be queried, with the reason and recovery step.
+   - Never claim an all-Brain view when coverage was partial.
+   - Anti-patterns: omitting coverage, hiding unavailable Brains, exposing slugs or technical IDs by default, presenting partial results as complete
+7. Fetch full context only after selection.
+   - Resolve the selected task from its preserved Brain ID, handle, and task slug.
+   - Call `tasks/get` through that exact owning Brain and recheck current status, body, timeline, sources, readiness, execution mode, and exact open questions.
+   - If the user supplies missing context, enrich the owning task through the appropriate BigBrain workflow. Do not treat their answer as permission to execute the task.
+   - For fanout, preserve the selected task's Brain identity through the handoff. Use a compatible Brain-specific fanout workflow when available, or create the handoff directly from the owning Brain's full record.
+   - Never move or duplicate the task into another Brain.
+   - Anti-patterns: prefetching unselected tasks, calling `tasks/get` through the wrong Brain, losing Brain identity during fanout, starting task execution without an explicit request
 
-1. Call `tasks/summary` once by default with
-   `statuses: ["in_progress", "open"]`, `assignee: "me"`, and a bounded
-   `limit`. This compact endpoint is the ranking source and intentionally omits
-   task bodies, timelines, sources, markdown, and exact open-question text.
-2. If `tasks/summary` is not visible, use targeted Codex tool discovery for the
-   BigBrain `tasks/summary` tool before falling back to the legacy full
-   `tasks/list` workflow.
-3. Resolve assignee scope before listing tasks:
-   - For a generic request such as "what's next", and for "my tasks" or
-     "assigned to me", pass `assignee: "me"`.
-   - For "for people/name" or "assigned to people/name", pass that assignee
-     slug.
-   - Omit `assignee` only when the user explicitly asks for all-team,
-     everyone's, or unassigned-across-the-team work.
-   - For a named priority such as `p0`, `p1`, `p2`, or `p3`, pass `priority`.
-   - For named statuses, pass them in `statuses`; otherwise use both defaults.
-4. Use only the returned compact metadata to rank work. Use slugs internally
-   for continuity, but do not normally show them in the snapshot output.
-5. Within the resolved assignee scope, prefer `in_progress` tasks first, then
-   high-priority `open` tasks. Keep `waiting` tasks separate unless the user
-   asks for them.
-6. Preserve the compact Open Questions safety signal:
-   - `open_questions_state: "present"` belongs in the input-needed section even
-     when frontmatter says `readiness: "ready"`.
-   - `open_questions_state: "missing"` is unknown, not equivalent to no open
-     questions; keep it out of autonomous ready work and flag it for review.
-   - `open_questions_state: "none"` may be ranked normally.
-   - Do not fetch full task content during snapshot discovery or ranking.
-7. Classify the remaining tasks with `readiness` and `execution_mode`:
-   - `readiness: "ready"` plus `execution_mode: "agent"` means the task can
-     appear in the normal next-work numbered list and can be fanned out as an
-     autonomous prompt.
-   - `execution_mode: "user"` means the user must personally do the work, even
-     if the task is otherwise ready. Keep these in a separate user-action
-     section.
-   - `execution_mode: "interactive"` means an agent can help only by walking
-     the user through input, review, or decisions. These still belong in the
-     main next-work numbered list and can be fanned out as guided step-by-step
-     prompts.
-   - `readiness: "underspecified"` means the task needs user input before it
-     should be fanned out or treated as an executable handoff.
+## Anti-Patterns
 
-Respond in chat with the snapshot. Do not write the result to a file, do not
-return only a file link, and do not make the user open an artifact to see what
-is next.
+- Maintaining a fixed list of Brains.
+- Treating the current Brain or installed `*-whats-next` skills as the Brain registry.
+- Defaulting a failed specialized Brain query to Personal Brain.
+- Querying all Brains after the user explicitly requested one Brain.
+- Trusting stale catalog authentication or health instead of live `about`.
+- Fetching full task content before selection.
+- Mutating tasks while building the snapshot.
+- Using local TODO discovery by default.
+- Showing task slugs, Brain IDs, handles, or cursors unless requested.
+- Starting work in the snapshot task without explicit execution authorization.
 
-## Output Requirements
+## Output
 
-Default output is capped at 8 numbered items. Keep the snapshot short:
+For the default all-Brain scope:
 
-- Show a `What's Next` section first.
-- This section should contain only tasks with `readiness: "ready"` and
-  `execution_mode: "agent"` or `execution_mode: "interactive"` after the open
-  questions override above.
-- Format ready tasks as a numbered list, not bullets.
-- Each numbered item should lead with a human-readable task title or action, not the
-  task slug. Include priority only when it helps ranking or urgency.
-- Do not include task slugs in the `What's Next` numbered list unless the user
-  explicitly asks for paths/slugs or two tasks would otherwise be ambiguous.
-- Do not format the numbered list as copyable prompt blocks.
-- Do not include boilerplate about reading files, preserving changes,
-  verification, or commits.
-- Only when there are matching `execution_mode: "user"` tasks, append exactly:
-  `There are a few things I can't physically help with:`
-- Under that line, show a numbered list of user-only tasks with the concrete
-  real-world user action required.
-- If there are no matching user-only tasks, omit this heading entirely and do
-  not mention that no such tasks were found.
-- Only when there are matching `readiness: "underspecified"` tasks, or tasks
-  whose body contains substantive open questions, append
-  exactly:
-  `I also need your input on a few tasks:`
-- Under that line, show a numbered list of input-needed tasks. For each task,
-  include indented bullet questions or the missing context required.
-- Make clear that answers to these questions are for clarifying or enriching
-  the task, not for starting execution in this `What's Next` thread.
-- If there are no matching input-needed tasks, omit the input-needed heading
-  entirely and do not mention that no such tasks were found.
-- Name input-needed tasks by human-readable title or action, not slug, unless
-  the user explicitly asks for paths/slugs.
-- Prefer questions from the task page's `## Open Questions` section. If that
-  section is absent or incomplete, add a small number of inferred blocking
-  questions on the spot.
-- Do not include input-needed or user-only tasks in the main `What's Next`
-  numbered list.
-- End by asking whether the user wants Codex threads launched with handoff
-  prompts for the ready agent-executable or interactive tasks.
+```text
+What's Next
+3/3 registered Brains queried
 
-If the user agrees to launch threads or receive prompts, immediately use the
-BigBrain: Fanout Tasks workflow on the same task scope and filters, preserving
-the resolved assignee filter and selected slugs. That workflow must call
-`tasks/get` for each selected task so its full body, timeline, sources, and
-exact open questions are preserved and rechecked before handoff. Do not ask the
-user to repeat the scope.
+1. Run the Batic BD two-week pilot (Personal Brain) - P0, in progress
+2. Prepare the programme standup (ICAIRE Brain) - P1
+3. Review the investor outreach queue (Dealmaking Brain) - P1
 
-If no actionable BigBrain task pages match the requested filters, say that
-directly and offer to run BigBrain: Roadmap Tasks only if the user wants new
-tasks proposed from current brain evidence.
+I also need your input on a few tasks:
+1. Decide the company ownership structure (Personal Brain) - 3 open questions
 
-## Quality Rules
+Would you like Codex tasks launched for any of the ready items?
+```
 
-- Treat MCP task data as authoritative for task status and assignees.
-- Never issue an unscoped `tasks/summary` call by default. Omit `assignee` only
-  when the user explicitly requests an all-team view.
-- Do not call `tasks/get`, `read`, or full `tasks/list` merely to rank or
-  summarize candidates.
-- Do not use local `TODO.md` discovery for this skill.
-- Do not mutate tasks while producing the snapshot.
-- If the user follows up with answers or additional context, use that context
-  to enrich the relevant task record when an update workflow is available; do
-  not treat the answer as permission to start working on the task.
-- Do not create summaries for tasks with `status: "done"` or
-  `status: "archived"` unless the user explicitly asks for those statuses.
-- Do not promote an underspecified task to the ready list just because it sounds
-  important.
-- Keep each numbered item scoped to one task; put multi-task or ambiguous records in
-  the input-needed list rather than guessing hidden subtasks.
+For “what's next in my personal brain”:
+
+```text
+What's Next
+1/1 registered Brains queried: Personal Brain
+
+1. Run the Batic BD two-week pilot (Personal Brain) - P0, in progress
+```
+
+Only when matching user-only tasks exist, add exactly:
+
+```text
+There are a few things I can't physically help with:
+```
+
+Only when input-dependent tasks exist, add exactly:
+
+```text
+I also need your input on a few tasks:
+```
+
+Use compact reason or question-count metadata in the snapshot. Retrieve and show exact questions only after the user selects that task.
+
+If coverage is partial, add:
+
+```text
+Unavailable Brains
+- Dealmaking Brain: authentication failed. Reconnect the registered Dealmaking MCP and rerun.
+```
+
+Do not show task slugs, Brain IDs, MCP handles, cursors, or exact open-question text by default. If no actionable tasks match, say so directly and offer `BigBrain: Roadmap Tasks` only if the user wants new tasks proposed from current Brain evidence.
