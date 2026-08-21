@@ -10,6 +10,11 @@ import { DesktopController, normalizeServiceUrl } from '../../electron/lib/deskt
 import { DisabledManagedInferenceClient, DisabledAuthProvider, DisabledEntitlementProvider, NoopUsageMeter } from '../../electron/lib/access-providers.mjs';
 import { redactSecrets } from '../../electron/lib/keychain.mjs';
 
+test('desktop package includes the local MCP service installer', async () => {
+  const packageJson = JSON.parse(await fs.readFile(new URL('../../package.json', import.meta.url), 'utf8'));
+  assert.ok(packageJson.build.files.includes('scripts/install-local-mcp-service.mjs'));
+});
+
 test('registry persists isolated brains and restores the active brain', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-registry-'));
   const registry = new BrainRegistry({ appSupport: root });

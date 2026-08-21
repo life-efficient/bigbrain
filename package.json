@@ -66,6 +66,7 @@
       "package.json",
       "README.md",
       "schemas/**/*",
+      "scripts/install-local-mcp-service.mjs",
       "src/**/*"
     ],
     "mac": {
