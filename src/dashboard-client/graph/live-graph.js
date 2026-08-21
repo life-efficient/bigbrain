@@ -26,3 +26,9 @@ export function deriveGraphMotion(previousGraph, nextGraph, sourceEvents = []) {
     source_events: sourceEvents.length,
   };
 }
+
+export function graphPayloadsEqual(left, right) {
+  if (left === right) return true;
+  if (!left || !right) return false;
+  return JSON.stringify(left) === JSON.stringify(right);
+}

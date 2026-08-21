@@ -15,7 +15,7 @@ import {
 } from './graph/registry.jsx';
 import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
-import { deriveGraphMotion } from './graph/live-graph.js';
+import { deriveGraphMotion, graphPayloadsEqual } from './graph/live-graph.js';
 import { resolveExplorerLinkPath } from './explorer-links.js';
 import { MarkdownDocument } from './markdown.jsx';
 import { privatePageHrefFromMarkdown, privatePageRouteFromPath } from './page-links.js';
@@ -196,9 +196,11 @@ function DashboardApp() {
         const previousGraph = latestGraphRef.current;
         const motion = deriveGraphMotion(previousGraph, nextGraph, sourceEvents);
         latestGraphRef.current = nextGraph;
-        setState((current) => current.status === 'ready'
-          ? { ...current, data: { ...current.data, graph: nextGraph } }
-          : current);
+        if (!graphPayloadsEqual(previousGraph, nextGraph)) {
+          setState((current) => current.status === 'ready'
+            ? { ...current, data: { ...current.data, graph: nextGraph } }
+            : current);
+        }
         if (animate && motion.changes.length) setGraphMotion(motion);
       } catch {
         // EventSource reconnects automatically; the next ready event heals missed graph state.

@@ -17,7 +17,7 @@ import {
   getVisNetworkLabelSlugs,
   seedVisNetworkNodePosition,
 } from '../../src/dashboard-client/graph/vis-network-data.js';
-import { deriveGraphMotion } from '../../src/dashboard-client/graph/live-graph.js';
+import { deriveGraphMotion, graphPayloadsEqual } from '../../src/dashboard-client/graph/live-graph.js';
 
 test('responsive graph visualizers do not paint letterboxed viewBox backdrops', async () => {
   const sources = await Promise.all([
@@ -150,6 +150,20 @@ test('confirmed graph refreshes identify created and updated pages for live moti
     [],
   );
   assert.deepEqual(linkedOnly.changes, []);
+});
+
+test('unchanged graph refreshes do not restart vis network stabilization', async () => {
+  const graph = {
+    nodes: [{ slug: 'projects/jarvis', updated_at: '2026-08-22T10:00:00Z', degree: 1 }],
+    edges: [],
+    activity: [{ day: '2026-08-22', count: 1 }],
+  };
+  assert.equal(graphPayloadsEqual(graph, structuredClone(graph)), true);
+  assert.equal(graphPayloadsEqual(graph, { ...graph, edges: [{ source: 'a', target: 'b' }] }), false);
+
+  const visualizer = await fs.readFile(new URL('../../src/dashboard-client/graph/vis-network-visualizer.jsx', import.meta.url), 'utf8');
+  assert.match(visualizer, /skipNextGraphSyncRef\.current = true/);
+  assert.match(visualizer, /skipNextActiveSyncRef\.current = true/);
 });
 
 test('vis network focus emphasizes one-hop relationships and mutes the rest', () => {

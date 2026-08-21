@@ -35,6 +35,8 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
   const scheduleLabelsRef = useRef(() => {});
   const overlaySignatureRef = useRef('');
   const graphRef = useRef(graph);
+  const skipNextGraphSyncRef = useRef(false);
+  const skipNextActiveSyncRef = useRef(false);
   const visualSettingsRef = useRef({ colorMode, labelStyle, nodeStyle });
   const activeSlugRef = useRef(activeSlug);
   const [overlayLabels, setOverlayLabels] = useState([]);
@@ -96,6 +98,8 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
     const edges = new DataSet(buildVisNetworkEdges(initialGraph.edges, theme));
     nodeDataRef.current = nodes;
     edgeDataRef.current = edges;
+    skipNextGraphSyncRef.current = true;
+    skipNextActiveSyncRef.current = true;
     nodeTitlesRef.current = new Map(initialGraph.nodes.map((node) => [node.slug, node.title]));
     nodeTypesRef.current = new Map(initialGraph.nodes.map((node) => [node.slug, node.type]));
     baseLabelSlugsRef.current = getVisNetworkLabelSlugs(initialGraph.nodes, visualSettingsRef.current.labelStyle);
@@ -306,6 +310,10 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
     const edgeData = edgeDataRef.current;
     const network = networkRef.current;
     if (!nodeData || !edgeData || !network) return;
+    if (skipNextGraphSyncRef.current) {
+      skipNextGraphSyncRef.current = false;
+      return;
+    }
     nodeTitlesRef.current = new Map(graph.nodes.map((node) => [node.slug, node.title]));
     nodeTypesRef.current = new Map(graph.nodes.map((node) => [node.slug, node.type]));
     baseLabelSlugsRef.current = getVisNetworkLabelSlugs(graph.nodes, labelStyle);
@@ -366,6 +374,10 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
   useEffect(() => {
     const network = networkRef.current;
     if (!network) return;
+    if (skipNextActiveSyncRef.current) {
+      skipNextActiveSyncRef.current = false;
+      return;
+    }
     applyFocusRef.current(activeSlug || hoveredSlugRef.current);
     previousActiveSlugRef.current = activeSlug || null;
     scheduleLabelsRef.current();
