@@ -526,6 +526,7 @@ async function handleMembers(args, global) {
 
 async function handleEval(args, global) {
   const subcommand = args[0];
+  const realBrainApiKey = args.includes('--no-ai') ? null : process.env.OPENAI_API_KEY || null;
   const {
     compareRetrievalEvalModes,
     defaultPrivateRetrievalEvalCasesPath,
@@ -556,6 +557,7 @@ async function handleEval(args, global) {
         config: await loadRuntimeConfig(global),
         cases: casesPath ? await loadRetrievalEvalCases(casesPath) : loadedDefault.cases,
         caseSource: casesPath ? 'external' : 'default-private',
+        apiKey: realBrainApiKey,
         ...common,
       })
       : await runRetrievalEval(common);
@@ -572,6 +574,7 @@ async function handleEval(args, global) {
       config: await loadRuntimeConfig(global),
       cases: cases.cases,
       caseSource: cases.source,
+      apiKey: realBrainApiKey,
       mode: argValue(args, '--mode') || undefined,
       limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : undefined,
       redact: args.includes('--redact'),
@@ -587,6 +590,7 @@ async function handleEval(args, global) {
     const report = await replayRetrievalEvalBaseline({
       config: await loadRuntimeConfig(global),
       baselinePath: against,
+      apiKey: realBrainApiKey,
       mode: argValue(args, '--mode') || null,
       limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : null,
       redact: args.includes('--redact'),
@@ -613,6 +617,7 @@ async function handleEval(args, global) {
         config: await loadRuntimeConfig(global),
         cases: cases.cases,
         caseSource: cases.source,
+        apiKey: realBrainApiKey,
         ...common,
       });
     } else {
@@ -790,10 +795,10 @@ Commands:
   members [--status active|inactive|invited]
   members ensure-local-owner <people/slug> [--name NAME] [--email EMAIL]
   members add <email> <people/slug> [--name NAME] [--role owner|admin|editor|read-only|custom-role] [--status active|inactive|invited]
-  eval retrieval [--mode conservative|balanced|tokenmax] [--limit N] [--cases PATH] [--private] [--redact]
-  eval export [--cases PATH] [--mode MODE] [--limit N] [--redact]
-  eval replay --against baseline.ndjson [--mode MODE] [--limit N]
-  eval compare [--cases PATH] [--modes conservative,balanced,tokenmax] [--markdown]
+  eval retrieval [--mode conservative|balanced|tokenmax] [--limit N] [--cases PATH] [--private] [--redact] [--no-ai]
+  eval export [--cases PATH] [--mode MODE] [--limit N] [--redact] [--no-ai]
+  eval replay --against baseline.ndjson [--mode MODE] [--limit N] [--no-ai]
+  eval compare [--cases PATH] [--modes conservative,balanced,tokenmax] [--markdown] [--no-ai]
   dashboard [--host HOST] [--port N] [--no-open]
   mcp [--host HOST] [--port N]
   connect codex <service-url> [--name NAME] [--auth oauth|token] [--token-stdin]

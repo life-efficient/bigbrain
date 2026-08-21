@@ -381,6 +381,7 @@ Private eval retrieval target.
       'retrieval',
       '--cases',
       casesPath,
+      '--no-ai',
       '--json',
     ], { cwd: process.cwd() });
     assert.equal(result.code, 0, result.stderr);
@@ -388,6 +389,78 @@ Private eval retrieval target.
     assert.equal(report.case_source, 'external');
     assert.equal(report.metrics.hit_at_1, 1);
     assert.equal(report.results[0].expected_slug, 'people/private-eval');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('real-brain retrieval evals use configured API access and support an explicit no-ai baseline', async () => {
+  const fixture = await createFixture('bigbrain-private-eval-api-access-');
+  const fakeKey = 'sk-test-eval-api-access-do-not-print';
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/api-access.md', `---
+title: API Access
+---
+# API Access
+
+Private eval API access target.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const casesPath = path.join(fixture.rootDir, 'private-cases.jsonl');
+    await fs.writeFile(casesPath, `# private corpus\n${JSON.stringify({
+      id: 'api-access-target',
+      query: 'API Access',
+      expected_slug: 'people/api-access',
+    })}\n`, 'utf8');
+
+    const withAccess = await runNode([
+      './bin/bigbrain.js',
+      '--config',
+      fixture.configPath,
+      'eval',
+      'retrieval',
+      '--cases',
+      casesPath,
+      '--mode',
+      'conservative',
+      '--json',
+    ], { cwd: process.cwd(), env: { OPENAI_API_KEY: fakeKey } });
+    assert.equal(withAccess.code, 0, withAccess.stderr);
+    const withAccessReport = JSON.parse(withAccess.stdout);
+    assert.match(withAccessReport.warnings.join('\n'), /index has no embeddings/);
+    assert.doesNotMatch(withAccessReport.warnings.join('\n'), /OPENAI_API_KEY is not set/);
+    assert.doesNotMatch(`${withAccess.stdout}\n${withAccess.stderr}`, new RegExp(fakeKey));
+
+    const withoutAccess = await runNode([
+      './bin/bigbrain.js',
+      '--config',
+      fixture.configPath,
+      'eval',
+      'retrieval',
+      '--cases',
+      casesPath,
+      '--mode',
+      'conservative',
+      '--no-ai',
+      '--json',
+    ], { cwd: process.cwd(), env: { OPENAI_API_KEY: fakeKey } });
+    assert.equal(withoutAccess.code, 0, withoutAccess.stderr);
+    const withoutAccessReport = JSON.parse(withoutAccess.stdout);
+    assert.match(withoutAccessReport.warnings.join('\n'), /OPENAI_API_KEY is not set/);
+
+    const synthetic = await runNode([
+      './bin/bigbrain.js',
+      'eval',
+      'retrieval',
+      '--mode',
+      'conservative',
+      '--json',
+    ], { cwd: process.cwd(), env: { OPENAI_API_KEY: fakeKey } });
+    assert.equal(synthetic.code, 0, synthetic.stderr);
+    const syntheticReport = JSON.parse(synthetic.stdout);
+    assert.match(syntheticReport.warnings.join('\n'), /OPENAI_API_KEY is not set/);
+    assert.doesNotMatch(`${synthetic.stdout}\n${synthetic.stderr}`, new RegExp(fakeKey));
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -464,6 +537,7 @@ Private eval retrieval target decoy.
       'eval',
       'retrieval',
       '--private',
+      '--no-ai',
       '--redact',
       '--json',
     ], { cwd: process.cwd(), env });
@@ -480,6 +554,7 @@ Private eval retrieval target decoy.
       fixture.configPath,
       'eval',
       'export',
+      '--no-ai',
     ], { cwd: process.cwd(), env });
     assert.equal(exported.code, 0, exported.stderr);
     const baselinePath = path.join(fixture.rootDir, 'baseline.ndjson');
@@ -496,6 +571,7 @@ Private eval retrieval target decoy.
       'replay',
       '--against',
       baselinePath,
+      '--no-ai',
       '--json',
     ], { cwd: process.cwd(), env });
     assert.equal(replay.code, 0, replay.stderr);
@@ -510,6 +586,7 @@ Private eval retrieval target decoy.
       'eval',
       'compare',
       '--private',
+      '--no-ai',
       '--modes',
       'conservative',
       '--markdown',

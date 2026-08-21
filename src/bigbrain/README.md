@@ -133,6 +133,11 @@ warn by default; `--fail-on-private-regression` promotes private gate failures
 to command failures. `--redact` removes query text and replaces slugs with
 opaque stable IDs in reports.
 
+Private real-brain evals use the configured `OPENAI_API_KEY` for semantic
+retrieval, reranking, and query expansion where the selected mode enables them.
+Pass `--no-ai` only when an intentionally lexical, deterministic baseline is
+required. The built-in synthetic fixture remains key-free by default.
+
 Baseline replay and mode comparison are available through:
 
 ```bash
