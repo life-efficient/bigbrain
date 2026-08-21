@@ -3,6 +3,7 @@ const net = require("net");
 const path = require("path");
 const { pathToFileURL } = require("url");
 const { dashboardPartition, dashboardViewBounds, isAllowedDashboardNavigation } = require("./lib/dashboard-view-policy.cjs");
+const { waitForDashboardReady } = require("./lib/dashboard-readiness.cjs");
 
 const APP_DISPLAY_NAME = "BigBrain";
 const LOCAL_HOST = "127.0.0.1";
@@ -27,6 +28,7 @@ let pendingLoadFailureMessage = "The dashboard did not finish loading.";
 let loadFailureActive = false;
 let desktopController = null;
 let desktopUpdater = null;
+let managedServiceReconciliationPromise = Promise.resolve();
 let promptedUpdateVersion = null;
 let localServiceUpdateState = { phase: "idle", message: "Local MCP services are checked after launch." };
 const connectedDashboardOrigins = new Set();
@@ -63,8 +65,8 @@ if (!singleInstanceLock) {
       registerUpdateIpc();
       createAppMenu();
       createMainWindow();
+      managedServiceReconciliationPromise = startManagedServiceReconciliation();
       desktopUpdater.start();
-      void startManagedServiceReconciliation();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       dialog.showErrorBox("BigBrain failed to start", message);
@@ -555,6 +557,10 @@ async function ensureDesktopShell() {
 async function loadBrainDashboard(brain) {
   if (!brain?.dashboardUrl) throw new Error("This brain does not expose a dashboard.");
   rememberConnectedDashboardOrigins(brain);
+  if (brain.connectionType !== "service") {
+    await managedServiceReconciliationPromise;
+    await waitForDashboardReady(brain.dashboardUrl);
+  }
   await loadDashboardViewUrl(brain.dashboardUrl, brain.id);
 }
 
@@ -563,10 +569,11 @@ async function loadDashboardViewUrl(url, brainId) {
   activeDashboardOrigin = new URL(url).origin;
   const view = ensureDashboardView(brainId);
   layoutDashboardView();
-  setDashboardViewVisible(true);
+  setDashboardViewVisible(false);
   try {
     await view.webContents.loadURL(url);
     rendererRecoveryAttempts = 0;
+    setDashboardViewVisible(true);
   } catch (error) {
     setDashboardViewVisible(false);
     throw error;

@@ -246,10 +246,15 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(mainSource, /mainWindow\.webContents\.send\("desktop:dashboard-visibility", visible\)/);
   assert.match(mainSource, /sandbox: true/);
   assert.match(mainSource, /await loadBrainDashboard\(brain\)/);
-  assert.match(mainSource, /layoutDashboardView\(\);\s+setDashboardViewVisible\(true\);/);
+  assert.match(mainSource, /await managedServiceReconciliationPromise;\s+await waitForDashboardReady\(brain\.dashboardUrl\);/);
+  assert.match(mainSource, /layoutDashboardView\(\);\s+setDashboardViewVisible\(false\);[\s\S]*await view\.webContents\.loadURL\(url\);[\s\S]*setDashboardViewVisible\(true\);/);
   assert.match(mainSource, /catch \(error\) \{\s+setDashboardViewVisible\(false\);/);
   assert.doesNotMatch(mainSource, /mainWindow\.loadURL\(brain\.dashboardUrl\)/);
   assert.match(desktopSource, /await api\.openBrain\(brain\.id\)/);
+  assert.match(desktopSource, /Starting BigBrain/);
+  assert.match(desktopSource, /id="retry-open"/);
+  const startupHandler = desktopSource.match(/async function showActiveBrain\(\)\{[\s\S]*?\nfunction escapeHtml/)?.[0] || '';
+  assert.doesNotMatch(startupHandler, /escapeHtml\(e\.message\)/);
   assert.doesNotMatch(desktopSource, /<iframe/);
   assert.match(dashboardPreloadSource, /document\.querySelector\('\.topline-brand'\)/);
   assert.match(dashboardPreloadSource, /document\.querySelector\('\.topline-actions'\)/);

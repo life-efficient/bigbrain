@@ -13,6 +13,7 @@ debug surfaces.
   descriptions, tabs, or action buttons. Skeletonize only the unknown value.
 - Use route-level skeletons for panels, cards, tables, counts, and lists while
   live data resolves.
+- When the desktop opens a local Brain, keep the shell visible with a neutral startup status while managed-service reconciliation completes and `/ready` becomes healthy. Retry transient connection refusals automatically, reveal the dashboard view only after navigation succeeds, and never present a routine startup race as a raw error or blank surface.
 
 ## Brain Profiles
 
