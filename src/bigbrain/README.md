@@ -115,7 +115,7 @@ The built-in `bigbrain eval retrieval` suite uses synthetic fixtures and covers:
 - `graph-relationship`
 - `hard-negative`
 
-The report includes Hit@1, Hit@3, MRR, recall@k, hard-negative cleanliness,
+The report includes Hit@1, Hit@3, Hit@5, MRR, recall@k, hard-negative cleanliness,
 per-family summaries, gates, warnings, and a single metric glossary block in
 JSON output.
 

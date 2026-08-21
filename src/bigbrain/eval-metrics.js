@@ -1,6 +1,7 @@
 export const METRIC_GLOSSARY = Object.freeze({
   hit_at_1: 'Share of cases where a relevant source is ranked first.',
   hit_at_3: 'Share of cases where a relevant source appears in the top three results.',
+  hit_at_5: 'Share of cases where a relevant source appears in the top five results.',
   mrr: 'Mean reciprocal rank of the first relevant source; higher means relevant sources appear earlier.',
   recall_at_k: 'Share of relevant sources returned within the requested result limit.',
   negative_clean_rate: 'Share of hard-negative cases where forbidden sources do not appear.',

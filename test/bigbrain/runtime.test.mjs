@@ -11,6 +11,7 @@ import { configPathForBrainHome, initializeBrainHome, loadConfig, loadUserEnv, m
 import { getHostedBrainGitState, openDatabase } from '../../src/bigbrain/db.js';
 import { filingRulesForBrain } from '../../src/bigbrain/filing-rules.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
+import { loadRetrievalEvalCases } from '../../src/bigbrain/eval-retrieval.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
 import { boostResultsForQuery, classifyQueryIntent, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
 import { renderSchemaMarkdown, recommendFolderForInput } from '../../src/bigbrain/schema.js';
@@ -345,6 +346,7 @@ test('CLI runs deterministic retrieval evals', async () => {
   assert.equal(report.mode, 'conservative');
   assert.equal(report.case_count >= 8, true);
   assert.equal(report.metrics.hit_at_1, report.case_count);
+  assert.equal(report.metrics.hit_at_5, report.case_count);
   assert.equal(report.gates.passed, true);
   assert.equal(report.family_metrics['alias-synonym'].hit_at_1, 2);
   assert.equal(typeof report._meta.metric_glossary.mrr, 'string');
@@ -388,6 +390,30 @@ Private eval retrieval target.
     assert.equal(report.results[0].expected_slug, 'people/private-eval');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('private retrieval eval cases reject duplicate ids and contradictory labels', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-private-eval-validation-'));
+  try {
+    const duplicatePath = path.join(rootDir, 'duplicate.jsonl');
+    await fs.writeFile(duplicatePath, [
+      JSON.stringify({ id: 'same-case', query: 'one', expected_slug: 'people/one' }),
+      JSON.stringify({ id: 'same-case', query: 'two', expected_slug: 'people/two' }),
+      '',
+    ].join('\n'), 'utf8');
+    await assert.rejects(loadRetrievalEvalCases(duplicatePath), /Duplicate retrieval eval case id/);
+
+    const contradictoryPath = path.join(rootDir, 'contradictory.jsonl');
+    await fs.writeFile(contradictoryPath, `# private corpus\n${JSON.stringify({
+      id: 'contradictory-case',
+      query: 'contradictory',
+      relevant_slugs: ['people/one'],
+      forbidden_slugs: ['people/one'],
+    })}\n`, 'utf8');
+    await assert.rejects(loadRetrievalEvalCases(contradictoryPath), /both relevant and forbidden/);
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
   }
 });
 
@@ -489,7 +515,7 @@ Private eval retrieval target decoy.
       '--markdown',
     ], { cwd: process.cwd(), env });
     assert.equal(compare.code, 0, compare.stderr);
-    assert.match(compare.stdout, /\| Mode \| Hit@1 \| Hit@3 \| MRR \| Recall@k \| Gates \|/);
+    assert.match(compare.stdout, /\| Mode \| Hit@1 \| Hit@3 \| Hit@5 \| MRR \| Recall@k \| Gates \|/);
     assert.match(compare.stdout, /\| conservative \|/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

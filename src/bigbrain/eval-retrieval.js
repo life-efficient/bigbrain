@@ -514,20 +514,21 @@ export function renderRetrievalCompareText(report, { markdown = false } = {}) {
     mode,
     hit1: value.metrics.hit_at_1_rate,
     hit3: value.metrics.hit_at_3_rate,
+    hit5: value.metrics.hit_at_5_rate,
     mrr: value.metrics.mrr,
     recall: value.metrics.recall_at_k,
     gates: value.gates.passed ? 'PASS' : 'FAIL',
   }));
   if (markdown) {
     return [
-      '| Mode | Hit@1 | Hit@3 | MRR | Recall@k | Gates |',
-      '| --- | ---: | ---: | ---: | ---: | --- |',
-      ...rows.map((row) => `| ${row.mode} | ${formatPct(row.hit1)} | ${formatPct(row.hit3)} | ${formatNumber(row.mrr)} | ${formatPct(row.recall)} | ${row.gates} |`),
+      '| Mode | Hit@1 | Hit@3 | Hit@5 | MRR | Recall@k | Gates |',
+      '| --- | ---: | ---: | ---: | ---: | ---: | --- |',
+      ...rows.map((row) => `| ${row.mode} | ${formatPct(row.hit1)} | ${formatPct(row.hit3)} | ${formatPct(row.hit5)} | ${formatNumber(row.mrr)} | ${formatPct(row.recall)} | ${row.gates} |`),
     ].join('\n');
   }
   return [
     `Retrieval compare (limit ${report.limit})`,
-    ...rows.map((row) => `${row.mode}: Hit@1 ${formatPct(row.hit1)}, Hit@3 ${formatPct(row.hit3)}, MRR ${formatNumber(row.mrr)}, Recall@k ${formatPct(row.recall)}, Gates ${row.gates}`),
+    ...rows.map((row) => `${row.mode}: Hit@1 ${formatPct(row.hit1)}, Hit@3 ${formatPct(row.hit3)}, Hit@5 ${formatPct(row.hit5)}, MRR ${formatNumber(row.mrr)}, Recall@k ${formatPct(row.recall)}, Gates ${row.gates}`),
   ].join('\n');
 }
 
@@ -556,6 +557,7 @@ function scoreCase({ testCase, search, latencyMs, redact }) {
     reciprocal_rank: bestRank >= 0 ? 1 / (bestRank + 1) : 0,
     hit_at_1: bestRank === 0,
     hit_at_3: bestRank >= 0 && bestRank < 3,
+    hit_at_5: bestRank >= 0 && bestRank < 5,
     recall_at_k: relevantSlugs.length ? recallHits / relevantSlugs.length : 0,
     negative_clean: negativeClean,
     passed: bestRank >= 0 && negativeClean !== false,
@@ -588,7 +590,7 @@ function buildEvalReport({ mode, limit, results, caseSource = 'fixture', failOnR
     redacted: redact,
     results,
     _meta: {
-      metric_glossary: metricGlossary(['hit_at_1', 'hit_at_3', 'mrr', 'recall_at_k', 'negative_clean_rate']),
+      metric_glossary: metricGlossary(['hit_at_1', 'hit_at_3', 'hit_at_5', 'mrr', 'recall_at_k', 'negative_clean_rate']),
     },
   };
 }
@@ -596,6 +598,7 @@ function buildEvalReport({ mode, limit, results, caseSource = 'fixture', failOnR
 function summarizeResults(results) {
   const hitAt1 = results.filter((result) => result.hit_at_1).length;
   const hitAt3 = results.filter((result) => result.hit_at_3).length;
+  const hitAt5 = results.filter((result) => result.hit_at_5).length;
   const negativeCases = results.filter((result) => result.negative_clean !== null);
   const negativeClean = negativeCases.filter((result) => result.negative_clean).length;
   return {
@@ -603,6 +606,8 @@ function summarizeResults(results) {
     hit_at_1_rate: rate(results, (result) => result.hit_at_1),
     hit_at_3: hitAt3,
     hit_at_3_rate: rate(results, (result) => result.hit_at_3),
+    hit_at_5: hitAt5,
+    hit_at_5_rate: rate(results, (result) => result.hit_at_5),
     mrr: mean(results.map((result) => result.reciprocal_rank)),
     recall_at_k: mean(results.map((result) => result.recall_at_k)),
     negative_case_count: negativeCases.length,
@@ -653,19 +658,25 @@ function gateFailures(familyMetrics, gates) {
 
 function validateCases(cases) {
   if (!Array.isArray(cases) || cases.length === 0) throw new Error('Retrieval eval requires at least one case.');
+  const ids = new Set();
   return cases.map((testCase, index) => {
     if (!testCase || typeof testCase !== 'object') throw new Error(`Invalid retrieval eval case at index ${index}.`);
     const id = typeof testCase.id === 'string' && testCase.id.trim() ? testCase.id.trim() : `case-${index + 1}`;
+    if (ids.has(id)) throw new Error(`Duplicate retrieval eval case id: ${id}.`);
+    ids.add(id);
     const query = requireCaseString(testCase.query, `case ${id} query`);
     const expectedSlug = optionalCaseString(testCase.expected_slug);
-    const acceptableSlugs = stringArray(testCase.acceptable_slugs);
-    const relevantSlugs = stringArray(testCase.relevant_slugs);
+    const acceptableSlugs = uniqueStrings(testCase.acceptable_slugs);
+    const relevantSlugs = uniqueStrings(testCase.relevant_slugs);
     const finalRelevantSlugs = relevantSlugs.length
       ? relevantSlugs
       : [expectedSlug, ...acceptableSlugs].filter(Boolean);
     if (!expectedSlug && finalRelevantSlugs.length === 0) {
       throw new Error(`Missing case ${id} expected_slug or relevant_slugs.`);
     }
+    const forbiddenSlugs = uniqueStrings(testCase.forbidden_slugs);
+    const overlap = finalRelevantSlugs.filter((slug) => forbiddenSlugs.includes(slug));
+    if (overlap.length) throw new Error(`Retrieval eval case ${id} marks slug(s) as both relevant and forbidden: ${overlap.join(', ')}.`);
     const family = optionalCaseString(testCase.family) || 'default';
     return {
       id,
@@ -674,7 +685,7 @@ function validateCases(cases) {
       expected_slug: expectedSlug || finalRelevantSlugs[0],
       acceptable_slugs: acceptableSlugs,
       relevant_slugs: finalRelevantSlugs,
-      forbidden_slugs: stringArray(testCase.forbidden_slugs),
+      forbidden_slugs: forbiddenSlugs,
       notes: optionalCaseString(testCase.notes) || null,
       metadata: testCase.metadata && typeof testCase.metadata === 'object' ? testCase.metadata : {},
     };
@@ -705,6 +716,10 @@ function stringArray(value) {
   return Array.isArray(value)
     ? value.filter((item) => typeof item === 'string' && item.trim()).map((item) => item.trim())
     : [];
+}
+
+function uniqueStrings(value) {
+  return [...new Set(stringArray(value))];
 }
 
 function jaccardAtK(left, right, k) {
