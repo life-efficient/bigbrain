@@ -478,6 +478,7 @@ export async function compareRetrievalEvalModes({
     case_source: caseSource,
     modes: Object.fromEntries(reports.map((report) => [report.mode, {
       metrics: report.metrics,
+      confidence_intervals: endpointHitConfidenceIntervals(report),
       family_metrics: report.family_metrics,
       gates: report.gates,
       warnings: report.warnings,
@@ -499,9 +500,16 @@ export async function compareRetrievalEvalArms({
   caseSource = 'external',
   failOnRegression = false,
   redact = false,
+  referenceArm = null,
 } = {}) {
   const normalizedArms = [...new Set(arms.map(normalizeRetrievalAblationArm))];
   if (!normalizedArms.length) throw new Error('Retrieval arm comparison requires at least one arm.');
+  const normalizedReferenceArm = referenceArm
+    ? normalizeRetrievalAblationArm(referenceArm)
+    : normalizedArms.includes('hybrid-fusion') ? 'hybrid-fusion' : normalizedArms[0];
+  if (!normalizedArms.includes(normalizedReferenceArm)) {
+    throw new Error(`Retrieval comparison reference arm ${normalizedReferenceArm} is not present in the requested arms.`);
+  }
   const reports = [];
   for (const arm of normalizedArms) {
     reports.push(await runRetrievalEvalOnConfig({
@@ -516,6 +524,7 @@ export async function compareRetrievalEvalArms({
       redact,
     }));
   }
+  const referenceReport = reports.find((report) => report.arm === normalizedReferenceArm);
   return {
     schema_version: 1,
     suite: 'retrieval',
@@ -523,17 +532,110 @@ export async function compareRetrievalEvalArms({
     mode,
     limit,
     case_source: caseSource,
+    reference_arm: normalizedReferenceArm,
     arms: Object.fromEntries(reports.map((report) => [report.arm, {
       metrics: report.metrics,
+      confidence_intervals: endpointHitConfidenceIntervals(report),
       family_metrics: report.family_metrics,
       gates: report.gates,
       warnings: report.warnings,
     }])),
+    paired_comparisons: Object.fromEntries(reports
+      .filter((report) => report.arm !== normalizedReferenceArm)
+      .map((report) => [report.arm, pairedEndpointHitComparison({ referenceReport, candidateReport: report })])),
     reports,
     _meta: {
       metric_glossary: metricGlossary(),
     },
   };
+}
+
+function endpointHitConfidenceIntervals(report) {
+  return {
+    endpoint_hit_at_1_rate: wilson95ConfidenceInterval(report.metrics.endpoint_hit_at_1, report.case_count),
+    endpoint_hit_at_3_rate: wilson95ConfidenceInterval(report.metrics.endpoint_hit_at_3, report.case_count),
+    endpoint_hit_at_5_rate: wilson95ConfidenceInterval(report.metrics.endpoint_hit_at_5, report.case_count),
+  };
+}
+
+export function wilson95ConfidenceInterval(successes, total) {
+  const count = Number(successes);
+  const sampleSize = Number(total);
+  if (!Number.isInteger(count) || !Number.isInteger(sampleSize) || count < 0 || sampleSize < 0 || count > sampleSize) {
+    throw new Error('Wilson interval requires integer successes between zero and the integer sample size.');
+  }
+  if (sampleSize === 0) {
+    return { method: 'wilson', confidence_level: 0.95, lower: null, upper: null };
+  }
+  const z = 1.959963984540054;
+  const zSquared = z ** 2;
+  const proportion = count / sampleSize;
+  const denominator = 1 + (zSquared / sampleSize);
+  const center = (proportion + (zSquared / (2 * sampleSize))) / denominator;
+  const margin = (z / denominator) * Math.sqrt(
+    (proportion * (1 - proportion) / sampleSize) + (zSquared / (4 * sampleSize ** 2)),
+  );
+  return {
+    method: 'wilson',
+    confidence_level: 0.95,
+    lower: Math.max(0, center - margin),
+    upper: Math.min(1, center + margin),
+  };
+}
+
+export function pairedEndpointHitComparison({ referenceReport, candidateReport }) {
+  const referenceById = new Map(referenceReport.results.map((result) => [result.id, result]));
+  const candidateIds = new Set(candidateReport.results.map((result) => result.id));
+  if (referenceById.size !== candidateIds.size || [...referenceById.keys()].some((id) => !candidateIds.has(id))) {
+    throw new Error('Paired retrieval comparison requires identical case ids in both reports.');
+  }
+  return {
+    reference_arm: referenceReport.arm,
+    candidate_arm: candidateReport.arm,
+    case_count: candidateReport.results.length,
+    endpoint_hit_at_1: pairedBinaryMetric(referenceById, candidateReport.results, 'endpoint_hit_at_1'),
+    endpoint_hit_at_5: pairedBinaryMetric(referenceById, candidateReport.results, 'endpoint_hit_at_5'),
+  };
+}
+
+function pairedBinaryMetric(referenceById, candidateResults, field) {
+  let wins = 0;
+  let losses = 0;
+  let ties = 0;
+  for (const candidate of candidateResults) {
+    const reference = referenceById.get(candidate.id);
+    const referenceHit = Boolean(reference[field]);
+    const candidateHit = Boolean(candidate[field]);
+    if (candidateHit && !referenceHit) wins += 1;
+    else if (!candidateHit && referenceHit) losses += 1;
+    else ties += 1;
+  }
+  const total = candidateResults.length;
+  return {
+    wins,
+    losses,
+    ties,
+    delta: total ? (wins - losses) / total : 0,
+    exact_two_sided_mcnemar_p_value: exactTwoSidedMcNemarPValue(wins, losses),
+  };
+}
+
+export function exactTwoSidedMcNemarPValue(wins, losses) {
+  const positive = Number(wins);
+  const negative = Number(losses);
+  if (!Number.isInteger(positive) || !Number.isInteger(negative) || positive < 0 || negative < 0) {
+    throw new Error('Exact McNemar calculation requires non-negative integer discordant counts.');
+  }
+  const discordant = positive + negative;
+  if (discordant === 0) return 1;
+  const tailEnd = Math.min(positive, negative);
+  let logProbability = -discordant * Math.log(2);
+  let tailProbability = Math.exp(logProbability);
+  for (let value = 1; value <= tailEnd; value += 1) {
+    logProbability += Math.log(discordant - value + 1) - Math.log(value);
+    tailProbability += Math.exp(logProbability);
+  }
+  return Math.min(1, 2 * tailProbability);
 }
 
 export function renderRetrievalEvalText(report) {

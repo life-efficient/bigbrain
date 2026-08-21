@@ -5,10 +5,13 @@ import path from 'node:path';
 import test from 'node:test';
 
 import {
+  exactTwoSidedMcNemarPValue,
   loadRetrievalEvalCases,
+  pairedEndpointHitComparison,
   scoreRetrievalEvalCase,
   summarizeRetrievalEvalResults,
   validateRetrievalEvalCases,
+  wilson95ConfidenceInterval,
 } from '../../src/bigbrain/eval-retrieval.js';
 
 test('v2 labels normalize without changing legacy relevant slug behavior', async () => {
@@ -255,4 +258,65 @@ test('redaction covers all v2 slug labels and nested source groups', () => {
   assert.match(result.distractor_hits[0], /^slug-/);
   assert.match(result.required_source_groups[0][0], /^slug-/);
   assert.equal(JSON.stringify(result).includes('private-support'), false);
+});
+
+test('Wilson intervals are deterministic for endpoint hit rates', () => {
+  const interval = wilson95ConfidenceInterval(2, 4);
+  assert.equal(interval.method, 'wilson');
+  assert.equal(interval.confidence_level, 0.95);
+  assert.ok(Math.abs(interval.lower - 0.15003898915214947) < 1e-12);
+  assert.ok(Math.abs(interval.upper - 0.8499610108478506) < 1e-12);
+  assert.deepEqual(wilson95ConfidenceInterval(0, 0), {
+    method: 'wilson',
+    confidence_level: 0.95,
+    lower: null,
+    upper: null,
+  });
+  assert.throws(() => wilson95ConfidenceInterval(5, 4), /integer successes/);
+});
+
+test('paired endpoint comparisons use case ids and exact two-sided McNemar p-values', () => {
+  const referenceReport = {
+    arm: 'hybrid-fusion',
+    results: [
+      { id: 'a', endpoint_hit_at_1: true, endpoint_hit_at_5: true },
+      { id: 'b', endpoint_hit_at_1: false, endpoint_hit_at_5: true },
+      { id: 'c', endpoint_hit_at_1: true, endpoint_hit_at_5: false },
+      { id: 'd', endpoint_hit_at_1: false, endpoint_hit_at_5: false },
+    ],
+  };
+  const candidateReport = {
+    arm: 'hybrid-reranked',
+    results: [
+      { id: 'd', endpoint_hit_at_1: false, endpoint_hit_at_5: false },
+      { id: 'c', endpoint_hit_at_1: false, endpoint_hit_at_5: true },
+      { id: 'b', endpoint_hit_at_1: true, endpoint_hit_at_5: false },
+      { id: 'a', endpoint_hit_at_1: true, endpoint_hit_at_5: true },
+    ],
+  };
+
+  const comparison = pairedEndpointHitComparison({ referenceReport, candidateReport });
+  assert.deepEqual(comparison.endpoint_hit_at_1, {
+    wins: 1,
+    losses: 1,
+    ties: 2,
+    delta: 0,
+    exact_two_sided_mcnemar_p_value: 1,
+  });
+  assert.deepEqual(comparison.endpoint_hit_at_5, {
+    wins: 1,
+    losses: 1,
+    ties: 2,
+    delta: 0,
+    exact_two_sided_mcnemar_p_value: 1,
+  });
+  assert.equal(exactTwoSidedMcNemarPValue(4, 0), 0.125);
+  assert.equal(exactTwoSidedMcNemarPValue(0, 0), 1);
+  assert.throws(
+    () => pairedEndpointHitComparison({
+      referenceReport,
+      candidateReport: { arm: 'semantic-only', results: [{ id: 'different' }] },
+    }),
+    /identical case ids/,
+  );
 });
