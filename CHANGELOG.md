@@ -3,6 +3,87 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining device and server installations.
 
+## [0.20.0] - 2026-08-22
+
+### Added
+
+- Added a fast deterministic Network graph renderer that uses relationship
+  communities, recognizable branches and satellite components, and a dedicated
+  outer rim for unlinked pages without runtime physics.
+- Added an Icon node style using semantic Lucide icons for canonical and legacy
+  BigBrain page types. Custom schema types receive a stable fallback icon, and
+  Updated, Type, and None colour modes continue to operate independently.
+- Added confirmed graph-write events and dashboard refresh support so graph
+  changes can appear after successful MCP page and task mutations.
+- Added a secure local MCP HTTP-to-stdio credential bridge for token-authenticated
+  Codex connections. The bridge reads protected per-connection credentials at
+  request time, supports token rotation without inherited GUI environment
+  variables, and is included in desktop packages.
+- Added Hit@5 to retrieval evaluation metrics and enabled configured semantic
+  retrieval, reranking, and query expansion for private real-Brain evaluations.
+
+### Changed
+
+- Removed Vis Network from the selectable graph renderers. Saved Vis Network
+  preferences migrate automatically to Network, while node, arc, colour, and
+  label controls remain available through the shared responsive viewport.
+- The BigBrain What's Next skill now gathers tasks across all registered Brains
+  by default, while retaining explicit named-Brain scoping.
+- Media ingest now applies stricter YouTube title and channel naming and clearer
+  source exposition.
+- Private real-Brain evaluation uses the configured `OPENAI_API_KEY` by default;
+  `--no-ai` provides an intentional lexical-only baseline. Synthetic fixtures
+  remain deterministic and key-free.
+
+### Fixed
+
+- Allowed SQLite-backed services to wait for transient writers instead of
+  failing immediately on short-lived database locks.
+- Restored Granola ledger decision recording when a previously discovered route
+  exists but has not yet received a routing decision.
+- Prevented graph refreshes and visual option changes from repeatedly restarting
+  expensive layout work.
+- Migrated matching legacy bearer-token Codex registrations safely to the local
+  credential bridge while protecting conflicting registrations.
+
+### Agent update actions
+
+- Source installs: update to `v0.20.0`, run `npm install` and `npm link`, then
+  restart every BigBrain dashboard, MCP service, and desktop app so the rebuilt
+  graph client, Lucide dependency, credential bridge, and SQLite timeout are
+  loaded.
+- Refresh the installed `bigbrain-whats-next` and `bigbrain-media-ingest` skills.
+  Verify What's Next can enumerate registered Brains before listing tasks, and
+  preserve the media-ingest source naming and provenance rules.
+- Token-authenticated Codex connections may be re-run with
+  `bigbrain connect codex <service-url> --auth token --token-stdin`. Matching
+  legacy BigBrain bearer registrations migrate to the secure stdio bridge; open
+  a fresh Codex task and verify the authenticated Brain identity and tool list.
+- Desktop installs: install and restart BigBrain `v0.20.0`. Verify Network is
+  selected for any saved Vis Network preference, Icon appears under Node, and
+  Updated, Type, and None colour modes tint or neutralize icons as expected.
+- Server deployments: deploy or pin `ghcr.io/life-efficient/bigbrain:0.20.0` by
+  digest, preserve database and Brain volumes, restart, and verify `/live`,
+  `/ready`, authenticated MCP tool listing, and owning-MCP read-back.
+- No Brain pages, task paths or persisted task fields, filing rules, database
+  schemas or rows, routing-ledger schemas, member roles, OAuth records, API keys,
+  registry identities, default-Brain pointers, or `BRAIN.md` profiles require
+  migration. Run `bigbrain sync --json`, `bigbrain health --json`, `npm test`,
+  and `npm pack --dry-run` after upgrading.
+
+### Verification
+
+- Full `npm test` suite
+- Dashboard production build and rendered Network/Icon checks across Type and
+  None colour modes
+- Deterministic graph-coordinate, schema-icon coverage, and custom-icon fallback
+  regressions
+- Token bridge registration, migration, credential rotation, and request
+  forwarding regressions
+- Granola ledger decision recovery and SQLite writer-wait regressions
+- Local-data compatibility diff against `v0.19.2`
+- `npm pack --dry-run`
+
 ## [0.19.2] - 2026-08-17
 
 ### Added
