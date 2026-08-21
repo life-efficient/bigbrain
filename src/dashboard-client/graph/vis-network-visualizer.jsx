@@ -114,6 +114,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
         autoResize: true,
         interaction: {
           hover: true,
+          hideEdgesOnZoom: true,
           navigationButtons: false,
           selectConnectedEdges: false,
           hoverConnectedEdges: false,
@@ -173,6 +174,8 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
     let pointerFrame = 0;
     let pendingPointer = null;
     let bootRevealTimer = 0;
+    let cameraSettleTimer = 0;
+    let cameraMoving = false;
     const applyFocus = (focusSlug) => {
       const validFocusSlug = nodeTitlesRef.current.has(focusSlug) ? focusSlug : null;
       const currentGraph = graphRef.current;
@@ -186,6 +189,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
 
     const syncOverlayLabels = () => {
       labelFrame = 0;
+      if (cameraMoving) return;
       const visible = new Set(baseLabelSlugsRef.current);
       if (activeSlugRef.current) visible.add(activeSlugRef.current);
       if (hoveredSlugRef.current) visible.add(hoveredSlugRef.current);
@@ -252,6 +256,16 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
       handleActiveChange(nodeId);
       handleNodeOpen(nodeId);
     });
+    network.on('zoom', () => {
+      cameraMoving = true;
+      canvas.parentElement?.classList.add('vis-network-camera-moving');
+      window.clearTimeout(cameraSettleTimer);
+      cameraSettleTimer = window.setTimeout(() => {
+        cameraMoving = false;
+        canvas.parentElement?.classList.remove('vis-network-camera-moving');
+        scheduleLabels();
+      }, 260);
+    });
     network.on('afterDrawing', scheduleLabels);
 
     const canvas = canvasRef.current;
@@ -293,6 +307,8 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
       if (labelFrame) cancelAnimationFrame(labelFrame);
       if (pointerFrame) cancelAnimationFrame(pointerFrame);
       window.clearTimeout(bootRevealTimer);
+      window.clearTimeout(cameraSettleTimer);
+      canvas.parentElement?.classList.remove('vis-network-camera-moving');
       network.destroy();
       networkRef.current = null;
       nodeDataRef.current = null;

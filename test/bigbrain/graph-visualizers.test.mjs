@@ -206,6 +206,19 @@ test('vis network boot and MCP activity animations are bounded and accessible', 
   assert.match(main, /new EventSource\('\/api\/graph\/events'\)/);
 });
 
+test('vis network uses a lightweight camera state while zooming dense graphs', async () => {
+  const [visualizer, dashboard] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/graph/vis-network-visualizer.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(visualizer, /hideEdgesOnZoom: true/);
+  assert.match(visualizer, /vis-network-camera-moving/);
+  assert.match(visualizer, /if \(cameraMoving\) return/);
+  assert.match(dashboard, /\.vis-network-camera-moving \.vis-network-label-layer \{ opacity: 0/);
+  assert.doesNotMatch(dashboard.match(/\.vis-network-surface \{[\s\S]*?\.vis-network-label-layer/)?.[0] || '', /filter:/);
+});
+
 test('graph layouts safely handle empty and single-node graphs', () => {
   const empty = { nodes: [], edges: [] };
   const single = {

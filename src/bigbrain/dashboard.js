@@ -856,7 +856,7 @@ function renderAppHtml() {
       .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
       .graph-svg:active { cursor: grabbing; }
       .force-shell canvas { border-radius: 18px; }
-      .vis-network-surface { opacity: 0.52; filter: brightness(0.78); }
+      .vis-network-surface { opacity: 0.52; }
       .vis-network-booted .vis-network-surface { animation: vis-network-materialize 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
       .vis-network-boot-overlay { position: absolute; inset: 0; z-index: 4; overflow: hidden; pointer-events: none; opacity: 0; }
       .vis-network-booted .vis-network-boot-overlay { animation: vis-network-boot-stage 760ms ease-out both; }
@@ -866,7 +866,8 @@ function renderAppHtml() {
       .vis-network-booted .vis-network-boot-reticle { animation: vis-network-reticle 620ms cubic-bezier(0.2, 0.72, 0.18, 1) 80ms both; }
       .vis-network-boot-copy { position: absolute; left: 50%; top: calc(50% + 52px); color: rgba(250,250,250,0.82); font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.2em; transform: translateX(-50%); opacity: 0; white-space: nowrap; }
       .vis-network-booted .vis-network-boot-copy { animation: vis-network-boot-copy 580ms ease-out 110ms both; }
-      .vis-network-label-layer { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; }
+      .vis-network-label-layer { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; transition: opacity 80ms ease-out; }
+      .vis-network-camera-moving .vis-network-label-layer { opacity: 0; transition: none; }
       .vis-network-booting .vis-network-label-layer { opacity: 0; }
       .vis-network-booted .vis-network-label-layer { animation: vis-network-label-reveal 520ms ease-out 120ms both; }
       .vis-network-label { position: absolute; display: flex; align-items: center; max-width: min(280px, 34vw); transform: translate(10px, -50%); color: var(--ink); filter: drop-shadow(0 8px 18px rgba(0,0,0,0.24)); }
@@ -893,7 +894,7 @@ function renderAppHtml() {
       .vis-network-live-copy { position: absolute; left: 28px; top: -23px; display: grid; gap: 4px; width: min(220px, 28vw); padding-left: 9px; border-left: 1px solid currentColor; opacity: 0; animation: vis-network-live-copy 1450ms ease-out 90ms both; filter: drop-shadow(0 5px 12px rgba(0,0,0,0.7)); }
       .vis-network-live-copy small { color: currentColor; font: 800 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.14em; }
       .vis-network-live-copy strong { overflow: hidden; color: #fafafa; font: 650 11px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis; white-space: nowrap; }
-      @keyframes vis-network-materialize { 0% { opacity: 0.52; filter: brightness(0.78); } 45% { opacity: 1; filter: brightness(1.18); } 100% { opacity: 1; filter: brightness(1); } }
+      @keyframes vis-network-materialize { 0% { opacity: 0.52; } 45%, 100% { opacity: 1; } }
       @keyframes vis-network-boot-stage { 0%, 8% { opacity: 0; } 18%, 82% { opacity: 1; } 100% { opacity: 0; } }
       @keyframes vis-network-scan { 0% { top: 4%; opacity: 0; } 14% { opacity: 0.85; } 84% { opacity: 0.55; } 100% { top: 96%; opacity: 0; } }
       @keyframes vis-network-reticle { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.35); } 38% { opacity: 0.78; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(2.35); } }
@@ -903,7 +904,7 @@ function renderAppHtml() {
       @keyframes vis-network-live-crosshair { 0% { opacity: 0; } 18%, 46% { opacity: 0.66; } 100% { opacity: 0; } }
       @keyframes vis-network-live-copy { 0% { opacity: 0; transform: translateX(-5px); } 16%, 68% { opacity: 0.94; transform: translateX(0); } 100% { opacity: 0; transform: translateX(3px); } }
       @media (prefers-reduced-motion: reduce) {
-        .vis-network-surface, .vis-network-booted .vis-network-surface { opacity: 1; filter: none; animation: none; }
+        .vis-network-surface, .vis-network-booted .vis-network-surface { opacity: 1; animation: none; }
         .vis-network-boot-overlay, .vis-network-live-layer { display: none; }
         .vis-network-booting .vis-network-label-layer, .vis-network-booted .vis-network-label-layer { opacity: 1; animation: none; }
       }
