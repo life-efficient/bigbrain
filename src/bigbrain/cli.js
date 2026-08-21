@@ -534,6 +534,7 @@ async function handleEval(args, global) {
   const {
     compareRetrievalEvalArms,
     compareRetrievalEvalModes,
+    compareRetrievalEvalPolicies,
     defaultPrivateRetrievalEvalCasesPath,
     exportRetrievalEvalBaseline,
     loadRetrievalEvalCases,
@@ -554,6 +555,7 @@ async function handleEval(args, global) {
     const common = {
       mode: argValue(args, '--mode') || undefined,
       arm: argValue(args, '--arm') || null,
+      rankingPolicy: argValue(args, '--ranking-policy') || 'baseline',
       limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : undefined,
       failOnRegression: casesPath || loadedDefault ? args.includes('--fail-on-private-regression') : true,
       redact: args.includes('--redact'),
@@ -611,7 +613,10 @@ async function handleEval(args, global) {
     const casesPath = argValue(args, '--cases');
     const armsArg = argValue(args, '--arms');
     const modesArg = argValue(args, '--modes');
-    if (armsArg && modesArg) throw new Error('eval compare accepts either --arms or --modes, not both.');
+    const policiesArg = argValue(args, '--policies');
+    if ([armsArg, modesArg, policiesArg].filter(Boolean).length > 1) {
+      throw new Error('eval compare accepts only one of --arms, --modes, or --policies.');
+    }
     if (args.includes('--no-ai') && armsArg && armsArg.split(',').some((arm) => arm.trim() !== 'lexical-only')) {
       throw new Error('--no-ai can only be combined with the lexical-only retrieval ablation arm.');
     }
@@ -620,6 +625,9 @@ async function handleEval(args, global) {
       : ['conservative', 'balanced', 'tokenmax'];
     const arms = armsArg
       ? armsArg.split(',').map((arm) => arm.trim()).filter(Boolean)
+      : null;
+    const policies = policiesArg
+      ? policiesArg.split(',').map((policy) => policy.trim()).filter(Boolean)
       : null;
     const common = {
       modes,
@@ -630,7 +638,20 @@ async function handleEval(args, global) {
     let report;
     if (casesPath || args.includes('--private')) {
       const cases = await loadEvalCasesForRealBrain({ args, loadRetrievalEvalCases, maybeLoadDefaultPrivateRetrievalEvalCases, defaultPrivateRetrievalEvalCasesPath });
-      report = arms
+      report = policies
+        ? await compareRetrievalEvalPolicies({
+          config: await loadRuntimeConfig(global),
+          cases: cases.cases,
+          caseSource: cases.source,
+          apiKey: realBrainApiKey,
+          policies,
+          arm: argValue(args, '--arm') || 'hybrid-fusion',
+          mode: argValue(args, '--mode') || 'balanced',
+          limit: common.limit,
+          failOnRegression: common.failOnRegression,
+          redact: common.redact,
+        })
+        : arms
         ? await compareRetrievalEvalArms({
           config: await loadRuntimeConfig(global),
           cases: cases.cases,
@@ -650,7 +671,7 @@ async function handleEval(args, global) {
           ...common,
         });
     } else {
-      if (arms) throw new Error('eval compare --arms requires --cases or --private.');
+      if (arms || policies) throw new Error('eval compare --arms or --policies requires --cases or --private.');
       const reports = [];
       for (const mode of modes) reports.push(await runRetrievalEval({ mode, limit: common.limit, redact: common.redact }));
       report = {
@@ -825,10 +846,10 @@ Commands:
   members [--status active|inactive|invited]
   members ensure-local-owner <people/slug> [--name NAME] [--email EMAIL]
   members add <email> <people/slug> [--name NAME] [--role owner|admin|editor|read-only|custom-role] [--status active|inactive|invited]
-  eval retrieval [--mode conservative|balanced|tokenmax] [--arm ARM] [--limit N] [--cases PATH] [--private] [--redact] [--no-ai]
+  eval retrieval [--mode conservative|balanced|tokenmax] [--arm ARM] [--ranking-policy POLICY] [--limit N] [--cases PATH] [--private] [--redact] [--no-ai]
   eval export [--cases PATH] [--mode MODE] [--arm ARM] [--limit N] [--redact] [--no-ai]
   eval replay --against baseline.ndjson [--mode MODE] [--arm ARM] [--limit N] [--no-ai]
-  eval compare [--cases PATH] [--modes MODES | --arms ARMS] [--mode MODE] [--markdown] [--no-ai]
+  eval compare [--cases PATH] [--modes MODES | --arms ARMS | --policies POLICIES] [--arm ARM] [--mode MODE] [--markdown] [--no-ai]
   dashboard [--host HOST] [--port N] [--no-open]
   mcp [--host HOST] [--port N]
   connect codex <service-url> [--name NAME] [--auth oauth|token] [--token-stdin]

@@ -6,13 +6,20 @@ import { performance } from 'node:perf_hooks';
 import { initializeBrainHome, loadConfig } from './config.js';
 import { openDatabase } from './db.js';
 import { metricGlossary } from './eval-metrics.js';
-import { RETRIEVAL_ABLATION_ARMS, normalizeRetrievalAblationArm, searchBrain } from './search.js';
+import {
+  RANKING_EXPERIMENT_POLICIES,
+  RETRIEVAL_ABLATION_ARMS,
+  normalizeRankingExperimentPolicy,
+  normalizeRetrievalAblationArm,
+  searchBrain,
+} from './search.js';
 import { syncBrain } from './sync.js';
 
 const DEFAULT_LIMIT = 5;
 const DEFAULT_MODE = 'conservative';
 const DEFAULT_REPLAY_K = 3;
 export const DEFAULT_RETRIEVAL_ABLATION_ARMS = Object.freeze(Object.keys(RETRIEVAL_ABLATION_ARMS));
+export const DEFAULT_RANKING_EXPERIMENT_POLICIES = Object.freeze(Object.keys(RANKING_EXPERIMENT_POLICIES));
 const QUALITY_FAMILIES = Object.freeze([
   'title-substring',
   'generic-to-named',
@@ -232,6 +239,7 @@ export async function maybeLoadDefaultPrivateRetrievalEvalCases(env = process.en
 export async function runRetrievalEval({
   mode = DEFAULT_MODE,
   arm = null,
+  rankingPolicy = 'baseline',
   limit = DEFAULT_LIMIT,
   apiKey = null,
   cases = FIXTURE_CASES,
@@ -261,6 +269,7 @@ export async function runRetrievalEval({
       config,
       mode,
       arm,
+      rankingPolicy,
       limit,
       apiKey,
       cases,
@@ -277,6 +286,7 @@ export async function runRetrievalEvalOnConfig({
   config,
   mode = DEFAULT_MODE,
   arm = null,
+  rankingPolicy = 'baseline',
   limit = DEFAULT_LIMIT,
   apiKey = null,
   cases,
@@ -286,6 +296,7 @@ export async function runRetrievalEvalOnConfig({
 }) {
   const normalizedCases = validateRetrievalEvalCases(cases);
   const normalizedArm = normalizeRetrievalAblationArm(arm);
+  const normalizedRankingPolicy = normalizeRankingExperimentPolicy(rankingPolicy);
   if (normalizedArm && RETRIEVAL_ABLATION_ARMS[normalizedArm].semantic && !apiKey) {
     throw new Error(`Retrieval ablation arm ${normalizedArm} requires configured OpenAI API access.`);
   }
@@ -304,11 +315,21 @@ export async function runRetrievalEvalOnConfig({
         explain: true,
         ablationArm: normalizedArm,
         strictRetrieval: Boolean(normalizedArm && RETRIEVAL_ABLATION_ARMS[normalizedArm].semantic),
+        rankingPolicy: normalizedRankingPolicy,
       });
       const latencyMs = Math.round(performance.now() - started);
       results.push(scoreRetrievalEvalCase({ testCase, search, latencyMs, redact }));
     }
-    return buildEvalReport({ mode, arm: normalizedArm, limit, results, caseSource, failOnRegression, redact });
+    return buildEvalReport({
+      mode,
+      arm: normalizedArm,
+      rankingPolicy: normalizedRankingPolicy,
+      limit,
+      results,
+      caseSource,
+      failOnRegression,
+      redact,
+    });
   } finally {
     await db.close?.();
   }
@@ -550,6 +571,76 @@ export async function compareRetrievalEvalArms({
   };
 }
 
+export async function compareRetrievalEvalPolicies({
+  config,
+  policies = DEFAULT_RANKING_EXPERIMENT_POLICIES,
+  arm = 'hybrid-fusion',
+  mode = 'balanced',
+  limit = DEFAULT_LIMIT,
+  apiKey = null,
+  cases,
+  caseSource = 'external',
+  failOnRegression = false,
+  redact = false,
+  referencePolicy = 'baseline',
+} = {}) {
+  const normalizedPolicies = [...new Set(policies.map(normalizeRankingExperimentPolicy))];
+  if (!normalizedPolicies.length) throw new Error('Retrieval policy comparison requires at least one policy.');
+  const normalizedReferencePolicy = normalizeRankingExperimentPolicy(referencePolicy);
+  if (!normalizedPolicies.includes(normalizedReferencePolicy)) {
+    throw new Error(`Retrieval comparison reference policy ${normalizedReferencePolicy} is not present in the requested policies.`);
+  }
+  const reports = [];
+  for (const rankingPolicy of normalizedPolicies) {
+    reports.push(await runRetrievalEvalOnConfig({
+      config,
+      mode,
+      arm,
+      rankingPolicy,
+      limit,
+      apiKey,
+      cases,
+      caseSource,
+      failOnRegression,
+      redact,
+    }));
+  }
+  const referenceReport = reports.find((report) => report.ranking_policy === normalizedReferencePolicy);
+  return {
+    schema_version: 1,
+    suite: 'retrieval',
+    dimension: 'policy',
+    mode,
+    arm,
+    limit,
+    case_source: caseSource,
+    reference_policy: normalizedReferencePolicy,
+    policies: Object.fromEntries(reports.map((report) => [report.ranking_policy, {
+      metrics: report.metrics,
+      confidence_intervals: endpointHitConfidenceIntervals(report),
+      family_metrics: report.family_metrics,
+      gates: report.gates,
+      warnings: report.warnings,
+    }])),
+    paired_comparisons: Object.fromEntries(reports
+      .filter((report) => report.ranking_policy !== normalizedReferencePolicy)
+      .map((report) => {
+        const comparison = pairedEndpointHitComparison({ referenceReport, candidateReport: report });
+        return [report.ranking_policy, {
+          reference_policy: normalizedReferencePolicy,
+          candidate_policy: report.ranking_policy,
+          case_count: comparison.case_count,
+          endpoint_hit_at_1: comparison.endpoint_hit_at_1,
+          endpoint_hit_at_5: comparison.endpoint_hit_at_5,
+        }];
+      })),
+    reports,
+    _meta: {
+      metric_glossary: metricGlossary(),
+    },
+  };
+}
+
 function endpointHitConfidenceIntervals(report) {
   return {
     endpoint_hit_at_1_rate: wilson95ConfidenceInterval(report.metrics.endpoint_hit_at_1, report.case_count),
@@ -639,7 +730,9 @@ export function exactTwoSidedMcNemarPValue(wins, losses) {
 }
 
 export function renderRetrievalEvalText(report) {
-  const label = report.arm ? `${report.arm}, mode ${report.mode}` : report.mode;
+  const label = report.arm
+    ? `${report.arm}, policy ${report.ranking_policy}, mode ${report.mode}`
+    : report.mode;
   const lines = [
     `Retrieval eval (${label}, limit ${report.limit})`,
     `Cases: ${report.case_count}`,
@@ -684,8 +777,8 @@ export function renderRetrievalReplayText(report) {
 }
 
 export function renderRetrievalCompareText(report, { markdown = false } = {}) {
-  const variants = report.arms ?? report.modes;
-  const dimension = report.arms ? 'Arm' : 'Mode';
+  const variants = report.policies ?? report.arms ?? report.modes;
+  const dimension = report.policies ? 'Policy' : report.arms ? 'Arm' : 'Mode';
   const rows = Object.entries(variants).map(([name, value]) => ({
     name,
     hit1: value.metrics.hit_at_1_rate,
@@ -784,7 +877,16 @@ export function scoreRetrievalEvalCase({ testCase, search, latencyMs, redact = f
   };
 }
 
-function buildEvalReport({ mode, arm = null, limit, results, caseSource = 'fixture', failOnRegression = false, redact = false }) {
+function buildEvalReport({
+  mode,
+  arm = null,
+  rankingPolicy = 'baseline',
+  limit,
+  results,
+  caseSource = 'fixture',
+  failOnRegression = false,
+  redact = false,
+}) {
   const metrics = summarizeRetrievalEvalResults(results);
   const familyMetrics = summarizeFamilies(results);
   const gates = evaluateGates({ familyMetrics, failOnRegression });
@@ -797,6 +899,7 @@ function buildEvalReport({ mode, arm = null, limit, results, caseSource = 'fixtu
     suite: 'retrieval',
     mode,
     arm,
+    ranking_policy: rankingPolicy,
     limit,
     case_source: caseSource,
     case_count: results.length,

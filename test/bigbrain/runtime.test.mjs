@@ -13,7 +13,7 @@ import { filingRulesForBrain } from '../../src/bigbrain/filing-rules.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
 import { loadRetrievalEvalCases, runRetrievalEvalOnConfig } from '../../src/bigbrain/eval-retrieval.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
-import { boostResultsForQuery, classifyQueryIntent, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
+import { applyRankingExperimentPolicy, boostResultsForQuery, classifyQueryIntent, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, RANKING_EXPERIMENT_POLICIES, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
 import { renderSchemaMarkdown, recommendFolderForInput } from '../../src/bigbrain/schema.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -595,6 +595,24 @@ Private eval retrieval target decoy.
     assert.equal(compare.code, 0, compare.stderr);
     assert.match(compare.stdout, /\| Mode \| Hit@1 \| Hit@3 \| Hit@5 \| MRR \| Recall@k \| Gates \|/);
     assert.match(compare.stdout, /\| conservative \|/);
+
+    const policyCompare = await runNode([
+      './bin/bigbrain.js',
+      '--config',
+      fixture.configPath,
+      'eval',
+      'compare',
+      '--private',
+      '--no-ai',
+      '--arm',
+      'lexical-only',
+      '--policies',
+      'baseline,combined',
+      '--markdown',
+    ], { cwd: process.cwd(), env });
+    assert.equal(policyCompare.code, 0, policyCompare.stderr);
+    assert.match(policyCompare.stdout, /\| Policy \| Hit@1 \| Hit@3 \| Hit@5 \|/);
+    assert.match(policyCompare.stdout, /\| combined \|/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -1010,7 +1028,7 @@ test('CLI rejects contradictory or mixed retrieval ablation options', async () =
     'conservative,balanced',
   ], { cwd: process.cwd() });
   assert.notEqual(mixedCompare.code, 0);
-  assert.match(mixedCompare.stderr, /either --arms or --modes/);
+  assert.match(mixedCompare.stderr, /only one of --arms, --modes, or --policies/);
 });
 
 test('tokenmax mode enables query expansion', async () => {
@@ -1158,6 +1176,32 @@ test('query boosts keep exact title matches ahead of semantic neighbors', () => 
   boostResultsForQuery(results, 'Alex Rivera');
   results.sort((left, right) => right.score - left.score || left.slug.localeCompare(right.slug));
   assert.equal(results[0].slug, 'people/alex-rivera');
+});
+
+test('ranking experiment policies isolate title, canonical-kind, and active-state signals', () => {
+  const entityRows = [
+    { slug: 'people/luciano-vital', title: 'Luciano Vital', type: 'people', page_kind: 'canonical', score: 1, boosts: [] },
+    { slug: 'meetings/.raw/luciano-note', title: 'Luciano source note', type: 'meetings', page_kind: 'attachment', score: 1, boosts: [] },
+  ];
+  applyRankingExperimentPolicy(entityRows, {
+    query: 'Who is Luciano Vital and what role does he play?',
+    intent: 'entity',
+    profile: RANKING_EXPERIMENT_POLICIES.combined,
+  });
+  assert.equal(entityRows[0].score, 1.25);
+  assert.equal(entityRows[1].score, 0.72);
+
+  const taskRows = [
+    { slug: 'tasks/current', title: 'Current Task', type: 'tasks', page_kind: 'canonical', frontmatter_json: '{"status":"in_progress"}', score: 1, boosts: [] },
+    { slug: 'tasks/archived', title: 'Archived Task', type: 'tasks', page_kind: 'canonical', frontmatter_json: '{"status":"archived"}', score: 1, boosts: [] },
+  ];
+  applyRankingExperimentPolicy(taskRows, {
+    query: 'What is the current task?',
+    intent: 'temporal',
+    profile: RANKING_EXPERIMENT_POLICIES['active-state'],
+  });
+  assert.equal(taskRows[0].score, 1.15);
+  assert.equal(taskRows[1].score, 0.7);
 });
 
 test('health reports page-shape issues', async () => {

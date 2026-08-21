@@ -36,6 +36,33 @@ export const RETRIEVAL_ABLATION_ARMS = Object.freeze({
     rerank: true,
   }),
 });
+export const RANKING_EXPERIMENT_POLICIES = Object.freeze({
+  baseline: Object.freeze({
+    queryContainsTitle: false,
+    canonicalKind: false,
+    activeState: false,
+  }),
+  'title-match': Object.freeze({
+    queryContainsTitle: true,
+    canonicalKind: false,
+    activeState: false,
+  }),
+  'canonical-kind': Object.freeze({
+    queryContainsTitle: false,
+    canonicalKind: true,
+    activeState: false,
+  }),
+  'active-state': Object.freeze({
+    queryContainsTitle: false,
+    canonicalKind: false,
+    activeState: true,
+  }),
+  combined: Object.freeze({
+    queryContainsTitle: true,
+    canonicalKind: true,
+    activeState: true,
+  }),
+});
 export const SEARCH_MODE_BUNDLES = Object.freeze({
   conservative: Object.freeze({
     expansion: false,
@@ -83,12 +110,15 @@ export async function searchBrain({
   reranker = rerankSearchResults,
   ablationArm = null,
   strictRetrieval = false,
+  rankingPolicy = 'baseline',
 } = {}) {
   const warnings = [];
   const resolvedMode = normalizeSearchMode(mode);
   const modeBundle = SEARCH_MODE_BUNDLES[resolvedMode];
   const resolvedAblationArm = normalizeRetrievalAblationArm(ablationArm);
   const ablationProfile = resolvedAblationArm ? RETRIEVAL_ABLATION_ARMS[resolvedAblationArm] : null;
+  const resolvedRankingPolicy = normalizeRankingExperimentPolicy(rankingPolicy);
+  const rankingProfile = RANKING_EXPERIMENT_POLICIES[resolvedRankingPolicy];
   const resolvedLimit = normalizeLimit(limit, modeBundle.searchLimit);
   const intent = classifyQueryIntent(query);
   const expansionEnabled = resolvedAblationArm
@@ -132,6 +162,11 @@ export async function searchBrain({
   if (ablationProfile?.deterministicBoosts ?? true) {
     boostResultsForQuery(fused, query, intentWeights);
   }
+  applyRankingExperimentPolicy(fused, {
+    query,
+    intent,
+    profile: rankingProfile,
+  });
   stampEvidence(fused);
   fused.sort((left, right) => right.score - left.score || left.slug.localeCompare(right.slug));
   const rerankEnabled = ablationProfile?.rerank ?? modeBundle.rerank;
@@ -157,7 +192,8 @@ export async function searchBrain({
     semantic: semanticLists[0] ?? [],
     fused: explain ? finalResults : finalResults.map(compactResult),
     ablation_arm: resolvedAblationArm,
-    ...(explain ? { explain: { mode: resolvedMode, intent, ablation_arm: resolvedAblationArm, rerank_enabled: rerankEnabled, expansion_enabled: expansionEnabled } } : {}),
+    ranking_policy: resolvedRankingPolicy,
+    ...(explain ? { explain: { mode: resolvedMode, intent, ablation_arm: resolvedAblationArm, ranking_policy: resolvedRankingPolicy, rerank_enabled: rerankEnabled, expansion_enabled: expansionEnabled } } : {}),
     warnings,
   };
 }
@@ -468,6 +504,77 @@ export function normalizeRetrievalAblationArm(arm) {
   const value = String(arm).trim().toLowerCase();
   if (Object.hasOwn(RETRIEVAL_ABLATION_ARMS, value)) return value;
   throw new Error(`Invalid retrieval ablation arm: ${arm}. Expected one of: ${Object.keys(RETRIEVAL_ABLATION_ARMS).join(', ')}.`);
+}
+
+export function normalizeRankingExperimentPolicy(policy) {
+  const value = String(policy || 'baseline').trim().toLowerCase();
+  if (Object.hasOwn(RANKING_EXPERIMENT_POLICIES, value)) return value;
+  throw new Error(`Invalid ranking experiment policy: ${policy}. Expected one of: ${Object.keys(RANKING_EXPERIMENT_POLICIES).join(', ')}.`);
+}
+
+export function applyRankingExperimentPolicy(results, {
+  query,
+  intent = classifyQueryIntent(query),
+  profile = RANKING_EXPERIMENT_POLICIES.baseline,
+} = {}) {
+  if (profile.queryContainsTitle && intent === 'entity') applyQueryContainsTitleBoost(results, query);
+  if (profile.canonicalKind && !asksForRawEvidence(query)) applyCanonicalKindPreference(results);
+  if (profile.activeState && shouldPreferActiveTasks(query, intent)) applyActiveTaskPreference(results);
+}
+
+function applyQueryContainsTitleBoost(results, query, multiplier = 1.25) {
+  const normalizedQuery = normalizeComparableText(query);
+  if (!normalizedQuery) return;
+  for (const result of results) {
+    const normalizedTitle = normalizeComparableText(result.title ?? '');
+    if (!normalizedTitle || comparableTokens(normalizedTitle).length < 2) continue;
+    if (!normalizedQuery.includes(normalizedTitle)) continue;
+    result.score *= multiplier;
+    result.boosts.push({ type: 'query_contains_title', multiplier });
+  }
+}
+
+function applyCanonicalKindPreference(results, attachmentMultiplier = 0.72) {
+  for (const result of results) {
+    if (result.page_kind !== 'attachment') continue;
+    result.score *= attachmentMultiplier;
+    result.boosts.push({ type: 'attachment_penalty', multiplier: attachmentMultiplier });
+  }
+}
+
+function applyActiveTaskPreference(results) {
+  for (const result of results) {
+    if (result.type !== 'tasks') continue;
+    const status = statusFromFrontmatter(result.frontmatter_json);
+    const multiplier = status === 'in_progress' || status === 'open'
+      ? 1.15
+      : status === 'archived' || status === 'done'
+        ? 0.7
+        : status === 'waiting'
+          ? 0.9
+          : 1;
+    if (multiplier === 1) continue;
+    result.score *= multiplier;
+    result.boosts.push({ type: 'task_status', status, multiplier });
+  }
+}
+
+function statusFromFrontmatter(frontmatter) {
+  try {
+    const parsed = typeof frontmatter === 'string' ? JSON.parse(frontmatter) : frontmatter;
+    return String(parsed?.status || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+function asksForRawEvidence(query) {
+  return /\b(raw|transcript|source\s+note|source\s+material|verbatim|exact\s+quote)\b/i.test(query);
+}
+
+function shouldPreferActiveTasks(query, intent) {
+  if (intent === 'temporal') return true;
+  return /\b(active|current|latest|immediate|next|still|status|todo|to-do|needs?\s+to\s+be\s+done|remain(?:s|ing)?)\b/i.test(query);
 }
 
 function normalizeLimit(limit, fallback) {
