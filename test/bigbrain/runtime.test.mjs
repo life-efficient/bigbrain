@@ -11,7 +11,7 @@ import { configPathForBrainHome, initializeBrainHome, loadConfig, loadUserEnv, m
 import { getHostedBrainGitState, openDatabase } from '../../src/bigbrain/db.js';
 import { filingRulesForBrain } from '../../src/bigbrain/filing-rules.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
-import { loadRetrievalEvalCases } from '../../src/bigbrain/eval-retrieval.js';
+import { loadRetrievalEvalCases, runRetrievalEvalOnConfig } from '../../src/bigbrain/eval-retrieval.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
 import { boostResultsForQuery, classifyQueryIntent, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
 import { renderSchemaMarkdown, recommendFolderForInput } from '../../src/bigbrain/schema.js';
@@ -820,6 +820,176 @@ shared retrieval target
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
+});
+
+test('retrieval ablation arms isolate lexical, semantic, fusion, and reranking calls', async () => {
+  const fixture = await createFixture('bigbrain-search-ablation-arms-');
+  const originalFetch = globalThis.fetch;
+  try {
+    await writeMarkdown(fixture.brainHome, 'projects/semantic-target.md', `---
+title: Semantic Target
+---
+# Semantic Target
+
+Durable orchid evidence for the intended semantic page.
+`);
+    await writeMarkdown(fixture.brainHome, 'notes/semantic-decoy.md', `---
+title: Semantic Decoy
+---
+# Semantic Decoy
+
+Unrelated background evidence for the decoy page.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({
+      config,
+      apiKey: 'index-key',
+      embedder: async (texts) => texts.map((text) => (
+        text.includes('orchid evidence') ? [1, 0] : [0, 1]
+      )),
+    });
+    const db = await openDatabase(config);
+    let embeddingCalls = 0;
+    let rerankCalls = 0;
+    globalThis.fetch = async (url) => {
+      assert.match(String(url), /\/embeddings$/);
+      embeddingCalls += 1;
+      return {
+        ok: true,
+        json: async () => ({ data: [{ embedding: [1, 0] }] }),
+      };
+    };
+    const reranker = async ({ results }) => {
+      rerankCalls += 1;
+      return results.map((row, index) => ({ index, score: row.slug === 'notes/semantic-decoy' ? 1 : 0.1 }));
+    };
+
+    const lexical = await searchBrain({
+      db,
+      config,
+      query: 'Semantic Target',
+      apiKey: 'ambient-key',
+      mode: 'balanced',
+      ablationArm: 'lexical-only',
+      reranker,
+      explain: true,
+    });
+    assert.equal(embeddingCalls, 0);
+    assert.equal(rerankCalls, 0);
+    assert.equal(lexical.semantic.length, 0);
+    assert.equal(lexical.explain.expansion_enabled, false);
+
+    const semantic = await searchBrain({
+      db,
+      config,
+      query: 'meaning without lexical overlap',
+      apiKey: 'ambient-key',
+      mode: 'balanced',
+      ablationArm: 'semantic-only',
+      strictRetrieval: true,
+      reranker,
+      explain: true,
+    });
+    assert.equal(embeddingCalls, 1);
+    assert.equal(rerankCalls, 0);
+    assert.equal(semantic.lexical.length, 0);
+    assert.equal(semantic.fused[0].slug, 'projects/semantic-target');
+    assert.equal(semantic.fused[0].boosts.length, 0);
+
+    const fusion = await searchBrain({
+      db,
+      config,
+      query: 'Semantic Target',
+      apiKey: 'ambient-key',
+      mode: 'balanced',
+      ablationArm: 'hybrid-fusion',
+      strictRetrieval: true,
+      reranker,
+      explain: true,
+    });
+    assert.equal(embeddingCalls, 2);
+    assert.equal(rerankCalls, 0);
+    assert.equal(fusion.lexical.length > 0, true);
+    assert.equal(fusion.semantic.length > 0, true);
+
+    const reranked = await searchBrain({
+      db,
+      config,
+      query: 'Semantic Target',
+      apiKey: 'ambient-key',
+      mode: 'conservative',
+      ablationArm: 'hybrid-reranked',
+      strictRetrieval: true,
+      reranker,
+      explain: true,
+    });
+    assert.equal(embeddingCalls, 3);
+    assert.equal(rerankCalls, 1);
+    assert.equal(reranked.explain.rerank_enabled, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('semantic retrieval eval arms fail closed without model access', async () => {
+  const fixture = await createFixture('bigbrain-eval-ablation-access-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/eval-target.md', `---
+title: Eval Target
+---
+# Eval Target
+
+Evaluation target.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    await assert.rejects(
+      runRetrievalEvalOnConfig({
+        config,
+        arm: 'semantic-only',
+        apiKey: null,
+        cases: [{ id: 'target', query: 'Eval Target', expected_slug: 'people/eval-target' }],
+      }),
+      /requires configured OpenAI API access/,
+    );
+    await assert.rejects(
+      runRetrievalEvalOnConfig({
+        config,
+        arm: 'hybrid-fusion',
+        apiKey: 'test-key',
+        cases: [{ id: 'target', query: 'Eval Target', expected_slug: 'people/eval-target' }],
+      }),
+      /index has no embeddings/,
+    );
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('CLI rejects contradictory or mixed retrieval ablation options', async () => {
+  const noAiSemantic = await runNode([
+    './bin/bigbrain.js',
+    'eval',
+    'retrieval',
+    '--arm',
+    'semantic-only',
+    '--no-ai',
+  ], { cwd: process.cwd() });
+  assert.notEqual(noAiSemantic.code, 0);
+  assert.match(noAiSemantic.stderr, /only be combined with the lexical-only/);
+
+  const mixedCompare = await runNode([
+    './bin/bigbrain.js',
+    'eval',
+    'compare',
+    '--arms',
+    'lexical-only,semantic-only',
+    '--modes',
+    'conservative,balanced',
+  ], { cwd: process.cwd() });
+  assert.notEqual(mixedCompare.code, 0);
+  assert.match(mixedCompare.stderr, /either --arms or --modes/);
 });
 
 test('tokenmax mode enables query expansion', async () => {

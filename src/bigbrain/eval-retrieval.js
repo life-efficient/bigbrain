@@ -6,12 +6,13 @@ import { performance } from 'node:perf_hooks';
 import { initializeBrainHome, loadConfig } from './config.js';
 import { openDatabase } from './db.js';
 import { metricGlossary } from './eval-metrics.js';
-import { searchBrain } from './search.js';
+import { RETRIEVAL_ABLATION_ARMS, normalizeRetrievalAblationArm, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
 
 const DEFAULT_LIMIT = 5;
 const DEFAULT_MODE = 'conservative';
 const DEFAULT_REPLAY_K = 3;
+export const DEFAULT_RETRIEVAL_ABLATION_ARMS = Object.freeze(Object.keys(RETRIEVAL_ABLATION_ARMS));
 const QUALITY_FAMILIES = Object.freeze([
   'title-substring',
   'generic-to-named',
@@ -230,6 +231,7 @@ export async function maybeLoadDefaultPrivateRetrievalEvalCases(env = process.en
 
 export async function runRetrievalEval({
   mode = DEFAULT_MODE,
+  arm = null,
   limit = DEFAULT_LIMIT,
   apiKey = null,
   cases = FIXTURE_CASES,
@@ -258,6 +260,7 @@ export async function runRetrievalEval({
     return await runRetrievalEvalOnConfig({
       config,
       mode,
+      arm,
       limit,
       apiKey,
       cases,
@@ -273,6 +276,7 @@ export async function runRetrievalEval({
 export async function runRetrievalEvalOnConfig({
   config,
   mode = DEFAULT_MODE,
+  arm = null,
   limit = DEFAULT_LIMIT,
   apiKey = null,
   cases,
@@ -281,6 +285,10 @@ export async function runRetrievalEvalOnConfig({
   redact = false,
 }) {
   const normalizedCases = validateCases(cases);
+  const normalizedArm = normalizeRetrievalAblationArm(arm);
+  if (normalizedArm && RETRIEVAL_ABLATION_ARMS[normalizedArm].semantic && !apiKey) {
+    throw new Error(`Retrieval ablation arm ${normalizedArm} requires configured OpenAI API access.`);
+  }
   const db = await openDatabase(config);
   try {
     const results = [];
@@ -294,11 +302,13 @@ export async function runRetrievalEvalOnConfig({
         mode,
         apiKey,
         explain: true,
+        ablationArm: normalizedArm,
+        strictRetrieval: Boolean(normalizedArm && RETRIEVAL_ABLATION_ARMS[normalizedArm].semantic),
       });
       const latencyMs = Math.round(performance.now() - started);
       results.push(scoreCase({ testCase, search, latencyMs, redact }));
     }
-    return buildEvalReport({ mode, limit, results, caseSource, failOnRegression, redact });
+    return buildEvalReport({ mode, arm: normalizedArm, limit, results, caseSource, failOnRegression, redact });
   } finally {
     await db.close?.();
   }
@@ -326,19 +336,21 @@ export async function loadRetrievalEvalCases(filePath) {
 export async function exportRetrievalEvalBaseline({
   config,
   mode = DEFAULT_MODE,
+  arm = null,
   limit = DEFAULT_LIMIT,
   apiKey = null,
   cases,
   caseSource = 'external',
   redact = false,
 } = {}) {
-  const report = await runRetrievalEvalOnConfig({ config, mode, limit, apiKey, cases, caseSource, redact });
+  const report = await runRetrievalEvalOnConfig({ config, mode, arm, limit, apiKey, cases, caseSource, redact });
   const exportedAt = new Date().toISOString();
   return report.results.map((result) => ({
     schema_version: 1,
     exported_at: exportedAt,
     suite: 'retrieval',
     mode,
+    arm: report.arm,
     limit,
     case_source: report.case_source,
     case_id: result.id,
@@ -361,6 +373,7 @@ export async function replayRetrievalEvalBaseline({
   config,
   baselinePath,
   mode = null,
+  arm = null,
   limit = null,
   apiKey = null,
   redact = false,
@@ -375,10 +388,12 @@ export async function replayRetrievalEvalBaseline({
     forbidden_slugs: row.forbidden_slugs,
   }));
   const effectiveMode = mode || baseline[0]?.mode || DEFAULT_MODE;
+  const effectiveArm = normalizeRetrievalAblationArm(arm || baseline[0]?.arm || null);
   const effectiveLimit = limit || baseline[0]?.limit || DEFAULT_LIMIT;
   const current = await runRetrievalEvalOnConfig({
     config,
     mode: effectiveMode,
+    arm: effectiveArm,
     limit: effectiveLimit,
     apiKey,
     cases,
@@ -411,6 +426,7 @@ export async function replayRetrievalEvalBaseline({
     schema_version: 1,
     baseline_path: path.resolve(baselinePath),
     mode: effectiveMode,
+    arm: effectiveArm,
     limit: effectiveLimit,
     case_count: comparisons.length,
     metrics: {
@@ -467,12 +483,61 @@ export async function compareRetrievalEvalModes({
   };
 }
 
+export async function compareRetrievalEvalArms({
+  config,
+  arms = DEFAULT_RETRIEVAL_ABLATION_ARMS,
+  mode = 'balanced',
+  limit = DEFAULT_LIMIT,
+  apiKey = null,
+  cases,
+  caseSource = 'external',
+  failOnRegression = false,
+  redact = false,
+} = {}) {
+  const normalizedArms = [...new Set(arms.map(normalizeRetrievalAblationArm))];
+  if (!normalizedArms.length) throw new Error('Retrieval arm comparison requires at least one arm.');
+  const reports = [];
+  for (const arm of normalizedArms) {
+    reports.push(await runRetrievalEvalOnConfig({
+      config,
+      mode,
+      arm,
+      limit,
+      apiKey,
+      cases,
+      caseSource,
+      failOnRegression,
+      redact,
+    }));
+  }
+  return {
+    schema_version: 1,
+    suite: 'retrieval',
+    dimension: 'arm',
+    mode,
+    limit,
+    case_source: caseSource,
+    arms: Object.fromEntries(reports.map((report) => [report.arm, {
+      metrics: report.metrics,
+      family_metrics: report.family_metrics,
+      gates: report.gates,
+      warnings: report.warnings,
+    }])),
+    reports,
+    _meta: {
+      metric_glossary: metricGlossary(),
+    },
+  };
+}
+
 export function renderRetrievalEvalText(report) {
+  const label = report.arm ? `${report.arm}, mode ${report.mode}` : report.mode;
   const lines = [
-    `Retrieval eval (${report.mode}, limit ${report.limit})`,
+    `Retrieval eval (${label}, limit ${report.limit})`,
     `Cases: ${report.case_count}`,
     `Hit@1: ${report.metrics.hit_at_1}/${report.case_count} (${formatPct(report.metrics.hit_at_1_rate)})`,
     `Hit@3: ${report.metrics.hit_at_3}/${report.case_count} (${formatPct(report.metrics.hit_at_3_rate)})`,
+    `Hit@5: ${report.metrics.hit_at_5}/${report.case_count} (${formatPct(report.metrics.hit_at_5_rate)})`,
     `MRR: ${formatNumber(report.metrics.mrr)}`,
     `Recall@k: ${formatPct(report.metrics.recall_at_k)}`,
     `Negative clean: ${report.metrics.negative_case_count ? `${report.metrics.negative_clean}/${report.metrics.negative_case_count} (${formatPct(report.metrics.negative_clean_rate)})` : 'n/a'}`,
@@ -498,8 +563,9 @@ export function renderRetrievalEvalText(report) {
 }
 
 export function renderRetrievalReplayText(report) {
+  const label = report.arm ? `${report.arm}, mode ${report.mode}` : report.mode;
   return [
-    `Retrieval replay (${report.mode}, limit ${report.limit})`,
+    `Retrieval replay (${label}, limit ${report.limit})`,
     `Cases: ${report.case_count}`,
     `Mean Jaccard@${DEFAULT_REPLAY_K}: ${formatNumber(report.metrics.mean_jaccard_at_k)}`,
     `Top-1 stability: ${formatPct(report.metrics.top1_stability_rate)}`,
@@ -510,8 +576,10 @@ export function renderRetrievalReplayText(report) {
 }
 
 export function renderRetrievalCompareText(report, { markdown = false } = {}) {
-  const rows = Object.entries(report.modes).map(([mode, value]) => ({
-    mode,
+  const variants = report.arms ?? report.modes;
+  const dimension = report.arms ? 'Arm' : 'Mode';
+  const rows = Object.entries(variants).map(([name, value]) => ({
+    name,
     hit1: value.metrics.hit_at_1_rate,
     hit3: value.metrics.hit_at_3_rate,
     hit5: value.metrics.hit_at_5_rate,
@@ -521,14 +589,14 @@ export function renderRetrievalCompareText(report, { markdown = false } = {}) {
   }));
   if (markdown) {
     return [
-      '| Mode | Hit@1 | Hit@3 | Hit@5 | MRR | Recall@k | Gates |',
+      `| ${dimension} | Hit@1 | Hit@3 | Hit@5 | MRR | Recall@k | Gates |`,
       '| --- | ---: | ---: | ---: | ---: | ---: | --- |',
-      ...rows.map((row) => `| ${row.mode} | ${formatPct(row.hit1)} | ${formatPct(row.hit3)} | ${formatPct(row.hit5)} | ${formatNumber(row.mrr)} | ${formatPct(row.recall)} | ${row.gates} |`),
+      ...rows.map((row) => `| ${row.name} | ${formatPct(row.hit1)} | ${formatPct(row.hit3)} | ${formatPct(row.hit5)} | ${formatNumber(row.mrr)} | ${formatPct(row.recall)} | ${row.gates} |`),
     ].join('\n');
   }
   return [
-    `Retrieval compare (limit ${report.limit})`,
-    ...rows.map((row) => `${row.mode}: Hit@1 ${formatPct(row.hit1)}, Hit@3 ${formatPct(row.hit3)}, Hit@5 ${formatPct(row.hit5)}, MRR ${formatNumber(row.mrr)}, Recall@k ${formatPct(row.recall)}, Gates ${row.gates}`),
+    `Retrieval compare by ${dimension.toLowerCase()} (limit ${report.limit})`,
+    ...rows.map((row) => `${row.name}: Hit@1 ${formatPct(row.hit1)}, Hit@3 ${formatPct(row.hit3)}, Hit@5 ${formatPct(row.hit5)}, MRR ${formatNumber(row.mrr)}, Recall@k ${formatPct(row.recall)}, Gates ${row.gates}`),
   ].join('\n');
 }
 
@@ -567,7 +635,7 @@ function scoreCase({ testCase, search, latencyMs, redact }) {
   };
 }
 
-function buildEvalReport({ mode, limit, results, caseSource = 'fixture', failOnRegression = false, redact = false }) {
+function buildEvalReport({ mode, arm = null, limit, results, caseSource = 'fixture', failOnRegression = false, redact = false }) {
   const metrics = summarizeResults(results);
   const familyMetrics = summarizeFamilies(results);
   const gates = evaluateGates({ familyMetrics, failOnRegression });
@@ -579,6 +647,7 @@ function buildEvalReport({ mode, limit, results, caseSource = 'fixture', failOnR
     schema_version: 2,
     suite: 'retrieval',
     mode,
+    arm,
     limit,
     case_source: caseSource,
     case_count: results.length,

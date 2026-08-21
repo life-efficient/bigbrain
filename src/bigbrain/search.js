@@ -6,6 +6,36 @@ const HIGH_MATCH_FLOOR = 0.85;
 const SOLID_MATCH_FLOOR = 0.6;
 
 export const DEFAULT_SEARCH_MODE = 'balanced';
+export const RETRIEVAL_ABLATION_ARMS = Object.freeze({
+  'lexical-only': Object.freeze({
+    lexical: true,
+    semantic: false,
+    aliases: true,
+    deterministicBoosts: true,
+    rerank: false,
+  }),
+  'semantic-only': Object.freeze({
+    lexical: false,
+    semantic: true,
+    aliases: false,
+    deterministicBoosts: false,
+    rerank: false,
+  }),
+  'hybrid-fusion': Object.freeze({
+    lexical: true,
+    semantic: true,
+    aliases: true,
+    deterministicBoosts: true,
+    rerank: false,
+  }),
+  'hybrid-reranked': Object.freeze({
+    lexical: true,
+    semantic: true,
+    aliases: true,
+    deterministicBoosts: true,
+    rerank: true,
+  }),
+});
 export const SEARCH_MODE_BUNDLES = Object.freeze({
   conservative: Object.freeze({
     expansion: false,
@@ -51,25 +81,41 @@ export async function searchBrain({
   explain = false,
   apiKey = process.env.OPENAI_API_KEY,
   reranker = rerankSearchResults,
+  ablationArm = null,
+  strictRetrieval = false,
 } = {}) {
   const warnings = [];
   const resolvedMode = normalizeSearchMode(mode);
   const modeBundle = SEARCH_MODE_BUNDLES[resolvedMode];
+  const resolvedAblationArm = normalizeRetrievalAblationArm(ablationArm);
+  const ablationProfile = resolvedAblationArm ? RETRIEVAL_ABLATION_ARMS[resolvedAblationArm] : null;
   const resolvedLimit = normalizeLimit(limit, modeBundle.searchLimit);
   const intent = classifyQueryIntent(query);
-  const expansionEnabled = expand === undefined ? modeBundle.expansion : Boolean(expand);
+  const expansionEnabled = resolvedAblationArm
+    ? false
+    : expand === undefined ? modeBundle.expansion : Boolean(expand);
   const queries = await resolveQueries({ query, config, apiKey, warnings, expansionEnabled });
   const innerLimit = Math.max(resolvedLimit * 3, modeBundle.innerLimit);
-  const lexicalLists = (await Promise.all(queries
-    .map((candidate) => lexicalSearch(db, safeFtsQuery(candidate), innerLimit))))
-    .filter((rows) => rows.length > 0);
+  const lexicalEnabled = ablationProfile?.lexical ?? true;
+  const semanticEnabled = ablationProfile?.semantic ?? true;
+  const lexicalLists = lexicalEnabled
+    ? (await Promise.all(queries
+      .map((candidate) => lexicalSearch(db, safeFtsQuery(candidate), innerLimit))))
+      .filter((rows) => rows.length > 0)
+    : [];
   let semanticLists = [];
-  try {
-    const semanticResult = await semanticSearchLists({ db, config, queries, limit: innerLimit, apiKey });
-    semanticLists = semanticResult.lists;
-    if (semanticResult.skippedReason) warnings.push(semanticSkipWarning(semanticResult.skippedReason));
-  } catch (error) {
-    warnings.push(formatWarning('semantic search unavailable; falling back to lexical-only results', error));
+  if (semanticEnabled) {
+    try {
+      const semanticResult = await semanticSearchLists({ db, config, queries, limit: innerLimit, apiKey });
+      semanticLists = semanticResult.lists;
+      if (semanticResult.skippedReason) {
+        if (strictRetrieval) throw new Error(semanticSkipWarning(semanticResult.skippedReason));
+        warnings.push(semanticSkipWarning(semanticResult.skippedReason));
+      }
+    } catch (error) {
+      if (strictRetrieval) throw error;
+      warnings.push(formatWarning('semantic search unavailable; falling back to lexical-only results', error));
+    }
   }
   const intentWeights = weightsForIntent(intent, modeBundle);
   let fused = fuseRankedLists(
@@ -79,12 +125,17 @@ export async function searchBrain({
     ],
     Math.max(resolvedLimit, innerLimit),
   );
-  await addAliasCandidates({ db, results: fused, query });
-  applyAliasHits(fused, query);
-  boostResultsForQuery(fused, query, intentWeights);
+  if (ablationProfile?.aliases ?? true) {
+    await addAliasCandidates({ db, results: fused, query });
+    applyAliasHits(fused, query);
+  }
+  if (ablationProfile?.deterministicBoosts ?? true) {
+    boostResultsForQuery(fused, query, intentWeights);
+  }
   stampEvidence(fused);
   fused.sort((left, right) => right.score - left.score || left.slug.localeCompare(right.slug));
-  if (modeBundle.rerank) {
+  const rerankEnabled = ablationProfile?.rerank ?? modeBundle.rerank;
+  if (rerankEnabled) {
     try {
       if (apiKey) {
         fused = await rerankResults({ config, apiKey, query, results: fused, reranker });
@@ -92,6 +143,7 @@ export async function searchBrain({
         warnings.push('OpenAI reranking skipped because OPENAI_API_KEY is not set.');
       }
     } catch (error) {
+      if (strictRetrieval && ablationProfile?.rerank) throw error;
       warnings.push(formatWarning('OpenAI reranking unavailable; using pre-rerank order', error));
     }
   }
@@ -104,7 +156,8 @@ export async function searchBrain({
     lexical: lexicalLists[0] ?? [],
     semantic: semanticLists[0] ?? [],
     fused: explain ? finalResults : finalResults.map(compactResult),
-    ...(explain ? { explain: { mode: resolvedMode, intent, rerank_enabled: modeBundle.rerank, expansion_enabled: expansionEnabled } } : {}),
+    ablation_arm: resolvedAblationArm,
+    ...(explain ? { explain: { mode: resolvedMode, intent, ablation_arm: resolvedAblationArm, rerank_enabled: rerankEnabled, expansion_enabled: expansionEnabled } } : {}),
     warnings,
   };
 }
@@ -402,6 +455,13 @@ function normalizeSearchMode(mode) {
   const value = String(mode || DEFAULT_SEARCH_MODE).trim().toLowerCase();
   if (Object.hasOwn(SEARCH_MODE_BUNDLES, value)) return value;
   throw new Error(`Invalid search mode: ${mode}. Expected one of: ${Object.keys(SEARCH_MODE_BUNDLES).join(', ')}.`);
+}
+
+export function normalizeRetrievalAblationArm(arm) {
+  if (arm === null || arm === undefined || arm === '') return null;
+  const value = String(arm).trim().toLowerCase();
+  if (Object.hasOwn(RETRIEVAL_ABLATION_ARMS, value)) return value;
+  throw new Error(`Invalid retrieval ablation arm: ${arm}. Expected one of: ${Object.keys(RETRIEVAL_ABLATION_ARMS).join(', ')}.`);
 }
 
 function normalizeLimit(limit, fallback) {

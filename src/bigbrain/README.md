@@ -150,6 +150,32 @@ Replay reports mean Jaccard@k, top-1 stability, moved queries, and latency
 deltas where available. Compare reports summarize the same retrieval metrics
 across modes and can render Markdown with `--markdown`.
 
+Retrieval-channel ablations are separate from search modes. Run all four arms
+against one fixed mode and one identical case set:
+
+```bash
+bigbrain eval compare --private \
+  --mode balanced \
+  --arms lexical-only,semantic-only,hybrid-fusion,hybrid-reranked \
+  --markdown
+```
+
+The arms are:
+
+- `lexical-only`: FTS retrieval plus alias and deterministic lexical boosts;
+  no embedding or reranking calls
+- `semantic-only`: embedding retrieval only; no lexical search, alias
+  injection, deterministic lexical boosts, or reranking
+- `hybrid-fusion`: lexical and semantic retrieval, reciprocal-rank fusion,
+  aliases, and deterministic boosts; no reranking
+- `hybrid-reranked`: the hybrid-fusion pipeline followed by OpenAI reranking
+
+Query expansion is disabled for all four arms so it does not become an
+uncontrolled fifth variable. Semantic arms fail closed when API access,
+embeddings, or the provider are unavailable instead of silently degrading to
+lexical retrieval. `--no-ai` can therefore only be combined with
+`lexical-only`.
+
 ### What is deliberately not ported yet
 
 `bigbrain` now stores multiple embedding chunks per page during sync, but it

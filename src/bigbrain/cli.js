@@ -526,8 +526,13 @@ async function handleMembers(args, global) {
 
 async function handleEval(args, global) {
   const subcommand = args[0];
+  const requestedArm = argValue(args, '--arm');
+  if (args.includes('--no-ai') && requestedArm && requestedArm !== 'lexical-only') {
+    throw new Error('--no-ai can only be combined with the lexical-only retrieval ablation arm.');
+  }
   const realBrainApiKey = args.includes('--no-ai') ? null : process.env.OPENAI_API_KEY || null;
   const {
+    compareRetrievalEvalArms,
     compareRetrievalEvalModes,
     defaultPrivateRetrievalEvalCasesPath,
     exportRetrievalEvalBaseline,
@@ -548,6 +553,7 @@ async function handleEval(args, global) {
     const loadedDefault = !casesPath && usePrivateDefault ? await maybeLoadDefaultPrivateRetrievalEvalCases() : null;
     const common = {
       mode: argValue(args, '--mode') || undefined,
+      arm: argValue(args, '--arm') || null,
       limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : undefined,
       failOnRegression: casesPath || loadedDefault ? args.includes('--fail-on-private-regression') : true,
       redact: args.includes('--redact'),
@@ -576,6 +582,7 @@ async function handleEval(args, global) {
       caseSource: cases.source,
       apiKey: realBrainApiKey,
       mode: argValue(args, '--mode') || undefined,
+      arm: argValue(args, '--arm') || null,
       limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : undefined,
       redact: args.includes('--redact'),
     });
@@ -592,6 +599,7 @@ async function handleEval(args, global) {
       baselinePath: against,
       apiKey: realBrainApiKey,
       mode: argValue(args, '--mode') || null,
+      arm: argValue(args, '--arm') || null,
       limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : null,
       redact: args.includes('--redact'),
     });
@@ -601,9 +609,18 @@ async function handleEval(args, global) {
 
   if (subcommand === 'compare') {
     const casesPath = argValue(args, '--cases');
+    const armsArg = argValue(args, '--arms');
+    const modesArg = argValue(args, '--modes');
+    if (armsArg && modesArg) throw new Error('eval compare accepts either --arms or --modes, not both.');
+    if (args.includes('--no-ai') && armsArg && armsArg.split(',').some((arm) => arm.trim() !== 'lexical-only')) {
+      throw new Error('--no-ai can only be combined with the lexical-only retrieval ablation arm.');
+    }
     const modes = argValue(args, '--modes')
       ? argValue(args, '--modes').split(',').map((mode) => mode.trim()).filter(Boolean)
       : ['conservative', 'balanced', 'tokenmax'];
+    const arms = armsArg
+      ? armsArg.split(',').map((arm) => arm.trim()).filter(Boolean)
+      : null;
     const common = {
       modes,
       limit: argValue(args, '--limit') ? Number(argValue(args, '--limit')) : undefined,
@@ -613,14 +630,27 @@ async function handleEval(args, global) {
     let report;
     if (casesPath || args.includes('--private')) {
       const cases = await loadEvalCasesForRealBrain({ args, loadRetrievalEvalCases, maybeLoadDefaultPrivateRetrievalEvalCases, defaultPrivateRetrievalEvalCasesPath });
-      report = await compareRetrievalEvalModes({
-        config: await loadRuntimeConfig(global),
-        cases: cases.cases,
-        caseSource: cases.source,
-        apiKey: realBrainApiKey,
-        ...common,
-      });
+      report = arms
+        ? await compareRetrievalEvalArms({
+          config: await loadRuntimeConfig(global),
+          cases: cases.cases,
+          caseSource: cases.source,
+          apiKey: realBrainApiKey,
+          arms,
+          mode: argValue(args, '--mode') || 'balanced',
+          limit: common.limit,
+          failOnRegression: common.failOnRegression,
+          redact: common.redact,
+        })
+        : await compareRetrievalEvalModes({
+          config: await loadRuntimeConfig(global),
+          cases: cases.cases,
+          caseSource: cases.source,
+          apiKey: realBrainApiKey,
+          ...common,
+        });
     } else {
+      if (arms) throw new Error('eval compare --arms requires --cases or --private.');
       const reports = [];
       for (const mode of modes) reports.push(await runRetrievalEval({ mode, limit: common.limit, redact: common.redact }));
       report = {
@@ -795,10 +825,10 @@ Commands:
   members [--status active|inactive|invited]
   members ensure-local-owner <people/slug> [--name NAME] [--email EMAIL]
   members add <email> <people/slug> [--name NAME] [--role owner|admin|editor|read-only|custom-role] [--status active|inactive|invited]
-  eval retrieval [--mode conservative|balanced|tokenmax] [--limit N] [--cases PATH] [--private] [--redact] [--no-ai]
-  eval export [--cases PATH] [--mode MODE] [--limit N] [--redact] [--no-ai]
-  eval replay --against baseline.ndjson [--mode MODE] [--limit N] [--no-ai]
-  eval compare [--cases PATH] [--modes conservative,balanced,tokenmax] [--markdown] [--no-ai]
+  eval retrieval [--mode conservative|balanced|tokenmax] [--arm ARM] [--limit N] [--cases PATH] [--private] [--redact] [--no-ai]
+  eval export [--cases PATH] [--mode MODE] [--arm ARM] [--limit N] [--redact] [--no-ai]
+  eval replay --against baseline.ndjson [--mode MODE] [--arm ARM] [--limit N] [--no-ai]
+  eval compare [--cases PATH] [--modes MODES | --arms ARMS] [--mode MODE] [--markdown] [--no-ai]
   dashboard [--host HOST] [--port N] [--no-open]
   mcp [--host HOST] [--port N]
   connect codex <service-url> [--name NAME] [--auth oauth|token] [--token-stdin]
