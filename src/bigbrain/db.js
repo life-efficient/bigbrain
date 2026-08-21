@@ -9,7 +9,7 @@ export const BIGBRAIN_STORAGE_SCHEMA_VERSION = 1;
 export async function openDatabase(config) {
   if (config.storageBackend === 'postgres') return openPostgresDatabase(config);
   await fs.mkdir(path.dirname(config.sqlitePath), { recursive: true });
-  const db = new DatabaseSync(config.sqlitePath);
+  const db = new DatabaseSync(config.sqlitePath, { timeout: 15_000 });
   initializeSqliteSchema(db);
   return { backend: 'sqlite', raw: db };
 }

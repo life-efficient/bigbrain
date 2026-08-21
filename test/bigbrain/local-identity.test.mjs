@@ -7,7 +7,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { openDatabase } from '../../src/bigbrain/db.js';
+import { openDatabase, sqliteRawDatabase } from '../../src/bigbrain/db.js';
 import {
   ensureLocalOwnerMember,
   findActiveMemberByPersonSlug,
@@ -123,6 +123,39 @@ test('members ensure-local-owner CLI bootstraps a local owner row', async () => 
     assert.equal(member.name, 'CLI Local');
     await db.close?.();
   } finally {
+    await removeTempFixture(fixture.rootDir);
+  }
+});
+
+test('members ensure-local-owner waits for a transient SQLite writer', async () => {
+  const fixture = await createFixture('bigbrain-local-owner-busy-');
+  let db;
+  let lockHeld = false;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    db = await openDatabase(config);
+    const raw = sqliteRawDatabase(db);
+    raw.exec('BEGIN EXCLUSIVE');
+    lockHeld = true;
+
+    const command = execFileAsync(process.execPath, [
+      path.resolve('bin/bigbrain.js'),
+      '--config',
+      fixture.configPath,
+      '--json',
+      'members',
+      'ensure-local-owner',
+      'people/busy-local',
+    ]);
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    raw.exec('COMMIT');
+    lockHeld = false;
+
+    const { stdout } = await command;
+    assert.equal(JSON.parse(stdout).person_slug, 'people/busy-local');
+  } finally {
+    if (lockHeld) sqliteRawDatabase(db).exec('ROLLBACK');
+    await db?.close?.();
     await removeTempFixture(fixture.rootDir);
   }
 });
