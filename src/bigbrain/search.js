@@ -1,4 +1,4 @@
-import { allEmbeddings, getPagesBySlugs, lexicalSearch, listPageSlugs, semanticSearch } from './db.js';
+import { allEmbeddings, getBacklinks, getOutgoingLinks, getPagesBySlugs, lexicalSearch, listPageSlugs, semanticSearch } from './db.js';
 import { answerQuestion, embedTexts, expandQueryVariants, rerankSearchResults } from './openai.js';
 
 const RRF_K = 60;
@@ -41,26 +41,49 @@ export const RANKING_EXPERIMENT_POLICIES = Object.freeze({
     queryContainsTitle: false,
     canonicalKind: false,
     activeState: false,
+    graphDepth: 0,
   }),
   'title-match': Object.freeze({
     queryContainsTitle: true,
     canonicalKind: false,
     activeState: false,
+    graphDepth: 0,
   }),
   'canonical-kind': Object.freeze({
     queryContainsTitle: false,
     canonicalKind: true,
     activeState: false,
+    graphDepth: 0,
   }),
   'active-state': Object.freeze({
     queryContainsTitle: false,
     canonicalKind: false,
     activeState: true,
+    graphDepth: 0,
   }),
   combined: Object.freeze({
     queryContainsTitle: true,
     canonicalKind: true,
     activeState: true,
+    graphDepth: 0,
+  }),
+  'graph-one-hop': Object.freeze({
+    queryContainsTitle: false,
+    canonicalKind: false,
+    activeState: false,
+    graphDepth: 1,
+  }),
+  'combined-graph-one-hop': Object.freeze({
+    queryContainsTitle: true,
+    canonicalKind: true,
+    activeState: true,
+    graphDepth: 1,
+  }),
+  'combined-graph-two-hop': Object.freeze({
+    queryContainsTitle: true,
+    canonicalKind: true,
+    activeState: true,
+    graphDepth: 2,
   }),
 });
 export const DEFAULT_RANKING_POLICY = 'combined';
@@ -163,6 +186,9 @@ export async function searchBrain({
   }
   if (ablationProfile?.deterministicBoosts ?? true) {
     boostResultsForQuery(fused, query, intentWeights);
+  }
+  if (rankingProfile.graphDepth > 0) {
+    fused = await expandGraphCandidates(db, fused, { depth: rankingProfile.graphDepth });
   }
   applyRankingExperimentPolicy(fused, {
     query,
@@ -534,6 +560,115 @@ export function applyRankingExperimentPolicy(results, {
   if (profile.queryContainsTitle && intent === 'entity') applyQueryContainsTitleBoost(results, query);
   if (profile.canonicalKind && !asksForRawEvidence(query)) applyCanonicalKindPreference(results);
   if (profile.activeState && shouldPreferActiveTasks(query, intent)) applyActiveTaskPreference(results);
+}
+
+export async function expandGraphCandidates(db, results, {
+  depth = 1,
+  seedLimit = 3,
+  frontierLimit = 10,
+  candidateLimit = 80,
+  graphMultiplier = 1.1,
+  hopDecay = 0.55,
+} = {}) {
+  const resolvedDepth = Math.max(0, Math.min(2, Math.trunc(Number(depth) || 0)));
+  if (resolvedDepth === 0 || results.length === 0) return results;
+
+  const bySlug = new Map(results.map((result) => [result.slug, result]));
+  let frontier = [...results]
+    .sort((left, right) => right.score - left.score || left.slug.localeCompare(right.slug))
+    .slice(0, seedLimit)
+    .map((result) => ({ slug: result.slug, score: result.score, path: [result.slug] }));
+
+  for (let hop = 1; hop <= resolvedDepth && frontier.length > 0; hop += 1) {
+    const proposals = new Map();
+    for (const origin of frontier) {
+      const [outgoing, backlinks] = await Promise.all([
+        getOutgoingLinks(db, origin.slug),
+        getBacklinks(db, origin.slug),
+      ]);
+      const neighbors = new Map();
+      for (const link of outgoing) {
+        if (!link.is_resolved || !link.to_slug || link.to_slug === origin.slug) continue;
+        neighbors.set(link.to_slug, { slug: link.to_slug, direction: 'outgoing', link_kind: link.link_kind });
+      }
+      for (const link of backlinks) {
+        if (!link.from_slug || link.from_slug === origin.slug) continue;
+        if (!neighbors.has(link.from_slug)) {
+          neighbors.set(link.from_slug, { slug: link.from_slug, direction: 'backlink', link_kind: link.link_kind });
+        }
+      }
+      const degree = neighbors.size;
+      if (degree === 0) continue;
+      const contribution = origin.score
+        * graphMultiplier
+        * (hopDecay ** (hop - 1))
+        / (1 + Math.log2(degree + 1));
+      for (const neighbor of neighbors.values()) {
+        const path = [...origin.path, neighbor.slug];
+        const proposal = {
+          ...neighbor,
+          contribution,
+          hop,
+          path,
+          from_slug: origin.slug,
+        };
+        const prior = proposals.get(neighbor.slug);
+        if (!prior || proposal.contribution > prior.contribution) proposals.set(neighbor.slug, proposal);
+      }
+    }
+
+    const rankedProposals = [...proposals.values()]
+      .sort((left, right) => right.contribution - left.contribution || left.slug.localeCompare(right.slug))
+      .slice(0, candidateLimit);
+    const missingSlugs = rankedProposals.filter((proposal) => !bySlug.has(proposal.slug)).map((proposal) => proposal.slug);
+    const metadataBySlug = new Map((await getPagesBySlugs(db, missingSlugs)).map((page) => [page.slug, page]));
+    const nextFrontier = [];
+    for (const proposal of rankedProposals) {
+      const existing = bySlug.get(proposal.slug);
+      const graphPath = {
+        from_slug: proposal.from_slug,
+        direction: proposal.direction,
+        hop: proposal.hop,
+        path: proposal.path,
+        contribution: proposal.contribution,
+      };
+      if (existing) {
+        existing.score += proposal.contribution;
+        existing.rank_contributions.push({ source: 'graph', rank: null, contribution: proposal.contribution, hop: proposal.hop });
+        existing.graph_paths = [...(existing.graph_paths ?? []), graphPath];
+      } else {
+        const page = metadataBySlug.get(proposal.slug);
+        if (!page) continue;
+        const snippet = page.summary || String(page.compiled_truth || '').slice(0, 240);
+        const candidate = {
+          slug: page.slug,
+          title: page.title ?? page.slug,
+          type: page.type ?? null,
+          page_kind: page.page_kind ?? 'canonical',
+          summary: page.summary ?? '',
+          frontmatter_json: page.frontmatter_json,
+          updated_at: page.updated_at ?? null,
+          snippet,
+          chunk_id: null,
+          chunk_text: snippet,
+          score: proposal.contribution,
+          base_score: proposal.contribution,
+          lexical_score: null,
+          semantic_score: null,
+          lexicalHits: 0,
+          semanticHits: 0,
+          boosts: [],
+          rank_contributions: [{ source: 'graph', rank: null, contribution: proposal.contribution, hop: proposal.hop }],
+          graph_paths: [graphPath],
+        };
+        bySlug.set(candidate.slug, candidate);
+      }
+      nextFrontier.push({ slug: proposal.slug, score: proposal.contribution, path: proposal.path });
+    }
+    frontier = nextFrontier.slice(0, frontierLimit);
+  }
+
+  return [...bySlug.values()];
 }
 
 function applyQueryContainsTitleBoost(results, query, multiplier = 1.25) {

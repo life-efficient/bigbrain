@@ -1206,6 +1206,73 @@ test('ranking experiment policies isolate title, canonical-kind, and active-stat
   assert.equal(taskRows[1].score, 0.7);
 });
 
+test('graph ranking policies add bounded one-hop and two-hop candidates with provenance', async () => {
+  const fixture = await createFixture('bigbrain-graph-ranking-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'projects/seed-page.md', `---
+title: Seed Page
+---
+# Seed Page
+
+Unique graph seed phrase. Related person: [[people/target-person]].
+`);
+    await writeMarkdown(fixture.brainHome, 'people/target-person.md', `---
+title: Target Person
+---
+# Target Person
+
+Relationship bridge to [[organizations/endpoint-org]].
+`);
+    await writeMarkdown(fixture.brainHome, 'organizations/endpoint-org.md', `---
+title: Endpoint Org
+---
+# Endpoint Org
+
+Graph traversal endpoint.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+    try {
+      const oneHop = await searchBrain({
+        db,
+        config,
+        query: 'Unique graph seed phrase',
+        limit: 10,
+        apiKey: null,
+        ablationArm: 'lexical-only',
+        rankingPolicy: 'graph-one-hop',
+        explain: true,
+      });
+      const target = oneHop.fused.find((row) => row.slug === 'people/target-person');
+      assert.equal(target?.rank_contributions.some((entry) => entry.source === 'graph' && entry.hop === 1), true);
+      assert.deepEqual(target?.graph_paths[0].path, ['projects/seed-page', 'people/target-person']);
+
+      const twoHop = await searchBrain({
+        db,
+        config,
+        query: 'Unique graph seed phrase',
+        limit: 10,
+        apiKey: null,
+        ablationArm: 'lexical-only',
+        rankingPolicy: 'combined-graph-two-hop',
+        explain: true,
+      });
+      const endpoint = twoHop.fused.find((row) => row.slug === 'organizations/endpoint-org');
+      assert.equal(endpoint?.rank_contributions.some((entry) => entry.source === 'graph' && entry.hop === 2), true);
+      assert.deepEqual(endpoint?.graph_paths[0].path, [
+        'projects/seed-page',
+        'people/target-person',
+        'organizations/endpoint-org',
+      ]);
+    } finally {
+      await db.close?.();
+    }
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('health reports page-shape issues', async () => {
   const fixture = await createFixture('bigbrain-health-');
   try {
