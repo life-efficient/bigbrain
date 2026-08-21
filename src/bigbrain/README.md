@@ -181,6 +181,23 @@ current-state queries. Retrieval evaluations can select `baseline` or any
 individual policy with `--ranking-policy`, or compare policies with
 `eval compare --policies ...`.
 
+Graph traversal remains opt-in. The `combined-graph-relational` policy performs
+a bounded bidirectional one-hop expansion from the top fused seeds only for
+queries with explicit relationship language. Candidates retain graph-path
+provenance, hop count, direction, and score contribution. Broader one-hop and
+two-hop policies remain available for controlled evaluation, but are not
+production defaults because they can displace strong direct matches.
+
+```bash
+bigbrain eval compare \
+  --cases ~/.config/bigbrain/evals/retrieval-dev-v2.jsonl \
+  --mode balanced \
+  --arm hybrid-fusion \
+  --policies combined,combined-graph-relational \
+  --reference-policy combined \
+  --markdown
+```
+
 Query expansion is disabled for all four arms so it does not become an
 uncontrolled fifth variable. Semantic arms fail closed when API access,
 embeddings, or the provider are unavailable instead of silently degrading to
