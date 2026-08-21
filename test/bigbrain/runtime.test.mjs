@@ -13,7 +13,7 @@ import { filingRulesForBrain } from '../../src/bigbrain/filing-rules.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
 import { loadRetrievalEvalCases, runRetrievalEvalOnConfig } from '../../src/bigbrain/eval-retrieval.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
-import { applyRankingExperimentPolicy, boostResultsForQuery, classifyQueryIntent, DEFAULT_RANKING_POLICY, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, RANKING_EXPERIMENT_POLICIES, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
+import { applyRankingExperimentPolicy, boostResultsForQuery, classifyQueryIntent, DEFAULT_RANKING_POLICY, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, RANKING_EXPERIMENT_POLICIES, searchBrain, shouldAutoExpandQuery, shouldExpandGraphForQuery } from '../../src/bigbrain/search.js';
 import { renderSchemaMarkdown, recommendFolderForInput } from '../../src/bigbrain/schema.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -1271,6 +1271,14 @@ Graph traversal endpoint.
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
+});
+
+test('relational graph gate activates only for explicit relationship questions', () => {
+  assert.equal(shouldExpandGraphForQuery('Which project is directly linked from Luciano Vital?'), true);
+  assert.equal(shouldExpandGraphForQuery('Which company is connected through the July meeting?'), true);
+  assert.equal(shouldExpandGraphForQuery('Which meeting covered Ivana\'s DoorDash strategy?'), true);
+  assert.equal(shouldExpandGraphForQuery('Who is Luciano Vital?'), false);
+  assert.equal(shouldExpandGraphForQuery('What is the active Taleem task?'), false);
 });
 
 test('health reports page-shape issues', async () => {

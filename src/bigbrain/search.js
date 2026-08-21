@@ -85,6 +85,13 @@ export const RANKING_EXPERIMENT_POLICIES = Object.freeze({
     activeState: true,
     graphDepth: 2,
   }),
+  'combined-graph-relational': Object.freeze({
+    queryContainsTitle: true,
+    canonicalKind: true,
+    activeState: true,
+    graphDepth: 1,
+    graphRelationalOnly: true,
+  }),
 });
 export const DEFAULT_RANKING_POLICY = 'combined';
 export const SEARCH_MODE_BUNDLES = Object.freeze({
@@ -187,7 +194,7 @@ export async function searchBrain({
   if (ablationProfile?.deterministicBoosts ?? true) {
     boostResultsForQuery(fused, query, intentWeights);
   }
-  if (rankingProfile.graphDepth > 0) {
+  if (rankingProfile.graphDepth > 0 && (!rankingProfile.graphRelationalOnly || shouldExpandGraphForQuery(query))) {
     fused = await expandGraphCandidates(db, fused, { depth: rankingProfile.graphDepth });
   }
   applyRankingExperimentPolicy(fused, {
@@ -550,6 +557,14 @@ export function normalizeRankingExperimentPolicy(policy) {
   const value = String(policy || 'baseline').trim().toLowerCase();
   if (Object.hasOwn(RANKING_EXPERIMENT_POLICIES, value)) return value;
   throw new Error(`Invalid ranking experiment policy: ${policy}. Expected one of: ${Object.keys(RANKING_EXPERIMENT_POLICIES).join(', ')}.`);
+}
+
+export function shouldExpandGraphForQuery(query) {
+  const text = String(query || '').trim().toLowerCase();
+  if (!text) return false;
+  return /\b(directly|linked?|links?|connect(?:ed|s)?|through|associated|cited by|leads? to)\b/.test(text)
+    || /^which\s+(?:open\s+task\s+records|meeting\s+covered|kickoff\s+selected)\b/.test(text)
+    || /^where\s+is\s+.+\s+collected\??$/.test(text);
 }
 
 export function applyRankingExperimentPolicy(results, {
