@@ -47,7 +47,7 @@ export const SEARCH_MODE_BUNDLES = Object.freeze({
   }),
   balanced: Object.freeze({
     expansion: false,
-    rerank: true,
+    rerank: false,
     searchLimit: 10,
     innerLimit: 30,
     tokenBudget: 12000,

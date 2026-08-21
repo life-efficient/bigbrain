@@ -170,6 +170,11 @@ The arms are:
   aliases, and deterministic boosts; no reranking
 - `hybrid-reranked`: the hybrid-fusion pipeline followed by OpenAI reranking
 
+The default `balanced` production mode uses hybrid fusion without reranking.
+This keeps the broad candidate coverage and avoids paying the reranker latency
+on every normal search. `tokenmax` and the explicit `hybrid-reranked`
+evaluation arm retain reranking for deliberate high-cost or experimental use.
+
 Query expansion is disabled for all four arms so it does not become an
 uncontrolled fifth variable. Semantic arms fail closed when API access,
 embeddings, or the provider are unavailable instead of silently degrading to

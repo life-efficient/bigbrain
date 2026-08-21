@@ -295,7 +295,8 @@ test('CLI reports search mode bundles', async () => {
   const report = JSON.parse(result.stdout);
   assert.equal(report.default_mode, 'balanced');
   assert.equal(report.active_mode, 'balanced');
-  assert.equal(report.bundles.balanced.rerank, true);
+  assert.equal(report.bundles.balanced.rerank, false);
+  assert.equal(report.bundles.tokenmax.rerank, true);
   assert.equal(report.bundles.tokenmax.expansion, true);
 });
 
@@ -781,7 +782,7 @@ Alex Rivera is the founder of ExampleCo.
   }
 });
 
-test('search defaults to balanced mode and applies mocked OpenAI reranking', async () => {
+test('search defaults to hybrid fusion and supports explicit mocked reranking', async () => {
   const fixture = await createFixture('bigbrain-search-rerank-');
   try {
     await writeMarkdown(fixture.brainHome, 'projects/alpha.md', `---
@@ -802,21 +803,39 @@ shared retrieval target
     await syncBrain({ config, apiKey: null });
 
     const db = await openDatabase(config);
-    const result = await searchBrain({
+    let rerankCalls = 0;
+    const reranker = async ({ results }) => {
+      rerankCalls += 1;
+      return results.map((row, index) => ({
+        index,
+        score: row.slug === 'projects/beta' ? 1 : 0.1,
+      }));
+    };
+    const defaultResult = await searchBrain({
       db,
       config,
       query: 'shared retrieval target',
       apiKey: 'test-key',
       explain: true,
-      reranker: async ({ results }) => results.map((row, index) => ({
-        index,
-        score: row.slug === 'projects/beta' ? 1 : 0.1,
-      })),
+      reranker,
     });
     assert.equal(DEFAULT_SEARCH_MODE, 'balanced');
-    assert.equal(result.mode, 'balanced');
-    assert.equal(result.fused[0].slug, 'projects/beta');
-    assert.equal(result.fused[0].rerank_score, 1);
+    assert.equal(defaultResult.mode, 'balanced');
+    assert.equal(defaultResult.explain.rerank_enabled, false);
+    assert.equal(rerankCalls, 0);
+
+    const rerankedResult = await searchBrain({
+      db,
+      config,
+      query: 'shared retrieval target',
+      apiKey: 'test-key',
+      explain: true,
+      ablationArm: 'hybrid-reranked',
+      reranker,
+    });
+    assert.equal(rerankCalls, 1);
+    assert.equal(rerankedResult.fused[0].slug, 'projects/beta');
+    assert.equal(rerankedResult.fused[0].rerank_score, 1);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
