@@ -206,13 +206,17 @@ test('vis network boot and MCP activity animations are bounded and accessible', 
   assert.match(main, /new EventSource\('\/api\/graph\/events'\)/);
 });
 
-test('vis network uses a lightweight camera state while zooming dense graphs', async () => {
+test('vis network transforms frozen geometry instead of redrawing it during camera gestures', async () => {
   const [visualizer, dashboard] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/graph/vis-network-visualizer.jsx', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(visualizer, /hideEdgesOnZoom: true/);
+  assert.match(visualizer, /dragView: false/);
+  assert.match(visualizer, /zoomView: false/);
+  assert.match(visualizer, /translate3d\(\$\{translateX\}px, \$\{translateY\}px, 0\) scale\(\$\{ratio\}\)/);
+  assert.match(visualizer, /network\.moveTo\(\{ position: next\.position, scale: next\.scale, animation: false \}\)/);
+  assert.doesNotMatch(visualizer, /network\.on\('afterDrawing'/);
   assert.match(visualizer, /vis-network-camera-moving/);
   assert.match(visualizer, /if \(cameraMoving\) return/);
   assert.match(dashboard, /\.vis-network-camera-moving \.vis-network-label-layer \{ opacity: 0/);

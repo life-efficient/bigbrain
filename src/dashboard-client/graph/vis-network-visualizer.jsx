@@ -23,6 +23,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
 }, ref) {
   const theme = useGraphTheme();
   const canvasRef = useRef(null);
+  const shellRef = useRef(null);
   const networkRef = useRef(null);
   const nodeDataRef = useRef(null);
   const edgeDataRef = useRef(null);
@@ -33,6 +34,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
   const hoveredSlugRef = useRef(null);
   const applyFocusRef = useRef(() => {});
   const scheduleLabelsRef = useRef(() => {});
+  const cameraCommandRef = useRef(() => {});
   const overlaySignatureRef = useRef('');
   const graphRef = useRef(graph);
   const skipNextGraphSyncRef = useRef(false);
@@ -54,34 +56,13 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
 
   useImperativeHandle(ref, () => ({
     zoomIn() {
-      const network = networkRef.current;
-      if (!network) return;
-      network.moveTo({
-        scale: Math.min(3.2, network.getScale() * 1.18),
-        animation: {
-          duration: 220,
-          easingFunction: 'easeInOutQuad',
-        },
-      });
+      cameraCommandRef.current({ scaleFactor: 1.18 });
     },
     zoomOut() {
-      const network = networkRef.current;
-      if (!network) return;
-      network.moveTo({
-        scale: Math.max(0.42, network.getScale() / 1.18),
-        animation: {
-          duration: 220,
-          easingFunction: 'easeInOutQuad',
-        },
-      });
+      cameraCommandRef.current({ scaleFactor: 1 / 1.18 });
     },
     resetView() {
-      networkRef.current?.fit({
-        animation: {
-          duration: 250,
-          easingFunction: 'easeInOutQuad',
-        },
-      });
+      cameraCommandRef.current({ reset: true });
     },
   }), []);
 
@@ -114,7 +95,8 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
         autoResize: true,
         interaction: {
           hover: true,
-          hideEdgesOnZoom: true,
+          dragView: false,
+          zoomView: false,
           navigationButtons: false,
           selectConnectedEdges: false,
           hoverConnectedEdges: false,
@@ -176,6 +158,9 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
     let bootRevealTimer = 0;
     let cameraSettleTimer = 0;
     let cameraMoving = false;
+    let cameraGesture = null;
+    let cameraDrag = null;
+    let suppressNextClick = false;
     const applyFocus = (focusSlug) => {
       const validFocusSlug = nodeTitlesRef.current.has(focusSlug) ? focusSlug : null;
       const currentGraph = graphRef.current;
@@ -251,25 +236,134 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
     });
 
     network.on('click', (event) => {
+      if (suppressNextClick) return;
       const nodeId = event.nodes?.[0] || findNearestNode(event.pointer?.DOM);
       if (!nodeId) return;
       handleActiveChange(nodeId);
       handleNodeOpen(nodeId);
     });
-    network.on('zoom', () => {
-      cameraMoving = true;
-      canvas.parentElement?.classList.add('vis-network-camera-moving');
-      window.clearTimeout(cameraSettleTimer);
-      cameraSettleTimer = window.setTimeout(() => {
-        cameraMoving = false;
-        canvas.parentElement?.classList.remove('vis-network-camera-moving');
-        scheduleLabels();
-      }, 260);
-    });
-    network.on('afterDrawing', scheduleLabels);
-
     const canvas = canvasRef.current;
+    const shell = shellRef.current;
+    const beginCameraGesture = () => {
+      if (cameraGesture) return cameraGesture;
+      const scale = network.getScale();
+      const position = network.getViewPosition();
+      cameraGesture = {
+        baseScale: scale,
+        basePosition: position,
+        scale,
+        position: { ...position },
+      };
+      cameraMoving = true;
+      shell?.classList.add('vis-network-camera-moving');
+      return cameraGesture;
+    };
+    const renderCameraGesture = () => {
+      if (!cameraGesture || !shell) return;
+      const ratio = cameraGesture.scale / cameraGesture.baseScale;
+      const centerX = shell.clientWidth / 2;
+      const centerY = shell.clientHeight / 2;
+      const translateX = centerX * (1 - ratio)
+        + (cameraGesture.basePosition.x - cameraGesture.position.x) * cameraGesture.scale;
+      const translateY = centerY * (1 - ratio)
+        + (cameraGesture.basePosition.y - cameraGesture.position.y) * cameraGesture.scale;
+      canvas.style.transform = `translate3d(${translateX}px, ${translateY}px, 0) scale(${ratio})`;
+    };
+    const commitCameraGesture = () => {
+      if (!cameraGesture) return;
+      const next = cameraGesture;
+      cameraGesture = null;
+      window.clearTimeout(cameraSettleTimer);
+      canvas.style.transform = '';
+      network.moveTo({ position: next.position, scale: next.scale, animation: false });
+      network.redraw();
+      cameraMoving = false;
+      shell?.classList.remove('vis-network-camera-moving');
+      scheduleLabels();
+    };
+    const scheduleCameraCommit = (delay = 120) => {
+      window.clearTimeout(cameraSettleTimer);
+      cameraSettleTimer = window.setTimeout(commitCameraGesture, delay);
+    };
+    const handleWheel = (event) => {
+      event.preventDefault();
+      const bounds = shell.getBoundingClientRect();
+      const anchorX = event.clientX - bounds.left;
+      const anchorY = event.clientY - bounds.top;
+      const gesture = beginCameraGesture();
+      const nextScale = Math.min(3.2, Math.max(0.42, gesture.scale * Math.exp(-event.deltaY * 0.0015)));
+      if (nextScale === gesture.scale) {
+        scheduleCameraCommit();
+        return;
+      }
+      const worldX = gesture.position.x + (anchorX - bounds.width / 2) / gesture.scale;
+      const worldY = gesture.position.y + (anchorY - bounds.height / 2) / gesture.scale;
+      gesture.position = {
+        x: worldX - (anchorX - bounds.width / 2) / nextScale,
+        y: worldY - (anchorY - bounds.height / 2) / nextScale,
+      };
+      gesture.scale = nextScale;
+      renderCameraGesture();
+      scheduleCameraCommit();
+    };
+    const handleCameraPointerDown = (event) => {
+      if (event.button !== 0) return;
+      const gesture = beginCameraGesture();
+      cameraDrag = {
+        pointerId: event.pointerId,
+        startX: event.clientX,
+        startY: event.clientY,
+        startPosition: { ...gesture.position },
+        moved: false,
+      };
+      shell.setPointerCapture?.(event.pointerId);
+    };
+    const handleCameraPointerMove = (event) => {
+      if (!cameraDrag || cameraDrag.pointerId !== event.pointerId) return;
+      const dx = event.clientX - cameraDrag.startX;
+      const dy = event.clientY - cameraDrag.startY;
+      if (!cameraDrag.moved && Math.hypot(dx, dy) < 3) return;
+      cameraDrag.moved = true;
+      const gesture = beginCameraGesture();
+      gesture.position = {
+        x: cameraDrag.startPosition.x - dx / gesture.scale,
+        y: cameraDrag.startPosition.y - dy / gesture.scale,
+      };
+      renderCameraGesture();
+    };
+    const stopCameraDrag = (event) => {
+      if (!cameraDrag || cameraDrag.pointerId !== event.pointerId) return;
+      const moved = cameraDrag.moved;
+      cameraDrag = null;
+      try { shell.releasePointerCapture?.(event.pointerId); } catch { /* no-op */ }
+      if (moved) {
+        suppressNextClick = true;
+        window.setTimeout(() => { suppressNextClick = false; }, 0);
+        commitCameraGesture();
+      } else {
+        cameraGesture = null;
+        cameraMoving = false;
+        shell?.classList.remove('vis-network-camera-moving');
+      }
+    };
+    cameraCommandRef.current = ({ scaleFactor, reset } = {}) => {
+      if (reset) {
+        network.fit({ animation: false });
+      } else {
+        const scale = Math.min(3.2, Math.max(0.42, network.getScale() * scaleFactor));
+        network.moveTo({ scale, animation: false });
+      }
+      network.redraw();
+      scheduleLabels();
+    };
+    shell.addEventListener('wheel', handleWheel, { passive: false });
+    shell.addEventListener('pointerdown', handleCameraPointerDown);
+    shell.addEventListener('pointermove', handleCameraPointerMove);
+    shell.addEventListener('pointerup', stopCameraDrag);
+    shell.addEventListener('pointercancel', stopCameraDrag);
+
     const handlePointerMove = (event) => {
+      if (cameraMoving) return;
       const bounds = canvas.getBoundingClientRect();
       pendingPointer = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
       if (pointerFrame) return;
@@ -302,19 +396,26 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
     previousActiveSlugRef.current = currentActiveSlug || null;
     scheduleLabels();
     return () => {
+      shell.removeEventListener('wheel', handleWheel);
+      shell.removeEventListener('pointerdown', handleCameraPointerDown);
+      shell.removeEventListener('pointermove', handleCameraPointerMove);
+      shell.removeEventListener('pointerup', stopCameraDrag);
+      shell.removeEventListener('pointercancel', stopCameraDrag);
       canvas.removeEventListener('pointermove', handlePointerMove);
       canvas.removeEventListener('pointerleave', handlePointerLeave);
       if (labelFrame) cancelAnimationFrame(labelFrame);
       if (pointerFrame) cancelAnimationFrame(pointerFrame);
       window.clearTimeout(bootRevealTimer);
       window.clearTimeout(cameraSettleTimer);
-      canvas.parentElement?.classList.remove('vis-network-camera-moving');
+      canvas.style.transform = '';
+      shell?.classList.remove('vis-network-camera-moving');
       network.destroy();
       networkRef.current = null;
       nodeDataRef.current = null;
       edgeDataRef.current = null;
       applyFocusRef.current = () => {};
       scheduleLabelsRef.current = () => {};
+      cameraCommandRef.current = () => {};
       overlaySignatureRef.current = '';
       setOverlayLabels([]);
       setLivePulses([]);
@@ -400,7 +501,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
   }, [activeSlug]);
 
   return (
-    <div className={`graph-canvas-shell force-shell ${booted ? 'vis-network-booted' : 'vis-network-booting'}`}>
+    <div ref={shellRef} className={`graph-canvas-shell force-shell ${booted ? 'vis-network-booted' : 'vis-network-booting'}`}>
       <div
         ref={canvasRef}
         className="vis-network-surface"

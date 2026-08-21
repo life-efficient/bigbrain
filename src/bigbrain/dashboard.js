@@ -856,7 +856,7 @@ function renderAppHtml() {
       .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
       .graph-svg:active { cursor: grabbing; }
       .force-shell canvas { border-radius: 18px; }
-      .vis-network-surface { opacity: 0.52; }
+      .vis-network-surface { opacity: 0.52; transform-origin: 0 0; will-change: transform; }
       .vis-network-booted .vis-network-surface { animation: vis-network-materialize 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
       .vis-network-boot-overlay { position: absolute; inset: 0; z-index: 4; overflow: hidden; pointer-events: none; opacity: 0; }
       .vis-network-booted .vis-network-boot-overlay { animation: vis-network-boot-stage 760ms ease-out both; }

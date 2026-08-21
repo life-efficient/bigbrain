@@ -36,7 +36,7 @@ states.
 - Run the vis-network boot treatment once, only after physics has frozen and the initial camera fit has finished. Keep it CSS-only, brief, and independent of graph size so it cannot disturb the stabilized geometry.
 - Animate live graph activity only after a successful MCP write has completed indexing. Refresh graph data, patch the existing vis-network datasets in place, preserve settled node positions, and use a bounded overlay pulse to distinguish page creation from updates.
 - Boot and live graph motion must have a reduced-motion path that immediately reveals the settled graph and omits scan, reticle, and pulse effects.
-- Dense vis-network graphs should hide edges and HTML labels only while zoom is actively moving, then restore both immediately after the camera settles. Do not retain whole-canvas filters after boot because they make every interaction frame expensive.
+- Treat a stabilized graph as fixed geometry: zoom and pan should transform the settled scene as one composited layer, then commit the camera once when interaction ends. Never rerun layout, rebuild overlays, or repaint thousands of individual graph primitives on every input tick.
 
 ## Desktop Shell Theming
 
