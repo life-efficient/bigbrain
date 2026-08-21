@@ -13,7 +13,7 @@ import { filingRulesForBrain } from '../../src/bigbrain/filing-rules.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
 import { loadRetrievalEvalCases, runRetrievalEvalOnConfig } from '../../src/bigbrain/eval-retrieval.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
-import { applyRankingExperimentPolicy, boostResultsForQuery, classifyQueryIntent, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, RANKING_EXPERIMENT_POLICIES, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
+import { applyRankingExperimentPolicy, boostResultsForQuery, classifyQueryIntent, DEFAULT_RANKING_POLICY, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, RANKING_EXPERIMENT_POLICIES, searchBrain, shouldAutoExpandQuery } from '../../src/bigbrain/search.js';
 import { renderSchemaMarkdown, recommendFolderForInput } from '../../src/bigbrain/schema.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -294,6 +294,7 @@ test('CLI reports search mode bundles', async () => {
   assert.equal(result.code, 0, result.stderr);
   const report = JSON.parse(result.stdout);
   assert.equal(report.default_mode, 'balanced');
+  assert.equal(report.default_ranking_policy, DEFAULT_RANKING_POLICY);
   assert.equal(report.active_mode, 'balanced');
   assert.equal(report.bundles.balanced.rerank, false);
   assert.equal(report.bundles.tokenmax.rerank, true);
@@ -840,6 +841,7 @@ shared retrieval target
     assert.equal(DEFAULT_SEARCH_MODE, 'balanced');
     assert.equal(defaultResult.mode, 'balanced');
     assert.equal(defaultResult.explain.rerank_enabled, false);
+    assert.equal(defaultResult.ranking_policy, 'combined');
     assert.equal(rerankCalls, 0);
 
     const rerankedResult = await searchBrain({

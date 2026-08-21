@@ -174,6 +174,12 @@ The default `balanced` production mode uses hybrid fusion without reranking.
 This keeps the broad candidate coverage and avoids paying the reranker latency
 on every normal search. `tokenmax` and the explicit `hybrid-reranked`
 evaluation arm retain reranking for deliberate high-cost or experimental use.
+Normal search also applies the validated `combined` deterministic ranking
+policy: full-title matches for entity queries, canonical-page preference over
+attachments unless raw evidence is requested, and active-task preference for
+current-state queries. Retrieval evaluations can select `baseline` or any
+individual policy with `--ranking-policy`, or compare policies with
+`eval compare --policies ...`.
 
 Query expansion is disabled for all four arms so it does not become an
 uncontrolled fifth variable. Semantic arms fail closed when API access,

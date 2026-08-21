@@ -63,6 +63,7 @@ export const RANKING_EXPERIMENT_POLICIES = Object.freeze({
     activeState: true,
   }),
 });
+export const DEFAULT_RANKING_POLICY = 'combined';
 export const SEARCH_MODE_BUNDLES = Object.freeze({
   conservative: Object.freeze({
     expansion: false,
@@ -93,6 +94,7 @@ export const SEARCH_MODE_BUNDLES = Object.freeze({
 export function searchModesReport(activeMode = DEFAULT_SEARCH_MODE) {
   return {
     default_mode: DEFAULT_SEARCH_MODE,
+    default_ranking_policy: DEFAULT_RANKING_POLICY,
     active_mode: normalizeSearchMode(activeMode),
     bundles: SEARCH_MODE_BUNDLES,
   };
@@ -110,7 +112,7 @@ export async function searchBrain({
   reranker = rerankSearchResults,
   ablationArm = null,
   strictRetrieval = false,
-  rankingPolicy = 'baseline',
+  rankingPolicy = DEFAULT_RANKING_POLICY,
 } = {}) {
   const warnings = [];
   const resolvedMode = normalizeSearchMode(mode);
@@ -209,9 +211,21 @@ export async function queryBrain({
   explain = false,
   apiKey = process.env.OPENAI_API_KEY,
   reranker = rerankSearchResults,
+  rankingPolicy = DEFAULT_RANKING_POLICY,
 } = {}) {
   const effectiveQuestion = question || query;
-  const search = await searchBrain({ db, config, query: effectiveQuestion, limit, mode, expand, explain: true, apiKey, reranker });
+  const search = await searchBrain({
+    db,
+    config,
+    query: effectiveQuestion,
+    limit,
+    mode,
+    expand,
+    explain: true,
+    apiKey,
+    reranker,
+    rankingPolicy,
+  });
   const context = formatAnswerContext(search.fused);
   const preferredSources = search.fused.slice(0, 3).map((result) => result.slug);
   const warnings = [...search.warnings];
