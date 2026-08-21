@@ -28,6 +28,11 @@ states.
 - Offer dense graph layouts that scale their virtual canvas with node count and enforce node separation; do not force every brain into one fixed coordinate space.
 - Keep graph canvases transparent within the viewer. Do not paint a full viewBox-sized backdrop that exposes SVG letterboxing as a square or rectangular tile.
 - Keep node labels in preset graph views at a readable 15px baseline. Custom may retain its compact label sizing because its presentation is explicitly user-controlled.
+- Preserve vis-network's emergent clustering and physics when refining its appearance or interaction. Treat its stabilized positions as the renderer's canonical geometry.
+- Vis-network node hover and click targeting must use a forgiving screen-space proximity radius instead of requiring precise contact with the visible glyph.
+- Render vis-network labels in the dashboard overlay layer so key, hover, and selected labels can use the app's typography and translucent surfaces without changing graph geometry.
+- Keep `Orb`, `Diamond`, and `Hex` node styles available in vis-network. Selection should emphasize the focused node and its immediate neighborhood while muting unrelated nodes and edges.
+- Do not change or formalize disconnected-page placement as part of vis-network presentation work.
 
 ## Desktop Shell Theming
 

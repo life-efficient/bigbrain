@@ -10,7 +10,12 @@ import {
 } from '../../src/dashboard-client/graph/shared.js';
 import { getGraphNodeColor, getUpdatedNodeColor } from '../../src/dashboard-client/graph/colors.js';
 import { resolveThemeMode } from '../../src/dashboard-client/graph/theme.js';
-import { buildVisNetworkNodes, getVisNetworkLabelSlugs } from '../../src/dashboard-client/graph/vis-network-data.js';
+import {
+  buildVisNetworkFocusUpdates,
+  buildVisNetworkNodes,
+  findNearestVisNetworkNode,
+  getVisNetworkLabelSlugs,
+} from '../../src/dashboard-client/graph/vis-network-data.js';
 
 test('responsive graph visualizers do not paint letterboxed viewBox backdrops', async () => {
   const sources = await Promise.all([
@@ -71,7 +76,7 @@ test('none graph color mode leaves node color unmodified', () => {
   }, 'none'), null);
 });
 
-test('vis network honors graph color and label settings', () => {
+test('vis network honors graph color, node style, and label settings', () => {
   const nodes = Array.from({ length: 8 }, (_, index) => ({
     slug: `projects/node-${index}`,
     title: `Node ${index}`,
@@ -80,15 +85,16 @@ test('vis network honors graph color and label settings', () => {
   }));
   const theme = { graphNodeStroke: '#123456' };
 
-  const allLabels = buildVisNetworkNodes(nodes, { colorMode: 'type', labelStyle: 'all', theme });
-  assert.equal(allLabels.every((node) => node.label), true);
-  assert.equal(allLabels[0].color.background, '#b8c0ff');
-  assert.equal(allLabels[1].color.background, '#8ecae6');
+  const styledNodes = buildVisNetworkNodes(nodes, { colorMode: 'type', nodeStyle: 'hex', theme });
+  assert.equal(styledNodes.every((node) => node.label === ''), true);
+  assert.equal(styledNodes.every((node) => node.shape === 'hexagon'), true);
+  assert.equal(styledNodes[0].color.background, '#b8c0ff');
+  assert.equal(styledNodes[1].color.background, '#8ecae6');
 
-  const noLabelsOrColors = buildVisNetworkNodes(nodes, { colorMode: 'none', labelStyle: 'off', theme });
-  assert.equal(noLabelsOrColors.every((node) => node.label === ''), true);
-  assert.equal(noLabelsOrColors.every((node) => !Object.hasOwn(node, 'color')), true);
-  assert.equal(noLabelsOrColors.every((node) => !Object.hasOwn(node, 'group')), true);
+  const noColors = buildVisNetworkNodes(nodes, { colorMode: 'none', nodeStyle: 'diamond', theme });
+  assert.equal(noColors.every((node) => node.shape === 'diamond'), true);
+  assert.equal(noColors.every((node) => node.color === undefined), true);
+  assert.equal(noColors.every((node) => !Object.hasOwn(node, 'group')), true);
 
   const keyLabels = getVisNetworkLabelSlugs(nodes, 'selected');
   assert.equal(keyLabels.size, 6);
@@ -96,12 +102,41 @@ test('vis network honors graph color and label settings', () => {
   assert.equal(keyLabels.has('projects/node-0'), false);
 });
 
+test('vis network proximity targeting uses a forgiving screen-space radius', () => {
+  const positions = {
+    'projects/near': { x: 100, y: 100 },
+    'projects/closer': { x: 105, y: 100 },
+    'projects/far': { x: 220, y: 220 },
+  };
+
+  assert.equal(findNearestVisNetworkNode({ x: 103, y: 100 }, positions), 'projects/closer');
+  assert.equal(findNearestVisNetworkNode({ x: 133, y: 100 }, positions), 'projects/closer');
+  assert.equal(findNearestVisNetworkNode({ x: 134, y: 100 }, positions), null);
+});
+
+test('vis network focus emphasizes one-hop relationships and mutes the rest', () => {
+  const nodes = ['a', 'b', 'c'].map((slug) => ({ slug }));
+  const edges = [{ source: 'a', target: 'b' }];
+  const theme = { graphEdge: '#111111', graphEdgeStrong: '#ffffff' };
+  const focus = buildVisNetworkFocusUpdates(nodes, edges, 'a', theme);
+
+  assert.deepEqual(focus.nodes.map((node) => node.opacity), [1, 0.86, 0.18]);
+  assert.equal(focus.edges[0].color.opacity, 0.95);
+
+  const missing = buildVisNetworkFocusUpdates(nodes, edges, 'missing', theme);
+  assert.deepEqual(missing.nodes.map((node) => node.opacity), [1, 1, 1]);
+  assert.equal(missing.edges[0].color.opacity, 1);
+});
+
 test('vis network label controls remain available in the graph style menu', async () => {
   const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
   const labelsGroup = main.match(/<GraphStyleOptionGroup\s+label="Labels"[\s\S]*?\/>/)?.[0] || '';
+  const nodesGroup = main.match(/<GraphStyleOptionGroup\s+label="Node"[\s\S]*?\/>/)?.[0] || '';
 
   assert.match(labelsGroup, /options=\{GRAPH_LABEL_STYLES\}/);
   assert.doesNotMatch(labelsGroup, /disabled=/);
+  assert.match(nodesGroup, /options=\{GRAPH_NODE_STYLES\}/);
+  assert.doesNotMatch(nodesGroup, /disabled=/);
 });
 
 test('graph layouts safely handle empty and single-node graphs', () => {

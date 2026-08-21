@@ -1,7 +1,13 @@
-import React, { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useRef } from 'react';
+import React, { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useRef, useState } from 'react';
 import { DataSet, Network } from 'vis-network/standalone';
 
-import { buildVisNetworkNodes, getVisNetworkLabelSlugs } from './vis-network-data.js';
+import {
+  buildVisNetworkEdges,
+  buildVisNetworkFocusUpdates,
+  buildVisNetworkNodes,
+  findNearestVisNetworkNode,
+  getVisNetworkLabelSlugs,
+} from './vis-network-data.js';
 import { PRESET_GRAPH_LABEL_FONT_SIZE, useGraphTheme } from './visualizer-core.jsx';
 
 export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
@@ -11,18 +17,31 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
   onActiveSlugChange,
   colorMode = 'updated',
   labelStyle = 'selected',
+  nodeStyle = 'orb',
 }, ref) {
   const theme = useGraphTheme();
   const canvasRef = useRef(null);
   const networkRef = useRef(null);
   const nodeDataRef = useRef(null);
+  const edgeDataRef = useRef(null);
   const nodeTitlesRef = useRef(new Map());
+  const nodeTypesRef = useRef(new Map());
   const baseLabelSlugsRef = useRef(new Set());
   const previousActiveSlugRef = useRef(null);
+  const hoveredSlugRef = useRef(null);
+  const applyFocusRef = useRef(() => {});
+  const scheduleLabelsRef = useRef(() => {});
+  const overlaySignatureRef = useRef('');
+  const visualSettingsRef = useRef({ colorMode, labelStyle, nodeStyle });
   const activeSlugRef = useRef(activeSlug);
+  const [overlayLabels, setOverlayLabels] = useState([]);
   activeSlugRef.current = activeSlug;
+  visualSettingsRef.current = { colorMode, labelStyle, nodeStyle };
   const handleNodeOpen = useEffectEvent((nodeId) => {
     onNodeOpen?.(nodeId);
+  });
+  const handleActiveChange = useEffectEvent((nodeId) => {
+    onActiveSlugChange?.(nodeId);
   });
 
   useImperativeHandle(ref, () => ({
@@ -62,29 +81,30 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
     if (!canvasRef.current) return undefined;
 
     const nodes = new DataSet(buildVisNetworkNodes(graph.nodes, {
-      colorMode,
-      labelStyle,
+      colorMode: visualSettingsRef.current.colorMode,
+      nodeStyle: visualSettingsRef.current.nodeStyle,
       theme,
     }));
+    const edges = new DataSet(buildVisNetworkEdges(graph.edges, theme));
     nodeDataRef.current = nodes;
+    edgeDataRef.current = edges;
     nodeTitlesRef.current = new Map(graph.nodes.map((node) => [node.slug, node.title]));
-    baseLabelSlugsRef.current = getVisNetworkLabelSlugs(graph.nodes, labelStyle);
+    nodeTypesRef.current = new Map(graph.nodes.map((node) => [node.slug, node.type]));
+    baseLabelSlugsRef.current = getVisNetworkLabelSlugs(graph.nodes, visualSettingsRef.current.labelStyle);
 
     const network = new Network(
       canvasRef.current,
       {
         nodes,
-        edges: graph.edges.map((edge) => ({
-          from: edge.source,
-          to: edge.target,
-        })),
+        edges,
       },
       {
         autoResize: true,
         interaction: {
           hover: true,
-          tooltipDelay: 120,
           navigationButtons: false,
+          selectConnectedEdges: false,
+          hoverConnectedEdges: false,
         },
         nodes: {
           shape: 'dot',
@@ -137,6 +157,60 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
       },
     );
 
+    let labelFrame = 0;
+    let pointerFrame = 0;
+    let pendingPointer = null;
+    const applyFocus = (focusSlug) => {
+      const validFocusSlug = nodeTitlesRef.current.has(focusSlug) ? focusSlug : null;
+      const updates = buildVisNetworkFocusUpdates(graph.nodes, graph.edges, validFocusSlug, theme);
+      nodes.update(updates.nodes);
+      edges.update(updates.edges);
+      if (validFocusSlug) network.selectNodes([validFocusSlug], false);
+      else network.unselectAll();
+    };
+    applyFocusRef.current = applyFocus;
+
+    const syncOverlayLabels = () => {
+      labelFrame = 0;
+      const visible = new Set(baseLabelSlugsRef.current);
+      if (activeSlugRef.current) visible.add(activeSlugRef.current);
+      if (hoveredSlugRef.current) visible.add(hoveredSlugRef.current);
+      const positions = network.getPositions([...visible]);
+      const width = canvasRef.current?.clientWidth || 0;
+      const next = [...visible].flatMap((slug) => {
+        const position = positions[slug];
+        if (!position) return [];
+        const dom = network.canvasToDOM(position);
+        return [{
+          slug,
+          title: nodeTitlesRef.current.get(slug) || slug,
+          type: nodeTypesRef.current.get(slug) || 'page',
+          x: Math.round(dom.x * 2) / 2,
+          y: Math.round(dom.y * 2) / 2,
+          flip: dom.x > width - 250,
+          emphasized: slug === activeSlugRef.current || slug === hoveredSlugRef.current,
+        }];
+      });
+      const signature = JSON.stringify(next);
+      if (signature === overlaySignatureRef.current) return;
+      overlaySignatureRef.current = signature;
+      setOverlayLabels(next);
+    };
+    const scheduleLabels = () => {
+      if (labelFrame) return;
+      labelFrame = requestAnimationFrame(syncOverlayLabels);
+    };
+    scheduleLabelsRef.current = scheduleLabels;
+
+    const findNearestNode = (domPoint) => {
+      const canvasPositions = network.getPositions();
+      const domPositions = Object.fromEntries(Object.entries(canvasPositions).map(([slug, position]) => [
+        slug,
+        network.canvasToDOM(position),
+      ]));
+      return findNearestVisNetworkNode(domPoint, domPositions);
+    };
+
     network.once('stabilizationIterationsDone', () => {
       network.setOptions({ physics: false });
       network.fit({
@@ -145,61 +219,81 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
           easingFunction: 'easeInOutQuad',
         },
       });
+      scheduleLabels();
     });
 
     network.on('click', (event) => {
-      const nodeId = event.nodes?.[0];
+      const nodeId = event.nodes?.[0] || findNearestNode(event.pointer?.DOM);
       if (!nodeId) return;
-      onActiveSlugChange?.(nodeId);
+      handleActiveChange(nodeId);
       handleNodeOpen(nodeId);
     });
-    network.on('hoverNode', ({ node: nodeId }) => {
-      const title = nodeTitlesRef.current.get(nodeId);
-      if (title) nodes.update({ id: nodeId, label: title });
-    });
-    network.on('blurNode', ({ node: nodeId }) => {
-      const shouldKeepLabel = nodeId === activeSlugRef.current || baseLabelSlugsRef.current.has(nodeId);
-      nodes.update({ id: nodeId, label: shouldKeepLabel ? nodeTitlesRef.current.get(nodeId) : '' });
-    });
+    network.on('afterDrawing', scheduleLabels);
+
+    const canvas = canvasRef.current;
+    const handlePointerMove = (event) => {
+      const bounds = canvas.getBoundingClientRect();
+      pendingPointer = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+      if (pointerFrame) return;
+      pointerFrame = requestAnimationFrame(() => {
+        pointerFrame = 0;
+        const nearest = findNearestNode(pendingPointer);
+        if (nearest === hoveredSlugRef.current) return;
+        hoveredSlugRef.current = nearest;
+        applyFocus(activeSlugRef.current || nearest);
+        scheduleLabels();
+      });
+    };
+    const handlePointerLeave = () => {
+      pendingPointer = null;
+      if (pointerFrame) cancelAnimationFrame(pointerFrame);
+      pointerFrame = 0;
+      if (!hoveredSlugRef.current) return;
+      hoveredSlugRef.current = null;
+      applyFocus(activeSlugRef.current);
+      scheduleLabels();
+    };
+    canvas.addEventListener('pointermove', handlePointerMove);
+    canvas.addEventListener('pointerleave', handlePointerLeave);
 
     networkRef.current = network;
     const currentActiveSlug = activeSlugRef.current;
     if (currentActiveSlug && nodeTitlesRef.current.has(currentActiveSlug)) {
-      nodes.update({ id: currentActiveSlug, label: nodeTitlesRef.current.get(currentActiveSlug) });
-      network.selectNodes([currentActiveSlug]);
+      applyFocus(currentActiveSlug);
     }
     previousActiveSlugRef.current = currentActiveSlug || null;
+    scheduleLabels();
     return () => {
+      canvas.removeEventListener('pointermove', handlePointerMove);
+      canvas.removeEventListener('pointerleave', handlePointerLeave);
+      if (labelFrame) cancelAnimationFrame(labelFrame);
+      if (pointerFrame) cancelAnimationFrame(pointerFrame);
       network.destroy();
       networkRef.current = null;
       nodeDataRef.current = null;
+      edgeDataRef.current = null;
+      applyFocusRef.current = () => {};
+      scheduleLabelsRef.current = () => {};
+      overlaySignatureRef.current = '';
+      setOverlayLabels([]);
     };
-  }, [colorMode, graph, handleNodeOpen, labelStyle, onActiveSlugChange, theme.graphEdge, theme.graphEdgeStrong, theme.graphHalo, theme.graphLabel, theme.graphNodeStroke]);
+  }, [graph, handleActiveChange, handleNodeOpen, theme.graphEdge, theme.graphEdgeStrong, theme.graphHalo, theme.graphLabel, theme.graphNodeStroke]);
+
+  useEffect(() => {
+    const nodeData = nodeDataRef.current;
+    if (!nodeData) return;
+    baseLabelSlugsRef.current = getVisNetworkLabelSlugs(graph.nodes, labelStyle);
+    nodeData.update(buildVisNetworkNodes(graph.nodes, { colorMode, nodeStyle, theme }));
+    applyFocusRef.current(activeSlugRef.current || hoveredSlugRef.current);
+    scheduleLabelsRef.current();
+  }, [colorMode, graph.nodes, labelStyle, nodeStyle, theme]);
 
   useEffect(() => {
     const network = networkRef.current;
     if (!network) return;
-    const nodeData = nodeDataRef.current;
-    const previousActiveSlug = previousActiveSlugRef.current;
-    const updates = [];
-    if (previousActiveSlug && nodeTitlesRef.current.has(previousActiveSlug)) {
-      updates.push({
-        id: previousActiveSlug,
-        label: baseLabelSlugsRef.current.has(previousActiveSlug)
-          ? nodeTitlesRef.current.get(previousActiveSlug)
-          : '',
-      });
-    }
-    if (activeSlug) {
-      if (nodeTitlesRef.current.has(activeSlug)) {
-        updates.push({ id: activeSlug, label: nodeTitlesRef.current.get(activeSlug) });
-      }
-      network.selectNodes([activeSlug]);
-    } else {
-      network.unselectAll();
-    }
-    if (updates.length) nodeData?.update(updates);
+    applyFocusRef.current(activeSlug || hoveredSlugRef.current);
     previousActiveSlugRef.current = activeSlug || null;
+    scheduleLabelsRef.current();
   }, [activeSlug]);
 
   return (
@@ -208,6 +302,21 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
         ref={canvasRef}
         style={{ width: '100%', height: '100%' }}
       />
+      <div className="vis-network-label-layer" aria-hidden="true">
+        {overlayLabels.map((label) => (
+          <div
+            key={label.slug}
+            className={`vis-network-label ${label.flip ? 'flip' : ''} ${label.emphasized ? 'emphasized' : ''}`}
+            style={{ left: label.x, top: label.y }}
+          >
+            <span className="vis-network-label-rule" />
+            <span className="vis-network-label-copy">
+              <strong>{label.title}</strong>
+              {label.emphasized ? <small>{label.type}</small> : null}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 });

@@ -1838,7 +1838,6 @@ const GraphPanel = memo(function GraphPanel({
       .slice(0, 6);
   }, [filteredGraph]);
   const isCustomRenderer = visualizerId === 'custom';
-  const supportsNodeStyleControls = visualizerId !== 'vis-network';
   const visibleControls = Array.isArray(visualizer.controls)
     ? visualizer.controls.filter((control) => control === 'resetView')
     : [];
@@ -2029,7 +2028,6 @@ const GraphPanel = memo(function GraphPanel({
                   value={nodeStyle}
                   options={GRAPH_NODE_STYLES}
                   onSelect={setNodeStyle}
-                  disabled={!supportsNodeStyleControls}
                 />
                 <GraphStyleOptionGroup
                   label="Arc"

@@ -854,6 +854,18 @@ function renderAppHtml() {
       .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
       .graph-svg:active { cursor: grabbing; }
       .force-shell canvas { border-radius: 18px; }
+      .vis-network-label-layer { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; }
+      .vis-network-label { position: absolute; display: flex; align-items: center; max-width: min(280px, 34vw); transform: translate(10px, -50%); color: var(--ink); filter: drop-shadow(0 8px 18px rgba(0,0,0,0.24)); }
+      .vis-network-label.flip { flex-direction: row-reverse; transform: translate(calc(-100% - 10px), -50%); }
+      .vis-network-label-rule { width: 14px; height: 1px; flex: 0 0 auto; background: rgba(244,244,245,0.48); }
+      .vis-network-label-copy { min-width: 0; display: flex; align-items: baseline; gap: 8px; padding: 5px 8px; border: 1px solid rgba(244,244,245,0.14); border-radius: 6px; background: rgba(9,9,11,0.74); backdrop-filter: blur(12px); }
+      .vis-network-label-copy strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: rgba(244,244,245,0.78); font: 600 11px/1.15 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.01em; }
+      .vis-network-label-copy small { display: none; flex: 0 0 auto; color: rgba(161,161,170,0.9); font: 700 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.09em; text-transform: uppercase; }
+      .vis-network-label.emphasized { z-index: 3; }
+      .vis-network-label.emphasized .vis-network-label-rule { width: 20px; background: rgba(250,250,250,0.9); box-shadow: 0 0 10px rgba(255,255,255,0.34); }
+      .vis-network-label.emphasized .vis-network-label-copy { padding: 7px 9px; border-color: rgba(244,244,245,0.34); background: rgba(9,9,11,0.9); box-shadow: inset 0 1px 0 rgba(255,255,255,0.06); }
+      .vis-network-label.emphasized .vis-network-label-copy strong { color: #fafafa; font-size: 13px; }
+      .vis-network-label.emphasized .vis-network-label-copy small { display: inline; }
       .futuristic-graph { background: transparent; }
       .graph-pulse-line { animation: graph-pulse 7s linear infinite; }
       .graph-activity-panel { position: absolute; right: 14px; top: 14px; z-index: 4; width: min(270px, calc(100% - 28px)); display: grid; gap: 0; padding: 0; border: 1px solid transparent; border-radius: 12px; background: transparent; box-shadow: none; backdrop-filter: blur(0); transition: padding 180ms ease, gap 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, backdrop-filter 180ms ease; }
