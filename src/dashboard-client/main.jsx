@@ -76,6 +76,7 @@ function loadGraphPreferences() {
   const defaults = { ...GRAPH_DEFAULTS };
   try {
     const saved = JSON.parse(window.localStorage.getItem('bigbrain:graph-preferences') || '{}');
+    if (saved.visualizerId === 'vis-network') saved.visualizerId = 'network-constellation';
     const allowed = {
       visualizerId: new Set(graphVisualizers.map((item) => item.id)),
       nodeStyle: new Set(GRAPH_NODE_STYLES.map((item) => item.id)),

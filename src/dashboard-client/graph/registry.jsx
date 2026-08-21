@@ -1,7 +1,7 @@
 import { ComposableGraphVisualizer } from './composable-graph-visualizer.jsx';
+import { NetworkConstellationVisualizer } from './network-constellation-visualizer.jsx';
 import { SignalBloomVisualizer } from './signal-bloom-visualizer.jsx';
 import { SpaciousConstellationVisualizer } from './spacious-constellation-visualizer.jsx';
-import { VisNetworkVisualizer } from './vis-network-visualizer.jsx';
 
 export const GRAPH_CONTROL_LABELS = {
   zoomIn: 'Zoom in',
@@ -83,11 +83,11 @@ export const graphVisualizers = [
     capabilities: { ownsPan: true, ownsWheelZoom: true },
   },
   {
-    id: 'vis-network',
-    label: 'Vis Network',
-    Component: VisNetworkVisualizer,
-    description: 'Third-party graph explorer',
-    interactionModel: 'library',
+    id: 'network-constellation',
+    label: 'Network',
+    Component: NetworkConstellationVisualizer,
+    description: 'Fast relationship clusters with an outer orphan rim',
+    interactionModel: 'custom',
     controls: ['zoomIn', 'zoomOut', 'resetView'],
     capabilities: {
       ownsPan: true,

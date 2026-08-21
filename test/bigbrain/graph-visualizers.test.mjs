@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import {
   buildJarvisLayout,
   buildNeuralMeshLayout,
+  buildNetworkConstellationLayout,
   buildSignalBloomLayout,
   buildSpaciousConstellationLayout,
 } from '../../src/dashboard-client/graph/shared.js';
@@ -180,7 +181,7 @@ test('vis network focus emphasizes one-hop relationships and mutes the rest', ()
   assert.equal(missing.edges[0].color.opacity, 1);
 });
 
-test('vis network label controls remain available in the graph style menu', async () => {
+test('graph label and node controls remain available in the graph style menu', async () => {
   const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
   const labelsGroup = main.match(/<GraphStyleOptionGroup\s+label="Labels"[\s\S]*?\/>/)?.[0] || '';
   const nodesGroup = main.match(/<GraphStyleOptionGroup\s+label="Node"[\s\S]*?\/>/)?.[0] || '';
@@ -230,7 +231,7 @@ test('graph layouts safely handle empty and single-node graphs', () => {
     edges: [],
   };
 
-  for (const builder of [buildJarvisLayout, buildNeuralMeshLayout, buildSignalBloomLayout, buildSpaciousConstellationLayout]) {
+  for (const builder of [buildJarvisLayout, buildNeuralMeshLayout, buildSignalBloomLayout, buildSpaciousConstellationLayout, buildNetworkConstellationLayout]) {
     const emptyLayout = builder(empty);
     assert.equal(emptyLayout.nodes.length, 0);
     assert.equal(emptyLayout.edges.length, 0);
@@ -257,7 +258,7 @@ test('graph layouts preserve dense graph structure within bounds', () => {
   }
   const graph = { nodes, edges };
 
-  for (const builder of [buildJarvisLayout, buildNeuralMeshLayout, buildSignalBloomLayout, buildSpaciousConstellationLayout]) {
+  for (const builder of [buildJarvisLayout, buildNeuralMeshLayout, buildSignalBloomLayout, buildSpaciousConstellationLayout, buildNetworkConstellationLayout]) {
     const layout = builder(graph);
     assert.equal(layout.nodes.length, nodes.length);
     assert.equal(layout.edges.length, edges.length);
@@ -341,4 +342,75 @@ test('signal bloom keeps small type clusters compact and non-overlapping', () =>
       assert.equal(distance + 0.5 >= a.radius + b.radius + 16, true);
     }
   }
+});
+
+test('network constellation preserves relationship clusters and places isolates on one outer rim', () => {
+  const nodes = [
+    ...Array.from({ length: 18 }, (_, index) => ({
+      slug: `connected/node-${index}`,
+      title: `Connected ${index}`,
+      type: 'projects',
+      degree: 2,
+    })),
+    ...Array.from({ length: 12 }, (_, index) => ({
+      slug: `isolated/node-${index}`,
+      title: `Isolated ${index}`,
+      type: 'writing',
+      degree: 0,
+    })),
+  ];
+  const edges = Array.from({ length: 18 }, (_, index) => ({
+    source: `connected/node-${index}`,
+    target: `connected/node-${(index + 1) % 18}`,
+  }));
+  const layout = buildNetworkConstellationLayout({ nodes, edges });
+  const isolates = layout.nodes.filter((node) => node.slug.startsWith('isolated/'));
+  const connected = layout.nodes.filter((node) => node.slug.startsWith('connected/'));
+  const rimRadii = isolates.map((node) => Math.hypot(
+    node.x - layout.orphanRim.x,
+    node.y - layout.orphanRim.y,
+  ));
+  const connectedRadius = Math.max(...connected.map((node) => Math.hypot(
+    node.x - layout.orphanRim.x,
+    node.y - layout.orphanRim.y,
+  )));
+
+  assert.equal(layout.orphanRim.count, isolates.length);
+  assert.equal(Math.max(...rimRadii) - Math.min(...rimRadii) < 0.001, true);
+  assert.equal(Math.min(...rimRadii) > connectedRadius + 100, true);
+});
+
+test('network constellation coordinates are deterministic across input ordering', () => {
+  const nodes = Array.from({ length: 40 }, (_, index) => ({
+    slug: `pages/node-${index}`,
+    title: `Node ${index}`,
+    type: index % 3 ? 'projects' : 'people',
+    degree: index < 34 ? 3 : 0,
+  }));
+  const edges = Array.from({ length: 34 }, (_, index) => ({
+    source: `pages/node-${index}`,
+    target: `pages/node-${(index + 5) % 34}`,
+  }));
+  const first = buildNetworkConstellationLayout({ nodes, edges });
+  const second = buildNetworkConstellationLayout({
+    nodes: [...nodes].reverse(),
+    edges: [...edges].reverse(),
+  });
+  const positions = (layout) => Object.fromEntries(layout.nodes.map((node) => [
+    node.slug,
+    [Number(node.x.toFixed(6)), Number(node.y.toFixed(6))],
+  ]));
+
+  assert.deepEqual(positions(first), positions(second));
+});
+
+test('network constellation replaces vis network in the selectable renderer registry', async () => {
+  const [registry, main] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/graph/registry.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(registry, /id: 'network-constellation'/);
+  assert.doesNotMatch(registry, /VisNetworkVisualizer|id: 'vis-network'/);
+  assert.match(main, /saved\.visualizerId === 'vis-network'[\s\S]*network-constellation/);
 });

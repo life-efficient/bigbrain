@@ -5,6 +5,7 @@ import {
   buildCurvedEdgePath,
   buildJarvisLayout,
   buildNeuralMeshLayout,
+  buildNetworkConstellationLayout,
   buildSignalBloomLayout,
   buildSpaciousConstellationLayout,
   pickLabelNodes,
@@ -22,6 +23,7 @@ const LAYOUT_BUILDERS = {
   lanes: buildNeuralMeshLayout,
   clusters: buildSignalBloomLayout,
   spacious: buildSpaciousConstellationLayout,
+  network: buildNetworkConstellationLayout,
 };
 
 export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisualizer({
@@ -108,6 +110,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
 });
 
 function LayoutBackdrop({ layoutStyle, laidOut, theme }) {
+  if (layoutStyle === 'network') return null;
   if (layoutStyle === 'spacious') {
     return (
       <>

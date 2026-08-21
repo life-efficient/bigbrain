@@ -28,15 +28,9 @@ states.
 - Offer dense graph layouts that scale their virtual canvas with node count and enforce node separation; do not force every brain into one fixed coordinate space.
 - Keep graph canvases transparent within the viewer. Do not paint a full viewBox-sized backdrop that exposes SVG letterboxing as a square or rectangular tile.
 - Keep node labels in preset graph views at a readable 15px baseline. Custom may retain its compact label sizing because its presentation is explicitly user-controlled.
-- Preserve vis-network's emergent clustering and physics when refining its appearance or interaction. Treat its stabilized positions as the renderer's canonical geometry.
-- Vis-network node hover and click targeting must use a forgiving screen-space proximity radius instead of requiring precise contact with the visible glyph.
-- Render vis-network labels in the dashboard overlay layer so key, hover, and selected labels can use the app's typography and translucent surfaces without changing graph geometry.
-- Keep `Orb`, `Diamond`, and `Hex` node styles available in vis-network. Selection should emphasize the focused node and its immediate neighborhood while muting unrelated nodes and edges.
-- Do not change or formalize disconnected-page placement as part of vis-network presentation work.
-- Run the vis-network boot treatment once, only after physics has frozen and the initial camera fit has finished. Keep it CSS-only, brief, and independent of graph size so it cannot disturb the stabilized geometry.
-- Animate live graph activity only after a successful MCP write has completed indexing. Refresh graph data, patch the existing vis-network datasets in place, preserve settled node positions, and use a bounded overlay pulse to distinguish page creation from updates.
-- Boot and live graph motion must have a reduced-motion path that immediately reveals the settled graph and omits scan, reticle, and pulse effects.
-- Treat a stabilized graph as fixed geometry: zoom and pan should transform the settled scene as one composited layer, then commit the camera once when interaction ends. Never rerun layout, rebuild overlays, or repaint thousands of individual graph primitives on every input tick.
+- Do not expose Vis Network as a selectable renderer for large Brains. Use deterministic custom coordinates with a fixed computation budget, relationship-derived communities, recognizable branches and satellites, and a dedicated circular rim for degree-zero pages. Keep coordinate computation separate from rendering so pan and zoom use the shared custom viewport without runtime physics.
+- Keep `Orb`, `Diamond`, and `Hex` node styles plus `Key`, `All`, and `Off` labels available in the custom relationship renderer.
+- Animate live graph activity only after a successful MCP write has completed indexing. Keep motion bounded and provide a reduced-motion path.
 
 ## Desktop Shell Theming
 

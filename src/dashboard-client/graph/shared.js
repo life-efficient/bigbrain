@@ -200,6 +200,131 @@ export function buildSpaciousConstellationLayout(graph) {
   };
 }
 
+export function buildNetworkConstellationLayout(graph) {
+  const base = normalizeGraph(graph);
+  if (!base.nodes.length) return { ...base, clusters: [], orphanRim: null };
+  if (base.nodes.length === 1) {
+    base.nodes[0].x = 0;
+    base.nodes[0].y = 0;
+    return { ...fitLayoutToNodeBounds(base, 120), clusters: [], orphanRim: null };
+  }
+
+  const connected = base.nodes.filter((node) => node.neighbors > 0);
+  const orphans = base.nodes
+    .filter((node) => node.neighbors === 0)
+    .sort((a, b) => a.slug.localeCompare(b.slug));
+  const connectedSlugs = new Set(connected.map((node) => node.slug));
+  const connectedEdges = base.edges.filter((edge) => (
+    connectedSlugs.has(edge.source.slug) && connectedSlugs.has(edge.target.slug)
+  ));
+  const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+  const communities = connected.length
+    ? detectLinkCommunities(connected, connectedEdges)
+      .map((nodes) => [...nodes].sort(sortByWeight))
+      .sort((a, b) => b.length - a.length || a[0].slug.localeCompare(b[0].slug))
+    : [];
+
+  const clusters = communities.map((nodes, index) => {
+    const radius = Math.max(52, 35 * Math.sqrt(nodes.length));
+    const distance = index === 0 ? 0 : 105 + Math.sqrt(index) * 175;
+    const angle = index * goldenAngle;
+    return {
+      key: nodes[0]?.slug || `cluster-${index}`,
+      x: Math.cos(angle) * distance,
+      y: Math.sin(angle) * distance,
+      radius,
+      count: nodes.length,
+      nodes,
+    };
+  });
+  resolveClusterCollisions(clusters, 72);
+
+  for (const [community, cluster] of communities.map((nodes, index) => [nodes, clusters[index]])) {
+    const ordered = orderByConnectivity(community, connectedEdges);
+    ordered.forEach((node, index) => {
+      const distance = index === 0 ? 0 : 35 * Math.sqrt(index);
+      const angle = index * goldenAngle + stableSlugPhase(node.slug) * 0.08;
+      node.x = cluster.x + Math.cos(angle) * distance;
+      node.y = cluster.y + Math.sin(angle) * distance;
+      node.layoutAnchorX = cluster.x;
+      node.layoutAnchorY = cluster.y;
+    });
+  }
+
+  for (let iteration = 0; iteration < 14; iteration += 1) {
+    const movement = new Map(connected.map((node) => [node.slug, {
+      x: (node.layoutAnchorX - node.x) * 0.003,
+      y: (node.layoutAnchorY - node.y) * 0.003,
+    }]));
+
+    for (const edge of connectedEdges) {
+      const dx = edge.target.x - edge.source.x;
+      const dy = edge.target.y - edge.source.y;
+      const distance = Math.hypot(dx, dy) || 1;
+      const desired = 82 + (edge.source.radius + edge.target.radius) * 1.8;
+      const force = (distance - desired) * 0.0018;
+      const moveX = (dx / distance) * force;
+      const moveY = (dy / distance) * force;
+      movement.get(edge.source.slug).x += moveX;
+      movement.get(edge.source.slug).y += moveY;
+      movement.get(edge.target.slug).x -= moveX;
+      movement.get(edge.target.slug).y -= moveY;
+    }
+
+    for (const node of connected) {
+      const delta = movement.get(node.slug);
+      node.x += clamp(delta.x, -14, 14);
+      node.y += clamp(delta.y, -14, 14);
+    }
+    resolveSpatialCollisions(connected, 18, 64);
+  }
+  for (let pass = 0; pass < 3; pass += 1) resolveSpatialCollisions(connected, 18, 64);
+
+  const coreRadius = connected.reduce((maximum, node) => (
+    Math.max(maximum, Math.hypot(node.x, node.y) + node.radius)
+  ), 0);
+  let orphanRim = null;
+  if (orphans.length) {
+    const footprints = orphans.map((node) => node.radius * 2 + 18);
+    const circumference = footprints.reduce((sum, value) => sum + value, 0);
+    const radius = Math.max(160, coreRadius + 140, circumference / (Math.PI * 2));
+    let cursor = 0;
+    orphans.forEach((node, index) => {
+      const footprint = footprints[index];
+      const angle = -Math.PI / 2 + ((cursor + footprint / 2) / circumference) * Math.PI * 2;
+      node.x = Math.cos(angle) * radius;
+      node.y = Math.sin(angle) * radius;
+      cursor += footprint;
+    });
+    orphanRim = { x: 0, y: 0, radius, count: orphans.length };
+  }
+
+  for (const node of connected) {
+    delete node.layoutAnchorX;
+    delete node.layoutAnchorY;
+  }
+  for (const cluster of clusters) delete cluster.nodes;
+
+  const minX = Math.min(...base.nodes.map((node) => node.x - node.radius));
+  const minY = Math.min(...base.nodes.map((node) => node.y - node.radius));
+  const offsetX = 120 - minX;
+  const offsetY = 120 - minY;
+  const fitted = fitLayoutToNodeBounds(base, 120);
+  return {
+    ...fitted,
+    clusters: clusters.map((cluster) => ({
+      ...cluster,
+      x: cluster.x + offsetX,
+      y: cluster.y + offsetY,
+    })),
+    orphanRim: orphanRim ? {
+      ...orphanRim,
+      x: orphanRim.x + offsetX,
+      y: orphanRim.y + offsetY,
+    } : null,
+  };
+}
+
 function detectLinkCommunities(nodes, edges) {
   const adjacency = new Map(nodes.map((node) => [node.slug, []]));
   for (const edge of edges) {
@@ -290,6 +415,63 @@ function resolveUnboundedCollisions(nodes, padding) {
       b.y += ny * overlap;
     }
   }
+}
+
+function resolveSpatialCollisions(nodes, padding, cellSize) {
+  const ordered = [...nodes].sort((a, b) => a.slug.localeCompare(b.slug));
+  const rank = new Map(ordered.map((node, index) => [node.slug, index]));
+  const grid = new Map();
+  for (const node of ordered) {
+    const x = Math.floor(node.x / cellSize);
+    const y = Math.floor(node.y / cellSize);
+    const key = `${x}:${y}`;
+    if (!grid.has(key)) grid.set(key, []);
+    grid.get(key).push(node);
+  }
+
+  for (const node of ordered) {
+    const cellX = Math.floor(node.x / cellSize);
+    const cellY = Math.floor(node.y / cellSize);
+    for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+      for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+        const candidates = grid.get(`${cellX + offsetX}:${cellY + offsetY}`) || [];
+        for (const other of candidates) {
+          if (rank.get(other.slug) <= rank.get(node.slug)) continue;
+          let dx = other.x - node.x;
+          let dy = other.y - node.y;
+          let distance = Math.hypot(dx, dy);
+          if (distance < 0.001) {
+            const angle = stablePairAngle(node.slug, other.slug);
+            dx = Math.cos(angle) * 0.001;
+            dy = Math.sin(angle) * 0.001;
+            distance = 0.001;
+          }
+          const minimum = node.radius + other.radius + padding;
+          if (distance >= minimum) continue;
+          const shift = (minimum - distance) / 2;
+          const moveX = (dx / distance) * shift;
+          const moveY = (dy / distance) * shift;
+          node.x -= moveX;
+          node.y -= moveY;
+          other.x += moveX;
+          other.y += moveY;
+        }
+      }
+    }
+  }
+}
+
+function stableSlugPhase(slug) {
+  let hash = 2166136261;
+  for (const character of String(slug || '')) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) / 0xffffffff;
+}
+
+function stablePairAngle(left, right) {
+  return stableSlugPhase(`${left}\u0000${right}`) * Math.PI * 2;
 }
 
 function fitLayoutToNodeBounds(layout, padding) {
