@@ -29,7 +29,7 @@ states.
 - Keep graph canvases transparent within the viewer. Do not paint a full viewBox-sized backdrop that exposes SVG letterboxing as a square or rectangular tile.
 - Keep node labels in preset graph views at a readable 15px baseline. Custom may retain its compact label sizing because its presentation is explicitly user-controlled.
 - Do not expose Vis Network as a selectable renderer for large Brains. Use deterministic custom coordinates with a fixed computation budget, relationship-derived communities, recognizable branches and satellites, and a dedicated circular rim for degree-zero pages. Keep coordinate computation separate from rendering so pan and zoom use the shared custom viewport without runtime physics.
-- Keep `Orb`, `Diamond`, and `Hex` node styles plus `Key`, `All`, and `Off` labels available in the custom relationship renderer.
+- Keep `Orb`, `Diamond`, `Hex`, and `Icon` node styles plus `Key`, `All`, and `Off` labels available in every selectable graph renderer. Icon nodes use stable semantic Lucide icons for BigBrain's canonical and legacy page types, plus a deterministic fallback for custom schema types. Node colour remains an independent option and must tint icons in Updated and Type modes or remain monochrome in None mode.
 - Animate live graph activity only after a successful MCP write has completed indexing. Keep motion bounded and provide a reduced-motion path.
 
 ## Desktop Shell Theming

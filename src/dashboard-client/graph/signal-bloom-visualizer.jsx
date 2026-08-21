@@ -1,6 +1,7 @@
 import React, { forwardRef, memo, useId, useMemo, useState } from 'react';
 
 import { getGraphNodeColor } from './colors.js';
+import { GraphTypeIcon } from './graph-type-icon.jsx';
 import { buildCurvedEdgePath, buildSignalBloomLayout, pickLabelNodes } from './shared.js';
 import {
   GraphBackdropDefs,
@@ -199,6 +200,14 @@ const BloomNodeItem = memo(function BloomNodeItem({
 function BloomNode({ node, nodeStyle, colorMode, emphasized, theme, glowId }) {
   const color = getGraphNodeColor(node, colorMode) || theme.graphNodeStroke;
   const size = node.radius * (emphasized ? 1.95 : 1.62);
+  if (nodeStyle === 'icon') {
+    return (
+      <>
+        <circle cx={node.x} cy={node.y} r={Math.max(15, size * 1.75)} fill="#fff" fillOpacity="0.001" />
+        <GraphTypeIcon node={node} color={color} emphasized={emphasized} background={theme.graphBase} />
+      </>
+    );
+  }
   const common = { fill: theme.graphBase, fillOpacity: '0.78', stroke: color, strokeWidth: emphasized ? 1.8 : 1 };
   let body;
   if (nodeStyle === 'diamond') {

@@ -12,6 +12,11 @@ import {
 import { getGraphNodeColor, getUpdatedNodeColor } from '../../src/dashboard-client/graph/colors.js';
 import { resolveThemeMode } from '../../src/dashboard-client/graph/theme.js';
 import {
+  GRAPH_FALLBACK_ICON_NAMES,
+  GRAPH_TYPE_ICON_NAMES,
+  getGraphTypeIconName,
+} from '../../src/dashboard-client/graph/type-icons.js';
+import {
   buildVisNetworkFocusUpdates,
   buildVisNetworkNodes,
   findNearestVisNetworkNode,
@@ -190,6 +195,30 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.doesNotMatch(labelsGroup, /disabled=/);
   assert.match(nodesGroup, /options=\{GRAPH_NODE_STYLES\}/);
   assert.doesNotMatch(nodesGroup, /disabled=/);
+});
+
+test('icon nodes cover built-in schema types and use stable custom fallbacks', async () => {
+  const canonicalTypes = [
+    'people', 'organizations', 'deals', 'projects', 'ideas', 'meetings',
+    'tasks', 'concepts', 'writing', 'protocol', 'archive',
+  ];
+  for (const type of canonicalTypes) {
+    assert.equal(typeof GRAPH_TYPE_ICON_NAMES[type], 'string');
+    assert.equal(getGraphTypeIconName(type), GRAPH_TYPE_ICON_NAMES[type]);
+  }
+
+  const customIcon = getGraphTypeIconName('research-notes');
+  assert.equal(GRAPH_FALLBACK_ICON_NAMES.includes(customIcon), true);
+  assert.equal(getGraphTypeIconName('research-notes'), customIcon);
+  assert.equal(getGraphTypeIconName('RESEARCH-NOTES'), customIcon);
+
+  const [registry, iconSource] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/graph/registry.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/graph-type-icon.jsx', import.meta.url), 'utf8'),
+  ]);
+  assert.match(registry, /\{ id: 'icon', label: 'Icon' \}/);
+  assert.match(iconSource, /color=\{color\}/);
+  assert.match(iconSource, /stroke=\{color\}/);
 });
 
 test('vis network boot and MCP activity animations are bounded and accessible', async () => {

@@ -1,6 +1,7 @@
 import React, { forwardRef, useId, useMemo, useState } from 'react';
 
 import { getGraphNodeColor } from './colors.js';
+import { GraphTypeIcon } from './graph-type-icon.jsx';
 import {
   buildCurvedEdgePath,
   buildJarvisLayout,
@@ -322,6 +323,26 @@ function renderNodeShape(node, nodeStyle, theme, emphasized, colorMode) {
   const innerOpacity = nodeColor
     ? (emphasized ? '0.62' : '0.38')
     : (emphasized ? '0.82' : '0.52');
+  if (nodeStyle === 'icon') {
+    return (
+      <>
+        <circle
+          cx={node.x}
+          cy={node.y}
+          r={hitRadius}
+          fill="#ffffff"
+          fillOpacity="0.001"
+          stroke="none"
+        />
+        <GraphTypeIcon
+          node={node}
+          color={outerStroke}
+          emphasized={emphasized}
+          background={theme.graphBase}
+        />
+      </>
+    );
+  }
   if (nodeStyle === 'diamond') {
     const outer = node.radius * 2.2;
     const inner = Math.max(1.8, node.radius * 0.38);
