@@ -1,13 +1,26 @@
 import React, { forwardRef, useEffect, useEffectEvent, useImperativeHandle, useRef } from 'react';
-import { Network } from 'vis-network/standalone';
+import { DataSet, Network } from 'vis-network/standalone';
 
-import { TYPE_COLORS, getGraphNodeColor } from './colors.js';
+import { buildVisNetworkNodes, getVisNetworkLabelSlugs } from './vis-network-data.js';
 import { PRESET_GRAPH_LABEL_FONT_SIZE, useGraphTheme } from './visualizer-core.jsx';
 
-export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ graph, onNodeOpen, activeSlug, onActiveSlugChange, colorMode = 'updated' }, ref) {
+export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
+  graph,
+  onNodeOpen,
+  activeSlug,
+  onActiveSlugChange,
+  colorMode = 'updated',
+  labelStyle = 'selected',
+}, ref) {
   const theme = useGraphTheme();
   const canvasRef = useRef(null);
   const networkRef = useRef(null);
+  const nodeDataRef = useRef(null);
+  const nodeTitlesRef = useRef(new Map());
+  const baseLabelSlugsRef = useRef(new Set());
+  const previousActiveSlugRef = useRef(null);
+  const activeSlugRef = useRef(activeSlug);
+  activeSlugRef.current = activeSlug;
   const handleNodeOpen = useEffectEvent((nodeId) => {
     onNodeOpen?.(nodeId);
   });
@@ -48,17 +61,19 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
   useEffect(() => {
     if (!canvasRef.current) return undefined;
 
+    const nodes = new DataSet(buildVisNetworkNodes(graph.nodes, {
+      colorMode,
+      labelStyle,
+      theme,
+    }));
+    nodeDataRef.current = nodes;
+    nodeTitlesRef.current = new Map(graph.nodes.map((node) => [node.slug, node.title]));
+    baseLabelSlugsRef.current = getVisNetworkLabelSlugs(graph.nodes, labelStyle);
+
     const network = new Network(
       canvasRef.current,
       {
-        nodes: graph.nodes.map((node) => ({
-          id: node.slug,
-          label: node.title,
-          title: `${node.title} (${node.type})`,
-          group: node.type,
-          value: Math.max(8, node.degree || 1),
-          ...(colorMode === 'none' ? {} : { color: resolveNodeNetworkColor(node, colorMode, theme) }),
-        })),
+        nodes,
         edges: graph.edges.map((edge) => ({
           from: edge.source,
           to: edge.target,
@@ -101,20 +116,6 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
           },
           width: 1.1,
         },
-        groups: Object.fromEntries(Object.entries(TYPE_COLORS).map(([type, color]) => [type, {
-          color: {
-            background: color,
-            border: theme.graphNodeStroke,
-            highlight: {
-              background: color,
-              border: theme.graphNodeStroke,
-            },
-            hover: {
-              background: color,
-              border: theme.graphNodeStroke,
-            },
-          },
-        }])),
         physics: {
           enabled: true,
           stabilization: {
@@ -152,22 +153,53 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
       onActiveSlugChange?.(nodeId);
       handleNodeOpen(nodeId);
     });
+    network.on('hoverNode', ({ node: nodeId }) => {
+      const title = nodeTitlesRef.current.get(nodeId);
+      if (title) nodes.update({ id: nodeId, label: title });
+    });
+    network.on('blurNode', ({ node: nodeId }) => {
+      const shouldKeepLabel = nodeId === activeSlugRef.current || baseLabelSlugsRef.current.has(nodeId);
+      nodes.update({ id: nodeId, label: shouldKeepLabel ? nodeTitlesRef.current.get(nodeId) : '' });
+    });
 
     networkRef.current = network;
+    const currentActiveSlug = activeSlugRef.current;
+    if (currentActiveSlug && nodeTitlesRef.current.has(currentActiveSlug)) {
+      nodes.update({ id: currentActiveSlug, label: nodeTitlesRef.current.get(currentActiveSlug) });
+      network.selectNodes([currentActiveSlug]);
+    }
+    previousActiveSlugRef.current = currentActiveSlug || null;
     return () => {
       network.destroy();
       networkRef.current = null;
+      nodeDataRef.current = null;
     };
-  }, [colorMode, graph, handleNodeOpen, onActiveSlugChange, theme.graphEdge, theme.graphEdgeStrong, theme.graphHalo, theme.graphLabel, theme.graphNodeStroke]);
+  }, [colorMode, graph, handleNodeOpen, labelStyle, onActiveSlugChange, theme.graphEdge, theme.graphEdgeStrong, theme.graphHalo, theme.graphLabel, theme.graphNodeStroke]);
 
   useEffect(() => {
     const network = networkRef.current;
     if (!network) return;
+    const nodeData = nodeDataRef.current;
+    const previousActiveSlug = previousActiveSlugRef.current;
+    const updates = [];
+    if (previousActiveSlug && nodeTitlesRef.current.has(previousActiveSlug)) {
+      updates.push({
+        id: previousActiveSlug,
+        label: baseLabelSlugsRef.current.has(previousActiveSlug)
+          ? nodeTitlesRef.current.get(previousActiveSlug)
+          : '',
+      });
+    }
     if (activeSlug) {
+      if (nodeTitlesRef.current.has(activeSlug)) {
+        updates.push({ id: activeSlug, label: nodeTitlesRef.current.get(activeSlug) });
+      }
       network.selectNodes([activeSlug]);
     } else {
       network.unselectAll();
     }
+    if (updates.length) nodeData?.update(updates);
+    previousActiveSlugRef.current = activeSlug || null;
   }, [activeSlug]);
 
   return (
@@ -179,19 +211,3 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({ g
     </div>
   );
 });
-
-function resolveNodeNetworkColor(node, colorMode, theme) {
-  const color = getGraphNodeColor(node, colorMode);
-  return {
-    background: color,
-    border: theme.graphNodeStroke,
-    highlight: {
-      background: color,
-      border: theme.graphNodeStroke,
-    },
-    hover: {
-      background: color,
-      border: theme.graphNodeStroke,
-    },
-  };
-}

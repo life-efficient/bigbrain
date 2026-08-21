@@ -6,6 +6,7 @@ import {
   GraphBackdropDefs,
   GraphFixedLabels,
   GraphTypeDefs,
+  PRESET_GRAPH_CLUSTER_LABEL_FONT_SIZE,
   PRESET_GRAPH_LABEL_FONT_SIZE,
   useGraphTheme,
   useGraphViewport,
@@ -126,7 +127,14 @@ const BloomSectors = memo(function BloomSectors({ laidOut, theme }) {
       <circle cx={cluster.x} cy={cluster.y} r={cluster.radius + 14} fill={theme.graphInset} fillOpacity="0.08" stroke={theme.graphCluster} strokeOpacity="0.56" />
       <circle className="bloom-scan" cx={cluster.x} cy={cluster.y} r={cluster.radius * 0.78} fill="none" stroke={theme.graphGrid} strokeDasharray="3 10" />
       <path d={sectorTicks(cluster.x, cluster.y, cluster.radius + 14)} fill="none" stroke={theme.graphEdgeStrong} strokeOpacity="0.62" />
-      <text x={cluster.x} y={cluster.y - cluster.radius - 25} textAnchor="middle" fill={theme.graphMutedLabel} fontSize="10" letterSpacing="0.18em">
+      <text
+        x={cluster.x}
+        y={cluster.y - cluster.radius - 25}
+        textAnchor="middle"
+        fill={theme.graphMutedLabel}
+        fontSize={PRESET_GRAPH_CLUSTER_LABEL_FONT_SIZE}
+        letterSpacing="0.18em"
+      >
         {String(cluster.type).toUpperCase()}
       </text>
     </g>

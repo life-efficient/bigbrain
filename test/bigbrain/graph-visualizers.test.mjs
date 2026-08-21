@@ -10,6 +10,7 @@ import {
 } from '../../src/dashboard-client/graph/shared.js';
 import { getGraphNodeColor, getUpdatedNodeColor } from '../../src/dashboard-client/graph/colors.js';
 import { resolveThemeMode } from '../../src/dashboard-client/graph/theme.js';
+import { buildVisNetworkNodes, getVisNetworkLabelSlugs } from '../../src/dashboard-client/graph/vis-network-data.js';
 
 test('responsive graph visualizers do not paint letterboxed viewBox backdrops', async () => {
   const sources = await Promise.all([
@@ -24,7 +25,7 @@ test('responsive graph visualizers do not paint letterboxed viewBox backdrops', 
   }
 });
 
-test('preset graph views use larger node labels without changing the custom baseline', async () => {
+test('spacious and signal bloom use larger node and cluster labels without changing the custom baseline', async () => {
   const [core, composable, spacious, bloom, visNetwork] = await Promise.all([
     'visualizer-core.jsx',
     'composable-graph-visualizer.jsx',
@@ -34,10 +35,12 @@ test('preset graph views use larger node labels without changing the custom base
   ].map((file) => fs.readFile(new URL(`../../src/dashboard-client/graph/${file}`, import.meta.url), 'utf8')));
 
   assert.match(core, /DEFAULT_GRAPH_LABEL_FONT_SIZE = 11/);
-  assert.match(core, /PRESET_GRAPH_LABEL_FONT_SIZE = 15/);
+  assert.match(core, /PRESET_GRAPH_LABEL_FONT_SIZE = 18/);
+  assert.match(core, /PRESET_GRAPH_CLUSTER_LABEL_FONT_SIZE = 14/);
   assert.match(composable, /fontSize=\{labelFontSize\}/);
   assert.match(spacious, /labelFontSize=\{PRESET_GRAPH_LABEL_FONT_SIZE\}/);
   assert.match(bloom, /fontSize=\{PRESET_GRAPH_LABEL_FONT_SIZE\}/);
+  assert.match(bloom, /fontSize=\{PRESET_GRAPH_CLUSTER_LABEL_FONT_SIZE\}/);
   assert.match(visNetwork, /size: PRESET_GRAPH_LABEL_FONT_SIZE/);
 });
 
@@ -66,6 +69,39 @@ test('none graph color mode leaves node color unmodified', () => {
     type: 'projects',
     updated_at: '2026-06-21T12:00:00.000Z',
   }, 'none'), null);
+});
+
+test('vis network honors graph color and label settings', () => {
+  const nodes = Array.from({ length: 8 }, (_, index) => ({
+    slug: `projects/node-${index}`,
+    title: `Node ${index}`,
+    type: index % 2 ? 'people' : 'projects',
+    degree: index,
+  }));
+  const theme = { graphNodeStroke: '#123456' };
+
+  const allLabels = buildVisNetworkNodes(nodes, { colorMode: 'type', labelStyle: 'all', theme });
+  assert.equal(allLabels.every((node) => node.label), true);
+  assert.equal(allLabels[0].color.background, '#b8c0ff');
+  assert.equal(allLabels[1].color.background, '#8ecae6');
+
+  const noLabelsOrColors = buildVisNetworkNodes(nodes, { colorMode: 'none', labelStyle: 'off', theme });
+  assert.equal(noLabelsOrColors.every((node) => node.label === ''), true);
+  assert.equal(noLabelsOrColors.every((node) => !Object.hasOwn(node, 'color')), true);
+  assert.equal(noLabelsOrColors.every((node) => !Object.hasOwn(node, 'group')), true);
+
+  const keyLabels = getVisNetworkLabelSlugs(nodes, 'selected');
+  assert.equal(keyLabels.size, 6);
+  assert.equal(keyLabels.has('projects/node-7'), true);
+  assert.equal(keyLabels.has('projects/node-0'), false);
+});
+
+test('vis network label controls remain available in the graph style menu', async () => {
+  const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
+  const labelsGroup = main.match(/<GraphStyleOptionGroup\s+label="Labels"[\s\S]*?\/>/)?.[0] || '';
+
+  assert.match(labelsGroup, /options=\{GRAPH_LABEL_STYLES\}/);
+  assert.doesNotMatch(labelsGroup, /disabled=/);
 });
 
 test('graph layouts safely handle empty and single-node graphs', () => {

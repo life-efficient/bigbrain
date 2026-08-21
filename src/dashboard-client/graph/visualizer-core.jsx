@@ -10,7 +10,8 @@ import React, {
 import { clamp } from './shared.js';
 
 export const DEFAULT_GRAPH_LABEL_FONT_SIZE = 11;
-export const PRESET_GRAPH_LABEL_FONT_SIZE = 15;
+export const PRESET_GRAPH_LABEL_FONT_SIZE = 18;
+export const PRESET_GRAPH_CLUSTER_LABEL_FONT_SIZE = 14;
 import { getGraphThemeTokens } from './theme.js';
 
 const GraphThemeContext = createContext(getGraphThemeTokens('light'));
