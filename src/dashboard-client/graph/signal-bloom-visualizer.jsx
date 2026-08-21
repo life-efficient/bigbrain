@@ -2,6 +2,7 @@ import React, { forwardRef, memo, useId, useMemo, useState } from 'react';
 
 import { getGraphNodeColor } from './colors.js';
 import { GraphTypeIcon } from './graph-type-icon.jsx';
+import { getGraphNodeSizeScale } from './node-sizes.js';
 import { buildCurvedEdgePath, buildSignalBloomLayout, pickLabelNodes } from './shared.js';
 import {
   GraphBackdropDefs,
@@ -25,12 +26,14 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
   graph,
   onNodeOpen,
   nodeStyle = 'orb',
+  nodeSize = 'medium',
   labelStyle = 'selected',
   colorMode = 'updated',
   activeSlug = null,
   onActiveSlugChange,
 }, ref) {
   const theme = useGraphTheme();
+  const nodeSizeScale = getGraphNodeSizeScale(nodeSize);
   const defsId = useId().replace(/:/g, '-');
   const [hoveredSlug, setHoveredSlug] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -90,7 +93,7 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
 
         <g
           transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}
-          style={{ '--graph-node-scale': Math.min(1, 1 / viewport.scale) }}
+          style={{ '--graph-node-scale': nodeSizeScale * Math.min(1, 1 / viewport.scale) }}
         >
           <BloomSectors laidOut={laidOut} theme={theme} />
           <BloomLinks laidOut={laidOut} theme={theme} />
@@ -119,6 +122,7 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
           labeled={labeled}
           theme={theme}
           fontSize={PRESET_GRAPH_LABEL_FONT_SIZE}
+          nodeSizeScale={nodeSizeScale}
         />
       </svg>
     </div>

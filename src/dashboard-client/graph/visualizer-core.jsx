@@ -232,12 +232,14 @@ export function GraphFixedLabels({
   labeled,
   theme,
   fontSize = DEFAULT_GRAPH_LABEL_FONT_SIZE,
+  nodeSizeScale = 1,
 }) {
   return (
     <g className="graph-fixed-labels" pointerEvents="none">
       {nodes.map((node) => {
         if (!labeled.has(node.slug)) return null;
-        const x = viewport.x + node.x * viewport.scale + node.radius * viewport.scale + 10;
+        const visibleNodeScale = nodeSizeScale * Math.min(viewport.scale, 1);
+        const x = viewport.x + node.x * viewport.scale + node.radius * visibleNodeScale + 10;
         const y = viewport.y + node.y * viewport.scale + 3;
         return (
           <text

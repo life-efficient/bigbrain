@@ -3,6 +3,8 @@ import { NetworkConstellationVisualizer } from './network-constellation-visualiz
 import { SignalBloomVisualizer } from './signal-bloom-visualizer.jsx';
 import { SpaciousConstellationVisualizer } from './spacious-constellation-visualizer.jsx';
 
+export { GRAPH_NODE_SIZES } from './node-sizes.js';
+
 export const GRAPH_CONTROL_LABELS = {
   zoomIn: 'Zoom in',
   zoomOut: 'Zoom out',
@@ -12,6 +14,7 @@ export const GRAPH_CONTROL_LABELS = {
 export const GRAPH_DEFAULTS = {
   visualizerId: 'jarvis-bloom',
   nodeStyle: 'diamond',
+  nodeSize: 'medium',
   arcStyle: 'curve',
   layoutStyle: 'lanes',
   labelStyle: 'off',

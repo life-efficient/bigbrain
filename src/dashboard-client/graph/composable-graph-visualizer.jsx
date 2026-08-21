@@ -2,6 +2,7 @@ import React, { forwardRef, memo, useId, useMemo, useState } from 'react';
 
 import { getGraphNodeColor } from './colors.js';
 import { GraphTypeIcon } from './graph-type-icon.jsx';
+import { getGraphNodeSizeScale } from './node-sizes.js';
 import {
   buildCurvedEdgePath,
   buildJarvisLayout,
@@ -31,6 +32,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   graph,
   onNodeOpen,
   nodeStyle = 'orb',
+  nodeSize = 'medium',
   arcStyle = 'straight',
   layoutStyle = 'orbital',
   labelStyle = 'selected',
@@ -40,6 +42,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   onActiveSlugChange,
 }, ref) {
   const theme = useGraphTheme();
+  const nodeSizeScale = getGraphNodeSizeScale(nodeSize);
   const defsId = useId().replace(/:/g, '-');
   const [hoveredSlug, setHoveredSlug] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -83,7 +86,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
 
         <g
           transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}
-          style={{ '--graph-node-scale': Math.min(1, 1 / viewport.scale) }}
+          style={{ '--graph-node-scale': nodeSizeScale * Math.min(1, 1 / viewport.scale) }}
         >
           <LayoutBackdrop layoutStyle={layoutStyle} laidOut={laidOut} theme={theme} />
           <ArcLayer arcStyle={arcStyle} laidOut={laidOut} theme={theme} />
@@ -107,6 +110,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
           labeled={labeled}
           theme={theme}
           fontSize={labelFontSize}
+          nodeSizeScale={nodeSizeScale}
         />
       </svg>
     </div>
