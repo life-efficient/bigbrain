@@ -15,7 +15,9 @@ import {
   buildVisNetworkNodes,
   findNearestVisNetworkNode,
   getVisNetworkLabelSlugs,
+  seedVisNetworkNodePosition,
 } from '../../src/dashboard-client/graph/vis-network-data.js';
+import { deriveGraphMotion } from '../../src/dashboard-client/graph/live-graph.js';
 
 test('responsive graph visualizers do not paint letterboxed viewBox backdrops', async () => {
   const sources = await Promise.all([
@@ -114,6 +116,42 @@ test('vis network proximity targeting uses a forgiving screen-space radius', () 
   assert.equal(findNearestVisNetworkNode({ x: 134, y: 100 }, positions), null);
 });
 
+test('new vis network nodes enter beside connected knowledge without moving the settled graph', () => {
+  const seeded = seedVisNetworkNodePosition('projects/new', [
+    { source: 'projects/new', target: 'people/alice' },
+    { source: 'projects/new', target: 'people/bob' },
+  ], {
+    'people/alice': { x: 80, y: 90 },
+    'people/bob': { x: 120, y: 110 },
+  });
+
+  assert.equal(Math.hypot(seeded.x - 100, seeded.y - 100) < 33, true);
+  assert.equal(Number.isFinite(seeded.x), true);
+  assert.equal(Number.isFinite(seeded.y), true);
+});
+
+test('confirmed graph refreshes identify created and updated pages for live motion', () => {
+  const before = { nodes: [{ slug: 'people/alice', updated_at: '2026-08-20T10:00:00Z', degree: 1 }] };
+  const after = { nodes: [
+    { slug: 'people/alice', updated_at: '2026-08-22T10:00:00Z', degree: 1 },
+    { slug: 'projects/relay', updated_at: '2026-08-22T10:00:00Z', degree: 1 },
+  ] };
+  const motion = deriveGraphMotion(before, after, [{ id: '42', slug: 'projects/relay', kind: 'created' }]);
+
+  assert.equal(motion.id, '42');
+  assert.deepEqual(motion.changes, [
+    { slug: 'people/alice', kind: 'updated' },
+    { slug: 'projects/relay', kind: 'created' },
+  ]);
+
+  const linkedOnly = deriveGraphMotion(
+    { nodes: [{ slug: 'projects/jarvis', updated_at: '2026-08-22T10:00:00Z', degree: 1 }] },
+    { nodes: [{ slug: 'projects/jarvis', updated_at: '2026-08-22T10:00:00Z', degree: 2 }] },
+    [],
+  );
+  assert.deepEqual(linkedOnly.changes, []);
+});
+
 test('vis network focus emphasizes one-hop relationships and mutes the rest', () => {
   const nodes = ['a', 'b', 'c'].map((slug) => ({ slug }));
   const edges = [{ source: 'a', target: 'b' }];
@@ -137,6 +175,21 @@ test('vis network label controls remain available in the graph style menu', asyn
   assert.doesNotMatch(labelsGroup, /disabled=/);
   assert.match(nodesGroup, /options=\{GRAPH_NODE_STYLES\}/);
   assert.doesNotMatch(nodesGroup, /disabled=/);
+});
+
+test('vis network boot and MCP activity animations are bounded and accessible', async () => {
+  const [visualizer, dashboard, main] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/graph/vis-network-visualizer.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(visualizer, /stabilizationIterationsDone[\s\S]*network\.once\('animationFinished'/);
+  assert.match(visualizer, /vis-network-boot-overlay" aria-hidden="true"/);
+  assert.match(visualizer, /MCP CREATE/);
+  assert.match(dashboard, /@media \(prefers-reduced-motion: reduce\)[\s\S]*vis-network-boot-overlay/);
+  assert.doesNotMatch(dashboard.match(/\.vis-network-boot-overlay[\s\S]*?\.futuristic-graph/)?.[0] || '', /infinite/);
+  assert.match(main, /new EventSource\('\/api\/graph\/events'\)/);
 });
 
 test('graph layouts safely handle empty and single-node graphs', () => {

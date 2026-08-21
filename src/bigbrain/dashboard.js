@@ -13,6 +13,7 @@ import {
   getOutgoingLinks,
   getPagesBySlugs,
   getSharedGroup,
+  listMcpAuditLog,
   listPages,
   openDatabase,
 } from './db.js';
@@ -260,7 +261,8 @@ export async function createDashboardRequestHandler(config, {
       }
       if (requestUrl.pathname === '/api/tasks') return json(res, await buildTasksPayload(config, db, requestUrl, { actor }));
       if (requestUrl.pathname === '/api/recent') return json(res, await buildRecentPayload(db));
-      if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db, config));
+      if (requestUrl.pathname === '/api/graph/events') return streamGraphEvents(db, res);
+      if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db, config), { noStore: true });
       if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
       if (requestUrl.pathname === '/api/analytics') return json(res, await buildAnalyticsPayload(config, db));
       if (requestUrl.pathname === '/api/page') return json(res, await buildPagePayload(config, db, requestUrl));
@@ -854,7 +856,19 @@ function renderAppHtml() {
       .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
       .graph-svg:active { cursor: grabbing; }
       .force-shell canvas { border-radius: 18px; }
+      .vis-network-surface { opacity: 0.52; filter: brightness(0.78); }
+      .vis-network-booted .vis-network-surface { animation: vis-network-materialize 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+      .vis-network-boot-overlay { position: absolute; inset: 0; z-index: 4; overflow: hidden; pointer-events: none; opacity: 0; }
+      .vis-network-booted .vis-network-boot-overlay { animation: vis-network-boot-stage 760ms ease-out both; }
+      .vis-network-scan-beam { position: absolute; left: 4%; right: 4%; top: 0; height: 1px; opacity: 0; background: linear-gradient(90deg, transparent, rgba(244,244,245,0.22) 12%, #ffffff 50%, rgba(244,244,245,0.22) 88%, transparent); box-shadow: 0 0 14px rgba(255,255,255,0.42); }
+      .vis-network-booted .vis-network-scan-beam { animation: vis-network-scan 690ms cubic-bezier(0.25, 0.7, 0.2, 1) both; }
+      .vis-network-boot-reticle { position: absolute; left: 50%; top: 50%; width: 58px; height: 58px; border: 1px solid rgba(244,244,245,0.6); border-radius: 999px; opacity: 0; transform: translate(-50%, -50%) scale(0.35); box-shadow: 0 0 20px rgba(255,255,255,0.12), inset 0 0 18px rgba(255,255,255,0.08); }
+      .vis-network-booted .vis-network-boot-reticle { animation: vis-network-reticle 620ms cubic-bezier(0.2, 0.72, 0.18, 1) 80ms both; }
+      .vis-network-boot-copy { position: absolute; left: 50%; top: calc(50% + 52px); color: rgba(250,250,250,0.82); font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.2em; transform: translateX(-50%); opacity: 0; white-space: nowrap; }
+      .vis-network-booted .vis-network-boot-copy { animation: vis-network-boot-copy 580ms ease-out 110ms both; }
       .vis-network-label-layer { position: absolute; inset: 0; z-index: 2; overflow: hidden; pointer-events: none; }
+      .vis-network-booting .vis-network-label-layer { opacity: 0; }
+      .vis-network-booted .vis-network-label-layer { animation: vis-network-label-reveal 520ms ease-out 120ms both; }
       .vis-network-label { position: absolute; display: flex; align-items: center; max-width: min(280px, 34vw); transform: translate(10px, -50%); color: var(--ink); filter: drop-shadow(0 8px 18px rgba(0,0,0,0.24)); }
       .vis-network-label.flip { flex-direction: row-reverse; transform: translate(calc(-100% - 10px), -50%); }
       .vis-network-label-rule { width: 14px; height: 1px; flex: 0 0 auto; background: rgba(244,244,245,0.48); }
@@ -866,6 +880,33 @@ function renderAppHtml() {
       .vis-network-label.emphasized .vis-network-label-copy { padding: 7px 9px; border-color: rgba(244,244,245,0.34); background: rgba(9,9,11,0.9); box-shadow: inset 0 1px 0 rgba(255,255,255,0.06); }
       .vis-network-label.emphasized .vis-network-label-copy strong { color: #fafafa; font-size: 13px; }
       .vis-network-label.emphasized .vis-network-label-copy small { display: inline; }
+      .vis-network-live-layer { position: absolute; inset: 0; z-index: 5; overflow: hidden; pointer-events: none; }
+      .vis-network-live-pulse { --pulse-color: #f4f4f5; position: absolute; width: 1px; height: 1px; color: var(--pulse-color); }
+      .vis-network-live-pulse.created { --pulse-color: #86efac; }
+      .vis-network-live-pulse.updated { --pulse-color: #e4e4e7; }
+      .vis-network-live-ring { position: absolute; left: 0; top: 0; width: 42px; height: 42px; border: 1px solid currentColor; border-radius: 999px; opacity: 0; transform: translate(-50%, -50%) scale(0.3); box-shadow: 0 0 14px color-mix(in srgb, currentColor 36%, transparent); }
+      .vis-network-live-ring.outer { animation: vis-network-live-ring 1380ms cubic-bezier(0.12, 0.68, 0.22, 1) both; }
+      .vis-network-live-ring.inner { width: 22px; height: 22px; animation: vis-network-live-ring 980ms cubic-bezier(0.12, 0.68, 0.22, 1) 90ms both; }
+      .vis-network-live-crosshair::before, .vis-network-live-crosshair::after { content: ""; position: absolute; left: 0; top: 0; background: currentColor; opacity: 0; animation: vis-network-live-crosshair 900ms ease-out both; }
+      .vis-network-live-crosshair::before { width: 54px; height: 1px; transform: translate(-50%, -50%); }
+      .vis-network-live-crosshair::after { width: 1px; height: 54px; transform: translate(-50%, -50%); }
+      .vis-network-live-copy { position: absolute; left: 28px; top: -23px; display: grid; gap: 4px; width: min(220px, 28vw); padding-left: 9px; border-left: 1px solid currentColor; opacity: 0; animation: vis-network-live-copy 1450ms ease-out 90ms both; filter: drop-shadow(0 5px 12px rgba(0,0,0,0.7)); }
+      .vis-network-live-copy small { color: currentColor; font: 800 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.14em; }
+      .vis-network-live-copy strong { overflow: hidden; color: #fafafa; font: 650 11px/1.25 ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis; white-space: nowrap; }
+      @keyframes vis-network-materialize { 0% { opacity: 0.52; filter: brightness(0.78); } 45% { opacity: 1; filter: brightness(1.18); } 100% { opacity: 1; filter: brightness(1); } }
+      @keyframes vis-network-boot-stage { 0%, 8% { opacity: 0; } 18%, 82% { opacity: 1; } 100% { opacity: 0; } }
+      @keyframes vis-network-scan { 0% { top: 4%; opacity: 0; } 14% { opacity: 0.85; } 84% { opacity: 0.55; } 100% { top: 96%; opacity: 0; } }
+      @keyframes vis-network-reticle { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.35); } 38% { opacity: 0.78; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(2.35); } }
+      @keyframes vis-network-boot-copy { 0% { opacity: 0; transform: translate(-50%, 5px); } 35%, 72% { opacity: 0.88; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -3px); } }
+      @keyframes vis-network-label-reveal { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: translateY(0); } }
+      @keyframes vis-network-live-ring { 0% { opacity: 0; transform: translate(-50%, -50%) scale(0.3); } 18% { opacity: 0.9; } 100% { opacity: 0; transform: translate(-50%, -50%) scale(2.15); } }
+      @keyframes vis-network-live-crosshair { 0% { opacity: 0; } 18%, 46% { opacity: 0.66; } 100% { opacity: 0; } }
+      @keyframes vis-network-live-copy { 0% { opacity: 0; transform: translateX(-5px); } 16%, 68% { opacity: 0.94; transform: translateX(0); } 100% { opacity: 0; transform: translateX(3px); } }
+      @media (prefers-reduced-motion: reduce) {
+        .vis-network-surface, .vis-network-booted .vis-network-surface { opacity: 1; filter: none; animation: none; }
+        .vis-network-boot-overlay, .vis-network-live-layer { display: none; }
+        .vis-network-booting .vis-network-label-layer, .vis-network-booted .vis-network-label-layer { opacity: 1; animation: none; }
+      }
       .futuristic-graph { background: transparent; }
       .graph-pulse-line { animation: graph-pulse 7s linear infinite; }
       .graph-activity-panel { position: absolute; right: 14px; top: 14px; z-index: 4; width: min(270px, calc(100% - 28px)); display: grid; gap: 0; padding: 0; border: 1px solid transparent; border-radius: 12px; background: transparent; box-shadow: none; backdrop-filter: blur(0); transition: padding 180ms ease, gap 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, backdrop-filter 180ms ease; }
@@ -2182,6 +2223,80 @@ export async function buildGraphPayload(db, config = null) {
     })),
     edges,
   };
+}
+
+const GRAPH_MUTATION_TOOLS = new Set([
+  'create_page',
+  'create_raw_file_with_page',
+  'rename_page',
+  'set_page_visibility',
+  'tasks/create',
+  'tasks/update',
+  'update_page',
+]);
+
+export function graphChangeFromAuditRow(row) {
+  if (!row || row.outcome !== 'success' || typeof row.action !== 'string') return null;
+  const tool = row.action.replace(/^mcp\.tool\./, '');
+  if (!GRAPH_MUTATION_TOOLS.has(tool)) return null;
+  let details = {};
+  try {
+    details = typeof row.details_json === 'string' ? JSON.parse(row.details_json) : row.details_json || {};
+  } catch {
+    details = {};
+  }
+  const args = details.arguments || {};
+  const slug = row.resource_type === 'page'
+    ? row.resource_id
+    : args.page_path || args.to_path || args.path || args.slug || null;
+  return {
+    id: String(row.id),
+    event_id: row.event_id || null,
+    kind: tool.includes('create') ? 'created' : tool === 'rename_page' ? 'renamed' : 'updated',
+    slug: typeof slug === 'string' ? slug.replace(/\.md$/i, '') : null,
+    action: tool,
+    created_at: row.created_at,
+  };
+}
+
+async function streamGraphEvents(db, res) {
+  const latest = await listMcpAuditLog(db, { limit: 1 });
+  let cursor = BigInt(latest[0]?.id || 0);
+  let polling = false;
+  let heartbeatCount = 0;
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream; charset=utf-8',
+    'Cache-Control': 'no-cache, no-store',
+    Connection: 'keep-alive',
+    'X-Accel-Buffering': 'no',
+  });
+  res.write('event: ready\ndata: {}\n\n');
+
+  const poll = async () => {
+    if (polling || res.destroyed) return;
+    polling = true;
+    try {
+      const rows = await listMcpAuditLog(db, { limit: 100 });
+      const fresh = rows
+        .filter((row) => BigInt(row.id) > cursor)
+        .sort((left, right) => BigInt(left.id) < BigInt(right.id) ? -1 : 1);
+      for (const row of fresh) {
+        cursor = BigInt(row.id) > cursor ? BigInt(row.id) : cursor;
+        const change = graphChangeFromAuditRow(row);
+        if (!change) continue;
+        res.write(`id: ${change.id}\nevent: graph-change\ndata: ${JSON.stringify(change)}\n\n`);
+      }
+      heartbeatCount += 1;
+      if (heartbeatCount % 20 === 0) res.write(': keepalive\n\n');
+    } catch {
+      res.write('event: graph-error\ndata: {}\n\n');
+    } finally {
+      polling = false;
+    }
+  };
+  const interval = setInterval(poll, 750);
+  interval.unref?.();
+  res.once('close', () => clearInterval(interval));
 }
 
 async function buildGraphHistory(config, nodes) {

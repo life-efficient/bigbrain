@@ -15,6 +15,7 @@ import {
 } from './graph/registry.jsx';
 import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
+import { deriveGraphMotion } from './graph/live-graph.js';
 import { resolveExplorerLinkPath } from './explorer-links.js';
 import { MarkdownDocument } from './markdown.jsx';
 import { privatePageHrefFromMarkdown, privatePageRouteFromPath } from './page-links.js';
@@ -106,6 +107,7 @@ function DashboardApp() {
   const [prefersDark, setPrefersDark] = useState(false);
   const [preview, setPreview] = useState(null);
   const [activeGraphSlug, setActiveGraphSlug] = useState(null);
+  const [graphMotion, setGraphMotion] = useState(null);
   const [healthOpen, setHealthOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [analytics, setAnalytics] = useState({ status: 'idle', data: null, error: null });
@@ -115,6 +117,8 @@ function DashboardApp() {
   const visualizerRef = useRef(null);
   const healthMenuRef = useRef(null);
   const settingsMenuRef = useRef(null);
+  const latestGraphRef = useRef(null);
+  latestGraphRef.current = state.data?.graph || latestGraphRef.current;
 
   useEffect(() => {
     try {
@@ -173,6 +177,55 @@ function DashboardApp() {
       cancelled = true;
     };
   }, [assigneeFilter]);
+
+  useEffect(() => {
+    if (state.status !== 'ready' || typeof EventSource === 'undefined') return undefined;
+    let cancelled = false;
+    let refreshTimer = 0;
+    let refreshInFlight = false;
+    const pendingEvents = [];
+    const source = new EventSource('/api/graph/events');
+
+    const refreshGraph = async ({ animate = true } = {}) => {
+      if (refreshInFlight) return;
+      refreshInFlight = true;
+      const sourceEvents = pendingEvents.splice(0);
+      try {
+        const nextGraph = await fetchJson('/api/graph', { cache: 'no-store' });
+        if (cancelled) return;
+        const previousGraph = latestGraphRef.current;
+        const motion = deriveGraphMotion(previousGraph, nextGraph, sourceEvents);
+        latestGraphRef.current = nextGraph;
+        setState((current) => current.status === 'ready'
+          ? { ...current, data: { ...current.data, graph: nextGraph } }
+          : current);
+        if (animate && motion.changes.length) setGraphMotion(motion);
+      } catch {
+        // EventSource reconnects automatically; the next ready event heals missed graph state.
+      } finally {
+        refreshInFlight = false;
+        if (!cancelled && pendingEvents.length) scheduleRefresh();
+      }
+    };
+    const scheduleRefresh = () => {
+      window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => refreshGraph({ animate: true }), 180);
+    };
+    source.addEventListener('ready', () => refreshGraph({ animate: false }));
+    source.addEventListener('graph-change', (event) => {
+      try {
+        pendingEvents.push(JSON.parse(event.data));
+      } catch {
+        pendingEvents.push({ id: event.lastEventId || `${Date.now()}` });
+      }
+      scheduleRefresh();
+    });
+    return () => {
+      cancelled = true;
+      window.clearTimeout(refreshTimer);
+      source.close();
+    };
+  }, [state.status]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) {
@@ -519,6 +572,7 @@ function DashboardApp() {
             {view === 'graph' ? (
               <GraphPanel
                 graph={graph}
+                motionEvent={graphMotion}
                 visualizerId={visualizerId}
                 setVisualizerId={setVisualizerId}
                 nodeStyle={nodeStyle}
@@ -1762,6 +1816,7 @@ function resolveTimelineIndex(value, buckets) {
 
 const GraphPanel = memo(function GraphPanel({
   graph,
+  motionEvent,
   visualizerId,
   setVisualizerId,
   nodeStyle,
@@ -1887,6 +1942,7 @@ const GraphPanel = memo(function GraphPanel({
         <VisualizerComponent
           ref={visualizerRef}
           graph={filteredGraph}
+          motionEvent={motionEvent}
           onNodeOpen={onNodeOpen}
           nodeStyle={nodeStyle}
           arcStyle={arcStyle}

@@ -7,6 +7,7 @@ import {
   buildVisNetworkNodes,
   findNearestVisNetworkNode,
   getVisNetworkLabelSlugs,
+  seedVisNetworkNodePosition,
 } from './vis-network-data.js';
 import { PRESET_GRAPH_LABEL_FONT_SIZE, useGraphTheme } from './visualizer-core.jsx';
 
@@ -18,6 +19,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
   colorMode = 'updated',
   labelStyle = 'selected',
   nodeStyle = 'orb',
+  motionEvent = null,
 }, ref) {
   const theme = useGraphTheme();
   const canvasRef = useRef(null);
@@ -32,9 +34,13 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
   const applyFocusRef = useRef(() => {});
   const scheduleLabelsRef = useRef(() => {});
   const overlaySignatureRef = useRef('');
+  const graphRef = useRef(graph);
   const visualSettingsRef = useRef({ colorMode, labelStyle, nodeStyle });
   const activeSlugRef = useRef(activeSlug);
   const [overlayLabels, setOverlayLabels] = useState([]);
+  const [booted, setBooted] = useState(false);
+  const [livePulses, setLivePulses] = useState([]);
+  graphRef.current = graph;
   activeSlugRef.current = activeSlug;
   visualSettingsRef.current = { colorMode, labelStyle, nodeStyle };
   const handleNodeOpen = useEffectEvent((nodeId) => {
@@ -79,18 +85,20 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
 
   useEffect(() => {
     if (!canvasRef.current) return undefined;
+    const initialGraph = graphRef.current;
+    setBooted(false);
 
-    const nodes = new DataSet(buildVisNetworkNodes(graph.nodes, {
+    const nodes = new DataSet(buildVisNetworkNodes(initialGraph.nodes, {
       colorMode: visualSettingsRef.current.colorMode,
       nodeStyle: visualSettingsRef.current.nodeStyle,
       theme,
     }));
-    const edges = new DataSet(buildVisNetworkEdges(graph.edges, theme));
+    const edges = new DataSet(buildVisNetworkEdges(initialGraph.edges, theme));
     nodeDataRef.current = nodes;
     edgeDataRef.current = edges;
-    nodeTitlesRef.current = new Map(graph.nodes.map((node) => [node.slug, node.title]));
-    nodeTypesRef.current = new Map(graph.nodes.map((node) => [node.slug, node.type]));
-    baseLabelSlugsRef.current = getVisNetworkLabelSlugs(graph.nodes, visualSettingsRef.current.labelStyle);
+    nodeTitlesRef.current = new Map(initialGraph.nodes.map((node) => [node.slug, node.title]));
+    nodeTypesRef.current = new Map(initialGraph.nodes.map((node) => [node.slug, node.type]));
+    baseLabelSlugsRef.current = getVisNetworkLabelSlugs(initialGraph.nodes, visualSettingsRef.current.labelStyle);
 
     const network = new Network(
       canvasRef.current,
@@ -160,9 +168,11 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
     let labelFrame = 0;
     let pointerFrame = 0;
     let pendingPointer = null;
+    let bootRevealTimer = 0;
     const applyFocus = (focusSlug) => {
       const validFocusSlug = nodeTitlesRef.current.has(focusSlug) ? focusSlug : null;
-      const updates = buildVisNetworkFocusUpdates(graph.nodes, graph.edges, validFocusSlug, theme);
+      const currentGraph = graphRef.current;
+      const updates = buildVisNetworkFocusUpdates(currentGraph.nodes, currentGraph.edges, validFocusSlug, theme);
       nodes.update(updates.nodes);
       edges.update(updates.edges);
       if (validFocusSlug) network.selectNodes([validFocusSlug], false);
@@ -213,12 +223,22 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
 
     network.once('stabilizationIterationsDone', () => {
       network.setOptions({ physics: false });
+      let revealed = false;
+      const revealBoot = () => {
+        if (revealed) return;
+        revealed = true;
+        window.clearTimeout(bootRevealTimer);
+        setBooted(true);
+        scheduleLabels();
+      };
+      network.once('animationFinished', revealBoot);
       network.fit({
         animation: {
           duration: 250,
           easingFunction: 'easeInOutQuad',
         },
       });
+      bootRevealTimer = window.setTimeout(revealBoot, 320);
       scheduleLabels();
     });
 
@@ -268,6 +288,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
       canvas.removeEventListener('pointerleave', handlePointerLeave);
       if (labelFrame) cancelAnimationFrame(labelFrame);
       if (pointerFrame) cancelAnimationFrame(pointerFrame);
+      window.clearTimeout(bootRevealTimer);
       network.destroy();
       networkRef.current = null;
       nodeDataRef.current = null;
@@ -276,17 +297,71 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
       scheduleLabelsRef.current = () => {};
       overlaySignatureRef.current = '';
       setOverlayLabels([]);
+      setLivePulses([]);
     };
-  }, [graph, handleActiveChange, handleNodeOpen, theme.graphEdge, theme.graphEdgeStrong, theme.graphHalo, theme.graphLabel, theme.graphNodeStroke]);
+  }, [theme.graphEdge, theme.graphEdgeStrong, theme.graphHalo, theme.graphLabel, theme.graphNodeStroke]);
 
   useEffect(() => {
     const nodeData = nodeDataRef.current;
-    if (!nodeData) return;
+    const edgeData = edgeDataRef.current;
+    const network = networkRef.current;
+    if (!nodeData || !edgeData || !network) return;
+    nodeTitlesRef.current = new Map(graph.nodes.map((node) => [node.slug, node.title]));
+    nodeTypesRef.current = new Map(graph.nodes.map((node) => [node.slug, node.type]));
     baseLabelSlugsRef.current = getVisNetworkLabelSlugs(graph.nodes, labelStyle);
-    nodeData.update(buildVisNetworkNodes(graph.nodes, { colorMode, nodeStyle, theme }));
+
+    const existingNodeIds = new Set(nodeData.getIds());
+    const incomingNodeIds = new Set(graph.nodes.map((node) => node.slug));
+    const removedNodeIds = [...existingNodeIds].filter((slug) => !incomingNodeIds.has(slug));
+    if (removedNodeIds.length) nodeData.remove(removedNodeIds);
+
+    const styledNodes = buildVisNetworkNodes(graph.nodes, { colorMode, nodeStyle, theme });
+    const existingPositions = network.getPositions([...existingNodeIds]);
+    const viewPosition = network.getViewPosition();
+    const existingUpdates = [];
+    const additions = [];
+    for (const node of styledNodes) {
+      if (existingNodeIds.has(node.id)) {
+        existingUpdates.push(node);
+      } else {
+        const position = seedVisNetworkNodePosition(node.id, graph.edges, existingPositions, viewPosition);
+        additions.push({ ...node, ...position, physics: false });
+        existingPositions[node.id] = position;
+      }
+    }
+    if (existingUpdates.length) nodeData.update(existingUpdates);
+    if (additions.length) nodeData.add(additions);
+
+    const nextEdges = buildVisNetworkEdges(graph.edges, theme);
+    const incomingEdgeIds = new Set(nextEdges.map((edge) => edge.id));
+    const removedEdgeIds = edgeData.getIds().filter((id) => !incomingEdgeIds.has(id));
+    if (removedEdgeIds.length) edgeData.remove(removedEdgeIds);
+    if (nextEdges.length) edgeData.update(nextEdges);
+
     applyFocusRef.current(activeSlugRef.current || hoveredSlugRef.current);
     scheduleLabelsRef.current();
-  }, [colorMode, graph.nodes, labelStyle, nodeStyle, theme]);
+  }, [colorMode, graph, labelStyle, nodeStyle, theme.graphEdge, theme.graphEdgeStrong, theme.graphNodeStroke]);
+
+  useEffect(() => {
+    const network = networkRef.current;
+    if (!network || !motionEvent?.changes?.length) return undefined;
+    const visibleChanges = motionEvent.changes.filter((change) => nodeTitlesRef.current.has(change.slug));
+    if (!visibleChanges.length) return undefined;
+    const positions = network.getPositions(visibleChanges.map((change) => change.slug));
+    setLivePulses(visibleChanges.flatMap((change) => {
+      const position = positions[change.slug];
+      if (!position) return [];
+      const dom = network.canvasToDOM(position);
+      return [{
+        ...change,
+        x: dom.x,
+        y: dom.y,
+        title: nodeTitlesRef.current.get(change.slug) || change.slug,
+      }];
+    }));
+    const timer = window.setTimeout(() => setLivePulses([]), 1700);
+    return () => window.clearTimeout(timer);
+  }, [motionEvent]);
 
   useEffect(() => {
     const network = networkRef.current;
@@ -297,11 +372,17 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
   }, [activeSlug]);
 
   return (
-    <div className="graph-canvas-shell force-shell">
+    <div className={`graph-canvas-shell force-shell ${booted ? 'vis-network-booted' : 'vis-network-booting'}`}>
       <div
         ref={canvasRef}
+        className="vis-network-surface"
         style={{ width: '100%', height: '100%' }}
       />
+      <div className="vis-network-boot-overlay" aria-hidden="true">
+        <span className="vis-network-scan-beam" />
+        <span className="vis-network-boot-reticle" />
+        <span className="vis-network-boot-copy">NEURAL MAP ONLINE</span>
+      </div>
       <div className="vis-network-label-layer" aria-hidden="true">
         {overlayLabels.map((label) => (
           <div
@@ -313,6 +394,23 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
             <span className="vis-network-label-copy">
               <strong>{label.title}</strong>
               {label.emphasized ? <small>{label.type}</small> : null}
+            </span>
+          </div>
+        ))}
+      </div>
+      <div className="vis-network-live-layer" aria-hidden="true">
+        {livePulses.map((pulse) => (
+          <div
+            key={`${motionEvent?.id || 'live'}:${pulse.slug}`}
+            className={`vis-network-live-pulse ${pulse.kind === 'created' ? 'created' : 'updated'}`}
+            style={{ left: pulse.x, top: pulse.y }}
+          >
+            <span className="vis-network-live-ring outer" />
+            <span className="vis-network-live-ring inner" />
+            <span className="vis-network-live-crosshair" />
+            <span className="vis-network-live-copy">
+              <small>{pulse.kind === 'created' ? 'MCP CREATE' : 'MCP UPDATE'}</small>
+              <strong>{pulse.title}</strong>
             </span>
           </div>
         ))}

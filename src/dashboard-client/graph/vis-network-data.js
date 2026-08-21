@@ -19,8 +19,8 @@ export function buildVisNetworkNodes(nodes, {
 }
 
 export function buildVisNetworkEdges(edges, theme) {
-  return edges.map((edge, index) => ({
-    id: `${edge.source}:${edge.target}:${index}`,
+  return indexVisNetworkEdges(edges).map(({ edge, id }) => ({
+    id,
     from: edge.source,
     to: edge.target,
     color: {
@@ -62,13 +62,34 @@ export function findNearestVisNetworkNode(point, positions, radius = VIS_NETWORK
   return nearest;
 }
 
+export function seedVisNetworkNodePosition(slug, edges, positions, fallback = { x: 0, y: 0 }) {
+  const connected = [];
+  for (const edge of edges || []) {
+    const neighbor = edge.source === slug ? edge.target : edge.target === slug ? edge.source : null;
+    const position = neighbor ? positions?.[neighbor] : null;
+    if (position && Number.isFinite(position.x) && Number.isFinite(position.y)) connected.push(position);
+  }
+  const origin = connected.length
+    ? {
+      x: connected.reduce((sum, position) => sum + position.x, 0) / connected.length,
+      y: connected.reduce((sum, position) => sum + position.y, 0) / connected.length,
+    }
+    : fallback;
+  const angle = stableSlugAngle(slug);
+  const distance = connected.length ? 32 : 18;
+  return {
+    x: origin.x + Math.cos(angle) * distance,
+    y: origin.y + Math.sin(angle) * distance,
+  };
+}
+
 export function buildVisNetworkFocusUpdates(nodes, edges, focusSlug, theme) {
   const nodeSlugs = new Set(nodes.map((node) => node.slug));
   if (!focusSlug || !nodeSlugs.has(focusSlug)) {
     return {
       nodes: nodes.map((node) => ({ id: node.slug, opacity: 1 })),
-      edges: edges.map((edge, index) => ({
-        id: `${edge.source}:${edge.target}:${index}`,
+      edges: indexVisNetworkEdges(edges).map(({ edge, id }) => ({
+        id,
         color: { color: theme.graphEdge, highlight: theme.graphEdgeStrong, hover: theme.graphEdgeStrong, opacity: 1 },
       })),
     };
@@ -85,10 +106,10 @@ export function buildVisNetworkFocusUpdates(nodes, edges, focusSlug, theme) {
       id: node.slug,
       opacity: node.slug === focusSlug ? 1 : neighbors.has(node.slug) ? 0.86 : 0.18,
     })),
-    edges: edges.map((edge, index) => {
+    edges: indexVisNetworkEdges(edges).map(({ edge, id }) => {
       const connected = edge.source === focusSlug || edge.target === focusSlug;
       return {
-        id: `${edge.source}:${edge.target}:${index}`,
+        id,
         color: {
           color: connected ? theme.graphEdgeStrong : theme.graphEdge,
           highlight: theme.graphEdgeStrong,
@@ -98,6 +119,22 @@ export function buildVisNetworkFocusUpdates(nodes, edges, focusSlug, theme) {
       };
     }),
   };
+}
+
+function indexVisNetworkEdges(edges) {
+  const occurrences = new Map();
+  return edges.map((edge) => {
+    const key = `${edge.source}->${edge.target}`;
+    const occurrence = occurrences.get(key) || 0;
+    occurrences.set(key, occurrence + 1);
+    return { edge, id: `${key}#${occurrence}` };
+  });
+}
+
+function stableSlugAngle(slug) {
+  let hash = 0;
+  for (const character of String(slug || '')) hash = ((hash * 31) + character.charCodeAt(0)) >>> 0;
+  return (hash % 360) * (Math.PI / 180);
 }
 
 function resolveNodeNetworkColor(node, colorMode, theme) {

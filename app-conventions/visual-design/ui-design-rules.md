@@ -33,6 +33,9 @@ states.
 - Render vis-network labels in the dashboard overlay layer so key, hover, and selected labels can use the app's typography and translucent surfaces without changing graph geometry.
 - Keep `Orb`, `Diamond`, and `Hex` node styles available in vis-network. Selection should emphasize the focused node and its immediate neighborhood while muting unrelated nodes and edges.
 - Do not change or formalize disconnected-page placement as part of vis-network presentation work.
+- Run the vis-network boot treatment once, only after physics has frozen and the initial camera fit has finished. Keep it CSS-only, brief, and independent of graph size so it cannot disturb the stabilized geometry.
+- Animate live graph activity only after a successful MCP write has completed indexing. Refresh graph data, patch the existing vis-network datasets in place, preserve settled node positions, and use a bounded overlay pulse to distinguish page creation from updates.
+- Boot and live graph motion must have a reduced-motion path that immediately reveals the settled graph and omits scan, reticle, and pulse effects.
 
 ## Desktop Shell Theming
 

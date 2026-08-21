@@ -11,6 +11,7 @@ import {
   buildExplorerRecentPayload,
   buildExplorerTreePayload,
   buildGraphPayload,
+  graphChangeFromAuditRow,
   buildContinuousActivity,
   buildPagePayload,
   buildPublicPagePayload,
@@ -19,6 +20,31 @@ import {
   buildSharedRawFilePayload,
 } from '../../src/bigbrain/dashboard.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
+
+test('graph change stream exposes only confirmed privacy-safe MCP mutations', () => {
+  const created = graphChangeFromAuditRow({
+    id: 42,
+    event_id: 'evt_safe',
+    action: 'mcp.tool.create_page',
+    outcome: 'success',
+    resource_type: 'page',
+    resource_id: 'projects/relay',
+    details_json: JSON.stringify({ arguments: { path: 'projects/relay', body: 'private page body' } }),
+    created_at: '2026-08-22T12:00:00.000Z',
+  });
+
+  assert.deepEqual(created, {
+    id: '42',
+    event_id: 'evt_safe',
+    kind: 'created',
+    slug: 'projects/relay',
+    action: 'create_page',
+    created_at: '2026-08-22T12:00:00.000Z',
+  });
+  assert.doesNotMatch(JSON.stringify(created), /private page body/);
+  assert.equal(graphChangeFromAuditRow({ ...created, action: 'mcp.tool.create_page', outcome: 'error' }), null);
+  assert.equal(graphChangeFromAuditRow({ ...created, action: 'mcp.tool.read', outcome: 'success' }), null);
+});
 
 test('public attachment sidecars expose only their bound safe artifact', async () => {
   const fixture = await createFixture('bigbrain-public-attachment-sidecar-');
