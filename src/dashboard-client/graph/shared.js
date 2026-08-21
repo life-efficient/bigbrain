@@ -223,27 +223,42 @@ export function buildNetworkConstellationLayout(graph) {
       .map((nodes) => [...nodes].sort(sortByWeight))
       .sort((a, b) => b.length - a.length || a[0].slug.localeCompare(b[0].slug))
     : [];
+  const components = detectConnectedComponents(connected, connectedEdges);
+  const componentIndexBySlug = new Map();
+  components.forEach((nodes, index) => {
+    nodes.forEach((node) => componentIndexBySlug.set(node.slug, index));
+  });
+  const componentCenters = components.map((nodes, index) => {
+    if (index === 0) return { x: 0, y: 0 };
+    const distance = 330 + Math.sqrt(index) * 72;
+    const angle = index * goldenAngle;
+    return { x: Math.cos(angle) * distance, y: Math.sin(angle) * distance };
+  });
+  const localCommunityCounts = new Map();
 
   const clusters = communities.map((nodes, index) => {
-    const radius = Math.max(52, 35 * Math.sqrt(nodes.length));
-    const distance = index === 0 ? 0 : 105 + Math.sqrt(index) * 175;
-    const angle = index * goldenAngle;
+    const componentIndex = componentIndexBySlug.get(nodes[0]?.slug) || 0;
+    const localIndex = localCommunityCounts.get(componentIndex) || 0;
+    localCommunityCounts.set(componentIndex, localIndex + 1);
+    const componentCenter = componentCenters[componentIndex] || { x: 0, y: 0 };
+    const radius = Math.max(34, 18 * Math.sqrt(nodes.length));
+    const distance = localIndex === 0 ? 0 : 90 + Math.sqrt(localIndex) * 110;
+    const angle = localIndex * goldenAngle;
     return {
       key: nodes[0]?.slug || `cluster-${index}`,
-      x: Math.cos(angle) * distance,
-      y: Math.sin(angle) * distance,
+      x: componentCenter.x + Math.cos(angle) * distance,
+      y: componentCenter.y + Math.sin(angle) * distance,
       radius,
       count: nodes.length,
       nodes,
     };
   });
-  resolveClusterCollisions(clusters, 72);
 
   for (const [community, cluster] of communities.map((nodes, index) => [nodes, clusters[index]])) {
     const ordered = orderByConnectivity(community, connectedEdges);
     ordered.forEach((node, index) => {
-      const distance = index === 0 ? 0 : 35 * Math.sqrt(index);
-      const angle = index * goldenAngle + stableSlugPhase(node.slug) * 0.08;
+      const distance = index === 0 ? 0 : 19 * Math.sqrt(index);
+      const angle = index * goldenAngle + stableSlugPhase(node.slug) * 0.55;
       node.x = cluster.x + Math.cos(angle) * distance;
       node.y = cluster.y + Math.sin(angle) * distance;
       node.layoutAnchorX = cluster.x;
@@ -251,18 +266,18 @@ export function buildNetworkConstellationLayout(graph) {
     });
   }
 
-  for (let iteration = 0; iteration < 14; iteration += 1) {
+  for (let iteration = 0; iteration < 18; iteration += 1) {
     const movement = new Map(connected.map((node) => [node.slug, {
-      x: (node.layoutAnchorX - node.x) * 0.003,
-      y: (node.layoutAnchorY - node.y) * 0.003,
+      x: (node.layoutAnchorX - node.x) * 0.0015,
+      y: (node.layoutAnchorY - node.y) * 0.0015,
     }]));
 
     for (const edge of connectedEdges) {
       const dx = edge.target.x - edge.source.x;
       const dy = edge.target.y - edge.source.y;
       const distance = Math.hypot(dx, dy) || 1;
-      const desired = 82 + (edge.source.radius + edge.target.radius) * 1.8;
-      const force = (distance - desired) * 0.0018;
+      const desired = 72 + (edge.source.radius + edge.target.radius) * 1.6;
+      const force = (distance - desired) * 0.0045;
       const moveX = (dx / distance) * force;
       const moveY = (dy / distance) * force;
       movement.get(edge.source.slug).x += moveX;
@@ -278,16 +293,16 @@ export function buildNetworkConstellationLayout(graph) {
     }
     resolveSpatialCollisions(connected, 18, 64);
   }
-  for (let pass = 0; pass < 3; pass += 1) resolveSpatialCollisions(connected, 18, 64);
+  for (let pass = 0; pass < 8; pass += 1) resolveSpatialCollisions(connected, 18, 64);
 
   const coreRadius = connected.reduce((maximum, node) => (
     Math.max(maximum, Math.hypot(node.x, node.y) + node.radius)
   ), 0);
   let orphanRim = null;
   if (orphans.length) {
-    const footprints = orphans.map((node) => node.radius * 2 + 18);
+    const footprints = orphans.map((node) => node.radius * 2 + 8);
     const circumference = footprints.reduce((sum, value) => sum + value, 0);
-    const radius = Math.max(160, coreRadius + 140, circumference / (Math.PI * 2));
+    const radius = Math.max(160, coreRadius + 100, circumference / (Math.PI * 2));
     let cursor = 0;
     orphans.forEach((node, index) => {
       const footprint = footprints[index];
@@ -366,6 +381,32 @@ function detectLinkCommunities(nodes, edges) {
   if (isolated.length) communities.push(isolated.sort((a, b) => a.slug.localeCompare(b.slug)));
   communities.forEach((community, index) => community.forEach((node) => { node.community = index; }));
   return communities;
+}
+
+function detectConnectedComponents(nodes, edges) {
+  const adjacency = new Map(nodes.map((node) => [node.slug, []]));
+  for (const edge of edges) {
+    adjacency.get(edge.source.slug)?.push(edge.target);
+    adjacency.get(edge.target.slug)?.push(edge.source);
+  }
+  for (const neighbors of adjacency.values()) neighbors.sort(sortByWeight);
+  const remaining = new Set(nodes.map((node) => node.slug));
+  const components = [];
+  for (const seed of [...nodes].sort(sortByWeight)) {
+    if (!remaining.delete(seed.slug)) continue;
+    const component = [];
+    const queue = [seed];
+    for (let index = 0; index < queue.length; index += 1) {
+      const node = queue[index];
+      component.push(node);
+      for (const neighbor of adjacency.get(node.slug) || []) {
+        if (!remaining.delete(neighbor.slug)) continue;
+        queue.push(neighbor);
+      }
+    }
+    components.push(component.sort(sortByWeight));
+  }
+  return components.sort((a, b) => b.length - a.length || a[0].slug.localeCompare(b[0].slug));
 }
 
 function resolveClusterCollisions(clusters, padding) {
