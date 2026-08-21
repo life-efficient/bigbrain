@@ -25,6 +25,7 @@ Preserve time-based media and create a comprehensive, readable account of what t
 For every YouTube transcript ingest:
 
 - Set the sidecar title to `<exact YouTube video title> - <exact YouTube channel name>`.
+- Do not use a generated topic label in place of the exact YouTube video title.
 - Derive the sidecar and raw transcript basename from `<slugified video title>-<slugified channel name>`.
 - Keep the channel name as the final suffix in both the display title and normalized basename.
 - Preserve source capitalization and punctuation in the display title where BigBrain permits it. Normalize only the basename.
@@ -72,6 +73,7 @@ Keep the exposition observational. It may explain how one part leads to the next
    - Anti-patterns: mandatory canonical update, concept-page fanout, copying the exposition into a concept page, upgrading source claims into facts
 6. Sync and verify through the owning Brain:
    - run maintenance sync
+   - directly read back the canonical page and source sidecar when canonical enrichment was written
    - read back the sidecar and confirm its exact title, stable source metadata, raw-file link, chronological coverage, and evidence caveats
    - read back the raw transcript, compare its bytes when practical, and confirm it appears in the raw-file listing
    - read back any optional canonical page and verify its link to the source sidecar
