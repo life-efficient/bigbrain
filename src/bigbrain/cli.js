@@ -645,6 +645,7 @@ async function handleEval(args, global) {
           caseSource: cases.source,
           apiKey: realBrainApiKey,
           policies,
+          referencePolicy: argValue(args, '--reference-policy') || 'baseline',
           arm: argValue(args, '--arm') || 'hybrid-fusion',
           mode: argValue(args, '--mode') || 'balanced',
           limit: common.limit,
@@ -849,7 +850,7 @@ Commands:
   eval retrieval [--mode conservative|balanced|tokenmax] [--arm ARM] [--ranking-policy POLICY] [--limit N] [--cases PATH] [--private] [--redact] [--no-ai]
   eval export [--cases PATH] [--mode MODE] [--arm ARM] [--limit N] [--redact] [--no-ai]
   eval replay --against baseline.ndjson [--mode MODE] [--arm ARM] [--limit N] [--no-ai]
-  eval compare [--cases PATH] [--modes MODES | --arms ARMS | --policies POLICIES] [--arm ARM] [--mode MODE] [--markdown] [--no-ai]
+  eval compare [--cases PATH] [--modes MODES | --arms ARMS | --policies POLICIES] [--reference-policy POLICY] [--arm ARM] [--mode MODE] [--markdown] [--no-ai]
   dashboard [--host HOST] [--port N] [--no-open]
   mcp [--host HOST] [--port N]
   connect codex <service-url> [--name NAME] [--auth oauth|token] [--token-stdin]
