@@ -11,6 +11,7 @@ const execFileAsync = promisify(execFile);
 const DEFAULT_LABEL = 'local.bigbrain.mcp';
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 55560;
+const SERVICE_START_TIMEOUT_MS = 60_000;
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
@@ -68,6 +69,7 @@ async function main() {
       installAutomaticUpdater,
       stdoutPath,
       stderrPath,
+      serviceStartTimeoutMs: SERVICE_START_TIMEOUT_MS,
       wouldEnsureLocalOwner: Boolean(localPersonSlug),
       replacementPlist,
     }, null, 2));
@@ -301,7 +303,7 @@ function normalizeLocalPersonSlug(value) {
 
 async function verifyHealth({ host, port }) {
   const url = `http://${host}:${port}/health`;
-  const deadline = Date.now() + 15000;
+  const deadline = Date.now() + SERVICE_START_TIMEOUT_MS;
   let lastError;
   while (Date.now() < deadline) {
     try {
