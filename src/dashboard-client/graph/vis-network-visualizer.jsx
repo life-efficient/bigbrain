@@ -11,6 +11,9 @@ import {
 } from './vis-network-data.js';
 import { PRESET_GRAPH_LABEL_FONT_SIZE, useGraphTheme } from './visualizer-core.jsx';
 
+const VIS_NETWORK_MIN_SCALE = 0.42;
+const VIS_NETWORK_MAX_SCALE = 10;
+
 export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
   graph,
   onNodeOpen,
@@ -291,7 +294,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
       const anchorX = event.clientX - bounds.left;
       const anchorY = event.clientY - bounds.top;
       const gesture = beginCameraGesture();
-      const nextScale = Math.min(3.2, Math.max(0.42, gesture.scale * Math.exp(-event.deltaY * 0.0015)));
+      const nextScale = Math.min(VIS_NETWORK_MAX_SCALE, Math.max(VIS_NETWORK_MIN_SCALE, gesture.scale * Math.exp(-event.deltaY * 0.0015)));
       if (nextScale === gesture.scale) {
         scheduleCameraCommit();
         return;
@@ -350,7 +353,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
       if (reset) {
         network.fit({ animation: false });
       } else {
-        const scale = Math.min(3.2, Math.max(0.42, network.getScale() * scaleFactor));
+        const scale = Math.min(VIS_NETWORK_MAX_SCALE, Math.max(VIS_NETWORK_MIN_SCALE, network.getScale() * scaleFactor));
         network.moveTo({ scale, animation: false });
       }
       network.redraw();

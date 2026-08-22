@@ -38,6 +38,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   labelStyle = 'selected',
   colorMode = 'updated',
   labelFontSize,
+  maxScale,
   activeSlug = null,
   onActiveSlugChange,
 }, ref) {
@@ -49,6 +50,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   const buildLayout = LAYOUT_BUILDERS[layoutStyle] || buildJarvisLayout;
   const laidOut = useMemo(() => buildLayout(graph), [buildLayout, graph]);
   const { viewport, bind } = useGraphViewport(ref, laidOut, {
+    maxScale,
     onDragStateChange(dragging) {
       setIsDragging(dragging);
       if (dragging) {

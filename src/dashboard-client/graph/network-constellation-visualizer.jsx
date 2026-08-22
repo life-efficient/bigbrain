@@ -10,6 +10,7 @@ export const NetworkConstellationVisualizer = forwardRef(function NetworkConstel
       ref={ref}
       layoutStyle="network"
       labelFontSize={PRESET_GRAPH_LABEL_FONT_SIZE}
+      maxScale={10}
     />
   );
 });

@@ -275,14 +275,20 @@ test('vis network boot and MCP activity animations are bounded and accessible', 
   assert.match(main, /new EventSource\('\/api\/graph\/events'\)/);
 });
 
-test('vis network transforms frozen geometry instead of redrawing it during camera gestures', async () => {
-  const [visualizer, dashboard] = await Promise.all([
+test('network renderers allow deep zoom without redrawing vis geometry during gestures', async () => {
+  const [visualizer, dashboard, networkConstellation, composable] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/graph/vis-network-visualizer.jsx', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/network-constellation-visualizer.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/composable-graph-visualizer.jsx', import.meta.url), 'utf8'),
   ]);
 
   assert.match(visualizer, /dragView: false/);
   assert.match(visualizer, /zoomView: false/);
+  assert.match(visualizer, /const VIS_NETWORK_MAX_SCALE = 10/);
+  assert.equal((visualizer.match(/Math\.min\(VIS_NETWORK_MAX_SCALE/g) || []).length, 2);
+  assert.match(networkConstellation, /maxScale=\{10\}/);
+  assert.match(composable, /useGraphViewport\(ref, laidOut, \{[\s\S]*maxScale,/);
   assert.match(visualizer, /translate3d\(\$\{translateX\}px, \$\{translateY\}px, 0\) scale\(\$\{ratio\}\)/);
   assert.match(visualizer, /network\.moveTo\(\{ position: next\.position, scale: next\.scale, animation: false \}\)/);
   assert.doesNotMatch(visualizer, /network\.on\('afterDrawing'/);
