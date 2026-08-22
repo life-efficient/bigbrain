@@ -24,7 +24,13 @@ import {
   seedVisNetworkNodePosition,
 } from '../../src/dashboard-client/graph/vis-network-data.js';
 import { deriveGraphMotion, graphPayloadsEqual } from '../../src/dashboard-client/graph/live-graph.js';
-import { GRAPH_NODE_SIZES, getGraphNodeSizeScale } from '../../src/dashboard-client/graph/node-sizes.js';
+import {
+  GRAPH_NODE_SIZES,
+  getGraphNodeScreenScale,
+  getGraphNodeSizeScale,
+  getGraphNodeTransformScale,
+  getGraphNodeZoomMultiplier,
+} from '../../src/dashboard-client/graph/node-sizes.js';
 
 test('responsive graph visualizers do not paint letterboxed viewBox backdrops', async () => {
   const sources = await Promise.all([
@@ -191,7 +197,7 @@ test('graph label and node controls remain available in the graph style menu', a
   const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
   const labelsGroup = main.match(/<GraphStyleOptionGroup\s+label="Labels"[\s\S]*?\/>/)?.[0] || '';
   const nodesGroup = main.match(/<GraphStyleOptionGroup\s+label="Node"[\s\S]*?\/>/)?.[0] || '';
-  const nodeSizeGroup = main.match(/<GraphStyleOptionGroup\s+label="Node size"[\s\S]*?\/>/)?.[0] || '';
+  const nodeSizeGroup = main.match(/<GraphStyleOptionGroup\s+label="Base size"[\s\S]*?\/>/)?.[0] || '';
 
   assert.match(labelsGroup, /options=\{GRAPH_LABEL_STYLES\}/);
   assert.doesNotMatch(labelsGroup, /disabled=/);
@@ -211,6 +217,17 @@ test('graph node sizes offer stable one, two, and three times choices', () => {
   assert.equal(getGraphNodeSizeScale('medium'), 2);
   assert.equal(getGraphNodeSizeScale('large'), 3);
   assert.equal(getGraphNodeSizeScale('unknown'), 2);
+});
+
+test('graph node base sizes interpolate smoothly with semantic zoom', () => {
+  const bounds = { minScale: 0.42, maxScale: 10 };
+  assert.equal(getGraphNodeZoomMultiplier(0.42, bounds), 0.5);
+  assert.equal(getGraphNodeZoomMultiplier(1, bounds), 1);
+  assert.equal(getGraphNodeZoomMultiplier(10, bounds), 1.5);
+  assert.equal(getGraphNodeScreenScale(2, 0.42, bounds), 1);
+  assert.equal(getGraphNodeScreenScale(2, 1, bounds), 2);
+  assert.equal(getGraphNodeScreenScale(2, 10, bounds), 3);
+  assert.equal(getGraphNodeTransformScale(2, 10, bounds), 0.3);
 });
 
 test('icon nodes cover built-in schema types and use stable custom fallbacks', async () => {
@@ -247,14 +264,14 @@ test('icon nodes cover built-in schema types and use stable custom fallbacks', a
   assert.match(iconSource, /variant === 'hex'/);
 });
 
-test('graph zoom keeps node glyphs screen-sized while expanding relationships', async () => {
+test('graph zoom applies responsive base sizing while expanding relationships', async () => {
   const [composable, bloom, dashboard] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/graph/composable-graph-visualizer.jsx', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/dashboard-client/graph/signal-bloom-visualizer.jsx', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
   ]);
-  assert.match(composable, /'--graph-node-scale': nodeSizeScale \* Math\.min\(1, 1 \/ viewport\.scale\)/);
-  assert.match(bloom, /'--graph-node-scale': nodeSizeScale \* Math\.min\(1, 1 \/ viewport\.scale\)/);
+  assert.match(composable, /'--graph-node-scale': nodeTransformScale/);
+  assert.match(bloom, /'--graph-node-scale': nodeTransformScale/);
   assert.match(composable, /className="graph-node-screen-scale"/);
   assert.match(bloom, /className="graph-node-screen-scale"/);
   assert.match(dashboard, /\.graph-node-screen-scale \{[^}]*transform: scale\(var\(--graph-node-scale, 1\)\)/);

@@ -2,7 +2,11 @@ import React, { forwardRef, memo, useId, useMemo, useState } from 'react';
 
 import { getGraphNodeColor } from './colors.js';
 import { GraphTypeIcon } from './graph-type-icon.jsx';
-import { getGraphNodeSizeScale } from './node-sizes.js';
+import {
+  getGraphNodeScreenScale,
+  getGraphNodeSizeScale,
+  getGraphNodeTransformScale,
+} from './node-sizes.js';
 import {
   buildCurvedEdgePath,
   buildJarvisLayout,
@@ -38,6 +42,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   labelStyle = 'selected',
   colorMode = 'updated',
   labelFontSize,
+  minScale,
   maxScale,
   activeSlug = null,
   onActiveSlugChange,
@@ -49,7 +54,9 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   const [isDragging, setIsDragging] = useState(false);
   const buildLayout = LAYOUT_BUILDERS[layoutStyle] || buildJarvisLayout;
   const laidOut = useMemo(() => buildLayout(graph), [buildLayout, graph]);
+  const viewportBounds = { minScale: minScale ?? 0.42, maxScale: maxScale ?? 3.4 };
   const { viewport, bind } = useGraphViewport(ref, laidOut, {
+    minScale,
     maxScale,
     onDragStateChange(dragging) {
       setIsDragging(dragging);
@@ -58,6 +65,8 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
       }
     },
   });
+  const nodeScreenScale = getGraphNodeScreenScale(nodeSizeScale, viewport.scale, viewportBounds);
+  const nodeTransformScale = getGraphNodeTransformScale(nodeSizeScale, viewport.scale, viewportBounds);
   const labelCount = layoutStyle === 'clusters' ? 6 : layoutStyle === 'lanes' ? 5 : 4;
   const labeled = useMemo(() => {
     const next = new Set();
@@ -88,7 +97,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
 
         <g
           transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}
-          style={{ '--graph-node-scale': nodeSizeScale * Math.min(1, 1 / viewport.scale) }}
+          style={{ '--graph-node-scale': nodeTransformScale }}
         >
           <LayoutBackdrop layoutStyle={layoutStyle} laidOut={laidOut} theme={theme} />
           <ArcLayer arcStyle={arcStyle} laidOut={laidOut} theme={theme} />
@@ -112,7 +121,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
           labeled={labeled}
           theme={theme}
           fontSize={labelFontSize}
-          nodeSizeScale={nodeSizeScale}
+          nodeScreenScale={nodeScreenScale}
         />
       </svg>
     </div>

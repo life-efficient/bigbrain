@@ -2097,7 +2097,7 @@ const GraphPanel = memo(function GraphPanel({
                   onSelect={setNodeStyle}
                 />
                 <GraphStyleOptionGroup
-                  label="Node size"
+                  label="Base size"
                   value={nodeSize}
                   options={GRAPH_NODE_SIZES}
                   onSelect={setNodeSize}

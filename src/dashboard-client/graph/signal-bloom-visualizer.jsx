@@ -2,7 +2,11 @@ import React, { forwardRef, memo, useId, useMemo, useState } from 'react';
 
 import { getGraphNodeColor } from './colors.js';
 import { GraphTypeIcon } from './graph-type-icon.jsx';
-import { getGraphNodeSizeScale } from './node-sizes.js';
+import {
+  getGraphNodeScreenScale,
+  getGraphNodeSizeScale,
+  getGraphNodeTransformScale,
+} from './node-sizes.js';
 import { buildCurvedEdgePath, buildSignalBloomLayout, pickLabelNodes } from './shared.js';
 import {
   GraphBackdropDefs,
@@ -38,14 +42,16 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
   const [hoveredSlug, setHoveredSlug] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const laidOut = useMemo(() => buildSignalBloomLayout(graph), [graph]);
+  const viewportBounds = { minScale: 0.35, maxScale: 4 };
   const { viewport, bind } = useGraphViewport(ref, laidOut, {
-    minScale: 0.35,
-    maxScale: 4,
+    ...viewportBounds,
     onDragStateChange(dragging) {
       setIsDragging(dragging);
       if (dragging) setHoveredSlug(null);
     },
   });
+  const nodeScreenScale = getGraphNodeScreenScale(nodeSizeScale, viewport.scale, viewportBounds);
+  const nodeTransformScale = getGraphNodeTransformScale(nodeSizeScale, viewport.scale, viewportBounds);
   const labeled = useMemo(() => {
     const visible = labelStyle === 'all'
       ? new Set(laidOut.nodes.map((node) => node.slug))
@@ -93,7 +99,7 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
 
         <g
           transform={`translate(${viewport.x} ${viewport.y}) scale(${viewport.scale})`}
-          style={{ '--graph-node-scale': nodeSizeScale * Math.min(1, 1 / viewport.scale) }}
+          style={{ '--graph-node-scale': nodeTransformScale }}
         >
           <BloomSectors laidOut={laidOut} theme={theme} />
           <BloomLinks laidOut={laidOut} theme={theme} />
@@ -122,7 +128,7 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
           labeled={labeled}
           theme={theme}
           fontSize={PRESET_GRAPH_LABEL_FONT_SIZE}
-          nodeSizeScale={nodeSizeScale}
+          nodeScreenScale={nodeScreenScale}
         />
       </svg>
     </div>
