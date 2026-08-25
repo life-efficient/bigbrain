@@ -212,17 +212,17 @@ function NextTaskCard({ item, index }) {
 
 function SchemaFlowNetwork() {
   const inbound = [
-    { d: 'M 22 20 C 32 20, 37 40, 47 44', delay: '0s', duration: '4.8s' },
-    { d: 'M 22 34 C 32 34, 38 44, 47 46', delay: '-1.7s', duration: '5.7s' },
-    { d: 'M 22 48 C 33 48, 38 48, 47 48', delay: '-3.1s', duration: '4.3s' },
-    { d: 'M 22 62 C 32 62, 37 52, 47 50', delay: '-0.9s', duration: '5.4s' },
-    { d: 'M 22 76 C 32 76, 37 56, 47 53', delay: '-2.5s', duration: '6.1s' },
+    { d: 'M 27 30 C 34 30, 39 40, 47 44', delay: '0s', duration: '4.8s' },
+    { d: 'M 27 44 C 35 44, 40 45, 47 46', delay: '-1.7s', duration: '5.7s' },
+    { d: 'M 27 58 C 35 58, 40 50, 47 48', delay: '-3.1s', duration: '4.3s' },
+    { d: 'M 27 73 C 35 73, 40 54, 47 50', delay: '-0.9s', duration: '5.4s' },
+    { d: 'M 27 87 C 35 87, 40 58, 47 53', delay: '-2.5s', duration: '6.1s' },
   ];
   const outbound = [
-    { d: 'M 53 46 C 63 42, 68 24, 78 24', delay: '-2.2s', duration: '5.5s' },
-    { d: 'M 53 48 C 64 46, 69 40, 78 40', delay: '-0.4s', duration: '4.7s' },
-    { d: 'M 53 50 C 64 52, 69 56, 78 56', delay: '-3.6s', duration: '5.9s' },
-    { d: 'M 53 52 C 64 58, 69 72, 78 72', delay: '-1.2s', duration: '6.4s' },
+    { d: 'M 53 46 C 61 42, 66 37, 73 37', delay: '-2.2s', duration: '5.5s' },
+    { d: 'M 53 48 C 62 47, 67 51, 73 51', delay: '-0.4s', duration: '4.7s' },
+    { d: 'M 53 50 C 62 52, 67 65, 73 65', delay: '-3.6s', duration: '5.9s' },
+    { d: 'M 53 52 C 62 58, 67 76, 73 80', delay: '-1.2s', duration: '6.4s' },
   ];
 
   return (
@@ -239,21 +239,34 @@ function SchemaFlowNetwork() {
             <stop offset="0.45" stopColor="#8eaaff" stopOpacity="0.42" />
             <stop offset="1" stopColor="#75efb8" stopOpacity="0.15" />
           </linearGradient>
+          <linearGradient id="schema-flow-pulse-in" x1="18" y1="0" x2="52" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#6ce3ff" stopOpacity="0" />
+            <stop offset="0.45" stopColor="#c8f5ff" stopOpacity="0.95" />
+            <stop offset="0.72" stopColor="#9f8cff" stopOpacity="0.8" />
+            <stop offset="1" stopColor="#bd9cff" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="schema-flow-pulse-out" x1="48" y1="0" x2="82" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#bd9cff" stopOpacity="0" />
+            <stop offset="0.34" stopColor="#bd9cff" stopOpacity="0.85" />
+            <stop offset="0.68" stopColor="#bfffe0" stopOpacity="0.95" />
+            <stop offset="1" stopColor="#75efb8" stopOpacity="0" />
+          </linearGradient>
+          <filter id="schema-flow-pulse-blur" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="0.9" />
+          </filter>
         </defs>
         {inbound.map((arc, index) => (
           <React.Fragment key={`in-${index}`}>
             <path d={arc.d} className="schema-flow-arc schema-flow-arc-in" />
-            <circle r="0.58" className="schema-flow-energy schema-flow-energy-in">
-              <animateMotion dur={arc.duration} begin={arc.delay} repeatCount="indefinite" path={arc.d} />
-            </circle>
+            <path d={arc.d} className="schema-flow-energy-glow schema-flow-energy-glow-in" style={{ animationDelay: arc.delay, animationDuration: arc.duration }} />
+            <path d={arc.d} className="schema-flow-energy-arc schema-flow-energy-arc-in" style={{ animationDelay: arc.delay, animationDuration: arc.duration }} />
           </React.Fragment>
         ))}
         {outbound.map((arc, index) => (
           <React.Fragment key={`out-${index}`}>
             <path d={arc.d} className="schema-flow-arc schema-flow-arc-out" />
-            <circle r="0.58" className="schema-flow-energy schema-flow-energy-out">
-              <animateMotion dur={arc.duration} begin={arc.delay} repeatCount="indefinite" path={arc.d} />
-            </circle>
+            <path d={arc.d} className="schema-flow-energy-glow schema-flow-energy-glow-out" style={{ animationDelay: arc.delay, animationDuration: arc.duration }} />
+            <path d={arc.d} className="schema-flow-energy-arc schema-flow-energy-arc-out" style={{ animationDelay: arc.delay, animationDuration: arc.duration }} />
           </React.Fragment>
         ))}
       </svg>
