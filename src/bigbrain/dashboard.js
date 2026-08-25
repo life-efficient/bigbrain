@@ -1201,6 +1201,54 @@ function renderAppHtml() {
       .action-queue-card > span { color: var(--tone); font: 700 7px/1 ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }
       .action-queue-note { display: flex; align-items: flex-start; gap: 8px; margin-top: 18px; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.08); color: #79859c; font: 9px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
       .action-queue-note i { flex: 0 0 auto; margin-top: 4px; }
+      .concept-view-schema-flow { display: grid; grid-template-columns: minmax(225px, 0.88fr) minmax(390px, 1.45fr) minmax(225px, 0.88fr); align-items: center; gap: clamp(18px, 3vw, 46px); padding: 28px 36px 32px; background: radial-gradient(circle at 50% 50%, rgba(62,54,146,0.22), transparent 37%), linear-gradient(115deg, rgba(7,11,22,0.9), rgba(12,16,29,0.5)); }
+      .schema-flow-column, .schema-flow-brain-panel { position: relative; z-index: 3; min-width: 0; }
+      .schema-page-list, .schema-task-list { display: grid; gap: 8px; }
+      .schema-page-card, .schema-task-card { --tone: #70e2ff; min-width: 0; min-height: 51px; display: grid; grid-template-columns: 27px minmax(0,1fr) auto; align-items: center; gap: 9px; padding: 9px 10px; border: 1px solid color-mix(in srgb, var(--tone) 25%, transparent); border-radius: 11px; background: linear-gradient(105deg, color-mix(in srgb, var(--tone) 7%, rgba(14,20,34,0.84)), rgba(255,255,255,0.025)); box-shadow: inset 0 1px 0 rgba(255,255,255,0.04); }
+      .schema-page-card { animation: schema-page-arrive 4.8s ease-in-out infinite; animation-delay: var(--schema-delay); }
+      .schema-tone-cyan { --tone: #6ce3ff; }
+      .schema-tone-green { --tone: #75efb8; }
+      .schema-tone-violet { --tone: #b399ff; }
+      .schema-tone-amber { --tone: #ffd27a; }
+      .schema-tone-pink { --tone: #ff9cca; }
+      .schema-page-type, .schema-task-check { width: 27px; height: 27px; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--tone) 70%, white 8%); border-radius: 8px; color: var(--tone); background: color-mix(in srgb, var(--tone) 12%, transparent); font: 800 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .schema-page-card strong, .schema-task-card strong { display: block; overflow: hidden; color: #edf1fa; font-size: 11px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+      .schema-page-card small, .schema-task-card small { display: block; overflow: hidden; margin-top: 4px; color: #78849b; font: 8px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis; white-space: nowrap; }
+      .schema-page-card > i { width: 5px; height: 5px; border-radius: 999px; background: var(--tone); box-shadow: 0 0 11px var(--tone); }
+      .schema-task-card { animation: schema-task-ready 4.9s ease-in-out infinite; animation-delay: var(--schema-delay); }
+      .schema-task-check { border-radius: 999px; }
+      .schema-task-status { color: var(--tone); font: 700 7px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
+      .schema-flow-brain-panel { display: grid; justify-items: center; gap: 10px; }
+      .schema-flow-process { display: inline-flex; align-items: center; gap: 9px; color: #65718c; font: 700 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.14em; text-transform: uppercase; }
+      .schema-flow-process span.active { color: #a8ecff; }
+      .schema-flow-process b { color: #48536d; font-size: 11px; font-weight: 400; }
+      .schema-brain-constellation { width: min(100%, 300px); aspect-ratio: 1; position: relative; }
+      .schema-brain-constellation > svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+      .schema-brain-constellation line { stroke: rgba(138,173,242,0.28); stroke-width: 0.28; stroke-dasharray: 1 1.4; animation: flow-dash 5.6s linear infinite; vector-effect: non-scaling-stroke; }
+      .schema-brain-constellation circle { stroke: rgba(255,255,255,0.45); stroke-width: 0.32; vector-effect: non-scaling-stroke; }
+      .schema-node-cyan { fill: #6ce3ff; }
+      .schema-node-green { fill: #75efb8; }
+      .schema-node-violet { fill: #b399ff; }
+      .schema-node-amber { fill: #ffd27a; }
+      .schema-brain-core { position: absolute; inset: 50% auto auto 50%; width: 190px; height: 190px; transform: translate(-50%, -50%); display: grid; place-items: center; }
+      .schema-brain-core .brain-core { width: 190px; height: 190px; transform: scale(0.86); }
+      .schema-flow-brain-caption { display: grid; justify-items: center; gap: 4px; text-align: center; }
+      .schema-flow-brain-caption strong { color: #f6f8ff; font-size: 16px; font-weight: 600; }
+      .schema-flow-brain-caption span { max-width: 250px; color: #7d89a1; font: 9px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .schema-flow-status { display: flex; align-items: center; gap: 7px; color: #7b879e; font: 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
+      .schema-flow-status i { width: 5px; height: 5px; border-radius: 999px; background: #75efb8; box-shadow: 0 0 10px #75efb8; }
+      .schema-flow-status span { color: #5e6a82; }
+      .schema-flow-network { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+      .schema-flow-network svg { width: 100%; height: 100%; display: block; overflow: visible; }
+      .schema-flow-arc { fill: none; stroke-width: 0.3; stroke-dasharray: 1.1 1.6; animation: schema-arc-dash 7s linear infinite; vector-effect: non-scaling-stroke; }
+      .schema-flow-arc-in { stroke: url(#schema-flow-in-gradient); }
+      .schema-flow-arc-out { stroke: url(#schema-flow-out-gradient); animation-delay: -2.8s; }
+      .schema-flow-energy { opacity: 0.86; }
+      .schema-flow-energy-in { fill: #98dfff; filter: drop-shadow(0 0 4px rgba(104,220,255,0.9)); }
+      .schema-flow-energy-out { fill: #8deec1; filter: drop-shadow(0 0 4px rgba(117,239,184,0.85)); }
+      .schema-flow-footer-label { position: absolute; bottom: 12px; z-index: 2; color: #64718a; font: 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.13em; text-transform: uppercase; }
+      .schema-flow-footer-left { left: 24%; }
+      .schema-flow-footer-right { right: 22%; }
       .narrative-lab .design-lab-foot { max-width: 1500px; }
       .narrative-lab .design-lab-foot .footer-pulse { margin-right: 5px; vertical-align: 1px; }
       @keyframes signal-breathe { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(4px); } }
@@ -1215,6 +1263,9 @@ function renderAppHtml() {
       @keyframes reactor-spin { to { transform: translate(-50%, -50%) rotate(342deg) scaleY(0.6); } }
       @keyframes reactor-scan { 0%, 100% { opacity: 0.1; transform: scaleX(0.25); } 50% { opacity: 0.9; transform: scaleX(1); } }
       @keyframes control-pulse { 0%, 100% { opacity: 0.25; transform: scale(0.7); } 50% { opacity: 1; transform: scale(1.25); } }
+      @keyframes schema-page-arrive { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(3px); } }
+      @keyframes schema-task-ready { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(-3px); } }
+      @keyframes schema-arc-dash { to { stroke-dashoffset: -26; } }
       @media (max-width: 1080px) {
         .narrative-lab { padding: 20px 18px 14px; }
         .concept-view-loop { gap: 18px; padding-left: 22px; padding-right: 22px; }
@@ -1237,6 +1288,9 @@ function renderAppHtml() {
         .concept-view-control { min-height: 700px; grid-template-columns: 1fr; }
         .control-feed-panel, .control-actions-panel { border: 0; }
         .control-graph-panel { min-height: 340px; order: -1; }
+        .concept-view-schema-flow { min-height: 720px; grid-template-columns: 1fr; align-content: center; gap: 24px; overflow: visible; }
+        .schema-flow-brain-panel { order: -1; }
+        .schema-flow-network, .schema-flow-footer-label { display: none; }
       }
       @media (prefers-reduced-motion: reduce) {
         .narrative-lab *, .narrative-lab *::before, .narrative-lab *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }

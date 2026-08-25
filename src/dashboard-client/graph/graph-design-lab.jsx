@@ -2,22 +2,29 @@ import React, { useEffect, useState } from 'react';
 
 const CONCEPTS = [
   {
-    id: 'loop',
+    id: 'schema-flow',
     index: '01',
+    name: 'Page → Brain → Tasks',
+    description: 'Recently updated pages feed the constellation, while next tasks leave with the context they need.',
+    label: 'CANONICAL FLOW',
+  },
+  {
+    id: 'loop',
+    index: '02',
     name: 'Living Loop',
     description: 'A continuous system: many sources in, connected memory in the middle, useful action out.',
     label: 'SOURCE TO ACTION',
   },
   {
     id: 'reactor',
-    index: '02',
+    index: '03',
     name: 'Reactor',
     description: 'A living knowledge engine that pulls signals inward and emits decisions with momentum.',
     label: 'KNOWLEDGE ENGINE',
   },
   {
     id: 'control',
-    index: '03',
+    index: '04',
     name: 'Control Room',
     description: 'A practical command surface showing the live queue of signals, context, and next actions.',
     label: 'OPERATING SYSTEM',
@@ -44,16 +51,32 @@ const CONTROL_EVENTS = [
   { time: '04:25:31', title: 'Task inferred', detail: 'Prepare investor criteria', tone: 'amber' },
 ];
 
+const RECENT_PAGES = [
+  { title: 'Fawaz Farooqui', meta: 'People · 2 min ago', type: 'person', tone: 'cyan' },
+  { title: 'One Studio', meta: 'Company · 7 min ago', type: 'company', tone: 'violet' },
+  { title: 'BigBrain visual demo', meta: 'Task · 11 min ago', type: 'task', tone: 'green' },
+  { title: 'Saudi Company Structuring', meta: 'Project · 18 min ago', type: 'project', tone: 'amber' },
+  { title: 'Workshop conversation', meta: 'Meeting · 26 min ago', type: 'meeting', tone: 'pink' },
+];
+
+const NEXT_TASKS = [
+  { title: 'Prepare investor criteria', meta: 'Next · Luciano', status: 'ready', tone: 'green' },
+  { title: 'Set up Saudi investment company', meta: 'Blocked · awaiting choice', status: 'review', tone: 'amber' },
+  { title: 'Run Batic BD AI pilot', meta: 'Next · Harry', status: 'ready', tone: 'cyan' },
+  { title: 'Schedule Suhail introduction', meta: 'Next · outreach', status: 'next', tone: 'violet' },
+];
+
 export function GraphDesignLabApp() {
-  const [conceptId, setConceptId] = useState('loop');
+  const [conceptId, setConceptId] = useState('schema-flow');
   const concept = CONCEPTS.find((item) => item.id === conceptId) || CONCEPTS[0];
 
   useEffect(() => {
     function onKeyDown(event) {
       if (event.metaKey || event.ctrlKey || event.altKey) return;
-      if (event.key === '1') setConceptId('loop');
-      if (event.key === '2') setConceptId('reactor');
-      if (event.key === '3') setConceptId('control');
+      if (event.key === '1') setConceptId('schema-flow');
+      if (event.key === '2') setConceptId('loop');
+      if (event.key === '3') setConceptId('reactor');
+      if (event.key === '4') setConceptId('control');
     }
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -65,7 +88,7 @@ export function GraphDesignLabApp() {
         <div>
           <div className="design-lab-breadcrumb">BIGBRAIN <span>/</span> GRAPH LAB <span>/</span> NARRATIVE PROTOTYPES</div>
           <h1>From information to action.</h1>
-          <p>Three ways to make BigBrain feel alive: input, understanding, and output in one visible system.</p>
+          <p>Four ways to make BigBrain feel alive: input, understanding, and output in one visible system.</p>
         </div>
         <div className="design-lab-meta">
           <span className="design-lab-live"><i /> concept mode</span>
@@ -95,13 +118,14 @@ export function GraphDesignLabApp() {
           </div>
           <div className="narrative-stage-description">{concept.description}</div>
         </div>
+        {conceptId === 'schema-flow' ? <SchemaFlowView /> : null}
         {conceptId === 'loop' ? <LivingLoopView /> : null}
         {conceptId === 'reactor' ? <ReactorView /> : null}
         {conceptId === 'control' ? <ControlRoomView /> : null}
       </section>
 
       <footer className="design-lab-foot">
-        <span>1 / 2 / 3 switch direction</span>
+        <span>1 / 2 / 3 / 4 switch direction</span>
         <span><i className="footer-pulse" /> input · knowledge · action</span>
         <span>Concept surface only · no live data connected</span>
       </footer>
@@ -134,6 +158,126 @@ function LivingLoopView() {
       </div>
       <div className="flow-caption flow-caption-in">raw context</div>
       <div className="flow-caption flow-caption-out">actionable context</div>
+    </div>
+  );
+}
+
+function SchemaFlowView() {
+  return (
+    <div className="concept-view concept-view-schema-flow">
+      <SchemaFlowNetwork />
+      <aside className="schema-flow-column schema-flow-input-column">
+        <ColumnLabel index="01" label="Recently updated pages" meta="5 incoming" />
+        <div className="schema-page-list">
+          {RECENT_PAGES.map((item, index) => <RecentPageCard key={item.title} item={item} index={index} />)}
+        </div>
+      </aside>
+      <section className="schema-flow-brain-panel">
+        <div className="schema-flow-process"><span className="active">pages</span><b>→</b><span>brain</span><b>→</b><span>tasks</span></div>
+        <SchemaBrainConstellation />
+        <div className="schema-flow-brain-caption"><strong>BigBrain</strong><span>the middle layer that remembers what each page means</span></div>
+        <div className="schema-flow-status"><i /> connecting recent context <span>1,192 pages · 3,448 links</span></div>
+      </section>
+      <aside className="schema-flow-column schema-flow-task-column">
+        <ColumnLabel index="03" label="Next tasks" meta="4 outgoing" />
+        <div className="schema-task-list">
+          {NEXT_TASKS.map((item, index) => <NextTaskCard key={item.title} item={item} index={index} />)}
+        </div>
+      </aside>
+      <div className="schema-flow-footer-label schema-flow-footer-left">new context enters</div>
+      <div className="schema-flow-footer-label schema-flow-footer-right">action leaves with memory</div>
+    </div>
+  );
+}
+
+function RecentPageCard({ item, index }) {
+  return (
+    <div className={`schema-page-card schema-tone-${item.tone}`} style={{ '--schema-delay': `${index * 520}ms` }}>
+      <span className="schema-page-type">{item.type.slice(0, 1).toUpperCase()}</span>
+      <div><strong>{item.title}</strong><small>{item.meta}</small></div>
+      <i />
+    </div>
+  );
+}
+
+function NextTaskCard({ item, index }) {
+  return (
+    <div className={`schema-task-card schema-tone-${item.tone}`} style={{ '--schema-delay': `${index * 640}ms` }}>
+      <span className="schema-task-check">{item.status === 'ready' ? '✓' : item.status === 'review' ? '!' : '→'}</span>
+      <div><strong>{item.title}</strong><small>{item.meta}</small></div>
+      <span className="schema-task-status">{item.status}</span>
+    </div>
+  );
+}
+
+function SchemaFlowNetwork() {
+  const inbound = [
+    { d: 'M 22 20 C 32 20, 37 40, 47 44', delay: '0s', duration: '4.8s' },
+    { d: 'M 22 34 C 32 34, 38 44, 47 46', delay: '-1.7s', duration: '5.7s' },
+    { d: 'M 22 48 C 33 48, 38 48, 47 48', delay: '-3.1s', duration: '4.3s' },
+    { d: 'M 22 62 C 32 62, 37 52, 47 50', delay: '-0.9s', duration: '5.4s' },
+    { d: 'M 22 76 C 32 76, 37 56, 47 53', delay: '-2.5s', duration: '6.1s' },
+  ];
+  const outbound = [
+    { d: 'M 53 46 C 63 42, 68 24, 78 24', delay: '-2.2s', duration: '5.5s' },
+    { d: 'M 53 48 C 64 46, 69 40, 78 40', delay: '-0.4s', duration: '4.7s' },
+    { d: 'M 53 50 C 64 52, 69 56, 78 56', delay: '-3.6s', duration: '5.9s' },
+    { d: 'M 53 52 C 64 58, 69 72, 78 72', delay: '-1.2s', duration: '6.4s' },
+  ];
+
+  return (
+    <div className="schema-flow-network" aria-hidden="true">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="schema-flow-in-gradient" x1="18" y1="0" x2="52" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#6ce3ff" stopOpacity="0.12" />
+            <stop offset="0.7" stopColor="#8eaaff" stopOpacity="0.43" />
+            <stop offset="1" stopColor="#bd9cff" stopOpacity="0.72" />
+          </linearGradient>
+          <linearGradient id="schema-flow-out-gradient" x1="48" y1="0" x2="82" y2="0" gradientUnits="userSpaceOnUse">
+            <stop offset="0" stopColor="#bd9cff" stopOpacity="0.72" />
+            <stop offset="0.45" stopColor="#8eaaff" stopOpacity="0.42" />
+            <stop offset="1" stopColor="#75efb8" stopOpacity="0.15" />
+          </linearGradient>
+        </defs>
+        {inbound.map((arc, index) => (
+          <React.Fragment key={`in-${index}`}>
+            <path d={arc.d} className="schema-flow-arc schema-flow-arc-in" />
+            <circle r="0.58" className="schema-flow-energy schema-flow-energy-in">
+              <animateMotion dur={arc.duration} begin={arc.delay} repeatCount="indefinite" path={arc.d} />
+            </circle>
+          </React.Fragment>
+        ))}
+        {outbound.map((arc, index) => (
+          <React.Fragment key={`out-${index}`}>
+            <path d={arc.d} className="schema-flow-arc schema-flow-arc-out" />
+            <circle r="0.58" className="schema-flow-energy schema-flow-energy-out">
+              <animateMotion dur={arc.duration} begin={arc.delay} repeatCount="indefinite" path={arc.d} />
+            </circle>
+          </React.Fragment>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function SchemaBrainConstellation() {
+  const nodes = [
+    [18, 26, 1.6, 'cyan'], [28, 18, 1.1, 'violet'], [35, 33, 2, 'green'],
+    [24, 48, 1.1, 'amber'], [32, 63, 1.6, 'cyan'], [44, 24, 1.2, 'violet'],
+    [56, 22, 1.5, 'green'], [66, 31, 1.2, 'cyan'], [76, 25, 1.7, 'violet'],
+    [66, 49, 1.8, 'amber'], [76, 62, 1.2, 'green'], [59, 67, 1.4, 'cyan'],
+    [44, 71, 1.1, 'violet'], [22, 71, 1, 'green'], [82, 45, 1, 'amber'],
+  ];
+  const links = [[18,26,28,18],[18,26,35,33],[35,33,44,24],[35,33,24,48],[24,48,32,63],[44,24,56,22],[56,22,66,31],[66,31,76,25],[66,31,66,49],[66,49,76,62],[66,49,59,67],[59,67,44,71],[44,71,32,63],[76,25,82,45],[24,48,22,71]];
+
+  return (
+    <div className="schema-brain-constellation">
+      <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        {links.map(([x1, y1, x2, y2], index) => <line key={index} x1={x1} y1={y1} x2={x2} y2={y2} />)}
+        {nodes.map(([x, y, radius, tone], index) => <circle key={index} cx={x} cy={y} r={radius} className={`schema-node-${tone}`} />)}
+      </svg>
+      <div className="schema-brain-core"><BrainCore mode="loop" /></div>
     </div>
   );
 }
