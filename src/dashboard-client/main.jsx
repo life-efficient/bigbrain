@@ -16,6 +16,7 @@ import {
 } from './graph/registry.jsx';
 import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
+import { GraphDesignLabApp } from './graph/graph-design-lab.jsx';
 import { deriveGraphMotion, graphPayloadsEqual } from './graph/live-graph.js';
 import { resolveExplorerLinkPath } from './explorer-links.js';
 import { MarkdownDocument } from './markdown.jsx';
@@ -907,6 +908,7 @@ function SharedGroupApp() {
 }
 
 function RootApp() {
+  if (window.location.pathname === '/graph-lab') return <GraphDesignLabApp />;
   if (isSharedGroupLocation(window.location.pathname)) return <SharedGroupApp />;
   if (isPublicPageLocation(window.location.pathname)) return <PublicPageApp />;
   const privatePageRoute = privatePageRouteFromPath(window.location.pathname);
