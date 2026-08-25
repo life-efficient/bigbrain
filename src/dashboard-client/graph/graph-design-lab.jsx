@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 const CONCEPTS = [
   {
@@ -163,36 +163,100 @@ function LivingLoopView() {
 }
 
 function SchemaFlowView() {
+  const stageRef = useRef(null);
+  const brainRef = useRef(null);
+  const inputRefs = useRef(new Map());
+  const taskRefs = useRef(new Map());
+  const [flowLayout, setFlowLayout] = useState(null);
+
+  useLayoutEffect(() => {
+    function measureFlow() {
+      const stage = stageRef.current;
+      const brain = brainRef.current;
+      if (!stage || !brain) return;
+      const stageRect = stage.getBoundingClientRect();
+      const brainRect = brain.getBoundingClientRect();
+      if (!stageRect.width || !stageRect.height || !brainRect.width) return;
+      const pointFor = (node, edge) => {
+        const rect = node?.getBoundingClientRect();
+        if (!rect) return null;
+        return {
+          x: (edge === 'right' ? rect.right : rect.left) - stageRect.left,
+          y: rect.top + (rect.height / 2) - stageRect.top,
+        };
+      };
+      const brainCenterY = brainRect.top + (brainRect.height / 2) - stageRect.top;
+      setFlowLayout({
+        width: stageRect.width,
+        height: stageRect.height,
+        brain: {
+          leftX: brainRect.left - stageRect.left + brainRect.width * 0.27,
+          rightX: brainRect.left - stageRect.left + brainRect.width * 0.73,
+          centerY: brainCenterY,
+        },
+        inputs: RECENT_PAGES.map((item) => pointFor(inputRefs.current.get(item.title), 'right')).filter(Boolean),
+        outputs: NEXT_TASKS.map((item) => pointFor(taskRefs.current.get(item.title), 'left')).filter(Boolean),
+      });
+    }
+
+    const frame = window.requestAnimationFrame(measureFlow);
+    const observed = [stageRef.current, brainRef.current, ...inputRefs.current.values(), ...taskRefs.current.values()].filter(Boolean);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measureFlow);
+    observed.forEach((node) => observer?.observe(node));
+    window.addEventListener('resize', measureFlow);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener('resize', measureFlow);
+    };
+  }, []);
+
   return (
-    <div className="concept-view concept-view-schema-flow">
-      <SchemaFlowNetwork />
-      <aside className="schema-flow-column schema-flow-input-column">
-        <ColumnLabel index="01" label="Recently updated pages" meta="5 incoming" />
-        <div className="schema-page-list">
-          {RECENT_PAGES.map((item, index) => <RecentPageCard key={item.title} item={item} index={index} />)}
-        </div>
-      </aside>
-      <section className="schema-flow-brain-panel">
-        <div className="schema-flow-process"><span className="active">pages</span><b>→</b><span>brain</span><b>→</b><span>tasks</span></div>
-        <SchemaBrainConstellation />
-        <div className="schema-flow-brain-caption"><strong>BigBrain</strong><span>the middle layer that remembers what each page means</span></div>
-        <div className="schema-flow-status"><i /> connecting recent context <span>1,192 pages · 3,448 links</span></div>
-      </section>
-      <aside className="schema-flow-column schema-flow-task-column">
-        <ColumnLabel index="03" label="Next tasks" meta="4 outgoing" />
-        <div className="schema-task-list">
-          {NEXT_TASKS.map((item, index) => <NextTaskCard key={item.title} item={item} index={index} />)}
-        </div>
-      </aside>
-      <div className="schema-flow-footer-label schema-flow-footer-left">new context enters</div>
-      <div className="schema-flow-footer-label schema-flow-footer-right">action leaves with memory</div>
+    <div className="concept-view concept-view-schema-flow" ref={stageRef}>
+      <SchemaFlowNetwork layout={flowLayout} />
+      <div className="schema-flow-foreground">
+        <aside className="schema-flow-column schema-flow-input-column">
+          <ColumnLabel index="01" label="Recently updated pages" meta="5 incoming" />
+          <div className="schema-page-list">
+            {RECENT_PAGES.map((item, index) => (
+              <RecentPageCard
+                key={item.title}
+                item={item}
+                index={index}
+                innerRef={(node) => node ? inputRefs.current.set(item.title, node) : inputRefs.current.delete(item.title)}
+              />
+            ))}
+          </div>
+        </aside>
+        <section className="schema-flow-brain-panel">
+          <div className="schema-flow-process"><span className="active">pages</span><b>→</b><span>brain</span><b>→</b><span>tasks</span></div>
+          <SchemaBrainConstellation innerRef={brainRef} />
+          <div className="schema-flow-brain-caption"><strong>BigBrain</strong><span>the middle layer that remembers what each page means</span></div>
+          <div className="schema-flow-status"><i /> connecting recent context <span>1,192 pages · 3,448 links</span></div>
+        </section>
+        <aside className="schema-flow-column schema-flow-task-column">
+          <ColumnLabel index="03" label="Next tasks" meta="4 outgoing" />
+          <div className="schema-task-list">
+            {NEXT_TASKS.map((item, index) => (
+              <NextTaskCard
+                key={item.title}
+                item={item}
+                index={index}
+                innerRef={(node) => node ? taskRefs.current.set(item.title, node) : taskRefs.current.delete(item.title)}
+              />
+            ))}
+          </div>
+        </aside>
+        <div className="schema-flow-footer-label schema-flow-footer-left">new context enters</div>
+        <div className="schema-flow-footer-label schema-flow-footer-right">action leaves with memory</div>
+      </div>
     </div>
   );
 }
 
-function RecentPageCard({ item, index }) {
+function RecentPageCard({ item, index, innerRef }) {
   return (
-    <div className={`schema-page-card schema-tone-${item.tone}`} style={{ '--schema-delay': `${index * 520}ms` }}>
+    <div ref={innerRef} className={`schema-page-card schema-tone-${item.tone}`} style={{ '--schema-delay': `${index * 520}ms` }}>
       <span className="schema-page-type">{item.type.slice(0, 1).toUpperCase()}</span>
       <div><strong>{item.title}</strong><small>{item.meta}</small></div>
       <i />
@@ -200,9 +264,9 @@ function RecentPageCard({ item, index }) {
   );
 }
 
-function NextTaskCard({ item, index }) {
+function NextTaskCard({ item, index, innerRef }) {
   return (
-    <div className={`schema-task-card schema-tone-${item.tone}`} style={{ '--schema-delay': `${index * 640}ms` }}>
+    <div ref={innerRef} className={`schema-task-card schema-tone-${item.tone}`} style={{ '--schema-delay': `${index * 640}ms` }}>
       <span className="schema-task-check">{item.status === 'ready' ? '✓' : item.status === 'review' ? '!' : '→'}</span>
       <div><strong>{item.title}</strong><small>{item.meta}</small></div>
       <span className="schema-task-status">{item.status}</span>
@@ -210,42 +274,40 @@ function NextTaskCard({ item, index }) {
   );
 }
 
-function SchemaFlowNetwork() {
-  const inbound = [
-    { d: 'M 27 30 C 34 30, 39 40, 47 44', delay: '0s', duration: '4.8s' },
-    { d: 'M 27 44 C 35 44, 40 45, 47 46', delay: '-1.7s', duration: '5.7s' },
-    { d: 'M 27 58 C 35 58, 40 50, 47 48', delay: '-3.1s', duration: '4.3s' },
-    { d: 'M 27 73 C 35 73, 40 54, 47 50', delay: '-0.9s', duration: '5.4s' },
-    { d: 'M 27 87 C 35 87, 40 58, 47 53', delay: '-2.5s', duration: '6.1s' },
-  ];
-  const outbound = [
-    { d: 'M 53 46 C 61 42, 66 37, 73 37', delay: '-2.2s', duration: '5.5s' },
-    { d: 'M 53 48 C 62 47, 67 51, 73 51', delay: '-0.4s', duration: '4.7s' },
-    { d: 'M 53 50 C 62 52, 67 65, 73 65', delay: '-3.6s', duration: '5.9s' },
-    { d: 'M 53 52 C 62 58, 67 76, 73 80', delay: '-1.2s', duration: '6.4s' },
-  ];
+function SchemaFlowNetwork({ layout }) {
+  if (!layout) return null;
+  const inbound = layout.inputs.map((source, index) => ({
+    d: inboundFlowPath(source, layout.brain),
+    delay: `${[-0.1, -1.7, -3.1, -0.9, -2.5][index] || 0}s`,
+    duration: `${[4.8, 5.7, 4.3, 5.4, 6.1][index] || 5}s`,
+  }));
+  const outbound = layout.outputs.map((target, index) => ({
+    d: outboundFlowPath(target, layout.brain),
+    delay: `${[-2.2, -0.4, -3.6, -1.2][index] || 0}s`,
+    duration: `${[5.5, 4.7, 5.9, 6.4][index] || 5.5}s`,
+  }));
 
   return (
     <div className="schema-flow-network" aria-hidden="true">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+      <svg viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none">
         <defs>
-          <linearGradient id="schema-flow-in-gradient" x1="18" y1="0" x2="52" y2="0" gradientUnits="userSpaceOnUse">
+          <linearGradient id="schema-flow-in-gradient" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0" stopColor="#6ce3ff" stopOpacity="0.12" />
             <stop offset="0.7" stopColor="#8eaaff" stopOpacity="0.43" />
             <stop offset="1" stopColor="#bd9cff" stopOpacity="0.72" />
           </linearGradient>
-          <linearGradient id="schema-flow-out-gradient" x1="48" y1="0" x2="82" y2="0" gradientUnits="userSpaceOnUse">
+          <linearGradient id="schema-flow-out-gradient" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0" stopColor="#bd9cff" stopOpacity="0.72" />
             <stop offset="0.45" stopColor="#8eaaff" stopOpacity="0.42" />
             <stop offset="1" stopColor="#75efb8" stopOpacity="0.15" />
           </linearGradient>
-          <linearGradient id="schema-flow-pulse-in" x1="18" y1="0" x2="52" y2="0" gradientUnits="userSpaceOnUse">
+          <linearGradient id="schema-flow-pulse-in" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0" stopColor="#6ce3ff" stopOpacity="0" />
             <stop offset="0.45" stopColor="#c8f5ff" stopOpacity="0.95" />
             <stop offset="0.72" stopColor="#9f8cff" stopOpacity="0.8" />
             <stop offset="1" stopColor="#bd9cff" stopOpacity="0" />
           </linearGradient>
-          <linearGradient id="schema-flow-pulse-out" x1="48" y1="0" x2="82" y2="0" gradientUnits="userSpaceOnUse">
+          <linearGradient id="schema-flow-pulse-out" x1="0" y1="0" x2="1" y2="0">
             <stop offset="0" stopColor="#bd9cff" stopOpacity="0" />
             <stop offset="0.34" stopColor="#bd9cff" stopOpacity="0.85" />
             <stop offset="0.68" stopColor="#bfffe0" stopOpacity="0.95" />
@@ -274,7 +336,19 @@ function SchemaFlowNetwork() {
   );
 }
 
-function SchemaBrainConstellation() {
+function inboundFlowPath(source, brain) {
+  const span = brain.leftX - source.x;
+  const targetY = brain.centerY + (source.y - brain.centerY) * 0.12;
+  return `M ${source.x} ${source.y} C ${source.x + span * 0.46} ${source.y}, ${brain.leftX - span * 0.24} ${targetY}, ${brain.leftX} ${targetY}`;
+}
+
+function outboundFlowPath(target, brain) {
+  const span = target.x - brain.rightX;
+  const sourceY = brain.centerY + (target.y - brain.centerY) * 0.12;
+  return `M ${brain.rightX} ${sourceY} C ${brain.rightX + span * 0.24} ${sourceY}, ${target.x - span * 0.46} ${target.y}, ${target.x} ${target.y}`;
+}
+
+function SchemaBrainConstellation({ innerRef }) {
   const nodes = [
     [18, 26, 1.6, 'cyan'], [28, 18, 1.1, 'violet'], [35, 33, 2, 'green'],
     [24, 48, 1.1, 'amber'], [32, 63, 1.6, 'cyan'], [44, 24, 1.2, 'violet'],
@@ -285,7 +359,7 @@ function SchemaBrainConstellation() {
   const links = [[18,26,28,18],[18,26,35,33],[35,33,44,24],[35,33,24,48],[24,48,32,63],[44,24,56,22],[56,22,66,31],[66,31,76,25],[66,31,66,49],[66,49,76,62],[66,49,59,67],[59,67,44,71],[44,71,32,63],[76,25,82,45],[24,48,22,71]];
 
   return (
-    <div className="schema-brain-constellation">
+    <div ref={innerRef} className="schema-brain-constellation">
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
         {links.map(([x1, y1, x2, y2], index) => <line key={index} x1={x1} y1={y1} x2={x2} y2={y2} />)}
         {nodes.map(([x, y, radius, tone], index) => <circle key={index} cx={x} cy={y} r={radius} className={`schema-node-${tone}`} />)}
