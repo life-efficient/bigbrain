@@ -98,7 +98,7 @@ export const graphVisualizers = [
     id: 'network-constellation',
     label: 'Network',
     Component: NetworkConstellationVisualizer,
-    description: 'Fast relationship clusters with an outer orphan rim',
+    description: 'Fast relationship clusters with naturally placed standalone pages',
     interactionModel: 'custom',
     controls: ['zoomIn', 'zoomOut', 'resetView'],
     capabilities: {

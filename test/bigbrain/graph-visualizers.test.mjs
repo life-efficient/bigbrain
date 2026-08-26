@@ -447,7 +447,7 @@ test('signal bloom keeps small type clusters compact and non-overlapping', () =>
   }
 });
 
-test('network constellation preserves relationship clusters and places isolates on one outer rim', () => {
+test('network constellation gives standalone pages natural positions alongside relationship clusters', () => {
   const nodes = [
     ...Array.from({ length: 18 }, (_, index) => ({
       slug: `connected/node-${index}`,
@@ -469,18 +469,19 @@ test('network constellation preserves relationship clusters and places isolates 
   const layout = buildNetworkConstellationLayout({ nodes, edges });
   const isolates = layout.nodes.filter((node) => node.slug.startsWith('isolated/'));
   const connected = layout.nodes.filter((node) => node.slug.startsWith('connected/'));
-  const rimRadii = isolates.map((node) => Math.hypot(
-    node.x - layout.orphanRim.x,
-    node.y - layout.orphanRim.y,
+  const orphanCenter = {
+    x: isolates.reduce((sum, node) => sum + node.x, 0) / isolates.length,
+    y: isolates.reduce((sum, node) => sum + node.y, 0) / isolates.length,
+  };
+  const orphanRadii = isolates.map((node) => Math.hypot(
+    node.x - orphanCenter.x,
+    node.y - orphanCenter.y,
   ));
-  const connectedRadius = Math.max(...connected.map((node) => Math.hypot(
-    node.x - layout.orphanRim.x,
-    node.y - layout.orphanRim.y,
-  )));
 
-  assert.equal(layout.orphanRim.count, isolates.length);
-  assert.equal(Math.max(...rimRadii) - Math.min(...rimRadii) < 0.001, true);
-  assert.equal(Math.min(...rimRadii) > connectedRadius + 100, true);
+  assert.equal('orphanRim' in layout, false);
+  assert.equal(isolates.every((node) => Number.isFinite(node.x) && Number.isFinite(node.y)), true);
+  assert.equal(Math.max(...orphanRadii) - Math.min(...orphanRadii) > 20, true);
+  assert.equal(connected.every((node) => Number.isFinite(node.x) && Number.isFinite(node.y)), true);
 });
 
 test('network constellation coordinates are deterministic across input ordering', () => {

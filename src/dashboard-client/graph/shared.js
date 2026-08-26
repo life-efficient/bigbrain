@@ -202,11 +202,11 @@ export function buildSpaciousConstellationLayout(graph) {
 
 export function buildNetworkConstellationLayout(graph) {
   const base = normalizeGraph(graph);
-  if (!base.nodes.length) return { ...base, clusters: [], orphanRim: null };
+  if (!base.nodes.length) return { ...base, clusters: [] };
   if (base.nodes.length === 1) {
     base.nodes[0].x = 0;
     base.nodes[0].y = 0;
-    return { ...fitLayoutToNodeBounds(base, 120), clusters: [], orphanRim: null };
+    return { ...fitLayoutToNodeBounds(base, 120), clusters: [] };
   }
 
   const connected = base.nodes.filter((node) => node.neighbors > 0);
@@ -266,6 +266,16 @@ export function buildNetworkConstellationLayout(graph) {
     });
   }
 
+  // Seed standalone pages into the same working area as the connected graph.
+  // Collision resolution below will let them settle into the available space,
+  // rather than prescribing a separate orbit around the relationship clusters.
+  orphans.forEach((node, index) => {
+    const angle = index * goldenAngle + stableSlugPhase(node.slug) * 0.7;
+    const distance = 32 + Math.sqrt(index + 1) * 30;
+    node.x = Math.cos(angle) * distance;
+    node.y = Math.sin(angle) * distance;
+  });
+
   for (let iteration = 0; iteration < 18; iteration += 1) {
     const movement = new Map(connected.map((node) => [node.slug, {
       x: (node.layoutAnchorX - node.x) * 0.0015,
@@ -291,28 +301,9 @@ export function buildNetworkConstellationLayout(graph) {
       node.x += clamp(delta.x, -14, 14);
       node.y += clamp(delta.y, -14, 14);
     }
-    resolveSpatialCollisions(connected, 18, 64);
+    resolveSpatialCollisions(base.nodes, 18, 64);
   }
-  for (let pass = 0; pass < 8; pass += 1) resolveSpatialCollisions(connected, 18, 64);
-
-  const coreRadius = connected.reduce((maximum, node) => (
-    Math.max(maximum, Math.hypot(node.x, node.y) + node.radius)
-  ), 0);
-  let orphanRim = null;
-  if (orphans.length) {
-    const footprints = orphans.map((node) => node.radius * 2 + 8);
-    const circumference = footprints.reduce((sum, value) => sum + value, 0);
-    const radius = Math.max(160, coreRadius + 100, circumference / (Math.PI * 2));
-    let cursor = 0;
-    orphans.forEach((node, index) => {
-      const footprint = footprints[index];
-      const angle = -Math.PI / 2 + ((cursor + footprint / 2) / circumference) * Math.PI * 2;
-      node.x = Math.cos(angle) * radius;
-      node.y = Math.sin(angle) * radius;
-      cursor += footprint;
-    });
-    orphanRim = { x: 0, y: 0, radius, count: orphans.length };
-  }
+  for (let pass = 0; pass < 8; pass += 1) resolveSpatialCollisions(base.nodes, 18, 64);
 
   for (const node of connected) {
     delete node.layoutAnchorX;
@@ -332,11 +323,6 @@ export function buildNetworkConstellationLayout(graph) {
       x: cluster.x + offsetX,
       y: cluster.y + offsetY,
     })),
-    orphanRim: orphanRim ? {
-      ...orphanRim,
-      x: orphanRim.x + offsetX,
-      y: orphanRim.y + offsetY,
-    } : null,
   };
 }
 
