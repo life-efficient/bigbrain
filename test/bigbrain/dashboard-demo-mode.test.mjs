@@ -25,7 +25,7 @@ test('demo graph replaces page titles with stable, type-aware names', () => {
   assert.notEqual(demo.nodes[0].title, graph.nodes[0].title);
   assert.notEqual(demo.nodes[1].title, graph.nodes[1].title);
   assert.match(demo.nodes[0].title, /^[A-Z][a-z]+ [A-Z][a-z]+$/);
-  assert.match(demo.nodes[1].title, /^Project|[A-Z][a-z]+/);
+  assert.match(demo.nodes[1].title, /^[A-Z][a-z]+(?: [A-Z][a-z]+)+$/);
   assert.deepEqual(demo.edges, graph.edges);
   assert.equal(buildDemoGraph(graph, 'seed-a').nodes[0].title, demo.nodes[0].title);
   assert.notEqual(buildDemoGraph(graph, 'seed-b').nodes[0].title, demo.nodes[0].title);
