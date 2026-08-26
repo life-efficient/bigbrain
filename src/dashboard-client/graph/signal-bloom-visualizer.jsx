@@ -216,8 +216,8 @@ const BloomNodeItem = memo(function BloomNodeItem({
 function BloomNode({ node, nodeStyle, colorMode, emphasized, theme, glowId }) {
   const color = getGraphNodeColor(node, colorMode) || theme.graphNodeStroke;
   const size = node.radius * (emphasized ? 1.95 : 1.62);
-  if (nodeStyle.startsWith('icon')) {
-    const variant = nodeStyle === 'icon' ? 'ring' : nodeStyle.replace('icon-', '');
+  if (nodeStyle === 'pixel' || nodeStyle.startsWith('icon')) {
+    const variant = nodeStyle === 'pixel' ? 'pixel' : nodeStyle === 'icon' ? 'ring' : nodeStyle.replace('icon-', '');
     return (
       <>
         <circle cx={node.x} cy={node.y} r={Math.max(15, size * 1.75)} fill="#fff" fillOpacity="0.001" />

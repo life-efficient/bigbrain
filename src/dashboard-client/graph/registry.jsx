@@ -25,6 +25,7 @@ export const GRAPH_NODE_STYLES = [
   { id: 'orb', label: 'Orb' },
   { id: 'diamond', label: 'Diamond' },
   { id: 'hex', label: 'Hex' },
+  { id: 'pixel', label: 'Pixel' },
   { id: 'icon', label: 'Icon Ring' },
   { id: 'icon-bare', label: 'Icon Bare' },
   { id: 'icon-solid', label: 'Icon Solid' },

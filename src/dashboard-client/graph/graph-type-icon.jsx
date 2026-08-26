@@ -91,6 +91,23 @@ export function GraphTypeIcon({ node, color, emphasized = false, background, var
 
 function renderIconFrame({ variant, node, radius, color, background, emphasized }) {
   if (variant === 'bare' || variant === 'solid') return null;
+  if (variant === 'pixel') {
+    const side = radius * 1.04;
+    return (
+      <rect
+        x={node.x - side}
+        y={node.y - side}
+        width={side * 2}
+        height={side * 2}
+        fill={background}
+        fillOpacity="0.86"
+        stroke={color}
+        strokeOpacity={emphasized ? '0.94' : '0.68'}
+        strokeWidth={emphasized ? '1.35' : '0.9'}
+        shapeRendering="crispEdges"
+      />
+    );
+  }
   if (variant === 'hex') {
     return (
       <path

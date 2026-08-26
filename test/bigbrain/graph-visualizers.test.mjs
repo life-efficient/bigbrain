@@ -245,11 +245,14 @@ test('icon nodes cover built-in schema types and use stable custom fallbacks', a
   assert.equal(getGraphTypeIconName('research-notes'), customIcon);
   assert.equal(getGraphTypeIconName('RESEARCH-NOTES'), customIcon);
 
-  const [registry, iconSource] = await Promise.all([
+  const [registry, iconSource, composable, bloom] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/graph/registry.jsx', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/dashboard-client/graph/graph-type-icon.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/composable-graph-visualizer.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/signal-bloom-visualizer.jsx', import.meta.url), 'utf8'),
   ]);
   for (const [id, label] of [
+    ['pixel', 'Pixel'],
     ['icon', 'Icon Ring'],
     ['icon-bare', 'Icon Bare'],
     ['icon-solid', 'Icon Solid'],
@@ -261,7 +264,13 @@ test('icon nodes cover built-in schema types and use stable custom fallbacks', a
   assert.match(iconSource, /color=\{color\}/);
   assert.match(iconSource, /stroke=\{color\}/);
   assert.match(iconSource, /variant === 'bare' \|\| variant === 'solid'/);
+  assert.match(iconSource, /variant === 'pixel'/);
+  assert.match(iconSource, /shapeRendering="crispEdges"/);
   assert.match(iconSource, /variant === 'hex'/);
+  assert.match(composable, /nodeStyle === 'pixel' \|\| nodeStyle\.startsWith\('icon'\)/);
+  assert.match(composable, /nodeStyle === 'pixel' \? 'pixel'/);
+  assert.match(bloom, /nodeStyle === 'pixel' \|\| nodeStyle\.startsWith\('icon'\)/);
+  assert.match(bloom, /nodeStyle === 'pixel' \? 'pixel'/);
 });
 
 test('graph zoom applies responsive base sizing while expanding relationships', async () => {
