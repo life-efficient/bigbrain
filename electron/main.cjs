@@ -27,6 +27,7 @@ let rendererRecoveryAttempts = 0;
 let pendingLoadFailureMessage = "The dashboard did not finish loading.";
 let loadFailureActive = false;
 let desktopController = null;
+let eventRuntimeManager = null;
 let desktopUpdater = null;
 let managedServiceReconciliationPromise = Promise.resolve();
 let promptedUpdateVersion = null;
@@ -51,7 +52,12 @@ if (!singleInstanceLock) {
       } else {
         const { DesktopController } = await importModule("electron/lib/desktop-controller.mjs");
         desktopController = new DesktopController({ appPath: app.getAppPath() });
-        rememberConnectedDashboardOrigins(await desktopController.state());
+        const desktopState = rememberConnectedDashboardOrigins(await desktopController.state());
+        const { EventRuntimeManager } = await importModule("electron/lib/event-runtime-manager.mjs");
+        eventRuntimeManager = new EventRuntimeManager({
+          appPath: app.getAppPath(),
+        });
+        await eventRuntimeManager.start({ brains: desktopState.brains });
         const { startLocalPageLinkServer } = await importModule("electron/lib/local-page-link-server.mjs");
         localPageLinkServer = await startLocalPageLinkServer({
           resolveBrain: (brainId) => desktopController.resolveCanonicalBrain(brainId),
@@ -95,6 +101,8 @@ if (!singleInstanceLock) {
       await new Promise((resolve) => localPageLinkServer.close(resolve));
       localPageLinkServer = null;
     }
+    await eventRuntimeManager?.stop();
+    eventRuntimeManager = null;
   });
 
   app.on("window-all-closed", () => {
@@ -463,8 +471,18 @@ function registerDesktopIpc() {
     "desktop:state": async () => rememberConnectedDashboardOrigins(await desktopController.state()),
     "desktop:discover-brains": () => desktopController.discoverBrains(),
     "desktop:api-key-options": (_event, input) => desktopController.availableApiKeys(input),
-    "desktop:create-brain": (_event, input) => desktopController.createBrain(input),
-    "desktop:connect-service": async (_event, input) => rememberConnectedDashboardOrigins(await desktopController.connectService(input)),
+    "desktop:create-brain": async (_event, input) => {
+      const result = await desktopController.createBrain(input);
+      await eventRuntimeManager?.ensureBrain(result.brain);
+      await eventRuntimeManager?.start();
+      return result;
+    },
+    "desktop:connect-service": async (_event, input) => {
+      const brain = rememberConnectedDashboardOrigins(await desktopController.connectService(input));
+      await eventRuntimeManager?.ensureBrain(brain);
+      await eventRuntimeManager?.start();
+      return brain;
+    },
     "desktop:open-brain": async (_event, id) => {
       const brain = rememberConnectedDashboardOrigins(await desktopController.activate(id));
       await loadBrainDashboard(brain);
@@ -489,6 +507,15 @@ function registerDesktopIpc() {
     "desktop:instructions": (_event, id) => desktopController.instructions(id),
     "desktop:set-default": (_event, id) => desktopController.setDefault(id),
     "desktop:reveal": (_event, targetPath) => shell.showItemInFolder(targetPath),
+    "desktop:event-state": () => eventRuntimeManager?.state() || { ok: false, running: false },
+    "desktop:event-listeners": () => eventRuntimeManager?.registry.get().then((value) => ({ revision: value.revision, listeners: value.listeners.map(({ credential_ref, ...listener }) => ({ ...listener, credential_configured: Boolean(credential_ref) })) })) || [],
+    "desktop:event-upsert-listener": (_event, value) => eventRuntimeManager.upsertListener(value),
+    "desktop:event-upsert-subscription": (_event, value) => eventRuntimeManager.updateSubscription(value),
+    "desktop:event-listener-state": (_event, listenerId, action) => eventRuntimeManager.setListenerState(listenerId, action),
+    "desktop:event-inbox": (_event, options) => eventRuntimeManager.inboxList(options),
+    "desktop:event-retry": (_event, deliveryId) => eventRuntimeManager.retry(deliveryId),
+    "desktop:event-discard": (_event, deliveryId, reason) => eventRuntimeManager.discard(deliveryId, reason),
+    "desktop:event-quarantine": (_event, deliveryId, reason) => eventRuntimeManager.quarantine(deliveryId, reason),
   };
   for (const [channel, handler] of Object.entries(handlers)) ipcMain.handle(channel, handler);
 }

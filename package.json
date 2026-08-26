@@ -68,6 +68,10 @@
       "README.md",
       "schemas/**/*",
       "scripts/install-local-mcp-service.mjs",
+      "scripts/bigbrain-event-ingestor.mjs",
+      "scripts/install-event-ingestor.mjs",
+      "scripts/run-event-relay.mjs",
+      "deploy/event-relay/**/*",
       "src/**/*"
     ],
     "mac": {

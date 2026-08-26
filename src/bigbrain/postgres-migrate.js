@@ -49,6 +49,19 @@ export async function migrateSqliteToPostgres(config) {
       `, [source.page_slug, source.source_type, source.source_ref, source.source_url, source.source_note]);
     }
 
+    const provenance = tableExists(sqlite, 'page_provenance')
+      ? sqlite.prepare('SELECT * FROM page_provenance ORDER BY id').all()
+      : [];
+    for (const row of provenance) {
+      await postgres.query(`
+        INSERT INTO page_provenance (
+          page_slug, event_id, origin_id, listener_id, source_type, source_label, source_icon,
+          source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, created_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+        ON CONFLICT (page_slug, event_id) DO UPDATE SET outcome = EXCLUDED.outcome
+      `, [row.page_slug, row.event_id, row.origin_id, row.listener_id, row.source_type, row.source_label, row.source_icon, row.source_url, row.occurred_at, row.received_at, row.codex_execution_id, row.codex_thread_id, row.raw_ref, row.outcome, row.created_at]);
+    }
+
     const embeddings = sqlite.prepare('SELECT * FROM embeddings ORDER BY id').all();
     for (const embedding of embeddings) {
       await postgres.query(`
@@ -145,6 +158,7 @@ export async function migrateSqliteToPostgres(config) {
       pages: pages.length,
       links: links.length,
       sources: sources.length,
+      provenance: provenance.length,
       embeddings: embeddings.length,
       health_findings: findings.length,
       hosted_brain_git_state: gitStates.length,
@@ -160,6 +174,7 @@ export async function migrateSqliteToPostgres(config) {
 }
 
 async function clearPostgresIndex(db) {
+  await db.query('DELETE FROM page_provenance');
   await db.query('DELETE FROM mcp_audit_log');
   await db.query('DELETE FROM hosted_brain_git_state');
   await db.query('DELETE FROM health_findings');

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { openDatabase, upsertSharedGroup } from '../../src/bigbrain/db.js';
+import { openDatabase, upsertPageProvenance, upsertSharedGroup } from '../../src/bigbrain/db.js';
 import {
   buildExplorerFilePayload,
   buildExplorerRecentPayload,
@@ -142,6 +142,57 @@ test('dashboard graph recent timestamps reflect current markdown file edits', as
     const graph = await buildGraphPayload(db, config);
 
     assert.equal(graph.nodes.find((node) => node.slug === 'people/alice').updated_at, editedAt.toISOString());
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('dashboard graph exposes only filed provenance inputs with source snapshots', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-provenance-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'organizations/openai.md', '# OpenAI\n\nNews.\n');
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+    await upsertPageProvenance(db, {
+      page_slug: 'organizations/openai',
+      event_id: 'openai-news:event-1',
+      listener_id: 'openai-news',
+      source_type: 'rss',
+      source: 'OpenAI News',
+      source_icon: 'Rss',
+      source_endpoint: 'https://openai.com/news/rss.xml',
+      received_at: '2026-08-26T13:00:00.000Z',
+      outcome: 'filed',
+      codex_thread_id: 'thread-1',
+    });
+    await upsertPageProvenance(db, {
+      page_slug: 'organizations/openai',
+      event_id: 'ignored:event-2',
+      listener_id: 'openai-news',
+      source_type: 'rss',
+      source: 'OpenAI News',
+      received_at: '2026-08-26T14:00:00.000Z',
+      outcome: 'ignored',
+    });
+    const graph = await buildGraphPayload(db, config);
+    assert.equal(graph.meta.input_count, 1);
+    assert.deepEqual(graph.inputs[0], {
+      id: String(graph.inputs[0].id),
+      page_slug: 'organizations/openai',
+      title: 'OpenAI',
+      occurred_at: null,
+      received_at: '2026-08-26T13:00:00.000Z',
+      source: { id: 'openai-news', type: 'rss', label: 'OpenAI News', icon: 'Rss' },
+      event_id: 'openai-news:event-1',
+      listener_id: 'openai-news',
+      codex_execution_id: null,
+      codex_thread_id: 'thread-1',
+      source_url: 'https://openai.com/news/rss.xml',
+      raw_ref: null,
+      outcome: 'filed',
+    });
+    await db.close?.();
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

@@ -13,6 +13,10 @@ import { redactSecrets } from '../../electron/lib/keychain.mjs';
 test('desktop package includes the local MCP service installer', async () => {
   const packageJson = JSON.parse(await fs.readFile(new URL('../../package.json', import.meta.url), 'utf8'));
   assert.ok(packageJson.build.files.includes('scripts/install-local-mcp-service.mjs'));
+  assert.ok(packageJson.build.files.includes('scripts/bigbrain-event-ingestor.mjs'));
+  assert.ok(packageJson.build.files.includes('scripts/run-event-relay.mjs'));
+  assert.ok(packageJson.build.files.includes('deploy/event-relay/**/*'));
+  assert.ok(packageJson.build.files.includes('src/**/*'));
 });
 
 test('registry persists isolated brains and restores the active brain', async () => {

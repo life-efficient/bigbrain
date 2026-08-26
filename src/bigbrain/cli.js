@@ -18,6 +18,7 @@ import { queryBrain, searchBrain, searchModesReport } from './search.js';
 import { syncBrain } from './sync.js';
 import { resolveWindow } from './time.js';
 import { applyUpdate, checkForUpdate, renderUpdateText, updateExitCode } from './update.js';
+import { EventInboxStore, EventRegistryStore, normalizeListener, normalizeSubscription, defaultEventInboxPath, defaultEventRegistryPath } from './inbound-events.js';
 
 export async function runCli(argv) {
   await loadUserEnv();
@@ -44,6 +45,7 @@ export async function runCli(argv) {
     case 'file': return handleFile(args, global);
     case 'tasks': return handleTasks(args, global);
     case 'members': return handleMembers(args, global);
+    case 'events': return handleEvents(args, global);
     case 'eval': return handleEval(args, global);
     case 'dashboard': return handleDashboard(args, global);
     case 'mcp': return handleMcp(args, global);
@@ -422,6 +424,78 @@ async function handleHealth(global) {
   const config = await loadRuntimeConfig(global);
   const report = await runHealthCheck(config);
   output(global, report, renderHealthText(report));
+}
+
+async function handleEvents(args, global) {
+  const action = args[0] || 'status';
+  const registry = new EventRegistryStore({ filePath: process.env.BIGBRAIN_EVENT_REGISTRY || defaultEventRegistryPath() });
+  const inbox = new EventInboxStore({ filePath: process.env.BIGBRAIN_EVENT_INBOX || defaultEventInboxPath() });
+  if (action === 'status') {
+    const value = await registry.get();
+    const state = await inbox.get();
+    const counts = Object.values(state.deliveries).reduce((result, event) => { result[event.state] = (result[event.state] || 0) + 1; return result; }, {});
+    output(global, { ok: true, runtime: value.runtime, revision: value.revision, listeners: value.listeners.length, counts, registry_path: registry.filePath, inbox_path: inbox.filePath }, `Event runtime ${value.runtime.kind} revision ${value.revision}: ${value.listeners.length} listener(s), ${Object.values(counts).reduce((sum, count) => sum + count, 0)} inbox event(s).`);
+    return;
+  }
+  if (action === 'listeners') {
+    const value = await registry.get();
+    output(global, { revision: value.revision, listeners: value.listeners.map(({ credential_ref, ...listener }) => ({ ...listener, credential_configured: Boolean(credential_ref) })) }, value.listeners.map((listener) => `${listener.status.padEnd(8)} ${listener.id}  ${listener.type}  ${listener.display_name}`).join('\n') || 'No inbound listeners configured.');
+    return;
+  }
+  if (action === 'inbox') {
+    const events = await inbox.list({ state: argValue(args, '--state'), listenerId: argValue(args, '--listener'), limit: argValue(args, '--limit') });
+    output(global, { events }, events.map((event) => `${event.state.padEnd(11)} ${event.delivery_id}  ${event.listener_id}  ${event.event_id}`).join('\n') || 'Inbox is empty.');
+    return;
+  }
+  if (['pause', 'resume', 'remove'].includes(action)) {
+    const listenerId = requireFirstArg(args.slice(1), `events ${action} requires <listener-id>.`);
+    const value = await registry.update((current) => {
+      const listeners = current.listeners.map((listener) => listener.id === listenerId ? {
+        ...listener,
+        paused: action === 'pause',
+        removed: action === 'remove',
+        enabled: action === 'resume',
+        status: action === 'pause' ? 'paused' : action === 'remove' ? 'removed' : 'active',
+        updated_at: new Date().toISOString(),
+      } : listener);
+      if (!listeners.some((listener) => listener.id === listenerId)) throw new Error(`Listener not found: ${listenerId}`);
+      return { ...current, listeners };
+    }, { audit: { action: `listener_${action}`, listener_id: listenerId } });
+    output(global, value, `${listenerId} ${action}d.`);
+    return;
+  }
+  if (action === 'listener-upsert' || action === 'subscription-upsert') {
+    const sourcePath = requireOption(args, '--from');
+    const value = JSON.parse(await fs.readFile(path.resolve(sourcePath), 'utf8'));
+    if (action === 'listener-upsert') {
+      const listener = normalizeListener(value.listener || value);
+      const next = await registry.update((current) => {
+        const index = current.listeners.findIndex((item) => item.id === listener.id);
+        const listeners = [...current.listeners];
+        listeners[index < 0 ? listeners.length : index] = { ...(index < 0 ? {} : listeners[index]), ...listener };
+        return { ...current, listeners };
+      }, { audit: { action, listener_id: listener.id } });
+      output(global, next, `Saved listener ${listener.id}.`);
+    } else {
+      const subscription = normalizeSubscription(value.subscription || value);
+      const next = await registry.update((current) => {
+        if (!current.listeners.some((listener) => listener.id === subscription.listener_id)) throw new Error(`Listener not found: ${subscription.listener_id}`);
+        const index = current.subscriptions.findIndex((item) => item.id === subscription.id);
+        const subscriptions = [...current.subscriptions];
+        subscriptions[index < 0 ? subscriptions.length : index] = { ...(index < 0 ? {} : subscriptions[index]), ...subscription };
+        return { ...current, subscriptions };
+      }, { audit: { action, subscription_id: subscription.id } });
+      output(global, next, `Saved subscription ${subscription.id}.`);
+    }
+    return;
+  }
+  if (['retry', 'discard', 'quarantine'].includes(action)) {
+    const deliveryId = requireFirstArg(args.slice(1), `events ${action} requires <delivery-id>.`);
+    const event = action === 'retry' ? await inbox.retry(deliveryId) : action === 'discard' ? await inbox.discard(deliveryId, argValue(args, '--reason') || 'discarded') : await inbox.quarantine(deliveryId, argValue(args, '--reason') || 'quarantined');
+    output(global, event, `${deliveryId} marked ${event.state}.`);
+    return;
+  }
+  throw new Error(`Unknown events action: ${action}`);
 }
 
 async function handleMigrate(args, global) {
@@ -845,6 +919,13 @@ Commands:
   members [--status active|inactive|invited]
   members ensure-local-owner <people/slug> [--name NAME] [--email EMAIL]
   members add <email> <people/slug> [--name NAME] [--role owner|admin|editor|read-only|custom-role] [--status active|inactive|invited]
+  events status
+  events listeners
+  events inbox [--state STATE] [--listener ID] [--limit N]
+  events listener-upsert --from <listener.json>
+  events subscription-upsert --from <subscription.json>
+  events pause|resume|remove <listener-id>
+  events retry|discard|quarantine <delivery-id> [--reason TEXT]
   eval retrieval [--mode conservative|balanced|tokenmax] [--arm ARM] [--ranking-policy POLICY] [--limit N] [--cases PATH] [--private] [--redact] [--no-ai]
   eval export [--cases PATH] [--mode MODE] [--arm ARM] [--limit N] [--redact] [--no-ai]
   eval replay --against baseline.ndjson [--mode MODE] [--arm ARM] [--limit N] [--no-ai]

@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { createEmptyEventRegistry, normalizeEventRegistry } from '../src/bigbrain/inbound-events.js';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_LABEL = 'local.bigbrain.event-ingestor';
@@ -14,16 +15,26 @@ async function main() {
   const repoRoot = path.resolve(options.repoRoot || process.cwd());
   const brainHome = path.resolve(options.brainHome || await readDefaultBrainHome());
   const configPath = path.resolve(options.config || path.join(os.homedir(), '.config', 'bigbrain', 'event-ingestor.json'));
+  const registryPath = path.resolve(options.registry || path.join(os.homedir(), '.config', 'bigbrain', 'event-registry.json'));
+  const inboxPath = path.resolve(options.inbox || path.join(os.homedir(), '.config', 'bigbrain', 'event-inbox.json'));
   const plistPath = path.resolve(options.plist || path.join(os.homedir(), 'Library', 'LaunchAgents', `${options.label || DEFAULT_LABEL}.plist`));
   const logDir = path.resolve(options.logDir || path.join(os.homedir(), '.config', 'bigbrain'));
   const scriptPath = path.join(repoRoot, 'scripts', 'bigbrain-event-ingestor.mjs');
   const statePath = path.join(brainHome, '.bigbrain-state', 'event-ingestor-state.json');
-  const config = await ensureConfig(configPath, {
+  const brainIdentity = await readBrainIdentity(brainHome);
+  const preparedConfig = await ensureConfig(configPath, {
     brainHome,
     statePath,
+    registryPath,
+    inboxPath,
     mcpUrl: options.mcpUrl || 'http://127.0.0.1:55560/mcp',
     port: options.port || 55561,
+    brainIdentity,
+    runtimeKind: options.runtimeKind || 'client',
+    write: !options.dryRun,
   });
+  const config = preparedConfig.config;
+  await ensureRegistry(registryPath, { brainIdentity, legacySources: preparedConfig.legacySources, mcpUrl: preparedConfig.config.mcp_url || options.mcpUrl || 'http://127.0.0.1:55560/mcp', runtimeKind: options.runtimeKind || 'client', write: !options.dryRun });
   const plist = renderPlist({
     label: options.label || DEFAULT_LABEL,
     nodePath: process.execPath,
@@ -33,7 +44,7 @@ async function main() {
     logDir,
   });
   if (options.dryRun) {
-    console.log(JSON.stringify({ configPath, plistPath, brainHome, statePath, label: options.label || DEFAULT_LABEL }, null, 2));
+    console.log(JSON.stringify({ configPath, registryPath, inboxPath, plistPath, brainHome, statePath, label: options.label || DEFAULT_LABEL }, null, 2));
     return;
   }
   if (process.platform !== 'darwin') throw new Error('The event ingestor installer currently supports macOS launchd only.');
@@ -58,59 +69,98 @@ async function main() {
     }
     throw error;
   }
-  console.log(JSON.stringify({ ok: true, configPath, plistPath, statePath, service: target }, null, 2));
+  console.log(JSON.stringify({ ok: true, configPath, registryPath, inboxPath, plistPath, statePath, service: target }, null, 2));
 }
 
-async function ensureConfig(configPath, { brainHome, statePath, mcpUrl, port }) {
+async function ensureConfig(configPath, { brainHome, statePath, registryPath, inboxPath, mcpUrl, port, brainIdentity, runtimeKind, write = true }) {
   const existing = await fs.readFile(configPath, 'utf8').then((value) => JSON.parse(value)).catch((error) => {
     if (error?.code !== 'ENOENT') throw error;
     return null;
   });
-  const config = existing || {
-    version: 1,
-    brain: { mcp_url: mcpUrl },
-    server: { host: '127.0.0.1', port: Number(port) },
-    state_path: statePath,
-    bootstrap: 'latest',
-    poll_interval_ms: 300_000,
-    initial_delay_ms: 5_000,
-    sources: [{
-      id: 'openai-news',
-      type: 'rss',
-      url: 'https://openai.com/news/rss.xml',
-      publisher: 'OpenAI',
-      display_name: 'OpenAI News',
-      section_heading: 'OpenAI News Feed',
-      target_page: 'organizations/openai',
-      raw_collection: 'organizations',
-      raw_prefix: 'openai-news',
-      bootstrap: 'latest',
-    }],
+  const legacySources = existing?.version < 2 && Array.isArray(existing.sources) ? existing.sources : [];
+  const config = existing?.version < 2 ? {
+    version: 2,
+    managed_by: 'launchd',
+    runtime_kind: runtimeKind,
+    registry_path: registryPath,
+    inbox_path: inboxPath,
+    webhook: { host: existing.server?.host || '127.0.0.1', port: Number(existing.server?.port || port), enabled: true },
+    mcp_url: existing.brain?.mcp_url || mcpUrl,
+    migrated_from: 'event-ingestor-v1',
+  } : existing || {
+    version: 2,
+    runtime_kind: runtimeKind,
+    registry_path: registryPath,
+    inbox_path: inboxPath,
+    webhook: { host: '127.0.0.1', port: Number(port), enabled: true },
   };
-  config.brain ||= {};
-  config.brain.mcp_url ||= mcpUrl;
-  config.server ||= {};
-  config.server.host ||= '127.0.0.1';
-  config.server.port ||= Number(port);
-  config.state_path ||= statePath;
-  config.sources ||= [];
-  if (!config.sources.some((source) => source.id === 'openai-news')) {
-    config.sources.push({
-      id: 'openai-news',
-      type: 'rss',
-      url: 'https://openai.com/news/rss.xml',
-      publisher: 'OpenAI',
-      display_name: 'OpenAI News',
-      section_heading: 'OpenAI News Feed',
-      target_page: 'organizations/openai',
-      raw_collection: 'organizations',
-      raw_prefix: 'openai-news',
-      bootstrap: 'latest',
-    });
+  config.version = 2;
+  config.managed_by = 'launchd';
+  config.registry_path ||= registryPath;
+  config.inbox_path ||= inboxPath;
+  config.webhook ||= { host: '127.0.0.1', port: Number(port), enabled: true };
+  config.webhook.host ||= '127.0.0.1';
+  config.webhook.port ||= Number(port);
+  config.webhook.enabled ??= true;
+  config.brain_identity ||= brainIdentity;
+  config.mcp_url ||= mcpUrl;
+  if (write) {
+    if (legacySources.length) await fs.copyFile(configPath, `${configPath}.v1-backup`).catch(() => {});
+    await fs.mkdir(path.dirname(configPath), { recursive: true });
+    await fs.writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
   }
-  await fs.mkdir(path.dirname(configPath), { recursive: true });
-  await fs.writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
-  return config;
+  return { config, legacySources };
+}
+
+async function ensureRegistry(registryPath, { brainIdentity, legacySources = [], mcpUrl, runtimeKind, write = true }) {
+  const existing = await fs.readFile(registryPath, 'utf8').then((value) => JSON.parse(value)).catch((error) => {
+    if (error?.code !== 'ENOENT') throw error;
+    return null;
+  });
+  const registry = normalizeEventRegistry(existing || createEmptyEventRegistry({ runtimeKind }));
+  registry.brains ||= [];
+  if (brainIdentity?.id && !registry.brains.some((brain) => brain.id === brainIdentity.id)) registry.brains.push({ id: brainIdentity.id, name: brainIdentity.name || brainIdentity.id, mcp_url: mcpUrl, kind: 'local_runtime' });
+  for (const source of legacySources) {
+    if (!source?.id || registry.listeners.some((listener) => listener.id === source.id)) continue;
+    registry.listeners.push({ ...source, scope: source.scope || 'personal', listener_location: runtimeKind, codex_execution_location: 'client', codex_execution_mode: 'app_thread', brain_ids: source.brain_ids || (brainIdentity?.id ? [brainIdentity.id] : []), capture_policy: source.capture_policy || { default_mode: 'full', retain_raw: false } });
+  }
+  if (!registry.listeners.some((listener) => listener.id === 'openai-news')) registry.listeners.push({
+    id: 'openai-news',
+    type: 'rss',
+    scope: 'organization',
+    url: 'https://openai.com/news/rss.xml',
+    publisher: 'OpenAI',
+    display_name: 'OpenAI News',
+    description: 'Capture useful OpenAI announcements and model release notes. Ignore security updates unless they materially affect current work.',
+    icon: 'Rss',
+    section_heading: 'OpenAI News Feed',
+    target_page: 'organizations/openai',
+    raw_collection: 'organizations',
+    raw_prefix: 'openai-news',
+    bootstrap: 'latest',
+    listener_location: runtimeKind,
+    codex_execution_location: 'client',
+    codex_execution_mode: 'app_thread',
+    brain_ids: brainIdentity?.id ? [brainIdentity.id] : [],
+    capture_policy: { default_mode: 'full', retain_raw: false },
+  });
+  const canonical = normalizeEventRegistry(registry);
+  if (write) {
+    await fs.mkdir(path.dirname(registryPath), { recursive: true });
+    await fs.writeFile(registryPath, `${JSON.stringify(canonical, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  }
+}
+
+async function readBrainIdentity(brainHome) {
+  const candidates = [
+    path.join(brainHome, '.bigbrain-state', 'config.json'),
+    path.join(brainHome, '.bigbrain', 'config.json'),
+  ];
+  for (const candidate of candidates) {
+    const value = await fs.readFile(candidate, 'utf8').then((raw) => JSON.parse(raw)).catch(() => null);
+    if (value?.brain_id) return { id: value.brain_id, name: value.brain_name || value.brain_id };
+  }
+  return null;
 }
 
 function renderPlist({ label, nodePath, scriptPath, configPath, repoRoot, logDir }) {
@@ -158,6 +208,9 @@ function parseArgs(args) {
     if (arg === '--repo-root') options.repoRoot = args[++index];
     else if (arg === '--brain-home') options.brainHome = args[++index];
     else if (arg === '--config') options.config = args[++index];
+    else if (arg === '--registry') options.registry = args[++index];
+    else if (arg === '--inbox') options.inbox = args[++index];
+    else if (arg === '--runtime-kind') options.runtimeKind = args[++index];
     else if (arg === '--plist') options.plist = args[++index];
     else if (arg === '--log-dir') options.logDir = args[++index];
     else if (arg === '--mcp-url') options.mcpUrl = args[++index];

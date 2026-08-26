@@ -1,0 +1,69 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { CodexAppThreadExecutor, CodexCliExecutor, buildEventPrompt, parseCodexJsonOutput, parseCodexThreadId } from '../../src/bigbrain/codex-event-executor.js';
+
+const event = {
+  event_id: 'event-1',
+  listener_id: 'calendar',
+  type: 'webhook.event',
+  payload: { title: 'Planning meeting' },
+  allowed_brain_ids: ['personal'],
+  source: { display_name: 'Calendar', icon: 'Calendar', endpoint: 'https://calendar.test' },
+};
+
+test('Codex prompt includes soft source guidance and hard destination boundaries', () => {
+  const prompt = buildEventPrompt(event, { description: 'File meaningful meetings.', display_name: 'Calendar' }, { allowedDestinations: [{ id: 'personal', name: 'Personal' }] });
+  assert.match(prompt, /File meaningful meetings/);
+  assert.match(prompt, /personal: Personal/);
+  assert.match(prompt, /Do not invent Brain IDs/);
+  assert.match(prompt, /event-1/);
+});
+
+test('CLI executor captures structured outcome and stderr-safe output', async () => {
+  const executor = new CodexCliExecutor({ command: 'codex-test', execFileImpl: async (command, args) => {
+    assert.equal(command, 'codex-test');
+    assert.equal(args[0], 'exec');
+    return { stdout: `progress\n${JSON.stringify({ status: 'ignored', reason: 'not useful', destinations: [] })}\n`, stderr: 'diagnostic' };
+  } });
+  const result = await executor.execute({ event, listener: { description: 'Calendar' } });
+  assert.equal(result.mode, 'cli');
+  assert.equal(result.outcome.status, 'ignored');
+  assert.equal(result.stderr, 'diagnostic');
+});
+
+test('CLI executor preserves retryable exit metadata when Codex fails', async () => {
+  const executor = new CodexCliExecutor({ execFileImpl: async () => {
+    const error = new Error('API key missing');
+    error.code = 2;
+    error.stderr = 'missing credential';
+    throw error;
+  } });
+  await assert.rejects(
+    () => executor.execute({ event, listener: { description: 'Calendar' } }),
+    (error) => error.execution_meta.mode === 'cli' && error.execution_meta.exit_status === 2 && error.execution_meta.error_details.stderr === 'missing credential',
+  );
+});
+
+test('app-thread executor uses the supported app-server thread and turn methods', async () => {
+  const calls = [];
+  const executor = new CodexAppThreadExecutor({ clientFactory: async () => ({
+    notifications: [],
+    request: async (method, params) => {
+      calls.push({ method, params });
+      if (method === 'thread/start') return { thread: { id: 'thread-1' } };
+      return { id: 'turn-1', outcome: { status: 'ignored', reason: 'not useful', destinations: [] } };
+    },
+    close: async () => {},
+  }) });
+  const result = await executor.execute({ event, listener: { description: 'Calendar' } });
+  assert.equal(result.thread_id, 'thread-1');
+  assert.equal(result.execution_id, 'turn-1');
+  assert.equal(result.outcome.status, 'ignored');
+  assert.deepEqual(calls.map((call) => call.method), ['initialize', 'thread/start', 'turn/start']);
+});
+
+test('CLI JSON parsing tolerates progress lines', () => {
+  assert.deepEqual(parseCodexJsonOutput(`{"type":"thread.started","thread_id":"thread-1"}\n{"type":"item.completed","item":{"type":"agent_message","text":"{\\"status\\":\\"filed\\",\\"reason\\":\\"ok\\",\\"destinations\\":[]}"}}\n{"type":"turn.completed"}`), { status: 'filed', reason: 'ok', destinations: [] });
+  assert.equal(parseCodexThreadId(`{"type":"thread.started","thread_id":"thread-1"}`), 'thread-1');
+});

@@ -51,6 +51,25 @@ export function initializeSqliteSchema(db) {
       source_url TEXT,
       source_note TEXT
     );
+    CREATE TABLE IF NOT EXISTS page_provenance (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      page_slug TEXT NOT NULL,
+      event_id TEXT NOT NULL,
+      origin_id TEXT,
+      listener_id TEXT,
+      source_type TEXT NOT NULL,
+      source_label TEXT NOT NULL,
+      source_icon TEXT,
+      source_url TEXT,
+      occurred_at TEXT,
+      received_at TEXT NOT NULL,
+      codex_execution_id TEXT,
+      codex_thread_id TEXT,
+      raw_ref TEXT,
+      outcome TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      UNIQUE (page_slug, event_id)
+    );
     CREATE TABLE IF NOT EXISTS embeddings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       page_slug TEXT NOT NULL,
@@ -219,6 +238,25 @@ export async function initializePostgresSchema(db) {
       source_url TEXT,
       source_note TEXT
     );
+    CREATE TABLE IF NOT EXISTS page_provenance (
+      id BIGSERIAL PRIMARY KEY,
+      page_slug TEXT NOT NULL,
+      event_id TEXT NOT NULL,
+      origin_id TEXT,
+      listener_id TEXT,
+      source_type TEXT NOT NULL,
+      source_label TEXT NOT NULL,
+      source_icon TEXT,
+      source_url TEXT,
+      occurred_at TIMESTAMPTZ,
+      received_at TIMESTAMPTZ NOT NULL,
+      codex_execution_id TEXT,
+      codex_thread_id TEXT,
+      raw_ref TEXT,
+      outcome TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL,
+      UNIQUE (page_slug, event_id)
+    );
     CREATE TABLE IF NOT EXISTS embeddings (
       id BIGSERIAL PRIMARY KEY,
       page_slug TEXT NOT NULL,
@@ -363,6 +401,9 @@ export async function initializePostgresSchema(db) {
       PRIMARY KEY (group_slug, page_slug)
     );
     CREATE INDEX IF NOT EXISTS pages_slug_idx ON pages (slug);
+    CREATE INDEX IF NOT EXISTS page_provenance_page_slug_idx ON page_provenance (page_slug);
+    CREATE INDEX IF NOT EXISTS page_provenance_received_at_idx ON page_provenance (received_at DESC);
+    CREATE INDEX IF NOT EXISTS page_provenance_event_id_idx ON page_provenance (event_id);
     CREATE INDEX IF NOT EXISTS links_from_slug_idx ON links (from_slug);
     CREATE INDEX IF NOT EXISTS links_to_slug_idx ON links (to_slug);
     CREATE INDEX IF NOT EXISTS embeddings_page_slug_idx ON embeddings (page_slug);
@@ -617,6 +658,108 @@ export async function listPages(db, { type = null, includeTimeline = false } = {
   const raw = unwrapSqlite(db);
   if (type) return raw.prepare(`SELECT ${columns} FROM pages WHERE type = ? ORDER BY slug`).all(type);
   return raw.prepare(`SELECT ${columns} FROM pages ORDER BY slug`).all();
+}
+
+export async function upsertPageProvenance(db, provenance) {
+  const value = normalizeProvenance(provenance);
+  if (db.backend === 'postgres') {
+    await db.query(`
+      INSERT INTO page_provenance (
+        page_slug, event_id, origin_id, listener_id, source_type, source_label, source_icon,
+        source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, created_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      ON CONFLICT (page_slug, event_id) DO UPDATE SET
+        origin_id = EXCLUDED.origin_id,
+        listener_id = EXCLUDED.listener_id,
+        source_type = EXCLUDED.source_type,
+        source_label = EXCLUDED.source_label,
+        source_icon = EXCLUDED.source_icon,
+        source_url = EXCLUDED.source_url,
+        occurred_at = EXCLUDED.occurred_at,
+        received_at = EXCLUDED.received_at,
+        codex_execution_id = EXCLUDED.codex_execution_id,
+        codex_thread_id = EXCLUDED.codex_thread_id,
+        raw_ref = EXCLUDED.raw_ref,
+        outcome = EXCLUDED.outcome
+    `, provenanceParams(value));
+    return value;
+  }
+  unwrapSqlite(db).prepare(`
+    INSERT INTO page_provenance (
+      page_slug, event_id, origin_id, listener_id, source_type, source_label, source_icon,
+      source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(page_slug, event_id) DO UPDATE SET
+      origin_id = excluded.origin_id,
+      listener_id = excluded.listener_id,
+      source_type = excluded.source_type,
+      source_label = excluded.source_label,
+      source_icon = excluded.source_icon,
+      source_url = excluded.source_url,
+      occurred_at = excluded.occurred_at,
+      received_at = excluded.received_at,
+      codex_execution_id = excluded.codex_execution_id,
+      codex_thread_id = excluded.codex_thread_id,
+      raw_ref = excluded.raw_ref,
+      outcome = excluded.outcome
+  `).run(...provenanceParams(value));
+  return value;
+}
+
+export async function listPageProvenance(db, { pageSlugs = null, eventId = null, limit = 100 } = {}) {
+  const boundedLimit = Math.max(1, Math.min(Number(limit) || 100, 1000));
+  if (db.backend === 'postgres') {
+    const filters = [];
+    const params = [];
+    if (Array.isArray(pageSlugs)) { params.push(pageSlugs); filters.push(`page_slug = ANY($${params.length}::text[])`); }
+    if (eventId) { params.push(eventId); filters.push(`event_id = $${params.length}`); }
+    params.push(boundedLimit);
+    const result = await db.query(`SELECT id, page_slug, event_id, origin_id, listener_id, source_type, source_label, source_icon, source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, created_at FROM page_provenance ${filters.length ? `WHERE ${filters.join(' AND ')}` : ''} ORDER BY received_at DESC, id DESC LIMIT $${params.length}`, params);
+    return result.rows.map(normalizeProvenanceRow);
+  }
+  const clauses = [];
+  const params = [];
+  if (Array.isArray(pageSlugs)) {
+    if (!pageSlugs.length) return [];
+    clauses.push(`page_slug IN (${pageSlugs.map(() => '?').join(',')})`);
+    params.push(...pageSlugs);
+  }
+  if (eventId) { clauses.push('event_id = ?'); params.push(eventId); }
+  params.push(boundedLimit);
+  return unwrapSqlite(db).prepare(`SELECT id, page_slug, event_id, origin_id, listener_id, source_type, source_label, source_icon, source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, created_at FROM page_provenance ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY received_at DESC, id DESC LIMIT ?`).all(...params);
+}
+
+function normalizeProvenance(value) {
+  if (!value || typeof value !== 'object') throw new Error('Provenance must be an object.');
+  const pageSlug = String(value.page_slug || value.path || '').trim().replace(/\.md$/i, '');
+  const eventId = String(value.event_id || '').trim();
+  if (!pageSlug) throw new Error('Provenance requires page_slug or path.');
+  if (!eventId) throw new Error('Provenance requires event_id.');
+  return {
+    page_slug: pageSlug,
+    event_id: eventId,
+    origin_id: value.origin_id || null,
+    listener_id: value.listener_id || null,
+    source_type: value.source_type || 'event',
+    source_label: value.source || value.source_label || value.listener_id || 'Inbound event',
+    source_icon: value.source_icon || null,
+    source_url: value.source_endpoint || value.source_url || null,
+    occurred_at: value.occurred_at || null,
+    received_at: value.received_at || new Date().toISOString(),
+    codex_execution_id: value.codex_execution_id || null,
+    codex_thread_id: value.codex_thread_id || value.thread_id || null,
+    raw_ref: value.raw_ref || null,
+    outcome: value.outcome || 'filed',
+    created_at: value.created_at || new Date().toISOString(),
+  };
+}
+
+function provenanceParams(value) {
+  return [value.page_slug, value.event_id, value.origin_id, value.listener_id, value.source_type, value.source_label, value.source_icon, value.source_url, value.occurred_at, value.received_at, value.codex_execution_id, value.codex_thread_id, value.raw_ref, value.outcome, value.created_at];
+}
+
+function normalizeProvenanceRow(row) {
+  return row ? { ...row, occurred_at: normalizeTimestamp(row.occurred_at), received_at: normalizeTimestamp(row.received_at), created_at: normalizeTimestamp(row.created_at) } : row;
 }
 
 export async function getPageRecord(db, slug) {

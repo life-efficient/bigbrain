@@ -9,6 +9,7 @@ import { openDatabase, clearHealthFindings, getBacklinks, getOutgoingLinks, inse
 import { fullPathFromSlug, parseMarkdownPage } from './markdown.js';
 import { safeBrainPath } from './page-ops.js';
 import { isAttachmentSidecarSlug, validatePageShape } from './schema.js';
+import { EventInboxStore, EventRegistryStore, defaultEventInboxPath, defaultEventRegistryPath } from './inbound-events.js';
 
 const execFileAsync = promisify(execFile);
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -173,6 +174,15 @@ export async function runHealthCheck(config, {
     });
   }
 
+  const eventStatus = await readEventRuntimeHealth(config);
+  if (eventStatus && (eventStatus.counts.failed || eventStatus.counts.quarantined)) {
+    await insertHealthFinding(db, {
+      findingType: 'inbound_event_failures',
+      severity: 'high',
+      details: { counts: eventStatus.counts, registry_revision: eventStatus.registry_revision },
+    });
+  }
+
   const findings = (await listHealthFindings(db)).map((row) => ({
     finding_type: row.finding_type,
     severity: row.severity,
@@ -192,7 +202,22 @@ export async function runHealthCheck(config, {
     automation_template_status: automationTemplateStatus,
     automation_conflict_status: automationConflictStatus,
     skill_template_status: skillTemplateStatus,
+    event_status: eventStatus,
   };
+}
+
+async function readEventRuntimeHealth(config) {
+  const registryPath = config?.eventRegistryPath || defaultEventRegistryPath();
+  const inboxPath = config?.eventInboxPath || defaultEventInboxPath();
+  const [registryExists, inboxExists] = await Promise.all([
+    fs.stat(registryPath).then(() => true).catch(() => false),
+    fs.stat(inboxPath).then(() => true).catch(() => false),
+  ]);
+  if (!registryExists && !inboxExists) return null;
+  const registry = await new EventRegistryStore({ filePath: registryPath }).get();
+  const inbox = await new EventInboxStore({ filePath: inboxPath }).get();
+  const counts = Object.values(inbox.deliveries).reduce((value, event) => { value[event.state] = (value[event.state] || 0) + 1; return value; }, {});
+  return { registry_revision: registry.revision, runtime: registry.runtime, listener_count: registry.listeners.filter((listener) => !listener.removed).length, counts, registry_path: registryPath, inbox_path: inboxPath };
 }
 
 function severityForFinding(findingType) {

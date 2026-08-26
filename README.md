@@ -348,6 +348,9 @@ bigbrain schema
 bigbrain dashboard
 bigbrain eval retrieval
 bigbrain update --check
+bigbrain events status
+bigbrain events listeners
+bigbrain events inbox --state failed
 ```
 
 Target a non-default brain with `--brain-home /path/to/brain-home`.
@@ -366,6 +369,32 @@ Machine-local secrets live outside both the source repo and brain home:
 
 Add `OPENAI_API_KEY=...` there to enable embeddings, semantic retrieval,
 reranking, and generated answers.
+
+## Inbound events
+
+BigBrain includes a generic inbound event runtime for RSS feeds and signed
+webhooks. The canonical client registry and durable inbox live at:
+
+```text
+~/.config/bigbrain/event-registry.json
+~/.config/bigbrain/event-inbox.json
+```
+
+Listeners are editable as JSON or through the `events/*` MCP tools. A listener
+can independently choose where collection occurs (`client` or `host`) and
+where Codex runs (`client` or `host`), with either a visible `app_thread` or a
+background `cli` execution. Registry subscriptions may name only registered
+Brain IDs.
+
+Every accepted event is normalized into the durable inbox. Useful events are
+filed through the scoped broker and receive structured provenance; ignored
+events retain bounded metadata only and do not create Brain pages or graph
+inputs. Failed useful events remain retryable.
+
+The first clean client setup adds OpenAI News with no historical backfill. For
+organization-owned feeds, run the same runtime on the organization host and
+deliver subscribed events through the self-hostable relay in
+`deploy/event-relay/`.
 
 ## Dashboard and Desktop App
 

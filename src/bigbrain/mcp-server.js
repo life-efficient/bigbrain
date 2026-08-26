@@ -16,10 +16,12 @@ import {
   getSharedGroup,
   insertMcpAuditLog,
   listMcpAuditLog,
+  listPageProvenance,
   listSharedGroups,
   openDatabase,
   pruneMcpAuditLog,
   upsertSharedGroup,
+  upsertPageProvenance,
 } from './db.js';
 import { filingRulesForBrain } from './filing-rules.js';
 import {
@@ -43,6 +45,17 @@ import {
 import { canonicalPagePath, canonicalPageUrl, isLoopbackHost, localPageUrl } from './page-links.js';
 import { queryBrain, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
+import {
+  EventInboxStore,
+  EventRegistryStore,
+  EVENT_STATES,
+  createWebhookEventEnvelope,
+  normalizeListener,
+  normalizeSubscription,
+  normalizeEventEnvelope,
+  defaultEventInboxPath,
+  defaultEventRegistryPath,
+} from './inbound-events.js';
 import {
   authorizationServerMetadata,
   authRoutesEnabled,
@@ -394,12 +407,112 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'tasks/create': {
       const task = await toolTasksCreate(config, args, actor, authConfig);
       await postWriteMaintenance(config, gitBackupEnabled, actor);
+      await recordWriteProvenance(config, args.path || task.path, args.provenance);
       return toolJson(task);
     }
     case 'tasks/update': {
       const task = await toolTasksUpdate(config, args, actor, authConfig);
       await postWriteMaintenance(config, gitBackupEnabled, actor);
+      await recordWriteProvenance(config, args.path, args.provenance);
       return toolJson(task);
+    }
+    case 'events/listeners':
+      return toolJson(await eventRegistryValue(config).then((registry) => ({ revision: registry.revision, runtime: registry.runtime, listeners: registry.listeners.map(safeListener) })), { arrayKey: 'listeners' });
+    case 'events/listener_upsert': {
+      const registryStore = eventRegistryStore(config);
+      const listener = normalizeListener(args.listener || args);
+      const next = await registryStore.update((registry) => {
+        assertEventBrainIdsRegistered(registry, listener.brain_ids, config);
+        const index = registry.listeners.findIndex((item) => item.id === listener.id);
+        const listeners = [...registry.listeners];
+        listeners[index < 0 ? listeners.length : index] = { ...(index < 0 ? {} : listeners[index]), ...listener, updated_at: new Date().toISOString(), created_at: index < 0 ? new Date().toISOString() : listeners[index].created_at };
+        return { ...registry, listeners };
+      }, { audit: { action: 'listener_upsert', listener_id: listener.id } });
+      return toolJson({ revision: next.revision, listener: safeListener(next.listeners.find((item) => item.id === listener.id)) });
+    }
+    case 'events/listener_pause':
+    case 'events/listener_resume': {
+      const listenerId = requireString(args.listener_id, 'listener_id');
+      const registryStore = eventRegistryStore(config);
+      const next = await registryStore.update((registry) => {
+        const listeners = registry.listeners.map((listener) => listener.id === listenerId ? { ...listener, paused: name.endsWith('pause'), enabled: name.endsWith('resume'), status: name.endsWith('pause') ? 'paused' : 'active', updated_at: new Date().toISOString() } : listener);
+        if (!listeners.some((listener) => listener.id === listenerId)) throw new Error(`Listener not found: ${listenerId}`);
+        return { ...registry, listeners };
+      }, { audit: { action: name, listener_id: listenerId } });
+      return toolJson({ revision: next.revision, listener: safeListener(next.listeners.find((item) => item.id === listenerId)) });
+    }
+    case 'events/listener_remove': {
+      const listenerId = requireString(args.listener_id, 'listener_id');
+      const registryStore = eventRegistryStore(config);
+      const next = await registryStore.update((registry) => {
+        const listeners = registry.listeners.map((listener) => listener.id === listenerId ? { ...listener, removed: true, enabled: false, paused: false, status: 'removed', updated_at: new Date().toISOString() } : listener);
+        if (!listeners.some((listener) => listener.id === listenerId)) throw new Error(`Listener not found: ${listenerId}`);
+        return { ...registry, listeners };
+      }, { audit: { action: name, listener_id: listenerId } });
+      return toolJson({ revision: next.revision, listener: safeListener(next.listeners.find((item) => item.id === listenerId)) });
+    }
+    case 'events/subscriptions':
+      return toolJson(await eventRegistryValue(config).then((registry) => ({ revision: registry.revision, subscriptions: registry.subscriptions })));
+    case 'events/subscription_upsert': {
+      const registryStore = eventRegistryStore(config);
+      const subscription = normalizeSubscription(args.subscription || args);
+      const next = await registryStore.update((registry) => {
+        if (!registry.listeners.some((listener) => listener.id === subscription.listener_id)) throw new Error(`Listener not found: ${subscription.listener_id}`);
+        assertEventBrainIdsRegistered(registry, subscription.brain_ids, config);
+        const index = registry.subscriptions.findIndex((item) => item.id === subscription.id);
+        const subscriptions = [...registry.subscriptions];
+        subscriptions[index < 0 ? subscriptions.length : index] = { ...(index < 0 ? {} : subscriptions[index]), ...subscription, updated_at: new Date().toISOString(), created_at: index < 0 ? new Date().toISOString() : subscriptions[index].created_at };
+        return { ...registry, subscriptions };
+      }, { audit: { action: 'subscription_upsert', subscription_id: subscription.id } });
+      return toolJson({ revision: next.revision, subscription: next.subscriptions.find((item) => item.id === subscription.id) });
+    }
+    case 'events/inbox': {
+      const events = await eventInboxStore(config).list({ state: args.state || null, listenerId: args.listener_id || null, limit: args.limit });
+      return toolJson({ events: events.map(safeEventRecord) }, { arrayKey: 'events' });
+    }
+    case 'events/retry': {
+      const event = await eventInboxStore(config).retry(requireString(args.delivery_id, 'delivery_id'));
+      return toolJson({ event: safeEventRecord(event) });
+    }
+    case 'events/discard': {
+      const event = await eventInboxStore(config).discard(requireString(args.delivery_id, 'delivery_id'), args.reason || 'discarded');
+      return toolJson({ event: safeEventRecord(event) });
+    }
+    case 'events/quarantine': {
+      const event = await eventInboxStore(config).quarantine(requireString(args.delivery_id, 'delivery_id'), args.reason || 'quarantined');
+      return toolJson({ event: safeEventRecord(event) });
+    }
+    case 'events/test': {
+      const registry = await eventRegistryValue(config);
+      const listenerId = requireString(args.listener_id, 'listener_id');
+      const listener = registry.listeners.find((item) => item.id === listenerId);
+      if (!listener) throw new Error(`Listener not found: ${listenerId}`);
+      const event = normalizeEventEnvelope({ event_id: args.event_id || `test-${randomUUID()}`, listener_id: listenerId, type: args.type || 'webhook.event', payload: args.payload || { test: true }, source_info: listener }, { registry, listener });
+      const result = await eventInboxStore(config).enqueue(event, { clientId: registry.runtime.id });
+      return toolJson({ accepted: !result.duplicate, duplicate: result.duplicate, event: safeEventRecord(result.event) });
+    }
+    case 'events/health': {
+      const registry = await eventRegistryValue(config);
+      const inbox = await eventInboxStore(config).get();
+      const counts = Object.values(inbox.deliveries).reduce((value, event) => { value[event.state] = (value[event.state] || 0) + 1; return value; }, {});
+      return toolJson({ ok: true, registry_revision: registry.revision, runtime: registry.runtime, listener_count: registry.listeners.filter((listener) => !listener.removed).length, counts, collectors: inbox.collectors, registry_path: eventRegistryStore(config).filePath, inbox_path: eventInboxStore(config).filePath });
+    }
+    case 'events/provenance': {
+      const db = await openDatabase(config);
+      try {
+        const value = await upsertPageProvenance(db, { ...args.provenance, path: args.path });
+        return toolJson(value);
+      } finally {
+        await db.close?.();
+      }
+    }
+    case 'events/provenance_list': {
+      const db = await openDatabase(config);
+      try {
+        return toolJson({ provenance: await listPageProvenance(db, { pageSlugs: args.page_slugs, eventId: args.event_id, limit: args.limit }) }, { arrayKey: 'provenance' });
+      } finally {
+        await db.close?.();
+      }
     }
     case 'search':
       return toolJson(await toolSearch(config, args));
@@ -488,6 +601,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         frontmatter: args.frontmatter || {},
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor);
+      await recordWriteProvenance(config, args.path, args.provenance);
       return toolJson(page);
     }
     case 'create_raw_file_with_page': {
@@ -504,6 +618,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         frontmatter: args.frontmatter || {},
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor);
+      await recordWriteProvenance(config, args.page_path || args.raw_path, args.provenance);
       return toolJson(result);
     }
     case 'update_raw_file': {
@@ -550,6 +665,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         timelineEntry: timelineWithActor(args.timeline_entry, actor),
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor);
+      await recordWriteProvenance(config, args.path, args.provenance);
       return toolJson(page);
     }
     case 'set_page_visibility': {
@@ -672,7 +788,7 @@ async function toolAuditAccess(config, args, mode) {
 
 function isAuditedTool(name) {
   const layer = toolPolicy(name)?.layer;
-  return ['create', 'publish', 'raw_destructive', 'git_backup', 'maintenance', 'admin'].includes(layer);
+  return ['create', 'publish', 'raw_destructive', 'git_backup', 'maintenance', 'admin', 'events_manage'].includes(layer);
 }
 
 function sanitizeAuditArguments(value) {
@@ -1169,6 +1285,81 @@ function toolDefinitions() {
       inputSchema: taskWriteSchema({ update: true }),
     },
     {
+      name: 'events/listeners',
+      description: 'List configured RSS and webhook listeners for this connector runtime. Credentials and raw payloads are never returned.',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'events/listener_upsert',
+      description: 'Create or update a generic inbound RSS or webhook listener in the canonical runtime registry. Use credential_ref, never a raw secret.',
+      inputSchema: listenerWriteSchema(),
+    },
+    {
+      name: 'events/listener_pause',
+      description: 'Pause one listener. Historical inbox records and Brain content are retained.',
+      inputSchema: { type: 'object', properties: { listener_id: { type: 'string' } }, required: ['listener_id'] },
+    },
+    {
+      name: 'events/listener_resume',
+      description: 'Resume one paused listener.',
+      inputSchema: { type: 'object', properties: { listener_id: { type: 'string' } }, required: ['listener_id'] },
+    },
+    {
+      name: 'events/listener_remove',
+      description: 'Remove one listener from future collection without deleting historical event metadata or Brain content.',
+      inputSchema: { type: 'object', properties: { listener_id: { type: 'string' } }, required: ['listener_id'] },
+    },
+    {
+      name: 'events/subscriptions',
+      description: 'List Brain subscriptions for inbound listeners.',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'events/subscription_upsert',
+      description: 'Create or update a listener subscription using registered Brain IDs only.',
+      inputSchema: subscriptionWriteSchema(),
+    },
+    {
+      name: 'events/inbox',
+      description: 'Inspect bounded inbound event metadata, outcomes, failures, and retries without returning payloads or credentials.',
+      inputSchema: { type: 'object', properties: { state: { type: 'string', enum: EVENT_STATE_SCHEMA_VALUES() }, listener_id: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 1000 } } },
+    },
+    {
+      name: 'events/retry',
+      description: 'Return a failed or quarantined inbound event to the durable inbox for processing.',
+      inputSchema: { type: 'object', properties: { delivery_id: { type: 'string' } }, required: ['delivery_id'] },
+    },
+    {
+      name: 'events/discard',
+      description: 'Intentionally ignore an inbound event and purge its payload unless the listener retains raw payloads.',
+      inputSchema: { type: 'object', properties: { delivery_id: { type: 'string' }, reason: { type: 'string' } }, required: ['delivery_id'] },
+    },
+    {
+      name: 'events/quarantine',
+      description: 'Quarantine an inbound event for human review without deleting its retryable payload.',
+      inputSchema: { type: 'object', properties: { delivery_id: { type: 'string' }, reason: { type: 'string' } }, required: ['delivery_id'] },
+    },
+    {
+      name: 'events/test',
+      description: 'Enqueue a synthetic event to verify a configured listener and its destination boundaries.',
+      inputSchema: { type: 'object', properties: { listener_id: { type: 'string' }, event_id: { type: 'string' }, type: { type: 'string' }, payload: { type: 'object' } }, required: ['listener_id'] },
+    },
+    {
+      name: 'events/health',
+      description: 'Report connector runtime, registry, listener, inbox, and failure health.',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'events/provenance',
+      description: 'Record one validated inbound provenance relation for a meaningful Brain page write. Runtime use only.',
+      inputSchema: { type: 'object', properties: { path: { type: 'string' }, provenance: { type: 'object' } }, required: ['path', 'provenance'] },
+    },
+    {
+      name: 'events/provenance_list',
+      description: 'List structured provenance relations for graph and operational inspection.',
+      inputSchema: { type: 'object', properties: { page_slugs: { type: 'array', items: { type: 'string' } }, event_id: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 1000 } } },
+    },
+    {
       name: 'search',
       description: 'Search the selected BigBrain brain using lexical and semantic retrieval when embeddings are available.',
       inputSchema: {
@@ -1321,6 +1512,7 @@ function toolDefinitions() {
           body: { type: 'string' },
           timeline_entry: { type: 'string' },
           frontmatter: { type: 'object' },
+          provenance: { type: 'object', description: 'Runtime-validated inbound provenance metadata for this meaningful write.' },
         },
         required: ['path', 'title', 'body', 'timeline_entry'],
       },
@@ -1340,6 +1532,7 @@ function toolDefinitions() {
           body: { type: 'string' },
           timeline_entry: { type: 'string' },
           frontmatter: { type: 'object' },
+          provenance: { type: 'object', description: 'Runtime-validated inbound provenance metadata for this meaningful write.' },
         },
         required: ['raw_path', 'title', 'body', 'timeline_entry'],
       },
@@ -1349,7 +1542,7 @@ function toolDefinitions() {
       description: 'Replace the bytes of one existing raw file under .raw. Raw uploads are size-limited to protect git-backed sync.',
       inputSchema: {
         type: 'object',
-        properties: {
+      properties: {
           path: { type: 'string', description: 'Existing raw file path such as deals/.raw/blind-teaser.pdf, meetings/.raw/call-transcript.txt, or writing/.raw/unassigned-evidence.pdf.' },
           raw_content_base64: { type: 'string', description: 'Base64 encoded raw bytes. Use this for PDFs, images, and other binary files.' },
           raw_content_text: { type: 'string', description: 'Plain text raw content. Use exactly one of raw_content_base64 or raw_content_text.' },
@@ -1404,6 +1597,7 @@ function toolDefinitions() {
           path: { type: 'string' },
           body: { type: 'string' },
           timeline_entry: { type: 'string' },
+          provenance: { type: 'object', description: 'Runtime-validated inbound provenance metadata for this meaningful write.' },
         },
         required: ['path', 'body', 'timeline_entry'],
       },
@@ -1496,6 +1690,50 @@ function toolPolicy(name) {
   return policies[name] || null;
 }
 
+function eventRegistryStore(config) {
+  return new EventRegistryStore({ filePath: config?.eventRegistryPath || defaultEventRegistryPath() });
+}
+
+function eventInboxStore(config) {
+  return new EventInboxStore({ filePath: config?.eventInboxPath || defaultEventInboxPath() });
+}
+
+async function eventRegistryValue(config) {
+  return eventRegistryStore(config).get();
+}
+
+function safeListener(listener) {
+  if (!listener) return null;
+  const { credential_ref, ...safe } = listener;
+  return { ...safe, credential_configured: Boolean(credential_ref) };
+}
+
+function assertEventBrainIdsRegistered(registry, brainIds, config = null) {
+  const registered = new Set((registry.brains || []).map((brain) => brain.id));
+  if (config?.brainId) registered.add(config.brainId);
+  for (const brainId of brainIds || []) if (!registered.has(brainId)) throw new Error(`Brain ${brainId} is not registered for inbound event destinations.`);
+}
+
+function safeEventRecord(event) {
+  if (!event) return null;
+  const { payload, raw_payload, ...safe } = event;
+  return { ...safe, payload_present: payload !== null && payload !== undefined, raw_payload_present: Boolean(raw_payload) };
+}
+
+async function recordWriteProvenance(config, pagePath, provenance) {
+  if (!provenance || !pagePath) return null;
+  const db = await openDatabase(config);
+  try {
+    return await upsertPageProvenance(db, { ...provenance, path: pagePath });
+  } finally {
+    await db.close?.();
+  }
+}
+
+function EVENT_STATE_SCHEMA_VALUES() {
+  return [...EVENT_STATES];
+}
+
 const TOOL_POLICIES = {
   me: { layer: 'read', scopes: ['brain:read'] },
   'members/list': { layer: 'read', scopes: ['brain:read'] },
@@ -1524,6 +1762,21 @@ const TOOL_POLICIES = {
   read_raw_file: { layer: 'read', scopes: ['brain:read'] },
   'tasks/create': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   'tasks/update': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'events/listeners': { layer: 'read', scopes: ['brain:read'] },
+  'events/listener_upsert': { layer: 'events_manage', scopes: ['brain:admin'] },
+  'events/listener_pause': { layer: 'events_manage', scopes: ['brain:admin'] },
+  'events/listener_resume': { layer: 'events_manage', scopes: ['brain:admin'] },
+  'events/listener_remove': { layer: 'events_manage', scopes: ['brain:admin'] },
+  'events/subscriptions': { layer: 'read', scopes: ['brain:read'] },
+  'events/subscription_upsert': { layer: 'events_manage', scopes: ['brain:admin'] },
+  'events/inbox': { layer: 'read', scopes: ['brain:read'] },
+  'events/retry': { layer: 'events_manage', scopes: ['brain:admin'] },
+  'events/discard': { layer: 'events_manage', scopes: ['brain:admin'] },
+  'events/quarantine': { layer: 'events_manage', scopes: ['brain:admin'] },
+  'events/test': { layer: 'events_manage', scopes: ['brain:admin'] },
+  'events/health': { layer: 'read', scopes: ['brain:read'] },
+  'events/provenance': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'events/provenance_list': { layer: 'read', scopes: ['brain:read'] },
   create_raw_file: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   create_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   create_raw_file_with_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
@@ -1641,6 +1894,7 @@ function rolePermissionForTool(name) {
   if (policy.layer === 'admin') return ['about/update'].includes(name) ? 'about_update' : 'audit';
   if (policy.layer === 'members_manage') return 'members_manage';
   if (policy.layer === 'roles_manage') return 'roles_manage';
+  if (policy.layer === 'events_manage') return 'members_manage';
   return null;
 }
 
@@ -1679,6 +1933,49 @@ function membersListSchema() {
     type: 'object',
     properties: {
       status: { type: 'string', enum: ['active', 'inactive', 'invited'] },
+    },
+  };
+}
+
+function listenerWriteSchema() {
+  return {
+    type: 'object',
+    properties: {
+      listener: {
+        type: 'object',
+        description: 'Listener definition. Stable id, type, endpoint, scope, policies, placement, execution mode, and optional registered Brain IDs.',
+      },
+      id: { type: 'string' },
+      type: { type: 'string', enum: ['rss', 'webhook'] },
+      scope: { type: 'string', enum: ['personal', 'organization'] },
+      url: { type: 'string' },
+      credential_ref: { type: 'string' },
+      description: { type: 'string' },
+      display_name: { type: 'string' },
+      icon: { type: 'string' },
+      filter: { type: 'object' },
+      capture_policy: { type: 'object' },
+      listener_location: { type: 'string', enum: ['client', 'host'] },
+      codex_execution_location: { type: 'string', enum: ['client', 'host'] },
+      codex_execution_mode: { type: 'string', enum: ['app_thread', 'cli'] },
+      brain_ids: { type: 'array', items: { type: 'string' } },
+      subscription_ids: { type: 'array', items: { type: 'string' } },
+      enabled: { type: 'boolean' },
+      paused: { type: 'boolean' },
+    },
+  };
+}
+
+function subscriptionWriteSchema() {
+  return {
+    type: 'object',
+    properties: {
+      subscription: { type: 'object' },
+      id: { type: 'string' },
+      listener_id: { type: 'string' },
+      client_id: { type: 'string' },
+      brain_ids: { type: 'array', items: { type: 'string' } },
+      enabled: { type: 'boolean' },
     },
   };
 }
@@ -1848,6 +2145,7 @@ function taskWriteSchema({ requireBody = false, update = false } = {}) {
       assignees: { type: 'array', items: { type: 'string' }, description: 'Active member person slugs, or me for the authenticated member.' },
       source: { type: 'array', items: { type: 'string' }, description: 'Related brain slugs such as meetings/example or initiatives/example.' },
       timeline_entry: { type: 'string', description: 'Required when completing or archiving a task. Use "Next task: tasks/<slug>" or "No successor task needed: <reason>".' },
+      provenance: { type: 'object', description: 'Runtime-validated inbound provenance metadata for this meaningful write.' },
     },
     required: update ? ['path'] : requireBody ? ['title', 'body'] : ['title'],
   };

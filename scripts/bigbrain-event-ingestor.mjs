@@ -2,16 +2,27 @@
 
 import fs from 'node:fs/promises';
 import { EventIngestor } from '../src/bigbrain/event-ingestor.js';
+import { InboundEventRuntime } from '../src/bigbrain/inbound-events.js';
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (!options.config) throw new Error('Usage: bigbrain-event-ingestor --config <json> [--once]');
   const config = JSON.parse(await fs.readFile(options.config, 'utf8'));
-  const ingestor = new EventIngestor({ config });
+  const ingestor = config.version >= 2
+    ? new InboundEventRuntime({
+      registryPath: config.registry_path,
+      inboxPath: config.inbox_path,
+      webhook: config.webhook || config.server,
+    })
+    : new EventIngestor({ config });
   const result = await ingestor.start({ once: options.once });
   console.log(JSON.stringify(result.firstReport, null, 2));
-  if (options.once) return;
-  console.log(`BigBrain event ingestor listening on http://${config.server?.host || '127.0.0.1'}:${config.server?.port || 55561}`);
+  if (options.once) {
+    await result.close?.();
+    return;
+  }
+  const webhook = config.webhook || config.server || {};
+  console.log(`BigBrain event ingestor listening on http://${webhook.host || '127.0.0.1'}:${webhook.port || 55561}`);
 }
 
 function parseArgs(args) {

@@ -2071,8 +2071,12 @@ const GraphPanel = memo(function GraphPanel({
       .slice(0, 6);
   }, [filteredGraph]);
   const flowInputs = useMemo(() => (
-    demoMode ? buildDemoGraphFlowInputs(recentNodes, demoSeed) : recentNodes
-  ), [demoMode, demoSeed, recentNodes]);
+    demoMode
+      ? buildDemoGraphFlowInputs(recentNodes, demoSeed)
+      : (Array.isArray(filteredGraph?.inputs) ? filteredGraph.inputs : [])
+        .filter((item) => selectedTypeSet.size === 0 || selectedTypeSet.has(filteredGraph.nodes?.find((node) => node.slug === item.page_slug)?.type))
+        .map((item) => ({ ...item, slug: item.page_slug }))
+  ), [demoMode, demoSeed, filteredGraph, recentNodes, selectedTypeSet]);
   const isCustomRenderer = visualizerId === 'custom';
   const visibleControls = Array.isArray(visualizer.controls)
     ? visualizer.controls.filter((control) => control === 'resetView')
@@ -2401,7 +2405,7 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
         width: stageRect.width,
         height: stageRect.height,
         inputs: inputs.map((item) => ({
-          source: pointFor(inputRefs.current.get(item.slug), 'right'),
+          source: pointFor(inputRefs.current.get(item.id || item.slug), 'right'),
           target: graphPointFor(item.slug),
         })).filter(({ source, target }) => source && target),
         outputs: tasks.map((item) => ({
@@ -2449,14 +2453,14 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
           <div className="graph-flow-card-list">
             {inputs.map((item) => (
               <button
-                key={item.slug}
-                ref={(node) => node ? inputRefs.current.set(item.slug, node) : inputRefs.current.delete(item.slug)}
+                key={item.id || item.slug}
+                ref={(node) => node ? inputRefs.current.set(item.id || item.slug, node) : inputRefs.current.delete(item.id || item.slug)}
                 type="button"
                 className="graph-flow-card"
-                onClick={() => onNodeOpen?.(item.slug)}
+                onClick={() => onNodeOpen?.(item.page_slug || item.slug)}
               >
-                {item.demo_input ? <GraphFlowInputMarkers item={item} /> : <span className="graph-flow-card-type">{String(item.type || 'page').slice(0, 1).toUpperCase()}</span>}
-                <span className="graph-flow-card-copy"><strong>{item.title || labelFromSlug(item.slug)}</strong><small>{item.demo_input ? `${item.input_source.label} · ${item.input_sender.name}` : `${item.type || 'page'} · ${formatDateTime(item.updated_at)}`}</small></span>
+                {item.demo_input ? <GraphFlowInputMarkers item={item} /> : <span className="graph-flow-card-type">{sourceIconLabel(item.source?.icon || item.source?.type)}</span>}
+                <span className="graph-flow-card-copy"><strong>{item.title || labelFromSlug(item.page_slug || item.slug)}</strong><small>{item.demo_input ? `${item.input_source.label} · ${item.input_sender.name}` : `${item.source?.label || item.source?.type || 'inbound'} · ${formatDateTime(item.received_at || item.occurred_at)}`}</small></span>
                 <i />
               </button>
             ))}
@@ -2483,6 +2487,11 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
       </div>
     </>
   );
+}
+
+function sourceIconLabel(value) {
+  const normalized = String(value || '').toLowerCase();
+  return ({ rss: 'R', webhook: 'W', gmail: 'G', whatsapp: 'W', calendar: 'C', granola: 'G', chat: 'C' })[normalized] || 'I';
 }
 
 function GraphFlowInputMarkers({ item }) {

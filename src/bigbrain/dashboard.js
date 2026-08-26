@@ -12,6 +12,7 @@ import {
   getMcpAuditAnalytics,
   getOutgoingLinks,
   getPagesBySlugs,
+  listPageProvenance,
   getSharedGroup,
   listMcpAuditLog,
   listPages,
@@ -2711,6 +2712,30 @@ export async function buildGraphPayload(db, config = null) {
   }))).sort((a, b) => b.degree - a.degree || a.slug.localeCompare(b.slug));
 
   const allowed = new Set(candidateNodes.map((node) => node.slug));
+  const provenanceRows = await listPageProvenance(db, { pageSlugs: [...allowed], limit: 200 });
+  const titles = new Map(candidateNodes.map((node) => [node.slug, node.title]));
+  const inputs = provenanceRows
+    .filter((row) => row.outcome === 'filed' && allowed.has(row.page_slug))
+    .map((row) => ({
+      id: String(row.id),
+      page_slug: row.page_slug,
+      title: titles.get(row.page_slug) || row.page_slug,
+      occurred_at: row.occurred_at || null,
+      received_at: row.received_at || null,
+      source: {
+        id: row.listener_id || row.source_type,
+        type: row.source_type,
+        label: row.source_label,
+        icon: row.source_icon || null,
+      },
+      event_id: row.event_id,
+      listener_id: row.listener_id || null,
+      codex_execution_id: row.codex_execution_id || null,
+      codex_thread_id: row.codex_thread_id || null,
+      source_url: row.source_url || null,
+      raw_ref: row.raw_ref || null,
+      outcome: row.outcome,
+    }));
   const history = await buildGraphHistory(config, candidateNodes);
   const edges = [];
   for (const node of candidateNodes) {
@@ -2726,8 +2751,10 @@ export async function buildGraphPayload(db, config = null) {
       page_count: candidateNodes.length,
       node_count: candidateNodes.length,
       edge_count: edges.length,
+      input_count: inputs.length,
     },
     activity: history.activity,
+    inputs,
     nodes: candidateNodes.map((node) => ({
       slug: node.slug,
       title: node.title,
