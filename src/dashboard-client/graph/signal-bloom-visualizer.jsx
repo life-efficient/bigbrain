@@ -35,6 +35,7 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
   nodeSize = 'medium',
   labelStyle = 'selected',
   colorMode = 'updated',
+  typeColors,
   activeSlug = null,
   onActiveSlugChange,
 }, ref) {
@@ -120,6 +121,7 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
               nodeFill={nodeFill}
               nodeIcon={nodeIcon}
               colorMode={colorMode}
+              typeColors={typeColors}
               theme={theme}
               glowId={`${defsId}-signal-glow`}
             />
@@ -194,6 +196,7 @@ const BloomNodeItem = memo(function BloomNodeItem({
   nodeFill,
   nodeIcon,
   colorMode,
+  typeColors,
   theme,
   glowId,
 }) {
@@ -214,14 +217,14 @@ const BloomNodeItem = memo(function BloomNodeItem({
       }}
     >
       <g className="graph-node-screen-scale">
-        <BloomNode node={node} nodeShape={nodeShape} nodeFill={nodeFill} nodeIcon={nodeIcon} colorMode={colorMode} emphasized={emphasized} theme={theme} glowId={glowId} />
+        <BloomNode node={node} nodeShape={nodeShape} nodeFill={nodeFill} nodeIcon={nodeIcon} colorMode={colorMode} typeColors={typeColors} emphasized={emphasized} theme={theme} glowId={glowId} />
       </g>
     </g>
   );
 });
 
-function BloomNode({ node, nodeShape, nodeFill, nodeIcon, colorMode, emphasized, theme, glowId }) {
-  const color = getGraphNodeColor(node, colorMode) || theme.graphNodeStroke;
+function BloomNode({ node, nodeShape, nodeFill, nodeIcon, colorMode, typeColors, emphasized, theme, glowId }) {
+  const color = getGraphNodeColor(node, colorMode, typeColors) || theme.graphNodeStroke;
   const size = node.radius * (emphasized ? 1.95 : 1.62);
   const common = {
     fill: nodeFill === 'solid' ? color : 'none',

@@ -9,7 +9,13 @@ import {
   buildSignalBloomLayout,
   buildSpaciousConstellationLayout,
 } from '../../src/dashboard-client/graph/shared.js';
-import { getGraphNodeColor, getUpdatedNodeColor } from '../../src/dashboard-client/graph/colors.js';
+import {
+  getGraphColorPalette,
+  getGraphNodeColor,
+  getUpdatedNodeColor,
+  GRAPH_COLOR_PALETTE_OPTIONS,
+  sanitizeGraphTypeColors,
+} from '../../src/dashboard-client/graph/colors.js';
 import { resolveThemeMode } from '../../src/dashboard-client/graph/theme.js';
 import {
   GRAPH_FALLBACK_ICON_NAMES,
@@ -91,6 +97,16 @@ test('none graph color mode leaves node color unmodified', () => {
   }, 'none'), null);
 });
 
+test('graph palettes provide technical presets and editable type colors', () => {
+  assert.deepEqual(GRAPH_COLOR_PALETTE_OPTIONS.map(({ id }) => id), ['jarvis', 'terminal', 'cobalt', 'soft', 'custom']);
+  assert.equal(getGraphColorPalette('jarvis').people, '#00E5FF');
+  assert.equal(getGraphNodeColor({ type: 'people' }, 'type', { people: '#123456' }), '#123456');
+
+  const colors = sanitizeGraphTypeColors({ people: '#abc123', deals: 'invalid' }, getGraphColorPalette('jarvis'));
+  assert.equal(colors.people, '#ABC123');
+  assert.equal(colors.deals, getGraphColorPalette('jarvis').deals);
+});
+
 test('vis network honors graph color, node shape, and label settings', () => {
   const nodes = Array.from({ length: 8 }, (_, index) => ({
     slug: `projects/node-${index}`,
@@ -100,11 +116,16 @@ test('vis network honors graph color, node shape, and label settings', () => {
   }));
   const theme = { graphNodeStroke: '#123456' };
 
-  const styledNodes = buildVisNetworkNodes(nodes, { colorMode: 'type', nodeShape: 'hex', theme });
+  const styledNodes = buildVisNetworkNodes(nodes, {
+    colorMode: 'type',
+    nodeShape: 'hex',
+    typeColors: { projects: '#123456', people: '#ABCDEF' },
+    theme,
+  });
   assert.equal(styledNodes.every((node) => node.label === ''), true);
   assert.equal(styledNodes.every((node) => node.shape === 'hexagon'), true);
-  assert.equal(styledNodes[0].color.background, '#b8c0ff');
-  assert.equal(styledNodes[1].color.background, '#8ecae6');
+  assert.equal(styledNodes[0].color.background, '#123456');
+  assert.equal(styledNodes[1].color.background, '#ABCDEF');
 
   const noColors = buildVisNetworkNodes(nodes, { colorMode: 'none', nodeShape: 'diamond', theme });
   assert.equal(noColors.every((node) => node.shape === 'diamond'), true);
@@ -200,6 +221,7 @@ test('graph label and node controls remain available in the graph style menu', a
   const nodeFillGroup = main.match(/<GraphStyleOptionGroup\s+label="Node fill"[\s\S]*?\/>/)?.[0] || '';
   const nodeIconGroup = main.match(/<GraphStyleOptionGroup\s+label="Node icon"[\s\S]*?\/>/)?.[0] || '';
   const nodeSizeGroup = main.match(/<GraphStyleOptionGroup\s+label="Base size"[\s\S]*?\/>/)?.[0] || '';
+  const paletteGroup = main.match(/<GraphStyleOptionGroup\s+label="Palette"[\s\S]*?\/>/)?.[0] || '';
 
   assert.match(labelsGroup, /options=\{GRAPH_LABEL_STYLES\}/);
   assert.doesNotMatch(labelsGroup, /disabled=/);
@@ -211,6 +233,10 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.doesNotMatch(nodeIconGroup, /disabled=/);
   assert.match(nodeSizeGroup, /options=\{GRAPH_NODE_SIZES\}/);
   assert.doesNotMatch(nodeSizeGroup, /disabled=/);
+  assert.match(paletteGroup, /options=\{GRAPH_COLOR_PALETTE_OPTIONS\}/);
+  assert.match(main, /function GraphTypeColorEditor\(/);
+  assert.match(main, /type="color"/);
+  assert.match(main, /type="text"/);
 });
 
 test('node appearance controls are independent and migrate legacy styles', async () => {

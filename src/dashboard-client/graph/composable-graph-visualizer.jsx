@@ -43,6 +43,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   layoutStyle = 'orbital',
   labelStyle = 'selected',
   colorMode = 'updated',
+  typeColors,
   labelFontSize,
   minScale,
   maxScale,
@@ -108,6 +109,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
             nodeFill={nodeFill}
             nodeIcon={nodeIcon}
             colorMode={colorMode}
+            typeColors={typeColors}
             laidOut={laidOut}
             theme={theme}
             onNodeOpen={onNodeOpen}
@@ -308,6 +310,7 @@ const NodeLayer = memo(function NodeLayer({
   nodeFill,
   nodeIcon,
   colorMode,
+  typeColors,
   laidOut,
   theme,
   onNodeOpen,
@@ -340,14 +343,14 @@ const NodeLayer = memo(function NodeLayer({
       }}
       style={{ cursor: 'pointer' }}
     >
-      {renderNodeShape(node, nodeShape, nodeFill, nodeIcon, theme, activeSlug === node.slug || hoveredSlug === node.slug, colorMode)}
+      {renderNodeShape(node, nodeShape, nodeFill, nodeIcon, theme, activeSlug === node.slug || hoveredSlug === node.slug, colorMode, typeColors)}
     </g>
   ));
 });
 
-function renderNodeShape(node, nodeShape, nodeFill, nodeIcon, theme, emphasized, colorMode) {
+function renderNodeShape(node, nodeShape, nodeFill, nodeIcon, theme, emphasized, colorMode, typeColors) {
   const hitRadius = Math.max(14, node.radius * 2.9);
-  const nodeColor = getGraphNodeColor(node, colorMode);
+  const nodeColor = getGraphNodeColor(node, colorMode, typeColors);
   const outerStroke = nodeColor || theme.graphNodeStroke;
   const shapeFill = nodeFill === 'solid' ? (nodeColor || theme.accentStrong) : 'none';
   const shapeFillOpacity = nodeFill === 'solid' ? '0.82' : '1';

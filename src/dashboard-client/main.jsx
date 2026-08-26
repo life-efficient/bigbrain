@@ -3,7 +3,13 @@ import { createRoot } from 'react-dom/client';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { AudioLines, CalendarDays, Mail, MessageCircle, Slack, UserRound } from 'lucide-react';
 
-import { TYPE_ORDER } from './graph/colors.js';
+import {
+  GRAPH_COLOR_PALETTE_OPTIONS,
+  getGraphColorPalette,
+  isGraphHexColor,
+  sanitizeGraphTypeColors,
+  TYPE_ORDER,
+} from './graph/colors.js';
 import {
   GRAPH_ARC_STYLES,
   GRAPH_COLOR_MODES,
@@ -90,7 +96,10 @@ function formatErrorDetails(error) {
 }
 
 function loadGraphPreferences() {
-  const defaults = { ...GRAPH_DEFAULTS };
+  const defaults = {
+    ...GRAPH_DEFAULTS,
+    typeColors: sanitizeGraphTypeColors(getGraphColorPalette(GRAPH_DEFAULTS.colorPaletteId)),
+  };
   try {
     const saved = migrateGraphPreferences(JSON.parse(window.localStorage.getItem('bigbrain:graph-preferences') || '{}'));
     if (saved.visualizerId === 'vis-network') saved.visualizerId = 'network-constellation';
@@ -104,10 +113,12 @@ function loadGraphPreferences() {
       layoutStyle: new Set(GRAPH_LAYOUT_STYLES.map((item) => item.id)),
       labelStyle: new Set(GRAPH_LABEL_STYLES.map((item) => item.id)),
       colorMode: new Set(GRAPH_COLOR_MODES.map((item) => item.id)),
+      colorPaletteId: new Set(GRAPH_COLOR_PALETTE_OPTIONS.map((item) => item.id)),
     };
     for (const [key, values] of Object.entries(allowed)) {
       if (values.has(saved[key])) defaults[key] = saved[key];
     }
+    defaults.typeColors = sanitizeGraphTypeColors(saved.typeColors, getGraphColorPalette(defaults.colorPaletteId));
     if (typeof saved.flowVisible === 'boolean') defaults.flowVisible = saved.flowVisible;
     if (typeof saved.demoMode === 'boolean') defaults.demoMode = saved.demoMode;
   } catch {
@@ -129,6 +140,8 @@ function DashboardApp() {
   const [layoutStyle, setLayoutStyle] = useState(savedGraphPreferences.layoutStyle);
   const [labelStyle, setLabelStyle] = useState(savedGraphPreferences.labelStyle);
   const [colorMode, setColorMode] = useState(savedGraphPreferences.colorMode);
+  const [colorPaletteId, setColorPaletteId] = useState(savedGraphPreferences.colorPaletteId);
+  const [typeColors, setTypeColors] = useState(savedGraphPreferences.typeColors);
   const [flowVisible, setFlowVisible] = useState(savedGraphPreferences.flowVisible);
   const [demoMode, setDemoMode] = useState(savedGraphPreferences.demoMode);
   const [demoSeed, setDemoSeed] = useState(() => createDemoSeed());
@@ -157,12 +170,12 @@ function DashboardApp() {
   useEffect(() => {
     try {
       window.localStorage.setItem('bigbrain:graph-preferences', JSON.stringify({
-        visualizerId, nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, layoutStyle, labelStyle, colorMode, flowVisible, demoMode,
+        visualizerId, nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, layoutStyle, labelStyle, colorMode, colorPaletteId, typeColors, flowVisible, demoMode,
       }));
     } catch {
       // Storage can be unavailable in restricted browser contexts; defaults remain usable.
     }
-  }, [arcStyle, colorMode, demoMode, flowVisible, labelStyle, layoutStyle, nodeFill, nodeIcon, nodeShape, nodeSize, visualizerId]);
+  }, [arcStyle, colorMode, colorPaletteId, demoMode, flowVisible, labelStyle, layoutStyle, nodeFill, nodeIcon, nodeShape, nodeSize, typeColors, visualizerId]);
 
   useEffect(() => {
     if (window.parent === window) return;
@@ -700,6 +713,10 @@ function DashboardApp() {
                 setLabelStyle={setLabelStyle}
                 colorMode={colorMode}
                 setColorMode={setColorMode}
+                colorPaletteId={colorPaletteId}
+                setColorPaletteId={setColorPaletteId}
+                typeColors={typeColors}
+                setTypeColors={setTypeColors}
                 flowVisible={flowVisible}
                 setFlowVisible={setFlowVisible}
                 flowTasks={graphFlowTasks}
@@ -1968,6 +1985,10 @@ const GraphPanel = memo(function GraphPanel({
   setLabelStyle,
   colorMode,
   setColorMode,
+  colorPaletteId,
+  setColorPaletteId,
+  typeColors,
+  setTypeColors,
   flowVisible,
   setFlowVisible,
   flowTasks,
@@ -2081,6 +2102,19 @@ const GraphPanel = memo(function GraphPanel({
     ));
   }
 
+  function selectColorPalette(nextPaletteId) {
+    setColorPaletteId(nextPaletteId);
+    if (nextPaletteId !== 'custom') {
+      setTypeColors(sanitizeGraphTypeColors(getGraphColorPalette(nextPaletteId)));
+    }
+  }
+
+  function updateTypeColor(type, value) {
+    if (!isGraphHexColor(value)) return;
+    setColorPaletteId('custom');
+    setTypeColors((current) => ({ ...current, [type]: value.toUpperCase() }));
+  }
+
   return (
     <section className="card hero-card">
       <div className={`graph-wrap graph-wrap-expanded ${flowVisible ? 'graph-flow-enabled' : ''}`}>
@@ -2097,6 +2131,7 @@ const GraphPanel = memo(function GraphPanel({
           layoutStyle={layoutStyle}
           labelStyle={labelStyle}
           colorMode={colorMode}
+          typeColors={typeColors}
           activeSlug={activeSlug}
           onActiveSlugChange={onActiveSlugChange}
         />
@@ -2273,11 +2308,18 @@ const GraphPanel = memo(function GraphPanel({
                   disabled={!isCustomRenderer}
                 />
                 <GraphStyleOptionGroup
+                  label="Palette"
+                  value={colorPaletteId}
+                  options={GRAPH_COLOR_PALETTE_OPTIONS}
+                  onSelect={selectColorPalette}
+                />
+                <GraphStyleOptionGroup
                   label="Color"
                   value={colorMode}
                   options={GRAPH_COLOR_MODES}
                   onSelect={setColorMode}
                 />
+                <GraphTypeColorEditor colors={typeColors} onChange={updateTypeColor} />
                 <GraphStyleOptionGroup
                   label="Labels"
                   value={labelStyle}
@@ -2566,6 +2608,48 @@ function GraphStyleOptionGroup({ label, value, options, onSelect, disabled = fal
       </div>
     </div>
   );
+}
+
+function GraphTypeColorEditor({ colors, onChange }) {
+  return (
+    <div className="graph-menu-field">
+      <span>Type colors</span>
+      <div className="graph-type-color-grid">
+        {TYPE_ORDER.map((type) => {
+          const color = colors?.[type] || '#FFFFFF';
+          const label = formatGraphTypeLabel(type);
+          return (
+            <div key={type} className="graph-type-color-row">
+              <span className="graph-type-color-name">{label}</span>
+              <input
+                type="color"
+                className="graph-type-color-swatch"
+                value={color}
+                aria-label={`${label} color picker`}
+                onChange={(event) => onChange(type, event.target.value)}
+              />
+              <input
+                type="text"
+                className="graph-type-color-code"
+                value={color}
+                aria-label={`${label} hex color`}
+                maxLength={7}
+                spellCheck="false"
+                onChange={(event) => onChange(type, event.target.value)}
+              />
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function formatGraphTypeLabel(type) {
+  return String(type || '')
+    .split('-')
+    .map((part) => part ? `${part[0].toUpperCase()}${part.slice(1)}` : part)
+    .join(' ');
 }
 
 function ThemeModeToggle({ themeMode, onChange }) {

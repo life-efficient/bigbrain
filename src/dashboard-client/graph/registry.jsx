@@ -1,4 +1,5 @@
 import { ComposableGraphVisualizer } from './composable-graph-visualizer.jsx';
+import { GRAPH_DEFAULT_PALETTE_ID } from './colors.js';
 import { NetworkConstellationVisualizer } from './network-constellation-visualizer.jsx';
 import { SignalBloomVisualizer } from './signal-bloom-visualizer.jsx';
 import { SpaciousConstellationVisualizer } from './spacious-constellation-visualizer.jsx';
@@ -21,6 +22,7 @@ export const GRAPH_DEFAULTS = {
   layoutStyle: 'lanes',
   labelStyle: 'off',
   colorMode: 'updated',
+  colorPaletteId: GRAPH_DEFAULT_PALETTE_ID,
   flowVisible: false,
   demoMode: false,
 };

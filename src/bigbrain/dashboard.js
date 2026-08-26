@@ -1472,6 +1472,12 @@ function renderAppHtml() {
       .graph-option-button:hover { background: rgba(255,255,255,0.06); color: var(--ink); }
       .graph-option-button.selected { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.28); color: var(--ink); }
       .graph-option-button:disabled { cursor: not-allowed; }
+      .graph-type-color-grid { display: grid; gap: 6px; }
+      .graph-type-color-row { display: grid; grid-template-columns: minmax(0, 1fr) 30px 82px; align-items: center; gap: 7px; }
+      .graph-type-color-name { min-width: 0; overflow: hidden; color: var(--ink); font-size: 11px !important; text-transform: none !important; letter-spacing: 0 !important; white-space: nowrap; text-overflow: ellipsis; }
+      .graph-type-color-swatch { width: 30px; height: 25px; box-sizing: border-box; padding: 2px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); cursor: pointer; }
+      .graph-type-color-code { width: 100%; min-width: 0; box-sizing: border-box; padding: 6px 7px; border: 1px solid var(--line); border-radius: 7px; background: var(--surface); color: var(--ink); font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; text-transform: uppercase; }
+      .graph-type-color-code:focus-visible, .graph-type-color-swatch:focus-visible { outline: 2px solid var(--line-strong); outline-offset: 1px; }
       .graph-fixed-labels text { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
       .legend { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
       .legend span { font-size: 12px; color: var(--muted); padding: 6px 8px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); text-transform: lowercase; }

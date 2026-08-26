@@ -7,6 +7,7 @@ export const VIS_NETWORK_HOVER_RADIUS = 28;
 export function buildVisNetworkNodes(nodes, {
   colorMode = 'updated',
   nodeShape = 'orb',
+  typeColors,
   theme,
 } = {}) {
   return nodes.map((node) => ({
@@ -14,7 +15,7 @@ export function buildVisNetworkNodes(nodes, {
     label: '',
     value: Math.max(8, node.degree || 1),
     shape: resolveVisNetworkShape(nodeShape),
-    color: colorMode === 'none' ? undefined : resolveNodeNetworkColor(node, colorMode, theme),
+    color: colorMode === 'none' ? undefined : resolveNodeNetworkColor(node, colorMode, theme, typeColors),
   }));
 }
 
@@ -137,8 +138,8 @@ function stableSlugAngle(slug) {
   return (hash % 360) * (Math.PI / 180);
 }
 
-function resolveNodeNetworkColor(node, colorMode, theme) {
-  const color = getGraphNodeColor(node, colorMode);
+function resolveNodeNetworkColor(node, colorMode, theme, typeColors) {
+  const color = getGraphNodeColor(node, colorMode, typeColors);
   return {
     background: color,
     border: theme.graphNodeStroke,

@@ -1,6 +1,11 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import {
+  GRAPH_COLOR_PALETTE_OPTIONS,
+  getGraphColorPalette,
+  sanitizeGraphTypeColors,
+} from './colors.js';
+import {
   GRAPH_ARC_STYLES,
   GRAPH_COLOR_MODES,
   GRAPH_DEFAULTS,
@@ -390,6 +395,7 @@ function SchemaBrainConstellation({ innerRef, graph }) {
           layoutStyle={preferences.layoutStyle}
           labelStyle={preferences.labelStyle}
           colorMode={preferences.colorMode}
+          typeColors={preferences.typeColors}
         />
       </GraphThemeProvider>
     </div>
@@ -399,7 +405,10 @@ function SchemaBrainConstellation({ innerRef, graph }) {
 const EMPTY_GRAPH = { meta: { page_count: 0, node_count: 0, edge_count: 0 }, activity: [], nodes: [], edges: [] };
 
 function readGraphPreferences() {
-  const defaults = { ...GRAPH_DEFAULTS };
+  const defaults = {
+    ...GRAPH_DEFAULTS,
+    typeColors: sanitizeGraphTypeColors(getGraphColorPalette(GRAPH_DEFAULTS.colorPaletteId)),
+  };
   try {
     const saved = migrateGraphPreferences(JSON.parse(window.localStorage.getItem('bigbrain:graph-preferences') || '{}'));
     if (saved.visualizerId === 'vis-network') saved.visualizerId = 'network-constellation';
@@ -413,10 +422,12 @@ function readGraphPreferences() {
       layoutStyle: new Set(GRAPH_LAYOUT_STYLES.map((item) => item.id)),
       labelStyle: new Set(GRAPH_LABEL_STYLES.map((item) => item.id)),
       colorMode: new Set(GRAPH_COLOR_MODES.map((item) => item.id)),
+      colorPaletteId: new Set(GRAPH_COLOR_PALETTE_OPTIONS.map((item) => item.id)),
     };
     Object.entries(allowed).forEach(([key, values]) => {
       if (values.has(saved[key])) defaults[key] = saved[key];
     });
+    defaults.typeColors = sanitizeGraphTypeColors(saved.typeColors, getGraphColorPalette(defaults.colorPaletteId));
   } catch {
     // Graph lab defaults remain usable when preferences are unavailable.
   }
