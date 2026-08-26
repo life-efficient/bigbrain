@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createEmptyEventRegistry, normalizeEventRegistry } from '../src/bigbrain/inbound-events.js';
+import { createEmptyEventInbox, createEmptyEventRegistry, normalizeEventInbox, normalizeEventRegistry } from '../src/bigbrain/inbound-events.js';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_LABEL = 'local.bigbrain.event-ingestor';
@@ -35,6 +35,7 @@ async function main() {
   });
   const config = preparedConfig.config;
   await ensureRegistry(registryPath, { brainIdentity, legacySources: preparedConfig.legacySources, mcpUrl: preparedConfig.config.mcp_url || options.mcpUrl || 'http://127.0.0.1:55560/mcp', runtimeKind: options.runtimeKind || 'client', write: !options.dryRun });
+  const migratedState = options.dryRun ? { migrated: false, sources: [] } : await migrateLegacyState({ statePath, inboxPath, legacySources: preparedConfig.legacySources });
   const plist = renderPlist({
     label: options.label || DEFAULT_LABEL,
     nodePath: process.execPath,
@@ -44,7 +45,7 @@ async function main() {
     logDir,
   });
   if (options.dryRun) {
-    console.log(JSON.stringify({ configPath, registryPath, inboxPath, plistPath, brainHome, statePath, label: options.label || DEFAULT_LABEL }, null, 2));
+    console.log(JSON.stringify({ configPath, registryPath, inboxPath, plistPath, brainHome, statePath, migrated_state: migratedState, label: options.label || DEFAULT_LABEL }, null, 2));
     return;
   }
   if (process.platform !== 'darwin') throw new Error('The event ingestor installer currently supports macOS launchd only.');
@@ -69,7 +70,7 @@ async function main() {
     }
     throw error;
   }
-  console.log(JSON.stringify({ ok: true, configPath, registryPath, inboxPath, plistPath, statePath, service: target }, null, 2));
+  console.log(JSON.stringify({ ok: true, configPath, registryPath, inboxPath, plistPath, statePath, migrated_state: migratedState, service: target }, null, 2));
 }
 
 async function ensureConfig(configPath, { brainHome, statePath, registryPath, inboxPath, mcpUrl, port, brainIdentity, runtimeKind, write = true }) {
@@ -149,6 +150,54 @@ async function ensureRegistry(registryPath, { brainIdentity, legacySources = [],
     await fs.mkdir(path.dirname(registryPath), { recursive: true });
     await fs.writeFile(registryPath, `${JSON.stringify(canonical, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
   }
+}
+
+async function migrateLegacyState({ statePath, inboxPath, legacySources }) {
+  if (!legacySources.length) return { migrated: false, sources: [] };
+  const legacy = await fs.readFile(statePath, 'utf8').then((value) => JSON.parse(value)).catch((error) => {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (!legacy?.sources || typeof legacy.sources !== 'object') return { migrated: false, sources: [] };
+  const inbox = normalizeEventInbox(await fs.readFile(inboxPath, 'utf8').then((value) => JSON.parse(value)).catch((error) => {
+    if (error?.code === 'ENOENT') return createEmptyEventInbox();
+    throw error;
+  }));
+  const migrated = [];
+  for (const source of legacySources) {
+    const sourceState = legacy.sources[source.id];
+    if (!sourceState || inbox.collectors[source.id]?.migrated_from) continue;
+    inbox.collectors[source.id] = {
+      initialized_at: sourceState.initialized_at || null,
+      last_poll_at: sourceState.last_poll_at || null,
+      last_success_at: sourceState.last_success_at || null,
+      last_error: sourceState.last_error || null,
+      item_count: Number(sourceState.item_count || 0),
+      last_item_status: sourceState.last_item_status || null,
+      last_item_key: sourceState.last_item_key || null,
+      last_ingested_at: sourceState.last_ingested_at || null,
+      etag: sourceState.etag || null,
+      last_modified: sourceState.last_modified || null,
+      seen: {},
+      legacy_seen: trimSeen(sourceState.seen),
+      migrated_from: 'event-ingestor-v1',
+    };
+    migrated.push({ id: source.id, seen_count: Object.keys(inbox.collectors[source.id].legacy_seen).length });
+  }
+  if (!migrated.length) return { migrated: false, sources: [] };
+  inbox.updated_at = new Date().toISOString();
+  await fs.mkdir(path.dirname(inboxPath), { recursive: true });
+  const temporary = `${inboxPath}.tmp-${process.pid}`;
+  await fs.writeFile(temporary, `${JSON.stringify(inbox, null, 2)}\n`, { encoding: 'utf8', mode: 0o600 });
+  await fs.rename(temporary, inboxPath);
+  await fs.chmod(inboxPath, 0o600).catch(() => {});
+  await fs.copyFile(statePath, `${statePath}.v1-backup`).catch(() => {});
+  return { migrated: true, sources: migrated };
+}
+
+function trimSeen(value) {
+  const entries = Object.entries(value && typeof value === 'object' ? value : {}).slice(-2000);
+  return Object.fromEntries(entries);
 }
 
 async function readBrainIdentity(brainHome) {

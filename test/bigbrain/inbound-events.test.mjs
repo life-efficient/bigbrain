@@ -14,10 +14,12 @@ import {
   createEmptyEventRegistry,
   createRssEventEnvelope,
   hmacSignature,
+  legacyRssItemKey,
   normalizeEventRegistry,
   normalizeListener,
   normalizeEventEnvelope,
   parseRssDocument,
+  RssCollector,
 } from '../../src/bigbrain/inbound-events.js';
 
 async function fixture() {
@@ -79,6 +81,63 @@ test('generic feed parser accepts Atom entries as well as RSS items', () => {
   assert.equal(feed.items[0].guid, 'atom-1');
   assert.equal(feed.items[0].link, 'https://example.test/release');
   assert.equal(feed.items[0].category, 'research');
+});
+
+test('RSS collector polls feeds, honors bootstrap, and deduplicates later polls', async () => {
+  const paths = await fixture();
+  try {
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+    await registry.save({
+      brains: [{ id: 'brain_personal', name: 'Personal' }],
+      listeners: [rssListener({ bootstrap: 'all' })],
+    });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+    const xml = '<rss><channel><title>Example</title><item><guid>item-1</guid><title>First</title><link>https://example.test/first</link><pubDate>Wed, 26 Aug 2026 10:00:00 GMT</pubDate></item><item><guid>item-2</guid><title>Second</title><link>https://example.test/second</link><pubDate>Wed, 26 Aug 2026 09:00:00 GMT</pubDate></item></channel></rss>';
+    let fetches = 0;
+    const collector = new RssCollector({
+      registryStore: registry,
+      inboxStore: inbox,
+      fetchImpl: async () => {
+        fetches += 1;
+        return { status: 200, ok: true, headers: { get: () => null }, text: async () => xml };
+      },
+    });
+    const first = await collector.pollAll();
+    assert.equal(fetches, 1);
+    assert.equal(first.ingested, 2);
+    assert.equal((await inbox.list()).length, 2);
+    const second = await collector.pollAll();
+    assert.equal(fetches, 2);
+    assert.equal(second.ingested, 0);
+    assert.equal(second.duplicates, 2);
+    assert.equal((await inbox.list()).length, 2);
+  } finally {
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('RSS collector recognizes legacy v1 keys during service migration', async () => {
+  const paths = await fixture();
+  try {
+    const listener = rssListener({ bootstrap: 'latest' });
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [listener] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+    const item = { guid: 'legacy-1', title: 'Already seen', link: 'https://example.test/legacy', pubDate: 'Wed, 26 Aug 2026 10:00:00 GMT' };
+    const xml = '<rss><channel><title>Example</title><item><guid>legacy-1</guid><title>Already seen</title><link>https://example.test/legacy</link><pubDate>Wed, 26 Aug 2026 10:00:00 GMT</pubDate></item></channel></rss>';
+    await inbox.updateCollector(listener.id, { initialized_at: '2026-08-26T10:00:00.000Z', legacy_seen: { [legacyRssItemKey(listener.id, item)]: '2026-08-26T10:01:00.000Z' } });
+    const collector = new RssCollector({
+      registryStore: registry,
+      inboxStore: inbox,
+      fetchImpl: async () => ({ status: 200, ok: true, headers: { get: () => null }, text: async () => xml }),
+    });
+    const report = await collector.pollAll();
+    assert.equal(report.ingested, 0);
+    assert.equal(report.duplicates, 1);
+    assert.equal((await inbox.list()).length, 0);
+  } finally {
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
 });
 
 test('processor records ignored events and only brokers filed outcomes to allowed Brains', async () => {

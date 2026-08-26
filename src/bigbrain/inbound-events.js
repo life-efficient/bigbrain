@@ -277,6 +277,12 @@ export function stableSourceEventId(listenerId, sourceId) {
   return `${listenerId}:${sha256(sourceId).slice(0, 32)}`;
 }
 
+export function legacyRssItemKey(listenerId, item) {
+  const normalized = normalizeRssItem(item);
+  const sourceId = normalized.guid || normalized.link || sha256(`${normalized.title}\n${normalized.pubDate}`);
+  return `${listenerId}:${sourceId}`;
+}
+
 export function classifyEvent(event, listener) {
   const filter = normalizeFilter(listener?.filter);
   const item = event?.payload || {};
@@ -691,7 +697,12 @@ export class RssCollector {
     let duplicates = 0;
     for (const item of candidates) {
       const key = stableSourceEventId(listener.id, item.guid || item.link || `${item.title}:${item.pubDate}`);
-      if (seen[key]) { duplicates += 1; continue; }
+      const legacyKey = legacyRssItemKey(listener.id, item);
+      if (seen[key] || previous.legacy_seen?.[legacyKey]) {
+        duplicates += 1;
+        seen[key] ||= previous.legacy_seen?.[legacyKey] || polledAt;
+        continue;
+      }
       const event = createRssEventEnvelope({ listener, item, feedXml: item.raw || xml, now: this.now(), registry });
       const subscriptions = registry.subscriptions.filter((subscription) => subscription.listener_id === listener.id && subscription.enabled);
       const deliveries = subscriptions.length
