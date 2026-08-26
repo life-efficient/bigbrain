@@ -3,6 +3,90 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining device and server installations.
 
+## [0.21.0] - 2026-08-26
+
+### Added
+
+- Added a complete graph styling system with Pixel, Orb, Diamond, and Hex node
+  shapes; independent fill and icon controls; small, medium, and large base
+  sizes; and persistent per-Brain preferences.
+- Added technical graph colour palettes named Jarvis, Terminal, Cobalt, Soft,
+  and Custom, with editable hex colours for each canonical page type.
+- Added privacy-safe Demo mode with type-aware synthetic page names, example
+  page previews, masked explorer content, safe task copy, and source/channel
+  icons with sender avatars for the graph flow inputs. Demo mode lives in
+  Settings and can be toggled with the `D` shortcut.
+- Added graph flow context showing measured input-to-page and page-to-task
+  connections, plus a live graph design lab with real graph data.
+- Added an optional local RSS and HTTP event ingestor with durable deduplication,
+  conditional feed polling, HMAC verification for non-loopback event servers,
+  and a macOS launchd installer.
+- Added retrieval evaluation ablation arms, ranking-policy comparisons, v2
+  endpoint/support/source labels, confidence intervals, and opt-in relational
+  graph retrieval.
+
+### Changed
+
+- Standalone graph pages now settle naturally beside relationship clusters
+  instead of being forced into an artificial outer ring.
+- The default graph colour treatment is now the Jarvis palette, while the
+  previous soft colours remain available as an explicit preset.
+- Dashboard startup waits for the local service readiness endpoint, and CLI
+  dashboard launches no longer open an extra browser window automatically.
+- Granola ingestion can apply an optional Personal Brain meeting-ingestion
+  protocol before destination writes; an absent protocol remains a no-op.
+
+### Fixed
+
+- Attached flow arcs to their matching graph nodes using measured DOM geometry,
+  and layered the flow network behind graph nodes while keeping side cards above
+  them and clickable.
+- Preserved graph interaction and label behaviour while expanding renderer,
+  layout, icon, colour, and zoom controls.
+- Normalized legacy timeline separators when appending page-operation entries.
+- Hardened configurable RSS source parsing, raw-item capture, canonical page
+  updates, and duplicate detection.
+
+### Agent update actions
+
+- Source installs: update to `v0.21.0`, run `npm install` and `npm link`, then
+  restart every BigBrain dashboard, MCP service, and desktop app. Rebuild the
+  dashboard client if the installation does not package the generated bundle.
+- Refresh the installed `bigbrain-granola-ingest` skill. If a machine uses the
+  optional event ingestor, preserve its config and state paths, run
+  `node scripts/install-event-ingestor.mjs --repo-root <repo> --brain-home <brain-home>`
+  to reinstall the launchd service, then verify its `/health` endpoint and
+  confirm duplicate RSS items are not written twice.
+- Existing Brain pages, task paths, filing rules, database schemas and rows,
+  routing-ledger records, member roles, OAuth records, API keys, registry
+  identities, default-Brain pointers, and `BRAIN.md` profiles require no
+  migration. Existing task values for `status`, `readiness`, `priority`,
+  `assignees`, `source`, and execution mode remain valid. Legacy timeline text
+  with a leading `---` separator is accepted automatically when updated.
+- The event ingestor adds a new machine-local state file only when explicitly
+  installed; it does not alter existing Brain or task records during upgrade.
+  Keep its state file separate from database and Markdown backups.
+- Run `bigbrain sync --json`, `bigbrain health --json`, `npm test`, and
+  `npm pack --dry-run` after upgrading. For retrieval evaluation changes, run
+  the official task lister against existing task data and rerun any private
+  evaluation cases that are part of the installation's verification routine.
+- Server deployments: deploy or pin
+  `ghcr.io/life-efficient/bigbrain:0.21.0` by digest, preserve database and
+  Brain volumes, restart, and verify `/live`, `/ready`, authenticated MCP tool
+  listing, and owning-MCP read-back. The event ingestor remains a separately
+  installed local service.
+
+### Verification
+
+- Full `npm test` suite
+- Dashboard production build and live dashboard verification
+- Graph renderer, palette, demo-mode, flow-geometry, and layer-order regressions
+- Retrieval ablation, ranking-policy, v2 metric, and relational graph tests
+- Event-ingestor feed parsing, deduplication, state, signature, and installer
+  regressions
+- Local-data compatibility audit against `v0.20.0`
+- `npm pack --dry-run`
+
 ## [0.20.0] - 2026-08-22
 
 ### Added
