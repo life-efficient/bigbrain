@@ -58,9 +58,12 @@ const ICONS = {
 export function GraphTypeIcon({ node, color, emphasized = false, background, variant = 'ring' }) {
   const Icon = ICONS[getGraphTypeIconName(node.type)] || Shapes;
   const bare = variant === 'bare' || variant === 'solid';
+  const pixelStyle = variant === 'pixel' || variant === 'pixel-solid';
+  const pixelSolid = variant === 'pixel-solid';
   const radius = node.radius * (emphasized ? 1.92 : 1.7);
-  const iconSize = radius * (bare ? 1.46 : 1.18);
+  const iconSize = radius * (bare ? 1.46 : pixelStyle ? 1.32 : 1.18);
   const solid = variant === 'solid';
+  const iconColor = pixelSolid ? background : color;
   return (
     <>
       {emphasized && !bare ? (
@@ -80,7 +83,7 @@ export function GraphTypeIcon({ node, color, emphasized = false, background, var
         y={node.y - iconSize / 2}
         width={iconSize}
         height={iconSize}
-        color={color}
+        color={iconColor}
         fill={solid ? color : 'none'}
         strokeWidth={solid ? (emphasized ? 3.8 : 3.25) : (emphasized ? 2.35 : 2)}
         aria-hidden="true"
@@ -91,16 +94,17 @@ export function GraphTypeIcon({ node, color, emphasized = false, background, var
 
 function renderIconFrame({ variant, node, radius, color, background, emphasized }) {
   if (variant === 'bare' || variant === 'solid') return null;
-  if (variant === 'pixel') {
+  if (variant === 'pixel' || variant === 'pixel-solid') {
     const side = radius * 1.04;
+    const filled = variant === 'pixel-solid';
     return (
       <rect
         x={node.x - side}
         y={node.y - side}
         width={side * 2}
         height={side * 2}
-        fill={background}
-        fillOpacity="0.86"
+        fill={filled ? color : background}
+        fillOpacity={filled ? '0.94' : '0.86'}
         stroke={color}
         strokeOpacity={emphasized ? '0.94' : '0.68'}
         strokeWidth={emphasized ? '1.35' : '0.9'}

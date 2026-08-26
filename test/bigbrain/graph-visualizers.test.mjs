@@ -253,6 +253,7 @@ test('icon nodes cover built-in schema types and use stable custom fallbacks', a
   ]);
   for (const [id, label] of [
     ['pixel', 'Pixel'],
+    ['pixel-solid', 'Pixel Solid'],
     ['icon', 'Icon Ring'],
     ['icon-bare', 'Icon Bare'],
     ['icon-solid', 'Icon Solid'],
@@ -261,16 +262,18 @@ test('icon nodes cover built-in schema types and use stable custom fallbacks', a
   ]) {
     assert.match(registry, new RegExp(`\\{ id: '${id}', label: '${label}' \\}`));
   }
-  assert.match(iconSource, /color=\{color\}/);
+  assert.match(iconSource, /color=\{iconColor\}/);
   assert.match(iconSource, /stroke=\{color\}/);
   assert.match(iconSource, /variant === 'bare' \|\| variant === 'solid'/);
-  assert.match(iconSource, /variant === 'pixel'/);
+  assert.match(iconSource, /variant === 'pixel' \|\| variant === 'pixel-solid'/);
+  assert.match(iconSource, /const iconColor = pixelSolid \? background : color/);
+  assert.match(iconSource, /pixelStyle \? 1\.32/);
   assert.match(iconSource, /shapeRendering="crispEdges"/);
   assert.match(iconSource, /variant === 'hex'/);
-  assert.match(composable, /nodeStyle === 'pixel' \|\| nodeStyle\.startsWith\('icon'\)/);
-  assert.match(composable, /nodeStyle === 'pixel' \? 'pixel'/);
-  assert.match(bloom, /nodeStyle === 'pixel' \|\| nodeStyle\.startsWith\('icon'\)/);
-  assert.match(bloom, /nodeStyle === 'pixel' \? 'pixel'/);
+  assert.match(composable, /const isPixelStyle = nodeStyle === 'pixel' \|\| nodeStyle === 'pixel-solid'/);
+  assert.match(composable, /const variant = isPixelStyle \? nodeStyle/);
+  assert.match(bloom, /const isPixelStyle = nodeStyle === 'pixel' \|\| nodeStyle === 'pixel-solid'/);
+  assert.match(bloom, /const variant = isPixelStyle \? nodeStyle/);
 });
 
 test('graph zoom applies responsive base sizing while expanding relationships', async () => {

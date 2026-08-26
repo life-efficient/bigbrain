@@ -347,8 +347,9 @@ function renderNodeShape(node, nodeStyle, theme, emphasized, colorMode) {
   const innerOpacity = nodeColor
     ? (emphasized ? '0.62' : '0.38')
     : (emphasized ? '0.82' : '0.52');
-  if (nodeStyle === 'pixel' || nodeStyle.startsWith('icon')) {
-    const variant = nodeStyle === 'pixel' ? 'pixel' : nodeStyle === 'icon' ? 'ring' : nodeStyle.replace('icon-', '');
+  const isPixelStyle = nodeStyle === 'pixel' || nodeStyle === 'pixel-solid';
+  if (isPixelStyle || nodeStyle.startsWith('icon')) {
+    const variant = isPixelStyle ? nodeStyle : nodeStyle === 'icon' ? 'ring' : nodeStyle.replace('icon-', '');
     return (
       <>
         <circle
