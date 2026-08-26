@@ -109,3 +109,10 @@ test('Demo mode lives in Settings and uses the D keyboard shortcut', async () =>
   assert.match(main, /handleDemoModeChange\(!demoModeRef\.current\)/);
   assert.doesNotMatch(main, /graph-demo-toggle/);
 });
+
+test('Demo mode keeps outbound flow context when the task list is empty', async () => {
+  const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
+  assert.match(main, /const graphTaskNodes = useMemo\(\(\) =>/);
+  assert.match(main, /node\?\.type === 'tasks'/);
+  assert.match(main, /return taskItems\.length \|\| !demoMode \? taskItems : graphTaskNodes/);
+});

@@ -388,10 +388,25 @@ function DashboardApp() {
   const displayTaskSections = useMemo(() => (
     demoMode ? buildDemoTaskSections(taskSections, demoSeed) : taskSections
   ), [demoMode, demoSeed, taskSections]);
-  const rawGraphFlowTasks = useMemo(() => taskSections
-    .flatMap((section) => section.items || [])
-    .filter((item) => !item.completed)
-    .slice(0, 6), [taskSections]);
+  const graphTaskNodes = useMemo(() => {
+    const nodes = Array.isArray(state.data?.graph?.nodes) ? state.data.graph.nodes : [];
+    return nodes
+      .filter((node) => node?.type === 'tasks' && node?.slug)
+      .sort((left, right) => {
+        const leftTime = Date.parse(left.updated_at || '') || 0;
+        const rightTime = Date.parse(right.updated_at || '') || 0;
+        return rightTime - leftTime || String(left.slug).localeCompare(String(right.slug));
+      })
+      .slice(0, 6)
+      .map((node) => ({ ...node, status: 'open', completed: false }));
+  }, [state.data?.graph]);
+  const rawGraphFlowTasks = useMemo(() => {
+    const taskItems = taskSections
+      .flatMap((section) => section.items || [])
+      .filter((item) => !item.completed)
+      .slice(0, 6);
+    return taskItems.length || !demoMode ? taskItems : graphTaskNodes;
+  }, [demoMode, graphTaskNodes, taskSections]);
   const graphFlowTasks = useMemo(() => (
     demoMode ? buildDemoTasks(rawGraphFlowTasks, demoSeed) : rawGraphFlowTasks
   ), [demoMode, demoSeed, rawGraphFlowTasks]);
