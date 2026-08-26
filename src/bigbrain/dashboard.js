@@ -1301,7 +1301,71 @@ function renderAppHtml() {
       @media (prefers-reduced-motion: reduce) {
         .narrative-lab *, .narrative-lab *::before, .narrative-lab *::after { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
       }
-      .futuristic-graph { background: transparent; }
+      .narrative-lab .design-lab-live { color: #e4e4e7; }
+      .narrative-lab .design-lab-live i,
+      .narrative-lab .footer-pulse,
+      .narrative-lab .core-telemetry i,
+      .narrative-lab .control-panel-status i,
+      .narrative-lab .control-graph-foot i,
+      .narrative-lab .action-queue-note i,
+      .narrative-lab .reactor-state i,
+      .narrative-lab .reactor-panel-footer i { background: #d4d4d8; box-shadow: 0 0 10px rgba(244,244,245,0.58); }
+      .narrative-lab .signal-tone-cyan,
+      .narrative-lab .output-tone-cyan,
+      .narrative-lab .schema-tone-cyan,
+      .narrative-lab .control-tone-cyan,
+      .narrative-lab .action-queue-cyan { --tone: #f4f4f5; }
+      .narrative-lab .signal-tone-green,
+      .narrative-lab .output-tone-green,
+      .narrative-lab .schema-tone-green,
+      .narrative-lab .control-tone-green,
+      .narrative-lab .action-queue-green { --tone: #d4d4d8; }
+      .narrative-lab .signal-tone-violet,
+      .narrative-lab .output-tone-violet,
+      .narrative-lab .schema-tone-violet,
+      .narrative-lab .control-tone-violet,
+      .narrative-lab .action-queue-violet { --tone: #a1a1aa; }
+      .narrative-lab .signal-tone-amber,
+      .narrative-lab .output-tone-amber,
+      .narrative-lab .schema-tone-amber,
+      .narrative-lab .control-tone-amber { --tone: #e4e4e7; }
+      .narrative-lab .schema-tone-pink { --tone: #71717a; }
+      .narrative-lab .brain-core-rings i { border-color: rgba(244,244,245,0.24); }
+      .narrative-lab .brain-core-rings i:nth-child(2) { border-color: rgba(161,161,170,0.34); }
+      .narrative-lab .brain-core-rings i:nth-child(3) { border-color: rgba(212,212,216,0.42); }
+      .narrative-lab .brain-core-orb { background: radial-gradient(circle at 35% 26%, #ffffff, #d4d4d8 28%, #71717a 68%, #27272a); box-shadow: 0 0 0 9px rgba(244,244,245,0.06), 0 0 42px rgba(212,212,216,0.3), 0 22px 55px rgba(0,0,0,0.34); }
+      .narrative-lab .brain-core-orb b { background: #ffffff; box-shadow: 0 0 12px rgba(255,255,255,0.85); }
+      .narrative-lab .flow-network path { stroke: rgba(244,244,245,0.22); }
+      .narrative-lab .flow-network path:nth-child(2n),
+      .narrative-lab .flow-network path:nth-child(3n) { stroke: rgba(212,212,216,0.2); }
+      .narrative-lab .flow-packet { --packet-tone: #d4d4d8; opacity: 0.55; }
+      .narrative-lab .reactor-orbit { border-color: rgba(244,244,245,0.18); }
+      .narrative-lab .reactor-orbit-two { border-color: rgba(161,161,170,0.24); }
+      .narrative-lab .reactor-orbit-three { border-color: rgba(212,212,216,0.22); }
+      .narrative-lab .reactor-core-wrap .brain-core-orb { background: radial-gradient(circle at 35% 26%, #ffffff, #e4e4e7 28%, #71717a 68%, #27272a); box-shadow: 0 0 0 14px rgba(244,244,245,0.06), 0 0 62px rgba(212,212,216,0.32), 0 0 110px rgba(161,161,170,0.18); }
+      .narrative-lab .reactor-core-wrap .brain-core-rings i,
+      .narrative-lab .reactor-core-wrap .brain-core-rings i:nth-child(2),
+      .narrative-lab .reactor-core-wrap .brain-core-rings i:nth-child(3) { border-color: rgba(244,244,245,0.3); }
+      .narrative-lab .reactor-core-scan { background: linear-gradient(90deg, transparent, rgba(244,244,245,0.58), transparent); box-shadow: 0 0 18px rgba(244,244,245,0.52); }
+      .narrative-lab .reactor-state span,
+      .narrative-lab .reactor-state small,
+      .narrative-lab .reactor-panel-footer { color: #a1a1aa; }
+      .narrative-lab .control-graph-svg circle { fill: #a1a1aa; }
+      .narrative-lab .control-graph-label,
+      .narrative-lab .control-graph-label.label-people,
+      .narrative-lab .control-graph-label.label-deals,
+      .narrative-lab .control-graph-label.label-tasks,
+      .narrative-lab .control-graph-label.label-ideas { color: #d4d4d8; }
+      .narrative-lab .control-graph-pulse { background: #f4f4f5; box-shadow: 0 0 16px rgba(244,244,245,0.68); }
+      .narrative-lab .schema-node-cyan,
+      .narrative-lab .schema-node-green,
+      .narrative-lab .schema-node-violet,
+      .narrative-lab .schema-node-amber { fill: #d4d4d8; }
+      .narrative-lab .schema-flow-energy-arc-in,
+      .narrative-lab .schema-flow-energy-arc-out,
+      .narrative-lab .schema-flow-energy-glow-in,
+      .narrative-lab .schema-flow-energy-glow-out { filter: drop-shadow(0 0 3px rgba(244,244,245,0.62)); }
+      .narrative-lab .futuristic-graph { background: transparent; }
       .graph-pulse-line { animation: graph-pulse 7s linear infinite; }
       .graph-activity-panel { position: absolute; right: 14px; top: 14px; z-index: 4; width: min(270px, calc(100% - 28px)); display: grid; gap: 0; padding: 0; border: 1px solid transparent; border-radius: 12px; background: transparent; box-shadow: none; backdrop-filter: blur(0); transition: padding 180ms ease, gap 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, backdrop-filter 180ms ease; }
       .graph-activity-panel:hover, .graph-activity-panel:focus-within { gap: 9px; padding: 10px 12px; border-color: rgba(212,212,216,0.18); background: rgba(12,12,14,0.82); box-shadow: 0 18px 42px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(18px); }

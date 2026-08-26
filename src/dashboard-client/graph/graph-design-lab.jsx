@@ -292,26 +292,26 @@ function SchemaFlowNetwork({ layout }) {
       <svg viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none">
         <defs>
           <linearGradient id="schema-flow-in-gradient" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#6ce3ff" stopOpacity="0.12" />
-            <stop offset="0.7" stopColor="#8eaaff" stopOpacity="0.43" />
-            <stop offset="1" stopColor="#bd9cff" stopOpacity="0.72" />
+            <stop offset="0" stopColor="#d4d4d8" stopOpacity="0.12" />
+            <stop offset="0.7" stopColor="#a1a1aa" stopOpacity="0.43" />
+            <stop offset="1" stopColor="#f4f4f5" stopOpacity="0.72" />
           </linearGradient>
           <linearGradient id="schema-flow-out-gradient" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#bd9cff" stopOpacity="0.72" />
-            <stop offset="0.45" stopColor="#8eaaff" stopOpacity="0.42" />
-            <stop offset="1" stopColor="#75efb8" stopOpacity="0.15" />
+            <stop offset="0" stopColor="#f4f4f5" stopOpacity="0.72" />
+            <stop offset="0.45" stopColor="#a1a1aa" stopOpacity="0.42" />
+            <stop offset="1" stopColor="#d4d4d8" stopOpacity="0.15" />
           </linearGradient>
           <linearGradient id="schema-flow-pulse-in" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#6ce3ff" stopOpacity="0" />
-            <stop offset="0.45" stopColor="#c8f5ff" stopOpacity="0.95" />
-            <stop offset="0.72" stopColor="#9f8cff" stopOpacity="0.8" />
-            <stop offset="1" stopColor="#bd9cff" stopOpacity="0" />
+            <stop offset="0" stopColor="#d4d4d8" stopOpacity="0" />
+            <stop offset="0.45" stopColor="#ffffff" stopOpacity="0.95" />
+            <stop offset="0.72" stopColor="#d4d4d8" stopOpacity="0.8" />
+            <stop offset="1" stopColor="#a1a1aa" stopOpacity="0" />
           </linearGradient>
           <linearGradient id="schema-flow-pulse-out" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stopColor="#bd9cff" stopOpacity="0" />
-            <stop offset="0.34" stopColor="#bd9cff" stopOpacity="0.85" />
-            <stop offset="0.68" stopColor="#bfffe0" stopOpacity="0.95" />
-            <stop offset="1" stopColor="#75efb8" stopOpacity="0" />
+            <stop offset="0" stopColor="#a1a1aa" stopOpacity="0" />
+            <stop offset="0.34" stopColor="#d4d4d8" stopOpacity="0.85" />
+            <stop offset="0.68" stopColor="#ffffff" stopOpacity="0.95" />
+            <stop offset="1" stopColor="#d4d4d8" stopOpacity="0" />
           </linearGradient>
           <filter id="schema-flow-pulse-blur" x="-80%" y="-80%" width="260%" height="260%">
             <feGaussianBlur stdDeviation="0.9" />
@@ -508,9 +508,9 @@ function ControlGraph() {
     <svg className="control-graph-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
       <defs>
         <linearGradient id="control-link-gradient" x1="0" x2="1">
-          <stop offset="0" stopColor="#64d9ff" stopOpacity="0.2" />
-          <stop offset="0.5" stopColor="#9d7bff" stopOpacity="0.7" />
-          <stop offset="1" stopColor="#76edba" stopOpacity="0.2" />
+          <stop offset="0" stopColor="#a1a1aa" stopOpacity="0.2" />
+          <stop offset="0.5" stopColor="#f4f4f5" stopOpacity="0.7" />
+          <stop offset="1" stopColor="#d4d4d8" stopOpacity="0.2" />
         </linearGradient>
       </defs>
       <path d="M 8 20 C 28 20, 33 44, 47 48 S 70 22, 91 20" />
