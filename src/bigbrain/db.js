@@ -197,6 +197,7 @@ export function initializeSqliteSchema(db) {
   `);
   ensureSqliteSharedGroupColumns(raw);
   ensureSqlitePageKindColumn(raw);
+  ensureSqlitePageIndexes(raw);
   ensureSqliteAuditColumns(raw);
   ensureDefaultRolesSync(raw);
 }
@@ -401,6 +402,7 @@ export async function initializePostgresSchema(db) {
       PRIMARY KEY (group_slug, page_slug)
     );
     CREATE INDEX IF NOT EXISTS pages_slug_idx ON pages (slug);
+    CREATE INDEX IF NOT EXISTS pages_type_slug_idx ON pages (type, slug);
     CREATE INDEX IF NOT EXISTS page_provenance_page_slug_idx ON page_provenance (page_slug);
     CREATE INDEX IF NOT EXISTS page_provenance_received_at_idx ON page_provenance (received_at DESC);
     CREATE INDEX IF NOT EXISTS page_provenance_event_id_idx ON page_provenance (event_id);
@@ -442,6 +444,10 @@ async function ensurePostgresAuditColumns(db) {
 function ensureSqlitePageKindColumn(raw) {
   const columns = raw.prepare('PRAGMA table_info(pages)').all().map((row) => row.name);
   if (!columns.includes('page_kind')) raw.exec("ALTER TABLE pages ADD COLUMN page_kind TEXT NOT NULL DEFAULT 'canonical'");
+}
+
+function ensureSqlitePageIndexes(raw) {
+  raw.exec('CREATE INDEX IF NOT EXISTS pages_type_slug_idx ON pages (type, slug)');
 }
 
 function ensureSqliteSharedGroupColumns(raw) {

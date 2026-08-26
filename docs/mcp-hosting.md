@@ -292,7 +292,7 @@ and trusted single-operator deployments. In `oauth_allowlist` mode, per-user
 tokens use these scopes:
 
 - `brain:read`: read-only tools, including `me`, members/tasks listing,
-  `search`, `query`, `list`, `read`, `filing_rules`, `list_raw_files`, and
+  `search`, `query`, `pages/query`, `list`, `read`, `filing_rules`, `list_raw_files`, and
   `read_raw_file`.
 - `brain:create`: append/create tools, including task writes, `create_page`,
   `update_page`, `create_raw_file`, and `create_raw_file_with_page`.

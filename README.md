@@ -148,6 +148,10 @@ BigBrain separates **search** from **query**:
 - `search` returns ranked pages and snippets. It does not generate an answer.
 - `query` runs the same retrieval pipeline, then generates a concise answer
   grounded in the retrieved context with citations back to source page slugs.
+- `pages/query` runs safe structured filters over indexed page fields and flat
+  front matter, returning compact rows, counts, and offset pagination. It is
+  useful for deterministic questions such as how many people or deals match a
+  condition, without retrieving page bodies or relying on semantic search.
 
 ### How retrieval works today
 
@@ -193,6 +197,12 @@ Use `--explain` to inspect retrieval evidence and score components:
 bigbrain search "Ariana Properties" --mode balanced --explain
 bigbrain query "What changed in this deal?" --mode tokenmax --explain
 ```
+
+The MCP `pages/query` tool supports exact matches, ordered comparisons, set
+membership, existence checks, path/type filters, selected front-matter fields,
+and count-only queries. Existing pages do not need new fields: absent
+front-matter remains absent, and the runtime index applies its query indexes
+when each brain opens.
 
 BigBrain also includes synthetic and private retrieval evals so ranking changes
 can be tested rather than judged from a handful of anecdotes. See

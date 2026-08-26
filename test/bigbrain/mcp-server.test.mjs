@@ -458,6 +458,97 @@ MCP query retrieval target.
   }
 });
 
+test('MCP pages/query filters indexed front matter and returns compact counts', async () => {
+  const fixture = await createFixture('bigbrain-mcp-pages-query-');
+  let running;
+  try {
+    await fs.mkdir(path.join(fixture.brainHome, 'people'), { recursive: true });
+    await fs.mkdir(path.join(fixture.brainHome, 'deals'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'people', 'alice.md'), `---
+title: Alice Example
+status: active
+relationship_importance: 1
+next_touchpoint_at: 2026-08-27T09:00:00Z
+---
+# Alice Example
+
+Active person.
+`, 'utf8');
+    await fs.writeFile(path.join(fixture.brainHome, 'people', 'bob.md'), `---
+title: Bob Example
+status: inactive
+relationship_importance: 4
+next_touchpoint_at: 2026-09-10T09:00:00Z
+---
+# Bob Example
+
+Inactive person.
+`, 'utf8');
+    await fs.writeFile(path.join(fixture.brainHome, 'deals', 'deal-a.md'), `---
+title: Active Deal
+status: active
+---
+# Active Deal
+
+Active deal.
+`, 'utf8');
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'secret',
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const listed = await rpc(running.url, 'tools/list', {}, 'secret');
+    const queryTool = listed.result.tools.find((tool) => tool.name === 'pages/query');
+    assert.ok(queryTool);
+    assert.equal(queryTool.inputSchema.properties.filters.type, 'array');
+    assert.equal(queryTool.inputSchema.properties.count_only.type, 'boolean');
+
+    const queried = await rpc(running.url, 'tools/call', {
+      name: 'pages/query',
+      arguments: {
+        path_prefix: 'people',
+        filters: [
+          { field: 'status', operator: 'eq', value: 'active' },
+          { field: 'next_touchpoint_at', operator: 'lte', value: '2026-08-27T12:00:00Z' },
+        ],
+        fields: ['status', 'relationship_importance', 'next_touchpoint_at'],
+        order_by: [{ field: 'relationship_importance', direction: 'asc' }],
+        as_of: '2026-08-27T12:00:00Z',
+        limit: 10,
+      },
+    }, 'secret');
+    assert.equal(queried.error, undefined, queried.error?.message);
+    assert.equal(queried.result.structuredContent.total, 1);
+    assert.equal(queried.result.structuredContent.pages[0].slug, 'people/alice');
+    assert.deepEqual(queried.result.structuredContent.pages[0].frontmatter, {
+      status: 'active',
+      relationship_importance: '1',
+      next_touchpoint_at: '2026-08-27T09:00:00Z',
+    });
+
+    const counted = await rpc(running.url, 'tools/call', {
+      name: 'pages/query',
+      arguments: {
+        type: 'people',
+        filters: [{ field: 'status', operator: 'exists' }],
+        count_only: true,
+      },
+    }, 'secret');
+    assert.equal(counted.error, undefined, counted.error?.message);
+    assert.equal(counted.result.structuredContent.total, 2);
+    assert.deepEqual(counted.result.structuredContent.pages, []);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('MCP server exposes brain-specific filing rules for harness routing', async () => {
   const fixture = await createFixture('bigbrain-mcp-filing-rules-');
   let running;

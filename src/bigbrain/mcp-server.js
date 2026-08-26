@@ -43,6 +43,7 @@ import {
   updatePageVisibility,
 } from './page-ops.js';
 import { canonicalPagePath, canonicalPageUrl, isLoopbackHost, localPageUrl } from './page-links.js';
+import { queryPagesByFrontmatter } from './frontmatter-query.js';
 import { queryBrain, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
 import {
@@ -518,6 +519,9 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       return toolJson(await toolSearch(config, args));
     case 'query':
       return toolJson(await toolQuery(config, args));
+    case 'pages/query':
+    case 'pages_query':
+      return toolJson(await toolPagesQuery(config, args));
     case 'list':
       return toolJson(await listBrainPath({
         config,
@@ -1103,6 +1107,27 @@ async function toolQuery(config, args) {
   }
 }
 
+async function toolPagesQuery(config, args) {
+  const db = await openDatabase(config);
+  try {
+    return await queryPagesByFrontmatter({
+      db,
+      pathPrefix: args.path_prefix,
+      type: args.type,
+      filters: args.filters ?? args.where ?? [],
+      fields: args.fields ?? args.select ?? [],
+      orderBy: args.order_by ?? [],
+      limit: args.limit,
+      cursor: args.cursor,
+      countOnly: args.count_only,
+      includeTotal: args.include_total,
+      asOf: args.as_of,
+    });
+  } finally {
+    await db.close?.();
+  }
+}
+
 async function syncAndPersist(config) {
   const result = await syncBrain({ config });
   await persistState(config.statePath, {
@@ -1387,6 +1412,16 @@ function toolDefinitions() {
           expand: { type: 'boolean' },
         },
       },
+    },
+    {
+      name: 'pages/query',
+      description: 'Query indexed pages with safe structured filters over page fields and flat front matter. Returns compact page metadata, selected front matter, a total count, and an offset cursor. Use count_only for count queries and as_of for deterministic timestamp comparisons.',
+      inputSchema: pagesQuerySchema(),
+    },
+    {
+      name: 'pages_query',
+      description: 'Alias for pages/query for clients that do not support slash tool names.',
+      inputSchema: pagesQuerySchema(),
     },
     {
       name: 'list',
@@ -1750,6 +1785,8 @@ const TOOL_POLICIES = {
   'tasks/hygiene': { layer: 'read', scopes: ['brain:read'] },
   search: { layer: 'read', scopes: ['brain:read'] },
   query: { layer: 'read', scopes: ['brain:read'] },
+  'pages/query': { layer: 'read', scopes: ['brain:read'] },
+  pages_query: { layer: 'read', scopes: ['brain:read'] },
   list: { layer: 'read', scopes: ['brain:read'] },
   read: { layer: 'read', scopes: ['brain:read'] },
   get_page_visibility: { layer: 'read', scopes: ['brain:read'] },
@@ -1933,6 +1970,47 @@ function membersListSchema() {
     type: 'object',
     properties: {
       status: { type: 'string', enum: ['active', 'inactive', 'invited'] },
+    },
+  };
+}
+
+function pagesQuerySchema() {
+  return {
+    type: 'object',
+    properties: {
+      path_prefix: { type: 'string', description: 'Optional relative Brain path prefix such as people or deals.' },
+      type: { type: 'string', description: 'Optional exact indexed page type, such as people or deals.' },
+      filters: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            field: { type: 'string', description: 'A page field or a flat front-matter key.' },
+            operator: { type: 'string', enum: ['eq', 'neq', 'lt', 'lte', 'gt', 'gte', 'in', 'exists'] },
+            value: { description: 'A scalar filter value, an array for in, or a boolean for exists.' },
+            value_type: { type: 'string', enum: ['string', 'number', 'boolean', 'timestamp'] },
+          },
+          required: ['field', 'operator'],
+        },
+      },
+      fields: { type: 'array', items: { type: 'string' }, description: 'Optional front-matter keys to return. Omit to return all front matter.' },
+      order_by: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            field: { type: 'string' },
+            direction: { type: 'string', enum: ['asc', 'desc'] },
+            value_type: { type: 'string', enum: ['string', 'number', 'boolean', 'timestamp'] },
+          },
+          required: ['field'],
+        },
+      },
+      limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+      cursor: { type: 'integer', minimum: 0, default: 0 },
+      count_only: { type: 'boolean', default: false },
+      include_total: { type: 'boolean', default: true },
+      as_of: { type: 'string', format: 'date-time', description: 'Optional RFC3339 timestamp returned with the result and used by $as_of filter values.' },
     },
   };
 }

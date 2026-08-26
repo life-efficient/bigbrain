@@ -446,6 +446,18 @@ It should:
 
 This distinction matters because you use both modes differently.
 
+### `pages/query`
+
+`pages/query` is deterministic structured retrieval over the indexed page
+metadata. It accepts path and page-type constraints plus safe filters over flat
+front-matter fields, and returns compact page rows, selected front matter, a
+total count, and an offset cursor. It does not retrieve page bodies, perform
+semantic search, or synthesize an answer.
+
+The query operates on the runtime projection of the canonical Markdown pages.
+Missing front-matter fields remain missing, so optional metadata can be added by
+specialized client skills without requiring a corpus-wide content migration.
+
 ## Hybrid Retrieval
 
 The retrieval stack should be:
