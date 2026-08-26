@@ -180,7 +180,9 @@ export class AppServerJsonRpcClient {
     this.process.stderr?.on('data', (chunk) => this.notifications.push({ type: 'stderr', text: String(chunk).slice(-10_000) }));
     this.process.on('error', (error) => this.rejectPending(error));
     this.process.on('exit', (code, signal) => {
-      if (code !== 0) this.rejectPending(new Error(`Codex app-server exited with ${code ?? signal}.`));
+      if (this.pending.size || this.waiters.length) {
+        this.rejectPending(new Error(`Codex app-server exited before completing the request (${code ?? signal ?? 'unknown'}).`));
+      }
     });
   }
 
