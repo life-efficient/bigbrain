@@ -1142,7 +1142,9 @@ export class ScopedFilingBroker {
       const client = await this.mcpFactory(brain);
       const existingProvenance = await this.findExistingProvenance(client, event.event_id);
       if (existingProvenance.length) {
-        results.push({ brain_id: destination.brain_id, duplicate: true, writes: [], provenance: existingProvenance });
+        const provenance = provenanceForEvent(event, { capturedAs: outcome.capture_mode || null });
+        for (const row of existingProvenance) await client.callTool('events/provenance', { path: row.page_slug, provenance });
+        results.push({ brain_id: destination.brain_id, duplicate: true, writes: [], provenance: existingProvenance, provenance_updated: true });
         continue;
       }
       const writes = Array.isArray(destination.writes) ? destination.writes : [];

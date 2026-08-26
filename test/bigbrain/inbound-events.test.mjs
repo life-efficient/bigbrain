@@ -174,6 +174,7 @@ test('filing broker treats an already-provenanced event as an idempotent duplica
       callTool: async (name, args) => {
         calls.push({ name, args });
         if (name === 'events/provenance_list') return { provenance: [{ event_id: 'event-1', page_slug: 'concepts/example' }] };
+        if (name === 'events/provenance') return { ok: true };
         throw new Error(`Unexpected write: ${name}`);
       },
     }),
@@ -185,7 +186,8 @@ test('filing broker treats an already-provenanced event as an idempotent duplica
   });
   assert.equal(result.status, 'filed');
   assert.equal(result.destinations[0].duplicate, true);
-  assert.deepEqual(calls.map((call) => call.name), ['events/provenance_list']);
+  assert.equal(result.destinations[0].provenance_updated, true);
+  assert.deepEqual(calls.map((call) => call.name), ['events/provenance_list', 'events/provenance']);
 });
 
 test('webhook server authenticates, limits, and deduplicates generic events', async () => {
