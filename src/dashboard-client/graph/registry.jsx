@@ -19,6 +19,7 @@ export const GRAPH_DEFAULTS = {
   layoutStyle: 'lanes',
   labelStyle: 'off',
   colorMode: 'updated',
+  flowVisible: false,
 };
 
 export const GRAPH_NODE_STYLES = [

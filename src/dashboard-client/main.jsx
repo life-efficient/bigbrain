@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
+import React, { memo, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as SelectPrimitive from '@radix-ui/react-select';
 
@@ -91,6 +91,7 @@ function loadGraphPreferences() {
     for (const [key, values] of Object.entries(allowed)) {
       if (values.has(saved[key])) defaults[key] = saved[key];
     }
+    if (typeof saved.flowVisible === 'boolean') defaults.flowVisible = saved.flowVisible;
   } catch {
     // Invalid or unavailable storage falls back to the registry defaults.
   }
@@ -108,6 +109,7 @@ function DashboardApp() {
   const [layoutStyle, setLayoutStyle] = useState(savedGraphPreferences.layoutStyle);
   const [labelStyle, setLabelStyle] = useState(savedGraphPreferences.labelStyle);
   const [colorMode, setColorMode] = useState(savedGraphPreferences.colorMode);
+  const [flowVisible, setFlowVisible] = useState(savedGraphPreferences.flowVisible);
   const [themeMode, setThemeMode] = useState('auto');
   const [prefersDark, setPrefersDark] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -128,12 +130,12 @@ function DashboardApp() {
   useEffect(() => {
     try {
       window.localStorage.setItem('bigbrain:graph-preferences', JSON.stringify({
-        visualizerId, nodeStyle, nodeSize, arcStyle, layoutStyle, labelStyle, colorMode,
+        visualizerId, nodeStyle, nodeSize, arcStyle, layoutStyle, labelStyle, colorMode, flowVisible,
       }));
     } catch {
       // Storage can be unavailable in restricted browser contexts; defaults remain usable.
     }
-  }, [arcStyle, colorMode, labelStyle, layoutStyle, nodeSize, nodeStyle, visualizerId]);
+  }, [arcStyle, colorMode, flowVisible, labelStyle, layoutStyle, nodeSize, nodeStyle, visualizerId]);
 
   useEffect(() => {
     if (window.parent === window) return;
@@ -408,6 +410,10 @@ function DashboardApp() {
 
   const { schema, tasks, recent, health, graph, explorer } = state.data;
   const taskSections = Array.isArray(tasks?.sections) ? tasks.sections : [];
+  const graphFlowTasks = taskSections
+    .flatMap((section) => section.items || [])
+    .filter((item) => !item.completed)
+    .slice(0, 6);
   const members = Array.isArray(tasks?.members) ? tasks.members : [];
   const healthFindingCount = Number.isFinite(health?.finding_count) ? health.finding_count : 0;
   const healthFindings = Array.isArray(health?.findings)
@@ -594,6 +600,9 @@ function DashboardApp() {
                 setLabelStyle={setLabelStyle}
                 colorMode={colorMode}
                 setColorMode={setColorMode}
+                flowVisible={flowVisible}
+                setFlowVisible={setFlowVisible}
+                flowTasks={graphFlowTasks}
                 visualizerRef={visualizerRef}
                 activeSlug={activeGraphSlug}
                 onActiveSlugChange={setActiveGraphSlug}
@@ -1841,6 +1850,9 @@ const GraphPanel = memo(function GraphPanel({
   setLabelStyle,
   colorMode,
   setColorMode,
+  flowVisible,
+  setFlowVisible,
+  flowTasks,
   visualizerRef,
   activeSlug,
   onActiveSlugChange,
@@ -1950,7 +1962,7 @@ const GraphPanel = memo(function GraphPanel({
 
   return (
     <section className="card hero-card">
-      <div className="graph-wrap graph-wrap-expanded">
+      <div className={`graph-wrap graph-wrap-expanded ${flowVisible ? 'graph-flow-enabled' : ''}`}>
         <VisualizerComponent
           ref={visualizerRef}
           graph={filteredGraph}
@@ -1965,8 +1977,15 @@ const GraphPanel = memo(function GraphPanel({
           activeSlug={activeSlug}
           onActiveSlugChange={onActiveSlugChange}
         />
+        {flowVisible ? (
+          <GraphFlowOverlay
+            inputs={recentNodes}
+            tasks={flowTasks}
+            onNodeOpen={onNodeOpen}
+          />
+        ) : null}
         {activityBuckets.length ? (
-          <div className="graph-activity-panel">
+          <div className={`graph-activity-panel ${flowVisible ? 'graph-flow-sibling-hidden' : ''}`}>
             <div className="graph-activity-head">
               <span>Activity</span>
               <strong>{formatActivityDate(selectedTimelineDay)}</strong>
@@ -2002,7 +2021,7 @@ const GraphPanel = memo(function GraphPanel({
           </div>
         ) : null}
         {recentNodes.length ? (
-          <div className="graph-recent-panel" aria-label="Recently updated files">
+          <div className={`graph-recent-panel ${flowVisible ? 'graph-flow-sibling-hidden' : ''}`} aria-label="Recently updated files">
             <div className="graph-recent-head">
               <span>Recent</span>
               <strong>{recentNodes.length}</strong>
@@ -2130,6 +2149,19 @@ const GraphPanel = memo(function GraphPanel({
                   options={GRAPH_LABEL_STYLES}
                   onSelect={setLabelStyle}
                 />
+                <div className="graph-menu-field">
+                  <span>Flow context</span>
+                  <button
+                    type="button"
+                    className={`graph-flow-toggle ${flowVisible ? 'selected' : ''}`}
+                    role="switch"
+                    aria-checked={flowVisible}
+                    onClick={() => setFlowVisible((value) => !value)}
+                  >
+                    <span>Inputs + outputs</span>
+                    <strong>{flowVisible ? 'On' : 'Off'}</strong>
+                  </button>
+                </div>
               </div>
             ) : null}
           </div>
@@ -2152,6 +2184,171 @@ const GraphPanel = memo(function GraphPanel({
     </section>
   );
 });
+
+function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
+  const stageRef = useRef(null);
+  const inputRefs = useRef(new Map());
+  const taskRefs = useRef(new Map());
+  const [layout, setLayout] = useState(null);
+
+  useLayoutEffect(() => {
+    function measure() {
+      const stage = stageRef.current;
+      if (!stage) return;
+      const stageRect = stage.getBoundingClientRect();
+      if (!stageRect.width || !stageRect.height) return;
+      const pointFor = (node, edge) => {
+        const rect = node?.getBoundingClientRect();
+        if (!rect) return null;
+        return {
+          x: (edge === 'right' ? rect.right : rect.left) - stageRect.left,
+          y: rect.top + (rect.height / 2) - stageRect.top,
+        };
+      };
+      const centerY = stageRect.height / 2;
+      setLayout({
+        width: stageRect.width,
+        height: stageRect.height,
+        brain: {
+          leftX: stageRect.width * 0.43,
+          rightX: stageRect.width * 0.57,
+          centerY,
+        },
+        inputs: inputs.map((item) => pointFor(inputRefs.current.get(item.slug), 'right')).filter(Boolean),
+        outputs: tasks.map((item) => pointFor(taskRefs.current.get(item.slug), 'left')).filter(Boolean),
+      });
+    }
+
+    const frame = window.requestAnimationFrame(measure);
+    const observed = [stageRef.current, ...inputRefs.current.values(), ...taskRefs.current.values()].filter(Boolean);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    observed.forEach((node) => observer?.observe(node));
+    window.addEventListener('resize', measure);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+      window.removeEventListener('resize', measure);
+    };
+  }, [inputs, tasks]);
+
+  return (
+    <div ref={stageRef} className="graph-flow-overlay">
+      <GraphFlowNetwork layout={layout} />
+      <div className="graph-flow-column graph-flow-input-column">
+        <div className="graph-flow-column-head"><span>Inputs</span><small>{inputs.length}</small></div>
+        <div className="graph-flow-card-list">
+          {inputs.map((item) => (
+            <button
+              key={item.slug}
+              ref={(node) => node ? inputRefs.current.set(item.slug, node) : inputRefs.current.delete(item.slug)}
+              type="button"
+              className="graph-flow-card"
+              onClick={() => onNodeOpen?.(item.slug)}
+            >
+              <span className="graph-flow-card-type">{String(item.type || 'page').slice(0, 1).toUpperCase()}</span>
+              <span className="graph-flow-card-copy"><strong>{item.title || labelFromSlug(item.slug)}</strong><small>{item.type || 'page'} · {formatDateTime(item.updated_at)}</small></span>
+              <i />
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="graph-flow-column graph-flow-output-column">
+        <div className="graph-flow-column-head"><span>Next tasks</span><small>{tasks.length}</small></div>
+        <div className="graph-flow-card-list">
+          {tasks.map((item) => (
+            <button
+              key={item.slug}
+              ref={(node) => node ? taskRefs.current.set(item.slug, node) : taskRefs.current.delete(item.slug)}
+              type="button"
+              className="graph-flow-card"
+              onClick={() => onNodeOpen?.(item.slug)}
+            >
+              <span className="graph-flow-card-type graph-flow-card-task">→</span>
+              <span className="graph-flow-card-copy"><strong>{item.title || labelFromSlug(item.slug)}</strong><small>{formatTaskStatus(item.status)}{item.due ? ` · due ${item.due}` : ''}</small></span>
+              <span className="graph-flow-card-status">{formatTaskStatus(item.status)}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GraphFlowNetwork({ layout }) {
+  if (!layout) return null;
+  const inbound = layout.inputs.map((source, index) => ({
+    d: graphFlowInboundPath(source, layout.brain),
+    delay: `${[-0.2, -1.4, -2.8, -0.8, -3.7, -2.1][index] || 0}s`,
+    duration: `${[5.4, 6.1, 4.9, 5.8, 6.5, 5.2][index] || 5.5}s`,
+  }));
+  const outbound = layout.outputs.map((target, index) => ({
+    d: graphFlowOutboundPath(target, layout.brain),
+    delay: `${[-2.4, -0.6, -3.5, -1.5, -4.2, -2.8][index] || 0}s`,
+    duration: `${[5.8, 5.1, 6.4, 5.5, 6.8, 5.9][index] || 5.8}s`,
+  }));
+
+  return (
+    <div className="graph-flow-network" aria-hidden="true">
+      <svg viewBox={`0 0 ${layout.width} ${layout.height}`} preserveAspectRatio="none">
+        <defs>
+          <linearGradient id="graph-flow-in-gradient" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#d4d4d8" stopOpacity="0.12" />
+            <stop offset="0.72" stopColor="#a1a1aa" stopOpacity="0.42" />
+            <stop offset="1" stopColor="#f4f4f5" stopOpacity="0.7" />
+          </linearGradient>
+          <linearGradient id="graph-flow-out-gradient" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#f4f4f5" stopOpacity="0.7" />
+            <stop offset="0.46" stopColor="#a1a1aa" stopOpacity="0.42" />
+            <stop offset="1" stopColor="#d4d4d8" stopOpacity="0.12" />
+          </linearGradient>
+          <linearGradient id="graph-flow-energy-in" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#d4d4d8" stopOpacity="0" />
+            <stop offset="0.45" stopColor="#ffffff" stopOpacity="0.95" />
+            <stop offset="0.72" stopColor="#d4d4d8" stopOpacity="0.78" />
+            <stop offset="1" stopColor="#a1a1aa" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="graph-flow-energy-out" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="#a1a1aa" stopOpacity="0" />
+            <stop offset="0.34" stopColor="#d4d4d8" stopOpacity="0.82" />
+            <stop offset="0.68" stopColor="#ffffff" stopOpacity="0.95" />
+            <stop offset="1" stopColor="#d4d4d8" stopOpacity="0" />
+          </linearGradient>
+          <filter id="graph-flow-blur" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="0.9" /></filter>
+        </defs>
+        {inbound.map((arc, index) => (
+          <React.Fragment key={`graph-flow-in-${index}`}>
+            <path d={arc.d} className="graph-flow-arc graph-flow-arc-in" />
+            <path d={arc.d} className="graph-flow-energy graph-flow-energy-glow" style={{ animationDelay: arc.delay, animationDuration: arc.duration }} />
+            <path d={arc.d} className="graph-flow-energy graph-flow-energy-in" style={{ animationDelay: arc.delay, animationDuration: arc.duration }} />
+          </React.Fragment>
+        ))}
+        {outbound.map((arc, index) => (
+          <React.Fragment key={`graph-flow-out-${index}`}>
+            <path d={arc.d} className="graph-flow-arc graph-flow-arc-out" />
+            <path d={arc.d} className="graph-flow-energy graph-flow-energy-glow" style={{ animationDelay: arc.delay, animationDuration: arc.duration }} />
+            <path d={arc.d} className="graph-flow-energy graph-flow-energy-out" style={{ animationDelay: arc.delay, animationDuration: arc.duration }} />
+          </React.Fragment>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function graphFlowInboundPath(source, brain) {
+  const span = brain.leftX - source.x;
+  const targetY = brain.centerY + (source.y - brain.centerY) * 0.18;
+  return `M ${source.x} ${source.y} C ${source.x + span * 0.46} ${source.y}, ${brain.leftX - span * 0.24} ${targetY}, ${brain.leftX} ${targetY}`;
+}
+
+function graphFlowOutboundPath(target, brain) {
+  const span = target.x - brain.rightX;
+  const sourceY = brain.centerY + (target.y - brain.centerY) * 0.18;
+  return `M ${brain.rightX} ${sourceY} C ${brain.rightX + span * 0.24} ${sourceY}, ${target.x - span * 0.46} ${target.y}, ${target.x} ${target.y}`;
+}
+
+function formatTaskStatus(status) {
+  return String(status || 'open').replace(/_/g, ' ');
+}
 
 function GraphStyleOptionGroup({ label, value, options, onSelect, disabled = false }) {
   return (

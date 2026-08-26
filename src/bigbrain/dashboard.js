@@ -856,6 +856,38 @@ function renderAppHtml() {
       .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
       .graph-svg:active { cursor: grabbing; }
       .graph-node-screen-scale { transform-box: fill-box; transform-origin: center; transform: scale(var(--graph-node-scale, 1)); }
+      .graph-flow-sibling-hidden { display: none !important; }
+      .graph-flow-overlay { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+      .graph-flow-network { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+      .graph-flow-network svg { display: block; width: 100%; height: 100%; overflow: visible; }
+      .graph-flow-column { position: absolute; top: 50%; z-index: 2; width: min(250px, 24%); display: grid; gap: 8px; transform: translateY(-50%); pointer-events: auto; }
+      .graph-flow-input-column { left: 16px; }
+      .graph-flow-output-column { right: 16px; }
+      .graph-flow-column-head { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 3px; color: rgba(244,244,245,0.68); font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.12em; text-transform: uppercase; }
+      .graph-flow-column-head small { color: rgba(161,161,170,0.8); font: inherit; letter-spacing: 0.05em; }
+      .graph-flow-card-list { display: grid; gap: 7px; }
+      .graph-flow-card { width: 100%; min-width: 0; display: grid; grid-template-columns: 28px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid rgba(244,244,245,0.16); border-radius: 10px; background: rgba(12,12,14,0.8); box-shadow: 0 12px 28px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(14px); color: rgba(244,244,245,0.9); font: inherit; text-align: left; cursor: pointer; transition: transform 160ms ease, border-color 160ms ease, background 160ms ease; }
+      .graph-flow-card:hover, .graph-flow-card:focus-visible { border-color: rgba(244,244,245,0.34); background: rgba(24,24,27,0.9); outline: none; transform: translateY(-1px); }
+      .graph-flow-card-type { width: 27px; height: 27px; display: grid; place-items: center; border: 1px solid rgba(244,244,245,0.34); border-radius: 8px; color: rgba(244,244,245,0.88); background: rgba(244,244,245,0.08); font: 800 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .graph-flow-card-task { border-radius: 999px; }
+      .graph-flow-card-copy { min-width: 0; display: grid; gap: 4px; }
+      .graph-flow-card-copy strong { overflow: hidden; color: rgba(250,250,250,0.92); font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+      .graph-flow-card-copy small { overflow: hidden; color: rgba(161,161,170,0.88); font: 8px/1.1 ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis; white-space: nowrap; }
+      .graph-flow-card > i { width: 5px; height: 5px; border-radius: 999px; background: #f4f4f5; box-shadow: 0 0 10px rgba(244,244,245,0.7); }
+      .graph-flow-card-status { max-width: 48px; overflow: hidden; color: rgba(212,212,216,0.84); font: 700 7px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.06em; text-overflow: ellipsis; text-transform: uppercase; }
+      .graph-flow-arc, .graph-flow-energy { fill: none; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+      .graph-flow-arc { stroke-width: 0.34; opacity: 0.3; }
+      .graph-flow-arc-in { stroke: url(#graph-flow-in-gradient); }
+      .graph-flow-arc-out { stroke: url(#graph-flow-out-gradient); }
+      .graph-flow-energy { stroke-width: 1.35; stroke-dasharray: 18 40; animation: graph-flow-energy 6s linear infinite; }
+      .graph-flow-energy-glow { stroke-width: 4; opacity: 0.24; filter: url(#graph-flow-blur); }
+      .graph-flow-energy-in { stroke: url(#graph-flow-energy-in); }
+      .graph-flow-energy-out { stroke: url(#graph-flow-energy-out); }
+      @keyframes graph-flow-energy { to { stroke-dashoffset: -58; } }
+      .graph-flow-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); font: inherit; cursor: pointer; }
+      .graph-flow-toggle:hover, .graph-flow-toggle:focus-visible { border-color: var(--line-strong); color: var(--ink); outline: none; }
+      .graph-flow-toggle.selected { border-color: rgba(244,244,245,0.28); background: rgba(244,244,245,0.1); color: var(--ink); }
+      .graph-flow-toggle strong { color: var(--ink); font-size: 11px; font-weight: 650; }
       .force-shell canvas { border-radius: 18px; }
       .vis-network-surface { opacity: 0.52; transform-origin: 0 0; will-change: transform; }
       .vis-network-booted .vis-network-surface { animation: vis-network-materialize 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
