@@ -238,12 +238,13 @@ function LayoutBackdrop({ layoutStyle, laidOut, theme }) {
 const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
   return (
     <>
-      {laidOut.edges.map((edge) => {
+      {laidOut.edges.map((edge, index) => {
+        const relationshipClass = index < 180 ? 'graph-relationship-arc' : undefined;
         if (arcStyle === 'curve') {
           return (
             <path
               key={edge.key}
-              className="graph-relationship-arc"
+              className={relationshipClass}
               d={buildCurvedEdgePath(edge, 0.12)}
               fill="none"
               stroke={theme.graphEdgeStrong}
@@ -258,7 +259,7 @@ const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
           return (
             <g key={edge.key}>
               <path
-                className="graph-relationship-arc graph-relationship-arc-glow"
+                className={relationshipClass ? `${relationshipClass} graph-relationship-arc-glow` : undefined}
                 d={d}
                 fill="none"
                 stroke={theme.graphEdge}
@@ -267,7 +268,7 @@ const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
                 strokeLinecap="round"
               />
               <path
-                className="graph-relationship-arc"
+                className={relationshipClass}
                 d={d}
                 fill="none"
                 stroke={theme.graphEdgeStrong}
@@ -282,7 +283,7 @@ const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
         return (
           <line
             key={edge.key}
-            className="graph-relationship-arc"
+            className={relationshipClass}
             x1={edge.source.x}
             y1={edge.source.y}
             x2={edge.target.x}
