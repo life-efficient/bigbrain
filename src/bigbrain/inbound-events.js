@@ -739,6 +739,12 @@ export class RssCollector {
       if (!accepted && subscriptions.length) continue;
       seen[key] = polledAt;
     }
+    if (firstPoll) {
+      for (const item of items) {
+        const key = stableSourceEventId(listener.id, item.guid || item.link || `${item.title}:${item.pubDate}`);
+        seen[key] ||= polledAt;
+      }
+    }
     await this.inboxStore.updateCollector(listener.id, {
       ...next,
       seen: trimObject(seen, 2000),

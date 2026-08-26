@@ -89,7 +89,7 @@ test('RSS collector polls feeds, honors bootstrap, and deduplicates later polls'
     const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
     await registry.save({
       brains: [{ id: 'brain_personal', name: 'Personal' }],
-      listeners: [rssListener({ bootstrap: 'all' })],
+      listeners: [rssListener({ bootstrap: 'latest' })],
     });
     const inbox = new EventInboxStore({ filePath: paths.inboxPath });
     const xml = '<rss><channel><title>Example</title><item><guid>item-1</guid><title>First</title><link>https://example.test/first</link><pubDate>Wed, 26 Aug 2026 10:00:00 GMT</pubDate></item><item><guid>item-2</guid><title>Second</title><link>https://example.test/second</link><pubDate>Wed, 26 Aug 2026 09:00:00 GMT</pubDate></item></channel></rss>';
@@ -104,13 +104,13 @@ test('RSS collector polls feeds, honors bootstrap, and deduplicates later polls'
     });
     const first = await collector.pollAll();
     assert.equal(fetches, 1);
-    assert.equal(first.ingested, 2);
-    assert.equal((await inbox.list()).length, 2);
+    assert.equal(first.ingested, 1);
+    assert.equal((await inbox.list()).length, 1);
     const second = await collector.pollAll();
     assert.equal(fetches, 2);
     assert.equal(second.ingested, 0);
     assert.equal(second.duplicates, 2);
-    assert.equal((await inbox.list()).length, 2);
+    assert.equal((await inbox.list()).length, 1);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
