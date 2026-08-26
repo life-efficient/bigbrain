@@ -270,7 +270,7 @@ export function codexOutcomeSchema() {
   return {
     type: 'object',
     additionalProperties: false,
-      required: ['status', 'reason', 'destinations'],
+    required: ['status', 'capture_mode', 'reason', 'destinations'],
     properties: {
       status: { type: 'string', enum: ['filed', 'ignored', 'needs_review'] },
       capture_mode: { type: 'string', enum: ['none', 'summary', 'full'] },
