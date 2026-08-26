@@ -69,6 +69,29 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
   }
 });
 
+test('page ops normalizes legacy timeline separators before appending evidence', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-timeline-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const pagePath = path.join(fixture.brainHome, 'organizations', 'example.md');
+    await fs.mkdir(path.dirname(pagePath), { recursive: true });
+    await fs.writeFile(pagePath, `---\ntitle: Example\ncreated: 2026-08-26\n---\n\n# Example\n\nCurrent context.\n\n---\n\n## Timeline\n\n- **2026-08-25** | Existing evidence.\n`, 'utf8');
+    const updated = await updateBrainPage({
+      config,
+      pagePath: 'organizations/example',
+      body: '# Example\n\nCurrent context with a new fact.',
+      timelineEntry: 'Appended evidence.',
+    });
+    assert.equal((updated.markdown.match(/## Timeline/g) || []).length, 1);
+    assert.equal((updated.markdown.match(/\n---\n\n## Timeline/g) || []).length, 1);
+    assert.doesNotMatch(updated.markdown, /## Timeline\n\n---/);
+    assert.match(updated.timeline, /Existing evidence/);
+    assert.match(updated.timeline, /Appended evidence/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('page ops create raw files with associated brain pages', async () => {
   const fixture = await createFixture('bigbrain-page-ops-raw-');
   try {

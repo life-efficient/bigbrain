@@ -576,6 +576,7 @@ function appendTimelineEntry(timeline, entry, date) {
 function normalizeTimelineEntries(timeline) {
   return String(timeline || '')
     .trim()
+    .replace(/^---\s*/i, '')
     .replace(/^##\s+Timeline\s*/i, '')
     .trim();
 }
