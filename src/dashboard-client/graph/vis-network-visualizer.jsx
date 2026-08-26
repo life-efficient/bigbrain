@@ -21,7 +21,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
   onActiveSlugChange,
   colorMode = 'updated',
   labelStyle = 'selected',
-  nodeStyle = 'orb',
+  nodeShape = 'orb',
   motionEvent = null,
 }, ref) {
   const theme = useGraphTheme();
@@ -42,14 +42,14 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
   const graphRef = useRef(graph);
   const skipNextGraphSyncRef = useRef(false);
   const skipNextActiveSyncRef = useRef(false);
-  const visualSettingsRef = useRef({ colorMode, labelStyle, nodeStyle });
+  const visualSettingsRef = useRef({ colorMode, labelStyle, nodeShape });
   const activeSlugRef = useRef(activeSlug);
   const [overlayLabels, setOverlayLabels] = useState([]);
   const [booted, setBooted] = useState(false);
   const [livePulses, setLivePulses] = useState([]);
   graphRef.current = graph;
   activeSlugRef.current = activeSlug;
-  visualSettingsRef.current = { colorMode, labelStyle, nodeStyle };
+  visualSettingsRef.current = { colorMode, labelStyle, nodeShape };
   const handleNodeOpen = useEffectEvent((nodeId) => {
     onNodeOpen?.(nodeId);
   });
@@ -76,7 +76,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
 
     const nodes = new DataSet(buildVisNetworkNodes(initialGraph.nodes, {
       colorMode: visualSettingsRef.current.colorMode,
-      nodeStyle: visualSettingsRef.current.nodeStyle,
+      nodeShape: visualSettingsRef.current.nodeShape,
       theme,
     }));
     const edges = new DataSet(buildVisNetworkEdges(initialGraph.edges, theme));
@@ -443,7 +443,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
     const removedNodeIds = [...existingNodeIds].filter((slug) => !incomingNodeIds.has(slug));
     if (removedNodeIds.length) nodeData.remove(removedNodeIds);
 
-    const styledNodes = buildVisNetworkNodes(graph.nodes, { colorMode, nodeStyle, theme });
+    const styledNodes = buildVisNetworkNodes(graph.nodes, { colorMode, nodeShape, theme });
     const existingPositions = network.getPositions([...existingNodeIds]);
     const viewPosition = network.getViewPosition();
     const existingUpdates = [];
@@ -468,7 +468,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
 
     applyFocusRef.current(activeSlugRef.current || hoveredSlugRef.current);
     scheduleLabelsRef.current();
-  }, [colorMode, graph, labelStyle, nodeStyle, theme.graphEdge, theme.graphEdgeStrong, theme.graphNodeStroke]);
+  }, [colorMode, graph, labelStyle, nodeShape, theme.graphEdge, theme.graphEdgeStrong, theme.graphNodeStroke]);
 
   useEffect(() => {
     const network = networkRef.current;

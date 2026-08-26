@@ -35,7 +35,9 @@ const LAYOUT_BUILDERS = {
 export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisualizer({
   graph,
   onNodeOpen,
-  nodeStyle = 'orb',
+  nodeShape = 'orb',
+  nodeFill = 'outline',
+  nodeIcon = 'none',
   nodeSize = 'medium',
   arcStyle = 'straight',
   layoutStyle = 'orbital',
@@ -102,7 +104,9 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
           <LayoutBackdrop layoutStyle={layoutStyle} laidOut={laidOut} theme={theme} />
           <ArcLayer arcStyle={arcStyle} laidOut={laidOut} theme={theme} />
           <NodeLayer
-            nodeStyle={nodeStyle}
+            nodeShape={nodeShape}
+            nodeFill={nodeFill}
+            nodeIcon={nodeIcon}
             colorMode={colorMode}
             laidOut={laidOut}
             theme={theme}
@@ -300,7 +304,9 @@ const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
 });
 
 const NodeLayer = memo(function NodeLayer({
-  nodeStyle,
+  nodeShape,
+  nodeFill,
+  nodeIcon,
   colorMode,
   laidOut,
   theme,
@@ -333,130 +339,31 @@ const NodeLayer = memo(function NodeLayer({
       }}
       style={{ cursor: 'pointer' }}
     >
-      {renderNodeShape(node, nodeStyle, theme, activeSlug === node.slug || hoveredSlug === node.slug, colorMode)}
+      {renderNodeShape(node, nodeShape, nodeFill, nodeIcon, theme, activeSlug === node.slug || hoveredSlug === node.slug, colorMode)}
     </g>
   ));
 });
 
-function renderNodeShape(node, nodeStyle, theme, emphasized, colorMode) {
+function renderNodeShape(node, nodeShape, nodeFill, nodeIcon, theme, emphasized, colorMode) {
   const hitRadius = Math.max(14, node.radius * 2.9);
   const nodeColor = getGraphNodeColor(node, colorMode);
   const outerStroke = nodeColor || theme.graphNodeStroke;
-  const innerStroke = nodeColor || theme.graphGrid;
-  const centerFill = nodeColor || theme.accentStrong;
-  const innerOpacity = nodeColor
-    ? (emphasized ? '0.62' : '0.38')
-    : (emphasized ? '0.82' : '0.52');
-  const isPixelStyle = nodeStyle === 'pixel' || nodeStyle === 'pixel-solid';
-  if (isPixelStyle || nodeStyle.startsWith('icon')) {
-    const variant = isPixelStyle ? nodeStyle : nodeStyle === 'icon' ? 'ring' : nodeStyle.replace('icon-', '');
-    return (
-      <>
-        <circle
-          cx={node.x}
-          cy={node.y}
-          r={hitRadius}
-          fill="#ffffff"
-          fillOpacity="0.001"
-          stroke="none"
-        />
-        <GraphTypeIcon
-          node={node}
-          color={outerStroke}
-          emphasized={emphasized}
-          background={theme.graphBase}
-          variant={variant}
-        />
-      </>
-    );
-  }
-  if (nodeStyle === 'diamond') {
-    const outer = node.radius * 2.2;
-    const inner = Math.max(1.8, node.radius * 0.38);
-    return (
-      <>
-        <circle
-          cx={node.x}
-          cy={node.y}
-          r={hitRadius}
-          fill="#ffffff"
-          fillOpacity="0.001"
-          stroke="none"
-        />
-        <rect
-          x={node.x - outer / 2}
-          y={node.y - outer / 2}
-          width={outer}
-          height={outer}
-          fill="none"
-          stroke={outerStroke}
-          strokeWidth={emphasized ? '1.5' : '1'}
-          transform={`rotate(45 ${node.x} ${node.y})`}
-        />
-        <rect
-          x={node.x - outer * 0.34}
-          y={node.y - outer * 0.34}
-          width={outer * 0.68}
-          height={outer * 0.68}
-          fill="none"
-          stroke={innerStroke}
-          strokeWidth="1"
-          transform={`rotate(45 ${node.x} ${node.y})`}
-          opacity={innerOpacity}
-        />
-        <circle cx={node.x} cy={node.y} r={inner} fill={centerFill} />
-      </>
-    );
-  }
-
-  if (nodeStyle === 'hex') {
-    const side = node.radius * 1.85;
-    const d = buildHexPath(node.x, node.y, side);
-    return (
-      <>
-        <circle
-          cx={node.x}
-          cy={node.y}
-          r={hitRadius}
-          fill="#ffffff"
-          fillOpacity="0.001"
-          stroke="none"
-        />
-        <path d={d} fill="none" stroke={outerStroke} strokeWidth={emphasized ? '1.5' : '1'} />
-        <path d={buildHexPath(node.x, node.y, side * 0.72)} fill="none" stroke={innerStroke} strokeWidth="1" opacity={nodeColor ? (emphasized ? '0.56' : '0.32') : (emphasized ? '0.64' : '0.34')} />
-        <circle cx={node.x} cy={node.y} r={Math.max(1.8, node.radius * 0.32)} fill={centerFill} />
-      </>
-    );
-  }
-
+  const shapeFill = nodeFill === 'solid' ? (nodeColor || theme.accentStrong) : 'none';
+  const shapeFillOpacity = nodeFill === 'solid' ? '0.82' : '1';
+  const shapeStroke = nodeFill === 'none' ? 'none' : outerStroke;
+  const shapeStrokeWidth = emphasized ? '1.5' : '1';
+  const shape = nodeShape === 'diamond'
+    ? <rect x={node.x - node.radius * 1.1} y={node.y - node.radius * 1.1} width={node.radius * 2.2} height={node.radius * 2.2} fill={shapeFill} fillOpacity={shapeFillOpacity} stroke={shapeStroke} strokeWidth={shapeStrokeWidth} transform={`rotate(45 ${node.x} ${node.y})`} />
+    : nodeShape === 'hex'
+      ? <path d={buildHexPath(node.x, node.y, node.radius * 1.85)} fill={shapeFill} fillOpacity={shapeFillOpacity} stroke={shapeStroke} strokeWidth={shapeStrokeWidth} />
+      : nodeShape === 'pixel'
+        ? <rect x={node.x - node.radius * 1.7} y={node.y - node.radius * 1.7} width={node.radius * 3.4} height={node.radius * 3.4} fill={shapeFill} fillOpacity={shapeFillOpacity} stroke={shapeStroke} strokeWidth={shapeStrokeWidth} shapeRendering="crispEdges" />
+        : <circle cx={node.x} cy={node.y} r={node.radius * 1.55} fill={shapeFill} fillOpacity={shapeFillOpacity} stroke={shapeStroke} strokeWidth={shapeStrokeWidth} />;
   return (
     <>
-      <circle
-        cx={node.x}
-        cy={node.y}
-        r={hitRadius}
-        fill="#ffffff"
-        fillOpacity="0.001"
-        stroke="none"
-      />
-      <circle
-        cx={node.x}
-        cy={node.y}
-        r={node.radius * 1.55}
-        fill="none"
-        stroke={outerStroke}
-        strokeWidth={emphasized ? '1.5' : '1'}
-      />
-      <circle
-        cx={node.x}
-        cy={node.y}
-        r={node.radius * 0.96}
-        fill="none"
-        stroke={innerStroke}
-        strokeWidth="1"
-        opacity={nodeColor ? (emphasized ? '0.58' : '0.34') : (emphasized ? '0.78' : '0.48')}
-      />
-      <circle cx={node.x} cy={node.y} r={Math.max(1.8, node.radius * 0.4)} fill={centerFill} />
+      <circle cx={node.x} cy={node.y} r={hitRadius} fill="#ffffff" fillOpacity="0.001" stroke="none" />
+      {nodeFill !== 'none' ? shape : null}
+      <GraphTypeIcon node={node} color={outerStroke} emphasized={emphasized} background={theme.graphBase} nodeFill={nodeFill} iconStyle={nodeIcon} />
     </>
   );
 }

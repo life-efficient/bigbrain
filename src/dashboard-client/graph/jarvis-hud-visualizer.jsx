@@ -11,7 +11,7 @@ const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 export const JarvisHudVisualizer = forwardRef(function JarvisHudVisualizer({
   graph,
   onNodeOpen,
-  nodeStyle = 'orb',
+  nodeShape = 'orb',
   labelStyle = 'selected',
   colorMode = 'updated',
   activeSlug = null,
@@ -121,7 +121,7 @@ export const JarvisHudVisualizer = forwardRef(function JarvisHudVisualizer({
                       <animateTransform attributeName="transform" type="rotate" from="0" to="360" dur="5s" repeatCount="indefinite" />
                     </circle>
                   ) : null}
-                  <JarvisNodeShape node={node} styleName={nodeStyle} color={color} emphasized={emphasized} />
+                  <JarvisNodeShape node={node} styleName={nodeShape} color={color} emphasized={emphasized} />
                 </g>
               </g>
             );

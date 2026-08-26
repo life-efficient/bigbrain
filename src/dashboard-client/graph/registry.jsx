@@ -13,7 +13,9 @@ export const GRAPH_CONTROL_LABELS = {
 
 export const GRAPH_DEFAULTS = {
   visualizerId: 'jarvis-bloom',
-  nodeStyle: 'diamond',
+  nodeShape: 'diamond',
+  nodeFill: 'outline',
+  nodeIcon: 'none',
   nodeSize: 'medium',
   arcStyle: 'curve',
   layoutStyle: 'lanes',
@@ -23,18 +25,44 @@ export const GRAPH_DEFAULTS = {
   demoMode: false,
 };
 
-export const GRAPH_NODE_STYLES = [
+export const GRAPH_NODE_SHAPES = [
   { id: 'orb', label: 'Orb' },
   { id: 'diamond', label: 'Diamond' },
   { id: 'hex', label: 'Hex' },
   { id: 'pixel', label: 'Pixel' },
-  { id: 'pixel-solid', label: 'Pixel Solid' },
-  { id: 'icon', label: 'Icon Ring' },
-  { id: 'icon-bare', label: 'Icon Bare' },
-  { id: 'icon-solid', label: 'Icon Solid' },
-  { id: 'icon-soft', label: 'Icon Soft' },
-  { id: 'icon-hex', label: 'Icon Hex' },
 ];
+
+export const GRAPH_NODE_FILLS = [
+  { id: 'solid', label: 'Solid' },
+  { id: 'outline', label: 'Outline' },
+  { id: 'none', label: 'None' },
+];
+
+export const GRAPH_NODE_ICONS = [
+  { id: 'solid', label: 'Solid' },
+  { id: 'outline', label: 'Outline' },
+  { id: 'none', label: 'None' },
+];
+
+const LEGACY_NODE_STYLE_PREFERENCES = {
+  orb: { nodeShape: 'orb', nodeFill: 'outline', nodeIcon: 'none' },
+  diamond: { nodeShape: 'diamond', nodeFill: 'outline', nodeIcon: 'none' },
+  hex: { nodeShape: 'hex', nodeFill: 'outline', nodeIcon: 'none' },
+  pixel: { nodeShape: 'pixel', nodeFill: 'outline', nodeIcon: 'outline' },
+  'pixel-solid': { nodeShape: 'pixel', nodeFill: 'solid', nodeIcon: 'outline' },
+  icon: { nodeShape: 'orb', nodeFill: 'outline', nodeIcon: 'outline' },
+  'icon-bare': { nodeShape: 'orb', nodeFill: 'none', nodeIcon: 'outline' },
+  'icon-solid': { nodeShape: 'orb', nodeFill: 'none', nodeIcon: 'solid' },
+  'icon-soft': { nodeShape: 'orb', nodeFill: 'outline', nodeIcon: 'outline' },
+  'icon-hex': { nodeShape: 'hex', nodeFill: 'outline', nodeIcon: 'outline' },
+};
+
+export function migrateGraphPreferences(saved) {
+  const next = saved && typeof saved === 'object' ? { ...saved } : {};
+  const legacy = LEGACY_NODE_STYLE_PREFERENCES[next.nodeStyle];
+  if (!next.nodeShape && legacy) Object.assign(next, legacy);
+  return next;
+}
 
 export const GRAPH_ARC_STYLES = [
   { id: 'straight', label: 'Straight' },

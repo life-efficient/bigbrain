@@ -91,7 +91,7 @@ test('none graph color mode leaves node color unmodified', () => {
   }, 'none'), null);
 });
 
-test('vis network honors graph color, node style, and label settings', () => {
+test('vis network honors graph color, node shape, and label settings', () => {
   const nodes = Array.from({ length: 8 }, (_, index) => ({
     slug: `projects/node-${index}`,
     title: `Node ${index}`,
@@ -100,13 +100,13 @@ test('vis network honors graph color, node style, and label settings', () => {
   }));
   const theme = { graphNodeStroke: '#123456' };
 
-  const styledNodes = buildVisNetworkNodes(nodes, { colorMode: 'type', nodeStyle: 'hex', theme });
+  const styledNodes = buildVisNetworkNodes(nodes, { colorMode: 'type', nodeShape: 'hex', theme });
   assert.equal(styledNodes.every((node) => node.label === ''), true);
   assert.equal(styledNodes.every((node) => node.shape === 'hexagon'), true);
   assert.equal(styledNodes[0].color.background, '#b8c0ff');
   assert.equal(styledNodes[1].color.background, '#8ecae6');
 
-  const noColors = buildVisNetworkNodes(nodes, { colorMode: 'none', nodeStyle: 'diamond', theme });
+  const noColors = buildVisNetworkNodes(nodes, { colorMode: 'none', nodeShape: 'diamond', theme });
   assert.equal(noColors.every((node) => node.shape === 'diamond'), true);
   assert.equal(noColors.every((node) => node.color === undefined), true);
   assert.equal(noColors.every((node) => !Object.hasOwn(node, 'group')), true);
@@ -196,15 +196,32 @@ test('vis network focus emphasizes one-hop relationships and mutes the rest', ()
 test('graph label and node controls remain available in the graph style menu', async () => {
   const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
   const labelsGroup = main.match(/<GraphStyleOptionGroup\s+label="Labels"[\s\S]*?\/>/)?.[0] || '';
-  const nodesGroup = main.match(/<GraphStyleOptionGroup\s+label="Node"[\s\S]*?\/>/)?.[0] || '';
+  const nodeShapeGroup = main.match(/<GraphStyleOptionGroup\s+label="Node shape"[\s\S]*?\/>/)?.[0] || '';
+  const nodeFillGroup = main.match(/<GraphStyleOptionGroup\s+label="Node fill"[\s\S]*?\/>/)?.[0] || '';
+  const nodeIconGroup = main.match(/<GraphStyleOptionGroup\s+label="Node icon"[\s\S]*?\/>/)?.[0] || '';
   const nodeSizeGroup = main.match(/<GraphStyleOptionGroup\s+label="Base size"[\s\S]*?\/>/)?.[0] || '';
 
   assert.match(labelsGroup, /options=\{GRAPH_LABEL_STYLES\}/);
   assert.doesNotMatch(labelsGroup, /disabled=/);
-  assert.match(nodesGroup, /options=\{GRAPH_NODE_STYLES\}/);
-  assert.doesNotMatch(nodesGroup, /disabled=/);
+  assert.match(nodeShapeGroup, /options=\{GRAPH_NODE_SHAPES\}/);
+  assert.match(nodeFillGroup, /options=\{GRAPH_NODE_FILLS\}/);
+  assert.match(nodeIconGroup, /options=\{GRAPH_NODE_ICONS\}/);
+  assert.doesNotMatch(nodeShapeGroup, /disabled=/);
+  assert.doesNotMatch(nodeFillGroup, /disabled=/);
+  assert.doesNotMatch(nodeIconGroup, /disabled=/);
   assert.match(nodeSizeGroup, /options=\{GRAPH_NODE_SIZES\}/);
   assert.doesNotMatch(nodeSizeGroup, /disabled=/);
+});
+
+test('node appearance controls are independent and migrate legacy styles', async () => {
+  const registry = await fs.readFile(new URL('../../src/dashboard-client/graph/registry.jsx', import.meta.url), 'utf8');
+  assert.match(registry, /nodeShape: 'diamond'/);
+  assert.match(registry, /nodeFill: 'outline'/);
+  assert.match(registry, /nodeIcon: 'none'/);
+  assert.match(registry, /export const GRAPH_NODE_SHAPES = \[/);
+  assert.match(registry, /export const GRAPH_NODE_FILLS = \[/);
+  assert.match(registry, /export const GRAPH_NODE_ICONS = \[/);
+  assert.match(registry, /'pixel-solid': \{ nodeShape: 'pixel', nodeFill: 'solid', nodeIcon: 'outline' \}/);
 });
 
 test('graph node sizes offer stable one, two, and three times choices', () => {
@@ -252,28 +269,26 @@ test('icon nodes cover built-in schema types and use stable custom fallbacks', a
     fs.readFile(new URL('../../src/dashboard-client/graph/signal-bloom-visualizer.jsx', import.meta.url), 'utf8'),
   ]);
   for (const [id, label] of [
+    ['orb', 'Orb'],
+    ['diamond', 'Diamond'],
+    ['hex', 'Hex'],
     ['pixel', 'Pixel'],
-    ['pixel-solid', 'Pixel Solid'],
-    ['icon', 'Icon Ring'],
-    ['icon-bare', 'Icon Bare'],
-    ['icon-solid', 'Icon Solid'],
-    ['icon-soft', 'Icon Soft'],
-    ['icon-hex', 'Icon Hex'],
   ]) {
     assert.match(registry, new RegExp(`\\{ id: '${id}', label: '${label}' \\}`));
   }
-  assert.match(iconSource, /color=\{iconColor\}/);
-  assert.match(iconSource, /stroke=\{color\}/);
-  assert.match(iconSource, /variant === 'bare' \|\| variant === 'solid'/);
-  assert.match(iconSource, /variant === 'pixel' \|\| variant === 'pixel-solid'/);
-  assert.match(iconSource, /const iconColor = pixelSolid \? background : color/);
-  assert.match(iconSource, /pixelStyle \? 1\.32/);
-  assert.match(iconSource, /shapeRendering="crispEdges"/);
-  assert.match(iconSource, /variant === 'hex'/);
-  assert.match(composable, /const isPixelStyle = nodeStyle === 'pixel' \|\| nodeStyle === 'pixel-solid'/);
-  assert.match(composable, /const variant = isPixelStyle \? nodeStyle/);
-  assert.match(bloom, /const isPixelStyle = nodeStyle === 'pixel' \|\| nodeStyle === 'pixel-solid'/);
-  assert.match(bloom, /const variant = isPixelStyle \? nodeStyle/);
+  for (const [id, label] of [['solid', 'Solid'], ['outline', 'Outline'], ['none', 'None']]) {
+    assert.match(registry, new RegExp(`\\{ id: '${id}', label: '${label}' \\}`));
+  }
+  assert.match(iconSource, /iconStyle = 'outline'/);
+  assert.match(iconSource, /iconStyle === 'none'/);
+  assert.match(iconSource, /nodeFill === 'solid' \? background : color/);
+  assert.match(iconSource, /fill=\{solid \? iconColor : 'none'\}/);
+  assert.match(composable, /nodeShape === 'pixel'/);
+  assert.match(composable, /nodeFill === 'solid'/);
+  assert.match(composable, /nodeIcon/);
+  assert.match(bloom, /nodeShape === 'pixel'/);
+  assert.match(bloom, /nodeFill === 'solid'/);
+  assert.match(bloom, /nodeIcon/);
 });
 
 test('graph zoom applies responsive base sizing while expanding relationships', async () => {

@@ -6,14 +6,14 @@ export const VIS_NETWORK_HOVER_RADIUS = 28;
 
 export function buildVisNetworkNodes(nodes, {
   colorMode = 'updated',
-  nodeStyle = 'orb',
+  nodeShape = 'orb',
   theme,
 } = {}) {
   return nodes.map((node) => ({
     id: node.slug,
     label: '',
     value: Math.max(8, node.degree || 1),
-    shape: resolveVisNetworkShape(nodeStyle),
+    shape: resolveVisNetworkShape(nodeShape),
     color: colorMode === 'none' ? undefined : resolveNodeNetworkColor(node, colorMode, theme),
   }));
 }
@@ -42,9 +42,9 @@ export function getVisNetworkLabelSlugs(nodes, labelStyle) {
   return new Set(pickLabelNodes(nodes, VIS_NETWORK_KEY_LABEL_COUNT));
 }
 
-export function resolveVisNetworkShape(nodeStyle) {
-  if (nodeStyle === 'diamond') return 'diamond';
-  if (nodeStyle === 'hex') return 'hexagon';
+export function resolveVisNetworkShape(nodeShape) {
+  if (nodeShape === 'diamond') return 'diamond';
+  if (nodeShape === 'hex') return 'hexagon';
   return 'dot';
 }
 

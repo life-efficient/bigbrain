@@ -16,7 +16,7 @@ const ROW_GAP = 58;
 export const NeuralMeshVisualizer = forwardRef(function NeuralMeshVisualizer({
   graph,
   onNodeOpen,
-  nodeStyle = 'diamond',
+  nodeShape = 'diamond',
   labelStyle = 'selected',
   colorMode = 'updated',
   activeSlug = null,
@@ -112,7 +112,7 @@ export const NeuralMeshVisualizer = forwardRef(function NeuralMeshVisualizer({
               >
                 <circle cx={node.x} cy={node.y} r={Math.max(17, node.radius * 2.7)} fill="#fff" fillOpacity=".001" />
                 {emphasized && <circle className="mesh-pulse" cx={node.x} cy={node.y} r={node.radius * 2.35} fill="none" stroke={color} strokeWidth="1" />}
-                <MeshNode node={node} nodeStyle={nodeStyle} color={color} emphasized={emphasized} glowId={`${defsId}-mesh-glow`} theme={theme} />
+                <MeshNode node={node} nodeShape={nodeShape} color={color} emphasized={emphasized} glowId={`${defsId}-mesh-glow`} theme={theme} />
               </g>
             );
           })}
@@ -163,17 +163,17 @@ function meshArc(edge) {
   return `M ${edge.source.x} ${edge.source.y} C ${edge.source.x + direction * shoulder} ${edge.source.y}, ${edge.target.x - direction * shoulder} ${edge.target.y}, ${edge.target.x} ${edge.target.y}`;
 }
 
-function MeshNode({ node, nodeStyle, color, emphasized, glowId, theme }) {
+function MeshNode({ node, nodeShape, color, emphasized, glowId, theme }) {
   const r = node.radius * (emphasized ? 1.25 : 1);
   const common = { fill: theme.graphBase, stroke: color, strokeWidth: emphasized ? 1.8 : 1.1 };
   let shape;
-  if (nodeStyle === 'hex') {
+  if (nodeShape === 'hex') {
     const points = Array.from({ length: 6 }, (_, index) => {
       const angle = -Math.PI / 2 + index * Math.PI / 3;
       return `${node.x + Math.cos(angle) * r * 1.55},${node.y + Math.sin(angle) * r * 1.55}`;
     }).join(' ');
     shape = <polygon points={points} {...common} />;
-  } else if (nodeStyle === 'orb') {
+  } else if (nodeShape === 'orb') {
     shape = <circle cx={node.x} cy={node.y} r={r * 1.25} {...common} />;
   } else {
     shape = <rect x={node.x - r} y={node.y - r} width={r * 2} height={r * 2} transform={`rotate(45 ${node.x} ${node.y})`} {...common} />;

@@ -6,9 +6,12 @@ import {
   GRAPH_DEFAULTS,
   GRAPH_LABEL_STYLES,
   GRAPH_LAYOUT_STYLES,
+  GRAPH_NODE_FILLS,
+  GRAPH_NODE_ICONS,
+  GRAPH_NODE_SHAPES,
   GRAPH_NODE_SIZES,
-  GRAPH_NODE_STYLES,
   graphVisualizers,
+  migrateGraphPreferences,
 } from './registry.jsx';
 import { GraphThemeProvider } from './visualizer-core.jsx';
 
@@ -379,7 +382,9 @@ function SchemaBrainConstellation({ innerRef, graph }) {
       <GraphThemeProvider resolvedTheme="dark">
         <VisualizerComponent
           graph={graph || EMPTY_GRAPH}
-          nodeStyle={preferences.nodeStyle}
+          nodeShape={preferences.nodeShape}
+          nodeFill={preferences.nodeFill}
+          nodeIcon={preferences.nodeIcon}
           nodeSize={preferences.nodeSize}
           arcStyle={preferences.arcStyle}
           layoutStyle={preferences.layoutStyle}
@@ -396,11 +401,13 @@ const EMPTY_GRAPH = { meta: { page_count: 0, node_count: 0, edge_count: 0 }, act
 function readGraphPreferences() {
   const defaults = { ...GRAPH_DEFAULTS };
   try {
-    const saved = JSON.parse(window.localStorage.getItem('bigbrain:graph-preferences') || '{}');
+    const saved = migrateGraphPreferences(JSON.parse(window.localStorage.getItem('bigbrain:graph-preferences') || '{}'));
     if (saved.visualizerId === 'vis-network') saved.visualizerId = 'network-constellation';
     const allowed = {
       visualizerId: new Set(graphVisualizers.map((item) => item.id)),
-      nodeStyle: new Set(GRAPH_NODE_STYLES.map((item) => item.id)),
+      nodeShape: new Set(GRAPH_NODE_SHAPES.map((item) => item.id)),
+      nodeFill: new Set(GRAPH_NODE_FILLS.map((item) => item.id)),
+      nodeIcon: new Set(GRAPH_NODE_ICONS.map((item) => item.id)),
       nodeSize: new Set(GRAPH_NODE_SIZES.map((item) => item.id)),
       arcStyle: new Set(GRAPH_ARC_STYLES.map((item) => item.id)),
       layoutStyle: new Set(GRAPH_LAYOUT_STYLES.map((item) => item.id)),

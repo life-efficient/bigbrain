@@ -11,9 +11,12 @@ import {
   GRAPH_DEFAULTS,
   GRAPH_LABEL_STYLES,
   GRAPH_LAYOUT_STYLES,
+  GRAPH_NODE_FILLS,
+  GRAPH_NODE_ICONS,
+  GRAPH_NODE_SHAPES,
   GRAPH_NODE_SIZES,
-  GRAPH_NODE_STYLES,
   graphVisualizers,
+  migrateGraphPreferences,
 } from './graph/registry.jsx';
 import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
@@ -88,11 +91,13 @@ function formatErrorDetails(error) {
 function loadGraphPreferences() {
   const defaults = { ...GRAPH_DEFAULTS };
   try {
-    const saved = JSON.parse(window.localStorage.getItem('bigbrain:graph-preferences') || '{}');
+    const saved = migrateGraphPreferences(JSON.parse(window.localStorage.getItem('bigbrain:graph-preferences') || '{}'));
     if (saved.visualizerId === 'vis-network') saved.visualizerId = 'network-constellation';
     const allowed = {
       visualizerId: new Set(graphVisualizers.map((item) => item.id)),
-      nodeStyle: new Set(GRAPH_NODE_STYLES.map((item) => item.id)),
+      nodeShape: new Set(GRAPH_NODE_SHAPES.map((item) => item.id)),
+      nodeFill: new Set(GRAPH_NODE_FILLS.map((item) => item.id)),
+      nodeIcon: new Set(GRAPH_NODE_ICONS.map((item) => item.id)),
       nodeSize: new Set(GRAPH_NODE_SIZES.map((item) => item.id)),
       arcStyle: new Set(GRAPH_ARC_STYLES.map((item) => item.id)),
       layoutStyle: new Set(GRAPH_LAYOUT_STYLES.map((item) => item.id)),
@@ -115,7 +120,9 @@ function DashboardApp() {
   const [state, setState] = useState({ status: 'loading', error: null, data: null });
   const [view, setView] = useState('graph');
   const [visualizerId, setVisualizerId] = useState(savedGraphPreferences.visualizerId);
-  const [nodeStyle, setNodeStyle] = useState(savedGraphPreferences.nodeStyle);
+  const [nodeShape, setNodeShape] = useState(savedGraphPreferences.nodeShape);
+  const [nodeFill, setNodeFill] = useState(savedGraphPreferences.nodeFill);
+  const [nodeIcon, setNodeIcon] = useState(savedGraphPreferences.nodeIcon);
   const [nodeSize, setNodeSize] = useState(savedGraphPreferences.nodeSize);
   const [arcStyle, setArcStyle] = useState(savedGraphPreferences.arcStyle);
   const [layoutStyle, setLayoutStyle] = useState(savedGraphPreferences.layoutStyle);
@@ -149,12 +156,12 @@ function DashboardApp() {
   useEffect(() => {
     try {
       window.localStorage.setItem('bigbrain:graph-preferences', JSON.stringify({
-        visualizerId, nodeStyle, nodeSize, arcStyle, layoutStyle, labelStyle, colorMode, flowVisible, demoMode,
+        visualizerId, nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, layoutStyle, labelStyle, colorMode, flowVisible, demoMode,
       }));
     } catch {
       // Storage can be unavailable in restricted browser contexts; defaults remain usable.
     }
-  }, [arcStyle, colorMode, demoMode, flowVisible, labelStyle, layoutStyle, nodeSize, nodeStyle, visualizerId]);
+  }, [arcStyle, colorMode, demoMode, flowVisible, labelStyle, layoutStyle, nodeFill, nodeIcon, nodeShape, nodeSize, visualizerId]);
 
   useEffect(() => {
     if (window.parent === window) return;
@@ -676,8 +683,12 @@ function DashboardApp() {
                 demoSeed={demoSeed}
                 visualizerId={visualizerId}
                 setVisualizerId={setVisualizerId}
-                nodeStyle={nodeStyle}
-                setNodeStyle={setNodeStyle}
+                nodeShape={nodeShape}
+                setNodeShape={setNodeShape}
+                nodeFill={nodeFill}
+                setNodeFill={setNodeFill}
+                nodeIcon={nodeIcon}
+                setNodeIcon={setNodeIcon}
                 nodeSize={nodeSize}
                 setNodeSize={setNodeSize}
                 arcStyle={arcStyle}
@@ -1940,8 +1951,12 @@ const GraphPanel = memo(function GraphPanel({
   demoSeed,
   visualizerId,
   setVisualizerId,
-  nodeStyle,
-  setNodeStyle,
+  nodeShape,
+  setNodeShape,
+  nodeFill,
+  setNodeFill,
+  nodeIcon,
+  setNodeIcon,
   nodeSize,
   setNodeSize,
   arcStyle,
@@ -2073,7 +2088,9 @@ const GraphPanel = memo(function GraphPanel({
           graph={filteredGraph}
           motionEvent={motionEvent}
           onNodeOpen={onNodeOpen}
-          nodeStyle={nodeStyle}
+          nodeShape={nodeShape}
+          nodeFill={nodeFill}
+          nodeIcon={nodeIcon}
           nodeSize={nodeSize}
           arcStyle={arcStyle}
           layoutStyle={layoutStyle}
@@ -2217,10 +2234,22 @@ const GraphPanel = memo(function GraphPanel({
                   onSelect={setVisualizerId}
                 />
                 <GraphStyleOptionGroup
-                  label="Node"
-                  value={nodeStyle}
-                  options={GRAPH_NODE_STYLES}
-                  onSelect={setNodeStyle}
+                  label="Node shape"
+                  value={nodeShape}
+                  options={GRAPH_NODE_SHAPES}
+                  onSelect={setNodeShape}
+                />
+                <GraphStyleOptionGroup
+                  label="Node fill"
+                  value={nodeFill}
+                  options={GRAPH_NODE_FILLS}
+                  onSelect={setNodeFill}
+                />
+                <GraphStyleOptionGroup
+                  label="Node icon"
+                  value={nodeIcon}
+                  options={GRAPH_NODE_ICONS}
+                  onSelect={setNodeIcon}
                 />
                 <GraphStyleOptionGroup
                   label="Base size"

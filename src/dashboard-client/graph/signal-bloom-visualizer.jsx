@@ -29,7 +29,9 @@ const BLOOM_ANIMATED_LINK_LIMIT = 120;
 export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
   graph,
   onNodeOpen,
-  nodeStyle = 'orb',
+  nodeShape = 'orb',
+  nodeFill = 'outline',
+  nodeIcon = 'none',
   nodeSize = 'medium',
   labelStyle = 'selected',
   colorMode = 'updated',
@@ -114,7 +116,9 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
               setHoveredSlug={setHoveredSlug}
               onActiveSlugChange={onActiveSlugChange}
               onNodeOpen={onNodeOpen}
-              nodeStyle={nodeStyle}
+              nodeShape={nodeShape}
+              nodeFill={nodeFill}
+              nodeIcon={nodeIcon}
               colorMode={colorMode}
               theme={theme}
               glowId={`${defsId}-signal-glow`}
@@ -186,7 +190,9 @@ const BloomNodeItem = memo(function BloomNodeItem({
   setHoveredSlug,
   onActiveSlugChange,
   onNodeOpen,
-  nodeStyle,
+  nodeShape,
+  nodeFill,
+  nodeIcon,
   colorMode,
   theme,
   glowId,
@@ -207,31 +213,28 @@ const BloomNodeItem = memo(function BloomNodeItem({
       }}
     >
       <g className="graph-node-screen-scale">
-        <BloomNode node={node} nodeStyle={nodeStyle} colorMode={colorMode} emphasized={emphasized} theme={theme} glowId={glowId} />
+        <BloomNode node={node} nodeShape={nodeShape} nodeFill={nodeFill} nodeIcon={nodeIcon} colorMode={colorMode} emphasized={emphasized} theme={theme} glowId={glowId} />
       </g>
     </g>
   );
 });
 
-function BloomNode({ node, nodeStyle, colorMode, emphasized, theme, glowId }) {
+function BloomNode({ node, nodeShape, nodeFill, nodeIcon, colorMode, emphasized, theme, glowId }) {
   const color = getGraphNodeColor(node, colorMode) || theme.graphNodeStroke;
   const size = node.radius * (emphasized ? 1.95 : 1.62);
-  const isPixelStyle = nodeStyle === 'pixel' || nodeStyle === 'pixel-solid';
-  if (isPixelStyle || nodeStyle.startsWith('icon')) {
-    const variant = isPixelStyle ? nodeStyle : nodeStyle === 'icon' ? 'ring' : nodeStyle.replace('icon-', '');
-    return (
-      <>
-        <circle cx={node.x} cy={node.y} r={Math.max(15, size * 1.75)} fill="#fff" fillOpacity="0.001" />
-        <GraphTypeIcon node={node} color={color} emphasized={emphasized} background={theme.graphBase} variant={variant} />
-      </>
-    );
-  }
-  const common = { fill: theme.graphBase, fillOpacity: '0.78', stroke: color, strokeWidth: emphasized ? 1.8 : 1 };
+  const common = {
+    fill: nodeFill === 'solid' ? color : 'none',
+    fillOpacity: nodeFill === 'solid' ? '0.78' : '1',
+    stroke: nodeFill === 'none' ? 'none' : color,
+    strokeWidth: emphasized ? 1.8 : 1,
+  };
   let body;
-  if (nodeStyle === 'diamond') {
+  if (nodeShape === 'diamond') {
     body = <rect x={node.x - size * 0.62} y={node.y - size * 0.62} width={size * 1.24} height={size * 1.24} transform={`rotate(45 ${node.x} ${node.y})`} {...common} />;
-  } else if (nodeStyle === 'hex') {
+  } else if (nodeShape === 'hex') {
     body = <path d={hexPath(node.x, node.y, size)} {...common} />;
+  } else if (nodeShape === 'pixel') {
+    body = <rect x={node.x - size} y={node.y - size} width={size * 2} height={size * 2} shapeRendering="crispEdges" {...common} />;
   } else {
     body = <circle cx={node.x} cy={node.y} r={size} {...common} />;
   }
@@ -239,9 +242,8 @@ function BloomNode({ node, nodeStyle, colorMode, emphasized, theme, glowId }) {
     <>
       <circle cx={node.x} cy={node.y} r={Math.max(15, size * 1.75)} fill="#fff" fillOpacity="0.001" />
       {emphasized && <circle cx={node.x} cy={node.y} r={size * 1.65} fill="none" stroke={color} strokeOpacity="0.35" filter={`url(#${glowId})`} />}
-      {body}
-      <circle cx={node.x} cy={node.y} r={Math.max(1.7, node.radius * 0.34)} fill={color} filter={emphasized ? `url(#${glowId})` : undefined} />
-      <path d={`M ${node.x - size * 0.7} ${node.y} H ${node.x + size * 0.7}`} stroke={color} strokeOpacity="0.38" />
+      {nodeFill !== 'none' ? body : null}
+      <GraphTypeIcon node={node} color={color} emphasized={emphasized} background={theme.graphBase} nodeFill={nodeFill} iconStyle={nodeIcon} />
     </>
   );
 }
