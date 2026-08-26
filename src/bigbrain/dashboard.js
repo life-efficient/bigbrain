@@ -673,6 +673,9 @@ function renderAppHtml() {
       }
       .settings-link { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; text-align: left; }
       .settings-link:hover { border-color: var(--line-strong); background: var(--surface-muted); }
+      .settings-demo-toggle.selected { border-color: rgba(0,255,102,0.28); background: rgba(0,255,102,0.08); }
+      .settings-demo-toggle strong { font-size: 11px; font-weight: 700; }
+      .settings-shortcut { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; margin-left: 5px; padding: 3px 5px; border: 1px solid var(--line); border-bottom-color: var(--line-strong); border-radius: 5px; color: var(--muted); font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
       .analytics-page { flex: 1; min-height: 0; overflow: auto; display: grid; align-content: start; gap: 18px; padding: 6px 2px 24px; }
       .analytics-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding: 14px 2px 4px; }
       .analytics-head h1 { margin: 3px 0 7px; font-size: 34px; }
@@ -885,10 +888,10 @@ function renderAppHtml() {
       .graph-flow-energy-in { stroke: url(#graph-flow-energy-in); }
       .graph-flow-energy-out { stroke: url(#graph-flow-energy-out); }
       @keyframes graph-flow-energy { to { stroke-dashoffset: -58; } }
-      .graph-flow-toggle, .graph-demo-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); font: inherit; cursor: pointer; }
-      .graph-flow-toggle:hover, .graph-flow-toggle:focus-visible, .graph-demo-toggle:hover, .graph-demo-toggle:focus-visible { border-color: var(--line-strong); color: var(--ink); outline: none; }
-      .graph-flow-toggle.selected, .graph-demo-toggle.selected { border-color: rgba(244,244,245,0.28); background: rgba(244,244,245,0.1); color: var(--ink); }
-      .graph-flow-toggle strong, .graph-demo-toggle strong { color: var(--ink); font-size: 11px; font-weight: 650; }
+      .graph-flow-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); font: inherit; cursor: pointer; }
+      .graph-flow-toggle:hover, .graph-flow-toggle:focus-visible { border-color: var(--line-strong); color: var(--ink); outline: none; }
+      .graph-flow-toggle.selected { border-color: rgba(244,244,245,0.28); background: rgba(244,244,245,0.1); color: var(--ink); }
+      .graph-flow-toggle strong { color: var(--ink); font-size: 11px; font-weight: 650; }
       .force-shell canvas { border-radius: 18px; }
       .vis-network-surface { opacity: 0.52; transform-origin: 0 0; will-change: transform; }
       .vis-network-booted .vis-network-surface { animation: vis-network-materialize 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }

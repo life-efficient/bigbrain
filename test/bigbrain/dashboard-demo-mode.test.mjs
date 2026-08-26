@@ -82,3 +82,11 @@ test('dashboard exposes Demo mode as a persistent graph setting and privacy boun
   assert.match(main, /if \(demoModeRef\.current\) \{[\s\S]*buildDemoPagePreview/);
   assert.match(main, /!preview\?\.demo/);
 });
+
+test('Demo mode lives in Settings and uses the D keyboard shortcut', async () => {
+  const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
+  assert.match(main, /settings-demo-toggle/);
+  assert.match(main, /key === 'd'/);
+  assert.match(main, /handleDemoModeChange\(!demoModeRef\.current\)/);
+  assert.doesNotMatch(main, /graph-demo-toggle/);
+});

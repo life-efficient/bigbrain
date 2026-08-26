@@ -349,6 +349,9 @@ function DashboardApp() {
       } else if (key === 'e') {
         event.preventDefault();
         setView('explorer');
+      } else if (key === 'd') {
+        event.preventDefault();
+        handleDemoModeChange(!demoModeRef.current);
       }
     }
 
@@ -571,6 +574,20 @@ function DashboardApp() {
                       <span className="settings-label">Theme</span>
                       <ThemeModeToggle themeMode={themeMode} onChange={setThemeMode} />
                     </div>
+                    <div className="settings-field">
+                      <span className="settings-label">Demo mode</span>
+                      <button
+                        type="button"
+                        className={`settings-link settings-demo-toggle ${demoMode ? 'selected' : ''}`}
+                        role="switch"
+                        aria-label="Demo mode"
+                        aria-checked={demoMode}
+                        onClick={() => handleDemoModeChange(!demoMode)}
+                      >
+                        <span>Safe example data <kbd className="settings-shortcut">D</kbd></span>
+                        <strong>{demoMode ? 'On' : 'Off'}</strong>
+                      </button>
+                    </div>
                     <button type="button" className="settings-link" role="menuitem" onClick={openAnalytics}>
                       <span>Analytics</span>
                       <span className="meta">MCP activity →</span>
@@ -669,8 +686,6 @@ function DashboardApp() {
                 setColorMode={setColorMode}
                 flowVisible={flowVisible}
                 setFlowVisible={setFlowVisible}
-                demoMode={demoMode}
-                onDemoModeChange={handleDemoModeChange}
                 flowTasks={graphFlowTasks}
                 visualizerRef={visualizerRef}
                 activeSlug={activeGraphSlug}
@@ -1933,8 +1948,6 @@ const GraphPanel = memo(function GraphPanel({
   setColorMode,
   flowVisible,
   setFlowVisible,
-  demoMode,
-  onDemoModeChange,
   flowTasks,
   visualizerRef,
   activeSlug,
@@ -2194,20 +2207,6 @@ const GraphPanel = memo(function GraphPanel({
                   options={graphVisualizers}
                   onSelect={setVisualizerId}
                 />
-                <div className="graph-menu-field">
-                  <span>Demo mode</span>
-                  <button
-                    type="button"
-                    className={`graph-demo-toggle ${demoMode ? 'selected' : ''}`}
-                    role="switch"
-                    aria-label="Demo mode"
-                    aria-checked={demoMode}
-                    onClick={() => onDemoModeChange?.(!demoMode)}
-                  >
-                    <span>Safe example data</span>
-                    <strong>{demoMode ? 'On' : 'Off'}</strong>
-                  </button>
-                </div>
                 <GraphStyleOptionGroup
                   label="Node"
                   value={nodeStyle}
