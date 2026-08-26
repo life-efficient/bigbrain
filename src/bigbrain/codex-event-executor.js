@@ -32,7 +32,7 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
       status: 'filed',
       capture_mode: 'summary',
       reason: 'why this is useful or ignored',
-      destinations: [{ brain_id: 'registered-id', writes: [{ tool: 'create_page', arguments: { path: 'projects/example', title: 'Example', body: '...', timeline_entry: 'Captured from inbound source.' } }] }],
+      destinations: [{ brain_id: 'registered-id', writes_json: '[{"tool":"create_page","arguments":{"path":"projects/example","title":"Example","body":"...","timeline_entry":"Captured from inbound source."}}]' }],
     }, null, 2),
     '',
     'Event envelope:',
@@ -275,7 +275,18 @@ export function codexOutcomeSchema() {
       status: { type: 'string', enum: ['filed', 'ignored', 'needs_review'] },
       capture_mode: { type: 'string', enum: ['none', 'summary', 'full'] },
       reason: { type: 'string' },
-      destinations: { type: 'array', items: { type: 'object' } },
+      destinations: {
+        type: 'array',
+        items: {
+          type: 'object',
+          additionalProperties: false,
+          required: ['brain_id', 'writes_json'],
+          properties: {
+            brain_id: { type: 'string' },
+            writes_json: { type: 'string' },
+          },
+        },
+      },
     },
   };
 }
@@ -287,7 +298,10 @@ export function normalizeCodexOutcome(value) {
     status,
     capture_mode: ['none', 'summary', 'full'].includes(value.capture_mode) ? value.capture_mode : 'summary',
     reason: String(value.reason || ''),
-    destinations: Array.isArray(value.destinations) ? value.destinations : [],
+    destinations: Array.isArray(value.destinations) ? value.destinations.map((destination) => ({
+      ...destination,
+      writes: Array.isArray(destination?.writes) ? destination.writes : parseJsonText(destination?.writes_json || destination?.writes)?.filter?.((write) => write && typeof write === 'object') || [],
+    })) : [],
   };
 }
 
