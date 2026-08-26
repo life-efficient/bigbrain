@@ -5,7 +5,7 @@ const CONCEPTS = [
     id: 'schema-flow',
     index: '01',
     name: 'Page → Brain → Tasks',
-    description: 'Recently updated pages feed the constellation, while next tasks leave with the context they need.',
+    description: 'Connected context moves through the constellation into useful action.',
     label: 'CANONICAL FLOW',
   },
   {
@@ -68,7 +68,24 @@ const NEXT_TASKS = [
 
 export function GraphDesignLabApp() {
   const [conceptId, setConceptId] = useState('schema-flow');
+  const [graph, setGraph] = useState(null);
   const concept = CONCEPTS.find((item) => item.id === conceptId) || CONCEPTS[0];
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/graph', { cache: 'no-store' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Graph request failed: ${response.status}`);
+        return response.json();
+      })
+      .then((payload) => {
+        if (!cancelled) setGraph(payload);
+      })
+      .catch(() => {
+        if (!cancelled) setGraph(null);
+      });
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     function onKeyDown(event) {
@@ -91,8 +108,8 @@ export function GraphDesignLabApp() {
           <p>Four ways to make BigBrain feel alive: input, understanding, and output in one visible system.</p>
         </div>
         <div className="design-lab-meta">
-          <span className="design-lab-live"><i /> concept mode</span>
-          <span>mock scenario · live feed simulation</span>
+          <span className="design-lab-live"><i /> live graph</span>
+          <span>read-only graph payload</span>
         </div>
       </header>
 
@@ -118,7 +135,7 @@ export function GraphDesignLabApp() {
           </div>
           <div className="narrative-stage-description">{concept.description}</div>
         </div>
-        {conceptId === 'schema-flow' ? <SchemaFlowView /> : null}
+        {conceptId === 'schema-flow' ? <SchemaFlowView graph={graph} /> : null}
         {conceptId === 'loop' ? <LivingLoopView /> : null}
         {conceptId === 'reactor' ? <ReactorView /> : null}
         {conceptId === 'control' ? <ControlRoomView /> : null}
@@ -127,7 +144,7 @@ export function GraphDesignLabApp() {
       <footer className="design-lab-foot">
         <span>1 / 2 / 3 / 4 switch direction</span>
         <span><i className="footer-pulse" /> input · knowledge · action</span>
-        <span>Concept surface only · no live data connected</span>
+        <span>Live graph payload · read-only</span>
       </footer>
     </main>
   );
@@ -148,7 +165,6 @@ function LivingLoopView() {
         </div>
         <BrainCore mode="loop" />
         <div className="core-message"><strong>BigBrain</strong><span>turns fragmented context into connected memory</span></div>
-        <div className="core-telemetry"><span><i /> indexing now</span><span>1,192 pages</span><span>3,448 links</span></div>
       </div>
       <div className="concept-column concept-outputs">
         <ColumnLabel index="03" label="Useful action" meta="3 ready" />
@@ -162,7 +178,7 @@ function LivingLoopView() {
   );
 }
 
-function SchemaFlowView() {
+function SchemaFlowView({ graph }) {
   const stageRef = useRef(null);
   const brainRef = useRef(null);
   const inputRefs = useRef(new Map());
@@ -216,7 +232,6 @@ function SchemaFlowView() {
       <SchemaFlowNetwork layout={flowLayout} />
       <div className="schema-flow-foreground">
         <aside className="schema-flow-column schema-flow-input-column">
-          <ColumnLabel index="01" label="Recently updated pages" meta="5 incoming" />
           <div className="schema-page-list">
             {RECENT_PAGES.map((item, index) => (
               <RecentPageCard
@@ -229,13 +244,9 @@ function SchemaFlowView() {
           </div>
         </aside>
         <section className="schema-flow-brain-panel">
-          <div className="schema-flow-process"><span className="active">pages</span><b>→</b><span>brain</span><b>→</b><span>tasks</span></div>
-          <SchemaBrainConstellation innerRef={brainRef} />
-          <div className="schema-flow-brain-caption"><strong>BigBrain</strong><span>the middle layer that remembers what each page means</span></div>
-          <div className="schema-flow-status"><i /> connecting recent context <span>1,192 pages · 3,448 links</span></div>
+          <SchemaBrainConstellation innerRef={brainRef} graph={graph} />
         </section>
         <aside className="schema-flow-column schema-flow-task-column">
-          <ColumnLabel index="03" label="Next tasks" meta="4 outgoing" />
           <div className="schema-task-list">
             {NEXT_TASKS.map((item, index) => (
               <NextTaskCard
@@ -247,8 +258,6 @@ function SchemaFlowView() {
             ))}
           </div>
         </aside>
-        <div className="schema-flow-footer-label schema-flow-footer-left">new context enters</div>
-        <div className="schema-flow-footer-label schema-flow-footer-right">action leaves with memory</div>
       </div>
     </div>
   );
@@ -348,25 +357,53 @@ function outboundFlowPath(target, brain) {
   return `M ${brain.rightX} ${sourceY} C ${brain.rightX + span * 0.24} ${sourceY}, ${target.x - span * 0.46} ${target.y}, ${target.x} ${target.y}`;
 }
 
-function SchemaBrainConstellation({ innerRef }) {
-  const nodes = [
-    [18, 26, 1.6, 'cyan'], [28, 18, 1.1, 'violet'], [35, 33, 2, 'green'],
-    [24, 48, 1.1, 'amber'], [32, 63, 1.6, 'cyan'], [44, 24, 1.2, 'violet'],
-    [56, 22, 1.5, 'green'], [66, 31, 1.2, 'cyan'], [76, 25, 1.7, 'violet'],
-    [66, 49, 1.8, 'amber'], [76, 62, 1.2, 'green'], [59, 67, 1.4, 'cyan'],
-    [44, 71, 1.1, 'violet'], [22, 71, 1, 'green'], [82, 45, 1, 'amber'],
-  ];
-  const links = [[18,26,28,18],[18,26,35,33],[35,33,44,24],[35,33,24,48],[24,48,32,63],[44,24,56,22],[56,22,66,31],[66,31,76,25],[66,31,66,49],[66,49,76,62],[66,49,59,67],[59,67,44,71],[44,71,32,63],[76,25,82,45],[24,48,22,71]];
+function SchemaBrainConstellation({ innerRef, graph }) {
+  const layout = buildSchemaConstellationLayout(graph);
 
   return (
     <div ref={innerRef} className="schema-brain-constellation">
       <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {links.map(([x1, y1, x2, y2], index) => <line key={index} x1={x1} y1={y1} x2={x2} y2={y2} />)}
-        {nodes.map(([x, y, radius, tone], index) => <circle key={index} cx={x} cy={y} r={radius} className={`schema-node-${tone}`} />)}
+        {layout.links.map((link) => <line key={`${link.source}:${link.target}`} x1={link.sourceX} y1={link.sourceY} x2={link.targetX} y2={link.targetY} />)}
+        {layout.nodes.map((node) => <circle key={node.slug} cx={node.x} cy={node.y} r={node.radius} className="schema-node-real" />)}
       </svg>
-      <div className="schema-brain-core"><BrainCore mode="loop" /></div>
+      <div className="schema-brain-core"><BrainCore mode="loop" showName={false} /></div>
     </div>
   );
+}
+
+function buildSchemaConstellationLayout(graph) {
+  const sourceNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  const byDegree = [...sourceNodes].sort((left, right) => (
+    (right.degree || 0) - (left.degree || 0) || left.slug.localeCompare(right.slug)
+  ));
+  const byUpdated = [...sourceNodes].sort((left, right) => (
+    String(right.updated_at || '').localeCompare(String(left.updated_at || '')) || left.slug.localeCompare(right.slug)
+  ));
+  const selected = new Map();
+  [...byDegree.slice(0, 72), ...byUpdated.slice(0, 28)].forEach((node) => selected.set(node.slug, node));
+  const nodes = [...selected.values()].slice(0, 96).map((node, index, all) => {
+    const angle = index * 2.399963229728653;
+    const radius = 25 + (Math.sqrt((index + 0.5) / Math.max(all.length, 1)) * 22);
+    return {
+      ...node,
+      x: 50 + Math.cos(angle) * radius,
+      y: 50 + Math.sin(angle) * radius * 0.86,
+      radius: Math.max(0.7, Math.min(2.35, 0.68 + Math.log2((node.degree || 0) + 1) * 0.18)),
+    };
+  });
+  const positions = new Map(nodes.map((node) => [node.slug, node]));
+  const links = (Array.isArray(graph?.edges) ? graph.edges : [])
+    .filter((edge) => positions.has(edge.source) && positions.has(edge.target))
+    .slice(0, 320)
+    .map((edge) => ({
+      source: edge.source,
+      target: edge.target,
+      sourceX: positions.get(edge.source).x,
+      sourceY: positions.get(edge.source).y,
+      targetX: positions.get(edge.target).x,
+      targetY: positions.get(edge.target).y,
+    }));
+  return { nodes, links };
 }
 
 function ReactorView() {
@@ -468,12 +505,12 @@ function OutputCard({ item, index }) {
   );
 }
 
-function BrainCore({ mode }) {
+function BrainCore({ mode, showName = true }) {
   return (
     <div className={`brain-core brain-core-${mode}`}>
       <div className="brain-core-rings"><i /><i /><i /></div>
       <div className="brain-core-orb"><span>BB</span><b /></div>
-      <div className="brain-core-name">BIGBRAIN</div>
+      {showName ? <div className="brain-core-name">BIGBRAIN</div> : null}
     </div>
   );
 }

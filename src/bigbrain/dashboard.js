@@ -1360,7 +1360,10 @@ function renderAppHtml() {
       .narrative-lab .schema-node-cyan,
       .narrative-lab .schema-node-green,
       .narrative-lab .schema-node-violet,
-      .narrative-lab .schema-node-amber { fill: #d4d4d8; }
+      .narrative-lab .schema-node-amber,
+      .narrative-lab .schema-node-real { fill: #d4d4d8; }
+      .narrative-lab .schema-brain-constellation line { stroke: rgba(244,244,245,0.18); }
+      .narrative-lab .schema-brain-constellation circle { fill: #d4d4d8; stroke: rgba(255,255,255,0.42); }
       .narrative-lab .schema-flow-energy-arc-in,
       .narrative-lab .schema-flow-energy-arc-out,
       .narrative-lab .schema-flow-energy-glow-in,
