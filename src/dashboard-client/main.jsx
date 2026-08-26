@@ -9,6 +9,7 @@ import {
   GRAPH_COLOR_MODES,
   GRAPH_CONTROL_LABELS,
   GRAPH_DEFAULTS,
+  GRAPH_FLOW_VISIBILITY_OPTIONS,
   GRAPH_LABEL_STYLES,
   GRAPH_LAYOUT_STYLES,
   GRAPH_NODE_FILLS,
@@ -2283,19 +2284,12 @@ const GraphPanel = memo(function GraphPanel({
                   options={GRAPH_LABEL_STYLES}
                   onSelect={setLabelStyle}
                 />
-                <div className="graph-menu-field">
-                  <span>Flow context</span>
-                  <button
-                    type="button"
-                    className={`graph-flow-toggle ${flowVisible ? 'selected' : ''}`}
-                    role="switch"
-                    aria-checked={flowVisible}
-                    onClick={() => setFlowVisible((value) => !value)}
-                  >
-                    <span>Inputs + outputs</span>
-                    <strong>{flowVisible ? 'On' : 'Off'}</strong>
-                  </button>
-                </div>
+                <GraphStyleOptionGroup
+                  label="Flow context"
+                  value={flowVisible ? 'visible' : 'hidden'}
+                  options={GRAPH_FLOW_VISIBILITY_OPTIONS}
+                  onSelect={(value) => setFlowVisible(value === 'visible')}
+                />
               </div>
             ) : null}
           </div>

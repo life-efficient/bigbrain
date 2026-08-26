@@ -359,6 +359,22 @@ test('graph flow arcs attach side cards to their matching graph nodes', async ()
   assert.match(bloom, /data-graph-node-slug=\{node\.slug\}/);
 });
 
+test('flow context uses the shared graph style pill group', async () => {
+  const [main, registry, dashboard] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/registry.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
+  ]);
+
+  const flowGroup = main.match(/<GraphStyleOptionGroup\s+label="Flow context"[\s\S]*?\/>/)?.[0] || '';
+  assert.match(flowGroup, /options=\{GRAPH_FLOW_VISIBILITY_OPTIONS\}/);
+  assert.match(flowGroup, /value=\{flowVisible \? 'visible' : 'hidden'\}/);
+  assert.match(registry, /id: 'visible', label: 'Visible'/);
+  assert.match(registry, /id: 'hidden', label: 'Hidden'/);
+  assert.doesNotMatch(main, /graph-flow-toggle/);
+  assert.doesNotMatch(dashboard, /\.graph-flow-toggle/);
+});
+
 test('graph layouts safely handle empty and single-node graphs', () => {
   const empty = { nodes: [], edges: [] };
   const single = {

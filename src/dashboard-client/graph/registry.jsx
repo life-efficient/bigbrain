@@ -44,6 +44,11 @@ export const GRAPH_NODE_ICONS = [
   { id: 'none', label: 'None' },
 ];
 
+export const GRAPH_FLOW_VISIBILITY_OPTIONS = [
+  { id: 'visible', label: 'Visible' },
+  { id: 'hidden', label: 'Hidden' },
+];
+
 const LEGACY_NODE_STYLE_PREFERENCES = {
   orb: { nodeShape: 'orb', nodeFill: 'outline', nodeIcon: 'none' },
   diamond: { nodeShape: 'diamond', nodeFill: 'outline', nodeIcon: 'none' },

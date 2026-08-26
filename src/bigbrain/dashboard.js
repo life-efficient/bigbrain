@@ -897,10 +897,6 @@ function renderAppHtml() {
       .graph-flow-energy-in { stroke: url(#graph-flow-energy-in); }
       .graph-flow-energy-out { stroke: url(#graph-flow-energy-out); }
       @keyframes graph-flow-energy { to { stroke-dashoffset: -58; } }
-      .graph-flow-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); font: inherit; cursor: pointer; }
-      .graph-flow-toggle:hover, .graph-flow-toggle:focus-visible { border-color: var(--line-strong); color: var(--ink); outline: none; }
-      .graph-flow-toggle.selected { border-color: rgba(244,244,245,0.28); background: rgba(244,244,245,0.1); color: var(--ink); }
-      .graph-flow-toggle strong { color: var(--ink); font-size: 11px; font-weight: 650; }
       .force-shell canvas { border-radius: 18px; }
       .vis-network-surface { opacity: 0.52; transform-origin: 0 0; will-change: transform; }
       .vis-network-booted .vis-network-surface { animation: vis-network-materialize 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
