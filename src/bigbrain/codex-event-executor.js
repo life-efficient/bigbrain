@@ -117,6 +117,7 @@ export class CodexAppThreadExecutor {
         clientInfo: { name: 'bigbrain-inbound-events', version: '2.0.0' },
         capabilities: {},
       });
+      await client.notify?.('initialized');
       const started = await client.request('thread/start', {
         cwd: this.cwd,
         threadSource: 'event',
@@ -197,6 +198,11 @@ export class AppServerJsonRpcClient {
     });
     this.process.stdin.write(`${message}\n`);
     return promise;
+  }
+
+  async notify(method, params = {}) {
+    await this.start();
+    this.process.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method, params })}\n`);
   }
 
   handleData(chunk) {

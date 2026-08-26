@@ -54,13 +54,14 @@ test('app-thread executor uses the supported app-server thread and turn methods'
       if (method === 'thread/start') return { thread: { id: 'thread-1' } };
       return { id: 'turn-1', outcome: { status: 'ignored', reason: 'not useful', destinations: [] } };
     },
+    notify: async (method) => calls.push({ method }),
     close: async () => {},
   }) });
   const result = await executor.execute({ event, listener: { description: 'Calendar' } });
   assert.equal(result.thread_id, 'thread-1');
   assert.equal(result.execution_id, 'turn-1');
   assert.equal(result.outcome.status, 'ignored');
-  assert.deepEqual(calls.map((call) => call.method), ['initialize', 'thread/start', 'turn/start']);
+  assert.deepEqual(calls.map((call) => call.method), ['initialize', 'initialized', 'thread/start', 'turn/start']);
 });
 
 test('app-thread executor waits for completion and extracts the agent message outcome', async () => {
