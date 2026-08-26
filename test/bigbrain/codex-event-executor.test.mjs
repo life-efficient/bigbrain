@@ -62,6 +62,7 @@ test('app-thread executor uses the supported app-server thread and turn methods'
   assert.equal(result.execution_id, 'turn-1');
   assert.equal(result.outcome.status, 'ignored');
   assert.deepEqual(calls.map((call) => call.method), ['initialize', 'initialized', 'thread/start', 'turn/start']);
+  assert.deepEqual(calls.find((call) => call.method === 'initialize').params.capabilities, { experimentalApi: true });
   assert.deepEqual(calls.find((call) => call.method === 'thread/start').params.environments, []);
   assert.match(calls.find((call) => call.method === 'thread/start').params.developerInstructions, /only component allowed to write/);
 });

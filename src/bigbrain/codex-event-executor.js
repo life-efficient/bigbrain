@@ -117,7 +117,7 @@ export class CodexAppThreadExecutor {
     try {
       await client.request('initialize', {
         clientInfo: { name: 'bigbrain-inbound-events', version: '2.0.0' },
-        capabilities: {},
+        capabilities: { experimentalApi: true },
       });
       await client.notify?.('initialized');
       const started = await client.request('thread/start', {
