@@ -20,6 +20,7 @@ export const GRAPH_DEFAULTS = {
   labelStyle: 'off',
   colorMode: 'updated',
   flowVisible: false,
+  demoMode: false,
 };
 
 export const GRAPH_NODE_STYLES = [

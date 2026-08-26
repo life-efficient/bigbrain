@@ -18,6 +18,15 @@ import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
 import { GraphDesignLabApp } from './graph/graph-design-lab.jsx';
 import { deriveGraphMotion, graphPayloadsEqual } from './graph/live-graph.js';
+import {
+  buildDemoExplorer,
+  buildDemoExplorerFile,
+  buildDemoGraph,
+  buildDemoPagePreview,
+  buildDemoTaskSections,
+  buildDemoTasks,
+  createDemoSeed,
+} from './demo-mode.js';
 import { resolveExplorerLinkPath } from './explorer-links.js';
 import { MarkdownDocument } from './markdown.jsx';
 import { privatePageHrefFromMarkdown, privatePageRouteFromPath } from './page-links.js';
@@ -92,6 +101,7 @@ function loadGraphPreferences() {
       if (values.has(saved[key])) defaults[key] = saved[key];
     }
     if (typeof saved.flowVisible === 'boolean') defaults.flowVisible = saved.flowVisible;
+    if (typeof saved.demoMode === 'boolean') defaults.demoMode = saved.demoMode;
   } catch {
     // Invalid or unavailable storage falls back to the registry defaults.
   }
@@ -110,6 +120,8 @@ function DashboardApp() {
   const [labelStyle, setLabelStyle] = useState(savedGraphPreferences.labelStyle);
   const [colorMode, setColorMode] = useState(savedGraphPreferences.colorMode);
   const [flowVisible, setFlowVisible] = useState(savedGraphPreferences.flowVisible);
+  const [demoMode, setDemoMode] = useState(savedGraphPreferences.demoMode);
+  const [demoSeed, setDemoSeed] = useState(() => createDemoSeed());
   const [themeMode, setThemeMode] = useState('auto');
   const [prefersDark, setPrefersDark] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -120,22 +132,27 @@ function DashboardApp() {
   const [analytics, setAnalytics] = useState({ status: 'idle', data: null, error: null });
   const [assigneeFilter, setAssigneeFilter] = useState('');
   const [assigneeLoading, setAssigneeLoading] = useState(false);
+  const demoModeRef = useRef(demoMode);
+  const demoSeedRef = useRef(demoSeed);
+  const previewRequestRef = useRef(0);
   const defaultAssigneeAppliedRef = useRef(false);
   const visualizerRef = useRef(null);
   const healthMenuRef = useRef(null);
   const settingsMenuRef = useRef(null);
   const latestGraphRef = useRef(null);
   latestGraphRef.current = state.data?.graph || latestGraphRef.current;
+  demoModeRef.current = demoMode;
+  demoSeedRef.current = demoSeed;
 
   useEffect(() => {
     try {
       window.localStorage.setItem('bigbrain:graph-preferences', JSON.stringify({
-        visualizerId, nodeStyle, nodeSize, arcStyle, layoutStyle, labelStyle, colorMode, flowVisible,
+        visualizerId, nodeStyle, nodeSize, arcStyle, layoutStyle, labelStyle, colorMode, flowVisible, demoMode,
       }));
     } catch {
       // Storage can be unavailable in restricted browser contexts; defaults remain usable.
     }
-  }, [arcStyle, colorMode, flowVisible, labelStyle, layoutStyle, nodeSize, nodeStyle, visualizerId]);
+  }, [arcStyle, colorMode, demoMode, flowVisible, labelStyle, layoutStyle, nodeSize, nodeStyle, visualizerId]);
 
   useEffect(() => {
     if (window.parent === window) return;
@@ -341,14 +358,42 @@ function DashboardApp() {
     };
   }, []);
 
+  const taskSections = Array.isArray(state.data?.tasks?.sections) ? state.data.tasks.sections : [];
+  const displayTaskSections = useMemo(() => (
+    demoMode ? buildDemoTaskSections(taskSections, demoSeed) : taskSections
+  ), [demoMode, demoSeed, taskSections]);
+  const rawGraphFlowTasks = useMemo(() => taskSections
+    .flatMap((section) => section.items || [])
+    .filter((item) => !item.completed)
+    .slice(0, 6), [taskSections]);
+  const graphFlowTasks = useMemo(() => (
+    demoMode ? buildDemoTasks(rawGraphFlowTasks, demoSeed) : rawGraphFlowTasks
+  ), [demoMode, demoSeed, rawGraphFlowTasks]);
+  const displayGraph = useMemo(() => (
+    demoMode ? buildDemoGraph(state.data?.graph, demoSeed) : state.data?.graph
+  ), [demoMode, demoSeed, state.data?.graph]);
+  const displayExplorer = useMemo(() => (
+    demoMode ? buildDemoExplorer(state.data?.explorer, demoSeed) : state.data?.explorer
+  ), [demoMode, demoSeed, state.data?.explorer]);
+
   const handleGraphNodeOpen = useEffectEvent(async (slug) => {
+    if (!slug) return;
+    const requestId = previewRequestRef.current + 1;
+    previewRequestRef.current = requestId;
     setActiveGraphSlug(slug || null);
+    const sourceNode = latestGraphRef.current?.nodes?.find((node) => node.slug === slug) || { slug };
+    if (demoModeRef.current) {
+      setPreview(buildDemoPagePreview(sourceNode, demoSeedRef.current));
+      return;
+    }
     setPreview({ status: 'loading', slug });
     try {
       const params = new URLSearchParams({ slug });
       const data = await fetchJson(`/api/page?${params.toString()}`);
+      if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setPreview({ status: 'ready', ...data });
     } catch (error) {
+      if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setPreview({
         status: 'error',
         slug,
@@ -361,6 +406,19 @@ function DashboardApp() {
     if (!slug) return;
     handleGraphNodeOpen(slug);
   });
+
+  function handleDemoModeChange(nextDemoMode) {
+    demoModeRef.current = nextDemoMode;
+    previewRequestRef.current += 1;
+    setPreview(null);
+    setActiveGraphSlug(null);
+    if (nextDemoMode) {
+      const nextSeed = createDemoSeed();
+      demoSeedRef.current = nextSeed;
+      setDemoSeed(nextSeed);
+    }
+    setDemoMode(nextDemoMode);
+  }
 
   const openAnalytics = useEffectEvent(async () => {
     setSettingsOpen(false);
@@ -375,7 +433,7 @@ function DashboardApp() {
   });
 
   const changePageVisibility = useEffectEvent(async (slug, visibility) => {
-    if (!slug) return;
+    if (!slug || demoModeRef.current) return;
     setPreview((current) => current?.slug === slug ? { ...current, visibility_status: 'saving' } : current);
     try {
       const data = await fetchJson('/api/page/visibility', {
@@ -409,11 +467,6 @@ function DashboardApp() {
   }
 
   const { schema, tasks, recent, health, graph, explorer } = state.data;
-  const taskSections = Array.isArray(tasks?.sections) ? tasks.sections : [];
-  const graphFlowTasks = taskSections
-    .flatMap((section) => section.items || [])
-    .filter((item) => !item.completed)
-    .slice(0, 6);
   const members = Array.isArray(tasks?.members) ? tasks.members : [];
   const healthFindingCount = Number.isFinite(health?.finding_count) ? health.finding_count : 0;
   const healthFindings = Array.isArray(health?.findings)
@@ -429,13 +482,26 @@ function DashboardApp() {
   ];
 
   async function openPreview({ href, sourceSlug }) {
+    const requestId = previewRequestRef.current + 1;
+    previewRequestRef.current = requestId;
+    if (demoModeRef.current) {
+      const demoSlug = sourceSlug || href || 'demo/page';
+      setActiveGraphSlug(sourceSlug || null);
+      setPreview(buildDemoPagePreview({
+        slug: demoSlug,
+        type: String(demoSlug).split('/')[0] || 'page',
+      }, demoSeedRef.current));
+      return;
+    }
     setPreview({ status: 'loading', href, sourceSlug });
     try {
       const params = new URLSearchParams({ from: sourceSlug, target: href });
       const data = await fetchJson(`/api/preview?${params.toString()}`);
+      if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setActiveGraphSlug(data.slug || null);
       setPreview({ status: 'ready', href, sourceSlug, ...data });
     } catch (error) {
+      if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setPreview({
         status: 'error',
         href,
@@ -481,6 +547,7 @@ function DashboardApp() {
               ))}
             </div>
             <div className="topline-actions">
+              {demoMode ? <span className="demo-mode-badge">Demo mode</span> : null}
               <div className="settings-menu" ref={settingsMenuRef}>
                 <button
                   type="button"
@@ -556,7 +623,7 @@ function DashboardApp() {
               <div className="list-page-card standalone-list-region">
                 <AssigneeFilter members={members} value={assigneeFilter} onChange={handleAssigneeFilterChange} disabled={assigneeLoading} />
                 <div className="task-section">
-                  {assigneeLoading ? <ListLoadingState label="Loading tasks" /> : taskSections.map((section) => (
+                  {assigneeLoading ? <ListLoadingState label="Loading tasks" /> : displayTaskSections.map((section) => (
                     <div key={section.heading} className="task-group">
                       <h3>{section.heading}</h3>
                       {section.items.map((item, index) => (
@@ -584,7 +651,7 @@ function DashboardApp() {
 
             {view === 'graph' ? (
               <GraphPanel
-                graph={graph}
+                graph={displayGraph}
                 motionEvent={graphMotion}
                 visualizerId={visualizerId}
                 setVisualizerId={setVisualizerId}
@@ -602,6 +669,8 @@ function DashboardApp() {
                 setColorMode={setColorMode}
                 flowVisible={flowVisible}
                 setFlowVisible={setFlowVisible}
+                demoMode={demoMode}
+                onDemoModeChange={handleDemoModeChange}
                 flowTasks={graphFlowTasks}
                 visualizerRef={visualizerRef}
                 activeSlug={activeGraphSlug}
@@ -612,7 +681,9 @@ function DashboardApp() {
 
             {view === 'explorer' ? (
               <ExplorerPanel
-                explorer={explorer}
+                explorer={displayExplorer}
+                demoMode={demoMode}
+                demoSeed={demoSeed}
               />
             ) : null}
 
@@ -1189,7 +1260,7 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
   const hasLinks = outgoing.length || backlinks.length;
   const visibility = preview?.visibility === 'public' ? 'public' : 'internal';
   const isPublic = visibility === 'public';
-  const canChangeVisibility = preview?.status === 'ready' && preview?.slug && onVisibilityChange;
+  const canChangeVisibility = preview?.status === 'ready' && preview?.slug && !preview?.demo && onVisibilityChange;
   const visibilityBusy = preview?.visibility_status === 'saving';
   const publicUrl = preview?.slug ? `${window.location.origin}/public/${preview.slug}` : '';
   const [copiedPublicLink, setCopiedPublicLink] = useState(false);
@@ -1308,7 +1379,7 @@ function PageLinkSection({ title, links, onPageOpen }) {
   );
 }
 
-function ExplorerPanel({ explorer }) {
+function ExplorerPanel({ explorer, demoMode, demoSeed }) {
   const root = explorer?.root;
   const recentFiles = Array.isArray(explorer?.recent?.files) ? explorer.recent.files : [];
   const [explorerView, setExplorerView] = useState('folders');
@@ -1323,6 +1394,14 @@ function ExplorerPanel({ explorer }) {
     const name = fallback.name || filePath.split('/').pop() || filePath;
     setSelectedPath(filePath);
     expandParentDirectories(filePath);
+    if (demoMode) {
+      setFileState({
+        status: 'ready',
+        file: buildDemoExplorerFile(filePath, fallback, demoSeed),
+        error: null,
+      });
+      return;
+    }
     setFileState({ status: 'loading', file: { path: filePath, name, kind: fallback.kind }, error: null });
     try {
       const data = await fetchJson(`/api/explorer/file?${new URLSearchParams({ path: filePath }).toString()}`);
@@ -1599,15 +1678,17 @@ function ExplorerViewer({ fileState, onRelativeLinkClick }) {
             >
               <CopyIcon />
             </button>
-            <a
-              className="icon-button explorer-header-button"
-              href={file.blob_url}
-              download={file.name || ''}
-              aria-label="Download file"
-              title="Download file"
-            >
-              <DownloadIcon />
-            </a>
+            {file.blob_url ? (
+              <a
+                className="icon-button explorer-header-button"
+                href={file.blob_url}
+                download={file.name || ''}
+                aria-label="Download file"
+                title="Download file"
+              >
+                <DownloadIcon />
+              </a>
+            ) : null}
           </div>
         </div>
       </div>
@@ -1852,6 +1933,8 @@ const GraphPanel = memo(function GraphPanel({
   setColorMode,
   flowVisible,
   setFlowVisible,
+  demoMode,
+  onDemoModeChange,
   flowTasks,
   visualizerRef,
   activeSlug,
@@ -2111,6 +2194,20 @@ const GraphPanel = memo(function GraphPanel({
                   options={graphVisualizers}
                   onSelect={setVisualizerId}
                 />
+                <div className="graph-menu-field">
+                  <span>Demo mode</span>
+                  <button
+                    type="button"
+                    className={`graph-demo-toggle ${demoMode ? 'selected' : ''}`}
+                    role="switch"
+                    aria-label="Demo mode"
+                    aria-checked={demoMode}
+                    onClick={() => onDemoModeChange?.(!demoMode)}
+                  >
+                    <span>Safe example data</span>
+                    <strong>{demoMode ? 'On' : 'Off'}</strong>
+                  </button>
+                </div>
                 <GraphStyleOptionGroup
                   label="Node"
                   value={nodeStyle}

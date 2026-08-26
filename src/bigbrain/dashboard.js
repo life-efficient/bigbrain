@@ -588,6 +588,7 @@ function renderAppHtml() {
       .topline { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 16px; margin-bottom: 18px; -webkit-app-region: no-drag; user-select: none; }
       .topline-brand { display: flex; align-items: center; justify-self: start; min-width: 0; width: 100%; }
       .topline-actions { display: flex; align-items: center; gap: 12px; justify-self: end; }
+      .demo-mode-badge { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px solid rgba(0,255,102,0.28); border-radius: 999px; background: rgba(0,255,102,0.08); color: var(--ink); font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
       .view-nav { display: flex; gap: 10px; flex-wrap: wrap; }
       .view-nav-header { justify-content: center; justify-self: center; }
       .view-nav, .view-chip, .topline-actions, .topline-actions > *, .settings-button, .health-button, .settings-dropdown, .health-dropdown { -webkit-app-region: no-drag; }
@@ -884,10 +885,10 @@ function renderAppHtml() {
       .graph-flow-energy-in { stroke: url(#graph-flow-energy-in); }
       .graph-flow-energy-out { stroke: url(#graph-flow-energy-out); }
       @keyframes graph-flow-energy { to { stroke-dashoffset: -58; } }
-      .graph-flow-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); font: inherit; cursor: pointer; }
-      .graph-flow-toggle:hover, .graph-flow-toggle:focus-visible { border-color: var(--line-strong); color: var(--ink); outline: none; }
-      .graph-flow-toggle.selected { border-color: rgba(244,244,245,0.28); background: rgba(244,244,245,0.1); color: var(--ink); }
-      .graph-flow-toggle strong { color: var(--ink); font-size: 11px; font-weight: 650; }
+      .graph-flow-toggle, .graph-demo-toggle { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); color: var(--muted); font: inherit; cursor: pointer; }
+      .graph-flow-toggle:hover, .graph-flow-toggle:focus-visible, .graph-demo-toggle:hover, .graph-demo-toggle:focus-visible { border-color: var(--line-strong); color: var(--ink); outline: none; }
+      .graph-flow-toggle.selected, .graph-demo-toggle.selected { border-color: rgba(244,244,245,0.28); background: rgba(244,244,245,0.1); color: var(--ink); }
+      .graph-flow-toggle strong, .graph-demo-toggle strong { color: var(--ink); font-size: 11px; font-weight: 650; }
       .force-shell canvas { border-radius: 18px; }
       .vis-network-surface { opacity: 0.52; transform-origin: 0 0; will-change: transform; }
       .vis-network-booted .vis-network-surface { animation: vis-network-materialize 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
@@ -1450,7 +1451,7 @@ function renderAppHtml() {
       .graph-note { position: absolute; left: 14px; bottom: 14px; z-index: 2; font-size: 12px; color: var(--muted); padding: 8px 10px; border-radius: 999px; background: var(--surface-strong); border: 1px solid var(--line); }
       .graph-controls-inline { position: static; }
       .graph-style-menu-shell, .graph-filter-menu-shell { position: relative; }
-      .graph-style-menu { position: absolute; right: 0; bottom: calc(100% + 10px); min-width: 300px; display: grid; gap: 14px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 8; }
+      .graph-style-menu { position: absolute; right: 0; bottom: calc(100% + 10px); min-width: 300px; max-height: min(640px, calc(100vh - 32px)); overflow-y: auto; display: grid; gap: 14px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 8; }
       .graph-filter-menu { position: absolute; right: 0; bottom: calc(100% + 10px); min-width: 220px; display: grid; gap: 4px; padding: 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 9; }
       .menu-item { width: 100%; border: 0; background: transparent; color: var(--muted); border-radius: 10px; padding: 9px 10px; display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 13px; text-align: left; cursor: pointer; }
       .menu-item:hover, .menu-item.selected { background: rgba(255,255,255,0.07); color: var(--ink); }
