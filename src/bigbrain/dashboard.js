@@ -856,12 +856,12 @@ function renderAppHtml() {
       .graph-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; margin-left: auto; }
       .graph-wrap { height: 520px; overflow: hidden; position: relative; border-radius: 18px; background: transparent; border: 1px solid rgba(148,163,184,0.18); }
       .graph-wrap-expanded { flex: 1; min-height: 0; height: auto; }
-      .graph-canvas-shell { position: relative; height: 100%; width: 100%; }
+      .graph-canvas-shell { position: relative; z-index: 2; height: 100%; width: 100%; }
       .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
       .graph-svg:active { cursor: grabbing; }
       .graph-node-screen-scale { transform-box: fill-box; transform-origin: center; transform: scale(var(--graph-node-scale, 1)); }
       .graph-flow-sibling-hidden { display: none !important; }
-      .graph-flow-overlay { position: absolute; inset: 0; z-index: 6; pointer-events: none; }
+      .graph-flow-overlay { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
       .graph-flow-network { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
       .graph-flow-network svg { display: block; width: 100%; height: 100%; overflow: visible; }
       .graph-flow-column { position: absolute; top: 50%; z-index: 2; width: min(250px, 24%); display: grid; gap: 8px; transform: translateY(-50%); pointer-events: auto; }

@@ -2426,45 +2426,47 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
   }, [inputs, tasks]);
 
   return (
-    <div ref={stageRef} className="graph-flow-overlay">
+    <>
       <GraphFlowNetwork layout={layout} />
-      <div className="graph-flow-column graph-flow-input-column">
-        <div className="graph-flow-column-head"><span>Inputs</span><small>{inputs.length}</small></div>
-        <div className="graph-flow-card-list">
-          {inputs.map((item) => (
-            <button
-              key={item.slug}
-              ref={(node) => node ? inputRefs.current.set(item.slug, node) : inputRefs.current.delete(item.slug)}
-              type="button"
-              className="graph-flow-card"
-              onClick={() => onNodeOpen?.(item.slug)}
-            >
-              {item.demo_input ? <GraphFlowInputMarkers item={item} /> : <span className="graph-flow-card-type">{String(item.type || 'page').slice(0, 1).toUpperCase()}</span>}
-              <span className="graph-flow-card-copy"><strong>{item.title || labelFromSlug(item.slug)}</strong><small>{item.demo_input ? `${item.input_source.label} · ${item.input_sender.name}` : `${item.type || 'page'} · ${formatDateTime(item.updated_at)}`}</small></span>
-              <i />
-            </button>
-          ))}
+      <div ref={stageRef} className="graph-flow-overlay">
+        <div className="graph-flow-column graph-flow-input-column">
+          <div className="graph-flow-column-head"><span>Inputs</span><small>{inputs.length}</small></div>
+          <div className="graph-flow-card-list">
+            {inputs.map((item) => (
+              <button
+                key={item.slug}
+                ref={(node) => node ? inputRefs.current.set(item.slug, node) : inputRefs.current.delete(item.slug)}
+                type="button"
+                className="graph-flow-card"
+                onClick={() => onNodeOpen?.(item.slug)}
+              >
+                {item.demo_input ? <GraphFlowInputMarkers item={item} /> : <span className="graph-flow-card-type">{String(item.type || 'page').slice(0, 1).toUpperCase()}</span>}
+                <span className="graph-flow-card-copy"><strong>{item.title || labelFromSlug(item.slug)}</strong><small>{item.demo_input ? `${item.input_source.label} · ${item.input_sender.name}` : `${item.type || 'page'} · ${formatDateTime(item.updated_at)}`}</small></span>
+                <i />
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="graph-flow-column graph-flow-output-column">
+          <div className="graph-flow-column-head"><span>Next tasks</span><small>{tasks.length}</small></div>
+          <div className="graph-flow-card-list">
+            {tasks.map((item) => (
+              <button
+                key={item.slug}
+                ref={(node) => node ? taskRefs.current.set(item.slug, node) : taskRefs.current.delete(item.slug)}
+                type="button"
+                className="graph-flow-card"
+                onClick={() => onNodeOpen?.(item.slug)}
+              >
+                <span className="graph-flow-card-type graph-flow-card-task">→</span>
+                <span className="graph-flow-card-copy"><strong>{item.title || labelFromSlug(item.slug)}</strong><small>{formatTaskStatus(item.status)}{item.due ? ` · due ${item.due}` : ''}</small></span>
+                <span className="graph-flow-card-status">{formatTaskStatus(item.status)}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
-      <div className="graph-flow-column graph-flow-output-column">
-        <div className="graph-flow-column-head"><span>Next tasks</span><small>{tasks.length}</small></div>
-        <div className="graph-flow-card-list">
-          {tasks.map((item) => (
-            <button
-              key={item.slug}
-              ref={(node) => node ? taskRefs.current.set(item.slug, node) : taskRefs.current.delete(item.slug)}
-              type="button"
-              className="graph-flow-card"
-              onClick={() => onNodeOpen?.(item.slug)}
-            >
-              <span className="graph-flow-card-type graph-flow-card-task">→</span>
-              <span className="graph-flow-card-copy"><strong>{item.title || labelFromSlug(item.slug)}</strong><small>{formatTaskStatus(item.status)}{item.due ? ` · due ${item.due}` : ''}</small></span>
-              <span className="graph-flow-card-status">{formatTaskStatus(item.status)}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
+    </>
   );
 }
 

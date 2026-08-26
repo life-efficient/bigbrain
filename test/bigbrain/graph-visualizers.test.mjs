@@ -385,6 +385,18 @@ test('graph flow arcs attach side cards to their matching graph nodes', async ()
   assert.match(bloom, /data-graph-node-slug=\{node\.slug\}/);
 });
 
+test('flow arcs sit below graph nodes while cards stay above the graph', async () => {
+  const [main, dashboard] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(main, /<>\s*<GraphFlowNetwork layout=\{layout\} \/>\s*<div ref=\{stageRef\} className="graph-flow-overlay">/);
+  assert.match(dashboard, /\.graph-canvas-shell \{[^}]*z-index: 2/);
+  assert.match(dashboard, /\.graph-flow-network \{[^}]*z-index: 1/);
+  assert.match(dashboard, /\.graph-flow-overlay \{[^}]*z-index: 3/);
+});
+
 test('flow context uses the shared graph style pill group', async () => {
   const [main, registry, dashboard] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
