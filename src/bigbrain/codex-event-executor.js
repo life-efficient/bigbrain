@@ -129,10 +129,22 @@ export class CodexAppThreadExecutor {
         input: [{ type: 'text', text: prompt }],
         outputSchema: codexOutcomeSchema(),
       });
-      const parsed = extractOutcomeFromAppServer(turn, client.notifications);
+      const turnId = turn?.turn?.id || turn?.id || null;
+      const completion = typeof client.waitForNotification === 'function'
+        ? await client.waitForNotification((message) => message?.method === 'turn/completed' && (!turnId || message.params?.turn?.id === turnId), { timeoutMs: this.timeoutMs })
+        : null;
+      const completedTurn = completion?.params?.turn || completion?.turn || null;
+      if (completedTurn?.status === 'failed' || completion?.method === 'turn/failed') {
+        const failure = new Error(completedTurn?.error?.message || 'Codex app-server turn failed.');
+        failure.execution_id = turnId;
+        failure.thread_id = threadId;
+        failure.execution_meta = { mode: 'app_thread', exit_status: 1, error_details: { error: completedTurn?.error || null } };
+        throw failure;
+      }
+      const parsed = extractOutcomeFromAppServer(completion || turn, client.notifications);
       return {
         mode: 'app_thread',
-        execution_id: turn?.turn?.id || turn?.id || `turn-${Date.now()}`,
+        execution_id: turnId || `turn-${Date.now()}`,
         thread_id: threadId,
         exit_status: 0,
         outcome: normalizeCodexOutcome(parsed),
@@ -155,6 +167,7 @@ export class AppServerJsonRpcClient {
     this.nextId = 1;
     this.pending = new Map();
     this.notifications = [];
+    this.waiters = [];
     this.process = null;
     this.buffer = '';
   }
@@ -196,6 +209,7 @@ export class AppServerJsonRpcClient {
       try { message = JSON.parse(line); } catch { continue; }
       if (message.id === undefined) {
         this.notifications.push(message);
+        this.resolveWaiters(message);
         continue;
       }
       const pending = this.pending.get(message.id);
@@ -213,6 +227,35 @@ export class AppServerJsonRpcClient {
       pending.reject(error);
     }
     this.pending.clear();
+    for (const waiter of this.waiters.splice(0)) {
+      clearTimeout(waiter.timer);
+      waiter.reject(error);
+    }
+  }
+
+  waitForNotification(predicate, { timeoutMs = this.timeoutMs } = {}) {
+    const existing = this.notifications.find((message) => predicate(message));
+    if (existing) return Promise.resolve(existing);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.waiters = this.waiters.filter((waiter) => waiter.resolve !== resolve);
+        reject(new Error('Timed out waiting for Codex app-server completion notification.'));
+      }, timeoutMs);
+      timer.unref?.();
+      this.waiters.push({ predicate, resolve, reject, timer });
+    });
+  }
+
+  resolveWaiters(message) {
+    for (const waiter of this.waiters.splice(0)) {
+      if (!waiter.predicate(message)) {
+        this.waiters.push(waiter);
+        continue;
+      }
+      clearTimeout(waiter.timer);
+      waiter.resolve(message);
+      break;
+    }
   }
 
   async close() {
@@ -227,12 +270,12 @@ export function codexOutcomeSchema() {
   return {
     type: 'object',
     additionalProperties: false,
-    required: ['status', 'reason', 'destinations'],
+      required: ['status', 'reason', 'destinations'],
     properties: {
       status: { type: 'string', enum: ['filed', 'ignored', 'needs_review'] },
       capture_mode: { type: 'string', enum: ['none', 'summary', 'full'] },
       reason: { type: 'string' },
-      destinations: { type: 'array' },
+      destinations: { type: 'array', items: { type: 'object' } },
     },
   };
 }
@@ -300,12 +343,23 @@ function parseJsonText(value) {
 }
 
 function extractOutcomeFromAppServer(turn, notifications = []) {
-  if (turn?.outcome) return turn.outcome;
-  if (turn?.result && typeof turn.result === 'object') return turn.result;
-  const candidates = [turn?.output, turn?.text, ...notifications.map((item) => item?.text || item?.result?.text)];
-  for (const candidate of candidates.reverse()) {
-    if (typeof candidate !== 'string') continue;
-    const parsed = parseCodexJsonOutput(candidate);
+  return [...notifications, turn].reverse().map(findOutcome).find(Boolean) || null;
+}
+
+function findOutcome(value, depth = 0) {
+  if (depth > 8 || value === null || value === undefined) return null;
+  if (typeof value === 'string') return parseJsonText(value);
+  if (Array.isArray(value)) {
+    for (const item of [...value].reverse()) {
+      const parsed = findOutcome(item, depth + 1);
+      if (parsed) return parsed;
+    }
+    return null;
+  }
+  if (typeof value !== 'object') return null;
+  if (typeof value.status === 'string' && (value.destinations !== undefined || value.reason !== undefined)) return value.result || value.outcome || value;
+  for (const key of ['outcome', 'result', 'output', 'text', 'item', 'content', 'params', 'turn']) {
+    const parsed = findOutcome(value[key], depth + 1);
     if (parsed) return parsed;
   }
   return null;

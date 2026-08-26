@@ -63,6 +63,23 @@ test('app-thread executor uses the supported app-server thread and turn methods'
   assert.deepEqual(calls.map((call) => call.method), ['initialize', 'thread/start', 'turn/start']);
 });
 
+test('app-thread executor waits for completion and extracts the agent message outcome', async () => {
+  const notifications = [
+    { method: 'item/completed', params: { item: { type: 'agentMessage', text: '{"status":"filed","reason":"useful","destinations":[]}' } } },
+    { method: 'turn/completed', params: { turn: { id: 'turn-2', status: 'completed' } } },
+  ];
+  const executor = new CodexAppThreadExecutor({ clientFactory: async () => ({
+    notifications,
+    request: async (method) => method === 'thread/start' ? { thread: { id: 'thread-2' } } : { turn: { id: 'turn-2', status: 'inProgress' } },
+    waitForNotification: async () => notifications[1],
+    close: async () => {},
+  }) });
+  const result = await executor.execute({ event, listener: { description: 'Calendar' } });
+  assert.equal(result.thread_id, 'thread-2');
+  assert.equal(result.execution_id, 'turn-2');
+  assert.equal(result.outcome.status, 'filed');
+});
+
 test('CLI JSON parsing tolerates progress lines', () => {
   assert.deepEqual(parseCodexJsonOutput(`{"type":"thread.started","thread_id":"thread-1"}\n{"type":"item.completed","item":{"type":"agent_message","text":"{\\"status\\":\\"filed\\",\\"reason\\":\\"ok\\",\\"destinations\\":[]}"}}\n{"type":"turn.completed"}`), { status: 'filed', reason: 'ok', destinations: [] });
   assert.equal(parseCodexThreadId(`{"type":"thread.started","thread_id":"thread-1"}`), 'thread-1');
