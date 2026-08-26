@@ -1,6 +1,5 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
 
 import { initializeBrainHome, loadConfig, loadState, loadUserEnv, persistState, resolveBrainHome, updateBrainName } from './config.js';
 import { conservativeBrainProfileDraft, loadBrainProfile, parseBrainProfileMarkdown, saveBrainProfileRevision, writeBrainProfile } from './brain-profile.js';
@@ -720,7 +719,6 @@ async function handleDashboard(args, global) {
   const actualPort = typeof address === 'object' && address ? address.port : port;
   const displayHost = host === '0.0.0.0' || host === '::' ? '127.0.0.1' : host;
   const url = `http://${displayHost}:${actualPort}`;
-  if (!args.includes('--no-open')) openBrowser(url);
   console.log(`Dashboard running at ${url}`);
 }
 
@@ -851,7 +849,7 @@ Commands:
   eval export [--cases PATH] [--mode MODE] [--arm ARM] [--limit N] [--redact] [--no-ai]
   eval replay --against baseline.ndjson [--mode MODE] [--arm ARM] [--limit N] [--no-ai]
   eval compare [--cases PATH] [--modes MODES | --arms ARMS | --policies POLICIES] [--reference-policy POLICY] [--arm ARM] [--mode MODE] [--markdown] [--no-ai]
-  dashboard [--host HOST] [--port N] [--no-open]
+  dashboard [--host HOST] [--port N]
   mcp [--host HOST] [--port N]
   connect codex <service-url> [--name NAME] [--auth oauth|token] [--token-stdin]
   update --check [--channel stable|beta] [--require-signed-tags]
@@ -1006,24 +1004,6 @@ function requireOption(args, name) {
   const value = argValue(args, name);
   if (!value) throw new Error(`Missing required option: ${name}`);
   return value;
-}
-
-function openBrowser(url) {
-  const opener = process.platform === 'darwin'
-    ? { command: 'open', args: [url] }
-    : process.platform === 'win32'
-      ? { command: 'cmd', args: ['/c', 'start', '', url] }
-      : { command: 'xdg-open', args: [url] };
-  try {
-    const child = spawn(opener.command, opener.args, {
-      detached: true,
-      stdio: 'ignore',
-    });
-    child.once('error', () => {});
-    child.unref();
-  } catch {
-    // The dashboard server is still useful even when the OS browser opener is unavailable.
-  }
 }
 
 async function readStdin() {

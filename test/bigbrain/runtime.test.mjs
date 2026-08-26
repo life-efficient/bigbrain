@@ -301,7 +301,7 @@ test('CLI reports search mode bundles', async () => {
   assert.equal(report.bundles.tokenmax.expansion, true);
 });
 
-test('CLI dashboard starts the browser dashboard server', async () => {
+test('CLI dashboard starts the dashboard server without opening a browser', async () => {
   const fixture = await createFixture('bigbrain-cli-dashboard-');
   let child;
   try {
@@ -312,7 +312,6 @@ test('CLI dashboard starts the browser dashboard server', async () => {
       'dashboard',
       '--port',
       '0',
-      '--no-open',
     ], {
       cwd: process.cwd(),
       env: { ...process.env, NODE_NO_WARNINGS: '1' },
