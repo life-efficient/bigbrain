@@ -116,18 +116,20 @@ export function upsertRssItemInPageBody(body, { source, item, rawPath, retrieved
   const normalized = normalizeRssItem(item);
   const key = stableRssItemKey(source.id, normalized);
   const marker = `<!-- rss-item:${hash(key)} -->`;
+  const sourceLabel = source.display_name || source.publisher || source.id;
+  const sectionHeading = source.section_heading || `${sourceLabel} Feed`;
   const entry = [
     marker,
-    `- [${escapeMarkdown(normalized.title)}](${normalized.link || normalized.guid}) (${itemDate(normalized, now)})${normalized.category ? ` **${escapeMarkdown(normalized.category)}**` : ''}: ${normalized.description || 'No description was included in the RSS item.'} [Source: [OpenAI News RSS](${source.url}), retrieved ${retrievedAt}; raw sidecar: [.raw/${path.posix.basename(sidecarPathForRaw(rawPath))}](.raw/${path.posix.basename(sidecarPathForRaw(rawPath))})]`,
+    `- [${escapeMarkdown(normalized.title)}](${normalized.link || normalized.guid}) (${itemDate(normalized, now)})${normalized.category ? ` **${escapeMarkdown(normalized.category)}**` : ''}: ${normalized.description || 'No description was included in the RSS item.'} [Source: [${sourceLabel} RSS](${source.url}), retrieved ${retrievedAt}; raw sidecar: [.raw/${path.posix.basename(sidecarPathForRaw(rawPath))}](.raw/${path.posix.basename(sidecarPathForRaw(rawPath))})]`,
   ].join('\n');
   const current = String(body || '').trimEnd();
   if (current.includes(marker)) return { body: current, changed: false, key };
 
   const lines = current.split('\n');
-  const headingIndex = lines.findIndex((line) => /^## OpenAI News Feed\s*$/.test(line.trim()));
+  const headingIndex = lines.findIndex((line) => line.trim() === `## ${sectionHeading}`);
   if (headingIndex === -1) {
     return {
-      body: `${current}\n\n## OpenAI News Feed\n\n${entry}`,
+      body: `${current}\n\n## ${sectionHeading}\n\n${entry}`,
       changed: true,
       key,
     };
@@ -410,7 +412,7 @@ export class EventIngestor {
     await this.mcp.callTool('update_page', {
       path: source.target_page,
       body: updated.body,
-      timeline_entry: `Added OpenAI News RSS item: ${normalized.title} (${normalized.link || normalized.guid}).`,
+      timeline_entry: `Added ${source.display_name || source.publisher || source.id} RSS item: ${normalized.title} (${normalized.link || normalized.guid}).`,
     });
     const readback = await this.mcp.callTool('read', { path: source.target_page });
     if (!String(readback.body || '').includes(updated.key ? normalized.link || normalized.guid : normalized.title)) {
@@ -428,6 +430,9 @@ export class EventIngestor {
     let status = 'accepted_no_adapter';
     let result = null;
     if (source?.type === 'rss' && envelope.type === 'rss.item') {
+      if (!envelope.payload || typeof envelope.payload.raw !== 'string' || !envelope.payload.raw.trim()) {
+        throw new Error('RSS event payload must include the complete raw item XML.');
+      }
       result = await this.ingestRssItem(source, envelope.payload, envelope.payload?.raw || '');
       status = result.status;
     }
@@ -538,6 +543,7 @@ export function normalizeConfig(config) {
     sources: sources.map((source) => ({
       ...source,
       publisher: source.publisher || null,
+      display_name: source.display_name || source.publisher || source.id,
       bootstrap: source.bootstrap || null,
       raw_prefix: source.raw_prefix || source.id,
     })),
