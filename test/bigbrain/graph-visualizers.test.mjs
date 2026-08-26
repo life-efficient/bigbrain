@@ -288,7 +288,7 @@ test('vis network boot and MCP activity animations are bounded and accessible', 
   assert.match(visualizer, /vis-network-boot-overlay" aria-hidden="true"/);
   assert.match(visualizer, /MCP CREATE/);
   assert.match(dashboard, /@media \(prefers-reduced-motion: reduce\)[\s\S]*vis-network-boot-overlay/);
-  assert.doesNotMatch(dashboard.match(/\.vis-network-boot-overlay[\s\S]*?\.futuristic-graph/)?.[0] || '', /infinite/);
+  assert.doesNotMatch(dashboard.match(/\.vis-network-boot-overlay[\s\S]*?\.design-lab-page/)?.[0] || '', /infinite/);
   assert.match(main, /new EventSource\('\/api\/graph\/events'\)/);
 });
 
