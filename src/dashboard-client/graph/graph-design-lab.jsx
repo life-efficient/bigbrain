@@ -1,4 +1,16 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+
+import {
+  GRAPH_ARC_STYLES,
+  GRAPH_COLOR_MODES,
+  GRAPH_DEFAULTS,
+  GRAPH_LABEL_STYLES,
+  GRAPH_LAYOUT_STYLES,
+  GRAPH_NODE_SIZES,
+  GRAPH_NODE_STYLES,
+  graphVisualizers,
+} from './registry.jsx';
+import { GraphThemeProvider } from './visualizer-core.jsx';
 
 const CONCEPTS = [
   {
@@ -358,52 +370,50 @@ function outboundFlowPath(target, brain) {
 }
 
 function SchemaBrainConstellation({ innerRef, graph }) {
-  const layout = buildSchemaConstellationLayout(graph);
+  const preferences = useMemo(readGraphPreferences, []);
+  const visualizer = graphVisualizers.find((item) => item.id === preferences.visualizerId) || graphVisualizers[0];
+  const VisualizerComponent = visualizer.Component;
 
   return (
-    <div ref={innerRef} className="schema-brain-constellation">
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-        {layout.links.map((link) => <line key={`${link.source}:${link.target}`} x1={link.sourceX} y1={link.sourceY} x2={link.targetX} y2={link.targetY} />)}
-        {layout.nodes.map((node) => <circle key={node.slug} cx={node.x} cy={node.y} r={node.radius} className="schema-node-real" />)}
-      </svg>
-      <div className="schema-brain-core"><BrainCore mode="loop" showName={false} /></div>
+    <div ref={innerRef} className="schema-brain-constellation schema-live-graph">
+      <GraphThemeProvider resolvedTheme="dark">
+        <VisualizerComponent
+          graph={graph || EMPTY_GRAPH}
+          nodeStyle={preferences.nodeStyle}
+          nodeSize={preferences.nodeSize}
+          arcStyle={preferences.arcStyle}
+          layoutStyle={preferences.layoutStyle}
+          labelStyle={preferences.labelStyle}
+          colorMode={preferences.colorMode}
+        />
+      </GraphThemeProvider>
     </div>
   );
 }
 
-function buildSchemaConstellationLayout(graph) {
-  const sourceNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-  const byDegree = [...sourceNodes].sort((left, right) => (
-    (right.degree || 0) - (left.degree || 0) || left.slug.localeCompare(right.slug)
-  ));
-  const byUpdated = [...sourceNodes].sort((left, right) => (
-    String(right.updated_at || '').localeCompare(String(left.updated_at || '')) || left.slug.localeCompare(right.slug)
-  ));
-  const selected = new Map();
-  [...byDegree.slice(0, 72), ...byUpdated.slice(0, 28)].forEach((node) => selected.set(node.slug, node));
-  const nodes = [...selected.values()].slice(0, 96).map((node, index, all) => {
-    const angle = index * 2.399963229728653;
-    const radius = 25 + (Math.sqrt((index + 0.5) / Math.max(all.length, 1)) * 22);
-    return {
-      ...node,
-      x: 50 + Math.cos(angle) * radius,
-      y: 50 + Math.sin(angle) * radius * 0.86,
-      radius: Math.max(0.7, Math.min(2.35, 0.68 + Math.log2((node.degree || 0) + 1) * 0.18)),
+const EMPTY_GRAPH = { meta: { page_count: 0, node_count: 0, edge_count: 0 }, activity: [], nodes: [], edges: [] };
+
+function readGraphPreferences() {
+  const defaults = { ...GRAPH_DEFAULTS };
+  try {
+    const saved = JSON.parse(window.localStorage.getItem('bigbrain:graph-preferences') || '{}');
+    if (saved.visualizerId === 'vis-network') saved.visualizerId = 'network-constellation';
+    const allowed = {
+      visualizerId: new Set(graphVisualizers.map((item) => item.id)),
+      nodeStyle: new Set(GRAPH_NODE_STYLES.map((item) => item.id)),
+      nodeSize: new Set(GRAPH_NODE_SIZES.map((item) => item.id)),
+      arcStyle: new Set(GRAPH_ARC_STYLES.map((item) => item.id)),
+      layoutStyle: new Set(GRAPH_LAYOUT_STYLES.map((item) => item.id)),
+      labelStyle: new Set(GRAPH_LABEL_STYLES.map((item) => item.id)),
+      colorMode: new Set(GRAPH_COLOR_MODES.map((item) => item.id)),
     };
-  });
-  const positions = new Map(nodes.map((node) => [node.slug, node]));
-  const links = (Array.isArray(graph?.edges) ? graph.edges : [])
-    .filter((edge) => positions.has(edge.source) && positions.has(edge.target))
-    .slice(0, 320)
-    .map((edge) => ({
-      source: edge.source,
-      target: edge.target,
-      sourceX: positions.get(edge.source).x,
-      sourceY: positions.get(edge.source).y,
-      targetX: positions.get(edge.target).x,
-      targetY: positions.get(edge.target).y,
-    }));
-  return { nodes, links };
+    Object.entries(allowed).forEach(([key, values]) => {
+      if (values.has(saved[key])) defaults[key] = saved[key];
+    });
+  } catch {
+    // Graph lab defaults remain usable when preferences are unavailable.
+  }
+  return defaults;
 }
 
 function ReactorView() {

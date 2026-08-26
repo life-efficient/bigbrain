@@ -161,9 +161,9 @@ const BloomLinks = memo(function BloomLinks({ laidOut, theme }) {
     const path = buildCurvedEdgePath(edge, internal ? 0.2 : 0.08);
     return (
       <g key={edge.key}>
-        {internal && <path d={path} fill="none" stroke={theme.graphEdge} strokeOpacity="0.09" strokeWidth="5" />}
+        {internal && <path className="graph-relationship-arc graph-relationship-arc-glow" d={path} fill="none" stroke={theme.graphEdge} strokeOpacity="0.09" strokeWidth="5" />}
         <path
-          className={index < BLOOM_ANIMATED_LINK_LIMIT ? 'bloom-link-animated' : undefined}
+          className={`graph-relationship-arc${index < BLOOM_ANIMATED_LINK_LIMIT ? ' bloom-link-animated' : ''}`}
           d={path}
           fill="none"
           stroke={internal ? theme.graphEdgeStrong : theme.graphEdge}

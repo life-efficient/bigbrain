@@ -1364,6 +1364,14 @@ function renderAppHtml() {
       .narrative-lab .schema-node-real { fill: #d4d4d8; }
       .narrative-lab .schema-brain-constellation line { stroke: rgba(244,244,245,0.18); }
       .narrative-lab .schema-brain-constellation circle { fill: #d4d4d8; stroke: rgba(255,255,255,0.42); }
+      .narrative-lab .schema-live-graph { width: min(100%, 420px); height: clamp(250px, 42vh, 380px); aspect-ratio: auto; }
+      .narrative-lab .schema-live-graph .graph-canvas-shell { width: 100%; height: 100%; }
+      .narrative-lab .schema-live-graph .graph-svg { cursor: default; }
+      .narrative-lab .schema-live-graph .graph-relationship-arc { stroke-dasharray: 2 18; animation: graph-lab-arc-shimmer 6.8s linear infinite; }
+      .narrative-lab .schema-live-graph .graph-relationship-arc:nth-of-type(4n) { animation-delay: -2.4s; }
+      .narrative-lab .schema-live-graph .graph-relationship-arc:nth-of-type(5n) { animation-delay: -4.1s; }
+      .narrative-lab .schema-live-graph .graph-relationship-arc-glow { stroke-dasharray: 1 24; animation-duration: 8.4s; opacity: 0.18; }
+      @keyframes graph-lab-arc-shimmer { 0% { stroke-dashoffset: 0; opacity: 0.16; } 42% { opacity: 0.42; } 100% { stroke-dashoffset: -48; opacity: 0.16; } }
       .narrative-lab .schema-flow-energy-arc-in,
       .narrative-lab .schema-flow-energy-arc-out,
       .narrative-lab .schema-flow-energy-glow-in,

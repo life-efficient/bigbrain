@@ -243,6 +243,7 @@ const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
           return (
             <path
               key={edge.key}
+              className="graph-relationship-arc"
               d={buildCurvedEdgePath(edge, 0.12)}
               fill="none"
               stroke={theme.graphEdgeStrong}
@@ -257,6 +258,7 @@ const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
           return (
             <g key={edge.key}>
               <path
+                className="graph-relationship-arc graph-relationship-arc-glow"
                 d={d}
                 fill="none"
                 stroke={theme.graphEdge}
@@ -265,6 +267,7 @@ const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
                 strokeLinecap="round"
               />
               <path
+                className="graph-relationship-arc"
                 d={d}
                 fill="none"
                 stroke={theme.graphEdgeStrong}
@@ -279,6 +282,7 @@ const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
         return (
           <line
             key={edge.key}
+            className="graph-relationship-arc"
             x1={edge.source.x}
             y1={edge.source.y}
             x2={edge.target.x}
