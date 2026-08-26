@@ -116,6 +116,25 @@ const TYPE_ALIASES = {
   source: 'sources',
 };
 
+const DEMO_INPUT_SOURCES = [
+  { type: 'gmail', label: 'Gmail' },
+  { type: 'whatsapp', label: 'WhatsApp' },
+  { type: 'slack', label: 'Slack' },
+  { type: 'calendar', label: 'Calendar' },
+  { type: 'granola', label: 'Granola' },
+];
+
+const DEMO_INPUT_SENDERS = [
+  'Maya Bennett',
+  'Elias Nouri',
+  'Priya Shah',
+  'Theo Martins',
+  'Lina Haddad',
+  'Rowan Ellis',
+  'Nadia Karim',
+  'Jon Bell',
+];
+
 export function createDemoSeed() {
   return `demo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -128,6 +147,22 @@ export function buildDemoGraph(graph, seed = 'demo') {
       ? graph.nodes.map((node) => ({ ...node, title: demoTitleForNode(node, seed) }))
       : [],
   };
+}
+
+export function buildDemoGraphFlowInputs(nodes, seed = 'demo') {
+  const sourceNodes = Array.isArray(nodes) ? nodes : [];
+  const sourceOffset = stableHash(`${seed}:input-sources`) % DEMO_INPUT_SOURCES.length;
+  return sourceNodes.map((node, index) => {
+    const key = String(node?.slug || `input-${index}`);
+    const source = DEMO_INPUT_SOURCES[(index + sourceOffset) % DEMO_INPUT_SOURCES.length];
+    const sender = DEMO_INPUT_SENDERS[stableHash(`${seed}:input-sender:${key}`) % DEMO_INPUT_SENDERS.length];
+    return {
+      ...node,
+      demo_input: true,
+      input_source: source,
+      input_sender: { name: sender },
+    };
+  });
 }
 
 export function buildDemoTasks(tasks, seed = 'demo') {

@@ -6,6 +6,7 @@ import {
   buildDemoExplorer,
   buildDemoExplorerFile,
   buildDemoGraph,
+  buildDemoGraphFlowInputs,
   buildDemoPagePreview,
   buildDemoTaskSections,
   buildDemoTasks,
@@ -29,6 +30,21 @@ test('demo graph replaces page titles with stable, type-aware names', () => {
   assert.deepEqual(demo.edges, graph.edges);
   assert.equal(buildDemoGraph(graph, 'seed-a').nodes[0].title, demo.nodes[0].title);
   assert.notEqual(buildDemoGraph(graph, 'seed-b').nodes[0].title, demo.nodes[0].title);
+});
+
+test('demo flow inputs provide safe source channels and sender avatars', () => {
+  const inputs = buildDemoGraphFlowInputs([
+    { slug: 'sources/one', title: 'Private source one', type: 'sources' },
+    { slug: 'sources/two', title: 'Private source two', type: 'sources' },
+    { slug: 'sources/three', title: 'Private source three', type: 'sources' },
+    { slug: 'sources/four', title: 'Private source four', type: 'sources' },
+    { slug: 'sources/five', title: 'Private source five', type: 'sources' },
+  ], 'seed-a');
+
+  assert.deepEqual(inputs.map((item) => item.input_source.type).sort(), ['calendar', 'gmail', 'granola', 'slack', 'whatsapp']);
+  assert.equal(inputs.every((item) => item.demo_input && item.input_sender?.name), true);
+  assert.doesNotMatch(inputs[0].input_sender.name, /Private source|real/i);
+  assert.deepEqual(buildDemoGraphFlowInputs([{ slug: 'sources/one' }], 'seed-a'), buildDemoGraphFlowInputs([{ slug: 'sources/one' }], 'seed-a'));
 });
 
 test('demo tasks remove assignees and provide safe task copy', () => {
@@ -81,6 +97,9 @@ test('dashboard exposes Demo mode as a persistent graph setting and privacy boun
   assert.match(main, /role="switch"[\s\S]*aria-checked=\{demoMode\}/);
   assert.match(main, /if \(demoModeRef\.current\) \{[\s\S]*buildDemoPagePreview/);
   assert.match(main, /!preview\?\.demo/);
+  assert.match(main, /buildDemoGraphFlowInputs/);
+  assert.match(main, /GraphFlowInputMarkers/);
+  assert.match(main, /Slack/);
 });
 
 test('Demo mode lives in Settings and uses the D keyboard shortcut', async () => {

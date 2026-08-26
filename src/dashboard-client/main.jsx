@@ -1,6 +1,7 @@
 import React, { memo, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as SelectPrimitive from '@radix-ui/react-select';
+import { AudioLines, CalendarDays, Mail, MessageCircle, Slack, UserRound } from 'lucide-react';
 
 import { TYPE_ORDER } from './graph/colors.js';
 import {
@@ -22,6 +23,7 @@ import {
   buildDemoExplorer,
   buildDemoExplorerFile,
   buildDemoGraph,
+  buildDemoGraphFlowInputs,
   buildDemoPagePreview,
   buildDemoTaskSections,
   buildDemoTasks,
@@ -670,6 +672,8 @@ function DashboardApp() {
               <GraphPanel
                 graph={displayGraph}
                 motionEvent={graphMotion}
+                demoMode={demoMode}
+                demoSeed={demoSeed}
                 visualizerId={visualizerId}
                 setVisualizerId={setVisualizerId}
                 nodeStyle={nodeStyle}
@@ -1932,6 +1936,8 @@ function resolveTimelineIndex(value, buckets) {
 const GraphPanel = memo(function GraphPanel({
   graph,
   motionEvent,
+  demoMode,
+  demoSeed,
   visualizerId,
   setVisualizerId,
   nodeStyle,
@@ -2012,6 +2018,9 @@ const GraphPanel = memo(function GraphPanel({
       .sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at))
       .slice(0, 6);
   }, [filteredGraph]);
+  const flowInputs = useMemo(() => (
+    demoMode ? buildDemoGraphFlowInputs(recentNodes, demoSeed) : recentNodes
+  ), [demoMode, demoSeed, recentNodes]);
   const isCustomRenderer = visualizerId === 'custom';
   const visibleControls = Array.isArray(visualizer.controls)
     ? visualizer.controls.filter((control) => control === 'resetView')
@@ -2075,7 +2084,7 @@ const GraphPanel = memo(function GraphPanel({
         />
         {flowVisible ? (
           <GraphFlowOverlay
-            inputs={recentNodes}
+            inputs={flowInputs}
             tasks={flowTasks}
             onNodeOpen={onNodeOpen}
           />
@@ -2341,8 +2350,8 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
               className="graph-flow-card"
               onClick={() => onNodeOpen?.(item.slug)}
             >
-              <span className="graph-flow-card-type">{String(item.type || 'page').slice(0, 1).toUpperCase()}</span>
-              <span className="graph-flow-card-copy"><strong>{item.title || labelFromSlug(item.slug)}</strong><small>{item.type || 'page'} · {formatDateTime(item.updated_at)}</small></span>
+              {item.demo_input ? <GraphFlowInputMarkers item={item} /> : <span className="graph-flow-card-type">{String(item.type || 'page').slice(0, 1).toUpperCase()}</span>}
+              <span className="graph-flow-card-copy"><strong>{item.title || labelFromSlug(item.slug)}</strong><small>{item.demo_input ? `${item.input_source.label} · ${item.input_sender.name}` : `${item.type || 'page'} · ${formatDateTime(item.updated_at)}`}</small></span>
               <i />
             </button>
           ))}
@@ -2368,6 +2377,47 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
       </div>
     </div>
   );
+}
+
+function GraphFlowInputMarkers({ item }) {
+  const source = item.input_source || {};
+  const sender = item.input_sender || {};
+  const SourceIcon = {
+    gmail: Mail,
+    whatsapp: MessageCircle,
+    slack: Slack,
+    calendar: CalendarDays,
+    granola: AudioLines,
+  }[source.type] || Mail;
+  const senderName = sender.name || 'Demo sender';
+  return (
+    <span className="graph-flow-card-markers">
+      <span
+        className={`graph-flow-card-source graph-flow-card-source-${source.type || 'gmail'}`}
+        title={source.label || 'Demo input'}
+        aria-label={source.label || 'Demo input'}
+      >
+        <SourceIcon size={14} strokeWidth={2.1} aria-hidden="true" />
+      </span>
+      <span
+        className="graph-flow-card-avatar"
+        title={`Sent by ${senderName}`}
+        aria-label={`Sent by ${senderName}`}
+      >
+        {getAvatarInitials(senderName)}
+      </span>
+    </span>
+  );
+}
+
+function getAvatarInitials(name) {
+  const initials = String(name || '')
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word.charAt(0).toUpperCase())
+    .join('');
+  return initials || <UserRound size={13} strokeWidth={2} aria-hidden="true" />;
 }
 
 function GraphFlowNetwork({ layout }) {

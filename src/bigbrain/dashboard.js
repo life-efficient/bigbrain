@@ -870,9 +870,18 @@ function renderAppHtml() {
       .graph-flow-column-head { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 3px; color: rgba(244,244,245,0.68); font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.12em; text-transform: uppercase; }
       .graph-flow-column-head small { color: rgba(161,161,170,0.8); font: inherit; letter-spacing: 0.05em; }
       .graph-flow-card-list { display: grid; gap: 7px; }
-      .graph-flow-card { width: 100%; min-width: 0; display: grid; grid-template-columns: 28px minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid rgba(244,244,245,0.16); border-radius: 10px; background: rgba(12,12,14,0.8); box-shadow: 0 12px 28px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(14px); color: rgba(244,244,245,0.9); font: inherit; text-align: left; cursor: pointer; transition: transform 160ms ease, border-color 160ms ease, background 160ms ease; }
+      .graph-flow-card { width: 100%; min-width: 0; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid rgba(244,244,245,0.16); border-radius: 10px; background: rgba(12,12,14,0.8); box-shadow: 0 12px 28px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(14px); color: rgba(244,244,245,0.9); font: inherit; text-align: left; cursor: pointer; transition: transform 160ms ease, border-color 160ms ease, background 160ms ease; }
       .graph-flow-card:hover, .graph-flow-card:focus-visible { border-color: rgba(244,244,245,0.34); background: rgba(24,24,27,0.9); outline: none; transform: translateY(-1px); }
       .graph-flow-card-type { width: 27px; height: 27px; display: grid; place-items: center; border: 1px solid rgba(244,244,245,0.34); border-radius: 8px; color: rgba(244,244,245,0.88); background: rgba(244,244,245,0.08); font: 800 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .graph-flow-card-markers { display: flex; align-items: center; gap: 4px; }
+      .graph-flow-card-source, .graph-flow-card-avatar { width: 25px; height: 25px; display: grid; place-items: center; flex: 0 0 auto; border: 1px solid currentColor; }
+      .graph-flow-card-source { border-radius: 7px; background: rgba(244,244,245,0.07); }
+      .graph-flow-card-source-gmail { color: #f28b82; }
+      .graph-flow-card-source-whatsapp { color: #5bd48b; }
+      .graph-flow-card-source-slack { color: #c084fc; }
+      .graph-flow-card-source-calendar { color: #7dd3fc; }
+      .graph-flow-card-source-granola { color: #f5c26b; }
+      .graph-flow-card-avatar { border-radius: 999px; color: rgba(244,244,245,0.9); background: rgba(244,244,245,0.1); font: 800 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.02em; }
       .graph-flow-card-task { border-radius: 999px; }
       .graph-flow-card-copy { min-width: 0; display: grid; gap: 4px; }
       .graph-flow-card-copy strong { overflow: hidden; color: rgba(250,250,250,0.92); font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
