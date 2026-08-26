@@ -1,6 +1,6 @@
 ---
 name: bigbrain-granola-ingest
-description: Ingest recent Granola meetings into the correct BigBrain brain, including machine-wide routing by brain description.
+description: Use when the user asks to import or process recent Granola meetings into the correct BigBrain brain, including machine-wide routing by brain description.
 ---
 
 # BigBrain Granola Ingest
@@ -12,6 +12,7 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
 - The active brain or routed destination is resolved before any write.
 - Machine-wide routing uses each reachable brain's live description as the routing source of truth.
 - Machine-wide routing ingests every processable meeting; when no specialized brain clearly wins, route to Personal Brain if it is reachable and writable.
+- An optional user-level meeting-ingestion protocol is checked in Personal Brain before destination writes; a missing protocol is a non-blocking no-op.
 - Live destination filing rules are read before paths, page types, entities, tasks, or raw sidecars are chosen.
 - Existing Granola coverage is checked before creating or repairing pages.
 - Substantive meetings get canonical meeting pages and full raw transcript sidecars when transcripts are available and safe to store.
@@ -57,11 +58,15 @@ prompts, credentials, or other private content to the ledger helper.
    - If no specialized brain clearly wins and Personal Brain is reachable, authenticated, writable, and has a valid description, route to Personal Brain as the fallback destination.
    - Hold the item for review only when the likely destination is unavailable, Personal Brain fallback is unavailable, required folder exclusions cannot be enforced, or the meeting cannot be fetched safely enough to ingest.
    - Anti-patterns: reading filing rules before knowing candidate brains, routing from examples or keyword lists, treating unclear specialized routing as ambiguous when Personal Brain is available, fan-out to multiple brains, writing to an unavailable brain
-2. Read destination filing rules.
-   - Read the selected destination's top-level `FILING.md` and relevant collection filing rules before choosing paths or page types.
+2. Read the optional Personal Brain protocol and destination filing rules.
+   - Before any destination write, check Personal Brain for `protocol/meeting-ingestion-protocol.md`.
+   - If the protocol page exists, read it and apply any explicit meeting-specific route or output override before continuing.
+   - If the protocol selects a specialized workflow, delegate to that workflow and stop the standard BigBrain meeting-write path for that meeting. Do not name or hardcode a personal sub-skill in this shared skill.
+   - If the protocol page is absent, continue with standard Granola ingestion and apply no protocol-specific override. Do not search other brains and do not create the page automatically.
+   - For meetings that remain on the standard BigBrain path, read the selected destination's top-level `FILING.md` and relevant collection filing rules before choosing paths or page types.
    - Treat live filing rules as authoritative for meeting pages, raw transcript sidecars, entity pages, deal/project updates, and tasks.
    - In machine-wide routing mode, delegate destination write behavior to the selected brain's live filing rules instead of duplicating those rules in this router skill.
-   - Anti-patterns: hardcoding destination paths from this skill, duplicating filing rules, using stale memory instead of live rules, creating pages before reading rules
+   - Anti-patterns: writing before the optional protocol check, searching every brain for the protocol, hardcoding destination paths, duplicating filing rules, using stale memory instead of live rules, creating pages before reading rules
 3. Confirm Granola access and exclusions.
    - Prefer direct Granola MCP tools such as `list_meeting_folders`, `list_meetings`, `get_meetings`, and `get_meeting_transcript`.
    - Use the active harness's MCP discovery process before concluding Granola tools are unavailable.
@@ -140,6 +145,7 @@ prompts, credentials, or other private content to the ledger helper.
 ## Anti-Patterns
 
 - Treating the router as a source of per-brain filing policy instead of reading live destination rules.
+- Treating an absent optional Personal Brain protocol as a blocker or searching every brain for one.
 - Reintroducing purpose tags, approved profiles, examples, or source rules as machine-wide routing gates.
 - Using ambiguous meeting titles or keywords as a substitute for brain-description classification.
 - Leaving processable meetings un-ingested when Personal Brain is reachable and writable as the fallback destination.
