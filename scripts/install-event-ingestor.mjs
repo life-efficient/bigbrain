@@ -36,6 +36,7 @@ async function main() {
   const config = preparedConfig.config;
   await ensureRegistry(registryPath, { brainIdentity, legacySources: preparedConfig.legacySources, mcpUrl: preparedConfig.config.mcp_url || options.mcpUrl || 'http://127.0.0.1:55560/mcp', runtimeKind: options.runtimeKind || 'client', write: !options.dryRun });
   const migratedState = options.dryRun ? { migrated: false, sources: [] } : await migrateLegacyState({ statePath, inboxPath, legacySources: preparedConfig.legacySources });
+  const codexCommand = await resolveCodexCommand(options.codexCommand);
   const plist = renderPlist({
     label: options.label || DEFAULT_LABEL,
     nodePath: process.execPath,
@@ -43,9 +44,10 @@ async function main() {
     configPath,
     repoRoot,
     logDir,
+    codexCommand,
   });
   if (options.dryRun) {
-    console.log(JSON.stringify({ configPath, registryPath, inboxPath, plistPath, brainHome, statePath, migrated_state: migratedState, label: options.label || DEFAULT_LABEL }, null, 2));
+    console.log(JSON.stringify({ configPath, registryPath, inboxPath, plistPath, brainHome, statePath, codex_command: codexCommand, migrated_state: migratedState, label: options.label || DEFAULT_LABEL }, null, 2));
     return;
   }
   if (process.platform !== 'darwin') throw new Error('The event ingestor installer currently supports macOS launchd only.');
@@ -70,7 +72,7 @@ async function main() {
     }
     throw error;
   }
-  console.log(JSON.stringify({ ok: true, configPath, registryPath, inboxPath, plistPath, statePath, migrated_state: migratedState, service: target }, null, 2));
+  console.log(JSON.stringify({ ok: true, configPath, registryPath, inboxPath, plistPath, brainHome, statePath, codex_command: codexCommand, migrated_state: migratedState, service: target }, null, 2));
 }
 
 async function ensureConfig(configPath, { brainHome, statePath, registryPath, inboxPath, mcpUrl, port, brainIdentity, runtimeKind, write = true }) {
@@ -212,7 +214,7 @@ async function readBrainIdentity(brainHome) {
   return null;
 }
 
-function renderPlist({ label, nodePath, scriptPath, configPath, repoRoot, logDir }) {
+function renderPlist({ label, nodePath, scriptPath, configPath, repoRoot, logDir, codexCommand }) {
   const stdout = path.join(logDir, 'bigbrain-event-ingestor.log');
   const stderr = path.join(logDir, 'bigbrain-event-ingestor.err.log');
   const args = [nodePath, scriptPath, '--config', configPath];
@@ -234,6 +236,7 @@ ${args.map((arg) => `    <string>${xmlEscape(arg)}</string>`).join('\n')}
     <string>${xmlEscape(os.homedir())}</string>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+${codexCommand && codexCommand !== 'codex' ? `    <key>BIGBRAIN_CODEX_COMMAND</key>\n    <string>${xmlEscape(codexCommand)}</string>` : ''}
   </dict>
   <key>RunAtLoad</key>
   <true/>
@@ -265,10 +268,23 @@ function parseArgs(args) {
     else if (arg === '--mcp-url') options.mcpUrl = args[++index];
     else if (arg === '--port') options.port = args[++index];
     else if (arg === '--label') options.label = args[++index];
+    else if (arg === '--codex-command') options.codexCommand = args[++index];
     else if (arg === '--dry-run') options.dryRun = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
   return options;
+}
+
+async function resolveCodexCommand(explicit) {
+  if (explicit) return explicit;
+  if (process.env.BIGBRAIN_CODEX_COMMAND) return process.env.BIGBRAIN_CODEX_COMMAND;
+  const candidates = [
+    '/Applications/ChatGPT.app/Contents/Resources/codex',
+    '/opt/homebrew/bin/codex',
+    '/usr/local/bin/codex',
+  ];
+  for (const candidate of candidates) if (await fs.access(candidate).then(() => true).catch(() => false)) return candidate;
+  return execFileAsync('which', ['codex']).then(({ stdout }) => stdout.trim() || 'codex').catch(() => 'codex');
 }
 
 async function readDefaultBrainHome() {
