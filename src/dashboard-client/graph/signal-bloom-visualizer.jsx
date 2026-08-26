@@ -200,6 +200,7 @@ const BloomNodeItem = memo(function BloomNodeItem({
   return (
     <g
       className={animated ? 'bloom-node' : undefined}
+      data-graph-node-slug={node.slug}
       style={animated
         ? { cursor: 'pointer', animationDelay: `${170 + animationIndex * 7}ms` }
         : { cursor: 'pointer' }}

@@ -342,6 +342,23 @@ test('network renderers allow deep zoom without redrawing vis geometry during ge
   assert.doesNotMatch(dashboard.match(/\.vis-network-surface \{[\s\S]*?\.vis-network-label-layer/)?.[0] || '', /filter:/);
 });
 
+test('graph flow arcs attach side cards to their matching graph nodes', async () => {
+  const [main, composable, bloom] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/composable-graph-visualizer.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/signal-bloom-visualizer.jsx', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(main, /querySelectorAll\('\[data-graph-node-slug\]'\)/);
+  assert.match(main, /target: graphPointFor\(item\.slug\)/);
+  assert.match(main, /source: graphPointFor\(item\.slug\)/);
+  assert.match(main, /function graphFlowDirectedPath\(source, target\)/);
+  assert.match(main, /setTimeout\(scheduleMeasure, 1400\)/);
+  assert.doesNotMatch(main, /layout\.brain/);
+  assert.match(composable, /data-graph-node-slug=\{node\.slug\}/);
+  assert.match(bloom, /data-graph-node-slug=\{node\.slug\}/);
+});
+
 test('graph layouts safely handle empty and single-node graphs', () => {
   const empty = { nodes: [], edges: [] };
   const single = {

@@ -321,6 +321,7 @@ const NodeLayer = memo(function NodeLayer({
     <g
       key={node.slug}
       className="graph-node-screen-scale"
+      data-graph-node-slug={node.slug}
       onPointerDown={(event) => {
         event.stopPropagation();
       }}

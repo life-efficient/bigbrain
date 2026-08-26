@@ -2331,37 +2331,61 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
       if (!stage) return;
       const stageRect = stage.getBoundingClientRect();
       if (!stageRect.width || !stageRect.height) return;
-      const pointFor = (node, edge) => {
+      const pointFor = (node, edge = 'center') => {
         const rect = node?.getBoundingClientRect();
         if (!rect) return null;
         return {
-          x: (edge === 'right' ? rect.right : rect.left) - stageRect.left,
+          x: (edge === 'right' ? rect.right : edge === 'left' ? rect.left : rect.left + (rect.width / 2)) - stageRect.left,
           y: rect.top + (rect.height / 2) - stageRect.top,
         };
       };
-      const centerY = stageRect.height / 2;
+      const graphHost = stage.parentElement;
+      const graphNodes = new Map(
+        [...(graphHost?.querySelectorAll('[data-graph-node-slug]') || [])]
+          .map((node) => [node.getAttribute('data-graph-node-slug'), node])
+          .filter(([slug]) => slug),
+      );
+      const graphPointFor = (slug) => pointFor(graphNodes.get(slug));
       setLayout({
         width: stageRect.width,
         height: stageRect.height,
-        brain: {
-          leftX: stageRect.width * 0.43,
-          rightX: stageRect.width * 0.57,
-          centerY,
-        },
-        inputs: inputs.map((item) => pointFor(inputRefs.current.get(item.slug), 'right')).filter(Boolean),
-        outputs: tasks.map((item) => pointFor(taskRefs.current.get(item.slug), 'left')).filter(Boolean),
+        inputs: inputs.map((item) => ({
+          source: pointFor(inputRefs.current.get(item.slug), 'right'),
+          target: graphPointFor(item.slug),
+        })).filter(({ source, target }) => source && target),
+        outputs: tasks.map((item) => ({
+          source: graphPointFor(item.slug),
+          target: pointFor(taskRefs.current.get(item.slug), 'left'),
+        })).filter(({ source, target }) => source && target),
       });
     }
 
-    const frame = window.requestAnimationFrame(measure);
-    const observed = [stageRef.current, ...inputRefs.current.values(), ...taskRefs.current.values()].filter(Boolean);
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(measure);
+    let frame = window.requestAnimationFrame(measure);
+    const scheduleMeasure = () => {
+      window.cancelAnimationFrame(frame);
+      frame = window.requestAnimationFrame(measure);
+    };
+    const graphHost = stageRef.current?.parentElement;
+    const observed = [stageRef.current, graphHost, ...inputRefs.current.values(), ...taskRefs.current.values()].filter(Boolean);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scheduleMeasure);
     observed.forEach((node) => observer?.observe(node));
-    window.addEventListener('resize', measure);
+    const mutationObserver = typeof MutationObserver === 'undefined' || !graphHost
+      ? null
+      : new MutationObserver(scheduleMeasure);
+    mutationObserver?.observe(graphHost, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['class', 'data-graph-node-slug', 'style', 'transform', 'viewBox'],
+    });
+    const animationRefresh = window.setTimeout(scheduleMeasure, 1400);
+    window.addEventListener('resize', scheduleMeasure);
     return () => {
       window.cancelAnimationFrame(frame);
+      window.clearTimeout(animationRefresh);
       observer?.disconnect();
-      window.removeEventListener('resize', measure);
+      mutationObserver?.disconnect();
+      window.removeEventListener('resize', scheduleMeasure);
     };
   }, [inputs, tasks]);
 
@@ -2452,12 +2476,12 @@ function getAvatarInitials(name) {
 function GraphFlowNetwork({ layout }) {
   if (!layout) return null;
   const inbound = layout.inputs.map((source, index) => ({
-    d: graphFlowInboundPath(source, layout.brain),
+    d: graphFlowInboundPath(source.source, source.target),
     delay: `${[-0.2, -1.4, -2.8, -0.8, -3.7, -2.1][index] || 0}s`,
     duration: `${[5.4, 6.1, 4.9, 5.8, 6.5, 5.2][index] || 5.5}s`,
   }));
   const outbound = layout.outputs.map((target, index) => ({
-    d: graphFlowOutboundPath(target, layout.brain),
+    d: graphFlowOutboundPath(target.source, target.target),
     delay: `${[-2.4, -0.6, -3.5, -1.5, -4.2, -2.8][index] || 0}s`,
     duration: `${[5.8, 5.1, 6.4, 5.5, 6.8, 5.9][index] || 5.8}s`,
   }));
@@ -2509,16 +2533,19 @@ function GraphFlowNetwork({ layout }) {
   );
 }
 
-function graphFlowInboundPath(source, brain) {
-  const span = brain.leftX - source.x;
-  const targetY = brain.centerY + (source.y - brain.centerY) * 0.18;
-  return `M ${source.x} ${source.y} C ${source.x + span * 0.46} ${source.y}, ${brain.leftX - span * 0.24} ${targetY}, ${brain.leftX} ${targetY}`;
+function graphFlowInboundPath(source, target) {
+  return graphFlowDirectedPath(source, target);
 }
 
-function graphFlowOutboundPath(target, brain) {
-  const span = target.x - brain.rightX;
-  const sourceY = brain.centerY + (target.y - brain.centerY) * 0.18;
-  return `M ${brain.rightX} ${sourceY} C ${brain.rightX + span * 0.24} ${sourceY}, ${target.x - span * 0.46} ${target.y}, ${target.x} ${target.y}`;
+function graphFlowOutboundPath(source, target) {
+  return graphFlowDirectedPath(source, target);
+}
+
+function graphFlowDirectedPath(source, target) {
+  const direction = target.x >= source.x ? 1 : -1;
+  const span = Math.max(48, Math.abs(target.x - source.x));
+  const handle = Math.min(150, span * 0.42);
+  return `M ${source.x} ${source.y} C ${source.x + handle * direction} ${source.y}, ${target.x - handle * direction} ${target.y}, ${target.x} ${target.y}`;
 }
 
 function formatTaskStatus(status) {
