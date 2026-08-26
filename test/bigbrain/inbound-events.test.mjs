@@ -20,6 +20,7 @@ import {
   normalizeEventEnvelope,
   parseRssDocument,
   RssCollector,
+  ScopedFilingBroker,
 } from '../../src/bigbrain/inbound-events.js';
 
 async function fixture() {
@@ -163,6 +164,28 @@ test('processor records ignored events and only brokers filed outcomes to allowe
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
+});
+
+test('filing broker treats an already-provenanced event as an idempotent duplicate', async () => {
+  const calls = [];
+  const broker = new ScopedFilingBroker({
+    brainRegistry: [{ id: 'brain_personal', name: 'Personal' }],
+    mcpFactory: async () => ({
+      callTool: async (name, args) => {
+        calls.push({ name, args });
+        if (name === 'events/provenance_list') return { provenance: [{ event_id: 'event-1', page_slug: 'concepts/example' }] };
+        throw new Error(`Unexpected write: ${name}`);
+      },
+    }),
+  });
+  const result = await broker.file({ event_id: 'event-1', allowed_brain_ids: ['brain_personal'] }, {
+    status: 'filed',
+    capture_mode: 'summary',
+    destinations: [{ brain_id: 'brain_personal', writes: [{ tool: 'update_page', arguments: { path: 'concepts/example' } }] }],
+  });
+  assert.equal(result.status, 'filed');
+  assert.equal(result.destinations[0].duplicate, true);
+  assert.deepEqual(calls.map((call) => call.name), ['events/provenance_list']);
 });
 
 test('webhook server authenticates, limits, and deduplicates generic events', async () => {

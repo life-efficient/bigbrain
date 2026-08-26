@@ -24,6 +24,8 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
     '- Do not create a raw artifact unless capture_mode is full and the event policy permits it.',
     '- A filed result must include concrete writes with canonical read-back performed by the filing broker.',
     '- A useful event may be filed into more than one allowed Brain when the content genuinely belongs in each.',
+    '- Do not invoke tools, use exec, read or modify Brain pages, or run sync. The runtime filing broker is the only writer.',
+    '- Return one final JSON object only. Do not perform the filing yourself, even if tools are available.',
     '',
     `Allowed Brain destinations:\n${destinations || '(none, so return needs_review)'}`,
     '',
@@ -122,6 +124,8 @@ export class CodexAppThreadExecutor {
         cwd: this.cwd,
         threadSource: 'event',
         ephemeral: false,
+        environments: [],
+        developerInstructions: 'This is a classification-only subtask. Do not invoke any tool, use exec, read or modify Brain pages, or run sync. Return exactly one final JSON outcome for the runtime filing broker. The runtime filing broker is the only component allowed to write to a Brain.',
       });
       const threadId = started?.thread?.id || started?.id || started?.threadId;
       if (!threadId) throw new Error('Codex app-server did not return a thread ID.');

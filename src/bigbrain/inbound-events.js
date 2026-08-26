@@ -587,13 +587,14 @@ export class InboundEventProcessor {
       });
     }
     const allowedDestinations = resolveAllowedDestinations(registry, processingEvent, listener);
+    let execution = null;
     try {
       if (processingEvent.execution.location !== registry.runtime.kind) {
         throw new Error(`Event requires Codex processing on ${processingEvent.execution.location}, but this runtime is ${registry.runtime.kind}.`);
       }
       const executor = await this.executorFactory({ mode: processingEvent.execution.mode, location: processingEvent.execution.location, listener, registry });
       if (!executor || typeof executor.execute !== 'function') throw new Error(`No Codex executor is configured for ${processingEvent.execution.location}/${processingEvent.execution.mode}.`);
-      const execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
+      execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
       const outcome = execution?.outcome || { status: 'needs_review', reason: 'Codex returned no filing outcome.', destinations: [] };
       const executionMeta = executionMetadata(execution);
       if (outcome.status === 'ignored') {
@@ -620,7 +621,7 @@ export class InboundEventProcessor {
       });
     } catch (error) {
       this.logger.error?.(`BigBrain inbound event ${deliveryId} failed: ${error.message}`);
-      return this.inboxStore.fail(deliveryId, error, { executionId: error.execution_id || null, threadId: error.thread_id || null, executionMeta: error.execution_meta || null });
+      return this.inboxStore.fail(deliveryId, error, { executionId: error.execution_id || execution?.execution_id || null, threadId: error.thread_id || execution?.thread_id || null, executionMeta: error.execution_meta || executionMetadata(execution) || null });
     }
   }
 
@@ -1139,6 +1140,11 @@ export class ScopedFilingBroker {
     for (const destination of destinations) {
       const brain = this.assertAllowedBrain(event, destination.brain_id);
       const client = await this.mcpFactory(brain);
+      const existingProvenance = await this.findExistingProvenance(client, event.event_id);
+      if (existingProvenance.length) {
+        results.push({ brain_id: destination.brain_id, duplicate: true, writes: [], provenance: existingProvenance });
+        continue;
+      }
       const writes = Array.isArray(destination.writes) ? destination.writes : [];
       const brainResults = [];
       for (const write of writes) brainResults.push(await this.applyWrite(client, write, provenanceForEvent(event, { capturedAs: outcome.capture_mode || null })));
@@ -1146,6 +1152,18 @@ export class ScopedFilingBroker {
       results.push({ brain_id: destination.brain_id, writes: brainResults });
     }
     return { status: 'filed', destinations: results };
+  }
+
+  async findExistingProvenance(client, eventId) {
+    if (!eventId || typeof client?.callTool !== 'function') return [];
+    try {
+      const result = await client.callTool('events/provenance_list', { event_id: eventId, limit: 100 });
+      const rows = result?.provenance || result?.structuredContent?.provenance || [];
+      return Array.isArray(rows) ? rows : [];
+    } catch (error) {
+      if (/unknown tool|tool .* not found|method not found/i.test(String(error?.message || ''))) return [];
+      throw error;
+    }
   }
 
   async applyWrite(client, write, provenance) {
