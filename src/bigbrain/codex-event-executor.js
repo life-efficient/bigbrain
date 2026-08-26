@@ -202,7 +202,9 @@ export class AppServerJsonRpcClient {
 
   async notify(method, params = {}) {
     await this.start();
-    this.process.stdin.write(`${JSON.stringify({ jsonrpc: '2.0', method, params })}\n`);
+    const message = { jsonrpc: '2.0', method };
+    if (params && Object.keys(params).length) message.params = params;
+    this.process.stdin.write(`${JSON.stringify(message)}\n`);
   }
 
   handleData(chunk) {
