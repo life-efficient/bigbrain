@@ -34,6 +34,13 @@ import {
 import { createMcpAuthStore } from './mcp-auth-store.js';
 import { renderSchemaMarkdown } from './schema.js';
 import {
+  buildKeepInTouchPayload,
+  enrollKeepInTouchPerson,
+  logKeepInTouchContact,
+  setKeepInTouchPriority,
+  snoozeKeepInTouchPerson,
+} from './playbooks/keep-in-touch.js';
+import {
   normalizePageVisibility,
   normalizeRawPath,
   pageVisibility,
@@ -266,6 +273,17 @@ export async function createDashboardRequestHandler(config, {
       if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db, config), { noStore: true });
       if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
       if (requestUrl.pathname === '/api/analytics') return json(res, await buildAnalyticsPayload(config, db));
+      if (requestUrl.pathname === '/api/playbooks/keep-in-touch') {
+        if (req.method !== 'GET') {
+          res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ error: 'Keep in Touch reads require GET.' }));
+          return;
+        }
+        return json(res, await buildKeepInTouchPayload(config, db, { actor }), { noStore: true });
+      }
+      if (requestUrl.pathname.startsWith('/api/playbooks/keep-in-touch/')) {
+        return json(res, await handleKeepInTouchMutation(config, db, req, requestUrl, actor), { noStore: true });
+      }
       if (requestUrl.pathname === '/api/page') return json(res, await buildPagePayload(config, db, requestUrl));
       if (requestUrl.pathname === '/api/page/visibility') return json(res, await updateDashboardPageVisibility(config, db, req, actor));
       if (requestUrl.pathname === '/api/preview') return json(res, await buildPreviewPayload(config, db, requestUrl));
@@ -319,6 +337,31 @@ export async function buildAnalyticsPayload(config, db) {
     privacy_note: 'Counts and bounded operational metadata only. Content, prompts, queries, credentials, headers, cookies, IP addresses, and user agents are not stored.',
     ...await getMcpAuditAnalytics(db),
   };
+}
+
+async function handleKeepInTouchMutation(config, db, req, requestUrl, actor = null) {
+  if (req.method !== 'POST') {
+    const error = new Error('Keep in Touch actions require POST.');
+    error.statusCode = 405;
+    throw error;
+  }
+  const input = await readJsonRequest(req);
+  const action = requestUrl.pathname.slice('/api/playbooks/keep-in-touch/'.length);
+  switch (action) {
+    case 'enroll':
+      return enrollKeepInTouchPerson(config, db, input, { actor });
+    case 'log-contact':
+      return logKeepInTouchContact(config, db, input, { actor });
+    case 'set-priority':
+      return setKeepInTouchPriority(config, db, input, { actor });
+    case 'snooze':
+      return snoozeKeepInTouchPerson(config, db, input, { actor });
+    default: {
+      const error = new Error(`Unknown Keep in Touch action: ${action}`);
+      error.statusCode = 404;
+      throw error;
+    }
+  }
 }
 
 async function ensureDashboardAssets(config) {
@@ -677,6 +720,77 @@ function renderAppHtml() {
       .settings-demo-toggle.selected { border-color: rgba(0,255,102,0.28); background: rgba(0,255,102,0.08); }
       .settings-demo-toggle strong { font-size: 11px; font-weight: 700; }
       .settings-shortcut { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; margin-left: 5px; padding: 3px 5px; border: 1px solid var(--line); border-bottom-color: var(--line-strong); border-radius: 5px; color: var(--muted); font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .playbooks-menu { position: relative; }
+      .playbooks-button { min-height: 38px; display: inline-flex; align-items: center; gap: 8px; padding: 0 13px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font: inherit; font-size: 12px; font-weight: 700; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.04); }
+      .playbooks-button:hover, .playbooks-button.open { color: var(--ink); border-color: var(--line-strong); background: var(--surface-muted); }
+      .playbooks-live-dot { width: 6px; height: 6px; border-radius: 999px; background: #73ecb8; box-shadow: 0 0 10px #73ecb8; }
+      .playbooks-dropdown { position: absolute; top: calc(100% + 10px); right: 0; z-index: 24; width: min(360px, calc(100vw - 40px)); display: grid; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 18px; background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); }
+      .playbooks-dropdown-head, .playbook-section-head, .playbook-queue-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+      .playbooks-dropdown-head { padding-bottom: 2px; }
+      .playbook-launcher-item { display: grid; gap: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+      .playbook-launcher-copy { display: grid; gap: 5px; }
+      .playbook-launcher-copy strong { font-size: 13px; }
+      .playbook-launcher-copy span, .playbooks-dropdown-foot { color: var(--muted); font-size: 11px; line-height: 1.45; }
+      .playbook-launcher-actions { display: flex; align-items: center; gap: 8px; }
+      .playbook-launcher-actions .settings-link { flex: 1; }
+      .playbook-text-button { border: 0; padding: 8px 5px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; }
+      .playbook-text-button:hover { color: var(--ink); }
+      .playbooks-dropdown-foot { padding: 0 2px; }
+      .playbook-page { flex: 1; min-height: 0; overflow: auto; display: grid; align-content: start; gap: 18px; padding: 6px 2px 24px; }
+      .playbook-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding: 14px 2px 4px; }
+      .playbook-head h1 { margin: 4px 0 7px; font-size: 38px; }
+      .playbook-head p { max-width: 560px; font-size: 14px; line-height: 1.5; }
+      .playbook-primary-action { flex: 0 0 auto; }
+      .playbook-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+      .playbook-metric { min-height: 96px; display: grid; align-content: space-between; gap: 10px; padding: 15px 17px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+      .playbook-metric span { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+      .playbook-metric strong { font-size: 29px; letter-spacing: -0.04em; }
+      .playbook-metric.tone-warm strong { color: #f2cf8a; }
+      .playbook-metric.tone-alert strong { color: #fca5a5; }
+      .playbook-metric.tone-quiet strong { color: var(--ink); }
+      .playbook-enroll { display: grid; gap: 13px; padding: 17px; border-radius: 18px; }
+      .playbook-section-head h2, .playbook-queue-head h2 { margin: 5px 0 0; font-size: 19px; letter-spacing: -0.02em; }
+      .playbook-search { width: 100%; min-height: 40px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; }
+      .playbook-search:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+      .playbook-candidate-list { display: grid; gap: 6px; max-height: 260px; overflow: auto; }
+      .playbook-candidate { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid rgba(148,163,184,0.12); border-radius: 10px; background: rgba(255,255,255,0.025); }
+      .playbook-candidate-copy { min-width: 0; display: grid; gap: 3px; }
+      .playbook-candidate-copy strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+      .playbook-candidate-copy span { overflow: hidden; color: var(--muted); font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis; white-space: nowrap; }
+      .playbook-small-button { flex: 0 0 auto; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; cursor: pointer; }
+      .playbook-small-button:hover { border-color: var(--line-strong); background: var(--surface-muted); }
+      .playbook-small-button:disabled { opacity: 0.52; cursor: not-allowed; }
+      .playbook-record-list { display: grid; gap: 10px; }
+      .playbook-record { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 16px 17px; border-radius: 16px; }
+      .playbook-record.is-due { border-color: rgba(242,207,138,0.32); }
+      .playbook-record.is-overdue { border-color: rgba(252,165,165,0.38); background: linear-gradient(100deg, rgba(127,29,29,0.15), var(--card)); }
+      .playbook-record-main { min-width: 0; display: grid; gap: 8px; }
+      .playbook-record-title-row { display: flex; align-items: center; gap: 9px; min-width: 0; }
+      .playbook-person-link { min-width: 0; overflow: hidden; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 17px; font-weight: 700; letter-spacing: -0.02em; text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+      .playbook-person-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+      .playbook-priority { display: inline-flex; align-items: center; min-height: 23px; padding: 3px 7px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); font: 800 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .playbook-priority.priority-1 { color: #fca5a5; border-color: rgba(252,165,165,0.38); background: rgba(127,29,29,0.18); }
+      .playbook-priority.priority-2 { color: #f2cf8a; border-color: rgba(242,207,138,0.32); background: rgba(146,96,24,0.12); }
+      .playbook-record-meta { display: flex; flex-wrap: wrap; gap: 8px 13px; color: var(--muted); font-size: 11px; }
+      .playbook-record-meta > span:not(:first-child)::before { content: "·"; margin-right: 13px; color: var(--line-strong); }
+      .playbook-due.due { color: #f2cf8a; font-weight: 700; }
+      .playbook-due.overdue { color: #fca5a5; font-weight: 700; }
+      .playbook-record-summary { max-width: 740px; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+      .playbook-record-actions { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
+      .playbook-action-primary { color: var(--bg); border-color: var(--ink); background: var(--ink); font-weight: 700; }
+      .playbook-action-primary:hover { background: #d4d4d8; }
+      .playbook-priority-picker { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+      .playbook-priority-picker button { min-height: 26px; padding: 0 5px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; cursor: pointer; }
+      .playbook-priority-picker button:hover, .playbook-priority-picker button.selected { background: var(--surface-muted); color: var(--ink); }
+      .playbook-priority-picker button:disabled { opacity: 0.5; cursor: wait; }
+      .playbook-empty { display: flex; align-items: center; gap: 16px; padding: 18px; }
+      .playbook-empty-mark { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid rgba(115,236,184,0.28); border-radius: 12px; background: rgba(115,236,184,0.08); color: #73ecb8; font-size: 20px; }
+      .playbook-empty h2 { margin: 0 0 6px; font-size: 16px; }
+      .playbook-empty p { max-width: 680px; font-size: 12px; line-height: 1.5; }
+      .playbook-empty .graph-button { margin-left: auto; flex: 0 0 auto; }
+      .playbook-error { max-width: 680px; margin: 8px auto 0; }
+      .playbook-error h1 { margin: 6px 0; font-size: 28px; }
+      .playbook-error p { margin-bottom: 14px; }
       .analytics-page { flex: 1; min-height: 0; overflow: auto; display: grid; align-content: start; gap: 18px; padding: 6px 2px 24px; }
       .analytics-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding: 14px 2px 4px; }
       .analytics-head h1 { margin: 3px 0 7px; font-size: 34px; }
@@ -1703,6 +1817,12 @@ function renderAppHtml() {
         .analytics-head { align-items: flex-start; flex-direction: column; }
         .analytics-metrics { grid-template-columns: 1fr; }
         .analytics-event { align-items: flex-start; flex-direction: column; }
+        .playbook-head, .playbook-section-head, .playbook-queue-head { align-items: flex-start; flex-direction: column; }
+        .playbook-metrics { grid-template-columns: 1fr; }
+        .playbook-record { align-items: flex-start; flex-direction: column; }
+        .playbook-record-actions { width: 100%; justify-content: flex-start; }
+        .playbook-empty { align-items: flex-start; flex-wrap: wrap; }
+        .playbook-empty .graph-button { margin-left: 54px; }
       }
     </style>
   </head>

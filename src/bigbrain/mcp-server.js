@@ -44,6 +44,13 @@ import {
 } from './page-ops.js';
 import { canonicalPagePath, canonicalPageUrl, isLoopbackHost, localPageUrl } from './page-links.js';
 import { queryPagesByFrontmatter } from './frontmatter-query.js';
+import {
+  buildKeepInTouchPayload,
+  enrollKeepInTouchPerson,
+  logKeepInTouchContact,
+  setKeepInTouchPriority,
+  snoozeKeepInTouchPerson,
+} from './playbooks/keep-in-touch.js';
 import { queryBrain, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
 import {
@@ -522,6 +529,21 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'pages/query':
     case 'pages_query':
       return toolJson(await toolPagesQuery(config, args));
+    case 'playbooks/keep-in-touch/list_due':
+    case 'playbooks_keep_in_touch_list_due':
+      return toolJson(await toolKeepInTouchListDue(config, args, actor));
+    case 'playbooks/keep-in-touch/enroll':
+    case 'playbooks_keep_in_touch_enroll':
+      return toolJson(await toolKeepInTouchMutation(config, args, actor, 'enroll'));
+    case 'playbooks/keep-in-touch/log_contact':
+    case 'playbooks_keep_in_touch_log_contact':
+      return toolJson(await toolKeepInTouchMutation(config, args, actor, 'log-contact'));
+    case 'playbooks/keep-in-touch/set_priority':
+    case 'playbooks_keep_in_touch_set_priority':
+      return toolJson(await toolKeepInTouchMutation(config, args, actor, 'set-priority'));
+    case 'playbooks/keep-in-touch/snooze':
+    case 'playbooks_keep_in_touch_snooze':
+      return toolJson(await toolKeepInTouchMutation(config, args, actor, 'snooze'));
     case 'list':
       return toolJson(await listBrainPath({
         config,
@@ -1128,6 +1150,40 @@ async function toolPagesQuery(config, args) {
   }
 }
 
+async function toolKeepInTouchListDue(config, args, actor) {
+  const db = await openDatabase(config);
+  try {
+    const payload = await buildKeepInTouchPayload(config, db, {
+      actor,
+      now: args.as_of ? new Date(args.as_of) : new Date(),
+    });
+    const records = payload.records.filter((record) => record.is_due).slice(0, normalizeLimit(args.limit, 50));
+    return {
+      playbook: payload.playbook,
+      brain: payload.brain,
+      summary: { ...payload.summary, returned: records.length },
+      records,
+    };
+  } finally {
+    await db.close?.();
+  }
+}
+
+async function toolKeepInTouchMutation(config, args, actor, action) {
+  const db = await openDatabase(config);
+  try {
+    let result;
+    if (action === 'enroll') result = await enrollKeepInTouchPerson(config, db, args, { actor });
+    if (action === 'log-contact') result = await logKeepInTouchContact(config, db, args, { actor });
+    if (action === 'set-priority') result = await setKeepInTouchPriority(config, db, args, { actor });
+    if (action === 'snooze') result = await snoozeKeepInTouchPerson(config, db, args, { actor });
+    await postWriteMaintenance(config, false, actor);
+    return result;
+  } finally {
+    await db.close?.();
+  }
+}
+
 async function syncAndPersist(config) {
   const result = await syncBrain({ config });
   await persistState(config.statePath, {
@@ -1422,6 +1478,56 @@ function toolDefinitions() {
       name: 'pages_query',
       description: 'Alias for pages/query for clients that do not support slash tool names.',
       inputSchema: pagesQuerySchema(),
+    },
+    {
+      name: 'playbooks/keep-in-touch/list_due',
+      description: 'List people enrolled in the Keep in Touch playbook whose next touchpoint is due. This reads playbook overlay state without changing person pages.',
+      inputSchema: keepInTouchListDueSchema(),
+    },
+    {
+      name: 'playbooks_keep_in_touch_list_due',
+      description: 'Alias for playbooks/keep-in-touch/list_due for clients that do not support slash tool names.',
+      inputSchema: keepInTouchListDueSchema(),
+    },
+    {
+      name: 'playbooks/keep-in-touch/enroll',
+      description: 'Enroll one people page in the Keep in Touch playbook. State is stored in a playbook overlay, not person frontmatter.',
+      inputSchema: keepInTouchEnrollSchema(),
+    },
+    {
+      name: 'playbooks_keep_in_touch_enroll',
+      description: 'Alias for playbooks/keep-in-touch/enroll for clients that do not support slash tool names.',
+      inputSchema: keepInTouchEnrollSchema(),
+    },
+    {
+      name: 'playbooks/keep-in-touch/log_contact',
+      description: 'Record a confirmed Keep in Touch contact, update the next due timestamp, and append a timeline entry to the person page.',
+      inputSchema: keepInTouchLogContactSchema(),
+    },
+    {
+      name: 'playbooks_keep_in_touch_log_contact',
+      description: 'Alias for playbooks/keep-in-touch/log_contact for clients that do not support slash tool names.',
+      inputSchema: keepInTouchLogContactSchema(),
+    },
+    {
+      name: 'playbooks/keep-in-touch/set_priority',
+      description: 'Set the Keep in Touch priority for one enrolled people page. Priority belongs to the playbook overlay.',
+      inputSchema: keepInTouchSetPrioritySchema(),
+    },
+    {
+      name: 'playbooks_keep_in_touch_set_priority',
+      description: 'Alias for playbooks/keep-in-touch/set_priority for clients that do not support slash tool names.',
+      inputSchema: keepInTouchSetPrioritySchema(),
+    },
+    {
+      name: 'playbooks/keep-in-touch/snooze',
+      description: 'Move one enrolled Keep in Touch person forward by a number of days without recording contact.',
+      inputSchema: keepInTouchSnoozeSchema(),
+    },
+    {
+      name: 'playbooks_keep_in_touch_snooze',
+      description: 'Alias for playbooks/keep-in-touch/snooze for clients that do not support slash tool names.',
+      inputSchema: keepInTouchSnoozeSchema(),
     },
     {
       name: 'list',
@@ -1787,6 +1893,16 @@ const TOOL_POLICIES = {
   query: { layer: 'read', scopes: ['brain:read'] },
   'pages/query': { layer: 'read', scopes: ['brain:read'] },
   pages_query: { layer: 'read', scopes: ['brain:read'] },
+  'playbooks/keep-in-touch/list_due': { layer: 'read', scopes: ['brain:read'] },
+  playbooks_keep_in_touch_list_due: { layer: 'read', scopes: ['brain:read'] },
+  'playbooks/keep-in-touch/enroll': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  playbooks_keep_in_touch_enroll: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'playbooks/keep-in-touch/log_contact': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  playbooks_keep_in_touch_log_contact: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'playbooks/keep-in-touch/set_priority': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  playbooks_keep_in_touch_set_priority: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'playbooks/keep-in-touch/snooze': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  playbooks_keep_in_touch_snooze: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   list: { layer: 'read', scopes: ['brain:read'] },
   read: { layer: 'read', scopes: ['brain:read'] },
   get_page_visibility: { layer: 'read', scopes: ['brain:read'] },
@@ -1945,6 +2061,15 @@ function pageEditPathsForTool(name, args) {
     case 'tasks/create':
     case 'tasks/update':
       return [args.path || args.slug || 'tasks'].filter(Boolean);
+    case 'playbooks/keep-in-touch/enroll':
+    case 'playbooks_keep_in_touch_enroll':
+    case 'playbooks/keep-in-touch/log_contact':
+    case 'playbooks_keep_in_touch_log_contact':
+    case 'playbooks/keep-in-touch/set_priority':
+    case 'playbooks_keep_in_touch_set_priority':
+    case 'playbooks/keep-in-touch/snooze':
+    case 'playbooks_keep_in_touch_snooze':
+      return [args.page_slug].filter(Boolean);
     case 'create_raw_file_with_page':
       return [args.page_path].filter(Boolean);
     default:
@@ -2012,6 +2137,65 @@ function pagesQuerySchema() {
       include_total: { type: 'boolean', default: true },
       as_of: { type: 'string', format: 'date-time', description: 'Optional RFC3339 timestamp returned with the result and used by $as_of filter values.' },
     },
+  };
+}
+
+function keepInTouchListDueSchema() {
+  return {
+    type: 'object',
+    properties: {
+      limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+      as_of: { type: 'string', format: 'date-time', description: 'Optional RFC3339 timestamp used to determine whether a person is due.' },
+    },
+  };
+}
+
+function keepInTouchEnrollSchema() {
+  return {
+    type: 'object',
+    properties: {
+      page_slug: { type: 'string', description: 'People page slug such as people/alice.' },
+      priority: { type: 'integer', minimum: 1, maximum: 5, default: 3 },
+      stage: { type: 'string', enum: ['new', 'building', 'maintaining', 'paused'], default: 'building' },
+      cadence_days: { type: 'integer', minimum: 1, maximum: 3650, default: 14 },
+      next_due_at: { type: 'string', format: 'date-time' },
+      last_contacted_at: { type: 'string', format: 'date-time' },
+    },
+    required: ['page_slug'],
+  };
+}
+
+function keepInTouchLogContactSchema() {
+  return {
+    type: 'object',
+    properties: {
+      page_slug: { type: 'string', description: 'Enrolled people page slug such as people/alice.' },
+      contacted_at: { type: 'string', format: 'date-time' },
+      cadence_days: { type: 'integer', minimum: 1, maximum: 3650 },
+    },
+    required: ['page_slug'],
+  };
+}
+
+function keepInTouchSetPrioritySchema() {
+  return {
+    type: 'object',
+    properties: {
+      page_slug: { type: 'string', description: 'Enrolled people page slug such as people/alice.' },
+      priority: { type: 'integer', minimum: 1, maximum: 5 },
+    },
+    required: ['page_slug', 'priority'],
+  };
+}
+
+function keepInTouchSnoozeSchema() {
+  return {
+    type: 'object',
+    properties: {
+      page_slug: { type: 'string', description: 'Enrolled people page slug such as people/alice.' },
+      days: { type: 'integer', minimum: 1, maximum: 3650, default: 7 },
+    },
+    required: ['page_slug'],
   };
 }
 

@@ -549,6 +549,77 @@ Active deal.
   }
 });
 
+test('MCP Keep in Touch tools manage playbook overlay state without hydrating person pages', async () => {
+  const fixture = await createFixture('bigbrain-mcp-keep-in-touch-');
+  let running;
+  const originalApiKey = process.env.OPENAI_API_KEY;
+  try {
+    delete process.env.OPENAI_API_KEY;
+    await fs.mkdir(path.join(fixture.brainHome, 'people'), { recursive: true });
+    const personPath = path.join(fixture.brainHome, 'people', 'alice.md');
+    await fs.writeFile(personPath, `---
+title: Alice Example
+---
+# Alice Example
+
+Active person.
+`, 'utf8');
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'secret',
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const listed = await rpc(running.url, 'tools/list', {}, 'secret');
+    const listDue = listed.result.tools.find((tool) => tool.name === 'playbooks/keep-in-touch/list_due');
+    const enroll = listed.result.tools.find((tool) => tool.name === 'playbooks/keep-in-touch/enroll');
+    assert.ok(listDue);
+    assert.ok(enroll);
+    assert.equal(enroll.inputSchema.properties.priority.maximum, 5);
+
+    const enrolled = await rpc(running.url, 'tools/call', {
+      name: 'playbooks/keep-in-touch/enroll',
+      arguments: {
+        page_slug: 'people/alice',
+        priority: 2,
+        stage: 'new',
+        cadence_days: 3,
+        next_due_at: '2026-08-27T08:00:00Z',
+      },
+    }, 'secret');
+    assert.equal(enrolled.error, undefined, enrolled.error?.message);
+    assert.equal(enrolled.result.structuredContent.summary.enrolled, 1);
+
+    const due = await rpc(running.url, 'tools/call', {
+      name: 'playbooks/keep-in-touch/list_due',
+      arguments: { as_of: '2026-08-27T12:00:00Z' },
+    }, 'secret');
+    assert.equal(due.error, undefined, due.error?.message);
+    assert.equal(due.result.structuredContent.records[0].page_slug, 'people/alice');
+    assert.equal(due.result.structuredContent.records[0].priority, 2);
+
+    const contacted = await rpc(running.url, 'tools/call', {
+      name: 'playbooks/keep-in-touch/log_contact',
+      arguments: { page_slug: 'people/alice', contacted_at: '2026-08-27T12:00:00Z' },
+    }, 'secret');
+    assert.equal(contacted.error, undefined, contacted.error?.message);
+    assert.equal(contacted.result.structuredContent.records[0].next_due_at, '2026-08-30T12:00:00.000Z');
+
+    const markdown = await fs.readFile(personPath, 'utf8');
+    assert.match(markdown, /Keep in Touch contact logged\./);
+    assert.doesNotMatch(markdown, /keep_in_touch_/);
+  } finally {
+    if (originalApiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = originalApiKey;
+    await running?.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('MCP server exposes brain-specific filing rules for harness routing', async () => {
   const fixture = await createFixture('bigbrain-mcp-filing-rules-');
   let running;

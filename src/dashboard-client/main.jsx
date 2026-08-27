@@ -29,6 +29,8 @@ import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
 import { GraphDesignLabApp } from './graph/graph-design-lab.jsx';
 import { deriveGraphMotion, graphPayloadsEqual } from './graph/live-graph.js';
+import { KeepInTouchPanel } from './playbooks/keep-in-touch.jsx';
+import { PLAYBOOKS } from './playbooks/registry.js';
 import {
   buildDemoExplorer,
   buildDemoExplorerFile,
@@ -127,10 +129,33 @@ function loadGraphPreferences() {
   return defaults;
 }
 
+function playbookPreferenceKey(brainId) {
+  return `bigbrain:playbooks:${brainId || 'current'}`;
+}
+
+function loadEnabledPlaybooks(brainId) {
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(playbookPreferenceKey(brainId)) || '[]');
+    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveEnabledPlaybooks(brainId, playbooks) {
+  try {
+    window.localStorage.setItem(playbookPreferenceKey(brainId), JSON.stringify(playbooks));
+  } catch {
+    // Local storage can be unavailable; the current session still works.
+  }
+}
+
 function DashboardApp() {
   const savedGraphPreferences = useMemo(() => loadGraphPreferences(), []);
   const [state, setState] = useState({ status: 'loading', error: null, data: null });
   const [view, setView] = useState('graph');
+  const [playbooksOpen, setPlaybooksOpen] = useState(false);
+  const [enabledPlaybooks, setEnabledPlaybooks] = useState([]);
   const [visualizerId, setVisualizerId] = useState(savedGraphPreferences.visualizerId);
   const [nodeShape, setNodeShape] = useState(savedGraphPreferences.nodeShape);
   const [nodeFill, setNodeFill] = useState(savedGraphPreferences.nodeFill);
@@ -162,6 +187,7 @@ function DashboardApp() {
   const visualizerRef = useRef(null);
   const healthMenuRef = useRef(null);
   const settingsMenuRef = useRef(null);
+  const playbooksMenuRef = useRef(null);
   const latestGraphRef = useRef(null);
   latestGraphRef.current = state.data?.graph || latestGraphRef.current;
   demoModeRef.current = demoMode;
@@ -189,7 +215,8 @@ function DashboardApp() {
       setAssigneeLoading(true);
       try {
         const assigneeQuery = assigneeFilter ? `?${new URLSearchParams({ assignee: assigneeFilter }).toString()}` : '';
-        const [schema, tasks, recent, health, graph, explorer, explorerRecent] = await Promise.all([
+        const [about, schema, tasks, recent, health, graph, explorer, explorerRecent] = await Promise.all([
+          fetchJson('/api/about'),
           fetchJson('/api/schema'),
           fetchJson(`/api/tasks${assigneeQuery}`),
           fetchJson('/api/recent'),
@@ -210,8 +237,9 @@ function DashboardApp() {
         setState({
           status: 'ready',
           error: null,
-          data: { schema, tasks, recent, health, graph, explorer: { ...explorer, recent: explorerRecent } },
+          data: { about, schema, tasks, recent, health, graph, explorer: { ...explorer, recent: explorerRecent } },
         });
+        setEnabledPlaybooks(loadEnabledPlaybooks(about?.brain_id));
       } catch (error) {
         if (cancelled) return;
         setAssigneeLoading(false);
@@ -290,7 +318,7 @@ function DashboardApp() {
   }, []);
 
   useEffect(() => {
-    if (!healthOpen && !settingsOpen) return undefined;
+    if (!healthOpen && !settingsOpen && !playbooksOpen) return undefined;
 
     function handlePointerDown(event) {
       if (healthMenuRef.current && !healthMenuRef.current.contains(event.target)) {
@@ -299,12 +327,16 @@ function DashboardApp() {
       if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
         setSettingsOpen(false);
       }
+      if (playbooksMenuRef.current && !playbooksMenuRef.current.contains(event.target)) {
+        setPlaybooksOpen(false);
+      }
     }
 
     function handleEscape(event) {
       if (event.key === 'Escape') {
         setHealthOpen(false);
         setSettingsOpen(false);
+        setPlaybooksOpen(false);
       }
     }
 
@@ -314,7 +346,7 @@ function DashboardApp() {
       window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [healthOpen, settingsOpen]);
+  }, [healthOpen, playbooksOpen, settingsOpen]);
 
   useEffect(() => {
     if (!preview || healthOpen) return undefined;
@@ -372,6 +404,9 @@ function DashboardApp() {
       } else if (key === 'e') {
         event.preventDefault();
         setView('explorer');
+      } else if (key === 'k' && enabledPlaybooks.includes('keep-in-touch')) {
+        event.preventDefault();
+        setView('keep-in-touch');
       } else if (key === 'd') {
         event.preventDefault();
         handleDemoModeChange(!demoModeRef.current);
@@ -382,7 +417,7 @@ function DashboardApp() {
     return () => {
       window.removeEventListener('keydown', handleKeydown);
     };
-  }, []);
+  }, [enabledPlaybooks]);
 
   const taskSections = Array.isArray(state.data?.tasks?.sections) ? state.data.tasks.sections : [];
   const displayTaskSections = useMemo(() => (
@@ -507,7 +542,9 @@ function DashboardApp() {
     );
   }
 
-  const { schema, tasks, recent, health, graph, explorer } = state.data;
+  const { about, schema, tasks, recent, health, graph, explorer } = state.data;
+  const brainId = about?.brain_id || 'current';
+  const keepInTouchEnabled = enabledPlaybooks.includes('keep-in-touch');
   const members = Array.isArray(tasks?.members) ? tasks.members : [];
   const healthFindingCount = Number.isFinite(health?.finding_count) ? health.finding_count : 0;
   const healthFindings = Array.isArray(health?.findings)
@@ -517,9 +554,27 @@ function DashboardApp() {
       : [];
   const healthSeverity = deriveHealthSeverity(healthFindings);
 
+  function setPlaybookEnabled(playbookId, enabled) {
+    const next = enabled
+      ? [...new Set([...enabledPlaybooks, playbookId])]
+      : enabledPlaybooks.filter((id) => id !== playbookId);
+    setEnabledPlaybooks(next);
+    saveEnabledPlaybooks(brainId, next);
+    if (!enabled && view === playbookId) setView('graph');
+  }
+
+  function openPlaybook(playbookId) {
+    if (!enabledPlaybooks.includes(playbookId)) setPlaybookEnabled(playbookId, true);
+    setPlaybooksOpen(false);
+    setView(playbookId);
+  }
+
   const views = [
     { id: 'graph', label: 'Graph', shortcut: 'G' },
     { id: 'explorer', label: 'Explorer', shortcut: 'E' },
+    ...PLAYBOOKS
+      .filter((playbook) => enabledPlaybooks.includes(playbook.id))
+      .map((playbook) => ({ id: playbook.id, label: playbook.label, shortcut: playbook.shortcut })),
   ];
 
   async function openPreview({ href, sourceSlug }) {
@@ -589,6 +644,30 @@ function DashboardApp() {
             </div>
             <div className="topline-actions">
               {demoMode ? <span className="demo-mode-badge">Demo mode</span> : null}
+              <div className="playbooks-menu" ref={playbooksMenuRef}>
+                <button
+                  type="button"
+                  className={`playbooks-button ${playbooksOpen ? 'open' : ''}`}
+                  aria-expanded={playbooksOpen}
+                  onClick={() => {
+                    setHealthOpen(false);
+                    setSettingsOpen(false);
+                    setPlaybooksOpen((value) => !value);
+                  }}
+                >
+                  Playbooks
+                  {keepInTouchEnabled ? <span className="playbooks-live-dot" aria-label="Keep in Touch enabled" /> : null}
+                </button>
+                {playbooksOpen ? (
+                  <PlaybookLauncher
+                    brainName={about?.brain_name}
+                    keepInTouchEnabled={keepInTouchEnabled}
+                    onEnable={() => setPlaybookEnabled('keep-in-touch', true)}
+                    onDisable={() => setPlaybookEnabled('keep-in-touch', false)}
+                    onOpen={() => openPlaybook('keep-in-touch')}
+                  />
+                ) : null}
+              </div>
               <div className="settings-menu" ref={settingsMenuRef}>
                 <button
                   type="button"
@@ -750,6 +829,10 @@ function DashboardApp() {
               />
             ) : null}
 
+            {view === 'keep-in-touch' && keepInTouchEnabled ? (
+              <KeepInTouchPanel onOpenPerson={openPageBySlug} />
+            ) : null}
+
             {view === 'analytics' ? <AnalyticsPanel analytics={analytics} /> : null}
           </div>
 
@@ -811,6 +894,32 @@ function AnalyticsPanel({ analytics }) {
         </>
       ) : null}
     </section>
+  );
+}
+
+function PlaybookLauncher({ brainName, keepInTouchEnabled, onEnable, onDisable, onOpen }) {
+  return (
+    <div className="playbooks-dropdown" role="menu">
+      <div className="playbooks-dropdown-head">
+        <strong>Playbooks</strong>
+        <span className="meta">{brainName || 'Selected Brain'}</span>
+      </div>
+      <div className="playbook-launcher-item">
+        <div className="playbook-launcher-copy">
+          <strong>Keep in Touch</strong>
+          <span>Track deliberate follow-ups without changing person pages.</span>
+        </div>
+        {keepInTouchEnabled ? (
+          <div className="playbook-launcher-actions">
+            <button type="button" className="settings-link selected" onClick={onOpen}>Open <span className="meta">K</span></button>
+            <button type="button" className="playbook-text-button" onClick={onDisable}>Disable</button>
+          </div>
+        ) : (
+          <button type="button" className="settings-link" onClick={onEnable}>Enable</button>
+        )}
+      </div>
+      <div className="playbooks-dropdown-foot">Playbooks are enabled separately for each Brain.</div>
+    </div>
   );
 }
 
