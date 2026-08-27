@@ -186,6 +186,19 @@ export function initializeSqliteSchema(db) {
       raw_files_json TEXT NOT NULL DEFAULT '[]',
       PRIMARY KEY (group_slug, page_slug)
     );
+    CREATE TABLE IF NOT EXISTS playbook_records (
+      owner_key TEXT NOT NULL,
+      playbook_id TEXT NOT NULL,
+      record_type TEXT NOT NULL,
+      scope_key TEXT NOT NULL,
+      data_json TEXT NOT NULL,
+      schema_version INTEGER NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (owner_key, playbook_id, record_type, scope_key)
+    );
+    CREATE INDEX IF NOT EXISTS playbook_records_owner_playbook_updated_at_idx
+      ON playbook_records (owner_key, playbook_id, updated_at DESC);
     CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(
       slug UNINDEXED,
       title,
@@ -401,8 +414,21 @@ export async function initializePostgresSchema(db) {
       raw_files_json JSONB NOT NULL DEFAULT '[]'::jsonb,
       PRIMARY KEY (group_slug, page_slug)
     );
+    CREATE TABLE IF NOT EXISTS playbook_records (
+      owner_key TEXT NOT NULL,
+      playbook_id TEXT NOT NULL,
+      record_type TEXT NOT NULL,
+      scope_key TEXT NOT NULL,
+      data_json JSONB NOT NULL,
+      schema_version INTEGER NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL,
+      PRIMARY KEY (owner_key, playbook_id, record_type, scope_key)
+    );
     CREATE INDEX IF NOT EXISTS pages_slug_idx ON pages (slug);
     CREATE INDEX IF NOT EXISTS pages_type_slug_idx ON pages (type, slug);
+    CREATE INDEX IF NOT EXISTS playbook_records_owner_playbook_updated_at_idx
+      ON playbook_records (owner_key, playbook_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS page_provenance_page_slug_idx ON page_provenance (page_slug);
     CREATE INDEX IF NOT EXISTS page_provenance_received_at_idx ON page_provenance (received_at DESC);
     CREATE INDEX IF NOT EXISTS page_provenance_event_id_idx ON page_provenance (event_id);
