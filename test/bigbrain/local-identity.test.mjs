@@ -15,6 +15,7 @@ import {
   upsertMember,
 } from '../../src/bigbrain/members.js';
 import { DEFAULT_POINTER_PATH } from '../../src/bigbrain/constants.js';
+import { renderLaunchAgentPlist } from '../../scripts/install-local-mcp-service.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -184,10 +185,46 @@ test('local MCP installer dry-run reports local owner bootstrapping intent', asy
     assert.equal(result.localOwnerEmail, 'installer-local@example.test');
     assert.equal(result.wouldEnsureLocalOwner, true);
     assert.equal(result.installAutomaticUpdater, true);
+    assert.equal(result.serviceManager, 'source');
+    assert.equal(result.serviceSource, 'source-checkout');
     assert.equal(result.serviceStartTimeoutMs, 60_000);
   } finally {
     await removeTempFixture(fixture.rootDir);
   }
+});
+
+test('desktop and source service plists carry explicit ownership markers', () => {
+  const base = {
+    label: 'ai.diffusing.bigbrain.test',
+    nodePath: '/Applications/BigBrain.app/Contents/MacOS/BigBrain',
+    bigbrainBin: '/Applications/BigBrain.app/Contents/Resources/app/bin/bigbrain.js',
+    brainHome: '/brain',
+    host: '127.0.0.1',
+    port: 55560,
+    workingDirectory: '/Applications/BigBrain.app/Contents/Resources/app',
+    stdoutPath: '/logs/out',
+    stderrPath: '/logs/err',
+    home: '/Users/example',
+    localPersonSlug: '',
+    keychainAccount: '',
+  };
+  const desktop = renderLaunchAgentPlist({
+    ...base,
+    electronRunAsNode: true,
+    serviceManager: 'desktop',
+    serviceSource: 'desktop-bundle',
+  });
+  assert.match(desktop, /<key>BIGBRAIN_SERVICE_MANAGER<\/key>\s*<string>desktop<\/string>/);
+  assert.match(desktop, /<key>BIGBRAIN_SERVICE_SOURCE<\/key>\s*<string>desktop-bundle<\/string>/);
+  const source = renderLaunchAgentPlist({
+    ...base,
+    nodePath: '/usr/local/bin/node',
+    bigbrainBin: '/repo/bin/bigbrain.js',
+    workingDirectory: '/repo',
+    electronRunAsNode: false,
+  });
+  assert.match(source, /<key>BIGBRAIN_SERVICE_MANAGER<\/key>\s*<string>source<\/string>/);
+  assert.match(source, /<key>BIGBRAIN_SERVICE_SOURCE<\/key>\s*<string>source-checkout<\/string>/);
 });
 
 test('additional local MCP instances get isolated service and log paths', async () => {

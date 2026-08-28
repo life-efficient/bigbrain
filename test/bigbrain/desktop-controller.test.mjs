@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import vm from 'node:vm';
-import { BrainRegistry, allocatePort } from '../../electron/lib/brain-registry.mjs';
+import { BrainRegistry, REGISTRY_VERSION, allocatePort } from '../../electron/lib/brain-registry.mjs';
 import { connectionInstructions } from '../../electron/lib/connection-instructions.mjs';
 import { DesktopController, normalizeServiceUrl } from '../../electron/lib/desktop-controller.mjs';
 import { DisabledManagedInferenceClient, DisabledAuthProvider, DisabledEntitlementProvider, NoopUsageMeter } from '../../electron/lib/access-providers.mjs';
@@ -33,6 +33,8 @@ test('registry persists isolated brains and restores the active brain', async ()
   assert.equal(reloaded.activeBrainId, one.id);
   assert.equal(reloaded.brains.length, 3);
   assert.equal(reloaded.brains[0].owner.email, 'ada@example.com');
+  assert.equal(reloaded.brains[0].serviceOwnership, 'desktop_bundle');
+  assert.equal(reloaded.version, REGISTRY_VERSION);
 });
 
 test('port allocation skips reserved stable ports', async () => {
@@ -63,6 +65,7 @@ test('registry preserves an existing service port and replacement metadata', asy
   assert.equal(brain.port, 4545);
   assert.equal(brain.serviceLabel, 'ai.diffusing.bigbrain.22222222-2222-4222-8222-222222222222');
   assert.equal(brain.replacedService.label, 'local.bigbrain.mcp');
+  assert.equal(brain.serviceOwnership, 'desktop_bundle');
   await fs.rm(appSupport, { recursive: true, force: true });
 });
 
@@ -92,6 +95,7 @@ test('desktop connects to and persists an existing BigBrain service', async () =
   assert.deepEqual(requests, ['https://brain.example.test/health']);
   assert.equal(brain.name, 'Company Memory');
   assert.equal(brain.connectionType, 'service');
+  assert.equal(brain.serviceOwnership, 'remote');
   assert.equal(brain.dashboardUrl, 'https://brain.example.test/dashboard');
   assert.equal(brain.mcpUrl, 'https://brain.example.test/mcp');
 
@@ -100,6 +104,62 @@ test('desktop connects to and persists an existing BigBrain service', async () =
   assert.equal(reloaded.brains[0].serviceUrl, 'https://brain.example.test');
   await assert.rejects(() => controller.connectService({ serviceUrl: 'https://brain.example.test/mcp' }), /already connected/);
   await fs.rm(root, { recursive: true, force: true });
+});
+
+test('desktop conservatively migrates legacy service ownership from launch-agent evidence', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-service-ownership-'));
+  const appSupport = path.join(root, 'support');
+  const launchAgentsDir = path.join(root, 'LaunchAgents');
+  const appPath = '/Applications/BigBrain.app/Contents/Resources/app';
+  const desktopHome = path.join(root, 'desktop-brain');
+  const sourceHome = path.join(root, 'source-brain');
+  const unknownHome = path.join(root, 'unknown-brain');
+  await fs.mkdir(appSupport, { recursive: true });
+  await fs.mkdir(launchAgentsDir, { recursive: true });
+  await fs.writeFile(path.join(appSupport, 'registry.json'), JSON.stringify({
+    version: 1,
+    activeBrainId: 'desktop',
+    brains: [
+      localRegistryBrain('desktop', desktopHome),
+      localRegistryBrain('source', sourceHome),
+      localRegistryBrain('unknown', unknownHome),
+    ],
+  }));
+  await fs.writeFile(path.join(launchAgentsDir, 'desktop.plist'), servicePlist({
+    label: 'ai.diffusing.bigbrain.desktop', home: desktopHome,
+    root: appPath, bin: path.join(appPath, 'bin', 'bigbrain.js'),
+    manager: 'desktop', source: 'desktop-bundle',
+  }));
+  await fs.writeFile(path.join(launchAgentsDir, 'source.plist'), servicePlist({
+    label: 'ai.diffusing.bigbrain.source', home: sourceHome,
+    root: '/Users/example/projects/bigbrain', bin: '/Users/example/projects/bigbrain/bin/bigbrain.js',
+  }));
+  const registry = new BrainRegistry({ appSupport });
+  const controller = new DesktopController({ registry, appPath, launchAgentsDir, home: root, env: { HOME: root } });
+
+  const state = await controller.state();
+  assert.deepEqual(state.brains.map(({ id, serviceOwnership }) => ({ id, serviceOwnership })), [
+    { id: 'desktop', serviceOwnership: 'desktop_bundle' },
+    { id: 'source', serviceOwnership: 'source' },
+    { id: 'unknown', serviceOwnership: 'unknown' },
+  ]);
+  const persisted = JSON.parse(await fs.readFile(registry.registryPath, 'utf8'));
+  assert.equal(persisted.version, REGISTRY_VERSION);
+  assert.equal(persisted.brains.find((brain) => brain.id === 'source').serviceOwnershipReason, 'source_checkout_path');
+  await fs.rm(root, { recursive: true, force: true });
+});
+
+test('desktop refuses to install or restart source, unknown, and remote services', async () => {
+  for (const brain of [
+    { ...localRegistryBrain('source', '/brain/source'), serviceOwnership: 'source' },
+    { ...localRegistryBrain('unknown', '/brain/unknown'), serviceOwnership: 'unknown' },
+    { id: 'remote', name: 'Remote', connectionType: 'service', serviceOwnership: 'remote' },
+  ]) {
+    const registry = { load: async () => ({ version: 2, activeBrainId: brain.id, brains: [brain] }) };
+    const controller = new DesktopController({ registry, appPath: '/Applications/BigBrain.app/Contents/Resources/app' });
+    await assert.rejects(() => controller.installService(brain, { ownerSlug: '' }), /Only a desktop-bundle service/);
+    await assert.rejects(() => controller.restart(brain.id), /not managed by the desktop app|must be restarted by their operator/);
+  }
 });
 
 test('desktop resolves canonical brain identity without treating it as a registry selector', async () => {
@@ -333,3 +393,23 @@ test('secret redaction protects errors and future provider contracts fail closed
   assert.deepEqual(await new DisabledEntitlementProvider().status(), { state: 'bring_your_own_key' });
   assert.deepEqual(await new NoopUsageMeter().record(), { recorded: false });
 });
+
+function localRegistryBrain(id, home) {
+  return {
+    id,
+    brainId: id,
+    name: id,
+    home,
+    host: '127.0.0.1',
+    port: 55560,
+    serviceLabel: `ai.diffusing.bigbrain.${id}`,
+    status: 'running',
+  };
+}
+
+function servicePlist({ label, home, root, bin, manager = null, source = null }) {
+  const markers = manager && source
+    ? `<key>EnvironmentVariables</key><dict><key>BIGBRAIN_SERVICE_MANAGER</key><string>${manager}</string><key>BIGBRAIN_SERVICE_SOURCE</key><string>${source}</string></dict>`
+    : '';
+  return `<plist><dict><key>Label</key><string>${label}</string><key>ProgramArguments</key><array><string>/usr/bin/node</string><string>${bin}</string><string>--brain-home</string><string>${home}</string><string>mcp</string><string>--host</string><string>127.0.0.1</string><string>--port</string><string>55560</string></array><key>WorkingDirectory</key><string>${root}</string>${markers}</dict></plist>`;
+}
