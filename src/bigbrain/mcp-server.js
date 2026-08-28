@@ -57,6 +57,7 @@ import {
   EventInboxStore,
   EventRegistryStore,
   EVENT_STATES,
+  RssCollector,
   createWebhookEventEnvelope,
   normalizeListener,
   normalizeSubscription,
@@ -477,6 +478,20 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'events/inbox': {
       const events = await eventInboxStore(config).list({ state: args.state || null, listenerId: args.listener_id || null, limit: args.limit });
       return toolJson({ events: events.map(safeEventRecord) }, { arrayKey: 'events' });
+    }
+    case 'events/rss_status':
+    case 'events/rss-status': {
+      const collector = new RssCollector({ registryStore: eventRegistryStore(config), inboxStore: eventInboxStore(config) });
+      return toolJson(await collector.statusAll({ listenerId: args.listener_id || null, limit: args.limit || 50 }));
+    }
+    case 'events/rss_backfill':
+    case 'events/rss-backfill': {
+      const collector = new RssCollector({ registryStore: eventRegistryStore(config), inboxStore: eventInboxStore(config) });
+      return toolJson(await collector.backfill(requireString(args.listener_id, 'listener_id'), {
+        itemIds: args.item_ids,
+        dryRun: args.apply !== true,
+        maxItems: args.max_items,
+      }));
     }
     case 'events/retry': {
       const event = await eventInboxStore(config).retry(requireString(args.delivery_id, 'delivery_id'));
@@ -1406,6 +1421,16 @@ function toolDefinitions() {
       inputSchema: { type: 'object', properties: { state: { type: 'string', enum: EVENT_STATE_SCHEMA_VALUES() }, listener_id: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 1000 } } },
     },
     {
+      name: 'events/rss_status',
+      description: 'Fetch active RSS feeds and report cursor, seen-state, incremental outstanding items, and explicit manual-backfill candidates. This operation never writes the inbox or creates Codex tasks.',
+      inputSchema: { type: 'object', properties: { listener_id: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 1000 } } },
+    },
+    {
+      name: 'events/rss_backfill',
+      description: 'Default-dry-run manual RSS backfill for explicitly selected stable item IDs. Set apply=true to enqueue at most the bounded selection; normal RSS cursor polling is unchanged.',
+      inputSchema: { type: 'object', properties: { listener_id: { type: 'string' }, item_ids: { type: 'array', minItems: 1, maxItems: 25, items: { type: 'string' } }, apply: { type: 'boolean' }, max_items: { type: 'integer', minimum: 1, maximum: 25 } }, required: ['listener_id', 'item_ids'] },
+    },
+    {
       name: 'events/retry',
       description: 'Return a failed or quarantined inbound event to the durable inbox for processing.',
       inputSchema: { type: 'object', properties: { delivery_id: { type: 'string' } }, required: ['delivery_id'] },
@@ -1923,6 +1948,10 @@ const TOOL_POLICIES = {
   'events/subscriptions': { layer: 'read', scopes: ['brain:read'] },
   'events/subscription_upsert': { layer: 'events_manage', scopes: ['brain:admin'] },
   'events/inbox': { layer: 'read', scopes: ['brain:read'] },
+  'events/rss_status': { layer: 'read', scopes: ['brain:read'] },
+  'events/rss-status': { layer: 'read', scopes: ['brain:read'] },
+  'events/rss_backfill': { layer: 'events_manage', scopes: ['brain:admin'] },
+  'events/rss-backfill': { layer: 'events_manage', scopes: ['brain:admin'] },
   'events/retry': { layer: 'events_manage', scopes: ['brain:admin'] },
   'events/discard': { layer: 'events_manage', scopes: ['brain:admin'] },
   'events/quarantine': { layer: 'events_manage', scopes: ['brain:admin'] },

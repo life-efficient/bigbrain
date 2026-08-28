@@ -209,6 +209,7 @@ export class RssCollector {
     if (!response.ok) throw new Error(`Feed returned HTTP ${response.status}.`);
     const feed = parseRssDocument(await response.text());
     const items = sortRssItems(feed.items.map(normalizeRssItemForEvent));
+    const initialCursorPersisted = Boolean(previous.initial_cursor_at);
     const initialCursorAt = previous.initial_cursor_at || new Date(this.now().getTime() - DEFAULT_RSS_INITIAL_CURSOR_DAYS * 86_400_000).toISOString();
     const currentCursor = previous.cursor_at ? { cursor_at: previous.cursor_at, cursor_id: previous.cursor_id || null } : null;
     const seen = previous.seen || {};
@@ -224,7 +225,7 @@ export class RssCollector {
       feed_title: feed.title,
       item_count: items.length,
       initialized_at: previous.initialized_at || null,
-      initial_cursor: { cursor_at: initialCursorAt, cursor_id: null },
+      initial_cursor: { cursor_at: initialCursorAt, cursor_id: null, source: initialCursorPersisted ? 'persisted' : 'derived_from_status_time' },
       current_cursor: currentCursor,
       seen_count: Object.keys(seen).length,
       legacy_seen_count: Object.keys(legacySeen).length,
