@@ -9,6 +9,7 @@ export const DEFAULT_CODEX_EVENT_CWD = process.env.BIGBRAIN_CODEX_EVENT_CWD || p
 export function buildEventPrompt(event, listener, { allowedDestinations = [] } = {}) {
   const sourceDescription = listener?.description || event?.source?.description || 'No source-specific guidance was provided.';
   const skill = listener?.skill || defaultSkillForEvent(event, listener);
+  const payload = selectPromptPayload(event?.payload, listener, event);
   const destinations = allowedDestinations.length
     ? allowedDestinations.map((brain) => `${brain.id || brain.brain_id}: ${brain.name || brain.brain_name || 'unnamed brain'}`).join('\n')
     : (event?.allowed_brain_ids || []).join(', ');
@@ -33,9 +34,61 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
     '',
     `Allowed Brain destinations:\n${destinations || '(none, so do not write)'}`,
     '',
-    'Inbound source material:',
-    JSON.stringify(event, null, 2),
-  ].join('\n');
+    `Source: ${listener?.display_name || event?.source?.display_name || 'Inbound source'}`,
+    `Event type: ${event?.type || 'inbound.event'}`,
+    event?.occurred_at ? `Occurred at: ${event.occurred_at}` : null,
+    '',
+    'Payload:',
+    JSON.stringify(payload, null, 2),
+  ].filter((line) => line !== null).join('\n');
+}
+
+export function selectPromptPayload(payload, listener = {}, event = {}) {
+  const fields = Array.isArray(listener?.prompt_payload_fields) ? listener.prompt_payload_fields : [];
+  const defaultOmit = listener?.type === 'rss' ? ['raw'] : [];
+  const omit = [...new Set([...defaultOmit, ...(listener?.prompt_omit_fields || [])])];
+  const selected = fields.length ? pickFields(payload, fields) : clonePromptValue(payload);
+  for (const field of omit) deletePath(selected, field);
+  return selected;
+}
+
+function pickFields(payload, fields) {
+  const result = {};
+  for (const field of fields) {
+    const value = readPath(payload, field);
+    if (value !== undefined) writePath(result, field, clonePromptValue(value));
+  }
+  return result;
+}
+
+function readPath(value, path) {
+  return String(path || '').split('.').filter(Boolean).reduce((current, key) => current == null ? undefined : current[key], value);
+}
+
+function writePath(target, path, value) {
+  const keys = String(path || '').split('.').filter(Boolean);
+  if (!keys.length) return;
+  let cursor = target;
+  for (const key of keys.slice(0, -1)) cursor = cursor[key] ||= {};
+  cursor[keys.at(-1)] = value;
+}
+
+function deletePath(target, path) {
+  const keys = String(path || '').split('.').filter(Boolean);
+  if (!keys.length || !target || typeof target !== 'object') return;
+  let cursor = target;
+  for (const key of keys.slice(0, -1)) {
+    cursor = cursor[key];
+    if (!cursor || typeof cursor !== 'object') return;
+  }
+  delete cursor[keys.at(-1)];
+}
+
+function clonePromptValue(value) {
+  if (value === undefined) return null;
+  if (value === null || typeof value !== 'object') return value;
+  if (Array.isArray(value)) return value.map(clonePromptValue);
+  return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, clonePromptValue(item)]));
 }
 
 function defaultSkillForEvent(event, listener) {

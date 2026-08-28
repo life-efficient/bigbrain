@@ -390,11 +390,39 @@ webhooks. The canonical client registry and durable inbox live at:
 ~/.config/bigbrain/event-inbox.json
 ```
 
-Listeners are editable as JSON or through the `events/*` MCP tools. A listener
+Listeners are editable as JSON, through the `events/*` MCP tools, or through
+the BigBrain CLI. A listener
 can independently choose where collection occurs (`client` or `host`) and
 where Codex runs (`client` or `host`), with either a visible `app_thread` or a
 background `cli` execution. Registry subscriptions may name only registered
 Brain IDs.
+
+RSS polling and webhook intake are separate runtime planes. RSS owns feed
+polling, seven-day initial cursors, and item deduplication. Webhooks own HTTP
+authentication, configured event-type filtering, and enqueueing. They share
+only the registry, durable inbox, and common processor, so an outage in one
+plane does not stop the other.
+
+Webhook event types are filtered before an inbox item or Codex task is created.
+For example:
+
+```bash
+bigbrain events configure granola \
+  --event-type-path event \
+  --event-type meeting.completed \
+  --prompt-field event_type \
+  --prompt-field granola_id \
+  --prompt-field title \
+  --prompt-field status \
+  --prompt-field completed \
+  --prompt-field summary \
+  --prompt-omit-field calendar_event
+```
+
+Event tasks receive the selected payload fields plus only minimal source
+context. The internal event envelope remains available to the inbox for
+deduplication, audit, retry, and provenance, but it is not pasted into every
+Codex task.
 
 Every accepted event is normalized into the durable inbox. Useful events start
 a normal Codex ingestion task, which invokes the configured BigBrain skill and

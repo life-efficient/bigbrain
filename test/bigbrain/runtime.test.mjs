@@ -289,6 +289,33 @@ Explicit config path page.
   }
 });
 
+test('CLI configures webhook event types and prompt payload fields', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-cli-events-'));
+  try {
+    const registryPath = path.join(rootDir, 'event-registry.json');
+    await fs.writeFile(registryPath, `${JSON.stringify({
+      version: 2,
+      revision: 0,
+      runtime: { id: 'client-1', kind: 'client' },
+      brains: [],
+      listeners: [{ id: 'granola', type: 'webhook', provider: 'granola' }],
+      subscriptions: [],
+    })}\n`, 'utf8');
+    const result = await runNode(['./bin/bigbrain.js', '--json', 'events', 'configure', 'granola', '--event-type-path', 'event', '--event-type', 'meeting.completed', '--prompt-field', 'event_type', '--prompt-field', 'title', '--prompt-omit-field', 'calendar_event'], {
+      cwd: process.cwd(),
+      env: { BIGBRAIN_EVENT_REGISTRY: registryPath, BIGBRAIN_EVENT_INBOX: path.join(rootDir, 'event-inbox.json') },
+    });
+    assert.equal(result.code, 0, result.stderr);
+    const configured = JSON.parse(result.stdout);
+    assert.equal(configured.event_type_path, 'event');
+    assert.deepEqual(configured.event_types, ['meeting.completed']);
+    assert.deepEqual(configured.prompt_payload_fields, ['event_type', 'title']);
+    assert.deepEqual(configured.prompt_omit_fields, ['calendar_event']);
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
+
 test('CLI reports search mode bundles', async () => {
   const result = await runNode(['./bin/bigbrain.js', 'search', 'modes', '--json'], { cwd: process.cwd() });
   assert.equal(result.code, 0, result.stderr);

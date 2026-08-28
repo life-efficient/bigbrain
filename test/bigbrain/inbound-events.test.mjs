@@ -12,6 +12,7 @@ import {
   InboundEventRuntime,
   InboundWebhookServer,
   classifyEvent,
+  configuredWebhookEventType,
   createEmptyEventRegistry,
   createRssEventEnvelope,
   hmacSignature,
@@ -49,6 +50,22 @@ test('event registry validates independent collection and Codex placement contro
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
+});
+
+test('listeners normalize upstream event filters and prompt field selection', () => {
+  const listener = normalizeListener({
+    id: 'granola',
+    provider: 'granola',
+    type: 'webhook',
+    event_types: ['meeting.completed'],
+    prompt_payload_fields: ['event_type', 'data.title'],
+    prompt_omit_fields: ['data.internal'],
+  });
+  assert.equal(listener.event_type_path, 'event');
+  assert.deepEqual(listener.event_types, ['meeting.completed']);
+  assert.deepEqual(listener.prompt_payload_fields, ['event_type', 'data.title']);
+  assert.deepEqual(listener.prompt_omit_fields, ['data.internal']);
+  assert.equal(configuredWebhookEventType({ event: 'meeting.completed' }, {}, listener), 'meeting.completed');
 });
 
 test('inbox is durable, idempotent, retryable, and purges payloads on ignored outcomes', async () => {
@@ -300,6 +317,8 @@ test('Granola completion webhook is normalized, processed, filed, and deduplicat
     scope: 'personal',
     brain_ids: ['brain_personal'],
     capture_policy: { default_mode: 'full', retain_raw: true },
+    event_type_path: 'event',
+    event_types: ['meeting.completed'],
   });
   const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
   await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [granola] });
@@ -318,7 +337,7 @@ test('Granola completion webhook is normalized, processed, filed, and deduplicat
   try {
     const address = await server.start();
     const url = `http://127.0.0.1:${address.port}/events/granola`;
-    const body = JSON.stringify({ type: 'meeting.completed', data: { note: { id: 'not_test_1', title: 'Webhook test', summary: 'A completed meeting.' } } });
+    const body = JSON.stringify({ event: 'meeting.completed', data: { note: { id: 'not_test_1', title: 'Webhook test', summary: 'A completed meeting.' } } });
     const headers = { 'content-type': 'application/json', 'x-bigbrain-signature': hmacSignature(body, 'secret') };
     const first = await fetch(url, { method: 'POST', headers, body });
     const second = await fetch(url, { method: 'POST', headers, body });
@@ -330,6 +349,25 @@ test('Granola completion webhook is normalized, processed, filed, and deduplicat
     assert.equal(executions[0].payload.granola_id, 'not_test_1');
     assert.equal(filed.outcome.filing.status, 'filed');
     assert.equal((await inbox.list()).length, 1);
+  } finally {
+    await server.close();
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('webhook event type filters acknowledge unsupported events without enqueueing', async () => {
+  const paths = await fixture();
+  const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+  await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [normalizeListener({ id: 'granola', provider: 'granola', type: 'webhook', event_type_path: 'event', event_types: ['meeting.completed'] })] });
+  const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+  const server = new InboundWebhookServer({ registryStore: registry, inboxStore: inbox, port: 0, secretResolver: () => 'secret' });
+  try {
+    const address = await server.start();
+    const body = JSON.stringify({ event: 'meeting.started', data: { note: { id: 'not_test_2' } } });
+    const response = await fetch(`http://127.0.0.1:${address.port}/events/granola`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-bigbrain-signature': hmacSignature(body, 'secret') }, body });
+    assert.equal(response.status, 202);
+    assert.deepEqual(await response.json(), { ok: true, status: 'ignored', reason: 'unsupported_event_type', event_type: 'meeting.started' });
+    assert.equal((await inbox.list()).length, 0);
   } finally {
     await server.close();
     await fs.rm(paths.root, { recursive: true, force: true });

@@ -1,11 +1,14 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
-import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
 import { CodexAppThreadExecutor, CodexCliExecutor } from './codex-event-executor.js';
-import { createGranolaWebhookEventEnvelope } from './granola-webhook.js';
+import { RssCollector } from './rss-events.js';
+import { InboundWebhookServer } from './webhook-events.js';
+
+export { RssCollector } from './rss-events.js';
+export { InboundWebhookServer, configuredWebhookEventType } from './webhook-events.js';
 
 export const INBOUND_EVENTS_VERSION = 2;
 export const DEFAULT_EVENT_RETENTION_DAYS = 90;
@@ -96,6 +99,7 @@ export function normalizeListener(value) {
   const listenerLocation = normalizeRuntimeLocation(value.listener_location || value.collection_location || value.location || 'client');
   const executionLocation = normalizeRuntimeLocation(value.codex_execution_location || value.execution_location || (listenerLocation === 'host' ? 'host' : 'client'));
   const executionMode = requireEnum(value.codex_execution_mode || value.execution_mode || 'app_thread', EXECUTION_MODES, 'listener.codex_execution_mode');
+  const provider = optionalString(value.provider || value.source_provider);
   const status = value.removed ? 'removed' : value.paused ? 'paused' : value.enabled === false ? 'disabled' : 'active';
   return {
     id,
@@ -109,6 +113,10 @@ export function normalizeListener(value) {
     icon: optionalString(value.icon) || defaultSourceIcon(type),
     filter: normalizeFilter(value.filter || value.filters),
     capture_policy: normalizeCapturePolicy(value.capture_policy || value.capture),
+    event_type_path: normalizeFieldPath(value.event_type_path || value.event_type_field || (provider === 'granola' ? 'event' : 'type'), 'listener.event_type_path'),
+    event_types: normalizeStringArray(value.event_types || value.allowed_event_types).map((item) => item.toLowerCase()),
+    prompt_payload_fields: normalizeFieldPaths(value.prompt_payload_fields || value.prompt_fields, 'listener.prompt_payload_fields'),
+    prompt_omit_fields: normalizeFieldPaths(value.prompt_omit_fields || value.prompt_exclude_fields, 'listener.prompt_omit_fields'),
     listener_location: listenerLocation,
     codex_execution_location: executionLocation,
     codex_execution_mode: executionMode,
@@ -120,7 +128,7 @@ export function normalizeListener(value) {
     brain_ids: normalizeStringArray(value.brain_ids || value.allowed_brain_ids),
     subscription_ids: normalizeStringArray(value.subscription_ids),
     publisher: optionalString(value.publisher),
-    provider: optionalString(value.provider || value.source_provider),
+    provider,
     section_heading: optionalString(value.section_heading),
     target_page: optionalString(value.target_page),
     raw_collection: optionalString(value.raw_collection),
@@ -655,253 +663,6 @@ export class InboundEventProcessor {
   }
 }
 
-export class RssCollector {
-  constructor({ registryStore, inboxStore, fetchImpl = globalThis.fetch, secretResolver = () => null, now = () => new Date(), logger = console } = {}) {
-    this.registryStore = registryStore;
-    this.inboxStore = inboxStore;
-    this.fetchImpl = fetchImpl;
-    this.secretResolver = secretResolver;
-    this.now = now;
-    this.logger = logger;
-    this.polling = false;
-  }
-
-  async pollAll() {
-    if (this.polling) return { skipped: true, reason: 'poll already running' };
-    this.polling = true;
-    try {
-      const registry = await this.registryStore.get();
-      const report = { listeners: [], ingested: 0, duplicates: 0, errors: [] };
-      for (const listener of registry.listeners.filter((item) => item.type === 'rss' && item.enabled && !item.removed && item.listener_location === registry.runtime.kind)) {
-        try {
-          const result = await this.poll(listener, registry);
-          report.listeners.push(result);
-          report.ingested += result.ingested || 0;
-          report.duplicates += result.duplicates || 0;
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          report.errors.push({ listener_id: listener.id, message });
-          report.listeners.push({ listener_id: listener.id, status: 'error', message });
-          await this.inboxStore.updateCollector(listener.id, { last_error: message, last_error_at: this.now().toISOString() }).catch(() => {});
-          this.logger.error?.(`BigBrain RSS listener ${listener.id} failed: ${message}`);
-        }
-      }
-      return report;
-    } finally {
-      this.polling = false;
-    }
-  }
-
-  async poll(listener, registry) {
-    const previous = (await this.inboxStore.get()).collectors[listener.id] || {};
-    const headers = { 'user-agent': 'BigBrain Inbound Events/2.0' };
-    if (previous.etag) headers['if-none-match'] = previous.etag;
-    if (previous.last_modified) headers['if-modified-since'] = previous.last_modified;
-    const response = await this.fetchImpl(listener.url, { headers });
-    const polledAt = this.now().toISOString();
-    const next = {
-      ...previous,
-      last_poll_at: polledAt,
-      etag: response.headers?.get?.('etag') || previous.etag || null,
-      last_modified: response.headers?.get?.('last-modified') || previous.last_modified || null,
-    };
-    const firstPoll = !previous.initialized_at;
-    const cursorAt = previous.cursor_at || (firstPoll ? new Date(this.now().getTime() - DEFAULT_RSS_INITIAL_CURSOR_DAYS * 86_400_000).toISOString() : previous.last_poll_at || previous.initialized_at || this.now().toISOString());
-    if (response.status === 304) {
-      await this.inboxStore.updateCollector(listener.id, {
-        ...next,
-        initialized_at: previous.initialized_at || polledAt,
-        cursor_at: cursorAt,
-        cursor_id: previous.cursor_id || null,
-        last_success_at: polledAt,
-        last_error: null,
-      });
-      return { listener_id: listener.id, status: 'not_modified', ingested: 0, duplicates: 0 };
-    }
-    if (!response.ok) throw new Error(`Feed returned HTTP ${response.status}.`);
-    const xml = await response.text();
-    const feed = parseRssDocument(xml);
-    const items = feed.items.map(normalizeRssItemForEvent).sort((a, b) => Date.parse(b.published_at || '') - Date.parse(a.published_at || ''));
-    const eligible = items.filter((item) => isAfterRssCursor(listener.id, item, cursorAt, previous.cursor_id));
-    const candidates = listener.bootstrap === 'all' ? eligible : listener.bootstrap === 'none' ? [] : eligible.slice(0, 1);
-    const seen = { ...(previous.seen || {}) };
-    let cursor = { cursor_at: cursorAt, cursor_id: previous.cursor_id || null };
-    if (!previous.cursor_at) {
-      await this.inboxStore.updateCollector(listener.id, {
-        ...next,
-        initialized_at: previous.initialized_at || polledAt,
-        cursor_at: cursor.cursor_at,
-        cursor_id: cursor.cursor_id,
-      });
-    }
-    const candidateKeys = new Set(candidates.map((item) => stableSourceEventId(listener.id, item.guid || item.link || `${item.title}:${item.pubDate}`)));
-    for (const item of items) {
-      const key = stableSourceEventId(listener.id, item.guid || item.link || `${item.title}:${item.pubDate}`);
-      if (!candidateKeys.has(key)) seen[key] ||= polledAt;
-    }
-    let ingested = 0;
-    let duplicates = 0;
-    for (const item of candidates) {
-      const key = stableSourceEventId(listener.id, item.guid || item.link || `${item.title}:${item.pubDate}`);
-      const legacyKey = legacyRssItemKey(listener.id, item);
-      if (seen[key] || previous.legacy_seen?.[legacyKey]) {
-        duplicates += 1;
-        seen[key] ||= previous.legacy_seen?.[legacyKey] || polledAt;
-        continue;
-      }
-      const event = createRssEventEnvelope({ listener, item, feedXml: item.raw || xml, now: this.now(), registry });
-      const subscriptions = registry.subscriptions.filter((subscription) => subscription.listener_id === listener.id && subscription.enabled);
-      const deliveries = subscriptions.length
-        ? subscriptions
-        : listener.listener_location === 'host' && listener.codex_execution_location === 'client'
-          ? []
-          : [{ client_id: registry.runtime.id, brain_ids: listener.brain_ids, id: null, delivery_url: null }];
-      if (!deliveries.length) {
-        const unassigned = await this.inboxStore.enqueue(event, { clientId: registry.runtime.id, deliveryOnly: true });
-        if (!unassigned.duplicate) await this.inboxStore.complete(unassigned.event.delivery_id, { state: 'ignored', outcome: { status: 'ignored', reason: 'no_active_subscriptions', capture_mode: 'none' }, retainRaw: false });
-        seen[key] = polledAt;
-        continue;
-      }
-      let accepted = false;
-      for (const subscription of deliveries) {
-        const deliveryEvent = { ...event, allowed_brain_ids: subscription.brain_ids?.length ? subscription.brain_ids : event.allowed_brain_ids };
-        if (subscription.delivery_url) {
-          const queued = await this.inboxStore.enqueue(deliveryEvent, { clientId: subscription.client_id, subscriptionId: subscription.id || null, deliveryOnly: true });
-          if (!queued.duplicate || ['received', 'failed'].includes(queued.event.state)) {
-            try {
-              await this.forwardSubscription(deliveryEvent, subscription);
-              await this.inboxStore.complete(queued.event.delivery_id, { state: 'filed', outcome: { status: 'delivered', subscription_id: subscription.id || null }, retainRaw: false });
-            } catch (error) {
-              await this.inboxStore.fail(queued.event.delivery_id, error);
-              throw error;
-            }
-          }
-          accepted = true;
-          continue;
-        }
-        const result = await this.inboxStore.enqueue(deliveryEvent, { clientId: subscription.client_id, subscriptionId: subscription.id || null });
-        if (result.duplicate) duplicates += 1; else { ingested += 1; accepted = true; }
-      }
-      if (!accepted && subscriptions.length) continue;
-      seen[key] = polledAt;
-      const itemCursor = rssCursorForItem(listener.id, item);
-      if (itemCursor && compareRssCursors(itemCursor, cursor) > 0) {
-        cursor = itemCursor;
-        next.cursor_at = cursor.cursor_at;
-        next.cursor_id = cursor.cursor_id;
-      }
-      await this.inboxStore.updateCollector(listener.id, {
-        ...next,
-        seen: trimObject(seen, 2000),
-        initialized_at: previous.initialized_at || polledAt,
-        cursor_at: cursor.cursor_at,
-        cursor_id: cursor.cursor_id,
-        last_item_key: key,
-      });
-    }
-    const latest = latestRssCursor(listener.id, items);
-    if (!candidates.length && latest && compareRssCursors(latest, cursor) > 0) cursor = latest;
-    await this.inboxStore.updateCollector(listener.id, {
-      ...next,
-      seen: trimObject(seen, 2000),
-      initialized_at: previous.initialized_at || polledAt,
-      cursor_at: cursor.cursor_at,
-      cursor_id: cursor.cursor_id,
-      last_success_at: polledAt,
-      last_error: null,
-      item_count: items.length,
-    });
-    return { listener_id: listener.id, status: 'ok', feed_title: feed.title, item_count: items.length, ingested, duplicates };
-  }
-
-  async forwardSubscription(event, subscription) {
-    const body = JSON.stringify(event);
-    const secret = await this.secretResolver(subscription);
-    const response = await this.fetchImpl(subscription.delivery_url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-event-id': event.event_id,
-        'x-bigbrain-listener': event.listener_id,
-        'x-bigbrain-subscription': subscription.id || '',
-        ...(secret ? { 'x-bigbrain-signature': hmacSignature(body, secret) } : {}),
-      },
-      body,
-    });
-    if (!response.ok) throw new Error(`Subscription ${subscription.id || subscription.client_id} delivery returned HTTP ${response.status}.`);
-  }
-}
-
-export class InboundWebhookServer {
-  constructor({ registryStore, inboxStore, host = '127.0.0.1', port = 55561, secretResolver = () => null, maxBodyBytes = DEFAULT_EVENT_MAX_BODY_BYTES, onAccepted = null, now = () => new Date(), logger = console } = {}) {
-    this.registryStore = registryStore;
-    this.inboxStore = inboxStore;
-    this.host = host;
-    this.port = port;
-    this.secretResolver = secretResolver;
-    this.maxBodyBytes = maxBodyBytes;
-    this.onAccepted = onAccepted;
-    this.now = now;
-    this.logger = logger;
-    this.server = null;
-  }
-
-  async start() {
-    this.server = http.createServer((request, response) => this.handle(request, response).catch((error) => this.send(response, error.statusCode || 500, { ok: false, error: error.message })));
-    await new Promise((resolve, reject) => { this.server.once('error', reject); this.server.listen(this.port, this.host, resolve); });
-    return this.server.address();
-  }
-
-  async handle(request, response) {
-    const url = new URL(request.url || '/', 'http://127.0.0.1');
-    if (request.method === 'GET' && url.pathname === '/health') return this.send(response, 200, { ok: true, status: 'ready', host: this.host, port: this.server?.address()?.port || this.port });
-    if (request.method !== 'POST') return this.send(response, 404, { ok: false, error: 'Not found' });
-    const deliveryRoute = url.pathname.match(/^\/deliveries\/([^/]+)$/);
-    const listenerId = deliveryRoute?.[1] || url.pathname.match(/^\/(?:events|webhooks)\/([^/]+)$/)?.[1] || request.headers['x-bigbrain-listener'];
-    const registry = await this.registryStore.get();
-    const listener = registry.listeners.find((candidate) => candidate.id === listenerId && candidate.type === 'webhook');
-    const deliveryListener = deliveryRoute ? registry.listeners.find((candidate) => candidate.id === listenerId) : null;
-    const resolvedListener = deliveryListener || listener;
-    if (!resolvedListener || !resolvedListener.enabled) return this.send(response, 404, { ok: false, error: 'Inbound listener not found or disabled.' });
-    if (!deliveryRoute && resolvedListener.listener_location !== registry.runtime.kind) return this.send(response, 409, { ok: false, error: 'Listener is assigned to another runtime location.' });
-    const body = await readBody(request, this.maxBodyBytes);
-    const subscription = deliveryRoute
-      ? registry.subscriptions.find((candidate) => candidate.id === request.headers['x-bigbrain-subscription'] && candidate.listener_id === listenerId)
-      : null;
-    if (deliveryRoute && (!subscription || !subscription.enabled)) return this.send(response, 403, { ok: false, error: 'Inbound delivery subscription is not enabled.' });
-    const secret = await this.secretResolver(subscription || resolvedListener);
-    if (secret) {
-      const signatureHeader = resolvedListener.endpoint?.signature_header || 'x-bigbrain-signature';
-      const actual = request.headers[signatureHeader.toLowerCase()]
-        || request.headers['x-bigbrain-signature']
-        || request.headers['x-hub-signature-256']
-        || request.headers['x-signature'];
-      if (!timingSafeEqual(actual, hmacSignature(body, secret))) return this.send(response, 401, { ok: false, error: 'Invalid event signature.' });
-    } else if (!['127.0.0.1', '::1', 'localhost'].includes(this.host)) {
-      return this.send(response, 503, { ok: false, error: 'Webhook listener has no resolvable signing credential.' });
-    }
-    let payload;
-    try { payload = JSON.parse(body); } catch { payload = { body }; }
-    const eventId = String(request.headers['x-event-id'] || request.headers['idempotency-key'] || payload.event_id || payload.id || sha256(body));
-    const event = deliveryRoute
-      ? normalizeEventEnvelope(payload, { now: this.now(), registry, listener: resolvedListener })
-      : resolvedListener.provider === 'granola'
-        ? normalizeEventEnvelope(createGranolaWebhookEventEnvelope({ listener: resolvedListener, payload, rawPayload: body, headers: request.headers, now: this.now(), registry }), { now: this.now(), registry, listener: resolvedListener })
-      : createWebhookEventEnvelope({ listener: resolvedListener, eventId, payload, rawPayload: body, occurredAt: request.headers['x-occurred-at'] || null, metadata: { content_type: request.headers['content-type'] || null }, now: this.now(), registry });
-    const result = await this.inboxStore.enqueue(event, { clientId: subscription?.client_id || registry.runtime.id, subscriptionId: subscription?.id || null });
-    if (!result.duplicate) Promise.resolve(this.onAccepted?.(result.event.delivery_id)).catch((error) => this.logger.error?.(`Inbound webhook processing failed: ${error.message}`));
-    return this.send(response, result.duplicate ? 200 : 202, { ok: true, status: result.duplicate ? 'duplicate' : 'accepted', delivery_id: result.event.delivery_id, event_id: event.event_id });
-  }
-
-  async close() {
-    if (!this.server) return;
-    await new Promise((resolve, reject) => this.server.close((error) => error ? reject(error) : resolve()));
-    this.server = null;
-  }
-
-  send(response, status, value) { response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); response.end(JSON.stringify(value)); }
-}
-
 export class InboundEventRuntime {
   constructor({
     registryPath = defaultEventRegistryPath(),
@@ -1129,7 +890,7 @@ function resolveAllowedDestinations(registry, event, listener) {
   return [...allowed].map((id) => ({ id, name: id }));
 }
 
-async function readBody(request, maxBytes) {
+export async function readBody(request, maxBytes) {
   let total = 0;
   const chunks = [];
   for await (const chunk of request) {
@@ -1144,11 +905,11 @@ async function readBody(request, maxBytes) {
   return Buffer.concat(chunks).toString('utf8');
 }
 
-function trimObject(value, limit) {
+export function trimObject(value, limit) {
   return Object.fromEntries(Object.entries(value || {}).sort(([, left], [, right]) => String(left).localeCompare(String(right))).slice(-limit));
 }
 
-function isAfterRssCursor(listenerId, item, cursorAt, cursorId = null) {
+export function isAfterRssCursor(listenerId, item, cursorAt, cursorId = null) {
   const cursor = rssCursorForItem(listenerId, item);
   if (!cursor || !cursorAt || Number.isNaN(Date.parse(cursorAt))) return false;
   return compareRssCursors(cursor, { cursor_at: cursorAt, cursor_id: cursorId || null }) > 0;
@@ -1158,13 +919,13 @@ function compareRssCursors(left, right) {
   return Date.parse(left.cursor_at) - Date.parse(right.cursor_at) || String(left.cursor_id || '').localeCompare(String(right.cursor_id || ''));
 }
 
-function latestRssCursor(listenerId, items) {
+export function latestRssCursor(listenerId, items) {
   return items.map((item) => rssCursorForItem(listenerId, item)).filter(Boolean).sort((left, right) => (
     Date.parse(right.cursor_at) - Date.parse(left.cursor_at) || right.cursor_id.localeCompare(left.cursor_id)
   ))[0] || null;
 }
 
-function rssCursorForItem(listenerId, item) {
+export function rssCursorForItem(listenerId, item) {
   const rawDate = item?.published_at || item?.publishedAt || item?.pubDate || item?.pub_date;
   const timestamp = rawDate && !Number.isNaN(Date.parse(rawDate)) ? new Date(rawDate).toISOString() : null;
   if (!timestamp) return null;
@@ -1436,6 +1197,16 @@ function optionalString(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
 }
 
+function normalizeFieldPath(value, name) {
+  const fieldPath = String(value || '').trim();
+  if (!fieldPath || !/^[a-zA-Z0-9_.-]+$/.test(fieldPath)) throw new Error(`${name} must be a dot-separated field path.`);
+  return fieldPath;
+}
+
+function normalizeFieldPaths(value, name) {
+  return normalizeStringArray(value).map((fieldPath) => normalizeFieldPath(fieldPath, name));
+}
+
 function optionalIso(value) {
   return typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? new Date(value).toISOString() : null;
 }
@@ -1471,6 +1242,6 @@ function validPattern(value) {
   try { new RegExp(value); return true; } catch { throw new Error(`Invalid inbound event filter pattern: ${value}`); }
 }
 
-function sha256(value) {
+export function sha256(value) {
   return crypto.createHash('sha256').update(String(value || '')).digest('hex');
 }

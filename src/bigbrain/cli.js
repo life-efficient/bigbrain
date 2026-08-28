@@ -447,6 +447,34 @@ async function handleEvents(args, global) {
     output(global, { events }, events.map((event) => `${event.state.padEnd(11)} ${event.delivery_id}  ${event.listener_id}  ${event.event_id}`).join('\n') || 'Inbox is empty.');
     return;
   }
+  if (action === 'configure') {
+    const listenerId = requireFirstArg(args.slice(1), 'events configure requires <listener-id>.');
+    const eventTypes = argValues(args, '--event-type').map((value) => value.toLowerCase());
+    const promptFields = argValues(args, '--prompt-field');
+    const promptOmitFields = argValues(args, '--prompt-omit-field');
+    const eventTypePath = argValue(args, '--event-type-path');
+    const hasEventTypeOptions = eventTypes.length || args.includes('--clear-event-types') || eventTypePath;
+    const hasPromptOptions = promptFields.length || promptOmitFields.length || args.includes('--clear-prompt-fields') || args.includes('--clear-prompt-omit-fields');
+    if (!hasEventTypeOptions && !hasPromptOptions) throw new Error('Usage: bigbrain events configure <listener-id> [--event-type-path PATH] [--event-type TYPE ...] [--prompt-field FIELD ...] [--prompt-omit-field FIELD ...]');
+    const next = await registry.update((current) => {
+      const listeners = current.listeners.map((listener) => {
+        if (listener.id !== listenerId) return listener;
+        return {
+          ...listener,
+          ...(eventTypePath ? { event_type_path: eventTypePath } : {}),
+          ...(eventTypes.length || args.includes('--clear-event-types') ? { event_types: eventTypes } : {}),
+          ...(promptFields.length || args.includes('--clear-prompt-fields') ? { prompt_payload_fields: promptFields } : {}),
+          ...(promptOmitFields.length || args.includes('--clear-prompt-omit-fields') ? { prompt_omit_fields: promptOmitFields } : {}),
+          updated_at: new Date().toISOString(),
+        };
+      });
+      if (!listeners.some((listener) => listener.id === listenerId)) throw new Error(`Listener not found: ${listenerId}`);
+      return { ...current, listeners };
+    }, { audit: { action: 'listener_configure', listener_id: listenerId, event_types: eventTypes, event_type_path: eventTypePath || null, prompt_fields: promptFields, prompt_omit_fields: promptOmitFields } });
+    const listener = next.listeners.find((item) => item.id === listenerId);
+    output(global, listener, `Configured ${listenerId}: ${listener.event_types.join(', ') || 'all event types'}; prompt fields ${listener.prompt_payload_fields.length ? listener.prompt_payload_fields.join(', ') : 'all payload fields'}${listener.prompt_omit_fields.length ? `; omitted ${listener.prompt_omit_fields.join(', ')}` : ''}.`);
+    return;
+  }
   if (['pause', 'resume', 'remove'].includes(action)) {
     const listenerId = requireFirstArg(args.slice(1), `events ${action} requires <listener-id>.`);
     const value = await registry.update((current) => {
@@ -922,6 +950,7 @@ Commands:
   events status
   events listeners
   events inbox [--state STATE] [--listener ID] [--limit N]
+  events configure <listener-id> [--event-type-path PATH] [--event-type TYPE ...] [--prompt-field FIELD ...] [--prompt-omit-field FIELD ...]
   events listener-upsert --from <listener.json>
   events subscription-upsert --from <subscription.json>
   events pause|resume|remove <listener-id>
@@ -1079,6 +1108,12 @@ function requireFirstArg(args, message) {
 function argValue(args, name) {
   const index = args.indexOf(name);
   return index >= 0 ? args[index + 1] : null;
+}
+
+function argValues(args, name) {
+  const values = [];
+  for (let index = 0; index < args.length; index += 1) if (args[index] === name && args[index + 1]) values.push(args[index + 1]);
+  return values;
 }
 
 function requireOption(args, name) {

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { CodexAppThreadExecutor, CodexCliExecutor, buildEventPrompt, parseCodexJsonOutput, parseCodexThreadId } from '../../src/bigbrain/codex-event-executor.js';
+import { CodexAppThreadExecutor, CodexCliExecutor, buildEventPrompt, parseCodexJsonOutput, parseCodexThreadId, selectPromptPayload } from '../../src/bigbrain/codex-event-executor.js';
 
 const event = {
   event_id: 'event-1',
@@ -20,7 +20,17 @@ test('Codex prompt gives a direct ingest instruction and names the workflow skil
   assert.match(prompt, /personal: Personal/);
   assert.match(prompt, /Do not invent Brain IDs/);
   assert.doesNotMatch(prompt, /Return JSON only/);
-  assert.match(prompt, /event-1/);
+  assert.match(prompt, /"title": "Planning meeting"/);
+  assert.doesNotMatch(prompt, /event-1/);
+  assert.doesNotMatch(prompt, /Inbound source material/);
+});
+
+test('prompt payload can be narrowed to configured fields and omits RSS raw XML by default', () => {
+  const rssPayload = { title: 'Release', link: 'https://example.test/release', description: 'Useful', raw: '<item>unnecessary</item>' };
+  assert.deepEqual(selectPromptPayload(rssPayload, { type: 'rss' }), { title: 'Release', link: 'https://example.test/release', description: 'Useful' });
+  assert.deepEqual(selectPromptPayload({ title: 'Meeting', data: { summary: 'Useful', secret: 'omit' }, noise: true }, {
+    prompt_payload_fields: ['title', 'data.summary'],
+  }), { title: 'Meeting', data: { summary: 'Useful' } });
 });
 
 test('CLI executor captures structured outcome and stderr-safe output', async () => {
