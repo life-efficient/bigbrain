@@ -891,6 +891,10 @@ export class InboundEventRuntime {
     try {
       await this.registryStore.get();
       await this.inboxStore.get();
+      if (this.webhookConfig.enabled !== false) {
+        this.webhookServer = new InboundWebhookServer({ registryStore: this.registryStore, inboxStore: this.inboxStore, ...this.webhookConfig, onAccepted: (deliveryId) => this.processor.process(deliveryId), now: this.now, logger: this.logger });
+        await this.webhookServer.start();
+      }
       const report = await this.runCycle();
       const processed = report.processed;
       const firstReport = { ...report, processed: processed.map(summarizeEventOutcome) };
@@ -898,12 +902,10 @@ export class InboundEventRuntime {
       const intervalMs = Math.max(10_000, Number((await this.registryStore.get()).poll_interval_ms || 300_000));
       this.timer = setInterval(() => this.runCycle().catch((error) => this.logger.error?.(`BigBrain inbound event cycle failed: ${error.message}`)), intervalMs);
       this.timer.unref?.();
-      if (this.webhookConfig.enabled !== false) {
-        this.webhookServer = new InboundWebhookServer({ registryStore: this.registryStore, inboxStore: this.inboxStore, ...this.webhookConfig, onAccepted: (deliveryId) => this.processor.process(deliveryId), now: this.now, logger: this.logger });
-        await this.webhookServer.start();
-      }
       return { firstReport, close: () => this.close() };
     } catch (error) {
+      await this.webhookServer?.close().catch(() => {});
+      this.webhookServer = null;
       await this.releaseRuntimeLock();
       throw error;
     }
