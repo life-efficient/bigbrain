@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -110,8 +111,36 @@ test('RSS collector polls feeds, honors bootstrap, and deduplicates later polls'
     const second = await collector.pollAll();
     assert.equal(fetches, 2);
     assert.equal(second.ingested, 0);
-    assert.equal(second.duplicates, 2);
+    assert.equal(second.duplicates, 0);
     assert.equal((await inbox.list()).length, 1);
+  } finally {
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('RSS first poll is bounded to the initial seven-day cursor and advances by timestamp plus ID', async () => {
+  const paths = await fixture();
+  try {
+    const listener = rssListener({ bootstrap: 'all' });
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1', now: () => new Date('2026-08-28T12:00:00.000Z') });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [listener] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath, now: () => new Date('2026-08-28T12:00:00.000Z') });
+    const xml = '<rss><channel><title>Example</title><item><guid>old</guid><title>Old</title><link>https://example.test/old</link><pubDate>Tue, 18 Aug 2026 10:00:00 GMT</pubDate></item><item><guid>recent</guid><title>Recent</title><link>https://example.test/recent</link><pubDate>Wed, 26 Aug 2026 10:00:00 GMT</pubDate></item><item><guid>latest</guid><title>Latest</title><link>https://example.test/latest</link><pubDate>Thu, 27 Aug 2026 10:00:00 GMT</pubDate></item></channel></rss>';
+    const collector = new RssCollector({
+      registryStore: registry,
+      inboxStore: inbox,
+      now: () => new Date('2026-08-28T12:00:00.000Z'),
+      fetchImpl: async () => ({ status: 200, ok: true, headers: { get: () => null }, text: async () => xml }),
+    });
+    const first = await collector.pollAll();
+    assert.equal(first.ingested, 2);
+    assert.deepEqual((await inbox.list()).map((event) => event.payload.guid).sort(), ['latest', 'recent']);
+    const state = (await inbox.get()).collectors[listener.id];
+    assert.equal(state.cursor_at, '2026-08-27T10:00:00.000Z');
+    assert.match(state.cursor_id, /^openai-news:/);
+    const second = await collector.pollAll();
+    assert.equal(second.ingested, 0);
+    assert.equal((await inbox.list()).length, 2);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
@@ -136,6 +165,28 @@ test('RSS collector recognizes legacy v1 keys during service migration', async (
     assert.equal(report.ingested, 0);
     assert.equal(report.duplicates, 1);
     assert.equal((await inbox.list()).length, 0);
+  } finally {
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('RSS collector resets its polling guard after a registry failure', async () => {
+  const paths = await fixture();
+  try {
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [rssListener()] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+    let reads = 0;
+    const collector = new RssCollector({
+      registryStore: { get: async () => { reads += 1; if (reads === 1) throw new Error('synthetic registry outage'); return registry.get(); } },
+      inboxStore: inbox,
+      fetchImpl: async () => ({ status: 304, ok: false, headers: { get: () => null } }),
+    });
+    await assert.rejects(() => collector.pollAll(), /synthetic registry outage/);
+    assert.equal(collector.polling, false);
+    const second = await collector.pollAll();
+    assert.equal(second.listeners[0].status, 'not_modified');
+    assert.equal(collector.polling, false);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
@@ -316,6 +367,79 @@ test('runtime lock prevents a desktop and service poller from running concurrent
   } finally {
     await first.close();
     await second.close();
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('RSS failures are isolated from webhook serving and webhook failures do not stop RSS cycles', async () => {
+  const paths = await fixture();
+  let runtime = null;
+  try {
+    const webhook = normalizeListener({ id: 'calendar', type: 'webhook', brain_ids: ['brain_personal'] });
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [rssListener({ id: 'feed', url: 'https://example.test/feed.xml' }), webhook] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+    let rssFetches = 0;
+    runtime = new InboundEventRuntime({
+      registryPath: paths.registryPath,
+      inboxPath: paths.inboxPath,
+      webhook: { enabled: true, host: '127.0.0.1', port: 0 },
+      fetchImpl: async (url) => {
+        if (url.includes('/feed.xml')) {
+          rssFetches += 1;
+          if (rssFetches === 1) throw new Error('synthetic RSS outage');
+          return { status: 200, ok: true, headers: { get: () => null }, text: async () => '<rss><channel><title>Example</title><item><guid>rss-1</guid><title>RSS item</title><link>https://example.test/rss-1</link><pubDate>Thu, 28 Aug 2026 10:00:00 GMT</pubDate></item></channel></rss>' };
+        }
+        throw new Error(`Unexpected fetch: ${url}`);
+      },
+      executorFactory: async () => ({ execute: async ({ event }) => {
+        if (event.type === 'webhook.event') throw new Error('synthetic webhook processing failure');
+        return { execution_id: 'rss-exec', thread_id: 'rss-thread', outcome: { status: 'filed', capture_mode: 'summary', reason: 'rss', destinations: [{ brain_id: 'brain_personal', writes: [] }] } };
+      } }),
+      filingBroker: { file: async () => ({ status: 'filed', destinations: [] }) },
+    });
+    await runtime.start();
+    const address = runtime.webhookServer.server.address();
+    const first = await fetch(`http://127.0.0.1:${address.port}/events/calendar`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 'calendar-1', title: 'Meeting' }) });
+    assert.equal(first.status, 202);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.equal((await inbox.list({ listenerId: 'calendar' }))[0].state, 'failed');
+    const secondReport = await runtime.runRssCycle();
+    assert.equal(secondReport.errors.length, 0);
+    assert.equal(secondReport.ingested, 1);
+    assert.equal((await inbox.list({ listenerId: 'feed' })).length, 1);
+    assert.equal((await fetch(`http://127.0.0.1:${address.port}/health`)).status, 200);
+  } finally {
+    await runtime?.close().catch(() => {});
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('webhook startup failure degrades only the webhook plane and still runs RSS', async () => {
+  const paths = await fixture();
+  const blocker = http.createServer().listen(0, '127.0.0.1');
+  try {
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+    await registry.save({
+      brains: [{ id: 'brain_personal', name: 'Personal' }],
+      listeners: [rssListener({ id: 'feed', url: 'https://example.test/feed.xml' }), normalizeListener({ id: 'calendar', type: 'webhook', brain_ids: ['brain_personal'] })],
+    });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+    const runtime = new InboundEventRuntime({
+      registryPath: paths.registryPath,
+      inboxPath: paths.inboxPath,
+      webhook: { enabled: true, host: '127.0.0.1', port: blocker.address().port },
+      fetchImpl: async () => ({ status: 200, ok: true, headers: { get: () => null }, text: async () => '<rss><channel><title>Example</title><item><guid>rss-1</guid><title>RSS item</title><link>https://example.test/rss-1</link><pubDate>Thu, 28 Aug 2026 10:00:00 GMT</pubDate></item></channel></rss>' }),
+      executorFactory: async () => ({ execute: async () => ({ execution_id: 'rss-exec', thread_id: 'rss-thread', outcome: { status: 'filed', capture_mode: 'summary', reason: 'rss', destinations: [{ brain_id: 'brain_personal', writes: [] }] } }) }),
+      filingBroker: { file: async () => ({ status: 'filed', destinations: [] }) },
+    });
+    const started = await runtime.start();
+    assert.match(runtime.webhookError, /EADDRINUSE|address already in use/i);
+    assert.equal(started.firstReport.ingested, 1);
+    assert.equal((await inbox.list({ listenerId: 'feed' })).length, 1);
+    await runtime.close();
+  } finally {
+    await new Promise((resolve) => blocker.close(resolve));
     await fs.rm(paths.root, { recursive: true, force: true });
   }
 });

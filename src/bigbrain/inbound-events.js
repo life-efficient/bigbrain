@@ -10,6 +10,7 @@ import { createGranolaWebhookEventEnvelope } from './granola-webhook.js';
 export const INBOUND_EVENTS_VERSION = 2;
 export const DEFAULT_EVENT_RETENTION_DAYS = 90;
 export const DEFAULT_EVENT_MAX_BODY_BYTES = 1_000_000;
+export const DEFAULT_RSS_INITIAL_CURSOR_DAYS = 7;
 export const EVENT_STATES = ['received', 'running', 'filed', 'ignored', 'failed', 'quarantined'];
 export const EXECUTION_MODES = ['app_thread', 'cli'];
 export const RUNTIME_LOCATIONS = ['client', 'host'];
@@ -527,10 +528,10 @@ export class EventInboxStore {
     return this.fail(deliveryId, reason, { quarantine: true });
   }
 
-  async list({ state = null, listenerId = null, limit = 100, includeDeliveryOnly = true } = {}) {
+  async list({ state = null, listenerId = null, type = null, limit = 100, includeDeliveryOnly = true } = {}) {
     const inbox = await this.get();
     return Object.values(inbox.deliveries)
-      .filter((event) => (!state || event.state === state) && (!listenerId || event.listener_id === listenerId) && (includeDeliveryOnly || !event.delivery_only))
+      .filter((event) => (!state || event.state === state) && (!listenerId || event.listener_id === listenerId) && (!type || event.type === type) && (includeDeliveryOnly || !event.delivery_only))
       .sort((a, b) => String(b.received_at).localeCompare(String(a.received_at)))
       .slice(0, Math.max(1, Math.min(Number(limit) || 100, 1000)));
   }
@@ -630,8 +631,8 @@ export class InboundEventProcessor {
     }
   }
 
-  async drain({ limit = 10 } = {}) {
-    const pending = await this.inboxStore.list({ state: 'received', limit, includeDeliveryOnly: false });
+  async drain({ limit = 10, type = null } = {}) {
+    const pending = await this.inboxStore.list({ state: 'received', type, limit, includeDeliveryOnly: false });
     const results = [];
     for (const event of pending) results.push(await this.process(event.delivery_id));
     return results;
@@ -652,9 +653,9 @@ export class RssCollector {
   async pollAll() {
     if (this.polling) return { skipped: true, reason: 'poll already running' };
     this.polling = true;
-    const registry = await this.registryStore.get();
-    const report = { listeners: [], ingested: 0, duplicates: 0, errors: [] };
     try {
+      const registry = await this.registryStore.get();
+      const report = { listeners: [], ingested: 0, duplicates: 0, errors: [] };
       for (const listener of registry.listeners.filter((item) => item.type === 'rss' && item.enabled && !item.removed && item.listener_location === registry.runtime.kind)) {
         try {
           const result = await this.poll(listener, registry);
@@ -695,10 +696,26 @@ export class RssCollector {
     if (!response.ok) throw new Error(`Feed returned HTTP ${response.status}.`);
     const xml = await response.text();
     const feed = parseRssDocument(xml);
-    const firstPoll = !previous.initialized_at;
     const items = feed.items.map(normalizeRssItemForEvent).sort((a, b) => Date.parse(b.published_at || '') - Date.parse(a.published_at || ''));
-    const candidates = firstPoll ? (listener.bootstrap === 'all' ? items : listener.bootstrap === 'none' ? [] : items.slice(0, 1)) : items;
+    const firstPoll = !previous.initialized_at;
+    const cursorAt = previous.cursor_at || (firstPoll ? new Date(this.now().getTime() - DEFAULT_RSS_INITIAL_CURSOR_DAYS * 86_400_000).toISOString() : previous.last_poll_at || previous.initialized_at || this.now().toISOString());
+    const eligible = items.filter((item) => isAfterRssCursor(listener.id, item, cursorAt, previous.cursor_id));
+    const candidates = listener.bootstrap === 'all' ? eligible : listener.bootstrap === 'none' ? [] : eligible.slice(0, 1);
     const seen = { ...(previous.seen || {}) };
+    let cursor = { cursor_at: cursorAt, cursor_id: previous.cursor_id || null };
+    if (!previous.cursor_at) {
+      await this.inboxStore.updateCollector(listener.id, {
+        ...next,
+        initialized_at: previous.initialized_at || polledAt,
+        cursor_at: cursor.cursor_at,
+        cursor_id: cursor.cursor_id,
+      });
+    }
+    const candidateKeys = new Set(candidates.map((item) => stableSourceEventId(listener.id, item.guid || item.link || `${item.title}:${item.pubDate}`)));
+    for (const item of items) {
+      const key = stableSourceEventId(listener.id, item.guid || item.link || `${item.title}:${item.pubDate}`);
+      if (!candidateKeys.has(key)) seen[key] ||= polledAt;
+    }
     let ingested = 0;
     let duplicates = 0;
     for (const item of candidates) {
@@ -744,17 +761,29 @@ export class RssCollector {
       }
       if (!accepted && subscriptions.length) continue;
       seen[key] = polledAt;
-    }
-    if (firstPoll) {
-      for (const item of items) {
-        const key = stableSourceEventId(listener.id, item.guid || item.link || `${item.title}:${item.pubDate}`);
-        seen[key] ||= polledAt;
+      const itemCursor = rssCursorForItem(listener.id, item);
+      if (itemCursor && compareRssCursors(itemCursor, cursor) > 0) {
+        cursor = itemCursor;
+        next.cursor_at = cursor.cursor_at;
+        next.cursor_id = cursor.cursor_id;
       }
+      await this.inboxStore.updateCollector(listener.id, {
+        ...next,
+        seen: trimObject(seen, 2000),
+        initialized_at: previous.initialized_at || polledAt,
+        cursor_at: cursor.cursor_at,
+        cursor_id: cursor.cursor_id,
+        last_item_key: key,
+      });
     }
+    const latest = latestRssCursor(listener.id, items);
+    if (!candidates.length && latest && compareRssCursors(latest, cursor) > 0) cursor = latest;
     await this.inboxStore.updateCollector(listener.id, {
       ...next,
       seen: trimObject(seen, 2000),
       initialized_at: previous.initialized_at || polledAt,
+      cursor_at: cursor.cursor_at,
+      cursor_id: cursor.cursor_id,
       last_success_at: polledAt,
       last_error: null,
       item_count: items.length,
@@ -873,6 +902,7 @@ export class InboundEventRuntime {
     this.collector = new RssCollector({ registryStore: this.registryStore, inboxStore: this.inboxStore, fetchImpl, secretResolver: credentialResolver, now, logger });
     this.webhookConfig = webhook;
     this.webhookServer = null;
+    this.webhookError = null;
     this.executorFactory = executorFactory || defaultExecutorFactory;
     this.filingBroker = filingBroker || new ScopedFilingBroker({
       brainRegistry: () => this.registryStore.value?.brains || [],
@@ -882,7 +912,7 @@ export class InboundEventRuntime {
       },
     });
     this.processor = new InboundEventProcessor({ registryStore: this.registryStore, inboxStore: this.inboxStore, executorFactory: this.executorFactory, filingBroker: this.filingBroker, logger, now });
-    this.timer = null;
+    this.rssTimer = null;
   }
 
   async start({ once = false } = {}) {
@@ -893,15 +923,23 @@ export class InboundEventRuntime {
       await this.inboxStore.get();
       if (this.webhookConfig.enabled !== false) {
         this.webhookServer = new InboundWebhookServer({ registryStore: this.registryStore, inboxStore: this.inboxStore, ...this.webhookConfig, onAccepted: (deliveryId) => this.processor.process(deliveryId), now: this.now, logger: this.logger });
-        await this.webhookServer.start();
+        try {
+          await this.webhookServer.start();
+          this.webhookError = null;
+        } catch (error) {
+          this.webhookError = error instanceof Error ? error.message : String(error);
+          await this.webhookServer.close().catch(() => {});
+          this.webhookServer = null;
+          this.logger.error?.(`BigBrain webhook server failed: ${this.webhookError}`);
+        }
       }
-      const report = await this.runCycle();
+      const report = await this.runRssCycle();
       const processed = report.processed;
       const firstReport = { ...report, processed: processed.map(summarizeEventOutcome) };
       if (once) return { firstReport, close: () => this.close() };
       const intervalMs = Math.max(10_000, Number((await this.registryStore.get()).poll_interval_ms || 300_000));
-      this.timer = setInterval(() => this.runCycle().catch((error) => this.logger.error?.(`BigBrain inbound event cycle failed: ${error.message}`)), intervalMs);
-      this.timer.unref?.();
+      this.rssTimer = setInterval(() => this.runRssCycle().catch((error) => this.logger.error?.(`BigBrain RSS cycle failed: ${error.message}`)), intervalMs);
+      this.rssTimer.unref?.();
       return { firstReport, close: () => this.close() };
     } catch (error) {
       await this.webhookServer?.close().catch(() => {});
@@ -912,8 +950,8 @@ export class InboundEventRuntime {
   }
 
   async close() {
-    if (this.timer) clearInterval(this.timer);
-    this.timer = null;
+    if (this.rssTimer) clearInterval(this.rssTimer);
+    this.rssTimer = null;
     await this.webhookServer?.close();
     this.webhookServer = null;
     await this.releaseRuntimeLock();
@@ -932,12 +970,31 @@ export class InboundEventRuntime {
     await fs.rm(this.lockPath, { force: true });
   }
 
-  async runCycle() {
-    const registry = await this.registryStore.get();
-    const report = await this.collector.pollAll();
-    const processed = await this.processor.drain({ limit: 25 });
-    await this.inboxStore.prune({ retentionDays: registry.retention_days });
+  async runRssCycle() {
+    let registry = null;
+    let report = { listeners: [], ingested: 0, duplicates: 0, errors: [] };
+    try {
+      registry = await this.registryStore.get();
+      report = await this.collector.pollAll();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      report.errors.push({ scope: 'rss', message });
+      this.logger.error?.(`BigBrain RSS cycle failed: ${message}`);
+    }
+    let processed = [];
+    try {
+      processed = await this.processor.drain({ limit: 25, type: 'rss.item' });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      report.errors.push({ scope: 'rss_processing', message });
+      this.logger.error?.(`BigBrain RSS processing failed: ${message}`);
+    }
+    if (registry) await this.inboxStore.prune({ retentionDays: registry.retention_days }).catch((error) => this.logger.error?.(`BigBrain RSS retention failed: ${error.message}`));
     return { ...report, processed };
+  }
+
+  async runCycle() {
+    return this.runRssCycle();
   }
 }
 
@@ -1066,6 +1123,32 @@ async function readBody(request, maxBytes) {
 
 function trimObject(value, limit) {
   return Object.fromEntries(Object.entries(value || {}).sort(([, left], [, right]) => String(left).localeCompare(String(right))).slice(-limit));
+}
+
+function isAfterRssCursor(listenerId, item, cursorAt, cursorId = null) {
+  const cursor = rssCursorForItem(listenerId, item);
+  if (!cursor || !cursorAt || Number.isNaN(Date.parse(cursorAt))) return false;
+  return compareRssCursors(cursor, { cursor_at: cursorAt, cursor_id: cursorId || null }) > 0;
+}
+
+function compareRssCursors(left, right) {
+  return Date.parse(left.cursor_at) - Date.parse(right.cursor_at) || String(left.cursor_id || '').localeCompare(String(right.cursor_id || ''));
+}
+
+function latestRssCursor(listenerId, items) {
+  return items.map((item) => rssCursorForItem(listenerId, item)).filter(Boolean).sort((left, right) => (
+    Date.parse(right.cursor_at) - Date.parse(left.cursor_at) || right.cursor_id.localeCompare(left.cursor_id)
+  ))[0] || null;
+}
+
+function rssCursorForItem(listenerId, item) {
+  const rawDate = item?.published_at || item?.publishedAt || item?.pubDate || item?.pub_date;
+  const timestamp = rawDate && !Number.isNaN(Date.parse(rawDate)) ? new Date(rawDate).toISOString() : null;
+  if (!timestamp) return null;
+  return {
+    cursor_at: timestamp,
+    cursor_id: stableSourceEventId(listenerId, item?.guid || item?.link || `${item?.title || ''}:${item?.pubDate || item?.pub_date || ''}`),
+  };
 }
 
 function withClaimFlag(event, claimed) {
