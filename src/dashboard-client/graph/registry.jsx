@@ -1,5 +1,6 @@
 import { ComposableGraphVisualizer } from './composable-graph-visualizer.jsx';
 import { GRAPH_DEFAULT_PALETTE_ID } from './colors.js';
+import { ForceGraph3DVisualizer } from './force-graph-3d-visualizer.jsx';
 import { NetworkConstellationVisualizer } from './network-constellation-visualizer.jsx';
 import { SignalBloomVisualizer } from './signal-bloom-visualizer.jsx';
 import { SpaciousConstellationVisualizer } from './spacious-constellation-visualizer.jsx';
@@ -96,6 +97,18 @@ export const GRAPH_COLOR_MODES = [
 ];
 
 export const graphVisualizers = [
+  {
+    id: 'force-graph-3d',
+    label: '3D Force',
+    Component: ForceGraph3DVisualizer,
+    description: 'GPU-rendered 3D force graph with live relationship motion',
+    interactionModel: 'orbit',
+    controls: ['zoomIn', 'zoomOut', 'resetView'],
+    capabilities: {
+      ownsPan: true,
+      ownsWheelZoom: true,
+    },
+  },
   {
     id: 'custom',
     label: 'Custom',

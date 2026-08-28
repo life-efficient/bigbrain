@@ -604,3 +604,18 @@ test('network constellation replaces vis network in the selectable renderer regi
   assert.doesNotMatch(registry, /VisNetworkVisualizer|id: 'vis-network'/);
   assert.match(main, /saved\.visualizerId === 'vis-network'[\s\S]*network-constellation/);
 });
+
+test('3D force renderer is registered with the shared graph controls', async () => {
+  const [registry, forceGraph] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/graph/registry.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/force-graph-3d-visualizer.jsx', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(registry, /id: 'force-graph-3d'/);
+  assert.match(registry, /label: '3D Force'/);
+  assert.match(registry, /controls: \['zoomIn', 'zoomOut', 'resetView'\]/);
+  assert.match(forceGraph, /new ForceGraph3D/);
+  assert.match(forceGraph, /nodeThreeObject/);
+  assert.match(forceGraph, /linkDirectionalParticles/);
+  assert.match(forceGraph, /onNodeClick/);
+});

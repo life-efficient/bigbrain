@@ -1057,6 +1057,10 @@ function renderAppHtml() {
       .graph-flow-energy-out { stroke: url(#graph-flow-energy-out); }
       @keyframes graph-flow-energy { to { stroke-dashoffset: -58; } }
       .force-shell canvas { border-radius: 18px; }
+      .force3d-surface { position: absolute; inset: 0; overflow: hidden; border-radius: 18px; background: radial-gradient(circle at 50% 48%, rgba(22,32,50,0.56), rgba(9,10,14,0.98) 72%); }
+      .force3d-surface > div { width: 100% !important; height: 100% !important; }
+      .force3d-surface canvas { display: block; width: 100%; height: 100%; outline: none; }
+      .force3d-surface .graph-info-msg { color: rgba(244,244,245,0.68); font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.16em; text-transform: uppercase; }
       .vis-network-surface { opacity: 0.52; transform-origin: 0 0; will-change: transform; }
       .vis-network-booted .vis-network-surface { animation: vis-network-materialize 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
       .vis-network-boot-overlay { position: absolute; inset: 0; z-index: 4; overflow: hidden; pointer-events: none; opacity: 0; }
