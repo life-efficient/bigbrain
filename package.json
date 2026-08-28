@@ -67,6 +67,8 @@
       "node_modules/**/*",
       "package.json",
       "README.md",
+      "skills/**/*",
+      "automations/**/*",
       "schemas/**/*",
       "scripts/install-local-mcp-service.mjs",
       "scripts/bigbrain-event-ingestor.mjs",

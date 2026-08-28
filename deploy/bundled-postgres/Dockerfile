@@ -9,7 +9,9 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY bin ./bin
+COPY automations ./automations
 COPY schemas ./schemas
+COPY skills ./skills
 COPY src ./src
 COPY README.md LICENSE ./
 

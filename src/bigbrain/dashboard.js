@@ -54,6 +54,7 @@ import {
   PUBLIC_RAW_CONTENT_SECURITY_POLICY,
   publicRawMimeTypeForPath,
 } from './public-raw-policy.js';
+import { runtimeMetadata } from './runtime-metadata.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..');
@@ -2852,6 +2853,7 @@ async function buildHealthPayload(config) {
     .slice(0, 8);
   return {
     ...report,
+    runtime: report.runtime || runtimeMetadata(),
     summary,
     top_findings: report.findings.slice(0, 16),
   };

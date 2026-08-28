@@ -1,10 +1,10 @@
-import { createRequire } from 'node:module';
 import { BIGBRAIN_STORAGE_SCHEMA_VERSION } from './db.js';
+import {
+  BIGBRAIN_RELEASE_MANIFEST,
+  BIGBRAIN_RELEASE_VERSION,
+} from './release-manifest.js';
 
-const require = createRequire(import.meta.url);
-const packageJson = require('../../package.json');
-
-export const BIGBRAIN_APP_VERSION = packageJson.version;
+export const BIGBRAIN_APP_VERSION = BIGBRAIN_RELEASE_VERSION;
 export const BIGBRAIN_API_CONTRACT_VERSION = 1;
 export const BIGBRAIN_MCP_PROTOCOL_VERSION = '2024-11-05';
 export { BIGBRAIN_STORAGE_SCHEMA_VERSION };
@@ -21,9 +21,10 @@ const STORAGE_SCHEMA_COMPATIBILITY = Object.freeze({
 export function runtimeMetadata(env = process.env) {
   return {
     application: {
-      name: packageJson.name,
+      name: BIGBRAIN_RELEASE_MANIFEST.name,
       version: BIGBRAIN_APP_VERSION,
     },
+    release: BIGBRAIN_RELEASE_MANIFEST,
     build: {
       commit: buildCommit(env),
       built_at: buildTimestamp(env),

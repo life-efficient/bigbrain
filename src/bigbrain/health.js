@@ -11,6 +11,7 @@ import { safeBrainPath } from './page-ops.js';
 import { isAttachmentSidecarSlug, validatePageShape } from './schema.js';
 import { normalizeSourceType, parseMutationMetadata, SOURCE_TYPE_DEFINITIONS } from './source-taxonomy.js';
 import { EventInboxStore, EventRegistryStore, defaultEventInboxPath, defaultEventRegistryPath } from './inbound-events.js';
+import { runtimeMetadata } from './runtime-metadata.js';
 
 const execFileAsync = promisify(execFile);
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -262,6 +263,7 @@ export async function runHealthCheck(config, {
   }));
 
   return {
+    runtime: runtimeMetadata(env),
     page_count: pages.length,
     backlink_coverage: (await Promise.all(pages.map((page) => getBacklinks(db, page.slug)))).filter((rows) => rows.length > 0).length,
     finding_count: findings.length,

@@ -19,11 +19,15 @@ import { syncBrain } from './sync.js';
 import { resolveWindow } from './time.js';
 import { applyUpdate, checkForUpdate, renderUpdateText, updateExitCode } from './update.js';
 import { EventInboxStore, EventRegistryStore, normalizeListener, normalizeSubscription, defaultEventInboxPath, defaultEventRegistryPath } from './inbound-events.js';
+import { BIGBRAIN_RELEASE_MANIFEST, BIGBRAIN_RELEASE_VERSION } from './release-manifest.js';
 
 export async function runCli(argv) {
   await loadUserEnv();
   const { command, args, global } = parseGlobalArgs(argv);
   switch (command) {
+    case '--version':
+      output(global, BIGBRAIN_RELEASE_MANIFEST, BIGBRAIN_RELEASE_VERSION);
+      return;
     case 'init': return handleInit(args, global);
     case 'identity': return handleIdentity(args, global);
     case 'about': return handleAbout(args, global);
@@ -884,8 +888,8 @@ function parseGlobalArgs(argv) {
       command = arg;
       continue;
     }
-    if (!command && (arg === '--help' || arg === '-h')) {
-      command = '--help';
+    if (!command && (arg === '--help' || arg === '-h' || arg === '--version' || arg === '-v')) {
+      command = arg === '--version' || arg === '-v' ? '--version' : '--help';
       continue;
     }
     switch (arg) {
@@ -969,6 +973,7 @@ Global options:
   --brain-home <path>
   --config <path>
   --json
+  --version, -v
 `);
 }
 

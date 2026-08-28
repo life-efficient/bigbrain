@@ -5,6 +5,12 @@ on:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      publish_server:
+        description: Publish the server image from a selected release tag
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: write
@@ -162,6 +168,7 @@ jobs:
   release-server:
     name: Publish server image
     needs: release-macos
+    if: github.event_name == 'push' || (inputs.publish_server == true && github.ref_type == 'tag')
     runs-on: ubuntu-latest
     steps:
       - name: Check out source
@@ -194,7 +201,6 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Verify tag matches package version
-        if: github.event_name == 'push'
         run: |
           expected="v${{ steps.image.outputs.version }}"
           if [ "$GITHUB_REF_NAME" != "$expected" ]; then
