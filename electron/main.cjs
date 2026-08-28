@@ -29,6 +29,7 @@ let loadFailureActive = false;
 let desktopController = null;
 let eventRuntimeManager = null;
 let desktopUpdater = null;
+let updateRestartCoordinator = null;
 let managedServiceReconciliationPromise = Promise.resolve();
 let promptedUpdateVersion = null;
 let localServiceUpdateState = { phase: "idle", message: "Local MCP services are checked after launch." };
@@ -68,10 +69,11 @@ if (!singleInstanceLock) {
         dashboardOrigin = "null";
       }
       initializeDesktopUpdater();
+      await initializeUpdateRestartCoordinator();
       registerUpdateIpc();
       createAppMenu();
       createMainWindow();
-      managedServiceReconciliationPromise = startManagedServiceReconciliation();
+      managedServiceReconciliationPromise = coordinateManagedServicesAfterLaunch();
       desktopUpdater.start();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -254,7 +256,7 @@ function createAppMenu() {
         },
         ...(desktopUpdater?.snapshot().canRestart ? [{
           label: "Restart to Install Update",
-          click: () => desktopUpdater.restartToInstall(),
+          click: () => void restartToInstallUpdate(),
         }] : []),
         {
           label: updateMenuStatusLabel(),
@@ -322,8 +324,13 @@ function createAppMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
-async function startManagedServiceReconciliation() {
-  if (!desktopController) return;
+async function startManagedServiceReconciliation({ report = true } = {}) {
+  if (!desktopController) {
+    return {
+      phase: "none", managedCount: 0, current: 0, updated: 0, newer: 0,
+      blocked: 0, sourceManaged: 0, ownershipUnknown: 0, remote: 0, failed: 0, results: [],
+    };
+  }
   localServiceUpdateState = { phase: "checking", message: "Checking desktop-managed local MCP services…" };
   createAppMenu();
   sendLocalServiceUpdateState();
@@ -334,18 +341,20 @@ async function startManagedServiceReconciliation() {
       listBrains: async () => (await desktopController.state()).brains,
       probe: (brain) => probeManagedService(brain),
       reinstall: (brain) => desktopController.installService(brain, { ownerSlug: brain.owner?.personSlug || "" }),
-      report: reportManagedServiceReconciliation,
+      report: report ? reportManagedServiceReconciliation : () => {},
     });
-    await reconciler.reconcile();
+    return await reconciler.reconcile();
   } catch (error) {
-    await reportManagedServiceReconciliation({
+    const summary = {
       phase: "error",
       managedCount: 0,
       current: 0,
       updated: 0,
       failed: 1,
-      results: [{ name: "Local MCP", status: "failed", message: error instanceof Error ? error.message : String(error) }],
-    });
+      results: [{ name: "Local MCP", status: "failed", action: "retry_service_reconciliation", message: error instanceof Error ? error.message : String(error) }],
+    };
+    if (report) await reportManagedServiceReconciliation(summary);
+    return summary;
   }
 }
 
@@ -356,15 +365,17 @@ async function reportManagedServiceReconciliation(summary) {
   };
   createAppMenu();
   sendLocalServiceUpdateState();
-  if (!summary.failed) return;
+  if (!summary.failed && summary.phase !== "attention") return;
   const failures = summary.results
-    .filter((result) => result.status === "failed")
-    .map((result) => `${result.name}: ${result.message}`)
+    .filter((result) => !["current", "updated", "source_managed", "remote"].includes(result.status))
+    .map((result) => `${result.name}: ${result.message || serviceActionMessage(result)}`)
     .join("\n");
   await dialog.showMessageBox(mainWindow, {
     type: "warning",
     title: "Local BigBrain MCP Needs Attention",
-    message: "BigBrain could not update one or more desktop-managed local MCP services.",
+    message: summary.failed
+      ? "BigBrain could not update one or more desktop-managed local MCP services."
+      : "One or more local BigBrain MCP services need your attention.",
     detail: `${failures}\n\nRemote BigBrain services were not changed.`,
     buttons: ["OK"],
   });
@@ -374,8 +385,19 @@ function localServiceUpdateMessage(summary) {
   if (summary.phase === "none") return "No desktop-managed local MCP services";
   if (summary.phase === "updated") return `Local MCP updated with BigBrain ${app.getVersion()}`;
   if (summary.phase === "current") return `Local MCP is current with BigBrain ${app.getVersion()}`;
+  if (summary.phase === "attention" && summary.newer) return "A local MCP is newer than this app; update BigBrain";
+  if (summary.phase === "attention" && summary.ownershipUnknown) return "A local MCP has unknown ownership and was left untouched";
+  if (summary.phase === "attention") return "A local MCP needs attention before it can be updated";
   if (summary.phase === "error") return `${summary.failed} local MCP update${summary.failed === 1 ? "" : "s"} failed`;
   return "Checking desktop-managed local MCP services…";
+}
+
+function serviceActionMessage(result) {
+  if (result.action === "update_desktop_app") return "Update the desktop app; the newer service was left untouched.";
+  if (result.action === "review_service_ownership") return "Review who manages this service before asking the desktop app to repair it.";
+  if (result.action === "resolve_service_identity") return "Resolve the registered brain and port mismatch.";
+  if (result.action === "review_service_configuration") return "Review the local service configuration.";
+  return "Retry the local service check from the BigBrain app.";
 }
 
 function sendLocalServiceUpdateState() {
@@ -402,15 +424,105 @@ function initializeDesktopUpdater() {
     }
     if (state.phase === "downloaded" && state.updateVersion !== promptedUpdateVersion) {
       promptedUpdateVersion = state.updateVersion || "downloaded";
-      void promptToRestartForUpdate(state);
+      void prepareDownloadedUpdate(state);
     }
   });
+}
+
+async function initializeUpdateRestartCoordinator() {
+  const { UpdateRestartCoordinator } = await importModule("electron/lib/update-restart-coordinator.mjs");
+  updateRestartCoordinator = new UpdateRestartCoordinator({
+    receiptPath: path.join(app.getPath("userData"), "pending-update.json"),
+    appVersion: app.getVersion(),
+    reconcile: () => startManagedServiceReconciliation({ report: false }),
+  });
+}
+
+async function coordinateManagedServicesAfterLaunch() {
+  const verification = await updateRestartCoordinator.verifyAfterRelaunch();
+  if (verification.phase === "none") return startManagedServiceReconciliation();
+  await reportCoordinatedUpdateVerification(verification);
+  return verification.reconciliation || verification;
+}
+
+async function reportCoordinatedUpdateVerification(verification) {
+  if (verification.phase === "complete") {
+    localServiceUpdateState = {
+      ...verification.reconciliation,
+      updateLifecyclePhase: "complete",
+      message: `BigBrain ${verification.appVersion} and its desktop-managed local MCP services are verified`,
+    };
+    createAppMenu();
+    sendLocalServiceUpdateState();
+    return;
+  }
+  localServiceUpdateState = {
+    phase: "attention",
+    updateLifecyclePhase: verification.phase,
+    failed: verification.phase === "app_verification_failed" ? 1 : verification.reconciliation?.failed || 0,
+    results: verification.reconciliation?.results || [],
+    message: verification.message
+      || (verification.reconciliation ? localServiceUpdateMessage(verification.reconciliation) : null)
+      || "The app updated, but a desktop-managed local MCP service still needs attention",
+  };
+  createAppMenu();
+  sendLocalServiceUpdateState();
+  await dialog.showMessageBox(mainWindow, {
+    type: "warning",
+    title: "BigBrain Update Needs Attention",
+    message: localServiceUpdateState.message,
+    detail: coordinatedUpdateAttentionDetail(localServiceUpdateState),
+    buttons: ["OK"],
+  });
+}
+
+function coordinatedUpdateAttentionDetail(state) {
+  const actions = state.results
+    .filter((result) => !["current", "updated", "source_managed", "remote"].includes(result.status))
+    .map((result) => `${result.name}: ${result.message || serviceActionMessage(result)}`);
+  actions.push("The update receipt was kept so BigBrain can verify the update again after the issue is resolved.");
+  actions.push("Remote services were not changed.");
+  return actions.join("\n\n");
+}
+
+async function prepareDownloadedUpdate(state) {
+  try {
+    if (state.updateVersion) await updateRestartCoordinator.recordDownloadedTarget(state.updateVersion);
+  } catch (error) {
+    await dialog.showMessageBox(mainWindow, {
+      type: "warning",
+      title: "BigBrain Could Not Prepare the Update",
+      message: "The update was downloaded, but BigBrain could not save its verification receipt.",
+      detail: error instanceof Error ? error.message : String(error),
+      buttons: ["OK"],
+    });
+    return;
+  }
+  await promptToRestartForUpdate(state);
+}
+
+async function restartToInstallUpdate() {
+  const state = desktopUpdater.snapshot();
+  if (!state.canRestart) return false;
+  try {
+    if (state.updateVersion) await updateRestartCoordinator.recordDownloadedTarget(state.updateVersion);
+  } catch (error) {
+    await dialog.showMessageBox(mainWindow, {
+      type: "warning",
+      title: "BigBrain Could Not Prepare the Update",
+      message: "BigBrain did not restart because it could not save the update verification receipt.",
+      detail: error instanceof Error ? error.message : String(error),
+      buttons: ["OK"],
+    });
+    return false;
+  }
+  return desktopUpdater.restartToInstall();
 }
 
 function registerUpdateIpc() {
   ipcMain.handle("desktop:update-state", () => desktopUpdater.snapshot());
   ipcMain.handle("desktop:check-for-updates", () => desktopUpdater.check());
-  ipcMain.handle("desktop:restart-to-update", () => desktopUpdater.restartToInstall());
+  ipcMain.handle("desktop:restart-to-update", () => restartToInstallUpdate());
   ipcMain.handle("desktop:local-service-update-state", () => localServiceUpdateState);
   ipcMain.handle("desktop:load-failure-state", () => ({ message: pendingLoadFailureMessage }));
   ipcMain.handle("desktop:reload-dashboard", () => {
@@ -450,7 +562,7 @@ async function promptToRestartForUpdate(state) {
     defaultId: 0,
     cancelId: 1,
   });
-  if (result.response === 0) desktopUpdater.restartToInstall();
+  if (result.response === 0) await restartToInstallUpdate();
 }
 
 function isTrustedInternalUrl(url) {

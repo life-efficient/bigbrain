@@ -21,6 +21,8 @@ test('runtime metadata reports release and compatibility information without ref
   const metadata = runtimeMetadata({
     BIGBRAIN_BUILD_COMMIT: 'abc1234',
     BIGBRAIN_BUILD_TIMESTAMP: '2026-07-22T10:30:00Z',
+    BIGBRAIN_SERVICE_MANAGER: 'desktop',
+    BIGBRAIN_SERVICE_SOURCE: 'desktop-bundle',
     DATABASE_URL: 'postgres://secret@example.test/brain',
     BIGBRAIN_MCP_TOKEN: 'super-secret',
   });
@@ -33,8 +35,18 @@ test('runtime metadata reports release and compatibility information without ref
   assert.equal(metadata.storage_schema, BIGBRAIN_STORAGE_SCHEMA_VERSION);
   assert.deepEqual(metadata.compatibility.api_contract, { minimum: 1, maximum: 1 });
   assert.deepEqual(metadata.compatibility.storage_schema, { minimum: 1, maximum: 1 });
+  assert.deepEqual(metadata.installation, {
+    owner: 'desktop_bundle',
+    management: 'desktop',
+    source: 'desktop-bundle',
+    release_version: BIGBRAIN_APP_VERSION,
+  });
   assert.doesNotMatch(JSON.stringify(metadata), /secret|postgres/);
   assert.equal(runtimeMetadata({ BIGBRAIN_BUILD_COMMIT: 'not-a-commit' }).build.commit, null);
+  assert.equal(runtimeMetadata({
+    BIGBRAIN_SERVICE_MANAGER: 'external',
+    BIGBRAIN_SERVICE_SOURCE: 'untrusted-path',
+  }).installation.owner, 'unknown');
 });
 
 test('readiness fails closed when the configured brain becomes unavailable while liveness remains healthy', async () => {

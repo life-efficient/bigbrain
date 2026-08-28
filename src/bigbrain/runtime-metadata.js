@@ -25,6 +25,7 @@ export function runtimeMetadata(env = process.env) {
       version: BIGBRAIN_APP_VERSION,
     },
     release: BIGBRAIN_RELEASE_MANIFEST,
+    installation: installationMetadata(env),
     build: {
       commit: buildCommit(env),
       built_at: buildTimestamp(env),
@@ -43,6 +44,26 @@ export function runtimeMetadata(env = process.env) {
       'health.ready',
       'mcp.tools',
     ],
+  };
+}
+
+function installationMetadata(env) {
+  const management = ['desktop', 'source'].includes(env.BIGBRAIN_SERVICE_MANAGER)
+    ? env.BIGBRAIN_SERVICE_MANAGER
+    : null;
+  const source = ['desktop-bundle', 'source-checkout'].includes(env.BIGBRAIN_SERVICE_SOURCE)
+    ? env.BIGBRAIN_SERVICE_SOURCE
+    : null;
+  const owner = management === 'desktop' && source === 'desktop-bundle'
+    ? 'desktop_bundle'
+    : management === 'source' && source === 'source-checkout'
+      ? 'source'
+      : 'unknown';
+  return {
+    owner,
+    management,
+    source,
+    release_version: BIGBRAIN_APP_VERSION,
   };
 }
 

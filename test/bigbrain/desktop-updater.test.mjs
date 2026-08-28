@@ -134,6 +134,19 @@ test('desktop exposes compact inline update controls without a service-update co
   assert.doesNotMatch(mainSource, /desktop:update-service|desktopController\.update/);
 });
 
+test('desktop persists the downloaded target and verifies the app plus local services after relaunch', async () => {
+  const mainSource = await fs.readFile(new URL('../../electron/main.cjs', import.meta.url), 'utf8');
+  assert.match(mainSource, /UpdateRestartCoordinator/);
+  assert.match(mainSource, /pending-update\.json/);
+  assert.match(mainSource, /recordDownloadedTarget\(state\.updateVersion\)/);
+  assert.match(mainSource, /verifyAfterRelaunch\(\)/);
+  assert.match(mainSource, /coordinateManagedServicesAfterLaunch/);
+  assert.match(mainSource, /startManagedServiceReconciliation\(\{ report: false \}\)/);
+  assert.match(mainSource, /updateLifecyclePhase: "complete"/);
+  assert.match(mainSource, /Remote services were not changed/);
+  assert.match(mainSource, /desktop:restart-to-update", \(\) => restartToInstallUpdate\(\)/);
+});
+
 test('release workflow labels unsigned packages and excludes them from the automatic-update feed', async () => {
   const workflow = await fs.readFile(new URL('../../.github/workflows/release-macos.yml', import.meta.url), 'utf8');
   assert.match(workflow, /Determine macOS distribution mode/);
