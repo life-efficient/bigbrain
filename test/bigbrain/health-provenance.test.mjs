@@ -25,7 +25,7 @@ commit_message: Record the change
 
     const config = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({ config, apiKey: null });
-    const report = await runHealthCheck(config, { cliCommand: process.execPath });
+    const report = await runHealthCheck(config, { cliCommand: process.execPath, repairUnknownSource: false });
     const findings = report.findings.filter((finding) => finding.finding_type === 'missing_source_attribution');
 
     assert.equal(report.provenance_status.pages_missing_source_attribution, 2);
@@ -58,7 +58,7 @@ commit_message: Record the Gmail update
 
     const config = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({ config, apiKey: null });
-    const report = await runHealthCheck(config, { cliCommand: process.execPath });
+    const report = await runHealthCheck(config, { cliCommand: process.execPath, repairUnknownSource: false });
 
     assert.equal(report.provenance_status.pages_with_source_attribution, 1);
     assert.equal(report.findings.some((finding) => finding.page_slug === 'projects/attributed' && finding.finding_type === 'missing_source_attribution'), false);
@@ -88,7 +88,7 @@ commit_message: Add the initial page
     await fs.writeFile(path.join(fixture.brainHome, 'projects', '.raw', 'evidence.pdf'), 'pdf', 'utf8');
 
     const config = await loadConfig({ configPath: fixture.configPath });
-    const report = await runHealthCheck(config, { cliCommand: process.execPath });
+    const report = await runHealthCheck(config, { cliCommand: process.execPath, repairUnknownSource: false });
     const findings = report.findings.filter((finding) => finding.finding_type === 'missing_source_attribution' && finding.details.scope === 'git_change');
 
     assert.equal(report.provenance_status.git_backed_change_count, 2);
@@ -97,6 +97,25 @@ commit_message: Add the initial page
       'projects/.raw/evidence.md',
       'projects/unattributed.md',
     ]);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('health repairs missing page attribution with explicit unknown metadata', async () => {
+  const fixture = await createFixture('bigbrain-health-provenance-repair-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'projects/repairable.md', page('Repairable page'));
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const report = await runHealthCheck(config, { cliCommand: process.execPath });
+    const repaired = await fs.readFile(path.join(fixture.brainHome, 'projects/repairable.md'), 'utf8');
+    assert.equal(report.provenance_status.repaired_unknown_count, 1);
+    assert.match(repaired, /source_type: unknown/);
+    assert.match(repaired, /source_label: Unknown source/);
+    assert.match(repaired, /event_id: health:unknown:projects\/repairable/);
+    assert.match(repaired, /commit_message: Repair missing source attribution/);
+    assert.equal(report.findings.some((finding) => finding.page_slug === 'projects/repairable' && finding.finding_type === 'missing_source_attribution'), false);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

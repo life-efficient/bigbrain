@@ -30,6 +30,8 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
     '- Only use the allowed Brain destinations listed below.',
     '- Do not invent Brain IDs, credentials, paths, facts, or source provenance.',
     '- Read destination filing rules and existing coverage before writing, and read back every write.',
+    '- Every Git-backed BigBrain MCP write must include a short, single-line commit_message describing what changed and why, plus provenance metadata with the correct source_type and source_label.',
+    '- Use assistant_chat only for a user message sent through this assistant harness; use direct_edit for file or Git-provider changes made outside MCP; use unknown only when the source truly cannot be established.',
     '- Do not send messages or reply externally. Only perform source-side cleanup when the selected skill explicitly authorizes that exact cleanup.',
     '',
     `Allowed Brain destinations:\n${destinations || '(none, so do not write)'}`,

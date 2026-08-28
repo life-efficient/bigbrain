@@ -8,7 +8,9 @@ import { promisify } from 'node:util';
 
 import {
   getLinkHistory,
+  getRelatedLinkHistory,
   normalizeHistoryPagePath,
+  parseRelatedLinkHistory,
   parseLinkHistory,
 } from '../../src/bigbrain/link-history.js';
 
@@ -122,6 +124,34 @@ test('link history parser deduplicates one edge repeated in a commit and rejects
   for (const invalid of ['', '../people/alice.md', 'people/../alice.md', 'people/alice.txt', 'people\\alice.md']) {
     assert.throws(() => normalizeHistoryPagePath(invalid), /Markdown page path/);
   }
+});
+
+test('related link history finds incoming and outgoing merge edges for a selected page', () => {
+  const output = '\x1eabc\x1f2026-08-01T00:00:00Z\x1fConnect chains\n'
+    + 'diff --git a/people/friend.md b/people/friend.md\n'
+    + '@@ -1,0 +1 @@\n'
+    + '+Meet [Mentor](../people/mentor.md)\n'
+    + 'diff --git a/projects/deal.md b/projects/deal.md\n'
+    + '@@ -1,0 +1 @@\n'
+    + '+See [[people/mentor]]\n';
+  assert.deepEqual(parseRelatedLinkHistory(output, { pageSlug: 'people/mentor' }), [
+    {
+      type: 'link-introduced',
+      commit_sha: 'abc',
+      timestamp: '2026-08-01T00:00:00Z',
+      subject: 'Connect chains',
+      from_page: 'people/friend',
+      to_page: 'people/mentor',
+    },
+    {
+      type: 'link-introduced',
+      commit_sha: 'abc',
+      timestamp: '2026-08-01T00:00:00Z',
+      subject: 'Connect chains',
+      from_page: 'projects/deal',
+      to_page: 'people/mentor',
+    },
+  ]);
 });
 
 async function writePage(root, relativePath, contents) {

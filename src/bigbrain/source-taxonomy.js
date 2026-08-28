@@ -54,11 +54,13 @@ export const sourceTypeSchema = z.enum(SOURCE_TYPE_VALUES);
 
 const nonEmptyText = (max) => z.string().trim().min(1).max(max);
 
+export const commitMessageSchema = nonEmptyText(200)
+  .refine((value) => !/[\r\n]/.test(value), 'commit_message must be a single line.');
+
 export const provenanceSchema = z.object({
   event_id: nonEmptyText(500),
   source_type: sourceTypeSchema,
   source_label: nonEmptyText(240),
-  commit_message: nonEmptyText(200).refine((value) => !/[\r\n]/.test(value), 'commit_message must be a single line.'),
   origin_id: z.string().trim().max(500).nullable().optional(),
   listener_id: z.string().trim().max(240).nullable().optional(),
   source_icon: z.string().trim().max(80).nullable().optional(),
@@ -72,7 +74,7 @@ export const provenanceSchema = z.object({
 }).strict();
 
 export const mutationMetadataSchema = z.object({
-  commit_message: provenanceSchema.shape.commit_message,
+  commit_message: commitMessageSchema,
   provenance: provenanceSchema,
 }).strict();
 

@@ -124,6 +124,7 @@ export async function createTaskPage({
   source = [],
   path: taskPath = null,
   timelineEntry = null,
+  frontmatterValues = {},
   actor = null,
   memberResolution = {},
 } = {}) {
@@ -155,6 +156,7 @@ export async function createTaskPage({
       execution_mode: normalizedExecutionMode,
       assignees: assigneeSlugs,
       source: sourceSlugs,
+      ...frontmatterValues,
     },
   });
   return decorateTaskPage(page, memberMapByPersonSlug(await listActiveMembers(db)));
@@ -172,6 +174,7 @@ export async function updateTaskPage({
   assignees = null,
   source = null,
   timelineEntry = null,
+  frontmatterValues = {},
   actor = null,
   memberResolution = {},
 } = {}) {
@@ -205,6 +208,7 @@ export async function updateTaskPage({
   } else if (parsed.frontmatter.source !== undefined) {
     nextFrontmatter.source = normalizeSlugList(parsed.frontmatter.source);
   }
+  Object.assign(nextFrontmatter, frontmatterValues || {});
 
   const nextBody = body === null || body === undefined ? parsed.compiledTruth : requireNonEmpty(body, 'body');
   const now = new Date().toISOString().slice(0, 10);

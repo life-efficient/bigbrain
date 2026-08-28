@@ -105,6 +105,75 @@ export const buildLinkHistory = getLinkHistory;
 export const readLinkHistory = getLinkHistory;
 export const parseGitLinkHistory = parseLinkHistory;
 
+export async function getRelatedLinkHistory({
+  repoRoot,
+  brainDir,
+  pagePath,
+  limit = DEFAULT_LINK_HISTORY_LIMIT,
+  commitLimit = DEFAULT_LINK_HISTORY_COMMIT_LIMIT,
+  execFileImpl = execFileAsync,
+} = {}) {
+  const root = repoRoot || brainDir;
+  if (!root) throw new Error('A Git repository root is required.');
+  const targetPage = normalizeHistoryPagePath(pagePath).replace(/\.md$/i, '');
+  const normalizedLimit = normalizeLimit(limit, DEFAULT_LINK_HISTORY_LIMIT, MAX_LINK_HISTORY_LIMIT);
+  const normalizedCommitLimit = normalizeLimit(commitLimit, DEFAULT_LINK_HISTORY_COMMIT_LIMIT, MAX_LINK_HISTORY_COMMIT_LIMIT);
+  let stdout;
+  try {
+    ({ stdout } = await execFileImpl('git', [
+      'log', '--no-color', '--no-ext-diff', '--no-textconv', '--no-renames', '--reverse',
+      `--max-count=${normalizedCommitLimit}`,
+      `--format=${RECORD_SEPARATOR}%H${FIELD_SEPARATOR}%aI${FIELD_SEPARATOR}%s`,
+      '--patch', '--unified=0', '--', ':(glob)**/*.md',
+    ], {
+      cwd: root,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+      maxBuffer: MAX_LINK_HISTORY_OUTPUT_BYTES,
+    }));
+  } catch (error) {
+    throw new Error(`Unable to read related Git link history for ${targetPage}: ${error.message}`, { cause: error });
+  }
+  return parseRelatedLinkHistory(stdout, { pageSlug: targetPage, limit: normalizedLimit });
+}
+
+export function parseRelatedLinkHistory(gitOutput, { pageSlug, limit = DEFAULT_LINK_HISTORY_LIMIT } = {}) {
+  const targetPage = normalizeHistoryPagePath(pageSlug).replace(/\.md$/i, '');
+  const normalizedLimit = normalizeLimit(limit, DEFAULT_LINK_HISTORY_LIMIT, MAX_LINK_HISTORY_LIMIT);
+  const events = [];
+  const seen = new Set();
+  for (const record of String(gitOutput || '').split(RECORD_SEPARATOR)) {
+    const metadata = parseCommitMetadata(record);
+    if (!metadata) continue;
+    const body = record.slice(metadata.bodyOffset);
+    const sections = body.split(/(?=^diff --git )/m).filter((section) => section.startsWith('diff --git '));
+    for (const section of sections) {
+      const fileMatch = section.match(/^diff --git a\/(.+?) b\/(.+?)$/m);
+      if (!fileMatch || fileMatch[2] === '/dev/null') continue;
+      const fromPage = normalizeHistoryPagePath(fileMatch[2]).replace(/\.md$/i, '');
+      for (const change of changedLines(section)) {
+        for (const link of extractLinks(change.text, fromPage)) {
+          if (!['markdown', 'wikilink'].includes(link.kind)) continue;
+          if (fromPage !== targetPage && link.toSlug !== targetPage) continue;
+          const type = change.sign === '+' ? 'link-introduced' : 'link-removed';
+          const key = `${metadata.sha}\0${type}\0${fromPage}\0${link.toSlug}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          events.push({
+            type,
+            commit_sha: metadata.sha,
+            timestamp: metadata.timestamp,
+            subject: metadata.subject,
+            from_page: fromPage,
+            to_page: link.toSlug,
+          });
+          if (events.length >= normalizedLimit) return events;
+        }
+      }
+    }
+  }
+  return events;
+}
+
 export function normalizeHistoryPagePath(input) {
   const rawInput = String(input || '').trim();
   if (rawInput.includes('\\')) throw new Error(`Invalid Markdown page path: ${input}`);

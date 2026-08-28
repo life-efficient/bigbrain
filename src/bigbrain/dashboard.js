@@ -40,6 +40,7 @@ import {
   setKeepInTouchPriority,
   snoozeKeepInTouchPerson,
 } from './playbooks/keep-in-touch.js';
+import { getRelatedLinkHistory } from './link-history.js';
 import {
   normalizePageVisibility,
   normalizeRawPath,
@@ -271,6 +272,15 @@ export async function createDashboardRequestHandler(config, {
       if (requestUrl.pathname === '/api/recent') return json(res, await buildRecentPayload(db));
       if (requestUrl.pathname === '/api/graph/events') return streamGraphEvents(db, res);
       if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db, config), { noStore: true });
+      if (requestUrl.pathname === '/api/graph/lineage') {
+        const lineage = await buildGraphLineagePayload(db, config, requestUrl.searchParams.get('slug'));
+        if (!lineage) {
+          res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ error: 'Graph lineage page not found.' }));
+          return;
+        }
+        return json(res, lineage, { noStore: true });
+      }
       if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
       if (requestUrl.pathname === '/api/analytics') return json(res, await buildAnalyticsPayload(config, db));
       if (requestUrl.pathname === '/api/playbooks/keep-in-touch') {
@@ -971,6 +981,40 @@ function renderAppHtml() {
       .graph-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; margin-left: auto; }
       .graph-wrap { height: 520px; overflow: hidden; position: relative; border-radius: 18px; background: transparent; border: 1px solid rgba(148,163,184,0.18); }
       .graph-wrap-expanded { flex: 1; min-height: 0; height: auto; }
+      .graph-canvas-stage { position: absolute; inset: 0; transition: opacity 260ms ease, transform 320ms cubic-bezier(.22,.61,.36,1), filter 260ms ease; }
+      .graph-canvas-stage-dimmed { opacity: .16; transform: scale(.975); filter: blur(1px); pointer-events: none; }
+      .graph-lineage-panel { position: absolute; z-index: 5; inset: 18px; display: flex; flex-direction: column; min-width: 0; overflow: hidden; border: 1px solid rgba(148,163,184,0.24); border-radius: 18px; background: color-mix(in srgb, var(--panel) 91%, transparent); box-shadow: 0 24px 80px rgba(15,23,42,0.22); backdrop-filter: blur(22px); animation: graph-lineage-in 320ms cubic-bezier(.22,.61,.36,1); }
+      @keyframes graph-lineage-in { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
+      .graph-lineage-head { display: flex; justify-content: space-between; gap: 16px; padding: 20px 22px 16px; border-bottom: 1px solid var(--line); }
+      .graph-lineage-kicker, .graph-lineage-section-title { color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }
+      .graph-lineage-head h3 { margin: 4px 0 3px; font-size: 20px; line-height: 1.15; }
+      .graph-lineage-head span { color: var(--muted); font-size: 11px; }
+      .graph-lineage-close { width: 30px; height: 30px; flex: 0 0 auto; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); cursor: pointer; font-size: 20px; line-height: 1; }
+      .graph-lineage-summary { display: flex; gap: 8px; padding: 12px 22px; color: var(--muted); font-size: 11px; }
+      .graph-lineage-summary span { padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); }
+      .graph-lineage-scroll { min-height: 0; overflow: auto; padding: 0 22px 24px; }
+      .graph-lineage-track { display: grid; gap: 0; padding: 5px 0 12px; }
+      .graph-lineage-event { position: relative; display: grid; grid-template-columns: 18px minmax(0,1fr); gap: 12px; padding: 13px 0; }
+      .graph-lineage-event:not(:last-child)::before { content: ""; position: absolute; left: 8px; top: 29px; bottom: -1px; width: 1px; background: var(--line-strong); }
+      .graph-lineage-dot { z-index: 1; width: 17px; height: 17px; margin-top: 1px; border: 3px solid var(--panel); border-radius: 999px; background: #7c9f84; box-shadow: 0 0 0 1px rgba(124,159,132,.5); }
+      .graph-lineage-dot.removed { background: #b87878; box-shadow: 0 0 0 1px rgba(184,120,120,.5); }
+      .graph-lineage-event-copy { min-width: 0; display: grid; gap: 6px; }
+      .graph-lineage-event-meta { display: flex; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: 10px; }
+      .graph-lineage-event-meta span:last-child { color: var(--ink); font-weight: 750; }
+      .graph-lineage-connection { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; color: var(--muted); font-size: 12px; }
+      .graph-lineage-connection button, .graph-lineage-connection-card { border: 0; background: transparent; color: var(--ink); cursor: pointer; font-weight: 750; padding: 0; text-align: left; }
+      .graph-lineage-connection button:hover, .graph-lineage-connection-card:hover { color: var(--accent); }
+      .graph-lineage-subject { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+      .graph-lineage-subject code { margin-left: 6px; color: var(--muted); font-size: 10px; }
+      .graph-lineage-empty { padding: 22px; color: var(--muted); font-size: 12px; }
+      .graph-lineage-sources, .graph-lineage-connections { display: grid; gap: 9px; padding-top: 16px; border-top: 1px solid var(--line); }
+      .graph-lineage-source { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 10px; align-items: start; padding: 10px 0; }
+      .graph-lineage-source-type { color: var(--muted); font-size: 10px; font-weight: 800; text-transform: uppercase; }
+      .graph-lineage-source div { min-width: 0; display: grid; gap: 3px; }
+      .graph-lineage-source strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+      .graph-lineage-source span { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+      .graph-lineage-connection-card { display: flex; gap: 8px; align-items: center; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); font-size: 12px; }
+      .graph-lineage-connection-card span:first-child { color: var(--muted); }
       .graph-canvas-shell { position: relative; z-index: 2; height: 100%; width: 100%; }
       .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
       .graph-svg:active { cursor: grabbing; }
@@ -2855,6 +2899,7 @@ export async function buildGraphPayload(db, config = null) {
       source_url: row.source_url || null,
       raw_ref: row.raw_ref || null,
       outcome: row.outcome,
+      commit_message: row.commit_message || null,
     }));
   const history = await buildGraphHistory(config, candidateNodes);
   const edges = [];
@@ -2885,6 +2930,50 @@ export async function buildGraphPayload(db, config = null) {
       degree: node.degree,
     })),
     edges,
+  };
+}
+
+export async function buildGraphLineagePayload(db, config, slug) {
+  const normalizedSlug = String(slug || '').trim().replace(/\.md$/i, '');
+  if (!normalizedSlug) return null;
+  const page = (await getPagesBySlugs(db, [normalizedSlug]))[0];
+  if (!page) return null;
+  const [outgoing, backlinks, provenance, events] = await Promise.all([
+    getOutgoingLinks(db, normalizedSlug),
+    getBacklinks(db, normalizedSlug),
+    listPageProvenance(db, { pageSlugs: [normalizedSlug], limit: 200 }),
+    getRelatedLinkHistory({ repoRoot: config?.brainDir, pagePath: normalizedSlug, limit: 200 }).catch(() => []),
+  ]);
+  const relatedSlugs = [...new Set([
+    normalizedSlug,
+    ...outgoing.map((link) => link.to_slug),
+    ...backlinks.map((link) => link.from_slug),
+    ...events.flatMap((event) => [event.from_page, event.to_page]),
+  ])];
+  const relatedPages = new Map((await getPagesBySlugs(db, relatedSlugs)).map((item) => [item.slug, item]));
+  const pageSummary = (itemSlug) => {
+    const item = relatedPages.get(itemSlug);
+    return { slug: itemSlug, title: item?.title || itemSlug, type: item?.type || itemSlug.split('/')[0] || 'unknown' };
+  };
+  return {
+    page: pageSummary(normalizedSlug),
+    outgoing: outgoing.map((link) => ({ ...link, page: pageSummary(link.to_slug) })),
+    backlinks: backlinks.map((link) => ({ ...link, page: pageSummary(link.from_slug) })),
+    provenance: provenance
+      .filter((row) => row.outcome === 'filed')
+      .map((row) => ({
+        event_id: row.event_id,
+        source_type: row.source_type,
+        source_label: row.source_label,
+        commit_message: row.commit_message || null,
+        occurred_at: row.occurred_at || null,
+        received_at: row.received_at || null,
+      })),
+    link_events: events.map((event) => ({
+      ...event,
+      from: pageSummary(event.from_page),
+      to: pageSummary(event.to_page),
+    })),
   };
 }
 

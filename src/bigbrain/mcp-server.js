@@ -53,6 +53,7 @@ import {
 } from './playbooks/keep-in-touch.js';
 import { queryBrain, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
+import { SOURCE_TYPE_DEFINITIONS, SOURCE_TYPE_VALUES, parseMutationMetadata } from './source-taxonomy.js';
 import {
   EventInboxStore,
   EventRegistryStore,
@@ -389,6 +390,11 @@ async function callTool({ config, params, gitBackupEnabled, actor, authConfig, r
 }
 
 async function executeToolCall({ config, name, args, gitBackupEnabled, actor, authConfig }) {
+  const mutation = requireMutationMetadata(name, args);
+  if (mutation) {
+    args.commit_message = mutation.commit_message;
+    args.provenance = mutation.provenance;
+  }
   switch (name) {
     case 'me':
       return toolJson(await toolMe(config, actor, authConfig));
@@ -414,14 +420,14 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       return toolJson(await toolTasksHygiene(config, args, actor, authConfig));
     case 'tasks/create': {
       const task = await toolTasksCreate(config, args, actor, authConfig);
-      await postWriteMaintenance(config, gitBackupEnabled, actor);
-      await recordWriteProvenance(config, args.path || task.path, args.provenance);
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      await recordWriteProvenance(config, args.path || task.path, args.provenance, args.commit_message);
       return toolJson(task);
     }
     case 'tasks/update': {
       const task = await toolTasksUpdate(config, args, actor, authConfig);
-      await postWriteMaintenance(config, gitBackupEnabled, actor);
-      await recordWriteProvenance(config, args.path, args.provenance);
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      await recordWriteProvenance(config, args.path, args.provenance, args.commit_message);
       return toolJson(task);
     }
     case 'events/listeners':
@@ -508,7 +514,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'events/provenance': {
       const db = await openDatabase(config);
       try {
-        const value = await upsertPageProvenance(db, { ...args.provenance, path: args.path });
+        const value = await upsertPageProvenance(db, { ...args.provenance, path: args.path, commit_message: args.commit_message });
         return toolJson(value);
       } finally {
         await db.close?.();
@@ -614,7 +620,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         rawContentText: args.raw_content_text,
         mimeType: args.mime_type,
       });
-      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       return toolJson(rawFile);
     }
     case 'create_page': {
@@ -624,10 +630,10 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         title: args.title,
         body: args.body,
         timelineEntry: timelineWithActor(args.timeline_entry, actor),
-        frontmatter: args.frontmatter || {},
+        frontmatter: { ...(args.frontmatter || {}), ...sourceAttributionFrontmatter(args) },
       });
-      await postWriteMaintenance(config, gitBackupEnabled, actor);
-      await recordWriteProvenance(config, args.path, args.provenance);
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      await recordWriteProvenance(config, args.path, args.provenance, args.commit_message);
       return toolJson(page);
     }
     case 'create_raw_file_with_page': {
@@ -641,10 +647,10 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         title: args.title,
         body: args.body,
         timelineEntry: timelineWithActor(args.timeline_entry, actor),
-        frontmatter: args.frontmatter || {},
+        frontmatter: { ...(args.frontmatter || {}), ...sourceAttributionFrontmatter(args) },
       });
-      await postWriteMaintenance(config, gitBackupEnabled, actor);
-      await recordWriteProvenance(config, args.page_path || args.raw_path, args.provenance);
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      await recordWriteProvenance(config, args.page_path || args.raw_path, args.provenance, args.commit_message);
       return toolJson(result);
     }
     case 'update_raw_file': {
@@ -655,7 +661,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         rawContentText: args.raw_content_text,
         mimeType: args.mime_type,
       });
-      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       return toolJson(rawFile);
     }
     case 'rename_raw_file': {
@@ -664,12 +670,12 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         fromRawPath: args.from_path,
         toRawPath: args.to_path,
       });
-      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       return toolJson(rawFile);
     }
     case 'delete_raw_file': {
       const result = await deleteRawFile({ config, rawPath: args.path });
-      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       return toolJson(result);
     }
     case 'rename_page': {
@@ -679,8 +685,9 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         toPagePath: args.to_path,
         title: args.title,
         timelineEntry: timelineWithActor(args.timeline_entry, actor),
+        frontmatterValues: sourceAttributionFrontmatter(args),
       });
-      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       return toolJson(page);
     }
     case 'update_page': {
@@ -689,9 +696,10 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         pagePath: args.path,
         body: args.body,
         timelineEntry: timelineWithActor(args.timeline_entry, actor),
+        frontmatterValues: sourceAttributionFrontmatter(args),
       });
-      await postWriteMaintenance(config, gitBackupEnabled, actor);
-      await recordWriteProvenance(config, args.path, args.provenance);
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      await recordWriteProvenance(config, args.path, args.provenance, args.commit_message);
       return toolJson(page);
     }
     case 'set_page_visibility': {
@@ -702,8 +710,9 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         visibility,
         publicRawFiles: args.public_raw_files,
         timelineEntry: timelineWithActor(args.timeline_entry || `Visibility set to ${visibility}.`, actor),
+        frontmatterValues: sourceAttributionFrontmatter(args),
       });
-      await postWriteMaintenance(config, gitBackupEnabled, actor);
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       return toolJson(pageVisibilityToolResponse(page, config, authConfig));
     }
     case 'groups_upsert': {
@@ -723,7 +732,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       return toolJson(await syncAndPersist(config));
     case 'maintenance/git_backup':
     case 'maintenance_git_backup':
-      return toolJson(await backupGitChanges(config, backupMessage(actor)));
+      return toolJson(await backupGitChanges(config, args.commit_message));
     case 'audit/list':
     case 'audit_list':
       return toolJson(await toolAuditAccess(config, args, 'list'));
@@ -937,10 +946,10 @@ function absolutePublicUrl(authConfig, publicUrlPath) {
   return new URL(publicUrlPath, origin).toString();
 }
 
-async function postWriteMaintenance(config, gitBackupEnabled, actor) {
+async function postWriteMaintenance(config, gitBackupEnabled, actor, commitMessage) {
   await syncAndPersist(config);
   if (gitBackupEnabled && canRunGitBackup(actor)) {
-    await backupGitChanges(config, backupMessage(actor));
+    await backupGitChanges(config, commitMessage);
   }
 }
 
@@ -1052,6 +1061,7 @@ async function toolTasksCreate(config, args, actor, authConfig) {
       source: args.source || [],
       path: args.path || null,
       timelineEntry: timelineWithActor(args.timeline_entry || 'Task created through MCP.', actor),
+      frontmatterValues: sourceAttributionFrontmatter(args),
       actor,
       memberResolution: memberResolutionFromAuthConfig(authConfig),
     });
@@ -1075,6 +1085,7 @@ async function toolTasksUpdate(config, args, actor, authConfig) {
       assignees: args.assignees,
       source: args.source,
       timelineEntry: timelineWithActor(args.timeline_entry || 'Task updated through MCP.', actor),
+      frontmatterValues: sourceAttributionFrontmatter(args),
       actor,
       memberResolution: memberResolutionFromAuthConfig(authConfig),
     });
@@ -1177,7 +1188,7 @@ async function toolKeepInTouchMutation(config, args, actor, action) {
     if (action === 'log-contact') result = await logKeepInTouchContact(config, db, args, { actor });
     if (action === 'set-priority') result = await setKeepInTouchPriority(config, db, args, { actor });
     if (action === 'snooze') result = await snoozeKeepInTouchPerson(config, db, args, { actor });
-    await postWriteMaintenance(config, false, actor);
+    await postWriteMaintenance(config, false, actor, args.commit_message);
     return result;
   } finally {
     await db.close?.();
@@ -1433,7 +1444,7 @@ function toolDefinitions() {
     {
       name: 'events/provenance',
       description: 'Record one validated inbound provenance relation for a meaningful Brain page write. Runtime use only.',
-      inputSchema: { type: 'object', properties: { path: { type: 'string' }, provenance: { type: 'object' } }, required: ['path', 'provenance'] },
+      inputSchema: { type: 'object', properties: { path: { type: 'string' }, ...mutationProperties() }, required: ['path', ...mutationRequired()] },
     },
     {
       name: 'events/provenance_list',
@@ -1634,12 +1645,13 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
+          ...mutationProperties(),
           path: { type: 'string', description: 'Destination such as deals/.raw/blind-teaser.pdf, meetings/.raw/call-transcript.txt, or writing/.raw/unassigned-evidence.pdf.' },
           raw_content_base64: { type: 'string', description: 'Base64 encoded raw bytes. Use this for PDFs, images, and other binary files.' },
           raw_content_text: { type: 'string', description: 'Plain text raw content. Use exactly one of raw_content_base64 or raw_content_text.' },
           mime_type: { type: 'string' },
         },
-        required: ['path'],
+        required: ['path', ...mutationRequired()],
       },
     },
     {
@@ -1648,14 +1660,14 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
+          ...mutationProperties(),
           path: { type: 'string' },
           title: { type: 'string' },
           body: { type: 'string' },
           timeline_entry: { type: 'string' },
           frontmatter: { type: 'object' },
-          provenance: { type: 'object', description: 'Runtime-validated inbound provenance metadata for this meaningful write.' },
         },
-        required: ['path', 'title', 'body', 'timeline_entry'],
+        required: ['path', 'title', 'body', 'timeline_entry', ...mutationRequired()],
       },
     },
     {
@@ -1664,6 +1676,7 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
+          ...mutationProperties(),
           raw_path: { type: 'string', description: 'Destination such as deals/.raw/blind-teaser.pdf, meetings/.raw/call-transcript.txt, deliverables/.raw/brief.pdf, or writing/.raw/unassigned-evidence.pdf.' },
           raw_content_base64: { type: 'string', description: 'Base64 encoded raw bytes. Use this for PDFs, images, and other binary files.' },
           raw_content_text: { type: 'string', description: 'Plain text raw content. Use exactly one of raw_content_base64 or raw_content_text.' },
@@ -1673,9 +1686,8 @@ function toolDefinitions() {
           body: { type: 'string' },
           timeline_entry: { type: 'string' },
           frontmatter: { type: 'object' },
-          provenance: { type: 'object', description: 'Runtime-validated inbound provenance metadata for this meaningful write.' },
         },
-        required: ['raw_path', 'title', 'body', 'timeline_entry'],
+        required: ['raw_path', 'title', 'body', 'timeline_entry', ...mutationRequired()],
       },
     },
     {
@@ -1684,12 +1696,13 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
       properties: {
+          ...mutationProperties(),
           path: { type: 'string', description: 'Existing raw file path such as deals/.raw/blind-teaser.pdf, meetings/.raw/call-transcript.txt, or writing/.raw/unassigned-evidence.pdf.' },
           raw_content_base64: { type: 'string', description: 'Base64 encoded raw bytes. Use this for PDFs, images, and other binary files.' },
           raw_content_text: { type: 'string', description: 'Plain text raw content. Use exactly one of raw_content_base64 or raw_content_text.' },
           mime_type: { type: 'string' },
         },
-        required: ['path'],
+        required: ['path', ...mutationRequired()],
       },
     },
     {
@@ -1698,9 +1711,10 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
+          ...mutationProperties(),
           path: { type: 'string', description: 'Existing raw file path such as sources/.raw/deck.pdf.' },
         },
-        required: ['path'],
+        required: ['path', ...mutationRequired()],
       },
     },
     {
@@ -1709,10 +1723,11 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
+          ...mutationProperties(),
           from_path: { type: 'string', description: 'Existing raw file path such as deals/.raw/company-specific-teaser.pdf.' },
           to_path: { type: 'string', description: 'Destination raw file path such as deals/.raw/regional-platform-blind-teaser.pdf.' },
         },
-        required: ['from_path', 'to_path'],
+        required: ['from_path', 'to_path', ...mutationRequired()],
       },
     },
     {
@@ -1721,12 +1736,13 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
+          ...mutationProperties(),
           from_path: { type: 'string', description: 'Existing markdown page path such as deals/company-specific-teaser.md.' },
           to_path: { type: 'string', description: 'Destination markdown page path such as deals/regional-platform-blind-teaser.md.' },
           title: { type: 'string', description: 'Optional replacement title for the moved page.' },
           timeline_entry: { type: 'string' },
         },
-        required: ['from_path', 'to_path', 'timeline_entry'],
+        required: ['from_path', 'to_path', 'timeline_entry', ...mutationRequired()],
       },
     },
     {
@@ -1735,12 +1751,12 @@ function toolDefinitions() {
       inputSchema: {
         type: 'object',
         properties: {
+          ...mutationProperties(),
           path: { type: 'string' },
           body: { type: 'string' },
           timeline_entry: { type: 'string' },
-          provenance: { type: 'object', description: 'Runtime-validated inbound provenance metadata for this meaningful write.' },
         },
-        required: ['path', 'body', 'timeline_entry'],
+        required: ['path', 'body', 'timeline_entry', ...mutationRequired()],
       },
     },
     {
@@ -1768,7 +1784,8 @@ function toolDefinitions() {
       description: 'Run BigBrain sync for the selected brain and persist the latest sync state. Requires a maintenance/admin scope on hosted OAuth.',
       inputSchema: {
         type: 'object',
-        properties: {},
+        properties: mutationProperties(),
+        required: mutationRequired(),
       },
     },
     {
@@ -1776,7 +1793,8 @@ function toolDefinitions() {
       description: 'Alias for maintenance/sync for clients that do not support slash tool names.',
       inputSchema: {
         type: 'object',
-        properties: {},
+        properties: mutationProperties(),
+        required: mutationRequired(),
       },
     },
     {
@@ -1861,11 +1879,11 @@ function safeEventRecord(event) {
   return { ...safe, payload_present: payload !== null && payload !== undefined, raw_payload_present: Boolean(raw_payload) };
 }
 
-async function recordWriteProvenance(config, pagePath, provenance) {
+async function recordWriteProvenance(config, pagePath, provenance, commitMessage) {
   if (!provenance || !pagePath) return null;
   const db = await openDatabase(config);
   try {
-    return await upsertPageProvenance(db, { ...provenance, path: pagePath });
+    return await upsertPageProvenance(db, { ...provenance, path: pagePath, commit_message: commitMessage });
   } finally {
     await db.close?.();
   }
@@ -1949,6 +1967,42 @@ const TOOL_POLICIES = {
   'audit/export': { layer: 'admin', scopes: ['brain:admin'] },
   audit_export: { layer: 'admin', scopes: ['brain:admin'] },
 };
+
+const GIT_SYNC_MUTATION_TOOLS = new Set([
+  'tasks/create',
+  'tasks/update',
+  'create_raw_file',
+  'create_page',
+  'create_raw_file_with_page',
+  'update_raw_file',
+  'delete_raw_file',
+  'rename_raw_file',
+  'rename_page',
+  'update_page',
+  'set_page_visibility',
+  'maintenance/git_backup',
+  'maintenance_git_backup',
+  'playbooks/keep-in-touch/enroll',
+  'playbooks_keep_in_touch_enroll',
+  'playbooks/keep-in-touch/log_contact',
+  'playbooks_keep_in_touch_log_contact',
+  'playbooks/keep-in-touch/set_priority',
+  'playbooks_keep_in_touch_set_priority',
+  'playbooks/keep-in-touch/snooze',
+  'playbooks_keep_in_touch_snooze',
+]);
+
+function requireMutationMetadata(name, args) {
+  if (!GIT_SYNC_MUTATION_TOOLS.has(name)) return null;
+  try {
+    return parseMutationMetadata({
+      commit_message: args?.commit_message,
+      provenance: args?.provenance,
+    });
+  } catch (error) {
+    throw new Error(`Git-backed MCP mutation ${name} requires a valid commit_message and provenance: ${error.message}`);
+  }
+}
 
 async function resolveProfileEditor(config, actor, authConfig) {
   const db = await openDatabase(config);
@@ -2339,6 +2393,7 @@ function pageVisibilitySchema({ requireVisibility }) {
   return {
     type: 'object',
     properties: {
+      ...mutationProperties(),
       path: { type: 'string', description: 'Markdown page path such as people/alice or people/alice.md.' },
       visibility: { type: 'string', enum: ['internal', 'public'], description: 'internal is private to the brain; public exposes the page body and returns an absolute public_url plus public_url_path.' },
       public_raw_files: {
@@ -2348,7 +2403,40 @@ function pageVisibilitySchema({ requireVisibility }) {
       },
       timeline_entry: { type: 'string', description: 'Optional timeline note for the visibility change.' },
     },
-    required: requireVisibility ? ['path', 'visibility'] : ['path'],
+    required: [...(requireVisibility ? ['path', 'visibility'] : ['path']), ...mutationRequired()],
+  };
+}
+
+function mutationProperties() {
+  return {
+    commit_message: {
+      type: 'string',
+      description: 'Required short single-line description of what this mutation changes and why. Used directly as the Git commit message.',
+    },
+    provenance: {
+      type: 'object',
+      description: 'Required compact metadata describing what triggered this mutation.',
+      properties: {
+        event_id: { type: 'string', description: 'Stable source event identifier used for idempotency.' },
+        source_type: { type: 'string', enum: SOURCE_TYPE_VALUES, description: SOURCE_TYPE_VALUES.map((value) => `${value}: ${SOURCE_TYPE_DEFINITIONS[value].description}`).join(' ') },
+        source_label: { type: 'string', description: 'Short AI-selected name for the triggering event, such as a sender, thread, meeting, feed, or chat title.' },
+      },
+      required: ['event_id', 'source_type', 'source_label'],
+    },
+  };
+}
+
+function mutationRequired() {
+  return ['commit_message', 'provenance'];
+}
+
+function sourceAttributionFrontmatter(args = {}) {
+  const provenance = args.provenance || {};
+  return {
+    event_id: provenance.event_id,
+    source_type: provenance.source_type,
+    source_label: provenance.source_label,
+    commit_message: args.commit_message,
   };
 }
 
@@ -2397,6 +2485,7 @@ function taskWriteSchema({ requireBody = false, update = false } = {}) {
   return {
     type: 'object',
     properties: {
+      ...mutationProperties(),
       path: { type: 'string', description: update ? 'Existing task path under tasks/.' : 'Optional destination path under tasks/.' },
       title: { type: 'string' },
       body: { type: 'string' },
@@ -2407,9 +2496,8 @@ function taskWriteSchema({ requireBody = false, update = false } = {}) {
       assignees: { type: 'array', items: { type: 'string' }, description: 'Active member person slugs, or me for the authenticated member.' },
       source: { type: 'array', items: { type: 'string' }, description: 'Related brain slugs such as meetings/example or initiatives/example.' },
       timeline_entry: { type: 'string', description: 'Required when completing or archiving a task. Use "Next task: tasks/<slug>" or "No successor task needed: <reason>".' },
-      provenance: { type: 'object', description: 'Runtime-validated inbound provenance metadata for this meaningful write.' },
     },
-    required: update ? ['path'] : requireBody ? ['title', 'body'] : ['title'],
+    required: [...(update ? ['path'] : requireBody ? ['title', 'body'] : ['title']), ...mutationRequired()],
   };
 }
 

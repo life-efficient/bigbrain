@@ -174,6 +174,7 @@ function DashboardApp() {
   const [prefersDark, setPrefersDark] = useState(false);
   const [preview, setPreview] = useState(null);
   const [activeGraphSlug, setActiveGraphSlug] = useState(null);
+  const [lineage, setLineage] = useState(null);
   const [graphMotion, setGraphMotion] = useState(null);
   const [healthOpen, setHealthOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -183,6 +184,7 @@ function DashboardApp() {
   const demoModeRef = useRef(demoMode);
   const demoSeedRef = useRef(demoSeed);
   const previewRequestRef = useRef(0);
+  const lineageRequestRef = useRef(0);
   const defaultAssigneeAppliedRef = useRef(false);
   const visualizerRef = useRef(null);
   const healthMenuRef = useRef(null);
@@ -364,6 +366,7 @@ function DashboardApp() {
       event.preventDefault();
       setPreview(null);
       setActiveGraphSlug(null);
+      setLineage(null);
     }
 
     window.addEventListener('keydown', handleEscape);
@@ -380,6 +383,7 @@ function DashboardApp() {
       if (target?.closest('.sidecar-panel')) return;
       setPreview(null);
       setActiveGraphSlug(null);
+      setLineage(null);
     }
 
     window.addEventListener('pointerdown', handlePointerDown);
@@ -456,18 +460,26 @@ function DashboardApp() {
     if (!slug) return;
     const requestId = previewRequestRef.current + 1;
     previewRequestRef.current = requestId;
+    const lineageRequestId = lineageRequestRef.current + 1;
+    lineageRequestRef.current = lineageRequestId;
     setActiveGraphSlug(slug || null);
     const sourceNode = latestGraphRef.current?.nodes?.find((node) => node.slug === slug) || { slug };
     if (demoModeRef.current) {
+      setLineage(null);
       setPreview(buildDemoPagePreview(sourceNode, demoSeedRef.current));
       return;
     }
+    setLineage({ status: 'loading', slug });
     setPreview({ status: 'loading', slug });
     try {
       const params = new URLSearchParams({ slug });
-      const data = await fetchJson(`/api/page?${params.toString()}`);
+      const [data, lineageData] = await Promise.all([
+        fetchJson(`/api/page?${params.toString()}`),
+        fetchJson(`/api/graph/lineage?${params.toString()}`),
+      ]);
       if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setPreview({ status: 'ready', ...data });
+      if (lineageRequestId === lineageRequestRef.current) setLineage({ status: 'ready', ...lineageData });
     } catch (error) {
       if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setPreview({
@@ -475,6 +487,7 @@ function DashboardApp() {
         slug,
         message: error instanceof Error ? error.message : String(error),
       });
+      if (lineageRequestId === lineageRequestRef.current) setLineage({ status: 'error', slug, message: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -486,8 +499,10 @@ function DashboardApp() {
   function handleDemoModeChange(nextDemoMode) {
     demoModeRef.current = nextDemoMode;
     previewRequestRef.current += 1;
+    lineageRequestRef.current += 1;
     setPreview(null);
     setActiveGraphSlug(null);
+    setLineage(null);
     if (nextDemoMode) {
       const nextSeed = createDemoSeed();
       demoSeedRef.current = nextSeed;
@@ -818,6 +833,11 @@ function DashboardApp() {
                 activeSlug={activeGraphSlug}
                 onActiveSlugChange={setActiveGraphSlug}
                 onNodeOpen={handleGraphNodeOpen}
+                lineage={lineage}
+                onLineageClose={() => {
+                  setLineage(null);
+                  setActiveGraphSlug(null);
+                }}
               />
             ) : null}
 
@@ -843,6 +863,7 @@ function DashboardApp() {
           onClose={() => {
             setPreview(null);
             setActiveGraphSlug(null);
+            setLineage(null);
           }}
           onRelativeLinkClick={openPreview}
           onPageOpen={openPageBySlug}
@@ -2120,6 +2141,8 @@ const GraphPanel = memo(function GraphPanel({
   activeSlug,
   onActiveSlugChange,
   onNodeOpen,
+  lineage,
+  onLineageClose,
 }) {
   const [styleMenuOpen, setStyleMenuOpen] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
@@ -2246,23 +2269,26 @@ const GraphPanel = memo(function GraphPanel({
   return (
     <section className="card hero-card">
       <div className={`graph-wrap graph-wrap-expanded ${flowVisible ? 'graph-flow-enabled' : ''}`}>
-        <VisualizerComponent
-          ref={visualizerRef}
-          graph={filteredGraph}
-          motionEvent={motionEvent}
-          onNodeOpen={onNodeOpen}
-          nodeShape={nodeShape}
-          nodeFill={nodeFill}
-          nodeIcon={nodeIcon}
-          nodeSize={nodeSize}
-          arcStyle={arcStyle}
-          layoutStyle={layoutStyle}
-          labelStyle={labelStyle}
-          colorMode={colorMode}
-          typeColors={typeColors}
-          activeSlug={activeSlug}
-          onActiveSlugChange={onActiveSlugChange}
-        />
+        <div className={`graph-canvas-stage ${lineage?.status === 'ready' ? 'graph-canvas-stage-dimmed' : ''}`}>
+          <VisualizerComponent
+            ref={visualizerRef}
+            graph={filteredGraph}
+            motionEvent={motionEvent}
+            onNodeOpen={onNodeOpen}
+            nodeShape={nodeShape}
+            nodeFill={nodeFill}
+            nodeIcon={nodeIcon}
+            nodeSize={nodeSize}
+            arcStyle={arcStyle}
+            layoutStyle={layoutStyle}
+            labelStyle={labelStyle}
+            colorMode={colorMode}
+            typeColors={typeColors}
+            activeSlug={activeSlug}
+            onActiveSlugChange={onActiveSlugChange}
+          />
+        </div>
+        {lineage ? <GraphLineagePanel lineage={lineage} onClose={onLineageClose} onNodeOpen={onNodeOpen} /> : null}
         {flowVisible ? (
           <GraphFlowOverlay
             inputs={flowInputs}
@@ -2482,6 +2508,82 @@ const GraphPanel = memo(function GraphPanel({
     </section>
   );
 });
+
+function GraphLineagePanel({ lineage, onClose, onNodeOpen }) {
+  const events = Array.isArray(lineage?.link_events) ? lineage.link_events : [];
+  const provenance = Array.isArray(lineage?.provenance) ? lineage.provenance : [];
+  const outgoing = Array.isArray(lineage?.outgoing) ? lineage.outgoing : [];
+  const backlinks = Array.isArray(lineage?.backlinks) ? lineage.backlinks : [];
+  const page = lineage?.page || {};
+  return (
+    <div className="graph-lineage-panel" aria-label="Page lineage">
+      <div className="graph-lineage-head">
+        <div>
+          <div className="graph-lineage-kicker">Lineage</div>
+          <h3>{page.title || labelFromSlug(page.slug)}</h3>
+          <span>{page.slug}</span>
+        </div>
+        <button type="button" className="graph-lineage-close" onClick={onClose} aria-label="Return to graph">×</button>
+      </div>
+      {lineage.status === 'loading' ? <div className="graph-lineage-empty">Reconstructing the Git timeline…</div> : null}
+      {lineage.status === 'error' ? <div className="graph-lineage-empty">{lineage.message || 'Lineage is unavailable.'}</div> : null}
+      {lineage.status === 'ready' ? (
+        <>
+          <div className="graph-lineage-summary">
+            <span>{events.length} link changes</span>
+            <span>{provenance.length} source events</span>
+          </div>
+          <div className="graph-lineage-scroll">
+            <div className="graph-lineage-track">
+              {events.length ? events.map((event, index) => (
+                <div className="graph-lineage-event" key={`${event.commit_sha}-${event.from_page}-${event.to_page}-${index}`}>
+                  <div className={`graph-lineage-dot ${event.type === 'link-removed' ? 'removed' : ''}`} />
+                  <div className="graph-lineage-event-copy">
+                    <div className="graph-lineage-event-meta">
+                      <span>{formatDateTime(event.timestamp)}</span>
+                      <span>{event.type === 'link-introduced' ? 'Link introduced' : 'Link removed'}</span>
+                    </div>
+                    <div className="graph-lineage-connection">
+                      <button type="button" onClick={() => onNodeOpen?.(event.from_page)}>{event.from?.title || labelFromSlug(event.from_page)}</button>
+                      <span>→</span>
+                      <button type="button" onClick={() => onNodeOpen?.(event.to_page)}>{event.to?.title || labelFromSlug(event.to_page)}</button>
+                    </div>
+                    <div className="graph-lineage-subject">{event.subject || 'Git change'} <code>{String(event.commit_sha || '').slice(0, 8)}</code></div>
+                  </div>
+                </div>
+              )) : <div className="graph-lineage-empty">No link changes found in the bounded Git history.</div>}
+            </div>
+            {provenance.length ? (
+              <div className="graph-lineage-sources">
+                <div className="graph-lineage-section-title">Source events</div>
+                {provenance.map((item) => (
+                  <div className="graph-lineage-source" key={`${item.event_id}-${item.received_at}`}>
+                    <span className="graph-lineage-source-type">{item.source_type}</span>
+                    <div>
+                      <strong>{item.source_label}</strong>
+                      <span>{item.commit_message || 'No commit message recorded'}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {(outgoing.length || backlinks.length) ? (
+              <div className="graph-lineage-connections">
+                <div className="graph-lineage-section-title">Current connections</div>
+                {[...backlinks.map((item) => ({ ...item, direction: 'from' })), ...outgoing.map((item) => ({ ...item, direction: 'to' }))].map((item, index) => (
+                  <button type="button" className="graph-lineage-connection-card" key={`${item.direction}-${item.slug || item.from_slug || item.to_slug}-${index}`} onClick={() => onNodeOpen?.(item.page?.slug || item.slug || item.from_slug || item.to_slug)}>
+                    <span>{item.direction === 'from' ? '←' : '→'}</span>
+                    <span>{item.page?.title || labelFromSlug(item.page?.slug || item.slug || item.from_slug || item.to_slug)}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </>
+      ) : null}
+    </div>
+  );
+}
 
 function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
   const stageRef = useRef(null);

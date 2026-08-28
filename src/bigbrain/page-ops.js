@@ -268,14 +268,16 @@ export async function listRawFiles({
   return normalizedLimit === null ? entries : entries.slice(0, normalizedLimit);
 }
 
-export async function updateBrainPage({ config, pagePath, body, timelineEntry }) {
+export async function updateBrainPage({ config, pagePath, body, timelineEntry, frontmatterValues = {} }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
   const existing = await readBrainPage({ config, pagePath: relative });
   const now = new Date().toISOString().slice(0, 10);
   const nextTimeline = appendTimelineEntry(existing.timeline, timelineEntry, now);
+  let frontmatterRaw = existing.frontmatter_raw;
+  for (const [key, value] of Object.entries(frontmatterValues || {})) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
   const markdown = renderPageMarkdown({
-    frontmatterRaw: existing.frontmatter_raw,
+    frontmatterRaw,
     title: existing.title,
     body: requireNonEmpty(body, 'body'),
     timeline: nextTimeline,
@@ -290,6 +292,7 @@ export async function renameBrainPage({
   toPagePath,
   title = null,
   timelineEntry,
+  frontmatterValues = {},
 }) {
   const fromRelative = normalizePagePath(fromPagePath);
   const toRelative = normalizePagePath(toPagePath);
@@ -314,6 +317,7 @@ export async function renameBrainPage({
     'redirect_from',
     appendUniqueFrontmatterList(existing.frontmatter.redirect_from, fromRelative.replace(/\.md$/i, '')),
   );
+  for (const [key, value] of Object.entries(frontmatterValues || {})) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
   const markdown = renderPageMarkdown({
     frontmatterRaw,
     title: nextTitle,
@@ -338,7 +342,7 @@ export async function renameBrainPage({
   };
 }
 
-export async function updatePageVisibility({ config, pagePath, visibility, timelineEntry, publicRawFiles }) {
+export async function updatePageVisibility({ config, pagePath, visibility, timelineEntry, publicRawFiles, frontmatterValues = {} }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
   const nextVisibility = normalizePageVisibility(visibility);
@@ -360,6 +364,7 @@ export async function updatePageVisibility({ config, pagePath, visibility, timel
       await validatePublicRawFilesForPage({ config, page: existing, publicRawFiles }),
     );
   }
+  for (const [key, value] of Object.entries(frontmatterValues || {})) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
   const markdown = renderPageMarkdown({
     frontmatterRaw,
     title: existing.title,

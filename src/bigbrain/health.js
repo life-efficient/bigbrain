@@ -21,6 +21,7 @@ export async function runHealthCheck(config, {
   env = process.env,
   cliCommand = 'bigbrain',
   cliCwd = os.tmpdir(),
+  repairUnknownSource = true,
   automationTemplateDir = AUTOMATION_TEMPLATE_DIR,
   automationActiveDir = defaultAutomationActiveDir(env),
   skillTemplateDir = SKILL_TEMPLATE_DIR,
@@ -46,8 +47,17 @@ export async function runHealthCheck(config, {
       continue;
     }
 
-    const parsed = parseMarkdownPage(raw, page.slug);
-    const attribution = sourceAttributionForPage(parsed, pageProvenance.get(page.slug), { skipAttachment: true });
+    let parsed = parseMarkdownPage(raw, page.slug);
+    let attribution = sourceAttributionForPage(parsed, pageProvenance.get(page.slug), { skipAttachment: true });
+    if (!attribution.ok && repairUnknownSource && !attribution.skipped) {
+      const repaired = repairUnknownSourceAttribution(raw, page.slug);
+      if (repaired !== raw) {
+        await fs.writeFile(fullPath, repaired, 'utf8');
+        provenanceStatus.repaired_unknown_count += 1;
+        parsed = parseMarkdownPage(repaired, page.slug);
+        attribution = sourceAttributionForPage(parsed, null, { skipAttachment: true });
+      }
+    }
     pageAttributions.set(page.slug, { parsed, provenance: pageProvenance.get(page.slug), attribution });
     if (attribution.skipped) {
       provenanceStatus.pages_skipped += 1;
@@ -141,7 +151,32 @@ export async function runHealthCheck(config, {
     }
   }
 
-  const gitProvenance = await detectGitBackedSourceAttribution(config.brainDir, pageAttributions, gitStatus);
+  let gitProvenance = await detectGitBackedSourceAttribution(config.brainDir, pageAttributions, gitStatus);
+  if (repairUnknownSource && gitProvenance.missing.length) {
+    const remaining = [];
+    for (const change of gitProvenance.missing) {
+      if (!change.source_path.endsWith('.md')) {
+        remaining.push(change);
+        continue;
+      }
+      const fullPath = path.join(config.brainDir, change.source_path);
+      const raw = await fs.readFile(fullPath, 'utf8').catch(() => null);
+      if (raw === null) {
+        remaining.push(change);
+        continue;
+      }
+      const repaired = repairUnknownSourceAttribution(raw, change.page_slug);
+      if (repaired === raw) {
+        remaining.push(change);
+        continue;
+      }
+      await fs.writeFile(fullPath, repaired, 'utf8');
+      provenanceStatus.repaired_unknown_count += 1;
+      const reparsed = parseMarkdownPage(repaired, change.page_slug);
+      pageAttributions.set(change.page_slug, { parsed: reparsed, provenance: null, attribution: sourceAttributionForPage(reparsed, null, { skipAttachment: true }) });
+    }
+    gitProvenance = { checked_count: gitProvenance.checked_count, missing_count: remaining.length, missing: remaining };
+  }
   provenanceStatus.git_backed_change_count = gitProvenance.checked_count;
   provenanceStatus.git_backed_changes_missing_source_attribution = gitProvenance.missing_count;
   for (const change of gitProvenance.missing) {
@@ -274,6 +309,7 @@ function createProvenanceStatus(pageCount) {
     pages_skipped: 0,
     git_backed_change_count: 0,
     git_backed_changes_missing_source_attribution: 0,
+    repaired_unknown_count: 0,
   };
 }
 
@@ -295,22 +331,17 @@ async function insertSourceAttributionFinding(db, { scope, pageSlug = null, path
 }
 
 function sourceAttributionForPage(parsed, provenance = null, { skipAttachment = false } = {}) {
-  const provenanceCandidate = mutationMetadataCandidateFromProvenance(provenance);
-  if (provenanceCandidate) return validateMutationMetadata(provenanceCandidate);
   if (skipAttachment && isAttachmentSidecarSlug(parsed.slug)) return { ok: true, skipped: true };
 
   const frontmatter = parsed.frontmatter || {};
   const candidate = mutationMetadataCandidate(frontmatter);
-  if (!candidate) {
-    return {
-      ok: false,
-      reason: 'missing',
-      expected_fields: ['event_id', 'source_type', 'source_label', 'commit_message'],
-      details: { source_type: null, normalized_source_type: 'unknown' },
-    };
-  }
-
-  return validateMutationMetadata(candidate);
+  if (candidate) return validateMutationMetadata(candidate);
+  return {
+    ok: false,
+    reason: 'missing',
+    expected_fields: ['event_id', 'source_type', 'source_label', 'commit_message'],
+    details: { source_type: null, normalized_source_type: 'unknown', provenance_row_present: Boolean(provenance) },
+  };
 }
 
 function validateMutationMetadata(candidate) {
@@ -353,6 +384,32 @@ function mutationMetadataCandidate(frontmatter) {
       ...optionalProvenanceFields(frontmatter),
     },
   };
+}
+
+function repairUnknownSourceAttribution(raw, slug) {
+  const fields = {
+    event_id: `health:unknown:${slug}`,
+    source_type: 'unknown',
+    source_label: 'Unknown source',
+    commit_message: 'Repair missing source attribution',
+  };
+  const text = String(raw || '');
+  if (text.startsWith('---\n')) {
+    const end = text.indexOf('\n---\n', 4);
+    if (end < 0) return text;
+    const lines = text.slice(4, end).split('\n');
+    const seen = new Set();
+    const next = lines.map((line) => {
+      const key = line.match(/^\s*([A-Za-z0-9_-]+):/)?.[1];
+      if (!key || fields[key] === undefined) return line;
+      seen.add(key);
+      return `${key}: ${fields[key]}`;
+    });
+    for (const [key, value] of Object.entries(fields)) if (!seen.has(key)) next.push(`${key}: ${value}`);
+    return `---\n${next.join('\n')}\n---\n${text.slice(end + 5)}`;
+  }
+  const metadata = Object.entries(fields).map(([key, value]) => `${key}: ${value}`).join('\n');
+  return `---\n${metadata}\n---\n${text}`;
 }
 
 function mutationMetadataCandidateFromProvenance(provenance) {

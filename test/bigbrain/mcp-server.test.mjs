@@ -288,6 +288,9 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(created.result.structuredContent.slug, 'people/mcp-test');
     assert.match(created.result.structuredContent.markdown, /Created through MCP endpoint test/);
     assert.equal(created.result.structuredContent.frontmatter.visibility, undefined);
+    assert.equal(created.result.structuredContent.frontmatter.source_type, 'assistant_chat');
+    assert.equal(created.result.structuredContent.frontmatter.source_label, 'MCP server test');
+    assert.equal(created.result.structuredContent.frontmatter.commit_message, 'Test create_page');
 
     const privateVisibility = await rpc(running.url, 'tools/call', {
       name: 'get_page_visibility',
@@ -403,6 +406,26 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     await db.close?.();
   } finally {
     if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('MCP Git-backed mutations reject missing commit messages and provenance', async () => {
+  const fixture = await createFixture('bigbrain-mcp-mutation-metadata-');
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({ config, host: '127.0.0.1', port: 0, authToken: 'secret', syncIntervalMs: 0, gitBackupEnabled: false });
+    const response = await rpc(running.url, 'tools/call', {
+      name: 'create_page',
+      __withoutMutationMetadata: true,
+      arguments: { path: 'people/missing-metadata', title: 'Missing metadata', body: 'Should not write.' },
+    }, 'secret');
+    assert.equal(response.error.code, -32603);
+    assert.match(response.error.message, /requires a valid commit_message and provenance/);
+    await assert.rejects(() => fs.access(path.join(fixture.brainHome, 'people', 'missing-metadata.md')));
+  } finally {
+    await running?.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
 });
@@ -2254,13 +2277,37 @@ test('MCP member roles manage custom roles and scope page edits by path', async 
 });
 
 async function rpc(url, method, params, token) {
+  const requestParams = { ...(params || {}) };
+  const callName = method === 'tools/call' ? requestParams.name : null;
+  const mutationNames = new Set([
+    'tasks/create', 'tasks/update', 'create_raw_file', 'create_page', 'create_raw_file_with_page',
+    'update_raw_file', 'delete_raw_file', 'rename_raw_file', 'rename_page', 'update_page',
+    'set_page_visibility', 'maintenance/git_backup', 'maintenance_git_backup',
+    'playbooks/keep-in-touch/enroll', 'playbooks_keep_in_touch_enroll',
+    'playbooks/keep-in-touch/log_contact', 'playbooks_keep_in_touch_log_contact',
+    'playbooks/keep-in-touch/set_priority', 'playbooks_keep_in_touch_set_priority',
+    'playbooks/keep-in-touch/snooze', 'playbooks_keep_in_touch_snooze',
+  ]);
+  const skipMutationMetadata = requestParams.__withoutMutationMetadata === true;
+  delete requestParams.__withoutMutationMetadata;
+  if (callName && mutationNames.has(callName) && !skipMutationMetadata) {
+    requestParams.arguments = {
+      ...(requestParams.arguments || {}),
+      commit_message: requestParams.arguments?.commit_message || `Test ${callName}`,
+      provenance: requestParams.arguments?.provenance || {
+        event_id: `test:${callName}:${requestParams.arguments?.path || requestParams.arguments?.page_path || 'mutation'}`,
+        source_type: 'assistant_chat',
+        source_label: 'MCP server test',
+      },
+    };
+  }
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
       authorization: `Bearer ${token}`,
     },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params: requestParams }),
   });
   assert.equal(response.status, 200);
   return response.json();

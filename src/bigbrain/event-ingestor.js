@@ -390,6 +390,12 @@ export class EventIngestor {
       title: normalized.title,
       body: sourceNoteBody({ source, item: normalized, rawPath, retrievedAt, canonicalPage: source.target_page }),
       timeline_entry: `Captured from ${source.url} with RSS identifier ${normalized.guid || normalized.link}.`,
+      commit_message: `Capture RSS item: ${normalized.title}`,
+      provenance: {
+        event_id: key,
+        source_type: 'rss',
+        source_label: `${source.publisher || source.display_name || source.id} RSS feed`,
+      },
       frontmatter: {
         source_kind: 'rss',
         source_type: 'web',
@@ -413,6 +419,12 @@ export class EventIngestor {
       path: source.target_page,
       body: updated.body,
       timeline_entry: `Added ${source.display_name || source.publisher || source.id} RSS item: ${normalized.title} (${normalized.link || normalized.guid}).`,
+      commit_message: `Add RSS item to ${source.target_page}: ${normalized.title}`,
+      provenance: {
+        event_id: key,
+        source_type: 'rss',
+        source_label: `${source.publisher || source.display_name || source.id} RSS feed`,
+      },
     });
     const readback = await this.mcp.callTool('read', { path: source.target_page });
     if (!String(readback.body || '').includes(updated.key ? normalized.link || normalized.guid : normalized.title)) {

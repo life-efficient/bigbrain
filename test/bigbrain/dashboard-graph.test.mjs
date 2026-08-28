@@ -11,6 +11,7 @@ import {
   buildExplorerRecentPayload,
   buildExplorerTreePayload,
   buildGraphPayload,
+  buildGraphLineagePayload,
   graphChangeFromAuditRow,
   buildContinuousActivity,
   buildPagePayload,
@@ -165,6 +166,7 @@ test('dashboard graph exposes only filed provenance inputs with source snapshots
       received_at: '2026-08-26T13:00:00.000Z',
       outcome: 'filed',
       codex_thread_id: 'thread-1',
+      commit_message: 'Record the OpenAI news update',
     });
     await upsertPageProvenance(db, {
       page_slug: 'organizations/openai',
@@ -174,6 +176,7 @@ test('dashboard graph exposes only filed provenance inputs with source snapshots
       source: 'OpenAI News',
       received_at: '2026-08-26T14:00:00.000Z',
       outcome: 'ignored',
+      commit_message: 'Ignore the duplicate OpenAI news item',
     });
     const graph = await buildGraphPayload(db, config);
     assert.equal(graph.meta.input_count, 1);
@@ -191,7 +194,44 @@ test('dashboard graph exposes only filed provenance inputs with source snapshots
       source_url: 'https://openai.com/news/rss.xml',
       raw_ref: null,
       outcome: 'filed',
+      commit_message: 'Record the OpenAI news update',
     });
+    await db.close?.();
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('graph lineage combines current connections with source events', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-lineage-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/friend.md', '# Friend\n\nIntroduced [Mentor](../people/mentor.md).\n');
+    await writeMarkdown(fixture.brainHome, 'people/mentor.md', '# Mentor\n');
+    await writeMarkdown(fixture.brainHome, 'projects/deal.md', '# Deal\n\nLinked to [[people/mentor]].\n');
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+    await upsertPageProvenance(db, {
+      page_slug: 'people/mentor',
+      event_id: 'gmail:event-1',
+      source_type: 'gmail',
+      source_label: 'Mentor thread',
+      received_at: '2026-08-28T10:00:00.000Z',
+      outcome: 'filed',
+      commit_message: 'Record the mentor update',
+    });
+    const lineage = await buildGraphLineagePayload(db, config, 'people/mentor');
+    assert.deepEqual(lineage.page, { slug: 'people/mentor', title: 'Mentor', type: 'people' });
+    assert.equal(lineage.backlinks.length, 2);
+    assert.deepEqual(lineage.provenance, [{
+      event_id: 'gmail:event-1',
+      source_type: 'gmail',
+      source_label: 'Mentor thread',
+      commit_message: 'Record the mentor update',
+      occurred_at: null,
+      received_at: '2026-08-28T10:00:00.000Z',
+    }]);
+    assert.ok(Array.isArray(lineage.link_events));
     await db.close?.();
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

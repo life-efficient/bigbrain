@@ -6,6 +6,7 @@ import path from 'node:path';
 import { CodexAppThreadExecutor, CodexCliExecutor } from './codex-event-executor.js';
 import { RssCollector } from './rss-events.js';
 import { InboundWebhookServer } from './webhook-events.js';
+import { normalizeSourceType } from './source-taxonomy.js';
 
 export { RssCollector } from './rss-events.js';
 export { InboundWebhookServer, configuredWebhookEventType } from './webhook-events.js';
@@ -220,6 +221,7 @@ export function normalizeEventEnvelope(value, { now = new Date(), registry = nul
       display_name: optionalString(value.source_display_name || source.display_name || sourceListener?.display_name) || listenerId,
       icon: optionalString(value.source_icon || source.icon || sourceListener?.icon) || defaultSourceIcon(sourceListener?.type),
       endpoint: optionalString(value.source_endpoint || source.endpoint || sourceListener?.url),
+      provider: optionalString(value.source_provider || source.provider || sourceListener?.provider),
     },
     registry_revision: Number.isInteger(value.registry_revision) ? value.registry_revision : Number(registry?.revision || 0),
     allowed_brain_ids: allowedBrainIds,
@@ -969,12 +971,14 @@ function executionMetadata(execution) {
 }
 
 export function provenanceForEvent(event, { capturedAs = null } = {}) {
+  const sourceType = sourceTypeForEvent(event);
+  const sourceLabel = event.source?.display_name || event.listener_id || 'Inbound source';
   return {
     event_id: event.event_id,
     origin_id: event.origin_id,
     listener_id: event.listener_id,
-    source: event.source?.display_name || event.listener_id,
-    source_type: event.type?.split('.')[0] || 'event',
+    source_type: sourceType,
+    source_label: sourceLabel,
     source_icon: event.source?.icon || null,
     source_endpoint: event.source?.endpoint || null,
     codex_thread_id: event.thread_id || null,
@@ -982,8 +986,20 @@ export function provenanceForEvent(event, { capturedAs = null } = {}) {
     occurred_at: event.occurred_at || null,
     received_at: event.received_at || null,
     raw_ref: event.raw_ref || event.metadata?.raw_ref || null,
-    captured_as: capturedAs,
+    outcome: capturedAs ? `captured:${capturedAs}` : 'filed',
   };
+}
+
+export function sourceTypeForEvent(event) {
+  const provider = String(event?.source?.provider || event?.provider || '').trim().toLowerCase();
+  if (provider === 'whatsapp') return 'whatsapp';
+  if (provider === 'gmail' || provider === 'email') return 'gmail';
+  if (provider === 'google_calendar' || provider === 'calendar') return 'google_calendar';
+  if (provider === 'granola') return 'granola';
+  if (provider === 'rss' || event?.type === 'rss.item') return 'rss';
+  if (event?.source?.type === 'rss') return 'rss';
+  if (event?.source?.type === 'webhook' || String(event?.type || '').startsWith('webhook.')) return 'webhook';
+  return normalizeSourceType(provider || event?.type?.split('.')?.[0]);
 }
 
 export class ScopedFilingBroker {
@@ -1019,7 +1035,13 @@ export class ScopedFilingBroker {
       const existingProvenance = await this.findExistingProvenance(client, event.event_id);
       if (existingProvenance.length) {
         const provenance = provenanceForEvent(event, { capturedAs: outcome.capture_mode || null });
-        for (const row of existingProvenance) await client.callTool('events/provenance', { path: row.page_slug, provenance });
+        for (const row of existingProvenance) {
+          await client.callTool('events/provenance', {
+            path: row.page_slug,
+            commit_message: row.commit_message || `Refresh provenance for ${provenance.source_label}`,
+            provenance,
+          });
+        }
         results.push({ brain_id: destination.brain_id, duplicate: true, writes: [], provenance: existingProvenance, provenance_updated: true });
         continue;
       }
@@ -1049,11 +1071,14 @@ export class ScopedFilingBroker {
     const allowed = new Set(['create_page', 'update_page', 'create_raw_file_with_page']);
     if (!allowed.has(write.tool)) throw new Error(`Filing broker does not allow ${write.tool}.`);
     const args = { ...(write.arguments || {}) };
+    const commitMessage = String(write.commit_message || args.commit_message || '').trim();
+    if (!commitMessage) throw new Error(`Filing write ${write.tool} must include a short commit_message.`);
+    args.commit_message = commitMessage;
+    args.provenance = provenance;
     if (write.tool === 'update_page') {
       args.body = String(args.body || '');
-      args.timeline_entry = args.timeline_entry || `Updated from ${provenance.source}.`;
+      args.timeline_entry = args.timeline_entry || `Updated from ${provenance.source_label}.`;
       await client.callTool('update_page', args);
-      await client.callTool('events/provenance', { path: args.path, provenance });
       return client.callTool('read', { path: args.path });
     }
     const result = await client.callTool(write.tool, args);
@@ -1061,7 +1086,6 @@ export class ScopedFilingBroker {
     if (pathValue) {
       const readback = await client.callTool('read', { path: pathValue });
       if (!readback) throw new Error(`Missing canonical read-back for ${pathValue}.`);
-      await client.callTool('events/provenance', { path: pathValue, provenance });
       return readback;
     }
     return result;
