@@ -18,6 +18,7 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
 - Substantive meetings get canonical meeting pages and full raw transcript sidecars when transcripts are available and safe to store.
 - Attendee and represented-organization pages are created or updated after the meeting record is verified.
 - Durable entity, deal, project, concept, and task updates are made only when supported by meeting evidence, destination filing rules, and mention depth.
+- Speaker-attributed action evidence is reviewed through `$bigbrain-action-review` before any task creation or update.
 - The destination brain is synced and read back before reporting success.
 - Final output is count-first, grouped by destination-brain headings with meeting-title bullets and created-page sub-bullets, and privacy-safe.
 
@@ -90,9 +91,14 @@ prompts, credentials, or other private content to the ledger helper.
    - Create or update one canonical meeting page per ingested meeting.
    - Run an identity and affiliation pass before writing summaries; preserve transcript-backed participant identity, affiliation, relationship, authority, decision, and commitment facts.
    - Mark uncertain roles, employers, mandates, source authority, and commitments explicitly.
+   - For every action-relevant statement, preserve the source speaker separately from the responsible actor and distinguish accepted commitments, requests, external actions, optional offers, proposals, and discussion.
+   - Prefer transcript evidence over generated summary or `Action Items` attribution when they conflict.
    - Review related people, organizations, companies, deals, concepts, projects, and supported entity pages for durable updates.
-   - Review open, in-progress, and waiting tasks before creating new tasks; update existing tasks when meeting evidence changes status, owner, due date, next action, or completion criteria.
-   - Anti-patterns: inventing attendees or affiliations, flattening uncertainty, creating a task when an existing task should be updated, dumping deal context into a person page, skipping durable entity updates when evidence supports them
+   - Review open, in-progress, and waiting tasks, then pass source-attributed evidence, relevant Brain context, live tasks, and approval limits to `$bigbrain-action-review` before proposing any task creation or update.
+   - Preserve external actions and optional offers as useful meeting, deal, project, or relationship context according to live filing rules; do not create backlog tasks for them unless an active member separately owns a concrete follow-up.
+   - Use Brain context to sharpen a supported action, but never to override source ownership or manufacture a commitment.
+   - Create or update tasks only for concrete member-owned actions returned by Action Review, and preserve action-time approval for externally visible execution.
+   - Anti-patterns: inventing attendees or affiliations, flattening uncertainty, conflating speaker and responsible actor, treating a request as acceptance, converting optional help or another party's obligation into a member task, creating a task when an existing task should be updated, using Brain context to override ownership, dumping deal context into a person page, skipping durable entity updates when evidence supports them
 7. Review and preserve transcripts.
    - Inspect transcripts for unsafe, slanderous, highly personal, or sensitive spans before saving.
    - Save transcripts verbatim when no targeted redaction is needed.
@@ -151,6 +157,7 @@ prompts, credentials, or other private content to the ledger helper.
 - Leaving processable meetings un-ingested when Personal Brain is reachable and writable as the fallback destination.
 - Crossing brain boundaries when routing confidence, authentication, write access, or folder exclusion enforcement is unclear.
 - Inventing facts, decisions, owners, due dates, task status, affiliations, or participant identities.
+- Treating external actions, unaccepted requests, or optional offers as member-owned backlog tasks.
 - Storing secrets, credentials, transcript content, summaries, participant lists, notes, or model prompts in machine-wide routing state.
 - Quoting unsafe, slanderous, highly personal, sensitive, or private transcript text in the final report.
 

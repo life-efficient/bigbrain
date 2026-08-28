@@ -12,6 +12,8 @@
 | Ingest a relevant web article or RSS item while preserving the source and linking affected Brain pages | `skills/bigbrain-source-article-ingest/SKILL.md` |
 | Ingest a meeting or call into the canonical meeting page shape | `skills/bigbrain-meeting-ingest/SKILL.md` |
 | Ingest recent Granola meetings into the selected BigBrain brain | `skills/bigbrain-granola-ingest/SKILL.md` |
+| Scan recent email and ingest durable email context into the correct BigBrain brain | `skills/bigbrain-email-ingest/SKILL.md` |
+| Reconcile concrete action evidence prepared by a source-ingestion workflow before it writes BigBrain tasks | `skills/bigbrain-action-review/SKILL.md` |
 | Ingest document-like material such as PDFs, decks, screenshots, or memos | `skills/bigbrain-document-ingest/SKILL.md` |
 | Ingest time-based or mixed media such as audio, video, or podcasts | `skills/bigbrain-media-ingest/SKILL.md` |
 | Capture durable knowledge from ordinary chat into BigBrain | `skills/bigbrain-conversation-ingest/SKILL.md` |

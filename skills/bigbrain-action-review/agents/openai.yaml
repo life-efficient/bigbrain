@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Action Review"
+  short_description: "Reconcile source evidence into specific tasks or contextual outcomes"
+  default_prompt: "Use $bigbrain-action-review after a source-ingestion skill has preserved attribution and source semantics. Review ownership, commitment strength, existing tasks, contextual inference, specificity, dependencies, and approval boundaries, then return task proposals and explicit non-task outcomes without writing anything."

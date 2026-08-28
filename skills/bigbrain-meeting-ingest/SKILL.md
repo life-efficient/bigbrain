@@ -30,6 +30,7 @@ This skill guarantees:
 - Update the meeting page with summary, decisions, action items, and discussion notes
 - Preserve transcript dumps and other raw support according to the target brain's filing rules
 - Surface related pages that should be enriched when the meeting materially changes them
+- Preserve speaker-level ownership and use `$bigbrain-action-review` before creating or updating tasks
 
 ## Workflow
 
@@ -46,6 +47,8 @@ This skill guarantees:
    - key decisions
    - action items
    - discussion notes
+   - for every action-relevant statement, preserve who spoke, who actually owns the action, and whether it is an accepted commitment, request, external action, optional offer, proposal, or discussion
+   - prefer transcript evidence over generated summary attribution when they conflict
 4. Preserve page shape:
    - keep any existing `## Prep`
    - write or refresh `## Summary`
@@ -59,7 +62,10 @@ This skill guarantees:
    - create or update the canonical meeting page separately and link it to the indexed sidecar and artifact
 6. Identify follow-on updates:
    - pages that gained new durable facts
-   - tasks that should be created or updated as individual `tasks/*.md` pages
+   - collect relevant Brain context and open, in-progress, and waiting tasks
+   - pass the source-attributed evidence, Brain context, live tasks, and approval limits to `$bigbrain-action-review`
+   - preserve external actions and optional offers on the canonical meeting page, owning entity page, or indexed sidecar according to filing rules, without turning them into backlog tasks
+   - create or update individual `tasks/*.md` pages only for concrete member-owned actions returned by Action Review
 7. Re-index:
    - `bigbrain sync --json`
 
@@ -71,6 +77,9 @@ This skill guarantees:
 - Do not create a raw artifact without its same-basename indexed `.raw/*.md` sidecar
 - Do not assume `.artifacts/` when the target brain's filing rules specify `.raw/`
 - Do not turn vague discussion into fake decisions or fake action items
+- Do not treat the speaker as the responsible actor when the statement names someone else
+- Do not treat an external commitment, an unaccepted request, or optional help as a member-owned task
+- Do not let Brain context override source ownership or manufacture a commitment
 
 ## Output
 

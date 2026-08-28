@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain Email Ingest"
+  short_description: "Reconcile email evidence, actions, cleanup, and PDFs"
+  default_prompt: "Run $bigbrain-email-ingest to scan recently unchecked email, preserve email-specific sender and recipient direction, chronology, quoted-history boundaries, and automated-versus-human authorship, invoke $bigbrain-action-review before task writes, apply only the standing authorized Gmail Trash rules, preserve relevant substantive PDFs through the owning Brain's MCP, and verify every Brain write, stored artifact, cleanup action, and cursor advance."
