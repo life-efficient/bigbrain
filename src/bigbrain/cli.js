@@ -18,7 +18,7 @@ import { queryBrain, searchBrain, searchModesReport } from './search.js';
 import { syncBrain } from './sync.js';
 import { resolveWindow } from './time.js';
 import { applyUpdate, checkForUpdate, renderUpdateText, updateExitCode } from './update.js';
-import { EventInboxStore, EventRegistryStore, normalizeListener, normalizeSubscription, defaultEventInboxPath, defaultEventRegistryPath } from './inbound-events.js';
+import { EventInboxStore, EventRegistryStore, RssCollector, normalizeListener, normalizeSubscription, defaultEventInboxPath, defaultEventRegistryPath } from './inbound-events.js';
 import { BIGBRAIN_RELEASE_MANIFEST, BIGBRAIN_RELEASE_VERSION } from './release-manifest.js';
 
 export async function runCli(argv) {
@@ -439,6 +439,25 @@ async function handleEvents(args, global) {
     const state = await inbox.get();
     const counts = Object.values(state.deliveries).reduce((result, event) => { result[event.state] = (result[event.state] || 0) + 1; return result; }, {});
     output(global, { ok: true, runtime: value.runtime, revision: value.revision, listeners: value.listeners.length, counts, registry_path: registry.filePath, inbox_path: inbox.filePath }, `Event runtime ${value.runtime.kind} revision ${value.revision}: ${value.listeners.length} listener(s), ${Object.values(counts).reduce((sum, count) => sum + count, 0)} inbox event(s).`);
+    return;
+  }
+  if (action === 'rss-status') {
+    const collector = new RssCollector({ registryStore: registry, inboxStore: inbox });
+    const report = await collector.statusAll({ listenerId: argValue(args, '--listener'), limit: argValue(args, '--limit') || 50 });
+    output(global, report, renderRssStatusText(report));
+    return;
+  }
+  if (action === 'rss-backfill') {
+    const listenerId = requireFirstArg(args.slice(1), 'events rss-backfill requires <listener-id>.');
+    const itemIds = [...argValues(args, '--item-id'), ...argValues(args, '--item')];
+    if (args.includes('--dry-run') && args.includes('--apply')) throw new Error('Choose either --dry-run or --apply.');
+    const collector = new RssCollector({ registryStore: registry, inboxStore: inbox });
+    const report = await collector.backfill(listenerId, {
+      itemIds,
+      dryRun: !args.includes('--apply'),
+      maxItems: argValue(args, '--max-items') || undefined,
+    });
+    output(global, report, renderRssBackfillText(report));
     return;
   }
   if (action === 'listeners') {
@@ -952,6 +971,8 @@ Commands:
   members ensure-local-owner <people/slug> [--name NAME] [--email EMAIL]
   members add <email> <people/slug> [--name NAME] [--role owner|admin|editor|read-only|custom-role] [--status active|inactive|invited]
   events status
+  events rss-status [--listener ID] [--limit N]
+  events rss-backfill <listener-id> --item-id STABLE_ID [--item-id STABLE_ID ...] [--dry-run|--apply] [--max-items N]
   events listeners
   events inbox [--state STATE] [--listener ID] [--limit N]
   events configure <listener-id> [--event-type-path PATH] [--event-type TYPE ...] [--prompt-field FIELD ...] [--prompt-omit-field FIELD ...]
@@ -991,6 +1012,29 @@ function renderSyncText(result) {
     `Outstanding: ${result.outstanding_work.pages_needing_embeddings} page(s) need embeddings, ${result.outstanding_work.embedding_chunks_pending} embedding chunk(s) pending, ${result.outstanding_work.pages_with_embedding_failures} embedding failure(s).`,
     `This run: ${result.run_work.pages_embedded} page(s) embedded, ${result.run_work.embedding_chunks_created} embedding chunk(s) created, ${result.run_work.pages_embedding_skipped_by_guard ?? 0} page(s) skipped by embedding guard.`,
   ].join('\n');
+}
+
+function renderRssStatusText(report) {
+  const lines = [];
+  for (const listener of report.listeners || []) {
+    if (listener.status === 'error') {
+      lines.push(`${listener.listener_id}: ERROR ${listener.message}`);
+      continue;
+    }
+    lines.push(`${listener.listener_id}: ${listener.item_count} feed item(s), ${listener.counts.unseen} unseen, ${listener.counts.incremental_outstanding} incremental outstanding, ${listener.counts.manual_backfill_candidates} manual-backfill candidate(s).`);
+    for (const item of listener.outstanding?.incremental || []) lines.push(`  incremental ${item.item_id}  ${item.published_at || 'undated'}  ${item.title}`);
+    for (const item of listener.outstanding?.manual_backfill || []) lines.push(`  backfill ${item.item_id}  ${item.published_at || 'undated'}  ${item.title}`);
+  }
+  for (const error of report.errors || []) lines.push(`${error.listener_id}: ERROR ${error.message}`);
+  return lines.join('\n') || 'No active RSS listeners configured.';
+}
+
+function renderRssBackfillText(report) {
+  const mode = report.status === 'dry_run' ? 'Dry run' : 'Manual backfill';
+  const lines = [`${mode} for ${report.listener_id}: ${report.counts.enqueued} enqueued, ${report.counts.duplicates} duplicate(s), ${report.counts.skipped} skipped, ${report.counts.unknown} unknown.`];
+  for (const item of report.selected || []) lines.push(`  ${item.action.padEnd(10)} ${item.item_id}  ${item.title}${item.reason ? ` (${item.reason})` : ''}`);
+  for (const itemId of report.unknown_item_ids || []) lines.push(`  unknown    ${itemId}`);
+  return lines.join('\n');
 }
 
 function renderAboutText(about) {

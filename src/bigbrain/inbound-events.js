@@ -15,6 +15,8 @@ export const INBOUND_EVENTS_VERSION = 2;
 export const DEFAULT_EVENT_RETENTION_DAYS = 90;
 export const DEFAULT_EVENT_MAX_BODY_BYTES = 1_000_000;
 export const DEFAULT_RSS_INITIAL_CURSOR_DAYS = 7;
+export const DEFAULT_RSS_SOURCE_MAX_BYTES = 2_000_000;
+export const DEFAULT_RSS_SOURCE_TIMEOUT_MS = 30_000;
 export const EVENT_STATES = ['received', 'running', 'filed', 'ignored', 'failed', 'quarantined'];
 export const EXECUTION_MODES = ['app_thread', 'cli'];
 export const RUNTIME_LOCATIONS = ['client', 'host'];
@@ -134,10 +136,22 @@ export function normalizeListener(value) {
     target_page: optionalString(value.target_page),
     raw_collection: optionalString(value.raw_collection),
     raw_prefix: optionalString(value.raw_prefix) || id,
+    article_policy: normalizeArticlePolicy(value.article_policy || value.article_ingest, { type }),
     bootstrap: value.bootstrap === 'all' || value.bootstrap === 'none' ? value.bootstrap : 'latest',
     created_at: value.created_at || null,
     updated_at: value.updated_at || null,
     health: normalizeHealth(value.health),
+  };
+}
+
+export function normalizeArticlePolicy(value, { type = 'webhook' } = {}) {
+  const input = value && typeof value === 'object' ? value : {};
+  return {
+    fetch_source: type === 'rss' ? input.fetch_source !== false : false,
+    preserve_source: type === 'rss' ? input.preserve_source !== false : false,
+    require_source: type === 'rss' ? input.require_source !== false : false,
+    max_bytes: positiveInteger(input.max_bytes || input.max_source_bytes, DEFAULT_RSS_SOURCE_MAX_BYTES),
+    timeout_ms: positiveInteger(input.timeout_ms || input.source_timeout_ms, DEFAULT_RSS_SOURCE_TIMEOUT_MS),
   };
 }
 
@@ -230,11 +244,11 @@ export function normalizeEventEnvelope(value, { now = new Date(), registry = nul
       location: normalizeRuntimeLocation(value.codex_execution_location || sourceListener?.codex_execution_location || 'client'),
       mode: requireEnum(value.codex_execution_mode || sourceListener?.codex_execution_mode || 'app_thread', EXECUTION_MODES, 'event.codex_execution_mode'),
     },
-    metadata: sanitizePayload(value.metadata || {}),
+    metadata: sanitizeEventMetadata(value.metadata || {}),
   };
 }
 
-export function createRssEventEnvelope({ listener, item, feedXml = null, now = new Date(), registry = null }) {
+export function createRssEventEnvelope({ listener, item, feedXml = null, sourceDocument = null, now = new Date(), registry = null }) {
   const normalized = normalizeRssItemForEvent(item);
   const eventId = stableSourceEventId(listener.id, normalized.guid || normalized.link || `${normalized.title}:${normalized.pubDate}`);
   return normalizeEventEnvelope({
@@ -246,6 +260,7 @@ export function createRssEventEnvelope({ listener, item, feedXml = null, now = n
     occurred_at: normalized.published_at,
     payload: normalized,
     raw_payload: normalized.raw || feedXml || null,
+    metadata: sourceDocument ? { source_document: sourceDocument } : {},
     source_info: listener,
   }, { now, registry, listener });
 }
@@ -505,6 +520,12 @@ export class EventInboxStore {
       if (!retainRaw) {
         next.raw_payload = null;
         next.payload = state === 'ignored' ? null : next.payload;
+        if (state === 'filed' && next.metadata?.source_document) {
+          next.metadata = {
+            ...next.metadata,
+            source_document: Object.fromEntries(Object.entries(next.metadata.source_document).filter(([key]) => !['raw_body', 'text'].includes(key))),
+          };
+        }
       }
       return next;
     });
@@ -614,6 +635,7 @@ export class InboundEventProcessor {
       execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
       const outcome = execution?.outcome || { status: 'needs_review', reason: 'Codex returned no filing outcome.', destinations: [] };
       const executionMeta = executionMetadata(execution);
+      validateRssArticleOutcome(processingEvent, listener, outcome);
       if (!execution?.outcome) {
         return this.inboxStore.complete(deliveryId, {
           state: 'filed',
@@ -1047,7 +1069,7 @@ export class ScopedFilingBroker {
       }
       const writes = Array.isArray(destination.writes) ? destination.writes : [];
       const brainResults = [];
-      for (const write of writes) brainResults.push(await this.applyWrite(client, write, provenanceForEvent(event, { capturedAs: outcome.capture_mode || null })));
+      for (const write of writes) brainResults.push(await this.applyWrite(client, write, provenanceForEvent(event, { capturedAs: outcome.capture_mode || null }), event));
       if (this.sync) await this.sync(brain);
       results.push({ brain_id: destination.brain_id, writes: brainResults });
     }
@@ -1066,7 +1088,7 @@ export class ScopedFilingBroker {
     }
   }
 
-  async applyWrite(client, write, provenance) {
+  async applyWrite(client, write, provenance, event = null) {
     if (!write || typeof write !== 'object') throw new Error('Filing write must be an object.');
     const allowed = new Set(['create_page', 'update_page', 'create_raw_file_with_page']);
     if (!allowed.has(write.tool)) throw new Error(`Filing broker does not allow ${write.tool}.`);
@@ -1075,6 +1097,14 @@ export class ScopedFilingBroker {
     if (!commitMessage) throw new Error(`Filing write ${write.tool} must include a short commit_message.`);
     args.commit_message = commitMessage;
     args.provenance = provenance;
+    if (write.tool === 'create_raw_file_with_page' && args.raw_content_source === 'event.source_document.raw_body') {
+      const sourceDocument = event?.metadata?.source_document;
+      if (sourceDocument?.status !== 'fetched' || typeof sourceDocument.raw_body !== 'string' || !sourceDocument.raw_body) {
+        throw new Error('RSS source preservation requested but the canonical source body was not fetched.');
+      }
+      args.raw_content_text = sourceDocument.raw_body;
+      delete args.raw_content_source;
+    }
     if (write.tool === 'update_page') {
       args.body = String(args.body || '');
       args.timeline_entry = args.timeline_entry || `Updated from ${provenance.source_label}.`;
@@ -1089,6 +1119,30 @@ export class ScopedFilingBroker {
       return readback;
     }
     return result;
+  }
+}
+
+function validateRssArticleOutcome(event, listener, outcome) {
+  if (event?.type !== 'rss.item' || !listener?.article_policy?.fetch_source) return;
+  const sourceDocument = event.metadata?.source_document;
+  if (!sourceDocument) return;
+  if (outcome?.status !== 'filed') return;
+  if (listener.article_policy.require_source && sourceDocument?.status !== 'fetched') {
+    throw new Error('Relevant RSS article cannot be filed because its canonical source was not fetched.');
+  }
+  if (listener.article_policy.require_source && sourceDocument?.truncated) {
+    throw new Error('Relevant RSS article cannot be filed because its canonical source body was truncated.');
+  }
+  if (listener.article_policy.preserve_source && sourceDocument?.status === 'fetched') {
+    const writes = (outcome.destinations || []).flatMap((destination) => destination.writes || []);
+    const sourceWrite = writes.find((write) => write?.tool === 'create_raw_file_with_page' && write?.arguments?.raw_content_source === 'event.source_document.raw_body');
+    if (!sourceWrite) throw new Error('Relevant RSS article filing must preserve the fetched canonical source.');
+    const body = String(sourceWrite.arguments?.body || '');
+    const hasRelevanceHeading = /^## (?:Compiled Truth|Current Relevance)\s*$/m.test(body);
+    const requiredHeadings = ['## Summary', '## Related Pages', '## Source', '## Timeline'];
+    if (!hasRelevanceHeading || requiredHeadings.some((heading) => !new RegExp(`^${heading}\\s*$`, 'm').test(body)) || !/^---\s*$/m.test(body)) {
+      throw new Error('Relevant RSS article filing must use the standard Brain article page shape.');
+    }
   }
 }
 
@@ -1198,6 +1252,17 @@ function sanitizePayload(value, depth = 0) {
   if (Array.isArray(value)) return value.slice(0, 500).map((item) => sanitizePayload(item, depth + 1));
   if (typeof value !== 'object') return String(value);
   return Object.fromEntries(Object.entries(value).slice(0, 500).filter(([key]) => !SECRET_KEYS.has(key.toLowerCase())).map(([key, item]) => [key, sanitizePayload(item, depth + 1)]));
+}
+
+function sanitizeEventMetadata(value) {
+  const sanitized = sanitizePayload(value);
+  const sourceDocument = value && typeof value === 'object' && value.source_document && typeof value.source_document === 'object'
+    ? value.source_document
+    : null;
+  if (sourceDocument && sanitized?.source_document && typeof sourceDocument.raw_body === 'string') {
+    sanitized.source_document.raw_body = truncateUtf8(sourceDocument.raw_body, DEFAULT_RSS_SOURCE_MAX_BYTES);
+  }
+  return sanitized;
 }
 
 function normalizeIdentifier(value, name) {

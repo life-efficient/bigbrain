@@ -46,6 +46,29 @@ test('prompt payload can be narrowed to configured fields and omits RSS raw XML 
   }), { title: 'Meeting', data: { summary: 'Useful' } });
 });
 
+test('RSS article prompt uses the source-article skill and preserves source bytes through the broker placeholder', () => {
+  const prompt = buildEventPrompt({
+    event_id: 'rss-1',
+    listener_id: 'openai-news',
+    type: 'rss.item',
+    payload: { title: 'Article', link: 'https://example.test/article', description: 'Feed blurb', raw: '<item />' },
+    metadata: {
+      source_document: {
+        status: 'fetched',
+        url: 'https://example.test/article',
+        content_type: 'text/html',
+        text: 'Original article text',
+        raw_body: '<html>Original article text</html>',
+      },
+    },
+    allowed_brain_ids: ['personal'],
+  }, { type: 'rss', display_name: 'OpenAI News' }, { allowedDestinations: [{ id: 'personal', name: 'Personal' }] });
+  assert.match(prompt, /Use the \$bigbrain-source-article-ingest skill/);
+  assert.match(prompt, /raw_content_source set to event\.source_document\.raw_body/);
+  assert.match(prompt, /Original article text/);
+  assert.doesNotMatch(prompt, /<html>Original article text<\/html>/);
+});
+
 test('CLI executor captures structured outcome and stderr-safe output', async () => {
   const executor = new CodexCliExecutor({ command: 'codex-test', execFileImpl: async (command, args) => {
     assert.equal(command, 'codex-test');

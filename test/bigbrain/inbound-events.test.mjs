@@ -32,7 +32,7 @@ async function fixture() {
 }
 
 function rssListener(extra = {}) {
-  return normalizeListener({ id: 'openai-news', type: 'rss', url: 'https://example.test/feed.xml', brain_ids: ['brain_personal'], ...extra });
+  return normalizeListener({ id: 'openai-news', type: 'rss', url: 'https://example.test/feed.xml', brain_ids: ['brain_personal'], article_policy: { fetch_source: false }, ...extra });
 }
 
 test('event registry validates independent collection and Codex placement controls and reloads direct edits', async () => {
@@ -237,6 +237,86 @@ test('processor records ignored events and only brokers filed outcomes to allowe
     assert.equal(processed.thread_id, 'thread-1');
     assert.equal(calls[0].input.allowed_brain_ids[0], 'brain_personal');
     assert.equal((await inbox.list({ state: 'filed' })).length, 1);
+  } finally {
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('filing broker injects fetched RSS source bytes into a raw source write and reads it back', async () => {
+  const calls = [];
+  const broker = new ScopedFilingBroker({
+    brainRegistry: [{ id: 'brain_personal', name: 'Personal' }],
+    mcpFactory: async () => ({
+      callTool: async (name, args) => {
+        calls.push({ name, args });
+        if (name === 'events/provenance_list') return { provenance: [] };
+        if (name === 'create_raw_file_with_page') return { ok: true };
+        if (name === 'read') return { path: args.path || args.page_path, body: '## Summary\n## Current Relevance\n## Related Pages\n## Source\n---\n## Timeline' };
+        if (name === 'events/provenance') return { ok: true };
+        throw new Error(`Unexpected tool: ${name}`);
+      },
+    }),
+  });
+  const result = await broker.file({
+    event_id: 'rss-1',
+    type: 'rss.item',
+    listener_id: 'feed',
+    allowed_brain_ids: ['brain_personal'],
+    metadata: { source_document: { status: 'fetched', raw_body: '<html>source</html>' } },
+  }, {
+    status: 'filed',
+    capture_mode: 'full',
+    reason: 'useful source',
+    destinations: [{ brain_id: 'brain_personal', writes: [{
+      tool: 'create_raw_file_with_page',
+      commit_message: 'Capture RSS article source',
+      arguments: {
+        raw_path: 'writing/.raw/article.html',
+        page_path: 'writing/article.md',
+        raw_content_source: 'event.source_document.raw_body',
+        mime_type: 'text/html',
+        title: 'Article',
+        body: '## Summary\n## Current Relevance\n## Related Pages\n## Source\n---\n## Timeline',
+        timeline_entry: 'Captured from RSS.',
+      },
+    }] }],
+  });
+  assert.equal(result.status, 'filed');
+  const write = calls.find((call) => call.name === 'create_raw_file_with_page');
+  assert.equal(write.args.raw_content_text, '<html>source</html>');
+  assert.equal(write.args.raw_content_source, undefined);
+  assert.equal(calls.some((call) => call.name === 'read'), true);
+});
+
+test('RSS event envelopes retain source bodies beyond the generic metadata string limit', () => {
+  const listener = rssListener({ article_policy: { fetch_source: true } });
+  const rawBody = '<html>' + 'x'.repeat(210_000) + '</html>';
+  const event = createRssEventEnvelope({
+    listener,
+    item: { title: 'Long source', link: 'https://example.test/long', guid: 'long', raw: '<item />' },
+    sourceDocument: { status: 'fetched', raw_body: rawBody, text: 'long source' },
+  });
+  assert.equal(event.metadata.source_document.raw_body, rawBody);
+});
+
+test('processor rejects a filed RSS outcome that omits fetched source preservation', async () => {
+  const paths = await fixture();
+  try {
+    const listener = rssListener({ article_policy: { fetch_source: true, preserve_source: true, require_source: true } });
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [listener] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+    const event = createRssEventEnvelope({ listener, item: { title: 'Useful', link: 'https://example.test/useful', guid: 'useful', raw: '<item />' }, sourceDocument: { status: 'fetched', raw_body: '<html>source</html>', text: 'source' } });
+    const queued = await inbox.enqueue(event, { clientId: 'client-1' });
+    const processor = new InboundEventProcessor({
+      registryStore: registry,
+      inboxStore: inbox,
+      executorFactory: async () => ({ execute: async () => ({ execution_id: 'exec-1', thread_id: 'thread-1', outcome: { status: 'filed', capture_mode: 'full', reason: 'useful', destinations: [{ brain_id: 'brain_personal', writes: [] }] } }) }),
+      filingBroker: { file: async () => { throw new Error('should not reach broker'); } },
+    });
+    const processed = await processor.process(queued.event.delivery_id);
+    assert.equal(processed.state, 'failed');
+    assert.match(processed.last_error, /must preserve the fetched canonical source/);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }

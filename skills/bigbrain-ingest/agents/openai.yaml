@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Ingest"
   short_description: "Route new material into the right BigBrain ingest path"
-  default_prompt: "Use BigBrain: Ingest to pick the right ingest subroute, preserve provenance, update the canonical page, and re-sync the index."
+  default_prompt: "Use $bigbrain-ingest to pick the right ingest subroute, preserve provenance, update the canonical page, and re-sync the index."
