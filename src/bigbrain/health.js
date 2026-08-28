@@ -5,10 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import { openDatabase, clearHealthFindings, getBacklinks, getOutgoingLinks, insertHealthFinding, listHealthFindings, listPages, upsertHostedBrainGitState } from './db.js';
+import { openDatabase, clearHealthFindings, getBacklinks, getOutgoingLinks, insertHealthFinding, listHealthFindings, listPageProvenance, listPages, upsertHostedBrainGitState } from './db.js';
 import { fullPathFromSlug, parseMarkdownPage } from './markdown.js';
 import { safeBrainPath } from './page-ops.js';
 import { isAttachmentSidecarSlug, validatePageShape } from './schema.js';
+import { normalizeSourceType, parseMutationMetadata, SOURCE_TYPE_DEFINITIONS } from './source-taxonomy.js';
 import { EventInboxStore, EventRegistryStore, defaultEventInboxPath, defaultEventRegistryPath } from './inbound-events.js';
 
 const execFileAsync = promisify(execFile);
@@ -28,6 +29,9 @@ export async function runHealthCheck(config, {
   const db = await openDatabase(config);
   await clearHealthFindings(db);
   const pages = await listPages(db);
+  const pageProvenance = await loadPageProvenance(db, pages);
+  const pageAttributions = new Map();
+  const provenanceStatus = createProvenanceStatus(pages.length);
 
   for (const page of pages) {
     const fullPath = fullPathFromSlug(config.brainDir, page.slug);
@@ -43,6 +47,21 @@ export async function runHealthCheck(config, {
     }
 
     const parsed = parseMarkdownPage(raw, page.slug);
+    const attribution = sourceAttributionForPage(parsed, pageProvenance.get(page.slug), { skipAttachment: true });
+    pageAttributions.set(page.slug, { parsed, provenance: pageProvenance.get(page.slug), attribution });
+    if (attribution.skipped) {
+      provenanceStatus.pages_skipped += 1;
+    } else if (!attribution.ok) {
+      provenanceStatus.pages_missing_source_attribution += 1;
+      await insertSourceAttributionFinding(db, {
+        scope: 'page',
+        pageSlug: page.slug,
+        path: fullPath,
+        attribution,
+      });
+    } else {
+      provenanceStatus.pages_with_source_attribution += 1;
+    }
     for (const issue of validatePageShape(parsed)) {
       const finding = typeof issue === 'string' ? { type: issue } : issue;
       await insertHealthFinding(db, {
@@ -120,6 +139,22 @@ export async function runHealthCheck(config, {
         details: gitStatus,
       });
     }
+  }
+
+  const gitProvenance = await detectGitBackedSourceAttribution(config.brainDir, pageAttributions, gitStatus);
+  provenanceStatus.git_backed_change_count = gitProvenance.checked_count;
+  provenanceStatus.git_backed_changes_missing_source_attribution = gitProvenance.missing_count;
+  for (const change of gitProvenance.missing) {
+    await insertSourceAttributionFinding(db, {
+      scope: 'git_change',
+      pageSlug: change.page_slug,
+      path: change.path,
+      attribution: change.attribution,
+      details: {
+        change_status: change.change_status,
+        source_path: change.source_path,
+      },
+    });
   }
 
   const cliStatus = await detectCliAvailability({ env, command: cliCommand, cwd: cliCwd });
@@ -203,6 +238,7 @@ export async function runHealthCheck(config, {
     automation_conflict_status: automationConflictStatus,
     skill_template_status: skillTemplateStatus,
     event_status: eventStatus,
+    provenance_status: provenanceStatus,
   };
 }
 
@@ -226,7 +262,224 @@ function severityForFinding(findingType) {
   if (findingType === 'attachment_sidecar_missing_raw_file' || findingType === 'attachment_sidecar_mismatched_raw_file' || findingType === 'attachment_sidecar_missing_raw_artifact') return 'medium';
   if (findingType === 'nested_raw_file_path') return 'medium';
   if (findingType === 'missing_filing_rules') return 'medium';
+  if (findingType === 'missing_source_attribution') return 'medium';
   return 'low';
+}
+
+function createProvenanceStatus(pageCount) {
+  return {
+    page_count: pageCount,
+    pages_with_source_attribution: 0,
+    pages_missing_source_attribution: 0,
+    pages_skipped: 0,
+    git_backed_change_count: 0,
+    git_backed_changes_missing_source_attribution: 0,
+  };
+}
+
+async function insertSourceAttributionFinding(db, { scope, pageSlug = null, path: filePath, attribution, details = {} }) {
+  await insertHealthFinding(db, {
+    findingType: 'missing_source_attribution',
+    severity: severityForFinding('missing_source_attribution'),
+    pageSlug: pageSlug || null,
+    details: {
+      scope,
+      path: filePath,
+      reason: attribution.reason,
+      expected_fields: attribution.expected_fields,
+      allowed_source_types: Object.keys(SOURCE_TYPE_DEFINITIONS),
+      ...attribution.details,
+      ...details,
+    },
+  });
+}
+
+function sourceAttributionForPage(parsed, provenance = null, { skipAttachment = false } = {}) {
+  const provenanceCandidate = mutationMetadataCandidateFromProvenance(provenance);
+  if (provenanceCandidate) return validateMutationMetadata(provenanceCandidate);
+  if (skipAttachment && isAttachmentSidecarSlug(parsed.slug)) return { ok: true, skipped: true };
+
+  const frontmatter = parsed.frontmatter || {};
+  const candidate = mutationMetadataCandidate(frontmatter);
+  if (!candidate) {
+    return {
+      ok: false,
+      reason: 'missing',
+      expected_fields: ['event_id', 'source_type', 'source_label', 'commit_message'],
+      details: { source_type: null, normalized_source_type: 'unknown' },
+    };
+  }
+
+  return validateMutationMetadata(candidate);
+}
+
+function validateMutationMetadata(candidate) {
+  const normalizedSourceType = normalizeSourceType(candidate.provenance?.source_type);
+  try {
+    const normalized = parseMutationMetadata(candidate);
+    return {
+      ok: true,
+      value: normalized,
+      normalized_source_type: normalizedSourceType,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: 'invalid',
+      expected_fields: ['event_id', 'source_type', 'source_label', 'commit_message'],
+      details: {
+        source_type: candidate.provenance?.source_type ?? null,
+        normalized_source_type: normalizedSourceType,
+        validation_error: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
+function mutationMetadataCandidate(frontmatter) {
+  const nested = parseJsonObject(frontmatter.mutation_metadata) || parseJsonObject(frontmatter.provenance);
+  if (nested) return nested;
+
+  const hasFlatMetadata = ['event_id', 'source_type', 'source_label', 'commit_message']
+    .some((key) => frontmatter[key] !== undefined && frontmatter[key] !== null && String(frontmatter[key]).trim());
+  if (!hasFlatMetadata) return null;
+
+  return {
+    commit_message: frontmatter.commit_message,
+    provenance: {
+      event_id: frontmatter.event_id,
+      source_type: frontmatter.source_type,
+      source_label: frontmatter.source_label,
+      ...optionalProvenanceFields(frontmatter),
+    },
+  };
+}
+
+function mutationMetadataCandidateFromProvenance(provenance) {
+  if (!provenance || typeof provenance !== 'object') return null;
+  return {
+    commit_message: provenance.commit_message,
+    provenance: {
+      event_id: provenance.event_id,
+      source_type: provenance.source_type,
+      source_label: provenance.source_label,
+      ...optionalProvenanceFields(provenance),
+    },
+  };
+}
+
+async function loadPageProvenance(db, pages) {
+  const entries = await Promise.all(pages.map(async (page) => {
+    const rows = await listPageProvenance(db, { pageSlugs: [page.slug], limit: 1 });
+    return [page.slug, rows[0] || null];
+  }));
+  return new Map(entries);
+}
+
+function optionalProvenanceFields(frontmatter) {
+  return Object.fromEntries([
+    ['origin_id', frontmatter.origin_id],
+    ['listener_id', frontmatter.listener_id],
+    ['source_icon', frontmatter.source_icon],
+    ['source_url', frontmatter.source_url],
+    ['occurred_at', frontmatter.occurred_at],
+    ['received_at', frontmatter.received_at],
+    ['codex_execution_id', frontmatter.codex_execution_id],
+    ['codex_thread_id', frontmatter.codex_thread_id],
+    ['raw_ref', frontmatter.raw_ref],
+    ['outcome', frontmatter.outcome],
+  ].filter(([, value]) => value !== undefined));
+}
+
+function parseJsonObject(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value;
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+async function detectGitBackedSourceAttribution(brainDir, pageAttributions, gitStatus) {
+  if (!gitStatus || ['no_repository', 'git_status_failed'].includes(gitStatus.latest_error_code)) {
+    return { checked_count: 0, missing_count: 0, missing: [] };
+  }
+
+  const changes = await readGitChanges(brainDir);
+  const missing = [];
+  for (const change of changes) {
+    const sourcePath = sourcePathForGitChange(change.path);
+    if (!sourcePath) continue;
+    const attribution = await attributionForGitPath(brainDir, sourcePath, pageAttributions);
+    if (attribution.ok) continue;
+    missing.push({
+      path: path.join(brainDir, change.path),
+      source_path: sourcePath,
+      page_slug: sourcePath.endsWith('.md') ? sourcePath.replace(/\.md$/i, '') : null,
+      change_status: change.status,
+      attribution,
+    });
+  }
+  return { checked_count: changes.filter((change) => sourcePathForGitChange(change.path)).length, missing_count: missing.length, missing };
+}
+
+async function readGitChanges(brainDir) {
+  const result = await execFileAsync('git', ['-C', brainDir, 'status', '--porcelain=v1', '--untracked-files=all', '-z'])
+    .catch(() => null);
+  if (!result) return [];
+  const tokens = result.stdout.split('\0');
+  const changes = [];
+  for (let index = 0; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (!token) continue;
+    const status = token.slice(0, 2);
+    let relativePath = token.slice(3);
+    if (status.includes('R') || status.includes('C')) {
+      relativePath = tokens[++index] || relativePath;
+    }
+    changes.push({ status, path: normalizeGitPath(relativePath) });
+  }
+  return changes;
+}
+
+function normalizeGitPath(value) {
+  const trimmed = String(value || '').trim().replace(/^"|"$/g, '');
+  return trimmed.split(path.sep).join('/');
+}
+
+function sourcePathForGitChange(relativePath) {
+  if (!relativePath || relativePath === '.bigbrain-state' || relativePath.startsWith('.bigbrain-state/')) return null;
+  if (relativePath.endsWith('.md')) {
+    if (path.posix.basename(relativePath).toLowerCase() === 'readme' || path.posix.basename(relativePath).toLowerCase() === 'filing') return null;
+    return relativePath;
+  }
+  if (relativePath.split('/').includes('.raw')) return sidecarPathForRawFile(relativePath);
+  return null;
+}
+
+function sidecarPathForRawFile(relativePath) {
+  const extension = path.posix.extname(relativePath);
+  return `${relativePath.slice(0, -extension.length)}.md`;
+}
+
+async function attributionForGitPath(brainDir, sourcePath, pageAttributions) {
+  if (sourcePath.endsWith('.md')) {
+    const slug = sourcePath.replace(/\.md$/i, '');
+    const known = pageAttributions.get(slug);
+    if (known) return sourceAttributionForPage(known.parsed, known.provenance);
+  }
+  const raw = await fs.readFile(path.join(brainDir, sourcePath), 'utf8').catch(() => null);
+  if (!raw) {
+    return {
+      ok: false,
+      reason: 'missing',
+      expected_fields: ['event_id', 'source_type', 'source_label', 'commit_message'],
+      details: { source_type: null, normalized_source_type: 'unknown' },
+    };
+  }
+  return sourceAttributionForPage(parseMarkdownPage(raw, sourcePath.replace(/\.md$/i, '')));
 }
 
 async function validateAttachmentSidecarBinding(config, parsed) {
