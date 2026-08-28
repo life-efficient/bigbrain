@@ -1,5 +1,7 @@
 import {
   DEFAULT_RSS_INITIAL_CURSOR_DAYS,
+  DEFAULT_RSS_SOURCE_MAX_BYTES,
+  DEFAULT_RSS_SOURCE_TIMEOUT_MS,
   createRssEventEnvelope,
   hmacSignature,
   isAfterRssCursor,
@@ -115,7 +117,8 @@ export class RssCollector {
         seen[key] ||= previous.legacy_seen?.[legacyKey] || polledAt;
         continue;
       }
-      const event = createRssEventEnvelope({ listener, item, feedXml: item.raw || xml, now: this.now(), registry });
+      const sourceDocument = await this.fetchSourceDocument(listener, item);
+      const event = createRssEventEnvelope({ listener, item, feedXml: item.raw || xml, sourceDocument, now: this.now(), registry });
       const subscriptions = registry.subscriptions.filter((subscription) => subscription.listener_id === listener.id && subscription.enabled);
       const deliveries = subscriptions.length
         ? subscriptions
@@ -343,8 +346,9 @@ export class RssCollector {
     };
   }
 
-  async enqueueRssItem({ listener, item, feedXml, registry }) {
-    const event = createRssEventEnvelope({ listener, item, feedXml: item.raw || feedXml, now: this.now(), registry });
+  async enqueueRssItem({ listener, item, feedXml, registry, sourceDocument = null }) {
+    const fetchedSource = sourceDocument || await this.fetchSourceDocument(listener, item);
+    const event = createRssEventEnvelope({ listener, item, feedXml: item.raw || feedXml, sourceDocument: fetchedSource, now: this.now(), registry });
     const subscriptions = registry.subscriptions.filter((subscription) => subscription.listener_id === listener.id && subscription.enabled);
     const deliveries = subscriptions.length
       ? subscriptions
@@ -377,6 +381,50 @@ export class RssCollector {
       if (result.duplicate) duplicates += 1; else ingested += 1;
     }
     return { accepted: true, ingested, duplicates };
+  }
+
+  async fetchSourceDocument(listener, item) {
+    const policy = listener.article_policy || {};
+    const url = item.link || item.guid || null;
+    const base = {
+      status: policy.fetch_source === false ? 'not_requested' : 'unavailable',
+      url,
+      fetched_at: null,
+      content_type: null,
+      byte_length: 0,
+      truncated: false,
+      text: '',
+      raw_body: '',
+    };
+    if (policy.fetch_source === false || !url) return { ...base, error: policy.fetch_source === false ? null : 'RSS item has no canonical source URL.' };
+    const maxBytes = Number.isInteger(policy.max_bytes) && policy.max_bytes > 0 ? policy.max_bytes : DEFAULT_RSS_SOURCE_MAX_BYTES;
+    const timeoutMs = Number.isInteger(policy.timeout_ms) && policy.timeout_ms > 0 ? policy.timeout_ms : DEFAULT_RSS_SOURCE_TIMEOUT_MS;
+    const controller = typeof AbortController === 'function' ? new AbortController() : null;
+    const timeout = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    try {
+      const response = await this.fetchImpl(url, {
+        headers: { 'user-agent': 'BigBrain source article ingest/1.0' },
+        ...(controller ? { signal: controller.signal } : {}),
+      });
+      if (!response.ok) return { ...base, error: `Source returned HTTP ${response.status}.` };
+      const fullBody = await response.text();
+      const rawBody = truncateUtf8(fullBody, maxBytes);
+      const text = htmlToText(rawBody);
+      return {
+        status: text ? 'fetched' : 'empty',
+        url,
+        fetched_at: this.now().toISOString(),
+        content_type: response.headers?.get?.('content-type') || null,
+        byte_length: Buffer.byteLength(fullBody, 'utf8'),
+        truncated: rawBody.length < fullBody.length,
+        text,
+        raw_body: rawBody,
+      };
+    } catch (error) {
+      return { ...base, error: error instanceof Error ? error.message : String(error) };
+    } finally {
+      if (timeout) clearTimeout(timeout);
+    }
   }
 
   async forwardSubscription(event, subscription) {
@@ -419,4 +467,40 @@ function normalizeLimit(value, fallback) {
 
 function compareRssCursors(left, right) {
   return Date.parse(left.cursor_at) - Date.parse(right.cursor_at) || String(left.cursor_id || '').localeCompare(String(right.cursor_id || ''));
+}
+
+function truncateUtf8(value, maxBytes) {
+  const text = String(value || '');
+  if (Buffer.byteLength(text, 'utf8') <= maxBytes) return text;
+  let end = Math.max(0, Math.floor(maxBytes * 0.95));
+  while (end > 0 && Buffer.byteLength(text.slice(0, end), 'utf8') > maxBytes) end -= 1;
+  return text.slice(0, end);
+}
+
+function htmlToText(value) {
+  return decodeHtmlEntities(String(value || '')
+    .replace(/<script\b[\s\S]*?<\/script>/gi, '')
+    .replace(/<style\b[\s\S]*?<\/style>/gi, '')
+    .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(?:p|div|section|article|h[1-6]|li|blockquote|pre|tr)>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\r/g, ''))
+    .split('\n')
+    .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+    .filter(Boolean)
+    .join('\n\n')
+    .trim();
+}
+
+function decodeHtmlEntities(value) {
+  return String(value || '')
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([\da-f]+);/gi, (_, code) => String.fromCodePoint(parseInt(code, 16)))
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'");
 }

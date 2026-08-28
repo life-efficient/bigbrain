@@ -2246,6 +2246,7 @@ function listenerWriteSchema() {
       icon: { type: 'string' },
       filter: { type: 'object' },
       capture_policy: { type: 'object' },
+      article_policy: { type: 'object', description: 'RSS-only canonical source retrieval and preservation policy.' },
       listener_location: { type: 'string', enum: ['client', 'host'] },
       codex_execution_location: { type: 'string', enum: ['client', 'host'] },
       codex_execution_mode: { type: 'string', enum: ['app_thread', 'cli'] },

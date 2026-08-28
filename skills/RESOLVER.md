@@ -9,6 +9,7 @@
 | Make a BigBrain page public, unpublish it, check whether it is public, or get its public URL | `skills/bigbrain-page-visibility/SKILL.md` |
 | Interview a user and create starter pages that initially populate a new or sparse brain | `skills/bigbrain-onboarding/SKILL.md` |
 | Route new material into the right BigBrain ingest path | `skills/bigbrain-ingest/SKILL.md` |
+| Ingest a relevant web article or RSS item while preserving the source and linking affected Brain pages | `skills/bigbrain-source-article-ingest/SKILL.md` |
 | Ingest a meeting or call into the canonical meeting page shape | `skills/bigbrain-meeting-ingest/SKILL.md` |
 | Ingest recent Granola meetings into the selected BigBrain brain | `skills/bigbrain-granola-ingest/SKILL.md` |
 | Ingest document-like material such as PDFs, decks, screenshots, or memos | `skills/bigbrain-document-ingest/SKILL.md` |

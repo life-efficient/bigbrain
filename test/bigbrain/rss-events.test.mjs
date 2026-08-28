@@ -23,6 +23,7 @@ function listener(extra = {}) {
     type: 'rss',
     url: 'https://example.test/feed.xml',
     brain_ids: ['brain_personal'],
+    article_policy: { fetch_source: false },
     ...extra,
   });
 }
@@ -65,6 +66,62 @@ test('RSS status categorizes incremental and manual candidates without writing s
     assert.deepEqual(status.outstanding.manual_backfill.map((item) => item.guid), ['old', 'undated']);
     assert.deepEqual(await fs.readFile(paths.inboxPath, 'utf8'), before);
     assert.equal((await inbox.list()).length, 0);
+  } finally {
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('RSS polling fetches the canonical article and attaches source material for the Codex route', async () => {
+  const paths = await fixture();
+  try {
+    const now = () => new Date('2026-08-28T13:00:00.000Z');
+    const feedListener = listener({ article_policy: { fetch_source: true, max_bytes: 50_000 } });
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1', now });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [feedListener] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath, now });
+    const feed = '<rss><channel><title>Example</title><item><guid>article-1</guid><title>Useful article</title><link>https://example.test/article-1</link><pubDate>Fri, 28 Aug 2026 12:00:00 GMT</pubDate></item></channel></rss>';
+    const source = '<html><head><title>Useful article</title></head><body><article><h1>Useful article</h1><p>Original source paragraph.</p><p>Second paragraph.</p></article></body></html>';
+    const calls = [];
+    const collector = new RssCollector({
+      registryStore: registry,
+      inboxStore: inbox,
+      now,
+      fetchImpl: async (url) => {
+        calls.push(url);
+        return response(url.endsWith('feed.xml') ? feed : source);
+      },
+    });
+    const report = await collector.pollAll();
+    assert.equal(report.ingested, 1);
+    assert.deepEqual(calls, ['https://example.test/feed.xml', 'https://example.test/article-1']);
+    const event = (await inbox.list())[0];
+    assert.equal(event.metadata.source_document.status, 'fetched');
+    assert.match(event.metadata.source_document.text, /Original source paragraph/);
+    assert.match(event.metadata.source_document.raw_body, /<article>/);
+  } finally {
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('RSS source fetch failures remain explicit instead of becoming complete source captures', async () => {
+  const paths = await fixture();
+  try {
+    const now = () => new Date('2026-08-28T13:00:00.000Z');
+    const feedListener = listener({ article_policy: { fetch_source: true } });
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1', now });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [feedListener] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath, now });
+    const feed = '<rss><channel><title>Example</title><item><guid>article-2</guid><title>Unavailable article</title><link>https://example.test/article-2</link><pubDate>Fri, 28 Aug 2026 12:00:00 GMT</pubDate></item></channel></rss>';
+    const collector = new RssCollector({
+      registryStore: registry,
+      inboxStore: inbox,
+      now,
+      fetchImpl: async (url) => url.endsWith('feed.xml') ? response(feed) : { status: 503, ok: false, headers: { get: () => null }, text: async () => '' },
+    });
+    await collector.pollAll();
+    const event = (await inbox.list())[0];
+    assert.equal(event.metadata.source_document.status, 'unavailable');
+    assert.match(event.metadata.source_document.error, /HTTP 503/);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }

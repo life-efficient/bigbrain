@@ -8,8 +8,10 @@ export const DEFAULT_CODEX_EVENT_CWD = process.env.BIGBRAIN_CODEX_EVENT_CWD || p
 
 export function buildEventPrompt(event, listener, { allowedDestinations = [] } = {}) {
   const sourceDescription = listener?.description || event?.source?.description || 'No source-specific guidance was provided.';
+  const isRssArticle = listener?.type === 'rss' || event?.type === 'rss.item';
   const skill = listener?.skill || defaultSkillForEvent(event, listener);
   const payload = selectPromptPayload(event?.payload, listener, event);
+  const sourceDocument = promptSourceDocument(event?.metadata?.source_document);
   const destinations = allowedDestinations.length
     ? allowedDestinations.map((brain) => `${brain.id || brain.brain_id}: ${brain.name || brain.brain_name || 'unnamed brain'}`).join('\n')
     : (event?.allowed_brain_ids || []).join(', ');
@@ -19,8 +21,12 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
     skill ? `Use the $${skill.replace(/^\$/, '')} skill as the primary workflow.` : 'Use the narrowest matching BigBrain ingest skill as the primary workflow.',
     'Use the associated BigBrain MCP for filing rules, search, read, write, task, and read-back operations.',
     'Query an available source MCP when additional source context is needed.',
-    'This is a normal event-triggered task. Do not return a machine-readable schema or JSON unless the selected skill specifically requires it.',
-    'Complete the ingestion directly, then give a concise normal-language summary of what you did.',
+    isRssArticle
+      ? 'This RSS article route requires one final JSON filing outcome for the runtime broker. Use the source article ingest skill instructions below.'
+      : 'This is a normal event-triggered task. Do not return a machine-readable schema or JSON unless the selected skill specifically requires it.',
+    isRssArticle
+      ? 'Do not write directly to Brain from this task. Search and read as needed, then return the proposed writes for the runtime filing broker.'
+      : 'Complete the ingestion directly, then give a concise normal-language summary of what you did.',
     '',
     'Source guidance:',
     sourceDescription,
@@ -40,7 +46,26 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
     '',
     'Payload:',
     JSON.stringify(payload, null, 2),
+    sourceDocument ? ['', 'Fetched source document:', JSON.stringify(sourceDocument, null, 2)] : null,
+    isRssArticle ? ['', 'RSS article outcome requirements:', rssArticleOutcomeInstructions()].join('\n') : null,
   ].filter((line) => line !== null).join('\n');
+}
+
+function promptSourceDocument(value) {
+  if (!value || typeof value !== 'object') return null;
+  const { raw_body: _rawBody, ...prompt } = value;
+  if (typeof prompt.text === 'string') prompt.text = prompt.text.slice(0, 120_000);
+  return prompt;
+}
+
+function rssArticleOutcomeInstructions() {
+  return [
+    'Return JSON only with: status (filed, ignored, or needs_review), capture_mode (none, summary, or full), reason, and destinations.',
+    'Use ignored for routine or irrelevant updates. Do not create a raw artifact for an ignored item.',
+    'For a relevant fetched article, include one create_raw_file_with_page write with raw_content_source set to event.source_document.raw_body. Its sidecar body must contain Summary, Compiled Truth or Current Relevance, Related Pages, Source, and a separator before Timeline.',
+    'Use update_page writes only for existing canonical entities whose durable understanding materially changes. Link the source sidecar to the author, publisher, primary subject, and materially mentioned entities.',
+    'If source_document.status is unavailable, empty, or not_requested and the item would otherwise be relevant, return needs_review rather than filed.',
+  ].join('\n');
 }
 
 export function selectPromptPayload(payload, listener = {}, event = {}) {
@@ -94,6 +119,7 @@ function clonePromptValue(value) {
 function defaultSkillForEvent(event, listener) {
   if (listener?.provider === 'granola' || event?.type === 'granola.meeting.completed') return 'bigbrain-granola-ingest';
   if (listener?.provider === 'email' || event?.type?.startsWith('email.')) return 'bigbrain-email-ingest';
+  if (listener?.type === 'rss' || event?.type === 'rss.item') return 'bigbrain-source-article-ingest';
   return 'bigbrain-ingest';
 }
 

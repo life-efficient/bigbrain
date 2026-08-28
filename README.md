@@ -431,6 +431,33 @@ authorized, and read-back verification. The inbox remains the durable audit
 and retry ledger; it is not a second filing path. Ignored events retain bounded
 metadata only, and failed useful events remain retryable.
 
+RSS items use the source-article ingest route. The route first applies a digest
+value test: keep an item only when it is useful for mastery, sector awareness,
+conversation, or personal enrichment. Routine collaboration announcements,
+privacy-policy changes, hiring or promotional updates are normally ignored
+unless they carry a durable implication. A kept item preserves the fetched
+article as a raw source artifact and creates a standard Brain sidecar with a
+summary, compiled truth or current relevance, related-page links, source
+provenance, and a timeline. It may also update existing canonical pages when
+the article materially changes their durable understanding.
+
+RSS listeners can control source retrieval with `article_policy`. For example:
+
+```json
+{
+  "article_policy": {
+    "fetch_source": true,
+    "preserve_source": true,
+    "require_source": true,
+    "max_bytes": 2000000,
+    "timeout_ms": 30000
+  }
+}
+```
+
+If a relevant article cannot be fetched completely, the event remains explicit
+for review instead of being filed as a synthetic summary.
+
 The first clean client setup adds OpenAI News with no historical backfill. For
 organization-owned feeds, run the same runtime on the organization host and
 deliver subscribed events through the self-hostable relay in
