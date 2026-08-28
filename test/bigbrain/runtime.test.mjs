@@ -1786,7 +1786,7 @@ test('schema and filing guidance stay inspectable', async () => {
   }
 });
 
-test('check-update skill applies filing-rule updates without clobbering user customizations', async () => {
+test('check-update source fallback preserves filing rules and routes packaged installs to the client', async () => {
   const repoRoot = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', '..');
   const [skill, automation] = await Promise.all([
     fs.readFile(path.join(repoRoot, 'skills/bigbrain-check-update/SKILL.md'), 'utf8'),
@@ -1794,11 +1794,12 @@ test('check-update skill applies filing-rule updates without clobbering user cus
   ]);
 
   assert.match(skill, /## Filing-Rule Update Policy/);
-  assert.match(skill, /matches the default wording from the previous/);
-  assert.match(skill, /merge the new release's filing-rule changes/);
-  assert.match(skill, /keep the user's\s+rule/);
-  assert.match(automation, /apply release filing-rule changes/);
-  assert.match(automation, /preserving the user's rules/);
+  assert.match(skill, /Replace old default wording only when the file still matches that default/);
+  assert.match(skill, /Merge new bullets, sections, values, examples, or timeline rules/);
+  assert.match(skill, /Keep the user's rule when a new default conflicts/);
+  assert.match(skill, /packaged desktop installations to the in-app updater/i);
+  assert.match(automation, /^status = "PAUSED"$/m);
+  assert.match(automation, /source-managed BigBrain checkout/);
 });
 
 async function createFixture(prefix) {

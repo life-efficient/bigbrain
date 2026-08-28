@@ -28,6 +28,9 @@ debug surfaces.
 
 - Show the installed BigBrain version and a manual **Check for Updates** action
   in the desktop app even when background checks are enabled.
+- Keep the current app version visible in the dashboard header. When an update
+  is available, turn that compact header item into the blue download, progress,
+  or restart control without adding another toolbar.
 - A desktop-managed local MCP updates with the desktop. Explain that shared
   scope before asking the user to restart.
 - A desktop connected to a remote BigBrain may report the remote version and

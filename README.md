@@ -355,6 +355,7 @@ bigbrain recent --since 24h
 bigbrain tasks --assignee people/alice
 bigbrain health --json
 bigbrain schema
+bigbrain --version
 bigbrain dashboard
 bigbrain eval retrieval
 bigbrain update --check
@@ -362,6 +363,11 @@ bigbrain events status
 bigbrain events listeners
 bigbrain events inbox --state failed
 ```
+
+Packaged desktop installations update through the version control in the app
+header or the **Check for Updates** menu action. The `bigbrain update` command
+and the `bigbrain-check-update` compatibility skill are for source-managed
+installations. Neither path changes remote or server-managed services.
 
 Target a non-default brain with `--brain-home /path/to/brain-home`.
 

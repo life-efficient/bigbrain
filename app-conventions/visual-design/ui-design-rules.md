@@ -45,3 +45,6 @@ states.
 - Use a thin dedicated drag strip above the macOS dashboard header. The visible topline and every header control must remain outside draggable regions.
 - In composited desktop windows, only the currently visible surface may contribute a draggable region. Disable shell drag regions while an overlaid dashboard view is active.
 - Put transient update details and recovery actions in anchored popovers. Controls, menus, and popovers must live in the same composited view so a child content layer cannot cover or intercept them.
+- Render the installed version as quiet persistent header text. Use the product
+  blue only when the same compact control represents an available download,
+  active progress, or restart-ready update.

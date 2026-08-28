@@ -44,3 +44,10 @@ configuration, and app data assumptions.
   database is newer than the running binary supports.
 - Stage updates before activation and retain the previous working runtime until
   the new runtime passes readiness and MCP handshake checks.
+- Persist an expected desktop target release before restart and clear it only
+  after the relaunched app and every desktop-owned local service are verified.
+- Store explicit service ownership in the desktop registry and service runtime
+  metadata. Labels, ports, and loopback addresses do not establish ownership.
+- Never replace a newer local service with an older app bundle. Source-managed,
+  remote, server-managed, and unknown-owner services are read-only to the
+  desktop updater.

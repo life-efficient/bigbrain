@@ -11,6 +11,9 @@ mechanisms for desktop, device-managed MCP, and server-managed MCP.
   never by overwriting the running process in place.
 - Server-managed MCP deployments are promoted by the operator or deployment
   platform using immutable container digests. Containers do not self-update.
+- A service is desktop-owned only when registry state and installed runtime
+  provenance identify the app bundle. Ambiguous legacy services remain
+  unowned until safely classified or explicitly adopted.
 
 ## Channels And Approval
 
@@ -31,3 +34,6 @@ mechanisms for desktop, device-managed MCP, and server-managed MCP.
 - Roll code back automatically when post-update verification fails. Database
   rollback requires a verified snapshot when a migration is not backward
   compatible.
+- Never use rollback to replace a newer independently managed service with an
+  older desktop bundle. Update the desktop or return lifecycle control to the
+  service owner instead.

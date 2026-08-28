@@ -3,6 +3,65 @@
 BigBrain uses semantic versioning. Each release includes an `Agent update
 actions` section for agents maintaining device and server installations.
 
+## [Unreleased]
+
+### Added
+
+- Added one package-derived release manifest shared by the CLI, dashboard,
+  local MCP runtime, desktop package, skills, and automations.
+- Added persisted desktop update receipts so a relaunched app verifies the
+  downloaded target release and its desktop-owned local MCP services before
+  reporting completion.
+- Added explicit local-service ownership and install provenance in the desktop
+  registry, LaunchAgent, and runtime metadata.
+
+### Changed
+
+- Changed desktop update checks to run shortly after launch and about once per
+  day, with a persistent header version and a compact blue update control.
+- Made local-service reconciliation compare semantic versions and canonical
+  brain identity. Older or unavailable desktop-owned services are repaired from
+  the installed app bundle; newer, source-managed, remote, and unknown-owner
+  services are left untouched with specific guidance.
+- Included skill and automation templates in desktop and server release
+  artifacts, and blocked manually dispatched workflows from publishing mutable
+  server release tags without a validated release tag.
+
+### Deprecated
+
+- Paused the daily `bigbrain-check-update` automation. Packaged desktop users
+  now use the client updater; the skill remains temporarily as a source-install
+  compatibility fallback.
+
+### Agent update actions
+
+- Packaged desktop installs: install and restart the new BigBrain release. Use
+  the header update control, then confirm the app and each desktop-owned local
+  MCP report the same release. Do not take ownership of source-managed or
+  remote services.
+- Source installs: update to the release tag, run `npm install` and `npm link`,
+  then run `bigbrain --version`, `bigbrain health --json`, and `npm test`.
+  Reinstall the headless source updater if configured and verify each service
+  reports the exact new release after restart.
+- Pause any active copied `bigbrain-check-update` automation unless the user has
+  deliberately retained the source-install agent fallback. Preserve customized
+  skill and automation copies.
+- Server deployments: publish only from the matching release tag, deploy the
+  immutable image digest, preserve database and Brain volumes, then verify
+  `/live`, `/ready`, and authenticated MCP tool listing. Running containers do
+  not self-update.
+- No Brain Markdown, filing-rule, member, task, registry identity, or database
+  migration is required for this update.
+
+### Verification
+
+- Shared release identity, package inventory, CLI, dashboard, and runtime tests
+- Desktop updater schedule, update UI, restart receipt, and coordinated service
+  verification tests
+- Desktop, source, unknown, newer-service, remote, identity-mismatch, and
+  installer ownership regressions
+- Full test suite, dashboard production build, and package dry run
+
 ## [0.21.0] - 2026-08-26
 
 ### Added

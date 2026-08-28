@@ -24,6 +24,10 @@ BigBrain and brain repositories.
 
 ## Install
 
+Packaged desktop installations use the client updater and should not install the
+daily `bigbrain-check-update` automation. That template is paused and retained
+temporarily for source-install migration only.
+
 From the BigBrain repo, copy each automation directory into the active Codex
 automation directory and replace only the placeholder cwd:
 
@@ -34,13 +38,18 @@ brain_home="/path/to/brain-home"
 bigbrain_repo="$repo_root"
 
 mkdir -p "$automation_root"
-for id in bigbrain-check-update bigbrain-route-granola bigbrain-nightly-maintenance; do
+for id in bigbrain-route-granola bigbrain-nightly-maintenance; do
   rm -rf "$automation_root/$id"
   cp -R "$repo_root/automations/$id" "$automation_root/$id"
   perl -0pi -e "s#<brain-home>#$brain_home#g" "$automation_root/$id/automation.toml"
   perl -0pi -e "s#<bigbrain-repo>#$bigbrain_repo#g" "$automation_root/$id/automation.toml"
 done
 ```
+
+An explicitly source-managed installation may copy
+`automations/bigbrain-check-update` separately, but it must remain paused unless
+the user deliberately chooses the agent-driven fallback instead of the headless
+source updater.
 
 `bigbrain-route-granola` is the only supported machine-wide Granola writer.
 Before leaving it active, register and verify every destination, set each

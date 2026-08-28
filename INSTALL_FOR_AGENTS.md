@@ -292,10 +292,11 @@ Sync writes to the runtime state directory:
 ## Install automations
 
 BigBrain automation templates are provided from this repo under `automations/`.
-Install every direct child directory that contains an `automation.toml` file into
-the active Codex automation directory. Prefer copying automation templates rather
-than symlinking them, because installed automations usually need local `cwds`
-values:
+Install the supported active templates into the active Codex automation
+directory. Prefer copying automation templates rather than symlinking them,
+because installed automations usually need local `cwds` values. The paused
+`bigbrain-check-update` template is a source-install compatibility fallback and
+is not part of the default install:
 
 ```bash
 repo_root="$(pwd)"
@@ -304,10 +305,8 @@ brain_home="/path/to/brain-home"
 bigbrain_repo="$repo_root"
 
 mkdir -p "$automation_root"
-find "$repo_root/automations" -mindepth 2 -maxdepth 2 -name automation.toml -print \
-  | while IFS= read -r automation_file; do
-  automation_dir="$(dirname "$automation_file")"
-  automation_id="$(basename "$automation_dir")"
+for automation_id in bigbrain-route-granola bigbrain-nightly-maintenance; do
+  automation_dir="$repo_root/automations/$automation_id"
   rm -rf "$automation_root/$automation_id"
   cp -R "$automation_dir" "$automation_root/$automation_id"
   perl -0pi -e "s#<brain-home>#$brain_home#g" "$automation_root/$automation_id/automation.toml"
@@ -315,11 +314,13 @@ find "$repo_root/automations" -mindepth 2 -maxdepth 2 -name automation.toml -pri
 done
 ```
 
-The bundled automations currently include:
+The default bundled automations currently include:
 
-- `bigbrain-check-update`
 - `bigbrain-route-granola` (installed paused until routing cutover)
 - `bigbrain-nightly-maintenance`
+
+The repo also retains a paused `bigbrain-check-update` template for deliberately
+source-managed installations. Packaged desktop installs use the in-app updater.
 
 The router is the sole supported machine-wide Granola writer. Before activating
 it, register and verify every destination brain, approve each brain's
@@ -491,7 +492,7 @@ cwds = ["<brain-home>"]
 cwds = ["<bigbrain-repo>"]
 ```
 
-When installing them into the agent runtime, copy the automation directories to
+When installing them into the agent runtime, copy the active automation directories to
 `${CODEX_HOME:-$HOME/.codex}/automations`, replace `<brain-home>` with the
 real on-device brain path, and replace `<bigbrain-repo>` with the local BigBrain
 source repo path in the installed copy only:
@@ -503,13 +504,18 @@ brain_home="/path/to/brain-home"
 bigbrain_repo="$repo_root"
 
 mkdir -p "$automation_root"
-for id in bigbrain-check-update bigbrain-route-granola bigbrain-nightly-maintenance; do
+for id in bigbrain-route-granola bigbrain-nightly-maintenance; do
   rm -rf "$automation_root/$id"
   cp -R "$repo_root/automations/$id" "$automation_root/$id"
   perl -0pi -e "s#<brain-home>#$brain_home#g" "$automation_root/$id/automation.toml"
   perl -0pi -e "s#<bigbrain-repo>#$bigbrain_repo#g" "$automation_root/$id/automation.toml"
 done
 ```
+
+Do not install or activate `bigbrain-check-update` for a packaged desktop
+installation. An explicitly source-managed installation may keep the paused
+template as a compatibility fallback until release actions and template
+migrations are fully handled by deterministic CLI code.
 
 The active install may contain machine-local paths because the runtime needs a
 real cwd. Do not commit those installed files back to the BigBrain repo.

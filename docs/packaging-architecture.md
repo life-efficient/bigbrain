@@ -77,6 +77,36 @@ The desktop app should become a controller for the device-managed service:
 - show the MCP URL for agent setup
 - configure the owner identity used for `assignee=me`
 
+### Service Ownership And Updates
+
+Every local service has an explicit lifecycle owner. The supported ownership
+states are `desktop-bundle`, `source-checkout`, `server-managed`, and `unknown`.
+Loopback addresses, ports, and LaunchAgent labels are discovery hints, not proof
+of ownership.
+
+- A `desktop-bundle` service runs the CLI and runtime inside the installed app
+  bundle. The desktop may reinstall, restart, and verify it when the service is
+  older or unavailable.
+- A `source-checkout` service runs from a Git checkout. Only the source updater
+  or its operator may change it.
+- A `server-managed` service is controlled by its deployment operator even when
+  it runs on the same physical machine as the desktop client.
+- An `unknown` service is advisory-only until ownership can be proven or the
+  user explicitly transfers it.
+
+The registry, LaunchAgent, and runtime metadata must agree before the desktop
+claims a service. A newer service is never replaced by an older desktop bundle.
+The desktop reports the mismatch and asks the user to update the app. Remote,
+source-managed, server-managed, and unknown services are never restarted by the
+desktop updater.
+
+After a signed desktop update downloads, the app records the expected release,
+restarts through the platform installer, and verifies on launch that the app
+reached that release. It then reconciles only `desktop-bundle` services from the
+new app bundle and requires readiness, canonical brain identity, exact runtime
+release, MCP initialization, and tool listing before clearing the pending
+update.
+
 ## Connect To An Existing BigBrain
 
 An existing BigBrain uses the same secured server contract whether it is
@@ -104,6 +134,10 @@ Setting `BIGBRAIN_DASHBOARD_URL` or passing `--dashboard-url` is an explicit
 fixed-dashboard mode for kiosk or thin-client deployments. It intentionally
 bypasses the multi-brain desktop shell; service lifecycle remains managed by
 the host.
+
+The desktop may show a connected service's runtime release for diagnosis, but
+the client update control always updates only the desktop application. It never
+downloads, installs, or restarts code on the connected service.
 
 ## Deployment, Storage, And Access Variants
 

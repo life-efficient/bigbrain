@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Check Update"
-  short_description: "Check for BigBrain updates, pull them, and verify the install"
-  default_prompt: "Use $bigbrain-check-update to check whether BigBrain has an update, pull it if available, and verify it still works."
+  short_description: "Safely update and verify a source-managed BigBrain install"
+  default_prompt: "Use $bigbrain-check-update as the source-install fallback, or route a packaged desktop install to its in-app updater."
