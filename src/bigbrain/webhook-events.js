@@ -98,8 +98,16 @@ export class InboundWebhookServer {
 }
 
 export function configuredWebhookEventType(payload, headers = {}, listener = {}) {
-  const configured = readPath(payload, listener.event_type_path || 'type');
+  const configuredPath = listener.event_type_path || 'type';
+  const configured = readPath(payload, configuredPath);
   if (configured !== undefined && configured !== null && String(configured).trim()) return String(configured).trim();
+  if (listener.provider === 'granola') {
+    for (const fallbackPath of ['event_type', 'type', 'event']) {
+      if (fallbackPath === configuredPath) continue;
+      const fallback = readPath(payload, fallbackPath);
+      if (fallback !== undefined && fallback !== null && String(fallback).trim()) return String(fallback).trim();
+    }
+  }
   const headerNames = listener.provider === 'granola'
     ? ['x-granola-event', 'x-event-type']
     : ['x-event-type', 'x-webhook-event'];

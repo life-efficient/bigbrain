@@ -66,6 +66,7 @@ test('listeners normalize upstream event filters and prompt field selection', ()
   assert.deepEqual(listener.prompt_payload_fields, ['event_type', 'data.title']);
   assert.deepEqual(listener.prompt_omit_fields, ['data.internal']);
   assert.equal(configuredWebhookEventType({ event: 'meeting.completed' }, {}, listener), 'meeting.completed');
+  assert.equal(configuredWebhookEventType({ type: 'meeting.completed' }, {}, listener), 'meeting.completed');
 });
 
 test('inbox is durable, idempotent, retryable, and purges payloads on ignored outcomes', async () => {
