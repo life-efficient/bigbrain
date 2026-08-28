@@ -173,13 +173,15 @@ test('RSS collector recognizes legacy v1 keys during service migration', async (
 test('RSS collector resets its polling guard after a registry failure', async () => {
   const paths = await fixture();
   try {
-    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+    const now = () => new Date('2026-08-28T00:00:00.000Z');
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1', now });
     await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [rssListener()] });
-    const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath, now });
     let reads = 0;
     const collector = new RssCollector({
       registryStore: { get: async () => { reads += 1; if (reads === 1) throw new Error('synthetic registry outage'); return registry.get(); } },
       inboxStore: inbox,
+      now,
       fetchImpl: async () => ({ status: 304, ok: false, headers: { get: () => null } }),
     });
     await assert.rejects(() => collector.pollAll(), /synthetic registry outage/);
@@ -187,6 +189,9 @@ test('RSS collector resets its polling guard after a registry failure', async ()
     const second = await collector.pollAll();
     assert.equal(second.listeners[0].status, 'not_modified');
     assert.equal(collector.polling, false);
+    const state = (await inbox.get()).collectors['openai-news'];
+    assert.equal(state.cursor_at, '2026-08-21T00:00:00.000Z');
+    assert.equal(state.cursor_id, null);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }

@@ -689,16 +689,23 @@ export class RssCollector {
       etag: response.headers?.get?.('etag') || previous.etag || null,
       last_modified: response.headers?.get?.('last-modified') || previous.last_modified || null,
     };
+    const firstPoll = !previous.initialized_at;
+    const cursorAt = previous.cursor_at || (firstPoll ? new Date(this.now().getTime() - DEFAULT_RSS_INITIAL_CURSOR_DAYS * 86_400_000).toISOString() : previous.last_poll_at || previous.initialized_at || this.now().toISOString());
     if (response.status === 304) {
-      await this.inboxStore.updateCollector(listener.id, { ...next, last_success_at: polledAt, last_error: null });
+      await this.inboxStore.updateCollector(listener.id, {
+        ...next,
+        initialized_at: previous.initialized_at || polledAt,
+        cursor_at: cursorAt,
+        cursor_id: previous.cursor_id || null,
+        last_success_at: polledAt,
+        last_error: null,
+      });
       return { listener_id: listener.id, status: 'not_modified', ingested: 0, duplicates: 0 };
     }
     if (!response.ok) throw new Error(`Feed returned HTTP ${response.status}.`);
     const xml = await response.text();
     const feed = parseRssDocument(xml);
     const items = feed.items.map(normalizeRssItemForEvent).sort((a, b) => Date.parse(b.published_at || '') - Date.parse(a.published_at || ''));
-    const firstPoll = !previous.initialized_at;
-    const cursorAt = previous.cursor_at || (firstPoll ? new Date(this.now().getTime() - DEFAULT_RSS_INITIAL_CURSOR_DAYS * 86_400_000).toISOString() : previous.last_poll_at || previous.initialized_at || this.now().toISOString());
     const eligible = items.filter((item) => isAfterRssCursor(listener.id, item, cursorAt, previous.cursor_id));
     const candidates = listener.bootstrap === 'all' ? eligible : listener.bootstrap === 'none' ? [] : eligible.slice(0, 1);
     const seen = { ...(previous.seen || {}) };
