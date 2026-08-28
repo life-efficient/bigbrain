@@ -21,7 +21,7 @@ export async function runHealthCheck(config, {
   env = process.env,
   cliCommand = 'bigbrain',
   cliCwd = os.tmpdir(),
-  repairUnknownSource = true,
+  repairUnknownSource = false,
   automationTemplateDir = AUTOMATION_TEMPLATE_DIR,
   automationActiveDir = defaultAutomationActiveDir(env),
   skillTemplateDir = SKILL_TEMPLATE_DIR,

@@ -422,7 +422,7 @@ async function handleBacklinks(args, global) {
 
 async function handleHealth(global) {
   const config = await loadRuntimeConfig(global);
-  const report = await runHealthCheck(config);
+  const report = await runHealthCheck(config, { repairUnknownSource: true });
   output(global, report, renderHealthText(report));
 }
 

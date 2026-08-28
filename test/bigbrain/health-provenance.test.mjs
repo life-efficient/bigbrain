@@ -108,7 +108,7 @@ test('health repairs missing page attribution with explicit unknown metadata', a
     await writeMarkdown(fixture.brainHome, 'projects/repairable.md', page('Repairable page'));
     const config = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({ config, apiKey: null });
-    const report = await runHealthCheck(config, { cliCommand: process.execPath });
+    const report = await runHealthCheck(config, { cliCommand: process.execPath, repairUnknownSource: true });
     const repaired = await fs.readFile(path.join(fixture.brainHome, 'projects/repairable.md'), 'utf8');
     assert.equal(report.provenance_status.repaired_unknown_count, 1);
     assert.match(repaired, /source_type: unknown/);
