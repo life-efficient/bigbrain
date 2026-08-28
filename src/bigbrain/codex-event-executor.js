@@ -20,7 +20,7 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
     'Use the associated BigBrain MCP for filing rules, search, read, write, task, and read-back operations.',
     'Query an available source MCP when additional source context is needed.',
     listener?.provider === 'granola'
-      ? 'Use the Granola MCP to retrieve the complete note before filing. Use payload.granola_id as the authoritative note ID; use the title only as a cross-check when it is present. If the ID is missing, do not guess or ingest a different note.'
+      ? 'Use the Granola MCP to retrieve the complete note before filing. Use payload.granola_id as the authoritative provider note ID; use the title only as a cross-check when it is present. Try the provider ID first. If the Granola MCP rejects the not_ ID because it requires a UUID, list meetings in a narrow time window around payload.occurred_at, select only one unambiguous match, and use that meeting UUID with the detail tool. If there is no match or more than one plausible match, stop and report the ambiguity rather than guessing.'
       : null,
     'This is a normal event-triggered task. Do not return a machine-readable schema or JSON unless the selected skill specifically requires it.',
     'Complete the ingestion directly, then give a concise normal-language summary of what you did.',

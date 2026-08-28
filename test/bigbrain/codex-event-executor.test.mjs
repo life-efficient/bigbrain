@@ -34,6 +34,8 @@ test('Granola event prompt retrieves the exact generated note through MCP', () =
   assert.match(prompt, /Retrieve the completed Granola note by ID through the Granola MCP/);
   assert.match(prompt, /payload\.granola_id/);
   assert.match(prompt, /Use the Granola MCP to retrieve the complete note/);
+  assert.match(prompt, /narrow time window around payload\.occurred_at/);
+  assert.match(prompt, /more than one plausible match/);
   assert.match(prompt, /"granola_id": "not_123"/);
   assert.doesNotMatch(prompt, /Return JSON only/);
 });
