@@ -1,7 +1,7 @@
 const { EventEmitter } = require('events');
 
 const DEFAULT_INITIAL_DELAY_MS = 30_000;
-const DEFAULT_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1_000;
+const DEFAULT_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1_000;
 
 class DesktopUpdater extends EventEmitter {
   constructor({
@@ -29,6 +29,7 @@ class DesktopUpdater extends EventEmitter {
         ? 'Updates are checked automatically.'
         : 'Update checks are available in an installed BigBrain app.',
       updateVersion: null,
+      downloadPercent: null,
       canCheck: Boolean(isPackaged),
       canRestart: false,
       lastCheckedAt: null,
@@ -36,35 +37,44 @@ class DesktopUpdater extends EventEmitter {
 
     if (!isPackaged) return;
     this.adapter.autoDownload = true;
-    this.adapter.autoInstallOnAppQuit = true;
+    this.adapter.autoInstallOnAppQuit = false;
     this.adapter.allowPrerelease = false;
     this.bindAdapterEvents(platform);
   }
 
   bindAdapterEvents(platform) {
     this.adapter.on('checking-for-update', () => this.transition({
-      phase: 'checking', message: 'Checking for updates…', canRestart: false,
+      phase: 'checking', message: 'Checking for updates…', downloadPercent: null, canRestart: false,
     }));
     this.adapter.on('update-available', (info = {}) => this.transition({
       phase: 'available', updateVersion: info.version || null,
-      message: info.version ? `BigBrain ${info.version} is downloading…` : 'An update is downloading…',
-      canRestart: false,
+      message: info.version ? `BigBrain ${info.version} is available and downloading…` : 'An update is available and downloading…',
+      downloadPercent: 0, canRestart: false,
     }));
     this.adapter.on('download-progress', (progress = {}) => {
-      const percent = Number.isFinite(progress.percent) ? ` ${Math.round(progress.percent)}%` : '';
-      this.transition({ phase: 'downloading', message: `Downloading update…${percent}`, canRestart: false });
+      const downloadPercent = normalizeProgressPercent(progress.percent);
+      const detail = downloadPercent === null ? '' : ` ${downloadPercent}%`;
+      this.transition({
+        phase: 'downloading',
+        message: `Downloading update…${detail}`,
+        downloadPercent,
+        canRestart: false,
+      });
     });
     this.adapter.on('update-not-available', () => this.transition({
       phase: 'up-to-date', message: 'BigBrain is up to date.', updateVersion: null,
-      canRestart: false, lastCheckedAt: new Date().toISOString(),
+      downloadPercent: null, canRestart: false, lastCheckedAt: new Date().toISOString(),
     }));
     this.adapter.on('update-downloaded', (info = {}) => this.transition({
       phase: 'downloaded', updateVersion: info.version || this.state.updateVersion,
-      message: 'Update ready. Restart BigBrain to install it.', canRestart: true,
+      message: info.version
+        ? `BigBrain ${info.version} is ready. Restart to install it.`
+        : 'Update ready. Restart BigBrain to install it.',
+      downloadPercent: 100, canRestart: true,
       lastCheckedAt: new Date().toISOString(),
     }));
     this.adapter.on('error', (error) => this.transition({
-      phase: 'error', message: friendlyUpdateError(error, platform), canRestart: false,
+      phase: 'error', message: friendlyUpdateError(error, platform), downloadPercent: null, canRestart: false,
       lastCheckedAt: new Date().toISOString(),
     }));
   }
@@ -85,7 +95,7 @@ class DesktopUpdater extends EventEmitter {
   async check({ automatic = false } = {}) {
     if (!this.state.canCheck) return this.snapshot();
     if (this.checkPromise) return this.checkPromise;
-    this.transition({ phase: 'checking', message: 'Checking for updates…', canRestart: false });
+    this.transition({ phase: 'checking', message: 'Checking for updates…', downloadPercent: null, canRestart: false });
     this.checkPromise = Promise.resolve()
       .then(() => this.adapter.checkForUpdates())
       .catch((error) => {
@@ -103,14 +113,38 @@ class DesktopUpdater extends EventEmitter {
 
   restartToInstall() {
     if (!this.state.canRestart) return false;
-    this.adapter.quitAndInstall(false, true);
-    return true;
+    const updateVersion = this.state.updateVersion;
+    this.transition({
+      phase: 'installing',
+      message: updateVersion
+        ? `Restarting BigBrain to install ${updateVersion}…`
+        : 'Restarting BigBrain to install the update…',
+      canRestart: false,
+    });
+    try {
+      this.adapter.quitAndInstall(false, true);
+      return true;
+    } catch (error) {
+      this.transition({
+        phase: 'error',
+        message: friendlyUpdateError(error),
+        downloadPercent: null,
+        canRestart: false,
+        lastCheckedAt: new Date().toISOString(),
+      });
+      return false;
+    }
   }
 
   transition(patch) {
     this.state = { ...this.state, ...patch };
     this.emit('state', this.snapshot());
   }
+}
+
+function normalizeProgressPercent(value) {
+  if (!Number.isFinite(value)) return null;
+  return Math.max(0, Math.min(100, Math.round(value)));
 }
 
 function friendlyUpdateError(error, platform = process.platform) {

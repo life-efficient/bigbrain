@@ -5,7 +5,11 @@ import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { DesktopUpdater, friendlyUpdateError } = require('../../electron/lib/desktop-updater.cjs');
+const {
+  DesktopUpdater,
+  friendlyUpdateError,
+  DEFAULT_CHECK_INTERVAL_MS,
+} = require('../../electron/lib/desktop-updater.cjs');
 
 class FakeUpdater extends EventEmitter {
   checks = 0;
@@ -27,7 +31,8 @@ test('development builds explain why updates are unavailable without touching an
   assert.deepEqual(updater.snapshot(), {
     version: '0.15.0', phase: 'unavailable',
     message: 'Update checks are available in an installed BigBrain app.',
-    updateVersion: null, canCheck: false, canRestart: false, lastCheckedAt: null,
+    updateVersion: null, downloadPercent: null,
+    canCheck: false, canRestart: false, lastCheckedAt: null,
   });
   assert.equal((await updater.check()).phase, 'unavailable');
   assert.equal(updater.restartToInstall(), false);
@@ -46,28 +51,56 @@ test('packaged builds check automatically and use the same engine for manual che
   updater.start();
   updater.start();
   assert.equal(initialCheck.delay, 30_000);
-  assert.equal(recurringCheck.delay, 6 * 60 * 60 * 1_000);
+  assert.equal(recurringCheck.delay, 24 * 60 * 60 * 1_000);
+  assert.equal(DEFAULT_CHECK_INTERVAL_MS, 24 * 60 * 60 * 1_000);
   await initialCheck.callback();
   await updater.check();
   await recurringCheck.callback();
   assert.equal(adapter.checks, 3);
   assert.equal(updater.snapshot().phase, 'up-to-date');
   assert.equal(adapter.autoDownload, true);
-  assert.equal(adapter.autoInstallOnAppQuit, true);
+  assert.equal(adapter.autoInstallOnAppQuit, false);
   assert.equal(adapter.allowPrerelease, false);
 });
 
-test('downloaded updates require an explicit restart and install only the desktop package', () => {
+test('download progress is normalized and downloaded updates require an explicit controlled restart', () => {
   const adapter = new FakeUpdater();
   const updater = new DesktopUpdater({ adapter, version: '0.15.0', isPackaged: true });
   adapter.emit('update-available', { version: '0.16.0' });
   adapter.emit('download-progress', { percent: 47.6 });
   assert.match(updater.snapshot().message, /48%/);
+  assert.equal(updater.snapshot().downloadPercent, 48);
   adapter.emit('update-downloaded', { version: '0.16.0' });
   assert.equal(updater.snapshot().canRestart, true);
+  assert.equal(updater.snapshot().downloadPercent, 100);
   assert.equal(updater.restartToInstall(), true);
   assert.deepEqual(adapter.installs, [[false, true]]);
+  assert.equal(updater.snapshot().phase, 'installing');
+  assert.equal(updater.snapshot().canRestart, false);
+  assert.equal(updater.restartToInstall(), false);
   assert.equal('desktopController' in updater, false);
+});
+
+test('download progress stays within the accessible percentage range', () => {
+  const adapter = new FakeUpdater();
+  const updater = new DesktopUpdater({ adapter, version: '0.15.0', isPackaged: true });
+  adapter.emit('download-progress', { percent: -12 });
+  assert.equal(updater.snapshot().downloadPercent, 0);
+  adapter.emit('download-progress', { percent: 140 });
+  assert.equal(updater.snapshot().downloadPercent, 100);
+  adapter.emit('download-progress', {});
+  assert.equal(updater.snapshot().downloadPercent, null);
+});
+
+test('a failed explicit restart remains actionable without installing on ordinary quit', () => {
+  const adapter = new FakeUpdater();
+  adapter.quitAndInstall = () => { throw new Error('restart rejected'); };
+  const updater = new DesktopUpdater({ adapter, version: '0.15.0', isPackaged: true });
+  adapter.emit('update-downloaded', { version: '0.16.0' });
+  assert.equal(updater.restartToInstall(), false);
+  assert.equal(updater.snapshot().phase, 'error');
+  assert.equal(updater.snapshot().canRestart, false);
+  assert.equal(adapter.autoInstallOnAppQuit, false);
 });
 
 test('unsigned and unpublished builds fail with useful, non-technical messages', () => {
