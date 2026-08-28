@@ -19,6 +19,9 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
     skill ? `Use the $${skill.replace(/^\$/, '')} skill as the primary workflow.` : 'Use the narrowest matching BigBrain ingest skill as the primary workflow.',
     'Use the associated BigBrain MCP for filing rules, search, read, write, task, and read-back operations.',
     'Query an available source MCP when additional source context is needed.',
+    listener?.provider === 'granola'
+      ? 'Use the Granola MCP to retrieve the complete note before filing. Use payload.granola_id as the authoritative note ID; use the title only as a cross-check when it is present. If the ID is missing, do not guess or ingest a different note.'
+      : null,
     'This is a normal event-triggered task. Do not return a machine-readable schema or JSON unless the selected skill specifically requires it.',
     'Complete the ingestion directly, then give a concise normal-language summary of what you did.',
     '',
@@ -100,7 +103,7 @@ function defaultSkillForEvent(event, listener) {
 }
 
 function eventInstruction(event, listener) {
-  if (listener?.provider === 'granola' || event?.type === 'granola.meeting.completed') return 'Ingest this completed Granola meeting into BigBrain';
+  if (listener?.provider === 'granola' || event?.type === 'granola.meeting.completed') return 'Retrieve the completed Granola note by ID through the Granola MCP, then ingest the generated note into BigBrain';
   if (listener?.provider === 'email' || event?.type?.startsWith('email.')) return 'Ingest this email update into BigBrain';
   if (listener?.provider === 'calendar' || event?.type?.startsWith('calendar.')) return 'Ingest this calendar update into BigBrain';
   if (listener?.type === 'rss' || event?.type === 'rss.item') return 'Ingest this RSS item into BigBrain if it contains durable value';

@@ -114,7 +114,7 @@ export function normalizeListener(value) {
     icon: optionalString(value.icon) || defaultSourceIcon(type),
     filter: normalizeFilter(value.filter || value.filters),
     capture_policy: normalizeCapturePolicy(value.capture_policy || value.capture),
-    event_type_path: normalizeFieldPath(value.event_type_path || value.event_type_field || (provider === 'granola' ? 'event' : 'type'), 'listener.event_type_path'),
+    event_type_path: normalizeFieldPath(value.event_type_path || value.event_type_field || (provider === 'granola' ? 'event_type' : 'type'), 'listener.event_type_path'),
     event_types: normalizeStringArray(value.event_types || value.allowed_event_types).map((item) => item.toLowerCase()),
     prompt_payload_fields: normalizeFieldPaths(value.prompt_payload_fields || value.prompt_fields, 'listener.prompt_payload_fields'),
     prompt_omit_fields: normalizeFieldPaths(value.prompt_omit_fields || value.prompt_exclude_fields, 'listener.prompt_omit_fields'),

@@ -408,13 +408,12 @@ For example:
 
 ```bash
 bigbrain events configure granola \
-  --event-type-path event \
-  --event-type meeting.completed \
+  --event-type-path event_type \
+  --event-type note.generated \
   --prompt-field event_type \
   --prompt-field granola_id \
   --prompt-field title \
   --prompt-field status \
-  --prompt-field completed \
   --prompt-field summary \
   --prompt-omit-field calendar_event
 ```
@@ -423,6 +422,12 @@ Event tasks receive the selected payload fields plus only minimal source
 context. The internal event envelope remains available to the inbox for
 deduplication, audit, retry, and provenance, but it is not pasted into every
 Codex task.
+
+Granola listeners should accept `note.generated`, which is emitted when a
+meeting note's initial AI summary is ready. The event payload identifies the
+note but does not contain the full meeting content, so the event task retrieves
+the note through the Granola MCP using `granola_id` before filing it. Granola
+webhook signatures use the provider's Standard Webhooks headers and secret.
 
 Every accepted event is normalized into the durable inbox. Useful events start
 a normal Codex ingestion task, which invokes the configured BigBrain skill and

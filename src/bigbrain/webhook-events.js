@@ -1,6 +1,6 @@
 import http from 'node:http';
 
-import { createGranolaWebhookEventEnvelope } from './granola-webhook.js';
+import { createGranolaWebhookEventEnvelope, verifyGranolaWebhookSignature } from './granola-webhook.js';
 import {
   DEFAULT_EVENT_MAX_BODY_BYTES,
   createWebhookEventEnvelope,
@@ -55,12 +55,17 @@ export class InboundWebhookServer {
     if (deliveryRoute && (!subscription || !subscription.enabled)) return this.send(response, 403, { ok: false, error: 'Inbound delivery subscription is not enabled.' });
     const secret = await this.secretResolver(subscription || resolvedListener);
     if (secret) {
-      const signatureHeader = resolvedListener.endpoint?.signature_header || 'x-bigbrain-signature';
-      const actual = request.headers[signatureHeader.toLowerCase()]
-        || request.headers['x-bigbrain-signature']
-        || request.headers['x-hub-signature-256']
-        || request.headers['x-signature'];
-      if (!timingSafeEqual(actual, hmacSignature(body, secret))) return this.send(response, 401, { ok: false, error: 'Invalid event signature.' });
+      const valid = resolvedListener.provider === 'granola'
+        ? verifyGranolaWebhookSignature(body, request.headers, secret, { now: this.now() })
+        : (() => {
+          const signatureHeader = resolvedListener.endpoint?.signature_header || 'x-bigbrain-signature';
+          const actual = request.headers[signatureHeader.toLowerCase()]
+            || request.headers['x-bigbrain-signature']
+            || request.headers['x-hub-signature-256']
+            || request.headers['x-signature'];
+          return timingSafeEqual(actual, hmacSignature(body, secret));
+        })();
+      if (!valid) return this.send(response, 401, { ok: false, error: 'Invalid event signature.' });
     } else if (!['127.0.0.1', '::1', 'localhost'].includes(this.host)) {
       return this.send(response, 503, { ok: false, error: 'Webhook listener has no resolvable signing credential.' });
     }

@@ -1,14 +1,8 @@
-const COMPLETION_EVENT_TYPES = new Set([
-  'meeting.completed',
-  'meeting.completion',
-  'meeting_completed',
-  'note.completed',
-  'note.ready',
-  'note_completed',
-  'transcript.completed',
-]);
+import crypto from 'node:crypto';
 
-const COMPLETED_STATUSES = new Set(['completed', 'complete', 'ready', 'processed', 'transcribed']);
+const COMPLETION_EVENT_TYPES = new Set([
+  'note.generated',
+]);
 
 export function createGranolaWebhookEventEnvelope({ listener, payload, rawPayload = null, headers = {}, now = new Date(), registry = null }) {
   const normalized = normalizeGranolaWebhookPayload(payload, headers);
@@ -48,11 +42,11 @@ export function normalizeGranolaWebhookPayload(payload, headers = {}) {
   const note = firstObject(data.note, data.meeting, data.document, data);
   const granolaId = clean(note.id || note.note_id || note.meeting_id || note.granola_id || data.id || data.note_id || input.id || input.note_id);
   const status = clean(note.status || data.status || input.status).toLowerCase();
-  const completed = COMPLETION_EVENT_TYPES.has(eventType.toLowerCase()) || COMPLETED_STATUSES.has(status) || input.completed === true || data.completed === true;
+  const completed = COMPLETION_EVENT_TYPES.has(eventType.toLowerCase());
   const occurredAt = clean(note.completed_at || note.completedAt || data.completed_at || input.occurred_at || input.occurredAt || headers['x-occurred-at']);
   return {
     event_id: clean(headers['x-event-id'] || headers['idempotency-key'] || input.event_id || input.source_event_id || input.id),
-    event_type: eventType || (completed ? 'meeting.completed' : 'unknown'),
+    event_type: eventType || 'unknown',
     granola_id: granolaId,
     title: clean(note.title || note.name || data.title || input.title),
     status: status || (completed ? 'completed' : 'unknown'),
@@ -65,9 +59,34 @@ export function normalizeGranolaWebhookPayload(payload, headers = {}) {
   };
 }
 
-export function stableGranolaWebhookId(granolaId, eventType = 'meeting.completed') {
+export function stableGranolaWebhookId(granolaId, eventType = 'note.generated') {
   const id = clean(granolaId);
-  return id ? `granola:${id}:${clean(eventType).toLowerCase() || 'meeting.completed'}` : null;
+  return id ? `granola:${id}:${clean(eventType).toLowerCase() || 'note.generated'}` : null;
+}
+
+export function granolaWebhookSignature(body, { webhookId, webhookTimestamp }, signingSecret) {
+  const secret = String(signingSecret || '');
+  if (!secret.startsWith('whsec_') || !webhookId || !webhookTimestamp) return null;
+  const key = Buffer.from(secret.slice('whsec_'.length), 'base64');
+  return `v1,${crypto.createHmac('sha256', key).update(`${webhookId}.${webhookTimestamp}.${body}`, 'utf8').digest('base64')}`;
+}
+
+export function verifyGranolaWebhookSignature(body, headers = {}, signingSecret, { now = new Date(), toleranceSeconds = 300 } = {}) {
+  const webhookId = clean(headers['webhook-id']);
+  const webhookTimestamp = clean(headers['webhook-timestamp']);
+  const supplied = clean(headers['webhook-signature']);
+  const timestamp = Number(webhookTimestamp);
+  if (!webhookId || !webhookTimestamp || !supplied || !Number.isFinite(timestamp)) return false;
+  if (Math.abs(new Date(now).getTime() / 1000 - timestamp) > toleranceSeconds) return false;
+  const expected = granolaWebhookSignature(body, { webhookId, webhookTimestamp }, signingSecret);
+  if (!expected) return false;
+  return supplied.split(/\s+/).some((entry) => {
+    const [version, signature] = entry.split(',', 2);
+    if (version !== 'v1' || !signature) return false;
+    const actualBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expected.slice(3));
+    return actualBuffer.length === expectedBuffer.length && crypto.timingSafeEqual(actualBuffer, expectedBuffer);
+  });
 }
 
 function firstObject(...values) {

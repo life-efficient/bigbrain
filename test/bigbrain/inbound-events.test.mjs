@@ -24,6 +24,7 @@ import {
   RssCollector,
   ScopedFilingBroker,
 } from '../../src/bigbrain/inbound-events.js';
+import { granolaWebhookSignature } from '../../src/bigbrain/granola-webhook.js';
 
 async function fixture() {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-inbound-events-'));
@@ -57,16 +58,16 @@ test('listeners normalize upstream event filters and prompt field selection', ()
     id: 'granola',
     provider: 'granola',
     type: 'webhook',
-    event_types: ['meeting.completed'],
+    event_types: ['note.generated'],
     prompt_payload_fields: ['event_type', 'data.title'],
     prompt_omit_fields: ['data.internal'],
   });
-  assert.equal(listener.event_type_path, 'event');
-  assert.deepEqual(listener.event_types, ['meeting.completed']);
+  assert.equal(listener.event_type_path, 'event_type');
+  assert.deepEqual(listener.event_types, ['note.generated']);
   assert.deepEqual(listener.prompt_payload_fields, ['event_type', 'data.title']);
   assert.deepEqual(listener.prompt_omit_fields, ['data.internal']);
-  assert.equal(configuredWebhookEventType({ event: 'meeting.completed' }, {}, listener), 'meeting.completed');
-  assert.equal(configuredWebhookEventType({ type: 'meeting.completed' }, {}, listener), 'meeting.completed');
+  assert.equal(configuredWebhookEventType({ event_type: 'note.generated' }, {}, listener), 'note.generated');
+  assert.equal(configuredWebhookEventType({ type: 'note.generated' }, {}, listener), 'note.generated');
 });
 
 test('inbox is durable, idempotent, retryable, and purges payloads on ignored outcomes', async () => {
@@ -318,8 +319,8 @@ test('Granola completion webhook is normalized, processed, filed, and deduplicat
     scope: 'personal',
     brain_ids: ['brain_personal'],
     capture_policy: { default_mode: 'full', retain_raw: true },
-    event_type_path: 'event',
-    event_types: ['meeting.completed'],
+    event_type_path: 'event_type',
+    event_types: ['note.generated'],
   });
   const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
   await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [granola] });
@@ -334,12 +335,16 @@ test('Granola completion webhook is normalized, processed, filed, and deduplicat
     } }),
     filingBroker: { file: async () => ({ status: 'filed', destinations: [] }) },
   });
-  const server = new InboundWebhookServer({ registryStore: registry, inboxStore: inbox, port: 0, secretResolver: () => 'secret', onAccepted: (deliveryId) => processor.process(deliveryId) });
+  const secret = `whsec_${Buffer.from('test-signing-secret').toString('base64')}`;
+  const server = new InboundWebhookServer({ registryStore: registry, inboxStore: inbox, port: 0, secretResolver: () => secret, onAccepted: (deliveryId) => processor.process(deliveryId) });
   try {
     const address = await server.start();
     const url = `http://127.0.0.1:${address.port}/events/granola`;
-    const body = JSON.stringify({ event: 'meeting.completed', data: { note: { id: 'not_test_1', title: 'Webhook test', summary: 'A completed meeting.' } } });
-    const headers = { 'content-type': 'application/json', 'x-bigbrain-signature': hmacSignature(body, 'secret') };
+    const body = JSON.stringify({ event_id: 'evt_test_1', event_type: 'note.generated', note_id: 'not_test_1', occurred_at: '2026-08-28T10:00:00Z' });
+    const webhookId = 'msg_test_1';
+    const webhookTimestamp = String(Math.floor(Date.now() / 1000));
+    const signature = granolaWebhookSignature(body, { webhookId, webhookTimestamp }, secret);
+    const headers = { 'content-type': 'application/json', 'webhook-id': webhookId, 'webhook-timestamp': webhookTimestamp, 'webhook-signature': signature };
     const first = await fetch(url, { method: 'POST', headers, body });
     const second = await fetch(url, { method: 'POST', headers, body });
     assert.equal(first.status, 202);
@@ -348,6 +353,7 @@ test('Granola completion webhook is normalized, processed, filed, and deduplicat
     const filed = (await inbox.list({ state: 'filed' }))[0];
     assert.equal(executions[0].type, 'granola.meeting.completed');
     assert.equal(executions[0].payload.granola_id, 'not_test_1');
+    assert.equal(executions[0].payload.event_type, 'note.generated');
     assert.equal(filed.outcome.filing.status, 'filed');
     assert.equal((await inbox.list()).length, 1);
   } finally {
@@ -359,15 +365,19 @@ test('Granola completion webhook is normalized, processed, filed, and deduplicat
 test('webhook event type filters acknowledge unsupported events without enqueueing', async () => {
   const paths = await fixture();
   const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
-  await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [normalizeListener({ id: 'granola', provider: 'granola', type: 'webhook', event_type_path: 'event', event_types: ['meeting.completed'] })] });
+  const secret = `whsec_${Buffer.from('test-signing-secret').toString('base64')}`;
+  await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [normalizeListener({ id: 'granola', provider: 'granola', type: 'webhook', event_type_path: 'event_type', event_types: ['note.generated'] })] });
   const inbox = new EventInboxStore({ filePath: paths.inboxPath });
-  const server = new InboundWebhookServer({ registryStore: registry, inboxStore: inbox, port: 0, secretResolver: () => 'secret' });
+  const server = new InboundWebhookServer({ registryStore: registry, inboxStore: inbox, port: 0, secretResolver: () => secret });
   try {
     const address = await server.start();
-    const body = JSON.stringify({ event: 'meeting.started', data: { note: { id: 'not_test_2' } } });
-    const response = await fetch(`http://127.0.0.1:${address.port}/events/granola`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-bigbrain-signature': hmacSignature(body, 'secret') }, body });
+    const body = JSON.stringify({ event_type: 'note.edited', note_id: 'not_test_2' });
+    const webhookId = 'msg_test_2';
+    const webhookTimestamp = String(Math.floor(Date.now() / 1000));
+    const signature = granolaWebhookSignature(body, { webhookId, webhookTimestamp }, secret);
+    const response = await fetch(`http://127.0.0.1:${address.port}/events/granola`, { method: 'POST', headers: { 'content-type': 'application/json', 'webhook-id': webhookId, 'webhook-timestamp': webhookTimestamp, 'webhook-signature': signature }, body });
     assert.equal(response.status, 202);
-    assert.deepEqual(await response.json(), { ok: true, status: 'ignored', reason: 'unsupported_event_type', event_type: 'meeting.started' });
+    assert.deepEqual(await response.json(), { ok: true, status: 'ignored', reason: 'unsupported_event_type', event_type: 'note.edited' });
     assert.equal((await inbox.list()).length, 0);
   } finally {
     await server.close();
