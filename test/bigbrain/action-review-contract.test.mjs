@@ -67,15 +67,17 @@ test('forward cases cover the Canada ownership and specificity regression', asyn
   assert.match(cases, /Converting contextual capability into a commitment/);
 });
 
-test('meeting and Granola ingest delegate action judgment to the shared skill', async () => {
+test('Meeting Ingest owns action review and Granola delegates meeting processing', async () => {
   const [meeting, granola] = await Promise.all([
     fs.readFile(meetingPath, 'utf8'),
     fs.readFile(granolaPath, 'utf8'),
   ]);
 
-  for (const [source, content] of [['Meeting', meeting], ['Granola', granola]]) {
-    assert.match(content, /\$bigbrain-action-review/, `${source} ingest must invoke the shared action review skill`);
-    assert.match(content, /summary[\s\S]{0,700}transcript|transcript[\s\S]{0,700}summary/i, `${source} ingest must preserve both evidence layers for action review`);
-    assert.match(content, /before[\s\S]{0,160}(?:creating|updating|writing|mutating|proposing)[\s\S]{0,80}tasks?|before any task (?:creation|update|write|mutation)/i, `${source} ingest must run action review before task writes`);
-  }
+  assert.match(meeting, /\$bigbrain-action-review/, 'Meeting Ingest must invoke the shared action review skill');
+  assert.match(meeting, /summary[\s\S]{0,700}transcript|transcript[\s\S]{0,700}summary/i, 'Meeting Ingest must preserve both evidence layers for action review');
+  assert.match(meeting, /before[\s\S]{0,160}(?:creating|updating|writing|mutating|proposing)[\s\S]{0,80}tasks?|before any task (?:creation|update|write|mutation)/i, 'Meeting Ingest must run action review before task writes');
+
+  assert.match(granola, /\$bigbrain-meeting-ingest/, 'Granola must delegate per-meeting processing to Meeting Ingest');
+  assert.match(granola, /fetched transcript and notes/, 'Granola must pass its source evidence to Meeting Ingest');
+  assert.doesNotMatch(granola, /\$bigbrain-action-review/, 'Granola must not duplicate Meeting Ingest action judgment');
 });

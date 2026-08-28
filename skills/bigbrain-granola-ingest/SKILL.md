@@ -5,7 +5,7 @@ description: Use when the user asks to import or process recent Granola meetings
 
 # BigBrain Granola Ingest
 
-Ingest recent Granola meetings into BigBrain with correct brain routing, source preservation, entity/task updates, sync, and privacy-safe reporting.
+Discover and route recent Granola meetings, delegate each claimed meeting to `$bigbrain-meeting-ingest`, then resume the Granola ledger, cursor, sync, and batch-reporting lifecycle.
 
 ## Contract Checklist
 
@@ -15,10 +15,10 @@ Ingest recent Granola meetings into BigBrain with correct brain routing, source 
 - An optional user-level meeting-ingestion protocol is checked in Personal Brain before destination writes; a missing protocol is a non-blocking no-op.
 - Live destination filing rules are read before paths, page types, entities, tasks, or raw sidecars are chosen.
 - Existing Granola coverage is checked before creating or repairing pages.
-- Substantive meetings get canonical meeting pages and full raw transcript sidecars when transcripts are available and safe to store.
-- Attendee and represented-organization pages are created or updated after the meeting record is verified.
-- Durable entity, deal, project, concept, and task updates are made only when supported by meeting evidence, destination filing rules, and mention depth.
-- Speaker-attributed action evidence is reviewed through `$bigbrain-action-review` before any task creation or update.
+- Every claimed standard-path meeting is delegated exactly once to `$bigbrain-meeting-ingest` in delegated mode for canonical meeting, transcript, entity, and task processing.
+- Before delegation, a continuation checklist records the Granola-owned steps that remain after the delegated result returns.
+- A delegated Meeting Ingest result is intermediate and cannot complete the Granola run, verify a route, advance a cursor, or emit the batch report.
+- Partial or failed delegated results never verify the route or advance the cursor.
 - The destination brain is synced and read back before reporting success.
 - Final output is count-first, grouped by destination-brain headings with meeting-title bullets and created-page sub-bullets, and privacy-safe.
 
@@ -87,56 +87,36 @@ prompts, credentials, or other private content to the ledger helper.
    - Treat matching Granola coverage as already ingested even if the title changed.
    - Skip duplicates unless a missing transcript, missing sidecar, stale participant/entity link, or clear task/status update needs repair.
    - Anti-patterns: duplicate meeting pages, relying on title-only dedupe, ignoring changed titles with same Granola ID, skipping a new processable meeting because it feels low-value, repairing pages without a concrete gap
-6. Plan destination writes.
-   - Create or update one canonical meeting page per ingested meeting.
-   - Run an identity and affiliation pass before writing summaries; preserve transcript-backed participant identity, affiliation, relationship, authority, decision, and commitment facts.
-   - Mark uncertain roles, employers, mandates, source authority, and commitments explicitly.
-   - For every action-relevant statement, preserve the source speaker separately from the responsible actor and distinguish accepted commitments, requests, external actions, optional offers, proposals, and discussion.
-   - Prefer transcript evidence over generated summary or `Action Items` attribution when they conflict.
-   - Review related people, organizations, companies, deals, concepts, projects, and supported entity pages for durable updates.
-   - Review open, in-progress, and waiting tasks, then pass source-attributed evidence, relevant Brain context, live tasks, and approval limits to `$bigbrain-action-review` before proposing any task creation or update.
-   - Preserve external actions and optional offers as useful meeting, deal, project, or relationship context according to live filing rules; do not create backlog tasks for them unless an active member separately owns a concrete follow-up.
-   - Use Brain context to sharpen a supported action, but never to override source ownership or manufacture a commitment.
-   - Create or update tasks only for concrete member-owned actions returned by Action Review, and preserve action-time approval for externally visible execution.
-   - Anti-patterns: inventing attendees or affiliations, flattening uncertainty, conflating speaker and responsible actor, treating a request as acceptance, converting optional help or another party's obligation into a member task, creating a task when an existing task should be updated, using Brain context to override ownership, dumping deal context into a person page, skipping durable entity updates when evidence supports them
-7. Review and preserve transcripts.
-   - Inspect transcripts for unsafe, slanderous, highly personal, or sensitive spans before saving.
-   - Save transcripts verbatim when no targeted redaction is needed.
-   - Use the fetched transcript payload as the raw attachment content; never use a placeholder, pointer, provenance note, summary, or "see source" text as the raw transcript.
-   - If the destination write API creates a raw file and page together, still verify the raw file content or metadata after the write before calling the meeting complete.
-   - Redact only the specific unsafe span with a clear redaction marker.
-   - If a transcript cannot be fully captured or reviewed, leave the meeting partial and report the issue.
-   - Anti-patterns: omitting transcript sidecars for substantive meetings, broad redaction without cause, storing unsafe spans verbatim, writing a placeholder transcript attachment, claiming complete ingest when transcript capture failed
-8. Write pages and sidecars.
-   - Follow live filing rules for page paths, raw paths, sidecar paths, frontmatter, links, and timeline entries.
-   - Preserve source provenance internally on meeting pages and sidecars.
-   - Link transcript sidecars from canonical meeting pages when the destination pattern expects it.
-   - Keep entity and task timeline entries evidence-backed and concise.
-   - Never store transcript, summary, notes, participant names, credentials, or private meeting content in the machine catalog or routing ledger.
-   - Anti-patterns: writing raw files outside the owning collection, losing source provenance, storing private content in routing state, making public pages or raw files without explicit approval, placing technical audit data in user-facing content
-9. Verify meeting artifacts.
-   - Re-scan for duplicate Granola coverage after writes.
-   - Read back the canonical meeting page, provenance, and transcript sidecar when created.
-   - For raw transcript attachments, confirm the stored attachment is full-text by checking the read-back content or size against the fetched transcript payload.
-   - If the raw attachment is missing, tiny, placeholder-like, truncated, or otherwise inconsistent with the fetched transcript, repair it before syncing or report the meeting as partial.
-   - Confirm meeting pages and sidecars match live filing rules before expanding entity pages.
-   - Treat missing provenance, broken source links, duplicate coverage, or mismatched transcript sidecars as repair work before entity expansion.
-   - Anti-patterns: creating entity pages from an unverified meeting page, skipping meeting read-back, ignoring duplicate coverage after writes, treating a missing sidecar as success, treating placeholder raw text as a transcript
-10. Create or update entity pages.
-   - Create or update pages for meeting attendees when they are identified with enough confidence from Granola metadata, transcript evidence, user clarification, or existing brain context.
-   - Create or update the organization represented by each attendee when the affiliation is transcript-backed, user-confirmed, or otherwise explicitly evidenced.
-   - Create or update other entities mentioned in detail only when the meeting contains enough durable context for a useful standalone page under the destination filing rules.
-   - Keep lightly mentioned people, organizations, companies, deals, products, places, and concepts embedded in the meeting summary instead of creating full pages.
-   - Link created or updated entity pages back to the canonical meeting page and link the meeting page to the entity pages when the destination pattern expects it.
-   - Mark uncertain identities, affiliations, roles, authority, and entity names explicitly instead of converting them into firm facts.
-   - Anti-patterns: creating pages for every named entity, treating a passing mention as a durable entity, guessing attendee affiliations, overwriting existing entity facts without read-back, leaving attendee pages unlinked from the meeting
-11. Sync and final read-back.
-   - Read back any affected stable pages, entity pages, deal/project pages, and tasks after entity expansion.
-   - Confirm changed pages match live filing rules.
-   - Run `bigbrain sync --json` from the selected brain root or use the destination brain's live sync tool.
-   - Treat sync warnings and read-back mismatches as issues to report or repair before success.
-   - Anti-patterns: reporting success before final read-back, skipping sync, hiding sync failures, ignoring stale task or entity links
-12. Report results.
+6. Prepare the delegated meeting handoff and continuation checklist.
+   - Complete the routing-ledger `record` and `claim` steps before allowing any destination write. Invoke Meeting Ingest only after the route is successfully claimed with `claimed: true`; a route with `claimed: false` permits no delegation.
+   - Before delegation, record an ephemeral continuation checklist for this route: receive and validate the delegated result, run destination sync, perform Granola final read-back, verify or fail the route, advance only after verification, then continue the batch and emit the Granola report.
+   - Prepare a natural-language delegated handoff containing caller identity `$bigbrain-granola-ingest`, the resolved destination, live filing context, Granola source identity and provenance, meeting metadata, fetched transcript and notes, source-specific authority boundaries, privacy constraints, and allowed mutations.
+   - Explicitly instruct `$bigbrain-meeting-ingest` to use delegated mode and return control to `$bigbrain-granola-ingest` after one meeting. Do not pass the ledger lease token, cursor state, credentials, or private batch-control data.
+   - Renew the private ledger lease while delegated work continues when necessary.
+   - Anti-patterns: delegating before claim, relying on memory for remaining Granola steps, passing routing secrets to Meeting Ingest, asking Meeting Ingest to process a batch, omitting the return-control instruction
+7. Delegate one meeting and regain control.
+   - Invoke `$bigbrain-meeting-ingest` exactly once for the claimed route and wait for its delegated result.
+   - The delegated result is not completion of the Granola item, the Granola run, or the batch.
+   - Immediately resume Granola processing from the recorded continuation checklist after the delegated result returns. Do not stop, summarize to the user, or move to another route before resolving the current route's post-delegation lifecycle.
+   - Require the delegated result to identify `complete`, `partial`, or `failed`, the canonical meeting outcome, required-artifact verification, related changes, blockers, and explicit return of control.
+   - Partial or failed delegated results must not run ledger verification or cursor advancement.
+   - If the delegated result is incomplete, malformed, partial, failed, or lacks required verification, record a non-sensitive terminal failure code with `bigbrain-granola-ledger fail`; leave the route unverified and the cursor unchanged.
+   - Anti-patterns: treating delegated success as overall success, losing the caller continuation, emitting Meeting Ingest output to the user, invoking Action Review or duplicating meeting interpretation in Granola, verifying a partial result
+8. Complete the Granola-owned post-delegation lifecycle.
+   - For a delegated `complete` result, run `bigbrain sync --json` from the destination Brain root or use the destination Brain's live sync tool.
+   - After sync succeeds, perform the final read-back of the referenced canonical meeting, provenance, required transcript sidecar or artifact, affected stable pages, and tasks through the same destination Brain.
+   - Confirm the stored raw transcript is full-text using content, size, or equivalent metadata against the fetched transcript payload when available.
+   - Re-scan the destination for duplicate Granola provenance and confirm changed pages match live filing rules.
+   - Only after delegated completion, destination sync, Granola final read-back, and required-artifact verification succeed may the caller run `bigbrain-granola-ledger verify` with a non-sensitive verification reference.
+   - Run `bigbrain-granola-ledger advance` only after the same route is verified. If any post-delegation check fails, use `fail` with a non-sensitive code and leave the cursor unchanged.
+   - Mark the route's continuation checklist complete only after verify and any eligible advance succeed.
+   - Anti-patterns: trusting the delegated report without independent caller read-back, failing to resume after delegation, verifying before sync or final read-back, advancing before verify, leaving a claimed route unresolved, treating a failed advance as successful completion
+9. Continue the batch.
+   - Repeat claim, continuation recording, one-meeting delegation, caller resumption, final verification, and cursor handling for every processable candidate.
+   - Keep each route isolated so one partial or failed meeting does not erase verified results for other meetings.
+   - Do not expose internal delegated results, lease state, continuation notes, identifiers, or private source content in the final report.
+   - Anti-patterns: parallel writes under one lease, sharing state across routes, abandoning remaining candidates after one delegated result, leaking internal coordination into user output
+10. Report results.
    - First line must be a plain count sentence: `0 meetings ingested`, `1 meeting ingested`, `5 meetings ingested`, or `2 meetings repaired`.
    - If multiple outcomes occurred, use one concise first line such as `3 meetings ingested, 1 repaired`.
    - When one or more meetings were ingested, always add a heading for each destination brain that received at least one meeting and list each ingested meeting as one bullet underneath.
@@ -158,10 +138,15 @@ prompts, credentials, or other private content to the ledger helper.
 - Crossing brain boundaries when routing confidence, authentication, write access, or folder exclusion enforcement is unclear.
 - Inventing facts, decisions, owners, due dates, task status, affiliations, or participant identities.
 - Treating external actions, unaccepted requests, or optional offers as member-owned backlog tasks.
+- Performing meeting interpretation directly instead of delegating the claimed standard-path meeting to `$bigbrain-meeting-ingest`.
+- Treating the delegated per-meeting result as completion and failing to resume Granola sync, ledger, cursor, batch, or reporting work.
+- Allowing partial, failed, or unverified delegated work to verify a route or advance the cursor.
 - Storing secrets, credentials, transcript content, summaries, participant lists, notes, or model prompts in machine-wide routing state.
 - Quoting unsafe, slanderous, highly personal, sensitive, or private transcript text in the final report.
 
 ## Output
+
+Granola Ingest is the sole owner of the batch user-facing report. Delegated Meeting Ingest results are internal handoffs and must never be emitted as competing user-facing output.
 
 Use this shape:
 

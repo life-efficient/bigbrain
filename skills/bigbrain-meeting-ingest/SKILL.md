@@ -1,90 +1,129 @@
 ---
-name: "BigBrain: Meeting Ingest"
-version: 1.0.0
-description: |
-  Ingest a meeting into BigBrain using the canonical meeting lifecycle model.
-  Use when the input is a meeting transcript, call notes, or a meeting summary
-  that should update the meeting page, action items, and related entity context.
-triggers:
-  - "meeting ingest"
-  - "process this meeting"
-  - "ingest this call"
-  - "save this transcript"
-  - "update the meeting page"
-tools:
-  - shell
-mutating: true
+name: bigbrain-meeting-ingest
+description: Ingest one meeting into its canonical BigBrain record, either directly or as the per-meeting worker for a source-specific ingestion skill.
 ---
 
-# BigBrain: Meeting Ingest
+# BigBrain Meeting Ingest
 
-Use this skill when the source material is fundamentally about a specific
-meeting or call. BigBrain meetings use one canonical page across prep and
-post-meeting updates.
+Turn one meeting transcript, summary, or set of call notes into a verified canonical meeting record and supported follow-on updates.
 
-## Contract
+## Contract Checklist
 
-This skill guarantees:
-- Use one canonical meeting page rather than splitting prep and outcomes across multiple files
-- Preserve any existing `## Prep` section
-- Update the meeting page with summary, decisions, action items, and discussion notes
-- Preserve transcript dumps and other raw support according to the target brain's filing rules
-- Surface related pages that should be enriched when the meeting materially changes them
-- Preserve speaker-level ownership and use `$bigbrain-action-review` before creating or updating tasks
+- Exactly one meeting is processed per invocation.
+- Standalone mode owns destination resolution, final sync, and the user-facing result for that meeting.
+- Delegated mode accepts a resolved destination and source evidence from a calling ingestion skill, performs the per-meeting work, then returns control to that caller.
+- Delegated completion is an intermediate result. It never implies that the caller's routing, ledger, cursor, batch, or reporting lifecycle is complete.
+- One canonical meeting page is used across preparation and post-meeting updates, and existing `## Prep` content is preserved.
+- The meeting page contains an evidence-backed summary, decisions, actual-owner action items, and discussion context.
+- Valuable raw transcripts and attachments follow live filing rules and have verified same-basename indexed sidecars.
+- Speaker, responsible actor, and commitment strength remain distinct, with transcript evidence preferred over generated-summary attribution when they conflict.
+- Candidate task changes pass through `$bigbrain-action-review`; external actions and optional offers remain useful context without becoming backlog tasks unless a member owns a concrete follow-up.
+- Supported attendee, organization, deal, project, relationship, and task updates are applied and read back through the destination Brain.
+
+## Invocation Modes
+
+### Standalone mode
+
+Use when the user directly provides or identifies one meeting. Resolve the destination Brain, read its live filing rules, complete and verify the meeting ingest, sync that Brain, and report the result to the user.
+
+### Delegated mode
+
+Use when a source-specific ingestion skill such as `$bigbrain-granola-ingest` has already acquired the source, resolved the destination, enforced source exclusions, and established its own continuation lifecycle.
+
+The caller provides, in natural language:
+
+- caller identity and an explicit instruction to return control;
+- destination Brain and current filing context;
+- source identity and provenance needed for deduplication;
+- meeting metadata, transcript, summary, notes, and relevant attachments;
+- source-specific interpretation or authority boundaries;
+- allowed mutations, privacy constraints, and action-time approval limits.
+
+Do not accept or expose routing lease tokens, cursor state, credentials, or private batch-control data. Do not run caller-owned ledger, cursor, routing, or batch-reporting steps.
 
 ## Workflow
 
-1. Read the target brain's filing rules before writing:
-   - when using an MCP or BigBrain service connector, call `filing_rules`
-   - use the collection path, raw-file path pattern, and raw-file tools described there
-2. Identify the canonical meeting page:
-   - if a prepared meeting page already exists, update that page
-   - otherwise create a meeting page under `meetings/`
-3. Read the source material and extract:
-   - attendees
-   - date or timeframe
-   - summary
-   - key decisions
-   - action items
-   - discussion notes
-   - for every action-relevant statement, preserve who spoke, who actually owns the action, and whether it is an accepted commitment, request, external action, optional offer, proposal, or discussion
-   - prefer transcript evidence over generated summary attribution when they conflict
-4. Preserve page shape:
-   - keep any existing `## Prep`
-   - write or refresh `## Summary`
-   - write or refresh `## Key Decisions`
-   - write or refresh `## Action Items`
-   - write or refresh `## Discussion Notes`
-5. If the raw transcript, deck, or notes should stay accessible:
-   - attach them at the raw path required by the filing rules, for example `meetings/.raw/<meeting-slug>-transcript.txt`
-   - use `create_raw_file_with_page` to create the deterministic same-basename indexed sidecar for each artifact
-   - put comprehensive transcript extraction and document-specific synthesis in the sidecar
-   - create or update the canonical meeting page separately and link it to the indexed sidecar and artifact
-6. Identify follow-on updates:
-   - pages that gained new durable facts
-   - collect relevant Brain context and open, in-progress, and waiting tasks
-   - pass the source-attributed evidence, Brain context, live tasks, and approval limits to `$bigbrain-action-review`
-   - preserve external actions and optional offers on the canonical meeting page, owning entity page, or indexed sidecar according to filing rules, without turning them into backlog tasks
-   - create or update individual `tasks/*.md` pages only for concrete member-owned actions returned by Action Review
-7. Re-index:
-   - `bigbrain sync --json`
+1. Establish invocation mode and destination.
+   - Identify whether the request is standalone or delegated.
+   - In standalone mode, resolve one writable destination Brain before any mutation.
+   - In delegated mode, confirm the caller supplied a resolved destination, source provenance, and an explicit return-control instruction. Stop with a delegated partial result if the handoff is incomplete.
+   - Read the destination's live top-level and collection filing rules even when the caller already supplied a summary of them.
+   - Anti-patterns: guessing the destination, processing several meetings in one invocation, accepting a delegated request without a named caller, taking ownership of source routing or cursor state
+2. Find the canonical meeting record and existing coverage.
+   - Search by stable source provenance first, then by prepared meeting page, date, participants, and title as supporting evidence.
+   - Update an existing prepared or previously ingested meeting page instead of creating a duplicate.
+   - Preserve existing `## Prep` content and its subheadings.
+   - Determine whether the meeting is new, already complete, or needs a specific repair such as a missing transcript, sidecar, participant link, or follow-on update.
+   - Anti-patterns: title-only deduplication, creating a second post-meeting page, erasing preparation material, repairing without a concrete gap
+3. Interpret the meeting evidence.
+   - Extract attendees, date or timeframe, summary, decisions, action-relevant statements, and material discussion context.
+   - For every action-relevant statement, preserve the source speaker separately from the responsible actor and distinguish accepted commitments, requests, external actions, optional offers, proposals, and discussion.
+   - Prefer the transcript over a generated summary or `Action Items` heading when ownership, wording, or commitment strength conflicts.
+   - Mark uncertain identities, affiliations, authority, ownership, decisions, and commitments explicitly rather than resolving them by proximity or action verbs.
+   - Review transcripts for specifically unsafe, slanderous, highly personal, or sensitive spans. Redact only the unsafe span when required and leave a clear marker.
+   - Anti-patterns: conflating speaker with actor, treating a request as acceptance, converting optional help into a commitment, broad redaction, promoting a summary inference over transcript evidence
+4. Plan the canonical meeting and source artifacts.
+   - Keep or create one meeting page with `## Prep`, `## Summary`, `## Key Decisions`, `## Action Items`, and `## Discussion Notes` as applicable under live filing rules.
+   - Record external actions with their actual owner and preserve optional offers in the most natural meeting, sidecar, deal, project, or relationship context.
+   - Keep comprehensive transcript extraction and document-specific synthesis in the indexed sidecar rather than forcing raw dumps into the canonical meeting page.
+   - Store each valuable raw artifact at the path required by filing rules and create its deterministic same-basename indexed sidecar.
+   - Use the actual fetched transcript content, never a pointer, placeholder, provenance note, or generated summary as the raw transcript.
+   - Anti-patterns: fake action items, backlog tasks for uninvoked offers, raw dumps in the canonical page, orphan raw artifacts, placeholder transcripts
+5. Reconcile supported entity and task updates.
+   - Read the most relevant people, organizations, deals, projects, relationships, and open, in-progress, or waiting tasks.
+   - Update an attendee or represented organization when identity, affiliation, and durable context are supported strongly enough for a useful canonical record.
+   - Keep lightly mentioned entities in meeting context instead of creating pages for every name.
+   - Pass source-attributed action evidence, relevant Brain context, live tasks, and approval limits to `$bigbrain-action-review` before any task creation or update.
+   - Use Brain context to sharpen a supported action, never to override source ownership or manufacture acceptance.
+   - Create or update tasks only for concrete member-owned actions returned by Action Review. Preserve approval at action time for messages, introductions, scheduling, sharing, publication, or other externally visible work.
+   - Anti-patterns: entity proliferation, duplicate tasks, vague umbrella tasks, assigning another party's obligation to a member, treating execution mode as external-action approval
+6. Apply the smallest supported write set.
+   - Create or update the canonical meeting page, raw artifacts and indexed sidecars, supported canonical entities, and supported tasks through the destination Brain's live write tools.
+   - Link meeting, sidecar, entity, deal, project, and task records where live filing rules expect reciprocal context.
+   - Keep source provenance and material uncertainty internally while avoiding private transcript content in user-facing or machine-routing state.
+   - Do not perform external sends, invitations, publication, Calendar changes, or other externally visible actions.
+   - Anti-patterns: direct file or database edits when an owning Brain service exists, duplicated facts across many pages, lost provenance, unauthorized external action
+7. Verify the per-meeting result.
+   - Read back every changed meeting, sidecar, entity, deal, project, and task page through the same destination Brain.
+   - Verify each raw transcript or attachment against the source content or available size and metadata evidence.
+   - Re-scan for duplicate meeting provenance and confirm canonical links and filing-rule compliance.
+   - Return `partial` or `failed` when a required page, raw artifact, read-back, or task reconciliation cannot be verified. Never describe partial work as complete.
+   - Anti-patterns: trusting write responses without read-back, treating a sidecar as proof of raw content, ignoring duplicate provenance, returning complete with an unverified required artifact
+8. Finalize according to invocation mode.
+   - In standalone mode, sync the destination Brain after successful read-back, verify the sync result, and provide the standalone user-facing output.
+   - In delegated mode, do not independently sync, advance a cursor, verify a source ledger, or emit the caller's user-facing report.
+   - In delegated mode, return the compact delegated result below and explicitly return control to the named caller so it can resume its recorded continuation checklist.
+   - A delegated `complete` result means only that this one meeting's delegated work and read-back succeeded. The caller still owns all post-delegation lifecycle steps.
+   - Anti-patterns: ending the overall run after delegated completion, emitting a competing batch report, advancing caller state, skipping standalone sync
 
-## Guardrails
+## Anti-Patterns
 
-- Do not create a second meeting page when a canonical one already exists
-- Do not erase `## Prep` content just because post-meeting material arrived
-- Do not force raw transcript dumps into the canonical page body
-- Do not create a raw artifact without its same-basename indexed `.raw/*.md` sidecar
-- Do not assume `.artifacts/` when the target brain's filing rules specify `.raw/`
-- Do not turn vague discussion into fake decisions or fake action items
-- Do not treat the speaker as the responsible actor when the statement names someone else
-- Do not treat an external commitment, an unaccepted request, or optional help as a member-owned task
-- Do not let Brain context override source ownership or manufacture a commitment
+- Treating a successful delegated meeting result as completion of the calling ingestion workflow.
+- Taking over Granola or another source adapter's discovery, routing, ledger, cursor, or batch responsibilities.
+- Creating a second meeting page when a canonical page exists.
+- Erasing `## Prep` during the post-meeting update.
+- Conflating speaker, responsible actor, request, acceptance, external action, and optional offer.
+- Creating task or entity sprawl from vague discussion or passing mentions.
+- Reporting success before per-meeting writes and artifacts are read back.
 
 ## Output
 
-Report:
-- meeting page updated or created
-- whether prep content was preserved
-- raw transcript path or artifact path attached, if any
-- key follow-on pages or tasks that now need attention
+### Standalone output
+
+Report the meeting page created, updated, repaired, or unchanged; whether prep was preserved; transcript or attachment verification; supported entity and task changes; sync result; and any issue requiring attention.
+
+### Delegated output
+
+Return a compact internal handoff to the named caller:
+
+```text
+Delegated meeting result
+- Status: complete | partial | failed
+- Canonical meeting: created | updated | repaired | unchanged
+- Required artifacts: verified | partial | unavailable
+- Related changes: <concise page and task outcomes>
+- Needs attention: <none or concise blockers>
+- Return control to: <calling ingestion skill>
+```
+
+This is an ephemeral coordination format, not a persisted Brain schema and not a user-facing batch report.

@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Meeting Ingest"
-  short_description: "Update the canonical meeting page and preserve raw meeting attachments"
-  default_prompt: "Use $bigbrain-meeting-ingest to update the canonical meeting page, preserve prep and speaker-level ownership, attach raw meeting material under the filing_rules path, route candidate task changes through $bigbrain-action-review, preserve external actions and optional offers as context, and sync the index."
+  short_description: "Process one canonical meeting directly or for a source-ingestion caller"
+  default_prompt: "Use $bigbrain-meeting-ingest to process one meeting, preserve its canonical page, prep, transcript artifacts, speaker-level ownership, entity context, and $bigbrain-action-review task judgment. In delegated mode, verify the per-meeting writes and explicitly return control to the calling ingestion skill without taking over its sync, ledger, cursor, batch, or reporting lifecycle."
