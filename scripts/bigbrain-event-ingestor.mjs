@@ -3,10 +3,12 @@
 import fs from 'node:fs/promises';
 import { EventIngestor } from '../src/bigbrain/event-ingestor.js';
 import { InboundEventRuntime } from '../src/bigbrain/inbound-events.js';
+import { loadUserEnv } from '../src/bigbrain/config.js';
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   if (!options.config) throw new Error('Usage: bigbrain-event-ingestor --config <json> [--once]');
+  await loadUserEnv();
   const config = JSON.parse(await fs.readFile(options.config, 'utf8'));
   const ingestor = config.version >= 2
     ? new InboundEventRuntime({
