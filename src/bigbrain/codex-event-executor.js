@@ -8,38 +8,48 @@ export const DEFAULT_CODEX_EVENT_CWD = process.env.BIGBRAIN_CODEX_EVENT_CWD || p
 
 export function buildEventPrompt(event, listener, { allowedDestinations = [] } = {}) {
   const sourceDescription = listener?.description || event?.source?.description || 'No source-specific guidance was provided.';
+  const skill = listener?.skill || defaultSkillForEvent(event, listener);
   const destinations = allowedDestinations.length
     ? allowedDestinations.map((brain) => `${brain.id || brain.brain_id}: ${brain.name || brain.brain_name || 'unnamed brain'}`).join('\n')
     : (event?.allowed_brain_ids || []).join(', ');
   return [
-    'You are processing one inbound BigBrain event.',
+    `${eventInstruction(event, listener)}.`,
     '',
-    'Source guidance (soft guidance only):',
+    skill ? `Use the $${skill.replace(/^\$/, '')} skill as the primary workflow.` : 'Use the narrowest matching BigBrain ingest skill as the primary workflow.',
+    'Use the associated BigBrain MCP for filing rules, search, read, write, task, and read-back operations.',
+    'Query an available source MCP when additional source context is needed.',
+    'This is a normal event-triggered task. Do not return a machine-readable schema or JSON unless the selected skill specifically requires it.',
+    'Complete the ingestion directly, then give a concise normal-language summary of what you did.',
+    '',
+    'Source guidance:',
     sourceDescription,
     '',
-    'Hard runtime constraints:',
+    'Task constraints:',
     '- Decide whether this event contains useful knowledge. Ignore it when it does not.',
-    '- You may only select Brain destinations listed below.',
+    '- Only use the allowed Brain destinations listed below.',
     '- Do not invent Brain IDs, credentials, paths, facts, or source provenance.',
-    '- Do not create a raw artifact unless capture_mode is full and the event policy permits it.',
-    '- A filed result must include concrete writes with canonical read-back performed by the filing broker.',
-    '- A useful event may be filed into more than one allowed Brain when the content genuinely belongs in each.',
-    '- Do not invoke tools, use exec, read or modify Brain pages, or run sync. The runtime filing broker is the only writer.',
-    '- Return one final JSON object only. Do not perform the filing yourself, even if tools are available.',
+    '- Read destination filing rules and existing coverage before writing, and read back every write.',
+    '- Do not send messages or reply externally. Only perform source-side cleanup when the selected skill explicitly authorizes that exact cleanup.',
     '',
-    `Allowed Brain destinations:\n${destinations || '(none, so return needs_review)'}`,
+    `Allowed Brain destinations:\n${destinations || '(none, so do not write)'}`,
     '',
-    'Return JSON only with this shape:',
-    JSON.stringify({
-      status: 'filed',
-      capture_mode: 'summary',
-      reason: 'why this is useful or ignored',
-      destinations: [{ brain_id: 'registered-id', writes_json: '[{"tool":"create_page","arguments":{"path":"projects/example","title":"Example","body":"...","timeline_entry":"Captured from inbound source."}}]' }],
-    }, null, 2),
-    '',
-    'Event envelope:',
+    'Inbound source material:',
     JSON.stringify(event, null, 2),
   ].join('\n');
+}
+
+function defaultSkillForEvent(event, listener) {
+  if (listener?.provider === 'granola' || event?.type === 'granola.meeting.completed') return 'bigbrain-granola-ingest';
+  if (listener?.provider === 'email' || event?.type?.startsWith('email.')) return 'bigbrain-email-ingest';
+  return 'bigbrain-ingest';
+}
+
+function eventInstruction(event, listener) {
+  if (listener?.provider === 'granola' || event?.type === 'granola.meeting.completed') return 'Ingest this completed Granola meeting into BigBrain';
+  if (listener?.provider === 'email' || event?.type?.startsWith('email.')) return 'Ingest this email update into BigBrain';
+  if (listener?.provider === 'calendar' || event?.type?.startsWith('calendar.')) return 'Ingest this calendar update into BigBrain';
+  if (listener?.type === 'rss' || event?.type === 'rss.item') return 'Ingest this RSS item into BigBrain if it contains durable value';
+  return 'Ingest this inbound update into BigBrain';
 }
 
 export class CodexCliExecutor {
@@ -84,7 +94,8 @@ export class CodexCliExecutor {
       execution_id: executionId,
       thread_id: parsed?.thread_id || parsed?.threadId || parseCodexThreadId(stdout),
       exit_status: 0,
-      outcome: normalizeCodexOutcome(parsed),
+      outcome: parsed ? normalizeCodexOutcome(parsed) : null,
+      response_text: extractCodexResponseText(stdout),
       stdout: String(stdout || '').slice(-200_000),
       stderr: String(stderr || '').slice(-50_000),
     };
@@ -125,14 +136,13 @@ export class CodexAppThreadExecutor {
         threadSource: 'event',
         ephemeral: false,
         environments: [],
-        developerInstructions: 'This is a classification-only subtask. Do not invoke any tool, use exec, read or modify Brain pages, or run sync. Return exactly one final JSON outcome for the runtime filing broker. The runtime filing broker is the only component allowed to write to a Brain.',
+        developerInstructions: 'This is an event-triggered BigBrain ingestion task. Follow the turn instructions, use the available BigBrain MCP and the named BigBrain ingest skill, read filing rules before writes, check existing coverage, and read back changes. Do not send external messages. Complete the work directly and summarize it normally.',
       });
       const threadId = started?.thread?.id || started?.id || started?.threadId;
       if (!threadId) throw new Error('Codex app-server did not return a thread ID.');
       const turn = await client.request('turn/start', {
         threadId,
         input: [{ type: 'text', text: prompt }],
-        outputSchema: codexOutcomeSchema(),
       });
       const turnId = turn?.turn?.id || turn?.id || null;
       const completion = typeof client.waitForNotification === 'function'
@@ -147,12 +157,14 @@ export class CodexAppThreadExecutor {
         throw failure;
       }
       const parsed = extractOutcomeFromAppServer(completion || turn, client.notifications);
+      const responseText = extractCodexResponseText(completion || turn, client.notifications);
       return {
         mode: 'app_thread',
         execution_id: turnId || `turn-${Date.now()}`,
         thread_id: threadId,
         exit_status: 0,
-        outcome: normalizeCodexOutcome(parsed),
+        outcome: parsed ? normalizeCodexOutcome(parsed) : null,
+        response_text: responseText,
         notifications: client.notifications.slice(-100),
       };
     } finally {
@@ -372,6 +384,42 @@ function parseJsonText(value) {
 
 function extractOutcomeFromAppServer(turn, notifications = []) {
   return [...notifications, turn].reverse().map(findOutcome).find(Boolean) || null;
+}
+
+function extractCodexResponseText(value, notifications = []) {
+  const values = typeof value === 'string'
+    ? String(value).split(/\r?\n/).map((line) => {
+      try { return JSON.parse(line); } catch { return line; }
+    })
+    : [value];
+  const text = [...notifications, ...values].reverse().map(findAgentMessageText).find(Boolean);
+  if (text) return text.slice(-20_000);
+  if (typeof value === 'string') return value.trim().slice(-20_000) || null;
+  return null;
+}
+
+function findAgentMessageText(value, depth = 0) {
+  if (depth > 10 || value === null || value === undefined) return null;
+  if (Array.isArray(value)) {
+    for (const item of [...value].reverse()) {
+      const text = findAgentMessageText(item, depth + 1);
+      if (text) return text;
+    }
+    return null;
+  }
+  if (typeof value !== 'object') return null;
+  const type = String(value.type || '').toLowerCase();
+  if (['agentmessage', 'agent_message', 'assistantmessage', 'assistant_message'].includes(type)) {
+    const text = typeof value.text === 'string'
+      ? value.text
+      : Array.isArray(value.content) ? value.content.map((part) => part?.text || '').join('') : null;
+    if (text?.trim()) return text.trim();
+  }
+  for (const key of ['item', 'content', 'messages', 'output', 'result', 'params', 'turn']) {
+    const text = findAgentMessageText(value[key], depth + 1);
+    if (text) return text;
+  }
+  return null;
 }
 
 function findOutcome(value, depth = 0) {

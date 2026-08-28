@@ -12,11 +12,14 @@ const event = {
   source: { display_name: 'Calendar', icon: 'Calendar', endpoint: 'https://calendar.test' },
 };
 
-test('Codex prompt includes soft source guidance and hard destination boundaries', () => {
-  const prompt = buildEventPrompt(event, { description: 'File meaningful meetings.', display_name: 'Calendar' }, { allowedDestinations: [{ id: 'personal', name: 'Personal' }] });
-  assert.match(prompt, /File meaningful meetings/);
+test('Codex prompt gives a direct ingest instruction and names the workflow skill', () => {
+  const prompt = buildEventPrompt(event, { description: 'File meaningful meetings.', display_name: 'Calendar', provider: 'calendar', skill: 'bigbrain-meeting-ingest' }, { allowedDestinations: [{ id: 'personal', name: 'Personal' }] });
+  assert.match(prompt, /Ingest this calendar update into BigBrain/);
+  assert.match(prompt, /Use the \$bigbrain-meeting-ingest skill/);
+  assert.match(prompt, /Use the associated BigBrain MCP/);
   assert.match(prompt, /personal: Personal/);
   assert.match(prompt, /Do not invent Brain IDs/);
+  assert.doesNotMatch(prompt, /Return JSON only/);
   assert.match(prompt, /event-1/);
 });
 
@@ -64,7 +67,24 @@ test('app-thread executor uses the supported app-server thread and turn methods'
   assert.deepEqual(calls.map((call) => call.method), ['initialize', 'initialized', 'thread/start', 'turn/start']);
   assert.deepEqual(calls.find((call) => call.method === 'initialize').params.capabilities, { experimentalApi: true });
   assert.deepEqual(calls.find((call) => call.method === 'thread/start').params.environments, []);
-  assert.match(calls.find((call) => call.method === 'thread/start').params.developerInstructions, /only component allowed to write/);
+  assert.match(calls.find((call) => call.method === 'thread/start').params.developerInstructions, /available BigBrain MCP/);
+  assert.equal(calls.find((call) => call.method === 'turn/start').params.outputSchema, undefined);
+});
+
+test('app-thread executor accepts a normal-language completion without a structured outcome', async () => {
+  const notifications = [
+    { method: 'item/completed', params: { item: { type: 'agentMessage', text: 'Ingested the meeting and updated the existing project page.' } } },
+    { method: 'turn/completed', params: { turn: { id: 'turn-3', status: 'completed' } } },
+  ];
+  const executor = new CodexAppThreadExecutor({ clientFactory: async () => ({
+    notifications,
+    request: async (method) => method === 'thread/start' ? { thread: { id: 'thread-3' } } : { turn: { id: 'turn-3', status: 'inProgress' } },
+    waitForNotification: async () => notifications[1],
+    close: async () => {},
+  }) });
+  const result = await executor.execute({ event, listener: { description: 'Calendar' } });
+  assert.equal(result.outcome, null);
+  assert.equal(result.response_text, 'Ingested the meeting and updated the existing project page.');
 });
 
 test('app-thread executor waits for completion and extracts the agent message outcome', async () => {

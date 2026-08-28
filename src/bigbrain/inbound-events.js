@@ -112,6 +112,7 @@ export function normalizeListener(value) {
     listener_location: listenerLocation,
     codex_execution_location: executionLocation,
     codex_execution_mode: executionMode,
+    skill: optionalString(value.skill || value.ingest_skill || value.workflow_skill),
     enabled: status === 'active',
     paused: status === 'paused',
     removed: status === 'removed',
@@ -603,6 +604,21 @@ export class InboundEventProcessor {
       execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
       const outcome = execution?.outcome || { status: 'needs_review', reason: 'Codex returned no filing outcome.', destinations: [] };
       const executionMeta = executionMetadata(execution);
+      if (!execution?.outcome) {
+        return this.inboxStore.complete(deliveryId, {
+          state: 'filed',
+          outcome: {
+            status: 'filed',
+            capture_mode: classification.decision,
+            reason: `Completed by the ${execution?.mode || 'Codex'} event-ingestion task.`,
+            destinations: [],
+          },
+          executionId: execution?.execution_id,
+          threadId: execution?.thread_id,
+          executionMeta,
+          retainRaw: listener.capture_policy.retain_raw,
+        });
+      }
       if (outcome.status === 'ignored') {
         return this.inboxStore.complete(deliveryId, {
           state: 'ignored',

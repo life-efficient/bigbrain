@@ -396,10 +396,12 @@ where Codex runs (`client` or `host`), with either a visible `app_thread` or a
 background `cli` execution. Registry subscriptions may name only registered
 Brain IDs.
 
-Every accepted event is normalized into the durable inbox. Useful events are
-filed through the scoped broker and receive structured provenance; ignored
-events retain bounded metadata only and do not create Brain pages or graph
-inputs. Failed useful events remain retryable.
+Every accepted event is normalized into the durable inbox. Useful events start
+a normal Codex ingestion task, which invokes the configured BigBrain skill and
+uses the associated MCP for filing, source queries, cleanup when explicitly
+authorized, and read-back verification. The inbox remains the durable audit
+and retry ledger; it is not a second filing path. Ignored events retain bounded
+metadata only, and failed useful events remain retryable.
 
 The first clean client setup adds OpenAI News with no historical backfill. For
 organization-owned feeds, run the same runtime on the organization host and

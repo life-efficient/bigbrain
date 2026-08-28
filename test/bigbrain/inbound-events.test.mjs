@@ -37,10 +37,11 @@ test('event registry validates independent collection and Codex placement contro
   const paths = await fixture();
   try {
     const store = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
-    const initial = await store.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [rssListener({ listener_location: 'host', codex_execution_location: 'client', codex_execution_mode: 'app_thread' })] });
+    const initial = await store.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [rssListener({ listener_location: 'host', codex_execution_location: 'client', codex_execution_mode: 'app_thread', skill: 'bigbrain-ingest' })] });
     assert.equal(initial.listeners[0].listener_location, 'host');
     assert.equal(initial.listeners[0].codex_execution_location, 'client');
     assert.equal(initial.listeners[0].codex_execution_mode, 'app_thread');
+    assert.equal(initial.listeners[0].skill, 'bigbrain-ingest');
     const direct = { ...initial, display_only: true, revision: initial.revision };
     await fs.writeFile(paths.registryPath, `${JSON.stringify(direct)}\n`);
     assert.equal((await store.get()).display_only, true);
@@ -217,6 +218,29 @@ test('processor records ignored events and only brokers filed outcomes to allowe
     assert.equal(processed.thread_id, 'thread-1');
     assert.equal(calls[0].input.allowed_brain_ids[0], 'brain_personal');
     assert.equal((await inbox.list({ state: 'filed' })).length, 1);
+  } finally {
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('processor treats a successful normal-language event task as complete without broker replay', async () => {
+  const paths = await fixture();
+  try {
+    const listener = rssListener({ skill: 'bigbrain-ingest' });
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [listener] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+    const queued = await inbox.enqueue(createRssEventEnvelope({ listener, item: { title: 'Useful', link: 'https://example.test/useful', guid: 'useful', pubDate: 'Thu, 28 Aug 2026 10:00:00 GMT', raw: '<item />' } }), { clientId: 'client-1' });
+    const processor = new InboundEventProcessor({
+      registryStore: registry,
+      inboxStore: inbox,
+      executorFactory: async () => ({ execute: async () => ({ mode: 'app_thread', execution_id: 'turn-1', thread_id: 'thread-1', response_text: 'Ingested through the BigBrain MCP.' }) }),
+      filingBroker: { file: async () => { throw new Error('broker must not replay a direct MCP write'); } },
+    });
+    const processed = await processor.process(queued.event.delivery_id);
+    assert.equal(processed.state, 'filed');
+    assert.equal(processed.thread_id, 'thread-1');
+    assert.match(processed.outcome.reason, /event-ingestion task/);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
