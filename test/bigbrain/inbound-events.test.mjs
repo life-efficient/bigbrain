@@ -66,6 +66,10 @@ test('listeners normalize upstream event filters and prompt field selection', ()
   assert.deepEqual(listener.event_types, ['note.generated']);
   assert.deepEqual(listener.prompt_payload_fields, ['event_type', 'data.title']);
   assert.deepEqual(listener.prompt_omit_fields, ['data.internal']);
+  assert.equal(normalizeListener({ id: 'settings', type: 'webhook', codex_model: 'gpt-5.6-luna', codex_reasoning_effort: 'xhigh', codex_thread_title: 'Fallback title' }).codex_model, 'gpt-5.6-luna');
+  assert.equal(normalizeListener({ id: 'settings-2', type: 'webhook', reasoning_effort: 'xhigh', chat_title: 'Fallback title' }).codex_reasoning_effort, 'xhigh');
+  assert.equal(normalizeListener({ id: 'settings-3', type: 'webhook', reasoning_effort: 'xhigh', chat_title: 'Fallback title' }).codex_thread_title, 'Fallback title');
+  assert.throws(() => normalizeListener({ id: 'bad-settings', type: 'webhook', reasoning_effort: 'extra-high' }), /codex_reasoning_effort/);
   assert.equal(configuredWebhookEventType({ event_type: 'note.generated' }, {}, listener), 'note.generated');
   assert.equal(configuredWebhookEventType({ type: 'note.generated' }, {}, listener), 'note.generated');
 });

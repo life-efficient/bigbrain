@@ -19,6 +19,7 @@ export const EVENT_STATES = ['received', 'running', 'filed', 'ignored', 'failed'
 export const EXECUTION_MODES = ['app_thread', 'cli'];
 export const RUNTIME_LOCATIONS = ['client', 'host'];
 export const LISTENER_TYPES = ['rss', 'webhook'];
+export const CODEX_REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max', 'ultra'];
 
 const SECRET_KEYS = new Set(['authorization', 'cookie', 'set-cookie', 'token', 'access_token', 'refresh_token', 'client_secret', 'webhook_secret']);
 
@@ -118,6 +119,9 @@ export function normalizeListener(value) {
     event_types: normalizeStringArray(value.event_types || value.allowed_event_types).map((item) => item.toLowerCase()),
     prompt_payload_fields: normalizeFieldPaths(value.prompt_payload_fields || value.prompt_fields, 'listener.prompt_payload_fields'),
     prompt_omit_fields: normalizeFieldPaths(value.prompt_omit_fields || value.prompt_exclude_fields, 'listener.prompt_omit_fields'),
+    codex_model: optionalString(value.codex_model || value.model),
+    codex_reasoning_effort: normalizeReasoningEffort(value.codex_reasoning_effort || value.reasoning_effort),
+    codex_thread_title: optionalString(value.codex_thread_title || value.chat_title || value.thread_title),
     listener_location: listenerLocation,
     codex_execution_location: executionLocation,
     codex_execution_mode: executionMode,
@@ -1219,6 +1223,11 @@ function requireEnum(value, values, name) {
 
 function optionalString(value) {
   return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function normalizeReasoningEffort(value) {
+  const effort = optionalString(value)?.toLowerCase() || null;
+  return effort ? requireEnum(effort, CODEX_REASONING_EFFORTS, 'listener.codex_reasoning_effort') : null;
 }
 
 function normalizeFieldPath(value, name) {

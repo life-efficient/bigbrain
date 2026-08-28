@@ -453,9 +453,13 @@ async function handleEvents(args, global) {
     const promptFields = argValues(args, '--prompt-field');
     const promptOmitFields = argValues(args, '--prompt-omit-field');
     const eventTypePath = argValue(args, '--event-type-path');
+    const codexModel = argValue(args, '--model') || argValue(args, '--codex-model');
+    const codexReasoningEffort = argValue(args, '--reasoning-effort') || argValue(args, '--codex-reasoning-effort');
+    const codexThreadTitle = argValue(args, '--chat-title') || argValue(args, '--codex-thread-title');
     const hasEventTypeOptions = eventTypes.length || args.includes('--clear-event-types') || eventTypePath;
     const hasPromptOptions = promptFields.length || promptOmitFields.length || args.includes('--clear-prompt-fields') || args.includes('--clear-prompt-omit-fields');
-    if (!hasEventTypeOptions && !hasPromptOptions) throw new Error('Usage: bigbrain events configure <listener-id> [--event-type-path PATH] [--event-type TYPE ...] [--prompt-field FIELD ...] [--prompt-omit-field FIELD ...]');
+    const hasCodexOptions = codexModel || codexReasoningEffort || codexThreadTitle || args.includes('--clear-model') || args.includes('--clear-reasoning-effort') || args.includes('--clear-chat-title');
+    if (!hasEventTypeOptions && !hasPromptOptions && !hasCodexOptions) throw new Error('Usage: bigbrain events configure <listener-id> [--event-type-path PATH] [--event-type TYPE ...] [--prompt-field FIELD ...] [--prompt-omit-field FIELD ...] [--model MODEL] [--reasoning-effort EFFORT] [--chat-title TITLE]');
     const next = await registry.update((current) => {
       const listeners = current.listeners.map((listener) => {
         if (listener.id !== listenerId) return listener;
@@ -465,14 +469,17 @@ async function handleEvents(args, global) {
           ...(eventTypes.length || args.includes('--clear-event-types') ? { event_types: eventTypes } : {}),
           ...(promptFields.length || args.includes('--clear-prompt-fields') ? { prompt_payload_fields: promptFields } : {}),
           ...(promptOmitFields.length || args.includes('--clear-prompt-omit-fields') ? { prompt_omit_fields: promptOmitFields } : {}),
+          ...(codexModel || args.includes('--clear-model') ? { codex_model: codexModel || null } : {}),
+          ...(codexReasoningEffort || args.includes('--clear-reasoning-effort') ? { codex_reasoning_effort: codexReasoningEffort || null } : {}),
+          ...(codexThreadTitle || args.includes('--clear-chat-title') ? { codex_thread_title: codexThreadTitle || null } : {}),
           updated_at: new Date().toISOString(),
         };
       });
       if (!listeners.some((listener) => listener.id === listenerId)) throw new Error(`Listener not found: ${listenerId}`);
       return { ...current, listeners };
-    }, { audit: { action: 'listener_configure', listener_id: listenerId, event_types: eventTypes, event_type_path: eventTypePath || null, prompt_fields: promptFields, prompt_omit_fields: promptOmitFields } });
+    }, { audit: { action: 'listener_configure', listener_id: listenerId, event_types: eventTypes, event_type_path: eventTypePath || null, prompt_fields: promptFields, prompt_omit_fields: promptOmitFields, codex_model: codexModel || null, codex_reasoning_effort: codexReasoningEffort || null, codex_thread_title: codexThreadTitle || null } });
     const listener = next.listeners.find((item) => item.id === listenerId);
-    output(global, listener, `Configured ${listenerId}: ${listener.event_types.join(', ') || 'all event types'}; prompt fields ${listener.prompt_payload_fields.length ? listener.prompt_payload_fields.join(', ') : 'all payload fields'}${listener.prompt_omit_fields.length ? `; omitted ${listener.prompt_omit_fields.join(', ')}` : ''}.`);
+    output(global, listener, `Configured ${listenerId}: ${listener.event_types.join(', ') || 'all event types'}; prompt fields ${listener.prompt_payload_fields.length ? listener.prompt_payload_fields.join(', ') : 'all payload fields'}${listener.prompt_omit_fields.length ? `; omitted ${listener.prompt_omit_fields.join(', ')}` : ''}; Codex ${listener.codex_model || 'default'} / ${listener.codex_reasoning_effort || 'default'} / ${listener.codex_thread_title || 'payload title or source fallback'}.`);
     return;
   }
   if (['pause', 'resume', 'remove'].includes(action)) {
@@ -950,7 +957,7 @@ Commands:
   events status
   events listeners
   events inbox [--state STATE] [--listener ID] [--limit N]
-  events configure <listener-id> [--event-type-path PATH] [--event-type TYPE ...] [--prompt-field FIELD ...] [--prompt-omit-field FIELD ...]
+  events configure <listener-id> [--event-type-path PATH] [--event-type TYPE ...] [--prompt-field FIELD ...] [--prompt-omit-field FIELD ...] [--model MODEL] [--reasoning-effort EFFORT] [--chat-title TITLE]
   events listener-upsert --from <listener.json>
   events subscription-upsert --from <subscription.json>
   events pause|resume|remove <listener-id>
