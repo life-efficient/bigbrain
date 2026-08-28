@@ -3,10 +3,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { BrainRegistry } from './brain-registry.mjs';
+import { BrainRegistry, SERVICE_OWNERSHIPS } from './brain-registry.mjs';
 import { MacKeychain, redactSecrets } from './keychain.mjs';
 import { connectionInstructions } from './connection-instructions.mjs';
-import { findBrainLaunchAgent } from './launch-agent-discovery.mjs';
+import { classifyLaunchAgentOwnership, findBrainLaunchAgent } from './launch-agent-discovery.mjs';
 import { discoverLocalBrains, findBrainConfigPath } from './brain-discovery.mjs';
 
 const execFileAsync = promisify(execFile);
@@ -35,8 +35,41 @@ export class DesktopController {
   }
 
   async state() {
-    const registry = await this.registry.load();
+    const registry = await this.loadClassifiedRegistry();
     return { ...registry, brains: registry.brains.map(publicBrain) };
+  }
+
+  async loadClassifiedRegistry() {
+    const registry = await this.registry.load();
+    let changed = false;
+    const brains = await Promise.all(registry.brains.map(async (brain) => {
+      if (brain.connectionType === 'service') {
+        if (brain.serviceOwnership === SERVICE_OWNERSHIPS.REMOTE) return brain;
+        changed = true;
+        return {
+          ...brain,
+          serviceOwnership: SERVICE_OWNERSHIPS.REMOTE,
+          serviceOwnershipReason: 'remote_connection',
+        };
+      }
+      if (!brain.home) return brain;
+      const agent = await findBrainLaunchAgent(brain.home, { launchAgentsDir: this.launchAgentsDir });
+      if (!agent) return brain;
+      const inferred = classifyLaunchAgentOwnership(agent, { appPath: this.appPath });
+      const shouldTrustUnknown = inferred.reason === 'conflicting_launch_agent_markers';
+      const ownership = inferred.ownership === SERVICE_OWNERSHIPS.UNKNOWN && !shouldTrustUnknown
+        ? brain.serviceOwnership
+        : inferred.ownership;
+      const reason = inferred.ownership === SERVICE_OWNERSHIPS.UNKNOWN && !shouldTrustUnknown
+        ? brain.serviceOwnershipReason
+        : inferred.reason;
+      if (ownership === brain.serviceOwnership && reason === brain.serviceOwnershipReason) return brain;
+      changed = true;
+      return { ...brain, serviceOwnership: ownership, serviceOwnershipReason: reason };
+    }));
+    if (!changed) return registry;
+    const updated = { ...registry, brains };
+    return typeof this.registry.save === 'function' ? this.registry.save(updated) : updated;
   }
 
   async discoverBrains() {
@@ -180,9 +213,13 @@ export class DesktopController {
   }
 
   async installService(brain, { ownerSlug }) {
+    if (brain.serviceOwnership !== SERVICE_OWNERSHIPS.DESKTOP_BUNDLE) {
+      throw new Error('Only a desktop-bundle service can be installed by the BigBrain desktop app.');
+    }
     const installer = path.join(this.appPath, 'scripts/install-local-mcp-service.mjs');
     const args = [installer, '--repo-root', this.appPath, '--brain-home', brain.home, '--port', String(brain.port), '--label', brain.serviceLabel,
-      '--local-person-slug', ownerSlug, '--local-owner-email', brain.owner.email, '--local-owner-name', brain.owner.name, '--keychain-account', brain.id];
+      '--local-person-slug', ownerSlug || '', '--local-owner-email', brain.owner?.email || '', '--local-owner-name', brain.owner?.name || '', '--keychain-account', brain.id,
+      '--service-manager', 'desktop', '--service-source', 'desktop-bundle'];
     if (brain.replacedService?.plistPath && brain.replacedService.label !== brain.serviceLabel) args.push('--replace-plist', brain.replacedService.plistPath);
     if (this.nodePath === process.execPath && process.versions.electron) args.push('--electron-run-as-node');
     await execFileAsync(this.nodePath, args, { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
@@ -213,9 +250,15 @@ export class DesktopController {
     return connectionInstructions(publicBrain(brain));
   }
   async restart(id) {
-    const registry = await this.registry.load();
+    const registry = await this.loadClassifiedRegistry();
     const brain = registry.brains.find((item) => item.id === id);
     if (!brain) throw new Error(`Unknown brain: ${id}`);
+    if (brain.serviceOwnership === SERVICE_OWNERSHIPS.REMOTE) {
+      throw new Error('Remote BigBrain services must be restarted by their operator.');
+    }
+    if (brain.serviceOwnership !== SERVICE_OWNERSHIPS.DESKTOP_BUNDLE) {
+      throw new Error('This local BigBrain service is not managed by the desktop app.');
+    }
     await execFileAsync('launchctl', ['kickstart', '-k', `gui/${process.getuid()}/${brain.serviceLabel}`]);
     return publicBrain(await this.registry.update(id, { status: 'running' }));
   }

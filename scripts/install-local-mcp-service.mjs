@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import net from 'node:net';
+import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
 const execFileAsync = promisify(execFile);
@@ -12,6 +13,10 @@ const DEFAULT_LABEL = 'local.bigbrain.mcp';
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 55560;
 const SERVICE_START_TIMEOUT_MS = 60_000;
+const SERVICE_MANAGER_DESKTOP = 'desktop';
+const SERVICE_MANAGER_SOURCE = 'source';
+const SERVICE_SOURCE_DESKTOP_BUNDLE = 'desktop-bundle';
+const SERVICE_SOURCE_CHECKOUT = 'source-checkout';
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
@@ -25,7 +30,10 @@ async function main() {
   const localOwnerName = options.localOwnerName || '';
   const keychainAccount = options.keychainAccount || '';
   const electronRunAsNode = Boolean(options.electronRunAsNode);
-  const installAutomaticUpdater = !electronRunAsNode && !options.noAutoUpdate;
+  const serviceManager = options.serviceManager || (electronRunAsNode ? SERVICE_MANAGER_DESKTOP : SERVICE_MANAGER_SOURCE);
+  const serviceSource = options.serviceSource || (serviceManager === SERVICE_MANAGER_DESKTOP ? SERVICE_SOURCE_DESKTOP_BUNDLE : SERVICE_SOURCE_CHECKOUT);
+  validateServiceOwnershipMarkers({ serviceManager, serviceSource });
+  const installAutomaticUpdater = serviceManager === SERVICE_MANAGER_SOURCE && !options.noAutoUpdate;
   const plistPath = options.plistPath || path.join(os.homedir(), 'Library', 'LaunchAgents', `${label}.plist`);
   const logDir = options.logDir || path.join(os.homedir(), '.config', 'bigbrain');
   const nodePath = options.nodePath || process.execPath;
@@ -50,6 +58,8 @@ async function main() {
     localPersonSlug,
     keychainAccount,
     electronRunAsNode,
+    serviceManager,
+    serviceSource,
   });
 
   if (options.dryRun) {
@@ -66,6 +76,8 @@ async function main() {
       localOwnerName,
       keychainAccount,
       electronRunAsNode,
+      serviceManager,
+      serviceSource,
       installAutomaticUpdater,
       stdoutPath,
       stderrPath,
@@ -192,6 +204,12 @@ function parseArgs(args) {
       case '--update-channel':
         options.updateChannel = args[++index];
         break;
+      case '--service-manager':
+        options.serviceManager = args[++index];
+        break;
+      case '--service-source':
+        options.serviceSource = args[++index];
+        break;
       case '--replace-plist':
         options.replacePlist = args[++index];
         break;
@@ -212,7 +230,7 @@ async function readDefaultBrainHome() {
   return value;
 }
 
-function renderLaunchAgentPlist({
+export function renderLaunchAgentPlist({
   label,
   nodePath,
   bigbrainBin,
@@ -226,7 +244,10 @@ function renderLaunchAgentPlist({
   localPersonSlug,
   keychainAccount,
   electronRunAsNode,
+  serviceManager = electronRunAsNode ? SERVICE_MANAGER_DESKTOP : SERVICE_MANAGER_SOURCE,
+  serviceSource = serviceManager === SERVICE_MANAGER_DESKTOP ? SERVICE_SOURCE_DESKTOP_BUNDLE : SERVICE_SOURCE_CHECKOUT,
 }) {
+  validateServiceOwnershipMarkers({ serviceManager, serviceSource });
   const args = [
     nodePath,
     bigbrainBin,
@@ -256,7 +277,11 @@ ${args.map((arg) => `    <string>${xmlEscape(arg)}</string>`).join('\n')}
     <string>${xmlEscape(home)}</string>
 ${electronRunAsNode ? `    <key>ELECTRON_RUN_AS_NODE</key>
     <string>1</string>
-` : ''}    <key>PATH</key>
+` : ''}    <key>BIGBRAIN_SERVICE_MANAGER</key>
+    <string>${xmlEscape(serviceManager)}</string>
+    <key>BIGBRAIN_SERVICE_SOURCE</key>
+    <string>${xmlEscape(serviceSource)}</string>
+    <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>BIGBRAIN_MCP_AUTH_MODE</key>
     <string>none</string>
@@ -282,6 +307,17 @@ ${localPersonSlug ? `    <key>BIGBRAIN_MCP_LOCAL_PERSON_SLUG</key>
 </dict>
 </plist>
 `;
+}
+
+function validateServiceOwnershipMarkers({ serviceManager, serviceSource }) {
+  const validManager = serviceManager === SERVICE_MANAGER_DESKTOP || serviceManager === SERVICE_MANAGER_SOURCE;
+  if (!validManager) throw new Error('--service-manager must be desktop or source.');
+  const expectedSource = serviceManager === SERVICE_MANAGER_DESKTOP
+    ? SERVICE_SOURCE_DESKTOP_BUNDLE
+    : SERVICE_SOURCE_CHECKOUT;
+  if (serviceSource !== expectedSource) {
+    throw new Error(`--service-source must be ${expectedSource} when --service-manager is ${serviceManager}.`);
+  }
 }
 
 function xmlEscape(value) {
@@ -385,7 +421,9 @@ async function userId() {
   return stdout.trim();
 }
 
-main().catch((error) => {
-  console.error(error.message);
-  process.exitCode = 1;
-});
+if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
+}

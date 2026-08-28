@@ -4,8 +4,14 @@ import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
 
-export const REGISTRY_VERSION = 1;
+export const REGISTRY_VERSION = 2;
 export const DEFAULT_PORT_START = 55560;
+export const SERVICE_OWNERSHIPS = Object.freeze({
+  DESKTOP_BUNDLE: 'desktop_bundle',
+  SOURCE: 'source',
+  REMOTE: 'remote',
+  UNKNOWN: 'unknown',
+});
 
 export function defaultAppSupport(home = os.homedir()) {
   return path.join(home, 'Library', 'Application Support', 'BigBrain');
@@ -48,6 +54,8 @@ export class BrainRegistry {
       port,
       host: this.host,
       serviceLabel: `ai.diffusing.bigbrain.${id}`,
+      serviceOwnership: SERVICE_OWNERSHIPS.DESKTOP_BUNDLE,
+      serviceOwnershipReason: 'created_by_desktop',
       status: 'setup',
       owner: { name: String(ownerName).trim(), email: String(ownerEmail).trim().toLowerCase() },
       aiAccess: { type: 'bring_your_own_key', provider: 'openai' },
@@ -71,6 +79,8 @@ export class BrainRegistry {
     const brain = {
       id, brainId: id, name: String(name).trim(), home: resolvedHome, port, host: this.host,
       serviceLabel: `ai.diffusing.bigbrain.${id}`, replacedService, status: 'setup',
+      serviceOwnership: SERVICE_OWNERSHIPS.DESKTOP_BUNDLE,
+      serviceOwnershipReason: 'adopted_by_desktop',
       owner: { name: String(ownerName).trim(), email: String(ownerEmail).trim().toLowerCase() },
       aiAccess: { type: 'bring_your_own_key', provider: 'openai' },
       onboarding: { step: 4, completed: false, error: null },
@@ -92,6 +102,8 @@ export class BrainRegistry {
       name: String(name).trim(),
       connectionType: 'service',
       serviceUrl,
+      serviceOwnership: SERVICE_OWNERSHIPS.REMOTE,
+      serviceOwnershipReason: 'remote_connection',
       status: 'connected',
       onboarding: { step: 5, completed: true, error: null },
       createdAt: new Date().toISOString(),
@@ -132,7 +144,35 @@ function normalizeRegistry(value) {
   return {
     version: REGISTRY_VERSION,
     activeBrainId: typeof value.activeBrainId === 'string' ? value.activeBrainId : null,
-    brains: Array.isArray(value.brains) ? value.brains.filter((brain) => brain && typeof brain.id === 'string') : [],
+    brains: Array.isArray(value.brains)
+      ? value.brains
+        .filter((brain) => brain && typeof brain.id === 'string')
+        .map(normalizeBrainServiceOwnership)
+      : [],
+  };
+}
+
+function normalizeBrainServiceOwnership(brain) {
+  if (brain.connectionType === 'service') {
+    return {
+      ...brain,
+      serviceOwnership: SERVICE_OWNERSHIPS.REMOTE,
+      serviceOwnershipReason: brain.serviceOwnershipReason || 'remote_connection',
+    };
+  }
+  const allowed = new Set([
+    SERVICE_OWNERSHIPS.DESKTOP_BUNDLE,
+    SERVICE_OWNERSHIPS.SOURCE,
+    SERVICE_OWNERSHIPS.UNKNOWN,
+  ]);
+  const serviceOwnership = allowed.has(brain.serviceOwnership)
+    ? brain.serviceOwnership
+    : SERVICE_OWNERSHIPS.UNKNOWN;
+  return {
+    ...brain,
+    serviceOwnership,
+    serviceOwnershipReason: brain.serviceOwnershipReason
+      || (serviceOwnership === SERVICE_OWNERSHIPS.UNKNOWN ? 'legacy_unclassified' : 'registry'),
   };
 }
 
