@@ -436,6 +436,25 @@ organization-owned feeds, run the same runtime on the organization host and
 deliver subscribed events through the self-hostable relay in
 `deploy/event-relay/`.
 
+Use the RSS status operation to inspect the live feed without enqueueing events
+or creating Codex tasks:
+
+```bash
+bigbrain events rss-status [--listener LISTENER_ID] [--limit N]
+```
+
+Older feed items are only eligible for a deliberate, explicitly selected manual
+backfill. The command defaults to a dry run; use exact stable item IDs from the
+status output and add `--apply` to enqueue them. The existing seven-day initial
+cursor and normal polling guard remain in force, and manual backfill is bounded
+to 25 selected items per invocation:
+
+```bash
+bigbrain events rss-backfill LISTENER_ID \
+  --item-id LISTENER_ID:STABLE_HASH [--item-id LISTENER_ID:STABLE_HASH ...] \
+  [--dry-run|--apply]
+```
+
 ## Dashboard and Desktop App
 
 Start the local dashboard:

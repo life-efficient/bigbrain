@@ -12,6 +12,8 @@ import {
   trimObject,
 } from './inbound-events.js';
 
+export const DEFAULT_RSS_MANUAL_BACKFILL_LIMIT = 25;
+
 /**
  * RSS is deliberately poll-based. This module owns feed fetching, cursor
  * advancement, item deduplication, and optional subscription forwarding.
@@ -68,10 +70,12 @@ export class RssCollector {
     };
     const firstPoll = !previous.initialized_at;
     const cursorAt = previous.cursor_at || (firstPoll ? new Date(this.now().getTime() - DEFAULT_RSS_INITIAL_CURSOR_DAYS * 86_400_000).toISOString() : previous.last_poll_at || previous.initialized_at || this.now().toISOString());
+    const initialCursorAt = previous.initial_cursor_at || (firstPoll ? cursorAt : null);
     if (response.status === 304) {
       await this.inboxStore.updateCollector(listener.id, {
         ...next,
         initialized_at: previous.initialized_at || polledAt,
+        initial_cursor_at: initialCursorAt,
         cursor_at: cursorAt,
         cursor_id: previous.cursor_id || null,
         last_success_at: polledAt,
@@ -91,6 +95,7 @@ export class RssCollector {
       await this.inboxStore.updateCollector(listener.id, {
         ...next,
         initialized_at: previous.initialized_at || polledAt,
+        initial_cursor_at: initialCursorAt,
         cursor_at: cursor.cursor_at,
         cursor_id: cursor.cursor_id,
       });
@@ -155,6 +160,7 @@ export class RssCollector {
         ...next,
         seen: trimObject(seen, 2000),
         initialized_at: previous.initialized_at || polledAt,
+        initial_cursor_at: initialCursorAt,
         cursor_at: cursor.cursor_at,
         cursor_id: cursor.cursor_id,
         last_item_key: key,
@@ -166,6 +172,7 @@ export class RssCollector {
       ...next,
       seen: trimObject(seen, 2000),
       initialized_at: previous.initialized_at || polledAt,
+      initial_cursor_at: initialCursorAt,
       cursor_at: cursor.cursor_at,
       cursor_id: cursor.cursor_id,
       last_success_at: polledAt,
@@ -173,6 +180,202 @@ export class RssCollector {
       item_count: items.length,
     });
     return { listener_id: listener.id, status: 'ok', feed_title: feed.title, item_count: items.length, ingested, duplicates };
+  }
+
+  async statusAll({ listenerId = null, limit = 50 } = {}) {
+    const registry = await this.registryStore.get();
+    const listeners = registry.listeners.filter((listener) => listener.type === 'rss'
+      && listener.enabled
+      && !listener.removed
+      && listener.listener_location === registry.runtime.kind
+      && (!listenerId || listener.id === listenerId));
+    if (listenerId && !listeners.length) throw new Error(`Active RSS listener not found: ${listenerId}`);
+    const report = { listeners: [], errors: [] };
+    for (const listener of listeners) {
+      try {
+        report.listeners.push(await this.status(listener, registry, { limit }));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        report.errors.push({ listener_id: listener.id, message });
+        report.listeners.push({ listener_id: listener.id, status: 'error', message });
+      }
+    }
+    return report;
+  }
+
+  async status(listener, registry, { limit = 50 } = {}) {
+    const previous = (await this.inboxStore.get()).collectors[listener.id] || {};
+    const response = await this.fetchImpl(listener.url, { headers: { 'user-agent': 'BigBrain RSS status/1.0' } });
+    if (!response.ok) throw new Error(`Feed returned HTTP ${response.status}.`);
+    const feed = parseRssDocument(await response.text());
+    const items = sortRssItems(feed.items.map(normalizeRssItemForEvent));
+    const initialCursorAt = previous.initial_cursor_at || new Date(this.now().getTime() - DEFAULT_RSS_INITIAL_CURSOR_DAYS * 86_400_000).toISOString();
+    const currentCursor = previous.cursor_at ? { cursor_at: previous.cursor_at, cursor_id: previous.cursor_id || null } : null;
+    const seen = previous.seen || {};
+    const legacySeen = previous.legacy_seen || {};
+    const rows = items.map((item) => this.describeItem(listener, item, { seen, legacySeen, initialCursorAt, currentCursor }));
+    const incremental = rows.filter((row) => row.incremental_outstanding);
+    const initialWindow = rows.filter((row) => row.initial_window_unseen);
+    const manual = rows.filter((row) => row.manual_backfill_candidate);
+    const boundedLimit = normalizeLimit(limit, 50);
+    return {
+      listener_id: listener.id,
+      status: 'ok',
+      feed_title: feed.title,
+      item_count: items.length,
+      initialized_at: previous.initialized_at || null,
+      initial_cursor: { cursor_at: initialCursorAt, cursor_id: null },
+      current_cursor: currentCursor,
+      seen_count: Object.keys(seen).length,
+      legacy_seen_count: Object.keys(legacySeen).length,
+      counts: {
+        seen: rows.length - rows.filter((row) => !row.seen).length,
+        unseen: rows.filter((row) => !row.seen).length,
+        initial_window_unseen: initialWindow.length,
+        incremental_outstanding: incremental.length,
+        manual_backfill_candidates: manual.length,
+      },
+      outstanding: {
+        incremental: incremental.slice(0, boundedLimit),
+        initial_window: initialWindow.slice(0, boundedLimit),
+        manual_backfill: manual.slice(0, boundedLimit),
+      },
+      truncated: {
+        incremental: incremental.length > boundedLimit,
+        initial_window: initialWindow.length > boundedLimit,
+        manual_backfill: manual.length > boundedLimit,
+      },
+    };
+  }
+
+  async backfill(listenerId, { itemIds = [], dryRun = false, maxItems = DEFAULT_RSS_MANUAL_BACKFILL_LIMIT } = {}) {
+    const registry = await this.registryStore.get();
+    const listener = registry.listeners.find((candidate) => candidate.id === listenerId
+      && candidate.type === 'rss'
+      && candidate.enabled
+      && !candidate.removed
+      && candidate.listener_location === registry.runtime.kind);
+    if (!listener) throw new Error(`Active RSS listener not found: ${listenerId}`);
+    const requestedIds = [...new Set((Array.isArray(itemIds) ? itemIds : [itemIds]).map((value) => String(value || '').trim()).filter(Boolean))];
+    if (!requestedIds.length) throw new Error('RSS manual backfill requires at least one exact stable item ID.');
+    const limit = normalizeLimit(maxItems, DEFAULT_RSS_MANUAL_BACKFILL_LIMIT);
+    if (requestedIds.length > limit) throw new Error(`RSS manual backfill is limited to ${limit} explicitly selected item IDs.`);
+    const previous = (await this.inboxStore.get()).collectors[listener.id] || {};
+    const response = await this.fetchImpl(listener.url, { headers: { 'user-agent': 'BigBrain RSS manual backfill/1.0' } });
+    if (!response.ok) throw new Error(`Feed returned HTTP ${response.status}.`);
+    const xml = await response.text();
+    const feed = parseRssDocument(xml);
+    const items = sortRssItems(feed.items.map(normalizeRssItemForEvent));
+    const byId = new Map(items.map((item) => [stableRssItemId(listener, item), item]));
+    const initialCursorAt = previous.initial_cursor_at || new Date(this.now().getTime() - DEFAULT_RSS_INITIAL_CURSOR_DAYS * 86_400_000).toISOString();
+    const currentCursor = previous.cursor_at ? { cursor_at: previous.cursor_at, cursor_id: previous.cursor_id || null } : null;
+    const seen = { ...(previous.seen || {}) };
+    const legacySeen = previous.legacy_seen || {};
+    const result = {
+      listener_id: listener.id,
+      status: dryRun ? 'dry_run' : 'ok',
+      feed_title: feed.title,
+      requested_item_ids: requestedIds,
+      selected: [],
+      unknown_item_ids: requestedIds.filter((itemId) => !byId.has(itemId)),
+      state_changed: false,
+    };
+    const selectedForState = [];
+    for (const itemId of requestedIds) {
+      const item = byId.get(itemId);
+      if (!item) continue;
+      const description = this.describeItem(listener, item, { seen, legacySeen, initialCursorAt, currentCursor });
+      if (description.seen) {
+        result.selected.push({ ...description, action: 'duplicate', reason: 'already_seen' });
+        continue;
+      }
+      if (!description.manual_backfill_candidate) {
+        result.selected.push({ ...description, action: 'skipped', reason: 'not_beyond_initial_cursor' });
+        continue;
+      }
+      if (dryRun) {
+        result.selected.push({ ...description, action: 'would_enqueue' });
+        continue;
+      }
+      const delivery = await this.enqueueRssItem({ listener, item, feedXml: item.raw || xml, registry });
+      const action = delivery.duplicates ? 'duplicate' : delivery.ingested ? 'enqueued' : 'handled';
+      result.selected.push({ ...description, action, ingested: delivery.ingested, duplicates: delivery.duplicates });
+      seen[itemId] = this.now().toISOString();
+      selectedForState.push(itemId);
+    }
+    if (!dryRun && selectedForState.length) {
+      await this.inboxStore.updateCollector(listener.id, {
+        seen: trimObject(seen, 2000),
+        last_backfill_at: this.now().toISOString(),
+        last_backfill_item_ids: selectedForState,
+      });
+      result.state_changed = true;
+    }
+    result.counts = {
+      enqueued: result.selected.filter((item) => item.action === 'enqueued').length,
+      duplicates: result.selected.filter((item) => item.action === 'duplicate').length,
+      skipped: result.selected.filter((item) => item.action === 'skipped').length,
+      unknown: result.unknown_item_ids.length,
+    };
+    return result;
+  }
+
+  describeItem(listener, item, { seen, legacySeen, initialCursorAt, currentCursor }) {
+    const itemId = stableRssItemId(listener, item);
+    const legacyKey = legacyRssItemKey(listener.id, item);
+    const itemCursor = rssCursorForItem(listener.id, item);
+    const isSeen = Boolean(seen[itemId] || legacySeen[legacyKey]);
+    const afterInitial = Boolean(itemCursor && isAfterRssCursor(listener.id, item, initialCursorAt));
+    const afterCurrent = Boolean(itemCursor && currentCursor && compareRssCursors(itemCursor, currentCursor) > 0);
+    return {
+      item_id: itemId,
+      title: item.title,
+      link: item.link || null,
+      guid: item.guid || null,
+      published_at: item.published_at || null,
+      seen: isSeen,
+      after_initial_cursor: afterInitial,
+      after_current_cursor: afterCurrent,
+      incremental_outstanding: !isSeen && (currentCursor ? afterCurrent : afterInitial),
+      initial_window_unseen: !isSeen && afterInitial,
+      manual_backfill_candidate: !isSeen && (!itemCursor || !afterInitial),
+    };
+  }
+
+  async enqueueRssItem({ listener, item, feedXml, registry }) {
+    const event = createRssEventEnvelope({ listener, item, feedXml: item.raw || feedXml, now: this.now(), registry });
+    const subscriptions = registry.subscriptions.filter((subscription) => subscription.listener_id === listener.id && subscription.enabled);
+    const deliveries = subscriptions.length
+      ? subscriptions
+      : listener.listener_location === 'host' && listener.codex_execution_location === 'client'
+        ? []
+        : [{ client_id: registry.runtime.id, brain_ids: listener.brain_ids, id: null, delivery_url: null }];
+    if (!deliveries.length) {
+      const unassigned = await this.inboxStore.enqueue(event, { clientId: registry.runtime.id, deliveryOnly: true });
+      if (!unassigned.duplicate) await this.inboxStore.complete(unassigned.event.delivery_id, { state: 'ignored', outcome: { status: 'ignored', reason: 'no_active_subscriptions', capture_mode: 'none' }, retainRaw: false });
+      return { accepted: true, ingested: 0, duplicates: unassigned.duplicate ? 1 : 0 };
+    }
+    let ingested = 0;
+    let duplicates = 0;
+    for (const subscription of deliveries) {
+      const deliveryEvent = { ...event, allowed_brain_ids: subscription.brain_ids?.length ? subscription.brain_ids : event.allowed_brain_ids };
+      if (subscription.delivery_url) {
+        const queued = await this.inboxStore.enqueue(deliveryEvent, { clientId: subscription.client_id, subscriptionId: subscription.id || null, deliveryOnly: true });
+        if (!queued.duplicate || ['received', 'failed'].includes(queued.event.state)) {
+          try {
+            await this.forwardSubscription(deliveryEvent, subscription);
+            await this.inboxStore.complete(queued.event.delivery_id, { state: 'filed', outcome: { status: 'delivered', subscription_id: subscription.id || null }, retainRaw: false });
+          } catch (error) {
+            await this.inboxStore.fail(queued.event.delivery_id, error);
+            throw error;
+          }
+        }
+        continue;
+      }
+      const result = await this.inboxStore.enqueue(deliveryEvent, { clientId: subscription.client_id, subscriptionId: subscription.id || null });
+      if (result.duplicate) duplicates += 1; else ingested += 1;
+    }
+    return { accepted: true, ingested, duplicates };
   }
 
   async forwardSubscription(event, subscription) {
@@ -191,6 +394,26 @@ export class RssCollector {
     });
     if (!response.ok) throw new Error(`Subscription ${subscription.id || subscription.client_id} delivery returned HTTP ${response.status}.`);
   }
+}
+
+function sortRssItems(items) {
+  return items.sort((left, right) => {
+    const leftTime = Date.parse(left.published_at || '');
+    const rightTime = Date.parse(right.published_at || '');
+    if (Number.isNaN(leftTime) && Number.isNaN(rightTime)) return String(left.title).localeCompare(String(right.title));
+    if (Number.isNaN(leftTime)) return 1;
+    if (Number.isNaN(rightTime)) return -1;
+    return rightTime - leftTime || String(right.guid || right.link || '').localeCompare(String(left.guid || left.link || ''));
+  });
+}
+
+function stableRssItemId(listener, item) {
+  return stableSourceEventId(listener.id, item.guid || item.link || `${item.title}:${item.pubDate}`);
+}
+
+function normalizeLimit(value, fallback) {
+  const limit = Number(value);
+  return Number.isInteger(limit) && limit > 0 ? Math.min(limit, 1000) : fallback;
 }
 
 function compareRssCursors(left, right) {
