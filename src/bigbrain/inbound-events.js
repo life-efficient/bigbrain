@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { CodexAppThreadExecutor, CodexCliExecutor } from './codex-event-executor.js';
+import { createGranolaWebhookEventEnvelope } from './granola-webhook.js';
 
 export const INBOUND_EVENTS_VERSION = 2;
 export const DEFAULT_EVENT_RETENTION_DAYS = 90;
@@ -117,6 +118,7 @@ export function normalizeListener(value) {
     brain_ids: normalizeStringArray(value.brain_ids || value.allowed_brain_ids),
     subscription_ids: normalizeStringArray(value.subscription_ids),
     publisher: optionalString(value.publisher),
+    provider: optionalString(value.provider || value.source_provider),
     section_heading: optionalString(value.section_heading),
     target_page: optionalString(value.target_page),
     raw_collection: optionalString(value.raw_collection),
@@ -288,6 +290,9 @@ export function classifyEvent(event, listener) {
   const item = event?.payload || {};
   const category = String(item.category || '').trim().toLowerCase();
   const title = String(item.title || '').trim();
+  if (listener?.provider === 'granola' && event?.type === 'granola.webhook' && item.completed !== true) {
+    return { decision: 'ignore', reason: 'unsupported_granola_event' };
+  }
   for (const rule of filter.rules) {
     const candidate = String(item[rule.field] || '');
     if (new RegExp(rule.match, 'i').test(candidate)) return { decision: rule.outcome, reason: `rule:${rule.field}:${rule.match}` };
@@ -828,6 +833,8 @@ export class InboundWebhookServer {
     const eventId = String(request.headers['x-event-id'] || request.headers['idempotency-key'] || payload.event_id || payload.id || sha256(body));
     const event = deliveryRoute
       ? normalizeEventEnvelope(payload, { now: this.now(), registry, listener: resolvedListener })
+      : resolvedListener.provider === 'granola'
+        ? normalizeEventEnvelope(createGranolaWebhookEventEnvelope({ listener: resolvedListener, payload, rawPayload: body, headers: request.headers, now: this.now(), registry }), { now: this.now(), registry, listener: resolvedListener })
       : createWebhookEventEnvelope({ listener: resolvedListener, eventId, payload, rawPayload: body, occurredAt: request.headers['x-occurred-at'] || null, metadata: { content_type: request.headers['content-type'] || null }, now: this.now(), registry });
     const result = await this.inboxStore.enqueue(event, { clientId: subscription?.client_id || registry.runtime.id, subscriptionId: subscription?.id || null });
     if (!result.duplicate) Promise.resolve(this.onAccepted?.(result.event.delivery_id)).catch((error) => this.logger.error?.(`Inbound webhook processing failed: ${error.message}`));

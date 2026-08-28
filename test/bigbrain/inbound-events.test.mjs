@@ -211,6 +211,51 @@ test('webhook server authenticates, limits, and deduplicates generic events', as
   }
 });
 
+test('Granola completion webhook is normalized, processed, filed, and deduplicated', async () => {
+  const paths = await fixture();
+  const granola = normalizeListener({
+    id: 'granola',
+    provider: 'granola',
+    type: 'webhook',
+    scope: 'personal',
+    brain_ids: ['brain_personal'],
+    capture_policy: { default_mode: 'full', retain_raw: true },
+  });
+  const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+  await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [granola] });
+  const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+  const executions = [];
+  const processor = new InboundEventProcessor({
+    registryStore: registry,
+    inboxStore: inbox,
+    executorFactory: async () => ({ execute: async ({ event }) => {
+      executions.push(event);
+      return { execution_id: 'granola-exec-1', thread_id: 'granola-thread-1', outcome: { status: 'filed', capture_mode: 'full', reason: 'completed meeting', destinations: [{ brain_id: 'brain_personal', writes: [] }] } };
+    } }),
+    filingBroker: { file: async () => ({ status: 'filed', destinations: [] }) },
+  });
+  const server = new InboundWebhookServer({ registryStore: registry, inboxStore: inbox, port: 0, secretResolver: () => 'secret', onAccepted: (deliveryId) => processor.process(deliveryId) });
+  try {
+    const address = await server.start();
+    const url = `http://127.0.0.1:${address.port}/events/granola`;
+    const body = JSON.stringify({ type: 'meeting.completed', data: { note: { id: 'not_test_1', title: 'Webhook test', summary: 'A completed meeting.' } } });
+    const headers = { 'content-type': 'application/json', 'x-bigbrain-signature': hmacSignature(body, 'secret') };
+    const first = await fetch(url, { method: 'POST', headers, body });
+    const second = await fetch(url, { method: 'POST', headers, body });
+    assert.equal(first.status, 202);
+    assert.equal(second.status, 200);
+    for (let attempt = 0; attempt < 20 && executions.length === 0; attempt += 1) await new Promise((resolve) => setTimeout(resolve, 5));
+    const filed = (await inbox.list({ state: 'filed' }))[0];
+    assert.equal(executions[0].type, 'granola.meeting.completed');
+    assert.equal(executions[0].payload.granola_id, 'not_test_1');
+    assert.equal(filed.outcome.filing.status, 'filed');
+    assert.equal((await inbox.list()).length, 1);
+  } finally {
+    await server.close();
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
 test('client delivery route preserves host RSS origin and explicit Brain scope', async () => {
   const paths = await fixture();
   const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
