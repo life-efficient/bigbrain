@@ -322,7 +322,8 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(dashboard, /graph-arc-hover-grow/);
   assert.match(visualizer, /linkCurvature\(\(\) => getForceGraphLinkCurvature/);
   assert.match(visualizer, /renderedArcStyleRef/);
-  assert.match(visualizer, /tickFrame\?\.\(\)/);
+  assert.match(visualizer, /refreshForceGraphLinkCurves/);
+  assert.match(visualizer, /createForceGraphLinkCurve/);
   assert.match(visualizer, /createForceGraphIconSprite/);
   assert.doesNotMatch(visualizer, /TYPE_GLYPHS/);
   assert.match(visualizer, /scene\.rotation\.z \+=/);

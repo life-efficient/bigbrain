@@ -197,7 +197,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .backgroundColor(theme.graphBase)
       .linkCurvature(() => getForceGraphLinkCurvature(settingsRef.current.arcStyle));
     updateForceGraphNodeObjects(forceGraph, settingsRef.current);
-    if (arcStyleChanged) forceGraph.tickFrame?.();
+    if (arcStyleChanged) refreshForceGraphLinkCurves(forceGraph, arcStyle);
     if (forceGraph.__bigBrainArcAnimation?.mode !== arcAnimation) {
       updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), activeSlugRef.current || hoveredSlugRef.current, arcAnimation);
     }
@@ -456,6 +456,49 @@ function getForceGraphLabelSlugs(nodes, labelStyle) {
 
 function getForceGraphLinkCurvature(arcStyle) {
   return arcStyle === 'straight' ? 0 : 0.22;
+}
+
+function refreshForceGraphLinkCurves(forceGraph, arcStyle) {
+  const links = getForceGraphData(forceGraph).links || [];
+  for (const link of links) {
+    const source = typeof link.source === 'object' ? link.source : null;
+    const target = typeof link.target === 'object' ? link.target : null;
+    if (!source || !target || !Number.isFinite(source.x) || !Number.isFinite(target.x)) continue;
+
+    const curve = createForceGraphLinkCurve(source, target, getForceGraphLinkCurvature(arcStyle));
+    link.__curve = curve;
+    const line = link.__lineObj?.children?.length ? link.__lineObj.children[0] : link.__lineObj;
+    if (line?.type !== 'Line' || !line.geometry) continue;
+
+    const points = curve
+      ? curve.getPoints(30)
+      : [toForceGraphPoint(source), toForceGraphPoint(target)];
+    const position = line.geometry.getAttribute('position');
+    if (!position || position.array.length !== points.length * 3) {
+      line.geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(points.length * 3), 3));
+    }
+    line.geometry.setFromPoints(points);
+    line.geometry.computeBoundingSphere();
+  }
+}
+
+function createForceGraphLinkCurve(source, target, curvature) {
+  if (!curvature) return null;
+  const start = toForceGraphPoint(source);
+  const end = toForceGraphPoint(target);
+  const line = new THREE.Vector3().subVectors(end, start);
+  const axis = source.x !== target.x || source.y !== target.y
+    ? new THREE.Vector3(0, 0, 1)
+    : new THREE.Vector3(0, 1, 0);
+  const control = line.clone()
+    .multiplyScalar(curvature)
+    .cross(axis)
+    .add(start.clone().add(end).multiplyScalar(0.5));
+  return new THREE.QuadraticBezierCurve3(start, control, end);
+}
+
+function toForceGraphPoint(node) {
+  return new THREE.Vector3(node.x, node.y || 0, node.z || 0);
 }
 
 function getForceGraphLinkColor(link, highlightedLinks, forceGraph) {
