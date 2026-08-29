@@ -180,7 +180,8 @@ test('RSS manual backfill is bounded and rejects an unselected archive request',
     const inbox = new EventInboxStore({ filePath: paths.inboxPath });
     const collector = new RssCollector({ registryStore: registry, inboxStore: inbox, fetchImpl: async () => response(feedXml) });
     await assert.rejects(() => collector.backfill(feedListener.id, { itemIds: [] }), /at least one exact stable item ID/);
-    await assert.rejects(() => collector.backfill(feedListener.id, { itemIds: Array.from({ length: 26 }, (_, index) => `feed:${index}`) }), /limited to 25/);
+    await assert.rejects(() => collector.backfill(feedListener.id, { itemIds: ['feed:1', 'feed:2', 'feed:3', 'feed:4'] }), /limited to 3/);
+    await assert.rejects(() => collector.backfill(feedListener.id, { itemIds: Array.from({ length: 26 }, (_, index) => `feed:${index}`), maxItems: 25 }), /limited to 25/);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }

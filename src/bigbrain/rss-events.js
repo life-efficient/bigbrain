@@ -14,7 +14,7 @@ import {
   trimObject,
 } from './inbound-events.js';
 
-export const DEFAULT_RSS_MANUAL_BACKFILL_LIMIT = 25;
+export const DEFAULT_RSS_MANUAL_BACKFILL_LIMIT = 3;
 
 /**
  * RSS is deliberately poll-based. This module owns feed fetching, cursor
