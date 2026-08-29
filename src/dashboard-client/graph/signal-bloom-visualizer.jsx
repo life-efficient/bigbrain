@@ -33,6 +33,7 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
   nodeFill = 'outline',
   nodeIcon = 'none',
   nodeSize = 'medium',
+  arcAnimation = 'instant',
   labelStyle = 'selected',
   colorMode = 'updated',
   typeColors,
@@ -105,7 +106,12 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
           style={{ '--graph-node-scale': nodeTransformScale }}
         >
           <BloomSectors laidOut={laidOut} theme={theme} />
-          <BloomLinks laidOut={laidOut} theme={theme} />
+          <BloomLinks
+            arcAnimation={arcAnimation}
+            focusedSlug={activeSlug || hoveredSlug}
+            laidOut={laidOut}
+            theme={theme}
+          />
           {laidOut.nodes.map((node, index) => (
             <BloomNodeItem
               key={node.slug}
@@ -161,18 +167,24 @@ const BloomSectors = memo(function BloomSectors({ laidOut, theme }) {
   ));
 });
 
-const BloomLinks = memo(function BloomLinks({ laidOut, theme }) {
+const BloomLinks = memo(function BloomLinks({ arcAnimation, focusedSlug, laidOut, theme }) {
   return laidOut.edges.map((edge, index) => {
     const internal = edge.source.type === edge.target.type;
     const path = buildCurvedEdgePath(edge, internal ? 0.2 : 0.08);
     const relationshipClass = index < BLOOM_ANIMATED_LINK_LIMIT ? 'graph-relationship-arc' : undefined;
+    const focused = Boolean(focusedSlug && (edge.source.slug === focusedSlug || edge.target.slug === focusedSlug));
+    const hoverClass = focused && arcAnimation !== 'none' && arcAnimation !== 'instant'
+      ? `graph-arc-hover-${arcAnimation}`
+      : undefined;
+    const linkClass = [relationshipClass, relationshipClass ? 'bloom-link-animated' : undefined, hoverClass].filter(Boolean).join(' ') || undefined;
     return (
       <g key={edge.key}>
         {internal && <path className={relationshipClass ? `${relationshipClass} graph-relationship-arc-glow` : undefined} d={path} fill="none" stroke={theme.graphEdge} strokeOpacity="0.09" strokeWidth="5" />}
         <path
-          className={relationshipClass ? `${relationshipClass} bloom-link-animated` : undefined}
+          className={linkClass}
           d={path}
           fill="none"
+          pathLength="1"
           stroke={internal ? theme.graphEdgeStrong : theme.graphEdge}
           strokeOpacity={internal ? 0.48 : 0.22}
           strokeWidth={internal ? 1.15 : 0.8}

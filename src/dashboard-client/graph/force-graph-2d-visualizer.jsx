@@ -2,6 +2,7 @@ import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } fr
 import ForceGraph2D from 'force-graph';
 
 import { getGraphNodeColor } from './colors.js';
+import { arcAnimationProgress, blendArcColors, cancelArcAnimation, startArcAnimation } from './arc-animation.js';
 import { graphTypeIconSvg } from './graph-type-icon-data.js';
 import { getGraphNodeSizeScale } from './node-sizes.js';
 import { PRESET_GRAPH_LABEL_FONT_SIZE, useGraphTheme } from './visualizer-core.jsx';
@@ -37,6 +38,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     arcStyle,
     labelStyle,
     colorMode,
+    arcAnimation,
     typeColors,
     theme,
   });
@@ -52,6 +54,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     arcStyle,
     labelStyle,
     colorMode,
+    arcAnimation,
     typeColors,
     theme,
     labelSlugs,
@@ -100,13 +103,13 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       .nodeLabel((node) => buildNodeTooltip(node))
       .linkSource('source')
       .linkTarget('target')
-      .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph)))
-      .linkWidth((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 1.5 : 0.7)
+      .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
+      .linkWidth((link) => getForceGraphLinkWidth(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkCurvature((link) => getForceGraphLinkCurvature(settingsRef.current.arcStyle, link))
-      .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph)))
-      .linkDirectionalParticleSpeed(0.004)
+      .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph), forceGraph))
+      .linkDirectionalParticleSpeed((link) => getForceGraphParticleSpeed(link, forceGraph))
       .linkDirectionalParticleWidth((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 1.8 : 0.7)
-      .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph)))
+      .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .d3AlphaDecay(0.06)
       .d3VelocityDecay(0.42)
       .warmupTicks(80)
@@ -123,13 +126,14 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       })
       .onNodeHover((node) => {
         hoveredSlugRef.current = node?.id || null;
-        updateForceGraphHighlight(forceGraph, activeSlugRef.current || hoveredSlugRef.current);
+        updateForceGraphHighlight(forceGraph, activeSlugRef.current || hoveredSlugRef.current, settingsRef.current.arcAnimation);
       });
 
     syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
 
     return () => {
       FORCE_GRAPH_ICON_CACHE.forEach((entry) => entry.graphs.delete(forceGraph));
+      cancelArcAnimation(forceGraph);
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       forceGraph._destructor?.();
@@ -151,18 +155,19 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       .nodeCanvasObject((node, context, globalScale) => {
         drawForceGraphNode(node, context, globalScale, settingsRef.current, forceGraph);
       })
-      .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph)))
-      .linkWidth((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 1.5 : 0.7)
+      .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
+      .linkWidth((link) => getForceGraphLinkWidth(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkCurvature((link) => getForceGraphLinkCurvature(settingsRef.current.arcStyle, link))
-      .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph)))
-      .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph)));
-    updateForceGraphHighlight(forceGraph, activeSlugRef.current || hoveredSlugRef.current);
-  }, [arcStyle, colorMode, labelStyle, nodeFill, nodeIcon, nodeShape, nodeSize, theme, typeColors]);
+      .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph), forceGraph))
+      .linkDirectionalParticleSpeed((link) => getForceGraphParticleSpeed(link, forceGraph))
+      .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph));
+    updateForceGraphHighlight(forceGraph, activeSlugRef.current || hoveredSlugRef.current, settingsRef.current.arcAnimation);
+  }, [arcAnimation, arcStyle, colorMode, labelStyle, nodeFill, nodeIcon, nodeShape, nodeSize, theme, typeColors]);
 
   useEffect(() => {
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
-    updateForceGraphHighlight(forceGraph, activeSlug || hoveredSlugRef.current);
+    updateForceGraphHighlight(forceGraph, activeSlug || hoveredSlugRef.current, settingsRef.current.arcAnimation);
   }, [activeSlug]);
 
   return (
@@ -191,14 +196,14 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null) {
 
   forceGraph.__bigBrainFitPending = true;
   forceGraph.graphData({ nodes, links });
-  updateForceGraphHighlight(forceGraph, focusSlug);
+  updateForceGraphHighlight(forceGraph, focusSlug, settings.arcAnimation);
 }
 
 function getForceGraphData(forceGraph) {
   return forceGraph?.graphData?.() || { nodes: [], links: [] };
 }
 
-function updateForceGraphHighlight(forceGraph, focusSlug) {
+function updateForceGraphHighlight(forceGraph, focusSlug, arcAnimation = 'instant') {
   const data = getForceGraphData(forceGraph);
   const nodes = Array.isArray(data.nodes) ? data.nodes : [];
   const links = Array.isArray(data.links) ? data.links : [];
@@ -218,7 +223,9 @@ function updateForceGraphHighlight(forceGraph, focusSlug) {
     }
   }
 
-  forceGraph.__bigBrainHighlightLinks = highlightedLinks;
+  const animatedLinks = arcAnimation === 'none' ? new Set() : highlightedLinks;
+  forceGraph.__bigBrainHighlightLinks = animatedLinks;
+  startArcAnimation(forceGraph, arcAnimation, animatedLinks, () => forceGraph.refresh?.());
   for (const node of nodes) node.__bigBrainEmphasized = highlightedNodes.has(node.id);
 }
 
@@ -346,12 +353,21 @@ function getForceGraphLabelSlugs(nodes, labelStyle) {
   return new Set(ordered.map((node) => node.slug));
 }
 
-function getForceGraphLinkColor(link, highlightedLinks) {
-  if (highlightedLinks.has(link)) return '#DDE7F5';
+function getForceGraphLinkColor(link, highlightedLinks, forceGraph) {
+  if (highlightedLinks.has(link)) {
+    const progress = arcAnimationProgress(forceGraph, link);
+    if (progress >= 1) return '#DDE7F5';
+    return hexToRgba(blendArcColors(DEFAULT_LINK_COLOR, '#DDE7F5', progress), 0.22 + progress * 0.78);
+  }
   // Keep relationship lines neutral across the graph. ForceGraph resolves
   // string endpoints into node objects after the initial draw, so deriving
   // this from source.color makes links unexpectedly change color on redraw.
   return hexToRgba(DEFAULT_LINK_COLOR, 0.22);
+}
+
+function getForceGraphLinkWidth(link, highlightedLinks, forceGraph) {
+  if (!highlightedLinks.has(link)) return 0.7;
+  return 0.7 + arcAnimationProgress(forceGraph, link) * 0.8;
 }
 
 function getForceGraphLinkCurvature(arcStyle, link) {
@@ -359,9 +375,18 @@ function getForceGraphLinkCurvature(arcStyle, link) {
   return link.id ? 0.22 : 0;
 }
 
-function shouldShowParticles(link, nodeCount, highlightedLinks) {
-  if (highlightedLinks.has(link)) return 4;
+function shouldShowParticles(link, nodeCount, highlightedLinks, forceGraph) {
+  if (highlightedLinks.has(link)) {
+    const state = forceGraph?.__bigBrainArcAnimation;
+    if (state?.mode === 'grow') return 0;
+    return 4;
+  }
   return nodeCount <= 900 ? 1 : 0;
+}
+
+function getForceGraphParticleSpeed(link, forceGraph) {
+  if (forceGraph?.__bigBrainArcAnimation?.mode === 'shoot' && getForceGraphHighlightLinks(forceGraph).has(link)) return 0.012;
+  return 0.004;
 }
 
 function buildNodeTooltip(node) {

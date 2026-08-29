@@ -1009,6 +1009,11 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version' } = {}) {
       .graph-wrap-expanded { flex: 1; min-height: 0; height: auto; }
       .graph-canvas-stage { position: absolute; inset: 0; transition: opacity 260ms ease, transform 320ms cubic-bezier(.22,.61,.36,1), filter 260ms ease; }
       .graph-canvas-stage-dimmed { opacity: .16; transform: scale(.975); filter: blur(1px); pointer-events: none; }
+      .graph-arc-hover-grow { stroke-dasharray: 1 1 !important; animation: graph-arc-hover-grow 620ms cubic-bezier(.22,.61,.36,1) both !important; }
+      .graph-arc-hover-shoot { stroke-dasharray: .16 .84 !important; animation: graph-arc-hover-shoot 620ms cubic-bezier(.22,.61,.36,1) both !important; }
+      @keyframes graph-arc-hover-grow { from { stroke-dashoffset: 1; opacity: .16; } to { stroke-dashoffset: 0; opacity: 1; } }
+      @keyframes graph-arc-hover-shoot { from { stroke-dashoffset: 1; opacity: .2; } to { stroke-dashoffset: -1; opacity: 1; } }
+      @media (prefers-reduced-motion: reduce) { .graph-arc-hover-grow, .graph-arc-hover-shoot { animation: none !important; stroke-dasharray: none; stroke-dashoffset: 0; } }
       .graph-lineage-panel { position: absolute; z-index: 5; inset: 18px; display: flex; flex-direction: column; min-width: 0; overflow: hidden; border: 1px solid rgba(148,163,184,0.24); border-radius: 18px; background: color-mix(in srgb, var(--panel) 91%, transparent); box-shadow: 0 24px 80px rgba(15,23,42,0.22); backdrop-filter: blur(22px); animation: graph-lineage-in 320ms cubic-bezier(.22,.61,.36,1); }
       @keyframes graph-lineage-in { from { opacity: 0; transform: translateY(12px) scale(.985); } to { opacity: 1; transform: translateY(0) scale(1); } }
       .graph-lineage-head { display: flex; justify-content: space-between; gap: 16px; padding: 20px 22px 16px; border-bottom: 1px solid var(--line); }

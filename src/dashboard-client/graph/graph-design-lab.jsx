@@ -6,6 +6,7 @@ import {
   sanitizeGraphTypeColors,
 } from './colors.js';
 import {
+  GRAPH_ARC_ANIMATIONS,
   GRAPH_ARC_STYLES,
   GRAPH_COLOR_MODES,
   GRAPH_DEFAULTS,
@@ -392,6 +393,7 @@ function SchemaBrainConstellation({ innerRef, graph }) {
           nodeIcon={preferences.nodeIcon}
           nodeSize={preferences.nodeSize}
           arcStyle={preferences.arcStyle}
+          arcAnimation={preferences.arcAnimation}
           layoutStyle={preferences.layoutStyle}
           labelStyle={preferences.labelStyle}
           colorMode={preferences.colorMode}
@@ -419,6 +421,7 @@ function readGraphPreferences() {
       nodeIcon: new Set(GRAPH_NODE_ICONS.map((item) => item.id)),
       nodeSize: new Set(GRAPH_NODE_SIZES.map((item) => item.id)),
       arcStyle: new Set(GRAPH_ARC_STYLES.map((item) => item.id)),
+      arcAnimation: new Set(GRAPH_ARC_ANIMATIONS.map((item) => item.id)),
       layoutStyle: new Set(GRAPH_LAYOUT_STYLES.map((item) => item.id)),
       labelStyle: new Set(GRAPH_LABEL_STYLES.map((item) => item.id)),
       colorMode: new Set(GRAPH_COLOR_MODES.map((item) => item.id)),

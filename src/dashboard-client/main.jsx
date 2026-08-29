@@ -12,6 +12,7 @@ import {
 } from './graph/colors.js';
 import {
   GRAPH_ARC_STYLES,
+  GRAPH_ARC_ANIMATIONS,
   GRAPH_COLOR_MODES,
   GRAPH_CONTROL_LABELS,
   GRAPH_DEFAULTS,
@@ -113,6 +114,7 @@ function loadGraphPreferences() {
       nodeIcon: new Set(GRAPH_NODE_ICONS.map((item) => item.id)),
       nodeSize: new Set(GRAPH_NODE_SIZES.map((item) => item.id)),
       arcStyle: new Set(GRAPH_ARC_STYLES.map((item) => item.id)),
+      arcAnimation: new Set(GRAPH_ARC_ANIMATIONS.map((item) => item.id)),
       layoutStyle: new Set(GRAPH_LAYOUT_STYLES.map((item) => item.id)),
       labelStyle: new Set(GRAPH_LABEL_STYLES.map((item) => item.id)),
       colorMode: new Set(GRAPH_COLOR_MODES.map((item) => item.id)),
@@ -164,6 +166,7 @@ function DashboardApp() {
   const [nodeIcon, setNodeIcon] = useState(savedGraphPreferences.nodeIcon);
   const [nodeSize, setNodeSize] = useState(savedGraphPreferences.nodeSize);
   const [arcStyle, setArcStyle] = useState(savedGraphPreferences.arcStyle);
+  const [arcAnimation, setArcAnimation] = useState(savedGraphPreferences.arcAnimation);
   const [layoutStyle, setLayoutStyle] = useState(savedGraphPreferences.layoutStyle);
   const [labelStyle, setLabelStyle] = useState(savedGraphPreferences.labelStyle);
   const [colorMode, setColorMode] = useState(savedGraphPreferences.colorMode);
@@ -201,12 +204,12 @@ function DashboardApp() {
   useEffect(() => {
     try {
       window.localStorage.setItem('bigbrain:graph-preferences', JSON.stringify({
-        visualizerId, nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, layoutStyle, labelStyle, colorMode, colorPaletteId, typeColors, flowVisible, autoRotate, demoMode,
+        visualizerId, nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, arcAnimation, layoutStyle, labelStyle, colorMode, colorPaletteId, typeColors, flowVisible, autoRotate, demoMode,
       }));
     } catch {
       // Storage can be unavailable in restricted browser contexts; defaults remain usable.
     }
-  }, [arcStyle, autoRotate, colorMode, colorPaletteId, demoMode, flowVisible, labelStyle, layoutStyle, nodeFill, nodeIcon, nodeShape, nodeSize, typeColors, visualizerId]);
+  }, [arcAnimation, arcStyle, autoRotate, colorMode, colorPaletteId, demoMode, flowVisible, labelStyle, layoutStyle, nodeFill, nodeIcon, nodeShape, nodeSize, typeColors, visualizerId]);
 
   useEffect(() => {
     if (window.parent === window) return;
@@ -819,6 +822,8 @@ function DashboardApp() {
                 setNodeSize={setNodeSize}
                 arcStyle={arcStyle}
                 setArcStyle={setArcStyle}
+                arcAnimation={arcAnimation}
+                setArcAnimation={setArcAnimation}
                 layoutStyle={layoutStyle}
                 setLayoutStyle={setLayoutStyle}
                 labelStyle={labelStyle}
@@ -2130,6 +2135,8 @@ const GraphPanel = memo(function GraphPanel({
   setNodeSize,
   arcStyle,
   setArcStyle,
+  arcAnimation,
+  setArcAnimation,
   layoutStyle,
   setLayoutStyle,
   labelStyle,
@@ -2289,6 +2296,7 @@ const GraphPanel = memo(function GraphPanel({
             nodeIcon={nodeIcon}
             nodeSize={nodeSize}
             arcStyle={arcStyle}
+            arcAnimation={arcAnimation}
             layoutStyle={layoutStyle}
             labelStyle={labelStyle}
             colorMode={colorMode}
@@ -2462,6 +2470,12 @@ const GraphPanel = memo(function GraphPanel({
                   value={arcStyle}
                   options={GRAPH_ARC_STYLES}
                   onSelect={setArcStyle}
+                />
+                <GraphStyleOptionGroup
+                  label="Arc animation"
+                  value={arcAnimation}
+                  options={GRAPH_ARC_ANIMATIONS}
+                  onSelect={setArcAnimation}
                 />
                 <GraphStyleOptionGroup
                   label="Spacing"

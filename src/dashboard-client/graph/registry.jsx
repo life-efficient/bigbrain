@@ -1,5 +1,6 @@
 import { ComposableGraphVisualizer } from './composable-graph-visualizer.jsx';
 import { GRAPH_DEFAULT_PALETTE_ID } from './colors.js';
+import { GRAPH_ARC_ANIMATIONS } from './arc-animation.js';
 import { ForceGraph2DVisualizer } from './force-graph-2d-visualizer.jsx';
 import { ForceGraph3DVisualizer } from './force-graph-3d-visualizer.jsx';
 import { NetworkConstellationVisualizer } from './network-constellation-visualizer.jsx';
@@ -21,6 +22,7 @@ export const GRAPH_DEFAULTS = {
   nodeIcon: 'none',
   nodeSize: 'medium',
   arcStyle: 'curve',
+  arcAnimation: 'instant',
   layoutStyle: 'lanes',
   labelStyle: 'off',
   colorMode: 'updated',
@@ -84,6 +86,8 @@ export const GRAPH_ARC_STYLES = [
   { id: 'straight', label: 'Straight' },
   { id: 'curve', label: 'Curve' },
 ];
+
+export { GRAPH_ARC_ANIMATIONS };
 
 export const GRAPH_LAYOUT_STYLES = [
   { id: 'orbital', label: 'Orbital' },

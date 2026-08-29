@@ -40,6 +40,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   nodeIcon = 'none',
   nodeSize = 'medium',
   arcStyle = 'straight',
+  arcAnimation = 'instant',
   layoutStyle = 'orbital',
   labelStyle = 'selected',
   colorMode = 'updated',
@@ -103,7 +104,13 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
           style={{ '--graph-node-scale': nodeTransformScale }}
         >
           <LayoutBackdrop layoutStyle={layoutStyle} laidOut={laidOut} theme={theme} />
-          <ArcLayer arcStyle={arcStyle} laidOut={laidOut} theme={theme} />
+          <ArcLayer
+            arcStyle={arcStyle}
+            arcAnimation={arcAnimation}
+            focusedSlug={activeSlug || hoveredSlug}
+            laidOut={laidOut}
+            theme={theme}
+          />
           <NodeLayer
             nodeShape={nodeShape}
             nodeFill={nodeFill}
@@ -241,18 +248,24 @@ function LayoutBackdrop({ layoutStyle, laidOut, theme }) {
   );
 }
 
-const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
+const ArcLayer = memo(function ArcLayer({ arcStyle, arcAnimation, focusedSlug, laidOut, theme }) {
   return (
     <>
       {laidOut.edges.map((edge, index) => {
         const relationshipClass = index < 180 ? 'graph-relationship-arc' : undefined;
+        const focused = Boolean(focusedSlug && (edge.source.slug === focusedSlug || edge.target.slug === focusedSlug));
+        const hoverClass = focused && arcAnimation !== 'none' && arcAnimation !== 'instant'
+          ? `graph-arc-hover-${arcAnimation}`
+          : undefined;
+        const className = [relationshipClass, hoverClass].filter(Boolean).join(' ') || undefined;
         if (arcStyle === 'curve') {
           return (
             <path
               key={edge.key}
-              className={relationshipClass}
+              className={className}
               d={buildCurvedEdgePath(edge, 0.12)}
               fill="none"
+              pathLength="1"
               stroke={theme.graphEdgeStrong}
               strokeOpacity="0.34"
               strokeWidth="1.05"
@@ -263,7 +276,7 @@ const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
         return (
           <line
             key={edge.key}
-            className={relationshipClass}
+            className={className}
             x1={edge.source.x}
             y1={edge.source.y}
             x2={edge.target.x}
@@ -272,6 +285,7 @@ const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
             strokeOpacity="0.38"
             strokeWidth="1"
             strokeLinecap="round"
+            pathLength="1"
           />
         );
       })}
