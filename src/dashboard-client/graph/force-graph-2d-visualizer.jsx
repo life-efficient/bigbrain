@@ -383,6 +383,7 @@ function getForceGraphLinkColor(link, highlightedLinks, forceGraph) {
 
 function getForceGraphLinkWidth(link, highlightedLinks, forceGraph) {
   if (!highlightedLinks.has(link)) return 0.7;
+  if (forceGraph?.__bigBrainArcAnimation?.mode === 'instant') return 0.7;
   return 0.7 + arcAnimationProgress(forceGraph, link) * 0.8;
 }
 

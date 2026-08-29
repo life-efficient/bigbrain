@@ -40,6 +40,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   const userInteractingRef = useRef(false);
   const onNodeOpenRef = useRef(onNodeOpen);
   const onActiveSlugChangeRef = useRef(onActiveSlugChange);
+  const renderedArcStyleRef = useRef(arcStyle);
   const settingsRef = useRef({ nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, arcAnimation, labelStyle, colorMode, typeColors, theme });
   const activeSlugRef = useRef(activeSlug);
   const hoveredSlugRef = useRef(null);
@@ -190,10 +191,13 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   useEffect(() => {
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
+    const arcStyleChanged = renderedArcStyleRef.current !== arcStyle;
+    renderedArcStyleRef.current = arcStyle;
     forceGraph
       .backgroundColor(theme.graphBase)
       .linkCurvature(() => getForceGraphLinkCurvature(settingsRef.current.arcStyle));
     updateForceGraphNodeObjects(forceGraph, settingsRef.current);
+    if (arcStyleChanged) forceGraph.tickFrame?.();
     if (forceGraph.__bigBrainArcAnimation?.mode !== arcAnimation) {
       updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), activeSlugRef.current || hoveredSlugRef.current, arcAnimation);
     }
@@ -472,6 +476,7 @@ function getForceGraphLinkOpacity(link, highlightedLinks, forceGraph) {
 
 function getForceGraphLinkWidth(link, highlightedLinks, forceGraph) {
   if (!highlightedLinks.has(link)) return 0;
+  if (forceGraph?.__bigBrainArcAnimation?.mode === 'instant') return 0;
   return arcAnimationProgress(forceGraph, link) >= 0.18 ? 1.5 : 0;
 }
 

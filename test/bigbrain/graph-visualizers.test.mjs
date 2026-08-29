@@ -321,6 +321,8 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   const dashboard = await fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8');
   assert.match(dashboard, /graph-arc-hover-grow/);
   assert.match(visualizer, /linkCurvature\(\(\) => getForceGraphLinkCurvature/);
+  assert.match(visualizer, /renderedArcStyleRef/);
+  assert.match(visualizer, /tickFrame\?\.\(\)/);
   assert.match(visualizer, /createForceGraphIconSprite/);
   assert.doesNotMatch(visualizer, /TYPE_GLYPHS/);
   assert.match(visualizer, /scene\.rotation\.z \+=/);
@@ -738,6 +740,9 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.doesNotMatch(forceGraph2d, /TYPE_GLYPHS/);
   assert.match(forceGraph2d, /onEngineStop/);
   assert.match(forceGraph2d, /arcAnimation = 'instant'/);
+  assert.match(forceGraph2d, /nodeFill/);
+  assert.match(forceGraph2d, /nodeIcon/);
+  assert.match(forceGraph2d, /getForceGraphLinkCurvature/);
   assert.match(forceGraph2d, /startArcAnimation/);
   assert.match(forceGraph2d, /if \(!forceGraph\.__bigBrainFitPending\) return;/);
   assert.match(forceGraph2d, /forceGraph\.__bigBrainFitPending = true;/);
