@@ -43,8 +43,27 @@ test('graph change stream exposes only confirmed privacy-safe MCP mutations', ()
     created_at: '2026-08-22T12:00:00.000Z',
   });
   assert.doesNotMatch(JSON.stringify(created), /private page body/);
+  const read = graphChangeFromAuditRow({
+    id: 43,
+    action: 'mcp.tool.read',
+    outcome: 'success',
+    resource_type: 'page',
+    resource_id: 'projects/relay',
+    details_json: JSON.stringify({ arguments: { path: 'projects/relay' } }),
+  });
+  assert.equal(read.kind, 'read');
+  assert.equal(read.slug, 'projects/relay');
+  const visibilityRead = graphChangeFromAuditRow({
+    id: 44,
+    action: 'mcp.tool.get_page_visibility',
+    outcome: 'success',
+    resource_type: 'page',
+    resource_id: 'projects/relay',
+    details_json: JSON.stringify({ arguments: { path: 'projects/relay' } }),
+  });
+  assert.equal(visibilityRead.kind, 'read');
   assert.equal(graphChangeFromAuditRow({ ...created, action: 'mcp.tool.create_page', outcome: 'error' }), null);
-  assert.equal(graphChangeFromAuditRow({ ...created, action: 'mcp.tool.read', outcome: 'success' }), null);
+  assert.equal(graphChangeFromAuditRow({ ...created, action: 'mcp.tool.pages/query', outcome: 'success' }), null);
 });
 
 test('public attachment sidecars expose only their bound safe artifact', async () => {

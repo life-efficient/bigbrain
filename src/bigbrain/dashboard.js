@@ -3006,10 +3006,12 @@ const GRAPH_MUTATION_TOOLS = new Set([
   'update_page',
 ]);
 
+const GRAPH_PAGE_READ_TOOLS = new Set(['read', 'get_page_visibility']);
+
 export function graphChangeFromAuditRow(row) {
   if (!row || row.outcome !== 'success' || typeof row.action !== 'string') return null;
   const tool = row.action.replace(/^mcp\.tool\./, '');
-  if (!GRAPH_MUTATION_TOOLS.has(tool)) return null;
+  if (!GRAPH_MUTATION_TOOLS.has(tool) && !GRAPH_PAGE_READ_TOOLS.has(tool)) return null;
   let details = {};
   try {
     details = typeof row.details_json === 'string' ? JSON.parse(row.details_json) : row.details_json || {};
@@ -3023,7 +3025,9 @@ export function graphChangeFromAuditRow(row) {
   return {
     id: String(row.id),
     event_id: row.event_id || null,
-    kind: tool.includes('create') ? 'created' : tool === 'rename_page' ? 'renamed' : 'updated',
+    kind: GRAPH_PAGE_READ_TOOLS.has(tool)
+      ? 'read'
+      : tool.includes('create') ? 'created' : tool === 'rename_page' ? 'renamed' : 'updated',
     slug: typeof slug === 'string' ? slug.replace(/\.md$/i, '') : null,
     action: tool,
     created_at: row.created_at,
