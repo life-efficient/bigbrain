@@ -10,6 +10,7 @@ Route one relevant web article into BigBrain as a source record, preserved sourc
 - Decide relevance for the user's digest before creating any Brain page or raw artifact.
 - Ignore routine, administrative, promotional, or otherwise low-value updates even when they mention a tracked entity.
 - Fetch and preserve the canonical source for every relevant article when the source is available and the filing rules permit it.
+- Use the source-retrieval fallback order: direct web search, in-Codex browser, `curl`, then an external browser.
 - Keep the source text faithful to the publisher; never replace it with an AI rewrite.
 - Create an indexed Markdown source sidecar with standard Brain page structure, provenance, and links to the author, publisher, primary subject, and materially mentioned entities.
 - Update existing canonical pages only when the article changes durable understanding or records a meaningful event.
@@ -21,10 +22,14 @@ Route one relevant web article into BigBrain as a source record, preserved sourc
 
 1. Establish the source and retrieve the article:
    - Use the canonical article URL from the RSS item, not only the feed description.
+   - Retrieve in this order: search for the exact URL or title with the direct web search tool; open the result in the in-Codex browser; retry with `curl`; then use an external browser if available.
+   - Treat redirects, trailing-slash changes, and canonical-link metadata as normal URL resolution. Confirm that the final page title and publisher match the RSS item before using it.
+   - Do not treat a search snippet, browser summary, or alternate article as a substitute for the canonical source bytes. If a browser can read the page but the runtime cannot export faithful source bytes, preserve the browser-retrieved source only through the approved source-preservation mechanism and record the retrieval method.
+   - If every retrieval method fails, return `needs_review` with the attempts and errors; do not invent content or file an incomplete source.
    - Preserve the fetched source bytes through the runtime's `raw_content_source: event.source_document.raw_body` placeholder when filing.
    - Keep retrieval metadata, source URL, publisher, author, publication date, stable RSS ID, content type, and fetch status.
-   - Stop with `needs_review` if a relevant article cannot be fetched or the source identity is ambiguous.
-   - Anti-patterns: treating the RSS description as the article, inventing missing article text, filing an incomplete source as full capture.
+   - Stop with `needs_review` if a relevant article cannot be fetched after all fallbacks or the source identity is ambiguous.
+   - Anti-patterns: treating the RSS description as the article, stopping after one blocked transport, trusting a search snippet as source text, inventing missing article text, filing an incomplete source as full capture.
 
 2. Apply the digest-value test before filing:
    - Ask whether the item will help the user master an idea, stay current in a sector they care about, bring something useful up in conversation, or read for enrichment.

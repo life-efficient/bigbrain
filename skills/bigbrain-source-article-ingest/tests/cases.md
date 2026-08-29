@@ -11,6 +11,10 @@ sidecar, link the author, publisher, subject, and materially mentioned Brain
 entities, and update canonical pages only when the durable understanding
 changes.
 
+Retrieval order: try direct web search first, then the in-Codex browser, then
+`curl`, then an external browser. Resolve redirects and trailing slashes, and
+confirm the final title and publisher before filing.
+
 ## Should not trigger as a filed article
 
 An RSS item is only a routine collaboration announcement, privacy-policy
@@ -25,3 +29,7 @@ An item appears relevant but its canonical source is unavailable, empty, or
 truncated.
 
 Expected behavior: return `needs_review` and do not file a synthetic article.
+
+The review result should include the retrieval methods attempted and their
+errors, including a browser success that could not be converted into faithful
+source bytes.
