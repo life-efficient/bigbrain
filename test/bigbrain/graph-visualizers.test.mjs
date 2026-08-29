@@ -387,8 +387,10 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /color: '#FFFFFF'/);
   assert.match(visualizer, /visual\.glow\.visible = emphasized/);
   assert.match(visualizer, /glow\.raycast = \(\) => \{\}/);
-  assert.match(visualizer, /createLabel: \(\) => createForceGraphNodeLabel/);
-  assert.match(visualizer, /if \(emphasized && !visual\.label && visual\.createLabel\)/);
+  assert.match(visualizer, /force3d-focus-label/);
+  assert.match(visualizer, /graph2ScreenCoords/);
+  assert.match(visualizer, /showFocusLabel\(forceGraph, node\)/);
+  assert.doesNotMatch(visualizer, /visual\.createLabel/);
   assert.match(visualizer, /sprite\.material\.sizeAttenuation = true/);
   assert.match(visualizer, /context\.measureText\(value\)\.width/);
   assert.match(visualizer, /canvas\.height = Math\.max\(32, Math\.ceil\(height \* scale\)\);\n  context\.clearRect[\s\S]*context\.font =/);

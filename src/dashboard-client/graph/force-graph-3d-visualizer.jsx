@@ -40,6 +40,9 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
 }, ref) {
   const theme = useGraphTheme();
   const containerRef = useRef(null);
+  const focusLabelRef = useRef(null);
+  const focusLabelNodeRef = useRef(null);
+  const focusLabelFrameRef = useRef(0);
   const graphRef = useRef(null);
   const rotationFrameRef = useRef(0);
   const rotationLastTimeRef = useRef(0);
@@ -63,6 +66,44 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   activeSlugRef.current = activeSlug;
   timelineDayRef.current = timelineDay;
 
+  const hideFocusLabel = () => {
+    focusLabelNodeRef.current = null;
+    window.cancelAnimationFrame(focusLabelFrameRef.current);
+    focusLabelFrameRef.current = 0;
+    if (focusLabelRef.current) focusLabelRef.current.hidden = true;
+  };
+
+  const updateFocusLabelPosition = () => {
+    const forceGraph = graphRef.current;
+    const element = focusLabelRef.current;
+    const slug = focusLabelNodeRef.current;
+    if (!forceGraph || !element || !slug) return;
+    const node = getForceGraphData(forceGraph).nodes?.find((item) => item.id === slug || item.slug === slug);
+    if (!node || !Number.isFinite(node.x) || !Number.isFinite(node.y) || !Number.isFinite(node.z)) {
+      element.hidden = true;
+      return;
+    }
+    const point = forceGraph.graph2ScreenCoords?.(node.x, node.y, node.z);
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+      element.hidden = true;
+      return;
+    }
+    element.style.left = `${point.x + 12}px`;
+    element.style.top = `${point.y}px`;
+    element.hidden = false;
+    focusLabelFrameRef.current = window.requestAnimationFrame(updateFocusLabelPosition);
+  };
+
+  const showFocusLabel = (forceGraph, node) => {
+    const element = focusLabelRef.current;
+    if (!element || !node?.slug) return;
+    window.cancelAnimationFrame(focusLabelFrameRef.current);
+    focusLabelNodeRef.current = node.slug;
+    element.textContent = node.title || node.slug;
+    element.hidden = false;
+    updateFocusLabelPosition();
+  };
+
   useImperativeHandle(ref, () => ({
     zoomIn() {
       zoomCamera(graphRef.current, 1 / 1.24);
@@ -74,7 +115,10 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       graphRef.current?.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
     },
     focusNode(slug) {
+      const forceGraph = graphRef.current;
+      const node = getForceGraphData(forceGraph).nodes?.find((item) => item.id === slug || item.slug === slug);
       focusForceGraphNodeBySlug(graphRef.current, slug);
+      if (node) showFocusLabel(forceGraph, node);
     },
   }), []);
 
@@ -146,11 +190,15 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
         if (Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z)) {
           rotationPauseUntilRef.current = Number.POSITIVE_INFINITY;
           focusForceGraphNode(forceGraph, node);
+          showFocusLabel(forceGraph, node);
         }
         onActiveSlugChangeRef.current?.(node.slug);
         onNodeOpenRef.current?.(node.slug);
       })
-      .onBackgroundClick(() => onBackgroundClickRef.current?.())
+      .onBackgroundClick(() => {
+        hideFocusLabel();
+        onBackgroundClickRef.current?.();
+      })
       .onNodeHover((node) => {
         hoveredSlugRef.current = node?.id || null;
         updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlugRef.current, settingsRef.current.arcAnimation, false);
@@ -174,6 +222,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       userInteractingRef.current = false;
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
+      hideFocusLabel();
       forceGraph._destructor?.();
       graphRef.current = null;
     };
@@ -239,6 +288,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     if (!forceGraph) return;
     if (!activeSlug) {
       rotationPauseUntilRef.current = 0;
+      hideFocusLabel();
     }
     updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlug, settingsRef.current.arcAnimation, !hoveredSlugRef.current);
   }, [activeSlug]);
@@ -252,6 +302,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       const node = getForceGraphData(forceGraph).nodes?.find((item) => item.id === activeSlug || item.slug === activeSlug);
       if (node && Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z)) {
         focusForceGraphNode(forceGraph, node);
+        showFocusLabel(forceGraph, node);
         return;
       }
       if (attempts++ < 8) frame = window.requestAnimationFrame(focus);
@@ -280,11 +331,13 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
           if (!latestNode || !Number.isFinite(latestNode.x) || !Number.isFinite(latestNode.y) || !Number.isFinite(latestNode.z)) return;
           updateForceGraphHighlight(forceGraph, latestData, target.slug, settingsRef.current.arcAnimation);
           focusForceGraphNode(forceGraph, latestNode);
+          showFocusLabel(forceGraph, latestNode);
           rotationPauseUntilRef.current = performance.now() + SYSTEM_FOCUS_HOLD_DURATION + FIT_TO_CANVAS_DURATION;
           window.clearTimeout(focusReturnTimerRef.current);
           focusReturnTimerRef.current = window.setTimeout(() => {
             focusReturnTimerRef.current = 0;
             updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), null, 'instant');
+            hideFocusLabel();
             forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
           }, SYSTEM_FOCUS_HOLD_DURATION);
         }, SYSTEM_ACTIVITY_PREFOCUS_DURATION);
@@ -303,6 +356,29 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   return (
     <div className="graph-canvas-shell force3d-shell">
       <div ref={containerRef} className="force3d-surface" aria-label="3D force-directed brain graph" />
+      <div
+        ref={focusLabelRef}
+        className="force3d-focus-label"
+        hidden
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          zIndex: 3,
+          pointerEvents: 'none',
+          transform: 'translateY(-50%)',
+          padding: '5px 8px',
+          border: '1px solid rgba(228, 228, 231, 0.32)',
+          borderRadius: '6px',
+          background: 'rgba(12, 12, 16, 0.88)',
+          boxShadow: '0 0 18px rgba(255, 255, 255, 0.18)',
+          color: '#F4F4F5',
+          font: '600 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace',
+          whiteSpace: 'nowrap',
+          maxWidth: 'min(320px, calc(100% - 24px))',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      />
     </div>
   );
 });
@@ -478,11 +554,7 @@ function syncForceGraphNodeState(node, highlightedNodes) {
   if (!visual) return;
   const emphasized = highlightedNodes.has(node.id);
   visual.group.scale.setScalar(1);
-  if (emphasized && !visual.label && visual.createLabel) {
-    visual.label = visual.createLabel();
-    visual.group.add(visual.label);
-  }
-  if (visual.label) visual.label.visible = visual.labelBaseVisible || emphasized;
+  if (visual.label) visual.label.visible = visual.labelBaseVisible;
   if (visual.glow) visual.glow.visible = emphasized;
 }
 
@@ -537,7 +609,6 @@ function createForceGraphNodeObject(node, settings, existingGroup = null) {
     label,
     labelBaseVisible,
     glow,
-    createLabel: () => createForceGraphNodeLabel(node, settings, radius),
   };
   syncForceGraphNodeState(node, new Set());
   return group;
