@@ -232,6 +232,10 @@ function updateForceGraphHighlight(forceGraph, focusSlug, arcAnimation = 'instan
       // or restarting its simulation.
       if (!forceGraph.isEngineRunning?.()) forceGraph.tickFrame?.();
     });
+  } else {
+    // Instant and None still need a completed state so their accessors resolve
+    // to the intended visual result, but they do not schedule any work.
+    startArcAnimation(forceGraph, arcAnimation, animatedLinks);
   }
   for (const node of nodes) node.__bigBrainEmphasized = highlightedNodes.has(node.id);
 }

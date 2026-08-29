@@ -287,6 +287,9 @@ function updateForceGraphHighlight(forceGraph, data, focusSlug, arcAnimation = '
     return;
   }
 
+  // Set the completed state before the library evaluates its accessors. This
+  // keeps Instant identical to the original immediate highlight path.
+  startArcAnimation(forceGraph, arcAnimation, animatedLinks);
   forceGraph
     .linkColor((link) => getForceGraphLinkColor(link, animatedLinks, forceGraph))
     .linkOpacity((link) => getForceGraphLinkOpacity(link, animatedLinks, forceGraph))
@@ -454,13 +457,22 @@ function updateForceGraphAnimatedLinks(forceGraph, links) {
     const color = blendArcColors(DEFAULT_LINK_COLOR, '#DDE7F5', progress);
     const opacity = 0.2 + progress * 0.52;
     const lineObject = link.__lineObj?.children?.length ? link.__lineObj.children[0] : link.__lineObj;
-    updateForceGraphMaterial(lineObject?.material, color, opacity);
-    link.__singleHopPhotonsObj?.children?.forEach((particle) => updateForceGraphMaterial(particle.material, color, opacity));
+    updateForceGraphMaterial(lineObject, color, opacity);
+    link.__singleHopPhotonsObj?.children?.forEach((particle) => updateForceGraphMaterial(particle, color, opacity));
   }
 }
 
-function updateForceGraphMaterial(material, color, opacity) {
+function updateForceGraphMaterial(lineObject, color, opacity) {
+  let material = lineObject?.material;
   if (!material) return;
+  // three-forcegraph caches materials by color. Clone before changing one
+  // focused link, otherwise every neutral link sharing that cache entry
+  // changes at the same time.
+  if (material.__bigBrainArcMaterialOwner !== lineObject) {
+    material = material.clone();
+    material.__bigBrainArcMaterialOwner = lineObject;
+    lineObject.material = material;
+  }
   material.color?.set?.(color);
   material.opacity = opacity;
   material.transparent = true;
