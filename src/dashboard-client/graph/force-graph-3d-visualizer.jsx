@@ -602,10 +602,9 @@ function createForceGraphTextSprite(text, color, width, height, label = false) {
   // icon and label texture from inheriting the graph's 3D perspective.
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false }));
   sprite.material.rotation = 0;
-  // Keep labels readable at every camera distance. Icons remain attached to
-  // node scale, while labels use a stable screen-space size like the former
-  // cursor tooltip without creating a second tooltip layer.
-  sprite.material.sizeAttenuation = !label;
+  // Keep the label attached to the same camera-scaled billboard path as the
+  // node icon. The measured texture below preserves its natural aspect ratio.
+  sprite.material.sizeAttenuation = true;
   sprite.renderOrder = label ? 20 : 10;
   sprite.scale.set(label ? canvas.width / scale : width, height, 1);
   sprite.center.set(label ? 0 : 0.5, 0.5);
