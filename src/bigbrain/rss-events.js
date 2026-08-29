@@ -1,3 +1,6 @@
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
 import {
   DEFAULT_RSS_INITIAL_CURSOR_DAYS,
   DEFAULT_RSS_SOURCE_MAX_BYTES,
@@ -14,6 +17,8 @@ import {
   trimObject,
 } from './inbound-events.js';
 
+const execFileAsync = promisify(execFile);
+
 export const DEFAULT_RSS_MANUAL_BACKFILL_LIMIT = 3;
 
 /**
@@ -21,10 +26,11 @@ export const DEFAULT_RSS_MANUAL_BACKFILL_LIMIT = 3;
  * advancement, item deduplication, and optional subscription forwarding.
  */
 export class RssCollector {
-  constructor({ registryStore, inboxStore, fetchImpl = globalThis.fetch, secretResolver = () => null, now = () => new Date(), logger = console } = {}) {
+  constructor({ registryStore, inboxStore, fetchImpl = globalThis.fetch, curlImpl = execFileAsync, secretResolver = () => null, now = () => new Date(), logger = console } = {}) {
     this.registryStore = registryStore;
     this.inboxStore = inboxStore;
     this.fetchImpl = fetchImpl;
+    this.curlImpl = curlImpl;
     this.secretResolver = secretResolver;
     this.now = now;
     this.logger = logger;
@@ -403,10 +409,18 @@ export class RssCollector {
     const controller = typeof AbortController === 'function' ? new AbortController() : null;
     const timeout = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
     try {
-      const response = await this.fetchImpl(url, {
+      let response = await this.fetchImpl(url, {
         headers: { 'user-agent': 'BigBrain source article ingest/1.0' },
         ...(controller ? { signal: controller.signal } : {}),
       });
+      if (response.status === 403) {
+        try {
+          const { stdout } = await this.curlImpl('curl', ['--fail', '--location', '--silent', '--show-error', '--max-time', String(Math.ceil(timeoutMs / 1000)), '--user-agent', 'BigBrain source article ingest/1.0', url], { timeout: timeoutMs, maxBuffer: maxBytes + 1 });
+          response = { ok: true, headers: { get: (name) => name.toLowerCase() === 'content-type' ? 'text/html' : null }, text: async () => stdout };
+        } catch (error) {
+          return { ...base, error: `Source returned HTTP 403; curl fallback failed: ${error instanceof Error ? error.message : String(error)}` };
+        }
+      }
       if (!response.ok) return { ...base, error: `Source returned HTTP ${response.status}.` };
       const fullBody = await response.text();
       const rawBody = truncateUtf8(fullBody, maxBytes);

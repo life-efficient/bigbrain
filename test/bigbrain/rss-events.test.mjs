@@ -127,6 +127,35 @@ test('RSS source fetch failures remain explicit instead of becoming complete sou
   }
 });
 
+test('RSS source retrieval falls back to curl after HTTP 403', async () => {
+  const paths = await fixture();
+  try {
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+    const feedListener = listener({ article_policy: { fetch_source: true, max_bytes: 100000, timeout_ms: 1000 } });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [feedListener] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+    const collector = new RssCollector({
+      registryStore: registry,
+      inboxStore: inbox,
+      fetchImpl: async (url) => url.endsWith('feed.xml')
+        ? response('<rss><channel><item><guid>one</guid><title>One</title><link>https://example.test/article</link><pubDate>Fri, 29 Aug 2026 10:00:00 GMT</pubDate></item></channel></rss>')
+        : { status: 403, ok: false, headers: { get: () => null } },
+      curlImpl: async (command, args) => {
+        assert.equal(command, 'curl');
+        assert.ok(args.includes('https://example.test/article'));
+        return { stdout: '<html><title>Recovered</title><p>Article body</p></html>', stderr: '' };
+      },
+    });
+    const report = await collector.pollAll();
+    assert.equal(report.listeners[0].ingested, 1);
+    const queued = Object.values((await inbox.get()).deliveries)[0];
+    assert.equal(queued.metadata.source_document.status, 'fetched');
+    assert.match(queued.metadata.source_document.text, /Article body/);
+  } finally {
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
 test('RSS manual backfill requires explicit older stable IDs and deduplicates repeat selection', async () => {
   const paths = await fixture();
   try {
