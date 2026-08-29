@@ -447,6 +447,10 @@ function syncForceGraphNodeState(node, highlightedNodes) {
   if (!visual) return;
   const emphasized = highlightedNodes.has(node.id);
   visual.group.scale.setScalar(1);
+  if (emphasized && !visual.label && visual.createLabel) {
+    visual.label = visual.createLabel();
+    visual.group.add(visual.label);
+  }
   if (visual.label) visual.label.visible = visual.labelBaseVisible || emphasized;
   if (visual.glow) visual.glow.visible = emphasized;
 }
@@ -497,7 +501,13 @@ function createForceGraphNodeObject(node, settings, existingGroup = null) {
     ? createForceGraphNodeLabel(node, settings, radius)
     : null;
   group.userData = { nodeSlug: node.slug };
-  node.__bigBrainVisual = { group, label, labelBaseVisible, glow };
+  node.__bigBrainVisual = {
+    group,
+    label,
+    labelBaseVisible,
+    glow,
+    createLabel: () => createForceGraphNodeLabel(node, settings, radius),
+  };
   syncForceGraphNodeState(node, new Set());
   return group;
 }
