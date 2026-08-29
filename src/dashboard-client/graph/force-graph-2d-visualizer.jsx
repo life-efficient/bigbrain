@@ -196,9 +196,6 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     if (!forceGraph || !motionEvent?.changes?.length) return undefined;
     const target = [...motionEvent.changes].reverse().find((change) => change.kind !== 'removed' && change.slug);
     if (!target) return undefined;
-    const activitySlugs = motionEvent.changes
-      .filter((change) => change.kind !== 'removed' && change.slug)
-      .map((change) => change.slug);
     let frame = 0;
     let attempts = 0;
     let returnTimer = 0;
@@ -207,7 +204,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       const data = getForceGraphData(forceGraph);
       const node = data.nodes?.find((item) => item.id === target.slug || item.slug === target.slug);
       if (node && Number.isFinite(node.x) && Number.isFinite(node.y)) {
-        updateForceGraphActivity(forceGraph, data, activitySlugs, settingsRef.current.arcAnimation);
+        updateForceGraphActivity(forceGraph, data, [target.slug], settingsRef.current.arcAnimation);
         focusTimer = window.setTimeout(() => {
           const latestData = getForceGraphData(forceGraph);
           const latestNode = latestData.nodes?.find((item) => item.id === target.slug || item.slug === target.slug);

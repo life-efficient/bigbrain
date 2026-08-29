@@ -234,9 +234,6 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     if (!forceGraph || !motionEvent?.changes?.length) return undefined;
     const target = [...motionEvent.changes].reverse().find((change) => change.kind !== 'removed' && change.slug);
     if (!target) return undefined;
-    const activitySlugs = motionEvent.changes
-      .filter((change) => change.kind !== 'removed' && change.slug)
-      .map((change) => change.slug);
     let frame = 0;
     let attempts = 0;
     let focusTimer = 0;
@@ -245,7 +242,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       const node = data.nodes?.find((item) => item.id === target.slug || item.slug === target.slug);
       if (node && Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z)) {
         rotationPauseUntilRef.current = performance.now() + SYSTEM_ACTIVITY_PREFOCUS_DURATION + SYSTEM_FOCUS_HOLD_DURATION + FIT_TO_CANVAS_DURATION;
-        updateForceGraphActivity(forceGraph, data, activitySlugs, settingsRef.current.arcAnimation);
+        updateForceGraphActivity(forceGraph, data, [target.slug], settingsRef.current.arcAnimation);
         focusTimer = window.setTimeout(() => {
           const latestData = getForceGraphData(forceGraph);
           const latestNode = latestData.nodes?.find((item) => item.id === target.slug || item.slug === target.slug);
@@ -500,13 +497,13 @@ function createForceGraphNodeGlow(radius) {
       map: getForceGraphGlowTexture(),
       color: '#FFFFFF',
       transparent: true,
-      opacity: 0.72,
+      opacity: 0.96,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       depthTest: false,
     }),
   );
-  glow.scale.setScalar(radius * 3.6);
+  glow.scale.setScalar(radius * 5.2);
   glow.renderOrder = -1;
   glow.userData.bigBrainGlow = true;
   glow.visible = false;
