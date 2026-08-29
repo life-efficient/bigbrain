@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { CodexAppThreadExecutor, CodexCliExecutor } from './codex-event-executor.js';
+import { CodexAppThreadExecutor, CodexCliExecutor, normalizeCodexOutcome } from './codex-event-executor.js';
 import { RssCollector } from './rss-events.js';
 import { InboundWebhookServer } from './webhook-events.js';
 import { normalizeSourceType } from './source-taxonomy.js';
@@ -637,7 +637,9 @@ export class InboundEventProcessor {
       const executor = await this.executorFactory({ mode: processingEvent.execution.mode, location: processingEvent.execution.location, listener, registry });
       if (!executor || typeof executor.execute !== 'function') throw new Error(`No Codex executor is configured for ${processingEvent.execution.location}/${processingEvent.execution.mode}.`);
       execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
-      const outcome = execution?.outcome || { status: 'needs_review', reason: 'Codex returned no filing outcome.', destinations: [] };
+      const outcome = execution?.outcome
+        ? normalizeCodexOutcome(execution.outcome, { defaultBrainId: processingEvent.allowed_brain_ids?.length === 1 ? processingEvent.allowed_brain_ids[0] : null })
+        : { status: 'needs_review', reason: 'Codex returned no filing outcome.', destinations: [] };
       const executionMeta = executionMetadata(execution);
       validateRssArticleOutcome(processingEvent, listener, outcome);
       if (!execution?.outcome) {

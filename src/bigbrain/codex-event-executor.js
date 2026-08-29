@@ -192,7 +192,7 @@ export class CodexCliExecutor {
       execution_id: executionId,
       thread_id: parsed?.thread_id || parsed?.threadId || parseCodexThreadId(stdout),
       exit_status: 0,
-      outcome: parsed ? normalizeCodexOutcome(parsed, { defaultBrainId: allowedDestinations.length === 1 ? allowedDestinations[0].id || allowedDestinations[0].brain_id : null }) : null,
+      outcome: parsed ? normalizeCodexOutcome(parsed, { defaultBrainId: resolveDefaultBrainId(event, allowedDestinations) }) : null,
       response_text: extractCodexResponseText(stdout),
       stdout: String(stdout || '').slice(-200_000),
       stderr: String(stderr || '').slice(-50_000),
@@ -269,7 +269,7 @@ export class CodexAppThreadExecutor {
         execution_id: turnId || `turn-${Date.now()}`,
         thread_id: threadId,
         exit_status: 0,
-        outcome: parsed ? normalizeCodexOutcome(parsed, { defaultBrainId: allowedDestinations.length === 1 ? allowedDestinations[0].id || allowedDestinations[0].brain_id : null }) : null,
+        outcome: parsed ? normalizeCodexOutcome(parsed, { defaultBrainId: resolveDefaultBrainId(event, allowedDestinations) }) : null,
         response_text: responseText,
         notifications: client.notifications.slice(-100),
       };
@@ -432,6 +432,15 @@ export function normalizeCodexOutcome(value, { defaultBrainId = null } = {}) {
     reason: String(value.reason || ''),
     destinations: Array.isArray(value.destinations) ? value.destinations.map((destination) => normalizeCodexDestination(destination, { defaultBrainId })) : [],
   };
+}
+
+function resolveDefaultBrainId(event, allowedDestinations) {
+  if (allowedDestinations.length === 1) {
+    const id = allowedDestinations[0]?.id || allowedDestinations[0]?.brain_id;
+    if (id) return id;
+  }
+  const eventBrainIds = Array.isArray(event?.allowed_brain_ids) ? event.allowed_brain_ids.filter(Boolean) : [];
+  return eventBrainIds.length === 1 ? eventBrainIds[0] : null;
 }
 
 function normalizeCodexDestination(destination, { defaultBrainId = null } = {}) {
