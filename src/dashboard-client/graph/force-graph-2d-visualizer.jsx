@@ -137,6 +137,9 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
         forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
       })
       .onNodeClick((node) => {
+        if (Number.isFinite(node.x) && Number.isFinite(node.y)) {
+          forceGraph.centerAt(node.x, node.y, 850).zoom(Math.max(forceGraph.zoom(), 2.4), 850);
+        }
         onActiveSlugChangeRef.current?.(node.slug);
         onNodeOpenRef.current?.(node.slug);
       })

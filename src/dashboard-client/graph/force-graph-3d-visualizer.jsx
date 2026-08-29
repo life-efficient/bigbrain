@@ -140,6 +140,9 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
         forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
       })
       .onNodeClick((node) => {
+        if (Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z)) {
+          focusForceGraphNode(forceGraph, node);
+        }
         onActiveSlugChangeRef.current?.(node.slug);
         onNodeOpenRef.current?.(node.slug);
       })
