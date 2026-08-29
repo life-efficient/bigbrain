@@ -250,7 +250,7 @@ function getForceGraphData(forceGraph) {
 
 function isForceGraphNodeVisibleAtTimeline(node, timelineDay) {
   if (!timelineDay || !node || typeof node !== 'object') return true;
-  const timestamp = Date.parse(node.created_at || node.updated_at);
+  const timestamp = Date.parse(node.lineage_at || node.created_at || node.updated_at);
   if (!Number.isFinite(timestamp)) return true;
   return new Date(timestamp).toISOString().slice(0, 10) <= timelineDay;
 }

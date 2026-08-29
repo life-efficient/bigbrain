@@ -400,6 +400,20 @@ function DashboardApp() {
   }, [preview]);
 
   useEffect(() => {
+    if (!lineage || preview) return undefined;
+
+    function handleEscape(event) {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) return;
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      clearGraphFocus();
+    }
+
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [clearGraphFocus, lineage, preview]);
+
+  useEffect(() => {
     function handleKeydown(event) {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
         return;
@@ -499,6 +513,52 @@ function DashboardApp() {
       });
       if (lineageRequestId === lineageRequestRef.current) setLineage({ status: 'error', slug, message: error instanceof Error ? error.message : String(error) });
     }
+  });
+
+  const handleGraphNodeFocus = useEffectEvent(async (slug) => {
+    if (!slug) return;
+    previewRequestRef.current += 1;
+    const requestId = lineageRequestRef.current + 1;
+    lineageRequestRef.current = requestId;
+    setPreview(null);
+    setActiveGraphSlug(slug);
+    const sourceNode = latestGraphRef.current?.nodes?.find((node) => node.slug === slug) || { slug };
+    if (demoModeRef.current) {
+      setLineage({
+        status: 'ready',
+        slug,
+        page: { slug, title: sourceNode.title || labelFromSlug(slug), type: sourceNode.type || slug.split('/')[0] || 'unknown' },
+        link_events: [],
+        provenance: [],
+        outgoing: [],
+        backlinks: [],
+      });
+      return;
+    }
+    setLineage({ status: 'loading', slug, page: { slug, title: sourceNode.title || labelFromSlug(slug), type: sourceNode.type || 'unknown' } });
+    try {
+      const params = new URLSearchParams({ slug });
+      const lineageData = await fetchJson(`/api/graph/lineage?${params.toString()}`);
+      if (requestId === lineageRequestRef.current && !demoModeRef.current) {
+        setLineage({ status: 'ready', ...lineageData });
+      }
+    } catch (error) {
+      if (requestId === lineageRequestRef.current && !demoModeRef.current) {
+        setLineage({
+          status: 'error',
+          slug,
+          page: { slug, title: sourceNode.title || labelFromSlug(slug), type: sourceNode.type || 'unknown' },
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+  });
+
+  const clearGraphFocus = useEffectEvent(() => {
+    lineageRequestRef.current += 1;
+    setLineage(null);
+    setActiveGraphSlug(null);
+    setPreview(null);
   });
 
   const openPageBySlug = useEffectEvent((slug) => {
@@ -846,11 +906,9 @@ function DashboardApp() {
                 activeSlug={activeGraphSlug}
                 onActiveSlugChange={setActiveGraphSlug}
                 onNodeOpen={handleGraphNodeOpen}
+                onGraphNodeFocus={handleGraphNodeFocus}
                 lineage={lineage}
-                onLineageClose={() => {
-                  setLineage(null);
-                  setActiveGraphSlug(null);
-                }}
+                onLineageClose={clearGraphFocus}
               />
             ) : null}
 
@@ -2136,6 +2194,104 @@ function buildActivitySeries(buckets) {
   });
 }
 
+function buildLineageFocusGraph(graph, lineage, focusSlug) {
+  if (!focusSlug) return graph;
+  const sourceNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  const sourceEdges = Array.isArray(graph?.edges) ? graph.edges : [];
+  const events = Array.isArray(lineage?.link_events) ? lineage.link_events : [];
+  const incomingEvents = events.filter((event) => event?.to_page === focusSlug);
+  const incomingPages = Array.isArray(lineage?.backlinks) ? lineage.backlinks.map((item) => item?.from_slug).filter(Boolean) : [];
+  const graphIncomingPages = sourceEdges
+    .filter((edge) => edge?.target === focusSlug)
+    .map((edge) => edge?.source)
+    .filter(Boolean);
+  const focusSlugs = new Set([focusSlug, ...incomingPages, ...graphIncomingPages, ...incomingEvents.map((event) => event.from_page).filter(Boolean)]);
+  const summaries = new Map();
+  if (lineage?.page?.slug) summaries.set(lineage.page.slug, lineage.page);
+  for (const event of events) {
+    if (event?.from?.slug) summaries.set(event.from.slug, event.from);
+    if (event?.to?.slug) summaries.set(event.to.slug, event.to);
+  }
+  const sourceNodeBySlug = new Map(sourceNodes.map((node) => [node.slug, node]));
+  const lineageDates = new Map();
+  for (const event of incomingEvents) {
+    const timestamp = event?.timestamp;
+    if (!timestamp || !Number.isFinite(Date.parse(timestamp))) continue;
+    for (const slug of [event.from_page, event.to_page]) {
+      if (!slug) continue;
+      const current = lineageDates.get(slug);
+      if (!current || Date.parse(timestamp) < Date.parse(current)) lineageDates.set(slug, timestamp);
+    }
+  }
+
+  const nodes = [...focusSlugs].map((slug) => {
+    const sourceNode = sourceNodeBySlug.get(slug);
+    const summary = summaries.get(slug);
+    const lineageAt = lineageDates.get(slug);
+    return {
+      ...(sourceNode || {}),
+      slug,
+      title: sourceNode?.title || summary?.title || labelFromSlug(slug),
+      type: sourceNode?.type || summary?.type || slug.split('/')[0] || 'unknown',
+      degree: sourceNode?.degree || 1,
+      lineage_at: lineageAt || sourceNode?.created_at || sourceNode?.updated_at || null,
+      created_at: sourceNode?.created_at || lineageAt || sourceNode?.updated_at || null,
+      updated_at: sourceNode?.updated_at || lineageAt || null,
+    };
+  });
+  const nodeIds = new Set(nodes.map((node) => node.slug));
+  const edges = sourceEdges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
+  const edgeKeys = new Set(edges.map((edge) => `${edge.source}:${edge.target}`));
+  incomingEvents.forEach((event, index) => {
+    if (!nodeIds.has(event.from_page) || !nodeIds.has(event.to_page)) return;
+    const key = `${event.from_page}:${event.to_page}`;
+    if (edgeKeys.has(key)) return;
+    edgeKeys.add(key);
+    edges.push({
+      id: `lineage:${event.commit_sha || index}:${event.from_page}:${event.to_page}`,
+      source: event.from_page,
+      target: event.to_page,
+      created_at: event.timestamp || null,
+      updated_at: event.timestamp || null,
+      lineage_event: true,
+    });
+  });
+  return {
+    ...graph,
+    nodes,
+    edges,
+    inputs: [],
+    activity: [],
+    meta: {
+      ...graph?.meta,
+      page_count: nodes.length,
+      node_count: nodes.length,
+      edge_count: edges.length,
+      input_count: 0,
+    },
+  };
+}
+
+function buildLineageActivityBuckets(nodes, lineage) {
+  const counts = new Map();
+  const focusSlug = lineage?.slug;
+  const events = (Array.isArray(lineage?.link_events) ? lineage.link_events : [])
+    .filter((event) => !focusSlug || event?.to_page === focusSlug);
+  for (const event of events) {
+    const day = dayKeyFromTimestamp(event?.timestamp);
+    if (day) counts.set(day, (counts.get(day) || 0) + 1);
+  }
+  if (!counts.size) {
+    for (const node of nodes) {
+      const day = dayKeyFromTimestamp(node.lineage_at || node.created_at || node.updated_at);
+      if (day) counts.set(day, (counts.get(day) || 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([day, count]) => ({ day, count }))
+    .sort((left, right) => left.day.localeCompare(right.day));
+}
+
 function activityModeLabel(mode) {
   return GRAPH_ACTIVITY_MODES.find((item) => item.id === mode)?.label || GRAPH_ACTIVITY_MODES[0].label;
 }
@@ -2201,6 +2357,7 @@ const GraphPanel = memo(function GraphPanel({
   activeSlug,
   onActiveSlugChange,
   onNodeOpen,
+  onGraphNodeFocus,
   lineage,
   onLineageClose,
 }) {
@@ -2215,20 +2372,28 @@ const GraphPanel = memo(function GraphPanel({
   const visualizer = graphVisualizers.find((item) => item.id === visualizerId) || graphVisualizers[0];
   const VisualizerComponent = visualizer.Component;
   const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-  const activityBuckets = useMemo(() => buildActivityBuckets(graphNodes, graph?.activity), [graphNodes, graph?.activity]);
+  const focusSlug = lineage?.slug || null;
+  const focusGraph = useMemo(() => buildLineageFocusGraph(graph, lineage, focusSlug), [focusSlug, graph, lineage]);
+  const activeGraph = focusSlug ? focusGraph : graph;
+  const activeGraphNodes = Array.isArray(activeGraph?.nodes) ? activeGraph.nodes : [];
+  const activityBuckets = useMemo(() => (
+    focusSlug
+      ? buildLineageActivityBuckets(activeGraphNodes, lineage)
+      : buildActivityBuckets(graphNodes, graph?.activity)
+  ), [activeGraphNodes, focusSlug, graph?.activity, graphNodes, lineage]);
   const [timelineIndex, setTimelineIndex] = useState(-1);
   const latestTimelineIndex = activityBuckets.length - 1;
   const resolvedTimelineIndex = resolveTimelineIndex(timelineIndex < 0 ? latestTimelineIndex : timelineIndex, activityBuckets);
   const selectedActivityBucket = resolvedTimelineIndex >= 0 ? activityBuckets[resolvedTimelineIndex] : null;
   const selectedTimelineDay = selectedActivityBucket?.day || null;
   const timelineFilteredNodes = useMemo(() => {
-    if (!selectedTimelineDay) return graphNodes;
-    return graphNodes.filter((node) => {
-      const day = dayKeyFromTimestamp(node.created_at || node.updated_at);
+    if (!selectedTimelineDay) return activeGraphNodes;
+    return activeGraphNodes.filter((node) => {
+      const day = dayKeyFromTimestamp(node.lineage_at || node.created_at || node.updated_at);
       return !day || day <= selectedTimelineDay;
     });
-  }, [graphNodes, selectedTimelineDay]);
-  const presentTypes = new Set(graphNodes.map((node) => node.type));
+  }, [activeGraphNodes, selectedTimelineDay]);
+  const presentTypes = new Set(activeGraphNodes.map((node) => node.type));
   const pageTypes = [
     ...TYPE_ORDER.filter((type) => presentTypes.has(type)),
     ...[...presentTypes].filter((type) => !TYPE_ORDER.includes(type)).sort(),
@@ -2239,12 +2404,12 @@ const GraphPanel = memo(function GraphPanel({
       ? timelineFilteredNodes.filter((node) => selectedTypeSet.has(node.type))
       : timelineFilteredNodes;
     const slugs = new Set(nodes.map((node) => node.slug));
-    const edges = (Array.isArray(graph?.edges) ? graph.edges : []).filter((edge) => {
+    const edges = (Array.isArray(activeGraph?.edges) ? activeGraph.edges : []).filter((edge) => {
       return slugs.has(edge.source) && slugs.has(edge.target);
     });
 
     return {
-      ...graph,
+      ...activeGraph,
       nodes,
       edges,
       meta: {
@@ -2253,17 +2418,19 @@ const GraphPanel = memo(function GraphPanel({
         edge_count: edges.length,
       },
     };
-  }, [graph, selectedPageTypes.length, selectedTypeSet, timelineFilteredNodes]);
+  }, [activeGraph, selectedPageTypes.length, selectedTypeSet, timelineFilteredNodes]);
   const forceGraph = useMemo(() => {
+    const forceSourceGraph = focusSlug ? focusGraph : graph;
+    const forceSourceNodes = Array.isArray(forceSourceGraph?.nodes) ? forceSourceGraph.nodes : [];
     const nodes = selectedPageTypes.length
-      ? graphNodes.filter((node) => selectedTypeSet.has(node.type))
-      : graphNodes;
+      ? forceSourceNodes.filter((node) => selectedTypeSet.has(node.type))
+      : forceSourceNodes;
     const slugs = new Set(nodes.map((node) => node.slug));
-    const edges = (Array.isArray(graph?.edges) ? graph.edges : []).filter((edge) => {
+    const edges = (Array.isArray(forceSourceGraph?.edges) ? forceSourceGraph.edges : []).filter((edge) => {
       return slugs.has(edge.source) && slugs.has(edge.target);
     });
     return {
-      ...graph,
+      ...forceSourceGraph,
       nodes,
       edges,
       meta: {
@@ -2272,7 +2439,7 @@ const GraphPanel = memo(function GraphPanel({
         edge_count: edges.length,
       },
     };
-  }, [graph, graphNodes, selectedPageTypes.length, selectedTypeSet]);
+  }, [focusGraph, focusSlug, graph, selectedPageTypes.length, selectedTypeSet]);
   const recentNodes = useMemo(() => {
     const nodes = Array.isArray(filteredGraph?.nodes) ? filteredGraph.nodes : [];
     return [...nodes]
@@ -2298,7 +2465,7 @@ const GraphPanel = memo(function GraphPanel({
 
   useEffect(() => {
     setTimelineIndex(-1);
-  }, [graph]);
+  }, [focusSlug, graph]);
 
   useEffect(() => {
     if (!styleMenuOpen && !filterMenuOpen) return undefined;
@@ -2386,13 +2553,13 @@ const GraphPanel = memo(function GraphPanel({
   return (
     <section className="card hero-card">
       <div className={`graph-wrap graph-wrap-expanded ${flowVisible ? 'graph-flow-enabled' : ''}`}>
-        <div className={`graph-canvas-stage ${lineage?.status === 'ready' ? 'graph-canvas-stage-dimmed' : ''}`}>
+        <div className="graph-canvas-stage">
           <VisualizerComponent
             ref={visualizerRef}
             graph={isForceRenderer ? forceGraph : filteredGraph}
             timelineDay={isForceRenderer ? selectedTimelineDay : null}
             motionEvent={motionEvent}
-            onNodeOpen={onNodeOpen}
+            onNodeOpen={onGraphNodeFocus}
             nodeShape={nodeShape}
             nodeFill={nodeFill}
             nodeIcon={nodeIcon}
@@ -2408,8 +2575,25 @@ const GraphPanel = memo(function GraphPanel({
             onActiveSlugChange={onActiveSlugChange}
           />
         </div>
-        {lineage ? <GraphLineagePanel lineage={lineage} onClose={onLineageClose} onNodeOpen={onNodeOpen} /> : null}
-        {flowVisible ? (
+        {focusSlug ? (
+          <div className="graph-focus-banner" aria-live="polite">
+            <div className="graph-focus-copy">
+              <span>History focus</span>
+              <strong>{focusGraph?.nodes?.find((node) => node.slug === focusSlug)?.title || labelFromSlug(focusSlug)}</strong>
+              <small>
+                {lineage?.status === 'loading'
+                  ? 'Reconstructing contributors…'
+                  : lineage?.status === 'error'
+                    ? (lineage.message || 'History unavailable')
+                    : `${Math.max(0, (focusGraph?.nodes?.length || 1) - 1)} contributing pages`}
+              </small>
+            </div>
+            <button type="button" className="graph-focus-close" onClick={onLineageClose}>
+              Full graph
+            </button>
+          </div>
+        ) : null}
+        {flowVisible && !focusSlug ? (
           <GraphFlowOverlay
             inputs={flowInputs}
             tasks={flowTasks}
@@ -2634,82 +2818,6 @@ const GraphPanel = memo(function GraphPanel({
     </section>
   );
 });
-
-function GraphLineagePanel({ lineage, onClose, onNodeOpen }) {
-  const events = Array.isArray(lineage?.link_events) ? lineage.link_events : [];
-  const provenance = Array.isArray(lineage?.provenance) ? lineage.provenance : [];
-  const outgoing = Array.isArray(lineage?.outgoing) ? lineage.outgoing : [];
-  const backlinks = Array.isArray(lineage?.backlinks) ? lineage.backlinks : [];
-  const page = lineage?.page || {};
-  return (
-    <div className="graph-lineage-panel" aria-label="Page lineage">
-      <div className="graph-lineage-head">
-        <div>
-          <div className="graph-lineage-kicker">Lineage</div>
-          <h3>{page.title || labelFromSlug(page.slug)}</h3>
-          <span>{page.slug}</span>
-        </div>
-        <button type="button" className="graph-lineage-close" onClick={onClose} aria-label="Return to graph">×</button>
-      </div>
-      {lineage.status === 'loading' ? <div className="graph-lineage-empty">Reconstructing the Git timeline…</div> : null}
-      {lineage.status === 'error' ? <div className="graph-lineage-empty">{lineage.message || 'Lineage is unavailable.'}</div> : null}
-      {lineage.status === 'ready' ? (
-        <>
-          <div className="graph-lineage-summary">
-            <span>{events.length} link changes</span>
-            <span>{provenance.length} source events</span>
-          </div>
-          <div className="graph-lineage-scroll">
-            <div className="graph-lineage-track">
-              {events.length ? events.map((event, index) => (
-                <div className="graph-lineage-event" key={`${event.commit_sha}-${event.from_page}-${event.to_page}-${index}`}>
-                  <div className={`graph-lineage-dot ${event.type === 'link-removed' ? 'removed' : ''}`} />
-                  <div className="graph-lineage-event-copy">
-                    <div className="graph-lineage-event-meta">
-                      <span>{formatDateTime(event.timestamp)}</span>
-                      <span>{event.type === 'link-introduced' ? 'Link introduced' : 'Link removed'}</span>
-                    </div>
-                    <div className="graph-lineage-connection">
-                      <button type="button" onClick={() => onNodeOpen?.(event.from_page)}>{event.from?.title || labelFromSlug(event.from_page)}</button>
-                      <span>→</span>
-                      <button type="button" onClick={() => onNodeOpen?.(event.to_page)}>{event.to?.title || labelFromSlug(event.to_page)}</button>
-                    </div>
-                    <div className="graph-lineage-subject">{event.subject || 'Git change'} <code>{String(event.commit_sha || '').slice(0, 8)}</code></div>
-                  </div>
-                </div>
-              )) : <div className="graph-lineage-empty">No link changes found in the bounded Git history.</div>}
-            </div>
-            {provenance.length ? (
-              <div className="graph-lineage-sources">
-                <div className="graph-lineage-section-title">Source events</div>
-                {provenance.map((item) => (
-                  <div className="graph-lineage-source" key={`${item.event_id}-${item.received_at}`}>
-                    <span className="graph-lineage-source-type">{item.source_type}</span>
-                    <div>
-                      <strong>{item.source_label}</strong>
-                      <span>{item.commit_message || 'No commit message recorded'}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-            {(outgoing.length || backlinks.length) ? (
-              <div className="graph-lineage-connections">
-                <div className="graph-lineage-section-title">Current connections</div>
-                {[...backlinks.map((item) => ({ ...item, direction: 'from' })), ...outgoing.map((item) => ({ ...item, direction: 'to' }))].map((item, index) => (
-                  <button type="button" className="graph-lineage-connection-card" key={`${item.direction}-${item.slug || item.from_slug || item.to_slug}-${index}`} onClick={() => onNodeOpen?.(item.page?.slug || item.slug || item.from_slug || item.to_slug)}>
-                    <span>{item.direction === 'from' ? '←' : '→'}</span>
-                    <span>{item.page?.title || labelFromSlug(item.page?.slug || item.slug || item.from_slug || item.to_slug)}</span>
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </div>
-        </>
-      ) : null}
-    </div>
-  );
-}
 
 function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
   const stageRef = useRef(null);
