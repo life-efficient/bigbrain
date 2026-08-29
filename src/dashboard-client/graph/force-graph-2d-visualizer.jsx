@@ -25,6 +25,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   labelStyle = 'selected',
   colorMode = 'updated',
   typeColors,
+  timelineDay = null,
   activeSlug = null,
   onActiveSlugChange,
 }, ref) {
@@ -47,6 +48,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   });
   const activeSlugRef = useRef(activeSlug);
   const hoveredSlugRef = useRef(null);
+  const timelineDayRef = useRef(timelineDay);
   const labelSlugs = useMemo(() => getForceGraphLabelSlugs(graph?.nodes, labelStyle), [graph?.nodes, labelStyle]);
 
   settingsRef.current = {
@@ -65,6 +67,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   onNodeOpenRef.current = onNodeOpen;
   onActiveSlugChangeRef.current = onActiveSlugChange;
   activeSlugRef.current = activeSlug;
+  timelineDayRef.current = timelineDay;
 
   useImperativeHandle(ref, () => ({
     zoomIn() {
@@ -105,9 +108,11 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       .nodeCanvasObject((node, context, globalScale) => {
         drawForceGraphNode(node, context, globalScale, settingsRef.current, forceGraph);
       })
+      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDayRef.current))
       .nodeLabel((node) => buildNodeTooltip(node))
       .linkSource('source')
       .linkTarget('target')
+      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDayRef.current))
       .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkWidth((link) => getForceGraphLinkWidth(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkCurvature((link) => getForceGraphLinkCurvature(settingsRef.current.arcStyle, link))
@@ -156,6 +161,14 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
     forceGraph
+      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDay))
+      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDay));
+  }, [timelineDay]);
+
+  useEffect(() => {
+    const forceGraph = graphRef.current;
+    if (!forceGraph) return;
+    forceGraph
       .backgroundColor(theme.graphBase)
       .nodeCanvasObject((node, context, globalScale) => {
         drawForceGraphNode(node, context, globalScale, settingsRef.current, forceGraph);
@@ -183,29 +196,69 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
 });
 
 function syncForceGraphData(forceGraph, graph, settings, focusSlug = null) {
-  const nodes = (Array.isArray(graph?.nodes) ? graph.nodes : []).map((node) => ({
-    ...node,
-    id: node.slug,
-    slug: node.slug,
-    color: normalizeHex(getGraphNodeColor(node, settings.colorMode, settings.typeColors), DEFAULT_NODE_COLOR),
-  }));
+  const previousData = getForceGraphData(forceGraph);
+  const previousNodes = new Map((previousData.nodes || []).map((node) => [node.id, node]));
+  const previousLinks = new Map((previousData.links || []).map((link) => [link.id, link]));
+  const nodes = (Array.isArray(graph?.nodes) ? graph.nodes : []).map((node) => {
+    const next = previousNodes.get(node.slug) || {};
+    Object.assign(next, node, {
+      id: node.slug,
+      slug: node.slug,
+      color: normalizeHex(getGraphNodeColor(node, settings.colorMode, settings.typeColors), DEFAULT_NODE_COLOR),
+    });
+    return next;
+  });
   const nodeIds = new Set(nodes.map((node) => node.id));
   const links = (Array.isArray(graph?.edges) ? graph.edges : [])
-    .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
-    .map((edge, index) => ({
-      ...edge,
-      id: `${edge.source}:${edge.target}:${index}`,
-      source: edge.source,
-      target: edge.target,
-    }));
+    .map((edge, index) => ({ edge, index }))
+    .filter(({ edge }) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
+    .map(({ edge, index }) => {
+      const id = edge.id || `${edge.source}:${edge.target}:${index}`;
+      const previous = previousLinks.get(id);
+      const next = previousLinks.get(id) || {};
+      Object.assign(next, edge, { id });
+      next.source = previous?.source && typeof previous.source === 'object' ? previous.source : edge.source;
+      next.target = previous?.target && typeof previous.target === 'object' ? previous.target : edge.target;
+      return next;
+    });
 
-  forceGraph.__bigBrainFitPending = true;
-  forceGraph.graphData({ nodes, links });
+  const previousNodeIds = new Set(previousData.nodes?.map((node) => node.id) || []);
+  const previousLinkIds = new Set(previousData.links?.map((link) => link.id) || []);
+  const membershipChanged = !forceGraph.__bigBrainInitialized
+    || nodes.length !== previousNodeIds.size
+    || links.length !== previousLinkIds.size
+    || nodes.some((node) => !previousNodeIds.has(node.id))
+    || links.some((link) => !previousLinkIds.has(link.id));
+  const data = { nodes, links };
+  if (membershipChanged) {
+    links.forEach((link) => {
+      link.source = typeof link.source === 'object' ? link.source.id : link.source;
+      link.target = typeof link.target === 'object' ? link.target.id : link.target;
+    });
+    forceGraph.__bigBrainFitPending = !forceGraph.__bigBrainInitialized;
+    forceGraph.graphData(data);
+  } else {
+    forceGraph.linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph));
+  }
+  forceGraph.__bigBrainInitialized = true;
   updateForceGraphHighlight(forceGraph, focusSlug, settings.arcAnimation);
 }
 
 function getForceGraphData(forceGraph) {
   return forceGraph?.graphData?.() || { nodes: [], links: [] };
+}
+
+function isForceGraphNodeVisibleAtTimeline(node, timelineDay) {
+  if (!timelineDay || !node || typeof node !== 'object') return true;
+  const timestamp = Date.parse(node.created_at || node.updated_at);
+  if (!Number.isFinite(timestamp)) return true;
+  return new Date(timestamp).toISOString().slice(0, 10) <= timelineDay;
+}
+
+function isForceGraphLinkVisibleAtTimeline(link, timelineDay) {
+  if (!timelineDay) return true;
+  return isForceGraphNodeVisibleAtTimeline(link?.source, timelineDay)
+    && isForceGraphNodeVisibleAtTimeline(link?.target, timelineDay);
 }
 
 function updateForceGraphHighlight(forceGraph, focusSlug, arcAnimation = 'instant') {

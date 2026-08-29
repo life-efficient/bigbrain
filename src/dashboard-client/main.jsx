@@ -1388,6 +1388,12 @@ function isTypingTarget(target) {
 
 const ALL_MEMBERS_VALUE = '__all_members__';
 const GRAPH_FLOW_INPUT_LIMIT = 6;
+const GRAPH_ACTIVITY_MODES = [
+  { id: 'bars', label: 'Bars' },
+  { id: 'line', label: 'Line' },
+  { id: 'cumulative-bars', label: 'Cumulative bars' },
+  { id: 'cumulative-line', label: 'Cumulative line' },
+];
 
 function AssigneeFilter({ members, value, onChange, disabled = false }) {
   const selectedValue = value || ALL_MEMBERS_VALUE;
@@ -2121,6 +2127,43 @@ function resolveTimelineIndex(value, buckets) {
   return clamp(Math.round(numeric), 0, buckets.length - 1);
 }
 
+function buildActivitySeries(buckets) {
+  let cumulative = 0;
+  return buckets.map((bucket) => {
+    const count = Math.max(0, Number(bucket.count) || 0);
+    cumulative += count;
+    return { ...bucket, count, cumulative };
+  });
+}
+
+function activityModeLabel(mode) {
+  return GRAPH_ACTIVITY_MODES.find((item) => item.id === mode)?.label || GRAPH_ACTIVITY_MODES[0].label;
+}
+
+function isCumulativeActivityMode(mode) {
+  return mode.startsWith('cumulative-');
+}
+
+function isLineActivityMode(mode) {
+  return mode.endsWith('-line') || mode === 'line';
+}
+
+function activityPointX(index, length) {
+  if (length <= 1) return 50;
+  return (index / (length - 1)) * 100;
+}
+
+function activityPointY(value, maxValue) {
+  return 92 - ((value / Math.max(maxValue, 1)) * 78);
+}
+
+function activityLinePath(series, mode, maxValue) {
+  const valueKey = isCumulativeActivityMode(mode) ? 'cumulative' : 'count';
+  return series
+    .map((item, index) => `${index === 0 ? 'M' : 'L'} ${activityPointX(index, series.length).toFixed(3)} ${activityPointY(item[valueKey], maxValue).toFixed(3)}`)
+    .join(' ');
+}
+
 const GraphPanel = memo(function GraphPanel({
   graph,
   motionEvent,
@@ -2163,14 +2206,16 @@ const GraphPanel = memo(function GraphPanel({
 }) {
   const [styleMenuOpen, setStyleMenuOpen] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const [activityMode, setActivityMode] = useState('bars');
   const [selectedPageTypes, setSelectedPageTypes] = useState([]);
   const styleMenuRef = useRef(null);
   const filterMenuRef = useRef(null);
+  const activityPlotRef = useRef(null);
+  const activityDraggingRef = useRef(false);
   const visualizer = graphVisualizers.find((item) => item.id === visualizerId) || graphVisualizers[0];
   const VisualizerComponent = visualizer.Component;
   const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const activityBuckets = useMemo(() => buildActivityBuckets(graphNodes, graph?.activity), [graphNodes, graph?.activity]);
-  const maxActivityCount = useMemo(() => Math.max(...activityBuckets.map((item) => item.count), 1), [activityBuckets]);
   const [timelineIndex, setTimelineIndex] = useState(-1);
   const latestTimelineIndex = activityBuckets.length - 1;
   const resolvedTimelineIndex = resolveTimelineIndex(timelineIndex < 0 ? latestTimelineIndex : timelineIndex, activityBuckets);
@@ -2183,9 +2228,6 @@ const GraphPanel = memo(function GraphPanel({
       return !day || day <= selectedTimelineDay;
     });
   }, [graphNodes, selectedTimelineDay]);
-  const visibleUpdatedCount = selectedTimelineDay
-    ? graphNodes.length - timelineFilteredNodes.length
-    : 0;
   const presentTypes = new Set(graphNodes.map((node) => node.type));
   const pageTypes = [
     ...TYPE_ORDER.filter((type) => presentTypes.has(type)),
@@ -2212,6 +2254,25 @@ const GraphPanel = memo(function GraphPanel({
       },
     };
   }, [graph, selectedPageTypes.length, selectedTypeSet, timelineFilteredNodes]);
+  const forceGraph = useMemo(() => {
+    const nodes = selectedPageTypes.length
+      ? graphNodes.filter((node) => selectedTypeSet.has(node.type))
+      : graphNodes;
+    const slugs = new Set(nodes.map((node) => node.slug));
+    const edges = (Array.isArray(graph?.edges) ? graph.edges : []).filter((edge) => {
+      return slugs.has(edge.source) && slugs.has(edge.target);
+    });
+    return {
+      ...graph,
+      nodes,
+      edges,
+      meta: {
+        ...graph?.meta,
+        page_count: nodes.length,
+        edge_count: edges.length,
+      },
+    };
+  }, [graph, graphNodes, selectedPageTypes.length, selectedTypeSet]);
   const recentNodes = useMemo(() => {
     const nodes = Array.isArray(filteredGraph?.nodes) ? filteredGraph.nodes : [];
     return [...nodes]
@@ -2227,6 +2288,10 @@ const GraphPanel = memo(function GraphPanel({
         .map((item) => ({ ...item, slug: item.page_slug }))
         .slice(0, GRAPH_FLOW_INPUT_LIMIT)
   ), [demoMode, demoSeed, filteredGraph, recentNodes, selectedTypeSet]);
+  const activitySeries = useMemo(() => buildActivitySeries(activityBuckets), [activityBuckets]);
+  const activityValueKey = isCumulativeActivityMode(activityMode) ? 'cumulative' : 'count';
+  const activityMaxValue = useMemo(() => Math.max(...activitySeries.map((item) => item[activityValueKey]), 1), [activitySeries, activityValueKey]);
+  const isForceRenderer = visualizerId === 'force-graph-3d' || visualizerId === 'force-graph-2d';
   const visibleControls = Array.isArray(visualizer.controls)
     ? visualizer.controls.filter((control) => control === 'resetView')
     : [];
@@ -2283,13 +2348,49 @@ const GraphPanel = memo(function GraphPanel({
     setTypeColors((current) => ({ ...current, [type]: value.toUpperCase() }));
   }
 
+  function seekActivityFromPointer(event) {
+    const plot = activityPlotRef.current;
+    if (!plot || !activitySeries.length) return;
+    const bounds = plot.getBoundingClientRect();
+    const ratio = bounds.width ? clamp((event.clientX - bounds.left) / bounds.width, 0, 1) : 0;
+    setTimelineIndex(Math.round(ratio * Math.max(activitySeries.length - 1, 0)));
+  }
+
+  function handleActivityPointerDown(event) {
+    activityDraggingRef.current = true;
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    seekActivityFromPointer(event);
+  }
+
+  function handleActivityPointerMove(event) {
+    if (activityDraggingRef.current) seekActivityFromPointer(event);
+  }
+
+  function handleActivityPointerUp(event) {
+    if (!activityDraggingRef.current) return;
+    seekActivityFromPointer(event);
+    activityDraggingRef.current = false;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+  }
+
+  function handleActivityKeyDown(event) {
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      setTimelineIndex((value) => resolveTimelineIndex(value - 1, activityBuckets));
+    } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      setTimelineIndex((value) => resolveTimelineIndex(value + 1, activityBuckets));
+    }
+  }
+
   return (
     <section className="card hero-card">
       <div className={`graph-wrap graph-wrap-expanded ${flowVisible ? 'graph-flow-enabled' : ''}`}>
         <div className={`graph-canvas-stage ${lineage?.status === 'ready' ? 'graph-canvas-stage-dimmed' : ''}`}>
           <VisualizerComponent
             ref={visualizerRef}
-            graph={filteredGraph}
+            graph={isForceRenderer ? forceGraph : filteredGraph}
+            timelineDay={isForceRenderer ? selectedTimelineDay : null}
             motionEvent={motionEvent}
             onNodeOpen={onNodeOpen}
             nodeShape={nodeShape}
@@ -2320,34 +2421,56 @@ const GraphPanel = memo(function GraphPanel({
             <div className="graph-activity-head">
               <span>Activity</span>
               <strong>{formatActivityDate(selectedTimelineDay)}</strong>
+              <button
+                type="button"
+                className="graph-activity-mode"
+                aria-label={`Cycle activity chart, currently ${activityModeLabel(activityMode)}`}
+                onClick={() => {
+                  const currentIndex = GRAPH_ACTIVITY_MODES.findIndex((item) => item.id === activityMode);
+                  setActivityMode(GRAPH_ACTIVITY_MODES[(currentIndex + 1) % GRAPH_ACTIVITY_MODES.length].id);
+                }}
+              >
+                {activityModeLabel(activityMode)}
+              </button>
             </div>
-            <div className="graph-activity-bars">
-              {activityBuckets.map((bucket, index) => {
-                const height = 8 + Math.round((bucket.count / maxActivityCount) * 38);
-                return (
-                  <button
-                    key={bucket.day}
-                    type="button"
-                    className={`graph-activity-bar ${index <= resolvedTimelineIndex ? 'active' : ''}`}
-                    style={{ height: `${height}px` }}
-                    aria-label={`${bucket.count} updates on ${formatActivityDate(bucket.day)}`}
-                    onClick={() => setTimelineIndex(index)}
-                  />
-                );
-              })}
-            </div>
-            <input
-              className="graph-timeline-slider"
-              type="range"
-              min="0"
-              max={Math.max(activityBuckets.length - 1, 0)}
-              value={Math.max(resolvedTimelineIndex, 0)}
+            <div
+              ref={activityPlotRef}
+              className={`graph-activity-plot graph-activity-${activityMode}`}
+              role="slider"
+              tabIndex="0"
               aria-label="Graph date"
-              onChange={(event) => setTimelineIndex(Number(event.target.value))}
-            />
-            <div className="graph-activity-meta">
-              <span>{filteredGraph?.meta?.page_count || 0} pages</span>
-              <span>{visibleUpdatedCount ? `${visibleUpdatedCount} newer hidden` : 'Current'}</span>
+              aria-valuemin="0"
+              aria-valuemax={Math.max(activityBuckets.length - 1, 0)}
+              aria-valuenow={Math.max(resolvedTimelineIndex, 0)}
+              aria-valuetext={formatActivityDate(selectedTimelineDay)}
+              onKeyDown={handleActivityKeyDown}
+              onPointerDown={handleActivityPointerDown}
+              onPointerMove={handleActivityPointerMove}
+              onPointerUp={handleActivityPointerUp}
+              onPointerCancel={handleActivityPointerUp}
+            >
+              <svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                {isLineActivityMode(activityMode) ? (
+                  <path className="graph-activity-line" d={activityLinePath(activitySeries, activityMode, activityMaxValue)} />
+                ) : activitySeries.map((item, index) => {
+                  const value = item[activityValueKey];
+                  const width = 100 / activitySeries.length;
+                  const height = (value / Math.max(activityMaxValue, 1)) * 78;
+                  return (
+                    <rect
+                      key={item.day}
+                      className={`graph-activity-bar ${index <= resolvedTimelineIndex ? 'active' : ''}`}
+                      x={index * width + width * 0.18}
+                      y={92 - height}
+                      width={Math.max(width * 0.64, 0.35)}
+                      height={height}
+                      rx="0.8"
+                    />
+                  );
+                })}
+                <line className="graph-activity-cursor" x1={activityPointX(resolvedTimelineIndex, activitySeries.length)} x2={activityPointX(resolvedTimelineIndex, activitySeries.length)} y1="4" y2="96" />
+                <circle className="graph-activity-point" cx={activityPointX(resolvedTimelineIndex, activitySeries.length)} cy={activityPointY(activitySeries[resolvedTimelineIndex]?.[activityValueKey] || 0, activityMaxValue)} r="1.6" />
+              </svg>
             </div>
           </div>
         ) : null}

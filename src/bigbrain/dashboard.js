@@ -1615,22 +1615,20 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version' } = {}) {
       .graph-pulse-line { animation: graph-pulse 7s linear infinite; }
       .graph-activity-panel { position: absolute; right: 14px; top: 14px; z-index: 4; width: min(270px, calc(100% - 28px)); display: grid; gap: 0; padding: 0; border: 1px solid transparent; border-radius: 12px; background: transparent; box-shadow: none; backdrop-filter: blur(0); transition: padding 180ms ease, gap 180ms ease, background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, backdrop-filter 180ms ease; }
       .graph-activity-panel:hover, .graph-activity-panel:focus-within { gap: 9px; padding: 10px 12px; border-color: rgba(212,212,216,0.18); background: rgba(12,12,14,0.82); box-shadow: 0 18px 42px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(18px); }
-      .graph-activity-head, .graph-activity-meta { min-width: 0; max-height: 0; opacity: 0; overflow: hidden; transform: translateY(-3px); display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 11px; transition: max-height 180ms ease, opacity 180ms ease, transform 180ms ease; }
-      .graph-activity-panel:hover .graph-activity-head, .graph-activity-panel:hover .graph-activity-meta, .graph-activity-panel:focus-within .graph-activity-head, .graph-activity-panel:focus-within .graph-activity-meta { max-height: 20px; opacity: 1; transform: translateY(0); }
+      .graph-activity-head { min-width: 0; max-height: 0; opacity: 0; overflow: hidden; transform: translateY(-3px); display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 11px; transition: max-height 180ms ease, opacity 180ms ease, transform 180ms ease; }
+      .graph-activity-panel:hover .graph-activity-head, .graph-activity-panel:focus-within .graph-activity-head { max-height: 24px; opacity: 1; transform: translateY(0); }
       .graph-activity-head span { text-transform: uppercase; letter-spacing: 0.08em; font-weight: 750; }
       .graph-activity-head strong { min-width: 0; color: var(--ink); font-size: 12px; font-weight: 650; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .graph-activity-bars { height: 48px; min-width: 0; display: flex; align-items: end; gap: 1px; overflow: hidden; }
-      .graph-activity-bar { flex: 1 1 0; min-width: 0; padding: 0; align-self: end; display: flex; align-items: stretch; justify-content: center; border: 0; background: transparent; cursor: pointer; }
-      .graph-activity-bar::before { content: ""; width: min(3px, 80%); height: 100%; border-radius: 999px; background: rgba(161,161,170,0.26); box-shadow: inset 0 1px 0 rgba(255,255,255,0.06); transition: background 140ms ease, box-shadow 140ms ease, transform 140ms ease; }
-      .graph-activity-bar.active::before { background: linear-gradient(180deg, #f4f4f5 0%, #a1a1aa 100%); box-shadow: 0 0 0 1px rgba(255,255,255,0.10); }
-      .graph-activity-bar:hover, .graph-activity-bar:focus-visible { outline: none; }
-      .graph-activity-bar:hover::before, .graph-activity-bar:focus-visible::before { background: #ffffff; box-shadow: 0 0 0 2px rgba(255,255,255,0.16); transform: translateY(-1px); }
-      .graph-timeline-slider { width: 100%; height: 0; margin: 0; opacity: 0; appearance: none; -webkit-appearance: none; background: transparent; cursor: pointer; pointer-events: none; transition: height 180ms ease, opacity 180ms ease; }
-      .graph-activity-panel:hover .graph-timeline-slider, .graph-activity-panel:focus-within .graph-timeline-slider { height: 12px; opacity: 1; pointer-events: auto; }
-      .graph-timeline-slider::-webkit-slider-runnable-track { height: 3px; border-radius: 999px; background: linear-gradient(90deg, rgba(244,244,245,0.78), rgba(82,82,91,0.62)); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06); }
-      .graph-timeline-slider::-webkit-slider-thumb { appearance: none; -webkit-appearance: none; width: 13px; height: 13px; margin-top: -5px; border: 1px solid rgba(255,255,255,0.70); border-radius: 999px; background: linear-gradient(180deg, #ffffff, #d4d4d8); box-shadow: 0 2px 8px rgba(0,0,0,0.35); }
-      .graph-timeline-slider:focus-visible { outline: none; }
-      .graph-timeline-slider:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px rgba(255,255,255,0.18), 0 2px 8px rgba(0,0,0,0.35); }
+      .graph-activity-mode { margin-left: auto; padding: 3px 7px; border: 1px solid rgba(212,212,216,0.18); border-radius: 999px; background: rgba(255,255,255,0.05); color: var(--muted); font: inherit; font-size: 10px; cursor: pointer; white-space: nowrap; }
+      .graph-activity-mode:hover, .graph-activity-mode:focus-visible { border-color: rgba(255,255,255,0.32); color: var(--ink); outline: none; }
+      .graph-activity-plot { height: 58px; min-width: 0; position: relative; cursor: ew-resize; touch-action: none; user-select: none; }
+      .graph-activity-plot:focus-visible { outline: 2px solid rgba(255,255,255,0.36); outline-offset: 3px; border-radius: 5px; }
+      .graph-activity-plot svg { display: block; width: 100%; height: 100%; overflow: visible; }
+      .graph-activity-bar { fill: rgba(161,161,170,0.28); transition: fill 140ms ease; }
+      .graph-activity-bar.active { fill: rgba(244,244,245,0.86); }
+      .graph-activity-line { fill: none; stroke: rgba(218,218,224,0.72); stroke-width: 1.6; vector-effect: non-scaling-stroke; stroke-linecap: round; stroke-linejoin: round; }
+      .graph-activity-cursor { stroke: rgba(255,255,255,0.62); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-dasharray: 2 3; }
+      .graph-activity-point { fill: #ffffff; stroke: rgba(255,255,255,0.32); stroke-width: 1; vector-effect: non-scaling-stroke; }
       .graph-controls { display: flex; gap: 8px; }
       .graph-controls-inline { position: static; z-index: auto; }
       .graph-button { border: 1px solid var(--line); background: var(--surface-strong); color: var(--ink); border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); }

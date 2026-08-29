@@ -29,6 +29,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   colorMode = 'updated',
   typeColors,
   autoRotate = false,
+  timelineDay = null,
   activeSlug = null,
   onActiveSlugChange,
 }, ref) {
@@ -44,12 +45,14 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   const settingsRef = useRef({ nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, arcAnimation, labelStyle, colorMode, typeColors, theme });
   const activeSlugRef = useRef(activeSlug);
   const hoveredSlugRef = useRef(null);
+  const timelineDayRef = useRef(timelineDay);
   const labelSlugs = useMemo(() => getForceGraphLabelSlugs(graph?.nodes, labelStyle), [graph?.nodes, labelStyle]);
 
   settingsRef.current = { nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, arcAnimation, labelStyle, colorMode, typeColors, theme, labelSlugs, activeSlug };
   onNodeOpenRef.current = onNodeOpen;
   onActiveSlugChangeRef.current = onActiveSlugChange;
   activeSlugRef.current = activeSlug;
+  timelineDayRef.current = timelineDay;
 
   useImperativeHandle(ref, () => ({
     zoomIn() {
@@ -101,9 +104,11 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .nodeVal((node) => Math.max(1, Math.sqrt(Number(node.degree) || 1)))
       .nodeThreeObject((node) => createForceGraphNodeObject(node, settingsRef.current))
       .nodeThreeObjectExtend(false)
+      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDayRef.current))
       .nodeLabel((node) => buildNodeTooltip(node))
       .linkSource('source')
       .linkTarget('target')
+      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDayRef.current))
       .linkCurvature(() => getForceGraphLinkCurvature(settingsRef.current.arcStyle))
       .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkOpacity((link) => getForceGraphLinkOpacity(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
@@ -191,6 +196,14 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   useEffect(() => {
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
+    forceGraph
+      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDay))
+      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDay));
+  }, [timelineDay]);
+
+  useEffect(() => {
+    const forceGraph = graphRef.current;
+    if (!forceGraph) return;
     const arcStyleChanged = renderedArcStyleRef.current !== arcStyle;
     renderedArcStyleRef.current = arcStyle;
     forceGraph
@@ -217,27 +230,52 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
 });
 
 function syncForceGraphData(forceGraph, graph, settings, focusSlug = null) {
-  const nodes = (Array.isArray(graph?.nodes) ? graph.nodes : []).map((node) => ({
-    ...node,
-    id: node.slug,
-    slug: node.slug,
-    color: normalizeHex(getGraphNodeColor(node, settings.colorMode, settings.typeColors), DEFAULT_NODE_COLOR),
-  }));
+  const previousData = getForceGraphData(forceGraph);
+  const previousNodes = new Map((previousData.nodes || []).map((node) => [node.id, node]));
+  const previousLinks = new Map((previousData.links || []).map((link) => [link.id, link]));
+  const nodes = (Array.isArray(graph?.nodes) ? graph.nodes : []).map((node) => {
+    const next = previousNodes.get(node.slug) || {};
+    Object.assign(next, node, {
+      id: node.slug,
+      slug: node.slug,
+      color: normalizeHex(getGraphNodeColor(node, settings.colorMode, settings.typeColors), DEFAULT_NODE_COLOR),
+    });
+    return next;
+  });
   const nodeIds = new Set(nodes.map((node) => node.id));
   const links = (Array.isArray(graph?.edges) ? graph.edges : [])
-    .filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
-    .map((edge, index) => ({
-      ...edge,
-      id: `${edge.source}:${edge.target}:${index}`,
-      source: edge.source,
-      target: edge.target,
-    }));
+    .map((edge, index) => ({ edge, index }))
+    .filter(({ edge }) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
+    .map(({ edge, index }) => {
+      const id = edge.id || `${edge.source}:${edge.target}:${index}`;
+      const previous = previousLinks.get(id);
+      const next = previousLinks.get(id) || {};
+      Object.assign(next, edge, { id });
+      next.source = previous?.source && typeof previous.source === 'object' ? previous.source : edge.source;
+      next.target = previous?.target && typeof previous.target === 'object' ? previous.target : edge.target;
+      return next;
+    });
 
   const data = { nodes, links };
-  forceGraph.__bigBrainFitPending = true;
+  const previousNodeIds = new Set(previousData.nodes?.map((node) => node.id) || []);
+  const previousLinkIds = new Set(previousData.links?.map((link) => link.id) || []);
+  const membershipChanged = !forceGraph.__bigBrainInitialized
+    || nodes.length !== previousNodeIds.size
+    || links.length !== previousLinkIds.size
+    || nodes.some((node) => !previousNodeIds.has(node.id))
+    || links.some((link) => !previousLinkIds.has(link.id));
+  if (membershipChanged) {
+    links.forEach((link) => {
+      link.source = typeof link.source === 'object' ? link.source.id : link.source;
+      link.target = typeof link.target === 'object' ? link.target.id : link.target;
+    });
+    forceGraph.__bigBrainFitPending = !forceGraph.__bigBrainInitialized;
+    forceGraph.graphData(data);
+  } else {
+    updateForceGraphNodeObjects(forceGraph, settings);
+  }
+  forceGraph.__bigBrainInitialized = true;
   graphDataRefFor(forceGraph, data);
-  forceGraph.graphData(data);
-  forceGraph.nodeThreeObject((node) => createForceGraphNodeObject(node, settings));
   updateForceGraphHighlight(forceGraph, data, focusSlug, settings.arcAnimation);
 }
 
@@ -250,6 +288,19 @@ function graphDataRefFor(forceGraph, data) {
 
 function getForceGraphData(forceGraph) {
   return forceGraph?.graphData?.() || forceGraph?.__bigBrainData || { nodes: [], links: [] };
+}
+
+function isForceGraphNodeVisibleAtTimeline(node, timelineDay) {
+  if (!timelineDay || !node || typeof node !== 'object') return true;
+  const timestamp = Date.parse(node.created_at || node.updated_at);
+  if (!Number.isFinite(timestamp)) return true;
+  return new Date(timestamp).toISOString().slice(0, 10) <= timelineDay;
+}
+
+function isForceGraphLinkVisibleAtTimeline(link, timelineDay) {
+  if (!timelineDay) return true;
+  return isForceGraphNodeVisibleAtTimeline(link?.source, timelineDay)
+    && isForceGraphNodeVisibleAtTimeline(link?.target, timelineDay);
 }
 
 function updateForceGraphHighlight(forceGraph, data, focusSlug, arcAnimation = 'instant') {

@@ -301,6 +301,10 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.doesNotMatch(main, /graph-type-color-code/);
   assert.match(main, /key === 'r'/);
   assert.match(main, /setAutoRotate\(\(value\) => !value\)/);
+  assert.match(main, /GRAPH_ACTIVITY_MODES/);
+  assert.match(main, /onPointerMove=\{handleActivityPointerMove\}/);
+  assert.doesNotMatch(main, /graph-timeline-slider/);
+  assert.doesNotMatch(main, /graph-activity-meta/);
 });
 
 test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async () => {
@@ -325,7 +329,10 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /\.cooldownTicks\(100\)/);
   assert.match(visualizer, /\.onEngineStop\(\(\) =>/);
   assert.match(visualizer, /if \(!forceGraph\.__bigBrainFitPending\) return;/);
-  assert.match(visualizer, /forceGraph\.__bigBrainFitPending = true;/);
+  assert.match(visualizer, /forceGraph\.__bigBrainFitPending = !forceGraph\.__bigBrainInitialized;/);
+  assert.match(visualizer, /forceGraph\.__bigBrainInitialized = true;/);
+  assert.match(visualizer, /nodeVisibility/);
+  assert.match(visualizer, /linkVisibility/);
   assert.match(visualizer, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
   assert.match(visualizer, /arcStyle = 'curve'/);
   assert.match(visualizer, /arcAnimation = 'instant'/);
@@ -758,7 +765,11 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.match(forceGraph2d, /getForceGraphLinkCurvature/);
   assert.match(forceGraph2d, /startArcAnimation/);
   assert.match(forceGraph2d, /if \(!forceGraph\.__bigBrainFitPending\) return;/);
-  assert.match(forceGraph2d, /forceGraph\.__bigBrainFitPending = true;/);
+  assert.match(forceGraph2d, /forceGraph\.__bigBrainFitPending = !forceGraph\.__bigBrainInitialized;/);
+  assert.match(forceGraph2d, /forceGraph\.__bigBrainInitialized = true;/);
+  assert.match(forceGraph2d, /nodeVisibility/);
+  assert.match(forceGraph2d, /linkVisibility/);
+  assert.match(forceGraph2d, /timelineDay = null/);
   assert.match(forceGraph2d, /aria-label="2D force-directed brain graph"/);
   assert.doesNotMatch(forceGraph2d, /source\?\.color/);
   assert.doesNotMatch(forceGraph2d, /autoRotate/);
