@@ -25,6 +25,15 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
   const isRssArticle = listener?.type === 'rss' || event?.type === 'rss.item';
   const skill = listener?.skill || defaultSkillForEvent(event, listener);
   const payload = selectPromptPayload(event?.payload, listener, event);
+  if (isRssArticle) {
+    return [
+      'Ingest this article into BigBrain using the normal article-ingestion workflow.',
+      'Treat this as a regular user chat. Use the article link as the source, put it in the right Brain pages, and briefly tell me what you did when finished.',
+      '',
+      `Title: ${payload?.title || 'Untitled article'}`,
+      `URL: ${payload?.link || payload?.url || 'No URL supplied'}`,
+    ].join('\n');
+  }
   const sourceDocument = promptSourceDocument(event?.metadata?.source_document);
   const destinations = allowedDestinations.length
     ? allowedDestinations.map((brain) => `${brain.id || brain.brain_id}: ${brain.name || brain.brain_name || 'unnamed brain'}`).join(', ')
@@ -67,16 +76,6 @@ function promptSourceDocument(value) {
   if (!value || typeof value !== 'object') return null;
   const { raw_body: _rawBody, text: _text, ...prompt } = value;
   return prompt;
-}
-
-function rssArticleOutcomeInstructions() {
-  return [
-    'Return JSON only with: status (filed, ignored, or needs_review), capture_mode (none, summary, or full), reason, and destinations.',
-    'Use ignored for routine or irrelevant updates. Do not create a raw artifact for an ignored item.',
-    'For a relevant fetched article, include one create_raw_file_with_page write with raw_content_source set to event.source_document.raw_body. Its sidecar body must contain Summary, Compiled Truth or Current Relevance, Related Pages, Source, and a separator before Timeline.',
-    'Use update_page writes only for existing canonical entities whose durable understanding materially changes. Link the source sidecar to the author, publisher, primary subject, and materially mentioned entities.',
-    'If source_document.status is unavailable, empty, or not_requested and the item would otherwise be relevant, return needs_review rather than filed.',
-  ].join('\n');
 }
 
 export function selectPromptPayload(payload, listener = {}, event = {}) {
@@ -227,7 +226,9 @@ export class CodexAppThreadExecutor {
         ephemeral: false,
         environments: [],
         ...(listener?.codex_model ? { model: listener.codex_model } : {}),
-        developerInstructions: 'This is an event-triggered BigBrain ingestion task. Follow the turn instructions, use the available BigBrain MCP and the named BigBrain ingest skill, read filing rules before writes, check existing coverage, and read back changes. Do not send external messages. Complete the work directly and summarize it normally.',
+        developerInstructions: listener?.type === 'rss' || event?.type === 'rss.item'
+          ? 'Use the normal Codex environment and available BigBrain tools. Treat this as a regular user task.'
+          : 'This is an event-triggered BigBrain ingestion task. Follow the turn instructions, use the available BigBrain MCP and the named BigBrain ingest skill, read filing rules before writes, check existing coverage, and read back changes. Do not send external messages. Complete the work directly and summarize it normally.',
       });
       const threadId = started?.thread?.id || started?.id || started?.threadId;
       if (!threadId) throw new Error('Codex app-server did not return a thread ID.');

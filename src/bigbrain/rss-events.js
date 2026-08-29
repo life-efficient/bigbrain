@@ -129,8 +129,7 @@ export class RssCollector {
         seen[key] ||= previous.legacy_seen?.[legacyKey] || polledAt;
         continue;
       }
-      const sourceDocument = await this.fetchSourceDocument(listener, item);
-      const event = createRssEventEnvelope({ listener, item, feedXml: item.raw || xml, sourceDocument, now: this.now(), registry });
+      const event = createRssEventEnvelope({ listener, item, feedXml: item.raw || xml, now: this.now(), registry });
       const subscriptions = registry.subscriptions.filter((subscription) => subscription.listener_id === listener.id && subscription.enabled);
       const deliveries = subscriptions.length
         ? subscriptions
@@ -359,8 +358,7 @@ export class RssCollector {
   }
 
   async enqueueRssItem({ listener, item, feedXml, registry, sourceDocument = null }) {
-    const fetchedSource = sourceDocument || await this.fetchSourceDocument(listener, item);
-    const event = createRssEventEnvelope({ listener, item, feedXml: item.raw || feedXml, sourceDocument: fetchedSource, now: this.now(), registry });
+    const event = createRssEventEnvelope({ listener, item, feedXml: item.raw || feedXml, sourceDocument, now: this.now(), registry });
     const subscriptions = registry.subscriptions.filter((subscription) => subscription.listener_id === listener.id && subscription.enabled);
     const deliveries = subscriptions.length
       ? subscriptions

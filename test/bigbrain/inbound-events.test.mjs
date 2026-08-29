@@ -221,7 +221,7 @@ test('RSS collector resets its polling guard after a registry failure', async ()
   }
 });
 
-test('processor records ignored events and only brokers filed outcomes to allowed Brains', async () => {
+test('processor records completed RSS tasks without brokering their chat output', async () => {
   const paths = await fixture();
   try {
     const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
@@ -239,7 +239,7 @@ test('processor records ignored events and only brokers filed outcomes to allowe
     const processed = await processor.process(queued.event.delivery_id);
     assert.equal(processed.state, 'filed');
     assert.equal(processed.thread_id, 'thread-1');
-    assert.equal(calls[0].input.allowed_brain_ids[0], 'brain_personal');
+    assert.equal(calls.length, 0);
     assert.equal((await inbox.list({ state: 'filed' })).length, 1);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
@@ -303,7 +303,7 @@ test('RSS event envelopes retain source bodies beyond the generic metadata strin
   assert.equal(event.metadata.source_document.raw_body, rawBody);
 });
 
-test('processor rejects a filed RSS outcome that omits fetched source preservation', async () => {
+test('processor does not validate or replay RSS task output', async () => {
   const paths = await fixture();
   try {
     const listener = rssListener({ article_policy: { fetch_source: true, preserve_source: true, require_source: true } });
@@ -316,11 +316,11 @@ test('processor rejects a filed RSS outcome that omits fetched source preservati
       registryStore: registry,
       inboxStore: inbox,
       executorFactory: async () => ({ execute: async () => ({ execution_id: 'exec-1', thread_id: 'thread-1', outcome: { status: 'filed', capture_mode: 'full', reason: 'useful', destinations: [{ brain_id: 'brain_personal', writes: [] }] } }) }),
-      filingBroker: { file: async () => { throw new Error('should not reach broker'); } },
+      filingBroker: { file: async () => { throw new Error('RSS task output must not be brokered'); } },
     });
     const processed = await processor.process(queued.event.delivery_id);
-    assert.equal(processed.state, 'failed');
-    assert.match(processed.last_error, /must preserve the fetched canonical source/);
+    assert.equal(processed.state, 'filed');
+    assert.match(processed.outcome.reason, /normal Codex article-ingestion task/);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
@@ -343,7 +343,29 @@ test('processor treats a successful normal-language RSS task as complete without
     const processed = await processor.process(queued.event.delivery_id);
     assert.equal(processed.state, 'filed');
     assert.equal(processed.thread_id, 'thread-1');
-    assert.match(processed.outcome.reason, /event-ingestion task/);
+    assert.match(processed.outcome.reason, /normal Codex article-ingestion task/);
+  } finally {
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('processor ignores RSS chat output and records only task completion', async () => {
+  const paths = await fixture();
+  try {
+    const listener = rssListener();
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [listener] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+    const queued = await inbox.enqueue(createRssEventEnvelope({ listener, item: { title: 'Useful', link: 'https://example.test/useful', guid: 'useful', raw: '<item />' } }), { clientId: 'client-1' });
+    const processor = new InboundEventProcessor({
+      registryStore: registry,
+      inboxStore: inbox,
+      executorFactory: async () => ({ execute: async () => ({ mode: 'app_thread', execution_id: 'turn-1', thread_id: 'thread-1', outcome: { status: 'needs_review', reason: 'chat summary text', destinations: [] } }) }),
+      filingBroker: { file: async () => { throw new Error('RSS task output must not be brokered'); } },
+    });
+    const processed = await processor.process(queued.event.delivery_id);
+    assert.equal(processed.state, 'filed');
+    assert.match(processed.outcome.reason, /normal Codex article-ingestion task/);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }

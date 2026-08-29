@@ -637,6 +637,21 @@ export class InboundEventProcessor {
       const executor = await this.executorFactory({ mode: processingEvent.execution.mode, location: processingEvent.execution.location, listener, registry });
       if (!executor || typeof executor.execute !== 'function') throw new Error(`No Codex executor is configured for ${processingEvent.execution.location}/${processingEvent.execution.mode}.`);
       execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
+      if (processingEvent.type === 'rss.item') {
+        return this.inboxStore.complete(deliveryId, {
+          state: 'filed',
+          outcome: {
+            status: 'filed',
+            capture_mode: classification.decision,
+            reason: 'Completed the normal Codex article-ingestion task.',
+            destinations: [],
+          },
+          executionId: execution?.execution_id,
+          threadId: execution?.thread_id,
+          executionMeta: executionMetadata(execution),
+          retainRaw: listener.capture_policy.retain_raw,
+        });
+      }
       const outcome = execution?.outcome
         ? normalizeCodexOutcome(execution.outcome, { defaultBrainId: processingEvent.allowed_brain_ids?.length === 1 ? processingEvent.allowed_brain_ids[0] : null })
         : null;

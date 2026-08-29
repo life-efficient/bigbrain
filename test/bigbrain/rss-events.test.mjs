@@ -71,7 +71,7 @@ test('RSS status categorizes incremental and manual candidates without writing s
   }
 });
 
-test('RSS polling fetches the canonical article and attaches source material for the Codex route', async () => {
+test('RSS polling queues the article link without fetching the article', async () => {
   const paths = await fixture();
   try {
     const now = () => new Date('2026-08-28T13:00:00.000Z');
@@ -80,7 +80,6 @@ test('RSS polling fetches the canonical article and attaches source material for
     await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [feedListener] });
     const inbox = new EventInboxStore({ filePath: paths.inboxPath, now });
     const feed = '<rss><channel><title>Example</title><item><guid>article-1</guid><title>Useful article</title><link>https://example.test/article-1</link><pubDate>Fri, 28 Aug 2026 12:00:00 GMT</pubDate></item></channel></rss>';
-    const source = '<html><head><title>Useful article</title></head><body><article><h1>Useful article</h1><p>Original source paragraph.</p><p>Second paragraph.</p></article></body></html>';
     const calls = [];
     const collector = new RssCollector({
       registryStore: registry,
@@ -88,22 +87,21 @@ test('RSS polling fetches the canonical article and attaches source material for
       now,
       fetchImpl: async (url) => {
         calls.push(url);
-        return response(url.endsWith('feed.xml') ? feed : source);
+        return response(feed);
       },
     });
     const report = await collector.pollAll();
     assert.equal(report.ingested, 1);
-    assert.deepEqual(calls, ['https://example.test/feed.xml', 'https://example.test/article-1']);
+    assert.deepEqual(calls, ['https://example.test/feed.xml']);
     const event = (await inbox.list())[0];
-    assert.equal(event.metadata.source_document.status, 'fetched');
-    assert.match(event.metadata.source_document.text, /Original source paragraph/);
-    assert.match(event.metadata.source_document.raw_body, /<article>/);
+    assert.equal(event.metadata.source_document, undefined);
+    assert.equal(event.payload.link, 'https://example.test/article-1');
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
 });
 
-test('RSS source fetch failures remain explicit instead of becoming complete source captures', async () => {
+test('RSS polling does not fail when the article URL is unavailable', async () => {
   const paths = await fixture();
   try {
     const now = () => new Date('2026-08-28T13:00:00.000Z');
@@ -116,12 +114,11 @@ test('RSS source fetch failures remain explicit instead of becoming complete sou
       registryStore: registry,
       inboxStore: inbox,
       now,
-      fetchImpl: async (url) => url.endsWith('feed.xml') ? response(feed) : { status: 503, ok: false, headers: { get: () => null }, text: async () => '' },
+      fetchImpl: async () => response(feed),
     });
     await collector.pollAll();
     const event = (await inbox.list())[0];
-    assert.equal(event.metadata.source_document.status, 'unavailable');
-    assert.match(event.metadata.source_document.error, /HTTP 503/);
+    assert.equal(event.payload.link, 'https://example.test/article-2');
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
@@ -137,20 +134,16 @@ test('RSS source retrieval falls back to curl after HTTP 403', async () => {
     const collector = new RssCollector({
       registryStore: registry,
       inboxStore: inbox,
-      fetchImpl: async (url) => url.endsWith('feed.xml')
-        ? response('<rss><channel><item><guid>one</guid><title>One</title><link>https://example.test/article</link><pubDate>Fri, 29 Aug 2026 10:00:00 GMT</pubDate></item></channel></rss>')
-        : { status: 403, ok: false, headers: { get: () => null } },
+      fetchImpl: async () => ({ status: 403, ok: false, headers: { get: () => null } }),
       curlImpl: async (command, args) => {
         assert.equal(command, 'curl');
         assert.ok(args.includes('https://example.test/article'));
         return { stdout: '<html><title>Recovered</title><p>Article body</p></html>', stderr: '' };
       },
     });
-    const report = await collector.pollAll();
-    assert.equal(report.listeners[0].ingested, 1);
-    const queued = Object.values((await inbox.get()).deliveries)[0];
-    assert.equal(queued.metadata.source_document.status, 'fetched');
-    assert.match(queued.metadata.source_document.text, /Article body/);
+    const source = await collector.fetchSourceDocument(feedListener, { link: 'https://example.test/article' });
+    assert.equal(source.status, 'fetched');
+    assert.match(source.text, /Article body/);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
