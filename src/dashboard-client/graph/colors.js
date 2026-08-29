@@ -291,6 +291,16 @@ export const GRAPH_COLOR_PALETTES = [
       'personal-protocol': '#9E4B32', sources: '#C93A27', ops: '#E67A24', inbox: '#FF3B1F',
     },
   },
+  {
+    id: 'frostveil',
+    label: 'Frostveil',
+    colors: {
+      people: '#B8E2F2', organizations: '#8C9DAF', companies: '#1C2A3D', deals: '#B7A277',
+      projects: '#6D91B3', ideas: '#DDEBF0', meetings: '#9FC8DB', tasks: '#8AA8C1',
+      concepts: '#7569A9', writing: '#F1F5F3', protocol: '#536B84', archive: '#394451',
+      'personal-protocol': '#655596', sources: '#7DB6D1', ops: '#A18A5C', inbox: '#D47D7F',
+    },
+  },
 ];
 
 export const GRAPH_COLOR_PALETTE_OPTIONS = [
