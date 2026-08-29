@@ -387,6 +387,7 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /canvas\.height = Math\.max\(32, Math\.ceil\(height \* scale\)\);\n  context\.clearRect[\s\S]*context\.font =/);
   assert.match(visualizer, /sprite\.scale\.set\(label \? canvas\.width \/ scale/);
   assert.match(visualizer, /\.nodeLabel\(\(node\) => buildNodeTooltip\(node\)\)/);
+  assert.match(visualizer, /function buildNodeTooltip\(node\)/);
   assert.match(visualizer, /settingsRef\.current\.arcAnimation, false\)/);
   assert.doesNotMatch(visualizer, /TYPE_GLYPHS/);
   assert.match(visualizer, /scene\.rotation\.z \+=/);
