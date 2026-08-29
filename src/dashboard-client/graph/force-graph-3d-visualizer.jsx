@@ -141,6 +141,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       })
       .onNodeClick((node) => {
         if (Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z)) {
+          rotationPauseUntilRef.current = Number.POSITIVE_INFINITY;
           focusForceGraphNode(forceGraph, node);
         }
         onActiveSlugChangeRef.current?.(node.slug);
@@ -233,6 +234,9 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   useEffect(() => {
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
+    if (!activeSlug) {
+      rotationPauseUntilRef.current = 0;
+    }
     updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlug, settingsRef.current.arcAnimation, !hoveredSlugRef.current);
   }, [activeSlug]);
 

@@ -250,6 +250,7 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(force2d, /forceGraph\.centerAt\(node\.x, node\.y, 850\)\.zoom\(/);
   assert.match(force3d, /forceGraph\.cameraPosition\(position, target, 850\)/);
   assert.match(force3d, /focusForceGraphNode\(forceGraph, node\)/);
+  assert.match(force3d, /rotationPauseUntilRef\.current = Number\.POSITIVE_INFINITY/);
   assert.match(force2d, /SYSTEM_FOCUS_HOLD_DURATION = 5000/);
   assert.match(force3d, /SYSTEM_FOCUS_HOLD_DURATION = 5000/);
   assert.match(force2d, /SYSTEM_ACTIVITY_PREFOCUS_DURATION = 1200/);
