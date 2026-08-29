@@ -231,7 +231,7 @@ export class CodexAppThreadExecutor {
       await client.notify?.('initialized');
       const started = await client.request('thread/start', {
         cwd: this.cwd,
-        threadSource: 'event',
+        threadSource: 'user',
         ephemeral: false,
         environments: [],
         ...(listener?.codex_model ? { model: listener.codex_model } : {}),

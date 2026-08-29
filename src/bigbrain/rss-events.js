@@ -109,6 +109,7 @@ export class RssCollector {
     }
     let ingested = 0;
     let duplicates = 0;
+    const acceptedDeliveryIds = [];
     for (const item of candidates) {
       const key = stableSourceEventId(listener.id, item.guid || item.link || `${item.title}:${item.pubDate}`);
       const legacyKey = legacyRssItemKey(listener.id, item);
@@ -149,7 +150,7 @@ export class RssCollector {
           continue;
         }
         const result = await this.inboxStore.enqueue(deliveryEvent, { clientId: subscription.client_id, subscriptionId: subscription.id || null });
-        if (result.duplicate) duplicates += 1; else { ingested += 1; accepted = true; }
+        if (result.duplicate) duplicates += 1; else { ingested += 1; accepted = true; acceptedDeliveryIds.push(result.event.delivery_id); }
       }
       if (!accepted && subscriptions.length) continue;
       seen[key] = polledAt;
@@ -182,7 +183,7 @@ export class RssCollector {
       last_error: null,
       item_count: items.length,
     });
-    return { listener_id: listener.id, status: 'ok', feed_title: feed.title, item_count: items.length, ingested, duplicates };
+    return { listener_id: listener.id, status: 'ok', feed_title: feed.title, item_count: items.length, ingested, duplicates, delivery_ids: acceptedDeliveryIds };
   }
 
   async statusAll({ listenerId = null, limit = 50 } = {}) {

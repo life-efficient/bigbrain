@@ -634,10 +634,7 @@ export class InboundEventProcessor {
       if (processingEvent.execution.location !== registry.runtime.kind) {
         throw new Error(`Event requires Codex processing on ${processingEvent.execution.location}, but this runtime is ${registry.runtime.kind}.`);
       }
-      const executionMode = listener.type === 'rss' || processingEvent.type === 'rss.item'
-        ? 'cli'
-        : processingEvent.execution.mode;
-      const executor = await this.executorFactory({ mode: executionMode, location: processingEvent.execution.location, listener, registry });
+      const executor = await this.executorFactory({ mode: processingEvent.execution.mode, location: processingEvent.execution.location, listener, registry });
       if (!executor || typeof executor.execute !== 'function') throw new Error(`No Codex executor is configured for ${processingEvent.execution.location}/${processingEvent.execution.mode}.`);
       execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
       const outcome = execution?.outcome
@@ -803,7 +800,8 @@ export class InboundEventRuntime {
     }
     let processed = [];
     try {
-      processed = await this.processor.drain({ limit: 25, type: 'rss.item' });
+      const deliveryIds = report.listeners.flatMap((listener) => listener.delivery_ids || []);
+      for (const deliveryId of deliveryIds.slice(0, 25)) processed.push(await this.processor.process(deliveryId));
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       report.errors.push({ scope: 'rss_processing', message });
