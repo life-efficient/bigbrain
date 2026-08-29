@@ -56,10 +56,10 @@ export async function migrateSqliteToPostgres(config) {
       await postgres.query(`
         INSERT INTO page_provenance (
           page_slug, event_id, origin_id, listener_id, source_type, source_label, source_icon,
-          source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, commit_message, created_at
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
-        ON CONFLICT (page_slug, event_id) DO UPDATE SET outcome = EXCLUDED.outcome
-      `, [row.page_slug, row.event_id, row.origin_id, row.listener_id, row.source_type, row.source_label, row.source_icon, row.source_url, row.occurred_at, row.received_at, row.codex_execution_id, row.codex_thread_id, row.raw_ref, row.outcome, row.commit_message || 'Unknown mutation', row.created_at]);
+          source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, significance, commit_message, created_at
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
+        ON CONFLICT (page_slug, event_id) DO UPDATE SET outcome = EXCLUDED.outcome, significance = EXCLUDED.significance
+      `, [row.page_slug, row.event_id, row.origin_id, row.listener_id, row.source_type, row.source_label, row.source_icon, row.source_url, row.occurred_at, row.received_at, row.codex_execution_id, row.codex_thread_id, row.raw_ref, row.outcome, row.significance || null, row.commit_message || 'Unknown mutation', row.created_at]);
     }
 
     const embeddings = sqlite.prepare('SELECT * FROM embeddings ORDER BY id').all();

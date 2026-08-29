@@ -68,6 +68,7 @@ export function initializeSqliteSchema(db) {
       codex_thread_id TEXT,
       raw_ref TEXT,
       outcome TEXT NOT NULL,
+      significance TEXT,
       commit_message TEXT NOT NULL DEFAULT 'Unknown mutation',
       created_at TEXT NOT NULL,
       UNIQUE (page_slug, event_id)
@@ -271,6 +272,7 @@ export async function initializePostgresSchema(db) {
       codex_thread_id TEXT,
       raw_ref TEXT,
       outcome TEXT NOT NULL,
+      significance TEXT,
       commit_message TEXT NOT NULL DEFAULT 'Unknown mutation',
       created_at TIMESTAMPTZ NOT NULL,
       UNIQUE (page_slug, event_id)
@@ -445,6 +447,7 @@ export async function initializePostgresSchema(db) {
   `);
   await ensurePostgresSharedGroupColumns(db);
   await db.query("ALTER TABLE page_provenance ADD COLUMN IF NOT EXISTS commit_message TEXT NOT NULL DEFAULT 'Unknown mutation'");
+  await db.query('ALTER TABLE page_provenance ADD COLUMN IF NOT EXISTS significance TEXT');
   await ensurePostgresAuditColumns(db);
   await db.query("ALTER TABLE pages ADD COLUMN IF NOT EXISTS page_kind TEXT NOT NULL DEFAULT 'canonical'");
   await ensureDefaultRoles(db);
@@ -480,6 +483,7 @@ function ensureSqlitePageKindColumn(raw) {
 function ensureSqlitePageProvenanceColumns(raw) {
   const columns = raw.prepare('PRAGMA table_info(page_provenance)').all().map((row) => row.name);
   if (!columns.includes('commit_message')) raw.exec("ALTER TABLE page_provenance ADD COLUMN commit_message TEXT NOT NULL DEFAULT 'Unknown mutation'");
+  if (!columns.includes('significance')) raw.exec('ALTER TABLE page_provenance ADD COLUMN significance TEXT');
 }
 
 function ensureSqlitePageIndexes(raw) {
@@ -708,8 +712,8 @@ export async function upsertPageProvenance(db, provenance) {
     await db.query(`
       INSERT INTO page_provenance (
         page_slug, event_id, origin_id, listener_id, source_type, source_label, source_icon,
-        source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, commit_message, created_at
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
+        source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, significance, commit_message, created_at
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
       ON CONFLICT (page_slug, event_id) DO UPDATE SET
         origin_id = EXCLUDED.origin_id,
         listener_id = EXCLUDED.listener_id,
@@ -723,6 +727,7 @@ export async function upsertPageProvenance(db, provenance) {
         codex_thread_id = EXCLUDED.codex_thread_id,
         raw_ref = EXCLUDED.raw_ref,
         outcome = EXCLUDED.outcome,
+        significance = EXCLUDED.significance,
         commit_message = EXCLUDED.commit_message
     `, provenanceParams(value));
     return value;
@@ -730,8 +735,8 @@ export async function upsertPageProvenance(db, provenance) {
   unwrapSqlite(db).prepare(`
     INSERT INTO page_provenance (
       page_slug, event_id, origin_id, listener_id, source_type, source_label, source_icon,
-      source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, commit_message, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, significance, commit_message, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(page_slug, event_id) DO UPDATE SET
       origin_id = excluded.origin_id,
       listener_id = excluded.listener_id,
@@ -745,6 +750,7 @@ export async function upsertPageProvenance(db, provenance) {
       codex_thread_id = excluded.codex_thread_id,
       raw_ref = excluded.raw_ref,
       outcome = excluded.outcome,
+      significance = excluded.significance,
       commit_message = excluded.commit_message
   `).run(...provenanceParams(value));
   return value;
@@ -758,7 +764,7 @@ export async function listPageProvenance(db, { pageSlugs = null, eventId = null,
     if (Array.isArray(pageSlugs)) { params.push(pageSlugs); filters.push(`page_slug = ANY($${params.length}::text[])`); }
     if (eventId) { params.push(eventId); filters.push(`event_id = $${params.length}`); }
     params.push(boundedLimit);
-    const result = await db.query(`SELECT id, page_slug, event_id, origin_id, listener_id, source_type, source_label, source_icon, source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, commit_message, created_at FROM page_provenance ${filters.length ? `WHERE ${filters.join(' AND ')}` : ''} ORDER BY received_at DESC, id DESC LIMIT $${params.length}`, params);
+    const result = await db.query(`SELECT id, page_slug, event_id, origin_id, listener_id, source_type, source_label, source_icon, source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, significance, commit_message, created_at FROM page_provenance ${filters.length ? `WHERE ${filters.join(' AND ')}` : ''} ORDER BY received_at DESC, id DESC LIMIT $${params.length}`, params);
     return result.rows.map(normalizeProvenanceRow);
   }
   const clauses = [];
@@ -770,7 +776,7 @@ export async function listPageProvenance(db, { pageSlugs = null, eventId = null,
   }
   if (eventId) { clauses.push('event_id = ?'); params.push(eventId); }
   params.push(boundedLimit);
-  return unwrapSqlite(db).prepare(`SELECT id, page_slug, event_id, origin_id, listener_id, source_type, source_label, source_icon, source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, commit_message, created_at FROM page_provenance ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY received_at DESC, id DESC LIMIT ?`).all(...params);
+  return unwrapSqlite(db).prepare(`SELECT id, page_slug, event_id, origin_id, listener_id, source_type, source_label, source_icon, source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, significance, commit_message, created_at FROM page_provenance ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY received_at DESC, id DESC LIMIT ?`).all(...params);
 }
 
 function normalizeProvenance(value) {
@@ -794,6 +800,7 @@ function normalizeProvenance(value) {
     codex_thread_id: value.codex_thread_id || value.thread_id || null,
     raw_ref: value.raw_ref || null,
     outcome: value.outcome || 'filed',
+    significance: value.significance || null,
     commit_message: value.commit_message,
     created_at: value.created_at || new Date().toISOString(),
   };
@@ -809,7 +816,7 @@ function normalizeProvenance(value) {
 }
 
 function provenanceParams(value) {
-  return [value.page_slug, value.event_id, value.origin_id, value.listener_id, value.source_type, value.source_label, value.source_icon, value.source_url, value.occurred_at, value.received_at, value.codex_execution_id, value.codex_thread_id, value.raw_ref, value.outcome, value.commit_message, value.created_at];
+  return [value.page_slug, value.event_id, value.origin_id, value.listener_id, value.source_type, value.source_label, value.source_icon, value.source_url, value.occurred_at, value.received_at, value.codex_execution_id, value.codex_thread_id, value.raw_ref, value.outcome, value.significance, value.commit_message, value.created_at];
 }
 
 function normalizeProvenanceRow(row) {

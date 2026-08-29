@@ -52,6 +52,10 @@ export const SOURCE_TYPE_VALUES = Object.freeze(Object.keys(SOURCE_TYPE_DEFINITI
 
 export const sourceTypeSchema = z.enum(SOURCE_TYPE_VALUES);
 
+export const TIMELINE_SIGNIFICANCE_VALUES = Object.freeze(['patch', 'minor', 'major']);
+
+export const timelineSignificanceSchema = z.enum(TIMELINE_SIGNIFICANCE_VALUES);
+
 const nonEmptyText = (max) => z.string().trim().min(1).max(max);
 
 export const commitMessageSchema = nonEmptyText(200)
@@ -71,6 +75,7 @@ export const provenanceSchema = z.object({
   codex_thread_id: z.string().trim().max(500).nullable().optional(),
   raw_ref: z.string().trim().max(1000).nullable().optional(),
   outcome: z.string().trim().max(80).optional(),
+  significance: timelineSignificanceSchema.nullable().optional(),
 }).strict();
 
 export const mutationMetadataSchema = z.object({

@@ -53,7 +53,13 @@ import {
 } from './playbooks/keep-in-touch.js';
 import { queryBrain, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
-import { SOURCE_TYPE_DEFINITIONS, SOURCE_TYPE_VALUES, parseMutationMetadata } from './source-taxonomy.js';
+import {
+  SOURCE_TYPE_DEFINITIONS,
+  SOURCE_TYPE_VALUES,
+  TIMELINE_SIGNIFICANCE_VALUES,
+  parseMutationMetadata,
+  timelineSignificanceSchema,
+} from './source-taxonomy.js';
 import {
   EventInboxStore,
   EventRegistryStore,
@@ -392,10 +398,12 @@ async function callTool({ config, params, gitBackupEnabled, actor, authConfig, r
 
 async function executeToolCall({ config, name, args, gitBackupEnabled, actor, authConfig }) {
   const mutation = requireMutationMetadata(name, args);
+  const significance = requirePageTimelineSignificance(name, args);
   if (mutation) {
     args.commit_message = mutation.commit_message;
     args.provenance = mutation.provenance;
   }
+  if (significance) args.significance = significance;
   switch (name) {
     case 'me':
       return toolJson(await toolMe(config, actor, authConfig));
@@ -648,7 +656,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         frontmatter: { ...(args.frontmatter || {}), ...sourceAttributionFrontmatter(args) },
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
-      await recordWriteProvenance(config, args.path, args.provenance, args.commit_message);
+      await recordWriteProvenance(config, args.path, { ...args.provenance, significance: args.significance }, args.commit_message);
       return toolJson(page);
     }
     case 'create_raw_file_with_page': {
@@ -714,7 +722,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         frontmatterValues: sourceAttributionFrontmatter(args),
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
-      await recordWriteProvenance(config, args.path, args.provenance, args.commit_message);
+      await recordWriteProvenance(config, args.path, { ...args.provenance, significance: args.significance }, args.commit_message);
       return toolJson(page);
     }
     case 'set_page_visibility': {
@@ -1681,7 +1689,7 @@ function toolDefinitions() {
     },
     {
       name: 'create_page',
-      description: 'Create a markdown brain page with frontmatter, current body, and a timeline entry.',
+      description: 'Create a markdown brain page with frontmatter, current body, and a timeline entry classified by significance.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1690,9 +1698,10 @@ function toolDefinitions() {
           title: { type: 'string' },
           body: { type: 'string' },
           timeline_entry: { type: 'string' },
+          significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this timeline update on the owning page: patch, minor, or major.' },
           frontmatter: { type: 'object' },
         },
-        required: ['path', 'title', 'body', 'timeline_entry', ...mutationRequired()],
+        required: ['path', 'title', 'body', 'timeline_entry', 'significance', ...mutationRequired()],
       },
     },
     {
@@ -1772,7 +1781,7 @@ function toolDefinitions() {
     },
     {
       name: 'update_page',
-      description: 'Replace the current body of a markdown brain page and append a timeline entry.',
+      description: 'Replace the current body of a markdown brain page and append a timeline entry classified by significance.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1780,8 +1789,9 @@ function toolDefinitions() {
           path: { type: 'string' },
           body: { type: 'string' },
           timeline_entry: { type: 'string' },
+          significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this timeline update on the owning page: patch, minor, or major.' },
         },
-        required: ['path', 'body', 'timeline_entry', ...mutationRequired()],
+        required: ['path', 'body', 'timeline_entry', 'significance', ...mutationRequired()],
       },
     },
     {
@@ -2030,6 +2040,15 @@ function requireMutationMetadata(name, args) {
     });
   } catch (error) {
     throw new Error(`Git-backed MCP mutation ${name} requires a valid commit_message and provenance: ${error.message}`);
+  }
+}
+
+function requirePageTimelineSignificance(name, args) {
+  if (!['create_page', 'update_page'].includes(name)) return null;
+  try {
+    return timelineSignificanceSchema.parse(args?.significance);
+  } catch (error) {
+    throw new Error(`${name} requires significance: ${error.message}`);
   }
 }
 
