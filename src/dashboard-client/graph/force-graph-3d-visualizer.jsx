@@ -584,16 +584,18 @@ function createNodeGeometry(shape, radius) {
 function createForceGraphTextSprite(text, color, width, height, label = false) {
   const canvas = document.createElement('canvas');
   const scale = label ? 2 : 4;
-  canvas.width = Math.max(64, Math.ceil(width * scale));
-  canvas.height = Math.max(32, Math.ceil(height * scale));
   const context = canvas.getContext('2d');
+  const value = String(text).slice(0, label ? 36 : 2);
+  const fontSize = label ? 16 : 25;
+  context.font = `${label ? '600' : '800'} ${fontSize}px "SF Mono", "IBM Plex Mono", monospace`;
+  const measuredWidth = label ? context.measureText(value).width + 8 : width * scale;
+  canvas.width = Math.max(64, Math.ceil(measuredWidth));
+  canvas.height = Math.max(32, Math.ceil(height * scale));
   context.clearRect(0, 0, canvas.width, canvas.height);
   context.fillStyle = color;
-  context.font = `${label ? 16 : 25}px "SF Mono", "IBM Plex Mono", monospace`;
-  context.fontWeight = label ? '600' : '800';
   context.textAlign = label ? 'left' : 'center';
   context.textBaseline = 'middle';
-  context.fillText(String(text).slice(0, label ? 36 : 2), label ? 2 : canvas.width / 2, canvas.height / 2);
+  context.fillText(value, label ? 2 : canvas.width / 2, canvas.height / 2);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   // Keep glyphs in a camera-facing billboard layer. This prevents the node
@@ -605,7 +607,7 @@ function createForceGraphTextSprite(text, color, width, height, label = false) {
   // cursor tooltip without creating a second tooltip layer.
   sprite.material.sizeAttenuation = !label;
   sprite.renderOrder = label ? 20 : 10;
-  sprite.scale.set(width, height, 1);
+  sprite.scale.set(label ? canvas.width / scale : width, height, 1);
   sprite.center.set(label ? 0 : 0.5, 0.5);
   if (label) sprite.userData.bigBrainOwnedTexture = true;
   return sprite;
