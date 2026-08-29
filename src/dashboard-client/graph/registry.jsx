@@ -1,5 +1,6 @@
 import { ComposableGraphVisualizer } from './composable-graph-visualizer.jsx';
 import { GRAPH_DEFAULT_PALETTE_ID } from './colors.js';
+import { ForceGraph2DVisualizer } from './force-graph-2d-visualizer.jsx';
 import { ForceGraph3DVisualizer } from './force-graph-3d-visualizer.jsx';
 import { NetworkConstellationVisualizer } from './network-constellation-visualizer.jsx';
 import { SignalBloomVisualizer } from './signal-bloom-visualizer.jsx';
@@ -109,6 +110,18 @@ export const graphVisualizers = [
     Component: ForceGraph3DVisualizer,
     description: 'GPU-rendered 3D force graph with live relationship motion',
     interactionModel: 'orbit',
+    controls: ['zoomIn', 'zoomOut', 'resetView'],
+    capabilities: {
+      ownsPan: true,
+      ownsWheelZoom: true,
+    },
+  },
+  {
+    id: 'force-graph-2d',
+    label: '2D Force',
+    Component: ForceGraph2DVisualizer,
+    description: 'Fast canvas-rendered 2D force graph with face-on node glyphs',
+    interactionModel: 'pan-zoom',
     controls: ['zoomIn', 'zoomOut', 'resetView'],
     capabilities: {
       ownsPan: true,

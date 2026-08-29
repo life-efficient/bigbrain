@@ -630,9 +630,10 @@ test('network constellation replaces vis network in the selectable renderer regi
 });
 
 test('3D force renderer is registered with the shared graph controls', async () => {
-  const [registry, forceGraph] = await Promise.all([
+  const [registry, forceGraph, forceGraph2d] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/graph/registry.jsx', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/dashboard-client/graph/force-graph-3d-visualizer.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/force-graph-2d-visualizer.jsx', import.meta.url), 'utf8'),
   ]);
 
   assert.match(registry, /id: 'force-graph-3d'/);
@@ -647,4 +648,12 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.match(forceGraph, /nodeThreeObject/);
   assert.match(forceGraph, /linkDirectionalParticles/);
   assert.match(forceGraph, /onNodeClick/);
+  assert.match(registry, /id: 'force-graph-2d'/);
+  assert.match(registry, /label: '2D Force'/);
+  assert.match(forceGraph2d, /new ForceGraph2D/);
+  assert.match(forceGraph2d, /nodeCanvasObjectMode\('replace'\)/);
+  assert.match(forceGraph2d, /nodeCanvasObject/);
+  assert.match(forceGraph2d, /onEngineStop/);
+  assert.match(forceGraph2d, /aria-label="2D force-directed brain graph"/);
+  assert.doesNotMatch(forceGraph2d, /autoRotate/);
 });

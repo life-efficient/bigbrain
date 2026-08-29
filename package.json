@@ -34,6 +34,7 @@
     "3d-force-graph": "^1.80.0",
     "electron-updater": "^6.8.9",
     "esbuild": "^0.28.1",
+    "force-graph": "^1.51.4",
     "js-yaml": "^4.3.0",
     "lucide-react": "^0.468.0",
     "pg": "^8.21.0",

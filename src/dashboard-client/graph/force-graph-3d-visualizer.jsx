@@ -371,7 +371,11 @@ function createForceGraphTextSprite(text, color, width, height, label = false) {
   context.fillText(String(text).slice(0, label ? 36 : 2), label ? 2 : canvas.width / 2, canvas.height / 2);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
+  // Keep glyphs in a camera-facing billboard layer. This prevents the node
+  // icon and label texture from inheriting the graph's 3D perspective.
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false }));
+  sprite.material.rotation = 0;
+  sprite.material.sizeAttenuation = true;
   sprite.renderOrder = label ? 20 : 10;
   sprite.scale.set(width, height, 1);
   sprite.center.set(label ? 0 : 0.5, 0.5);
