@@ -192,7 +192,7 @@ export class CodexCliExecutor {
       execution_id: executionId,
       thread_id: parsed?.thread_id || parsed?.threadId || parseCodexThreadId(stdout),
       exit_status: 0,
-      outcome: parsed ? normalizeCodexOutcome(parsed) : null,
+      outcome: parsed ? normalizeCodexOutcome(parsed, { defaultBrainId: allowedDestinations.length === 1 ? allowedDestinations[0].id || allowedDestinations[0].brain_id : null }) : null,
       response_text: extractCodexResponseText(stdout),
       stdout: String(stdout || '').slice(-200_000),
       stderr: String(stderr || '').slice(-50_000),
@@ -269,7 +269,7 @@ export class CodexAppThreadExecutor {
         execution_id: turnId || `turn-${Date.now()}`,
         thread_id: threadId,
         exit_status: 0,
-        outcome: parsed ? normalizeCodexOutcome(parsed) : null,
+        outcome: parsed ? normalizeCodexOutcome(parsed, { defaultBrainId: allowedDestinations.length === 1 ? allowedDestinations[0].id || allowedDestinations[0].brain_id : null }) : null,
         response_text: responseText,
         notifications: client.notifications.slice(-100),
       };
@@ -423,18 +423,18 @@ export function codexOutcomeSchema() {
   };
 }
 
-export function normalizeCodexOutcome(value) {
+export function normalizeCodexOutcome(value, { defaultBrainId = null } = {}) {
   if (!value || typeof value !== 'object') return { status: 'needs_review', reason: 'Codex returned no structured filing outcome.', destinations: [] };
   const status = ['filed', 'ignored', 'needs_review'].includes(value.status) ? value.status : 'needs_review';
   return {
     status,
     capture_mode: ['none', 'summary', 'full'].includes(value.capture_mode) ? value.capture_mode : 'summary',
     reason: String(value.reason || ''),
-    destinations: Array.isArray(value.destinations) ? value.destinations.map(normalizeCodexDestination) : [],
+    destinations: Array.isArray(value.destinations) ? value.destinations.map((destination) => normalizeCodexDestination(destination, { defaultBrainId })) : [],
   };
 }
 
-function normalizeCodexDestination(destination) {
+function normalizeCodexDestination(destination, { defaultBrainId = null } = {}) {
   const parsedWrites = parseJsonText(destination?.writes_json || destination?.writes);
   const writes = Array.isArray(destination?.writes)
     ? destination.writes
@@ -447,7 +447,7 @@ function normalizeCodexDestination(destination) {
           arguments: Object.fromEntries(Object.entries(destination).filter(([key]) => !['brain_id', 'operation', 'tool', 'commit_message', 'writes', 'writes_json'].includes(key))),
         }]
         : [];
-  return { ...destination, writes };
+  return { ...destination, ...(destination?.brain_id || !defaultBrainId ? {} : { brain_id: defaultBrainId }), writes };
 }
 
 export function parseCodexJsonOutput(stdout) {
