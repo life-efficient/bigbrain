@@ -137,6 +137,28 @@ export const GRAPH_COLOR_PALETTES = [
       inbox: '#F08A73',
     },
   },
+  {
+    id: 'thermal',
+    label: 'Thermal',
+    colors: {
+      people: '#00B8FF',
+      organizations: '#FF6A00',
+      companies: '#FF2600',
+      deals: '#FFEA00',
+      projects: '#2455FF',
+      ideas: '#C8FF00',
+      meetings: '#00E5FF',
+      tasks: '#76FF00',
+      concepts: '#00FF7A',
+      writing: '#FF9D00',
+      protocol: '#B7FF00',
+      archive: '#5268A8',
+      'personal-protocol': '#00D9C0',
+      sources: '#008CFF',
+      ops: '#FFB000',
+      inbox: '#FF00A8',
+    },
+  },
 ];
 
 export const GRAPH_COLOR_PALETTE_OPTIONS = [

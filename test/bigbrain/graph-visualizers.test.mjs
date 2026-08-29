@@ -99,7 +99,7 @@ test('none graph color mode leaves node color unmodified', () => {
 });
 
 test('graph palettes provide technical presets and editable type colors', () => {
-  assert.deepEqual(GRAPH_COLOR_PALETTE_OPTIONS.map(({ id }) => id), ['jarvis', 'terminal', 'cobalt', 'soft', 'crimson-loom', 'neural-lumen', 'custom']);
+  assert.deepEqual(GRAPH_COLOR_PALETTE_OPTIONS.map(({ id }) => id), ['jarvis', 'terminal', 'cobalt', 'soft', 'crimson-loom', 'neural-lumen', 'thermal', 'custom']);
   assert.equal(getGraphColorPalette('jarvis').people, '#00E5FF');
   assert.equal(getGraphColorPalette('crimson-loom').people, '#1769B0');
   assert.equal(getGraphColorPalette('crimson-loom').deals, '#D68724');
@@ -107,6 +107,9 @@ test('graph palettes provide technical presets and editable type colors', () => 
   assert.equal(getGraphColorPalette('neural-lumen').people, '#58D7FF');
   assert.equal(getGraphColorPalette('neural-lumen').deals, '#F6D365');
   assert.equal(Object.keys(getGraphColorPalette('neural-lumen')).length, 16);
+  assert.equal(getGraphColorPalette('thermal').people, '#00B8FF');
+  assert.equal(getGraphColorPalette('thermal').deals, '#FFEA00');
+  assert.equal(Object.keys(getGraphColorPalette('thermal')).length, 16);
   assert.equal(getGraphNodeColor({ type: 'people' }, 'type', { people: '#123456' }), '#123456');
 
   const colors = sanitizeGraphTypeColors({ people: '#abc123', deals: 'invalid' }, getGraphColorPalette('jarvis'));
