@@ -247,6 +247,11 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(main, /motionEvent=\{eligibleMotionEvent\}/);
   assert.match(force2d, /forceGraph\.centerAt\(node\.x, node\.y, 850\)\.zoom\(/);
   assert.match(force3d, /forceGraph\.cameraPosition\(position, target, 850\)/);
+  assert.match(force2d, /SYSTEM_FOCUS_HOLD_DURATION = 5000/);
+  assert.match(force3d, /SYSTEM_FOCUS_HOLD_DURATION = 5000/);
+  assert.match(force2d, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
+  assert.match(force3d, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
+  assert.match(force3d, /rotationPauseUntilRef\.current/);
   assert.match(force2d, /updateForceGraphHighlight\(forceGraph, target\.slug, settingsRef\.current\.arcAnimation\)/);
   assert.match(force3d, /updateForceGraphHighlight\(forceGraph, data, target\.slug, settingsRef\.current\.arcAnimation\)/);
 });

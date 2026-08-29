@@ -11,6 +11,7 @@ const DEFAULT_NODE_COLOR = '#E4E4E7';
 const DEFAULT_LINK_COLOR = '#657083';
 const FIT_TO_CANVAS_DURATION = 700;
 const FIT_TO_CANVAS_PADDING = 42;
+const SYSTEM_FOCUS_HOLD_DURATION = 5000;
 const FORCE_GRAPH_ICON_CACHE = new Map();
 
 export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer({
@@ -196,17 +197,25 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     if (!target) return undefined;
     let frame = 0;
     let attempts = 0;
+    let returnTimer = 0;
     const focus = () => {
       const node = getForceGraphData(forceGraph).nodes?.find((item) => item.id === target.slug || item.slug === target.slug);
       if (node && Number.isFinite(node.x) && Number.isFinite(node.y)) {
         updateForceGraphHighlight(forceGraph, target.slug, settingsRef.current.arcAnimation);
         forceGraph.centerAt(node.x, node.y, 850).zoom(Math.max(forceGraph.zoom(), 2.4), 850);
+        returnTimer = window.setTimeout(() => {
+          returnTimer = 0;
+          forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
+        }, SYSTEM_FOCUS_HOLD_DURATION);
         return;
       }
       if (attempts++ < 6) frame = window.requestAnimationFrame(focus);
     };
     frame = window.requestAnimationFrame(focus);
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(returnTimer);
+    };
   }, [motionEvent]);
 
   return (

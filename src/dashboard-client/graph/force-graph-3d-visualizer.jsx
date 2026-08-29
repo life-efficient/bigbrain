@@ -14,6 +14,7 @@ const FORCE_GRAPH_PIXEL_RATIO = 1.5;
 const AUTO_ROTATION_RADIANS_PER_SECOND = 0.035;
 const FIT_TO_CANVAS_DURATION = 700;
 const FIT_TO_CANVAS_PADDING = 42;
+const SYSTEM_FOCUS_HOLD_DURATION = 5000;
 const FORCE_GRAPH_ICON_TEXTURE_CACHE = new Map();
 
 export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer({
@@ -39,6 +40,8 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   const graphRef = useRef(null);
   const rotationFrameRef = useRef(0);
   const rotationLastTimeRef = useRef(0);
+  const focusReturnTimerRef = useRef(0);
+  const rotationPauseUntilRef = useRef(0);
   const userInteractingRef = useRef(false);
   const onNodeOpenRef = useRef(onNodeOpen);
   const onActiveSlugChangeRef = useRef(onActiveSlugChange);
@@ -173,7 +176,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       const scene = graphRef.current?.scene?.();
       const previousTime = rotationLastTimeRef.current || time;
       const delta = Math.min(Math.max(0, time - previousTime), 100);
-      if (scene && !userInteractingRef.current) {
+      if (scene && !userInteractingRef.current && time >= rotationPauseUntilRef.current) {
         scene.rotation.z += (delta / 1000) * AUTO_ROTATION_RADIANS_PER_SECOND;
       }
       rotationLastTimeRef.current = time;
@@ -183,6 +186,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     rotationFrameRef.current = window.requestAnimationFrame(rotate);
     return () => {
       window.cancelAnimationFrame(rotationFrameRef.current);
+      window.clearTimeout(focusReturnTimerRef.current);
       rotationFrameRef.current = 0;
       rotationLastTimeRef.current = 0;
     };
@@ -236,12 +240,21 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       if (node && Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z)) {
         updateForceGraphHighlight(forceGraph, data, target.slug, settingsRef.current.arcAnimation);
         focusForceGraphNode(forceGraph, node);
+        rotationPauseUntilRef.current = performance.now() + SYSTEM_FOCUS_HOLD_DURATION + FIT_TO_CANVAS_DURATION;
+        window.clearTimeout(focusReturnTimerRef.current);
+        focusReturnTimerRef.current = window.setTimeout(() => {
+          focusReturnTimerRef.current = 0;
+          forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
+        }, SYSTEM_FOCUS_HOLD_DURATION);
         return;
       }
       if (attempts++ < 6) frame = window.requestAnimationFrame(focus);
     };
     frame = window.requestAnimationFrame(focus);
-    return () => window.cancelAnimationFrame(frame);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(focusReturnTimerRef.current);
+    };
   }, [motionEvent]);
 
   return (
