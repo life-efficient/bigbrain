@@ -225,7 +225,14 @@ function updateForceGraphHighlight(forceGraph, focusSlug, arcAnimation = 'instan
 
   const animatedLinks = arcAnimation === 'none' ? new Set() : highlightedLinks;
   forceGraph.__bigBrainHighlightLinks = animatedLinks;
-  startArcAnimation(forceGraph, arcAnimation, animatedLinks, () => forceGraph.refresh?.());
+  if (arcAnimation === 'grow' || arcAnimation === 'shoot') {
+    startArcAnimation(forceGraph, arcAnimation, animatedLinks, () => {
+      // Canvas force graphs have no separate link materials to mutate. Let
+      // the library paint the current frame, without touching the graph data
+      // or restarting its simulation.
+      if (!forceGraph.isEngineRunning?.()) forceGraph.tickFrame?.();
+    });
+  }
   for (const node of nodes) node.__bigBrainEmphasized = highlightedNodes.has(node.id);
 }
 

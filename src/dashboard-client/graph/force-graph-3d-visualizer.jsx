@@ -271,9 +271,22 @@ function updateForceGraphHighlight(forceGraph, data, focusSlug, arcAnimation = '
     }
   }
 
+  const previousLinks = getForceGraphHighlightLinks(forceGraph);
   const animatedLinks = arcAnimation === 'none' ? new Set() : highlightedLinks;
   forceGraph.__bigBrainHighlightLinks = animatedLinks;
   for (const node of nodes) syncForceGraphNodeState(node, highlightedNodes);
+
+  if (arcAnimation === 'grow' || arcAnimation === 'shoot') {
+    const affectedLinks = new Set([...previousLinks, ...animatedLinks]);
+    startArcAnimation(forceGraph, arcAnimation, animatedLinks, () => {
+      updateForceGraphAnimatedLinks(forceGraph, affectedLinks);
+    });
+    if (arcAnimation === 'shoot') {
+      animatedLinks.forEach((link) => forceGraph.emitParticle?.(link));
+    }
+    return;
+  }
+
   forceGraph
     .linkColor((link) => getForceGraphLinkColor(link, animatedLinks, forceGraph))
     .linkOpacity((link) => getForceGraphLinkOpacity(link, animatedLinks, forceGraph))
@@ -281,7 +294,6 @@ function updateForceGraphHighlight(forceGraph, data, focusSlug, arcAnimation = '
     .linkDirectionalParticles((link) => shouldShowParticles(link, nodes.length, animatedLinks, forceGraph))
     .linkDirectionalParticleSpeed((link) => getForceGraphParticleSpeed(link, forceGraph))
     .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, animatedLinks, forceGraph));
-  startArcAnimation(forceGraph, arcAnimation, animatedLinks, () => forceGraph.refresh?.());
 }
 
 function getForceGraphHighlightLinks(forceGraph) {
@@ -434,6 +446,25 @@ function getForceGraphLinkOpacity(link, highlightedLinks, forceGraph) {
 function getForceGraphLinkWidth(link, highlightedLinks, forceGraph) {
   if (!highlightedLinks.has(link)) return 0;
   return arcAnimationProgress(forceGraph, link) >= 0.18 ? 1.5 : 0;
+}
+
+function updateForceGraphAnimatedLinks(forceGraph, links) {
+  for (const link of links) {
+    const progress = arcAnimationProgress(forceGraph, link);
+    const color = blendArcColors(DEFAULT_LINK_COLOR, '#DDE7F5', progress);
+    const opacity = 0.2 + progress * 0.52;
+    const lineObject = link.__lineObj?.children?.length ? link.__lineObj.children[0] : link.__lineObj;
+    updateForceGraphMaterial(lineObject?.material, color, opacity);
+    link.__singleHopPhotonsObj?.children?.forEach((particle) => updateForceGraphMaterial(particle.material, color, opacity));
+  }
+}
+
+function updateForceGraphMaterial(material, color, opacity) {
+  if (!material) return;
+  material.color?.set?.(color);
+  material.opacity = opacity;
+  material.transparent = true;
+  material.needsUpdate = true;
 }
 
 function shouldShowParticles(link, nodeCount, highlightedLinks, forceGraph) {

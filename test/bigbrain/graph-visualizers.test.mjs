@@ -718,6 +718,9 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.match(forceGraph, /new ResizeObserver\(resize\)/);
   assert.match(forceGraph, /forceGraph\.width\(width\)/);
   assert.match(forceGraph, /getForceGraphLinkWidth\(link, getForceGraphHighlightLinks\(forceGraph\), forceGraph\)/);
+  assert.doesNotMatch(forceGraph, /forceGraph\.refresh/);
+  assert.match(forceGraph, /updateForceGraphAnimatedLinks/);
+  assert.match(forceGraph, /forceGraph\.emitParticle/);
   assert.doesNotMatch(forceGraph, /source\?\.color/);
   assert.match(forceGraph, /d3AlphaDecay\(0\.06\)/);
   assert.doesNotMatch(forceGraph, /\.refresh\(\)/);

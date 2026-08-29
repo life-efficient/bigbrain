@@ -19,7 +19,7 @@ export function startArcAnimation(target, mode, links, onFrame) {
   };
   target.__bigBrainArcAnimation = state;
   onFrame?.(state.progress, state);
-  if (state.mode !== 'grow' && state.mode !== 'shoot') return state;
+  if ((state.mode !== 'grow' && state.mode !== 'shoot') || !links?.size) return state;
 
   const tick = (time) => {
     state.progress = Math.min(1, Math.max(0, (time - state.startedAt) / ARC_ANIMATION_DURATION));
