@@ -254,6 +254,13 @@ export class CodexAppThreadExecutor {
       const completion = typeof client.waitForNotification === 'function'
         ? await client.waitForNotification((message) => message?.method === 'turn/completed' && (!turnId || message.params?.turn?.id === turnId), { timeoutMs: this.timeoutMs })
         : null;
+      if (typeof client.waitForNotification === 'function') {
+        try {
+          await client.waitForNotification((message) => Boolean(findOutcome(message)), { timeoutMs: 2_000 });
+        } catch {
+          // Some app-server versions include the final agent message in turn/completed.
+        }
+      }
       const completedTurn = completion?.params?.turn || completion?.turn || null;
       if (completedTurn?.status === 'failed' || completion?.method === 'turn/failed') {
         const failure = new Error(completedTurn?.error?.message || 'Codex app-server turn failed.');
