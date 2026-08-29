@@ -592,6 +592,9 @@ function createForceGraphTextSprite(text, color, width, height, label = false) {
   canvas.width = Math.max(64, Math.ceil(measuredWidth));
   canvas.height = Math.max(32, Math.ceil(height * scale));
   context.clearRect(0, 0, canvas.width, canvas.height);
+  // Assigning canvas dimensions resets the 2D context state, including the
+  // font used for measurement. Restore it before drawing the glyphs.
+  context.font = `${label ? '600' : '800'} ${fontSize}px "SF Mono", "IBM Plex Mono", monospace`;
   context.fillStyle = color;
   context.textAlign = label ? 'left' : 'center';
   context.textBaseline = 'middle';
