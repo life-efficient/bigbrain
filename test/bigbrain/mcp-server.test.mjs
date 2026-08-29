@@ -286,6 +286,13 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(initialized.status, 202);
     assert.equal(await initialized.text(), '');
 
+    const listedMutationTools = await rpc(running.url, 'tools/list', {}, 'secret');
+    const createPageTool = listedMutationTools.result.tools.find((tool) => tool.name === 'create_page');
+    const updatePageTool = listedMutationTools.result.tools.find((tool) => tool.name === 'update_page');
+    assert.deepEqual(createPageTool.inputSchema.properties.significance.enum, ['patch', 'minor', 'major']);
+    assert.equal(createPageTool.inputSchema.required.includes('significance'), true);
+    assert.equal(updatePageTool.inputSchema.required.includes('significance'), true);
+
     const created = await rpc(running.url, 'tools/call', {
       name: 'create_page',
       arguments: {
@@ -303,6 +310,12 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(created.result.structuredContent.frontmatter.source_type, 'assistant_chat');
     assert.equal(created.result.structuredContent.frontmatter.source_label, 'MCP server test');
     assert.equal(created.result.structuredContent.frontmatter.commit_message, 'Test create_page');
+
+    const provenance = await rpc(running.url, 'tools/call', {
+      name: 'events/provenance_list',
+      arguments: { page_slugs: ['people/mcp-test'] },
+    }, 'secret');
+    assert.equal(provenance.result.structuredContent.provenance[0].significance, 'minor');
 
     const privateVisibility = await rpc(running.url, 'tools/call', {
       name: 'get_page_visibility',
@@ -436,6 +449,58 @@ test('MCP Git-backed mutations reject missing commit messages and provenance', a
     assert.equal(response.error.code, -32603);
     assert.match(response.error.message, /requires a valid commit_message and provenance/);
     await assert.rejects(() => fs.access(path.join(fixture.brainHome, 'people', 'missing-metadata.md')));
+  } finally {
+    await running?.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('MCP page mutations reject missing or invalid timeline significance', async () => {
+  const fixture = await createFixture('bigbrain-mcp-significance-');
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({ config, host: '127.0.0.1', port: 0, authToken: 'secret', syncIntervalMs: 0, gitBackupEnabled: false });
+    const baseArguments = {
+      path: 'people/missing-significance',
+      title: 'Missing significance',
+      body: 'Should not write.',
+      timeline_entry: 'Should not write.',
+      commit_message: 'Test significance validation',
+      provenance: {
+        event_id: 'test:missing-significance',
+        source_type: 'assistant_chat',
+        source_label: 'MCP server test',
+      },
+    };
+    const missing = await rpc(running.url, 'tools/call', {
+      name: 'create_page',
+      __withoutTimelineSignificance: true,
+      arguments: baseArguments,
+    }, 'secret');
+    assert.equal(missing.error.code, -32603);
+    assert.match(missing.error.message, /create_page requires significance/);
+
+    const updateMissing = await rpc(running.url, 'tools/call', {
+      name: 'update_page',
+      __withoutTimelineSignificance: true,
+      arguments: {
+        path: 'people/missing-significance',
+        body: 'Should not write.',
+        timeline_entry: 'Should not write.',
+        ...baseArguments,
+      },
+    }, 'secret');
+    assert.equal(updateMissing.error.code, -32603);
+    assert.match(updateMissing.error.message, /update_page requires significance/);
+
+    const invalid = await rpc(running.url, 'tools/call', {
+      name: 'create_page',
+      arguments: { ...baseArguments, significance: 'trivial' },
+    }, 'secret');
+    assert.equal(invalid.error.code, -32603);
+    assert.match(invalid.error.message, /create_page requires significance/);
+    await assert.rejects(() => fs.access(path.join(fixture.brainHome, 'people', 'missing-significance.md')));
   } finally {
     await running?.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
@@ -2301,7 +2366,9 @@ async function rpc(url, method, params, token) {
     'playbooks/keep-in-touch/snooze', 'playbooks_keep_in_touch_snooze',
   ]);
   const skipMutationMetadata = requestParams.__withoutMutationMetadata === true;
+  const skipTimelineSignificance = requestParams.__withoutTimelineSignificance === true;
   delete requestParams.__withoutMutationMetadata;
+  delete requestParams.__withoutTimelineSignificance;
   if (callName && mutationNames.has(callName) && !skipMutationMetadata) {
     requestParams.arguments = {
       ...(requestParams.arguments || {}),
@@ -2311,6 +2378,12 @@ async function rpc(url, method, params, token) {
         source_type: 'assistant_chat',
         source_label: 'MCP server test',
       },
+    };
+  }
+  if (['create_page', 'update_page'].includes(callName) && !skipTimelineSignificance) {
+    requestParams.arguments = {
+      ...(requestParams.arguments || {}),
+      significance: requestParams.arguments?.significance || 'minor',
     };
   }
   const response = await fetch(url, {

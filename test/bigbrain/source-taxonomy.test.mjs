@@ -4,9 +4,11 @@ import assert from 'node:assert/strict';
 import {
   SOURCE_TYPE_DEFINITIONS,
   SOURCE_TYPE_VALUES,
+  TIMELINE_SIGNIFICANCE_VALUES,
   mutationMetadataSchema,
   parseMutationMetadata,
   sourceTypeSchema,
+  timelineSignificanceSchema,
 } from '../../src/bigbrain/source-taxonomy.js';
 
 test('source taxonomy has semantic descriptions for every source type', () => {
@@ -32,6 +34,15 @@ test('source taxonomy distinguishes assistant chat, CLI, direct edit, and unknow
   assert.notEqual(SOURCE_TYPE_DEFINITIONS.assistant_chat.description, SOURCE_TYPE_DEFINITIONS.cli.description);
   assert.notEqual(SOURCE_TYPE_DEFINITIONS.assistant_chat.description, SOURCE_TYPE_DEFINITIONS.direct_edit.description);
   assert.match(SOURCE_TYPE_DEFINITIONS.unknown.description, /cannot be established/i);
+});
+
+test('timeline significance accepts only patch, minor, or major', () => {
+  assert.deepEqual(TIMELINE_SIGNIFICANCE_VALUES, ['patch', 'minor', 'major']);
+  for (const significance of TIMELINE_SIGNIFICANCE_VALUES) {
+    assert.equal(timelineSignificanceSchema.parse(significance), significance);
+  }
+  assert.equal(timelineSignificanceSchema.safeParse('trivial').success, false);
+  assert.equal(timelineSignificanceSchema.safeParse(undefined).success, false);
 });
 
 test('mutation metadata requires a compact source and single-line commit message', () => {
