@@ -844,9 +844,12 @@ async function toolAuditAccess(config, args, mode) {
   }
 }
 
+const GRAPH_PAGE_READ_TOOLS = new Set(['read', 'get_page_visibility']);
+
 function isAuditedTool(name) {
   const layer = toolPolicy(name)?.layer;
-  return ['create', 'publish', 'raw_destructive', 'git_backup', 'maintenance', 'admin', 'events_manage'].includes(layer);
+  return GRAPH_PAGE_READ_TOOLS.has(name)
+    || ['create', 'publish', 'raw_destructive', 'git_backup', 'maintenance', 'admin', 'events_manage'].includes(layer);
 }
 
 function sanitizeAuditArguments(value) {

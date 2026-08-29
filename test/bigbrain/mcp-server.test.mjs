@@ -311,6 +311,13 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(created.result.structuredContent.frontmatter.source_label, 'MCP server test');
     assert.equal(created.result.structuredContent.frontmatter.commit_message, 'Test create_page');
 
+    const readPage = await rpc(running.url, 'tools/call', {
+      name: 'read',
+      arguments: { path: 'people/mcp-test' },
+    }, 'secret');
+    assert.equal(readPage.error, undefined, readPage.error?.message);
+    assert.equal(readPage.result.structuredContent.slug, 'people/mcp-test');
+
     const provenance = await rpc(running.url, 'tools/call', {
       name: 'events/provenance_list',
       arguments: { page_slugs: ['people/mcp-test'] },
@@ -419,7 +426,9 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(record.title, 'MCP Test');
     assert.match(record.compiled_truth, /Created through the MCP server/);
     const auditRows = await listMcpAuditLog(db);
-    assert.equal(auditRows.some((row) => row.action === 'mcp.tool.read'), false);
+    const readAudit = auditRows.find((row) => row.action === 'mcp.tool.read');
+    assert.equal(readAudit?.outcome, 'success');
+    assert.equal(readAudit?.resource_id, 'people/mcp-test');
     const createdAudit = auditRows.find((row) => row.action === 'mcp.tool.create_page');
     assert.equal(createdAudit.actor_email, null);
     const details = JSON.parse(createdAudit.details_json);
