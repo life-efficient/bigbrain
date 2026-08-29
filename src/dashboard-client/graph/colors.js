@@ -19,9 +19,9 @@ const SOFT_PALETTE = {
   inbox: '#FFD6A5',
 };
 
-export const GRAPH_DEFAULT_PALETTE_ID = 'jarvis';
+export const GRAPH_DEFAULT_PALETTE_ID = 'crimson-loom';
 
-export const GRAPH_COLOR_PALETTES = [
+const GRAPH_COLOR_PALETTES_UNORDERED = [
   {
     id: 'jarvis',
     label: 'Jarvis',
@@ -312,6 +312,12 @@ export const GRAPH_COLOR_PALETTES = [
     },
   },
 ];
+
+const GRAPH_PALETTE_PRIORITY = ['crimson-loom', 'kusama', 'irezumi', 'red-tiger', 'urban'];
+export const GRAPH_COLOR_PALETTES = [
+  ...GRAPH_PALETTE_PRIORITY.map((id) => GRAPH_COLOR_PALETTES_UNORDERED.find((palette) => palette.id === id)),
+  ...GRAPH_COLOR_PALETTES_UNORDERED.filter((palette) => !GRAPH_PALETTE_PRIORITY.includes(palette.id)),
+].filter(Boolean);
 
 export const GRAPH_COLOR_PALETTE_OPTIONS = [
   ...GRAPH_COLOR_PALETTES.map(({ id, label }) => ({ id, label })),

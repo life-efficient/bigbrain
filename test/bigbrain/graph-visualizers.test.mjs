@@ -13,6 +13,7 @@ import {
   getGraphColorPalette,
   getGraphNodeColor,
   getUpdatedNodeColor,
+  GRAPH_DEFAULT_PALETTE_ID,
   GRAPH_COLOR_PALETTE_OPTIONS,
   sanitizeGraphTypeColors,
 } from '../../src/dashboard-client/graph/colors.js';
@@ -110,7 +111,8 @@ test('none graph color mode leaves node color unmodified', () => {
 });
 
 test('graph palettes provide technical presets and editable type colors', () => {
-  assert.deepEqual(GRAPH_COLOR_PALETTE_OPTIONS.map(({ id }) => id), ['jarvis', 'terminal', 'cobalt', 'soft', 'crimson-loom', 'neural-lumen', 'thermal', 'irezumi', 'desert', 'arctic', 'woodland', 'digital', 'urban', 'blue-tiger', 'red-tiger', 'fall', 'spectral', 'aegis', 'inferno', 'frostveil', 'kusama', 'custom']);
+  assert.equal(GRAPH_DEFAULT_PALETTE_ID, 'crimson-loom');
+  assert.deepEqual(GRAPH_COLOR_PALETTE_OPTIONS.map(({ id }) => id), ['crimson-loom', 'kusama', 'irezumi', 'red-tiger', 'urban', 'jarvis', 'terminal', 'cobalt', 'soft', 'neural-lumen', 'thermal', 'desert', 'arctic', 'woodland', 'digital', 'blue-tiger', 'fall', 'spectral', 'aegis', 'inferno', 'frostveil', 'custom']);
   assert.equal(getGraphColorPalette('jarvis').people, '#00E5FF');
   assert.equal(getGraphColorPalette('crimson-loom').people, '#1769B0');
   assert.equal(getGraphColorPalette('crimson-loom').deals, '#D68724');
