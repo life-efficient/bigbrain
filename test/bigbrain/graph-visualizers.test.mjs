@@ -643,6 +643,7 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.match(forceGraph, /new ResizeObserver\(resize\)/);
   assert.match(forceGraph, /forceGraph\.width\(width\)/);
   assert.match(forceGraph, /linkWidth\(\(link\) => getForceGraphHighlightLinks\(forceGraph\)\.has\(link\) \? 1\.5 : 0\)/);
+  assert.doesNotMatch(forceGraph, /source\?\.color/);
   assert.match(forceGraph, /d3AlphaDecay\(0\.06\)/);
   assert.doesNotMatch(forceGraph, /\.refresh\(\)/);
   assert.match(forceGraph, /nodeThreeObject/);
@@ -655,5 +656,6 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.match(forceGraph2d, /nodeCanvasObject/);
   assert.match(forceGraph2d, /onEngineStop/);
   assert.match(forceGraph2d, /aria-label="2D force-directed brain graph"/);
+  assert.doesNotMatch(forceGraph2d, /source\?\.color/);
   assert.doesNotMatch(forceGraph2d, /autoRotate/);
 });

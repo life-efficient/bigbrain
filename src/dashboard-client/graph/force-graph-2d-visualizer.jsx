@@ -333,8 +333,10 @@ function getForceGraphLabelSlugs(nodes, labelStyle) {
 
 function getForceGraphLinkColor(link, highlightedLinks) {
   if (highlightedLinks.has(link)) return '#DDE7F5';
-  const source = typeof link.source === 'object' ? link.source : null;
-  return hexToRgba(normalizeHex(source?.color, DEFAULT_LINK_COLOR), 0.22);
+  // Keep relationship lines neutral across the graph. ForceGraph resolves
+  // string endpoints into node objects after the initial draw, so deriving
+  // this from source.color makes links unexpectedly change color on redraw.
+  return hexToRgba(DEFAULT_LINK_COLOR, 0.22);
 }
 
 function getForceGraphLinkCurvature(arcStyle, link) {

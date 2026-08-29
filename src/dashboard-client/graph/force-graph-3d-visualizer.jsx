@@ -397,8 +397,10 @@ function getForceGraphLabelSlugs(nodes, labelStyle) {
 
 function getForceGraphLinkColor(link, highlightedLinks) {
   if (highlightedLinks.has(link)) return '#DDE7F5';
-  const source = typeof link.source === 'object' ? link.source : null;
-  return normalizeHex(source?.color, DEFAULT_LINK_COLOR);
+  // Keep relationship lines neutral across the graph. ForceGraph resolves
+  // string endpoints into node objects after the initial draw, so deriving
+  // this from source.color makes links unexpectedly change color on redraw.
+  return DEFAULT_LINK_COLOR;
 }
 
 function shouldShowParticles(link, nodeCount, highlightedLinks) {
