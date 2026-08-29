@@ -634,13 +634,19 @@ export class InboundEventProcessor {
       if (processingEvent.execution.location !== registry.runtime.kind) {
         throw new Error(`Event requires Codex processing on ${processingEvent.execution.location}, but this runtime is ${registry.runtime.kind}.`);
       }
-      const executor = await this.executorFactory({ mode: processingEvent.execution.mode, location: processingEvent.execution.location, listener, registry });
+      const executionMode = listener.type === 'rss' || processingEvent.type === 'rss.item'
+        ? 'cli'
+        : processingEvent.execution.mode;
+      const executor = await this.executorFactory({ mode: executionMode, location: processingEvent.execution.location, listener, registry });
       if (!executor || typeof executor.execute !== 'function') throw new Error(`No Codex executor is configured for ${processingEvent.execution.location}/${processingEvent.execution.mode}.`);
       execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
       const outcome = execution?.outcome
         ? normalizeCodexOutcome(execution.outcome, { defaultBrainId: processingEvent.allowed_brain_ids?.length === 1 ? processingEvent.allowed_brain_ids[0] : null })
         : { status: 'needs_review', reason: 'Codex returned no filing outcome.', destinations: [] };
       const executionMeta = executionMetadata(execution);
+      if ((listener.type === 'rss' || processingEvent.type === 'rss.item') && !execution?.outcome) {
+        throw new Error('RSS event completed without a structured filing outcome.');
+      }
       validateRssArticleOutcome(processingEvent, listener, outcome);
       if (!execution?.outcome) {
         return this.inboxStore.complete(deliveryId, {
