@@ -281,6 +281,16 @@ export const GRAPH_COLOR_PALETTES = [
       'personal-protocol': '#A9976D', sources: '#C2CDD1', ops: '#B88E3D', inbox: '#D1B66F',
     },
   },
+  {
+    id: 'inferno',
+    label: 'Inferno',
+    colors: {
+      people: '#FF6A2A', organizations: '#D52B1E', companies: '#481116', deals: '#FFB12B',
+      projects: '#A7191D', ideas: '#FF8B32', meetings: '#E43A21', tasks: '#FF5A24',
+      concepts: '#B83A2C', writing: '#F09A62', protocol: '#8F171B', archive: '#332326',
+      'personal-protocol': '#9E4B32', sources: '#C93A27', ops: '#E67A24', inbox: '#FF3B1F',
+    },
+  },
 ];
 
 export const GRAPH_COLOR_PALETTE_OPTIONS = [
