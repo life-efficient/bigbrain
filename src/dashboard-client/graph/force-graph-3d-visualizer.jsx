@@ -178,7 +178,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       const scene = graphRef.current?.scene?.();
       const previousTime = rotationLastTimeRef.current || time;
       const delta = Math.min(Math.max(0, time - previousTime), 100);
-      if (scene && !userInteractingRef.current && time >= rotationPauseUntilRef.current) {
+      if (scene && !userInteractingRef.current && !hoveredSlugRef.current && time >= rotationPauseUntilRef.current) {
         scene.rotation.z += (delta / 1000) * AUTO_ROTATION_RADIANS_PER_SECOND;
       }
       rotationLastTimeRef.current = time;
