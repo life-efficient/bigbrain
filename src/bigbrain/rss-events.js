@@ -20,6 +20,7 @@ import {
 const execFileAsync = promisify(execFile);
 
 export const DEFAULT_RSS_MANUAL_BACKFILL_LIMIT = 3;
+export const DEFAULT_RSS_POLL_LIMIT = 1;
 
 /**
  * RSS is deliberately poll-based. This module owns feed fetching, cursor
@@ -37,18 +38,21 @@ export class RssCollector {
     this.polling = false;
   }
 
-  async pollAll() {
+  async pollAll({ limit = null } = {}) {
     if (this.polling) return { skipped: true, reason: 'poll already running' };
     this.polling = true;
     try {
       const registry = await this.registryStore.get();
       const report = { listeners: [], ingested: 0, duplicates: 0, errors: [] };
+      let remaining = Number.isInteger(limit) && limit > 0 ? limit : null;
       for (const listener of registry.listeners.filter((item) => item.type === 'rss' && item.enabled && !item.removed && item.listener_location === registry.runtime.kind)) {
+        if (remaining !== null && remaining <= 0) break;
         try {
-          const result = await this.poll(listener, registry);
+          const result = await this.poll(listener, registry, { limit: remaining });
           report.listeners.push(result);
           report.ingested += result.ingested || 0;
           report.duplicates += result.duplicates || 0;
+          if (remaining !== null) remaining -= result.ingested || 0;
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           report.errors.push({ listener_id: listener.id, message });
@@ -63,7 +67,7 @@ export class RssCollector {
     }
   }
 
-  async poll(listener, registry) {
+  async poll(listener, registry, { limit = null } = {}) {
     const previous = (await this.inboxStore.get()).collectors[listener.id] || {};
     const headers = { 'user-agent': 'BigBrain Inbound RSS/2.0' };
     if (previous.etag) headers['if-none-match'] = previous.etag;
@@ -96,7 +100,8 @@ export class RssCollector {
     const feed = parseRssDocument(xml);
     const items = feed.items.map(normalizeRssItemForEvent).sort((a, b) => Date.parse(b.published_at || '') - Date.parse(a.published_at || ''));
     const eligible = items.filter((item) => isAfterRssCursor(listener.id, item, cursorAt, previous.cursor_id));
-    const candidates = listener.bootstrap === 'all' ? eligible : listener.bootstrap === 'none' ? [] : eligible.slice(0, 1);
+    const boundedEligible = Number.isInteger(limit) && limit > 0 ? eligible.slice(0, limit) : eligible;
+    const candidates = listener.bootstrap === 'all' ? boundedEligible : listener.bootstrap === 'none' ? [] : boundedEligible.slice(0, 1);
     const seen = { ...(previous.seen || {}) };
     let cursor = { cursor_at: cursorAt, cursor_id: previous.cursor_id || null };
     if (!previous.cursor_at) {

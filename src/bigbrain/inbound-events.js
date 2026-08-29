@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { CodexAppThreadExecutor, CodexCliExecutor, normalizeCodexOutcome } from './codex-event-executor.js';
-import { RssCollector } from './rss-events.js';
+import { DEFAULT_RSS_POLL_LIMIT, RssCollector } from './rss-events.js';
 import { InboundWebhookServer } from './webhook-events.js';
 import { normalizeSourceType } from './source-taxonomy.js';
 
@@ -789,7 +789,7 @@ export class InboundEventRuntime {
     let report = { listeners: [], ingested: 0, duplicates: 0, errors: [] };
     try {
       registry = await this.registryStore.get();
-      report = await this.collector.pollAll();
+      report = await this.collector.pollAll({ limit: DEFAULT_RSS_POLL_LIMIT });
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       report.errors.push({ scope: 'rss', message });
