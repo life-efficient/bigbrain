@@ -236,10 +236,12 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null) {
     .map(({ edge, index }) => {
       const id = edge.id || `${edge.source}:${edge.target}:${index}`;
       const previous = previousLinks.get(id);
+      const previousSource = previous?.source;
+      const previousTarget = previous?.target;
       const next = previousLinks.get(id) || {};
       Object.assign(next, edge, { id });
-      next.source = previous?.source && typeof previous.source === 'object' ? previous.source : edge.source;
-      next.target = previous?.target && typeof previous.target === 'object' ? previous.target : edge.target;
+      next.source = previousSource && typeof previousSource === 'object' ? previousSource : edge.source;
+      next.target = previousTarget && typeof previousTarget === 'object' ? previousTarget : edge.target;
       return next;
     });
 
