@@ -456,6 +456,8 @@ function createForceGraphNodeObject(node, settings, existingGroup = null) {
   const nodeColor = normalizeHex(getGraphNodeColor(node, settings.colorMode, settings.typeColors), DEFAULT_NODE_COLOR);
   const radius = getForceGraphNodeRadius(node, settings.nodeSize);
   const geometry = settings.nodeFill === 'none' ? null : createNodeGeometry(settings.nodeShape, radius);
+  const glow = createForceGraphNodeGlow(nodeColor, radius);
+  group.add(glow);
 
   if (settings.nodeFill === 'solid') {
     const fillMaterial = new THREE.MeshLambertMaterial({
@@ -486,9 +488,27 @@ function createForceGraphNodeObject(node, settings, existingGroup = null) {
     ? createForceGraphNodeLabel(node, settings, radius)
     : null;
   group.userData = { nodeSlug: node.slug };
-  node.__bigBrainVisual = { group, label, labelBaseVisible, glow: null };
+  node.__bigBrainVisual = { group, label, labelBaseVisible, glow };
   syncForceGraphNodeState(node, new Set());
   return group;
+}
+
+function createForceGraphNodeGlow(color, radius) {
+  const glow = new THREE.Mesh(
+    new THREE.SphereGeometry(radius * 1.65, 12, 8),
+    new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: 0.16,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      depthTest: false,
+    }),
+  );
+  glow.renderOrder = -1;
+  glow.userData.bigBrainGlow = true;
+  glow.visible = false;
+  return glow;
 }
 
 function disposeForceGraphNodeChildren(group) {

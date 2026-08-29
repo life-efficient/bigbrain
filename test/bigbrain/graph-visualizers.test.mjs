@@ -369,6 +369,8 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /refreshForceGraphLinkCurves/);
   assert.match(visualizer, /createForceGraphLinkCurve/);
   assert.match(visualizer, /createForceGraphIconSprite/);
+  assert.match(visualizer, /createForceGraphNodeGlow/);
+  assert.match(visualizer, /visual\.glow\.visible = emphasized/);
   assert.doesNotMatch(visualizer, /TYPE_GLYPHS/);
   assert.match(visualizer, /scene\.rotation\.z \+=/);
   assert.match(visualizer, /AUTO_ROTATION_RADIANS_PER_SECOND = 0\.035/);
