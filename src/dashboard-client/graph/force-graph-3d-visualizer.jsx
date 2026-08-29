@@ -38,12 +38,16 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   const rotationFrameRef = useRef(0);
   const rotationLastTimeRef = useRef(0);
   const userInteractingRef = useRef(false);
+  const onNodeOpenRef = useRef(onNodeOpen);
+  const onActiveSlugChangeRef = useRef(onActiveSlugChange);
   const settingsRef = useRef({ nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, arcAnimation, labelStyle, colorMode, typeColors, theme });
   const activeSlugRef = useRef(activeSlug);
   const hoveredSlugRef = useRef(null);
   const labelSlugs = useMemo(() => getForceGraphLabelSlugs(graph?.nodes, labelStyle), [graph?.nodes, labelStyle]);
 
   settingsRef.current = { nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, arcAnimation, labelStyle, colorMode, typeColors, theme, labelSlugs, activeSlug };
+  onNodeOpenRef.current = onNodeOpen;
+  onActiveSlugChangeRef.current = onActiveSlugChange;
   activeSlugRef.current = activeSlug;
 
   useImperativeHandle(ref, () => ({
@@ -121,8 +125,8 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
         forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
       })
       .onNodeClick((node) => {
-        onActiveSlugChange?.(node.slug);
-        onNodeOpen?.(node.slug);
+        onActiveSlugChangeRef.current?.(node.slug);
+        onNodeOpenRef.current?.(node.slug);
       })
       .onNodeHover((node) => {
         hoveredSlugRef.current = node?.id || null;
@@ -150,7 +154,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       forceGraph._destructor?.();
       graphRef.current = null;
     };
-  }, [onActiveSlugChange, onNodeOpen]);
+  }, []);
 
   useEffect(() => {
     if (!autoRotate) {

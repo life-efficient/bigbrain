@@ -21,6 +21,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   nodeIcon = 'none',
   nodeSize = 'medium',
   arcStyle = 'curve',
+  arcAnimation = 'instant',
   labelStyle = 'selected',
   colorMode = 'updated',
   typeColors,
@@ -30,6 +31,8 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   const theme = useGraphTheme();
   const containerRef = useRef(null);
   const graphRef = useRef(null);
+  const onNodeOpenRef = useRef(onNodeOpen);
+  const onActiveSlugChangeRef = useRef(onActiveSlugChange);
   const settingsRef = useRef({
     nodeShape,
     nodeFill,
@@ -59,6 +62,8 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     theme,
     labelSlugs,
   };
+  onNodeOpenRef.current = onNodeOpen;
+  onActiveSlugChangeRef.current = onActiveSlugChange;
   activeSlugRef.current = activeSlug;
 
   useImperativeHandle(ref, () => ({
@@ -121,8 +126,8 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
         forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
       })
       .onNodeClick((node) => {
-        onActiveSlugChange?.(node.slug);
-        onNodeOpen?.(node.slug);
+        onActiveSlugChangeRef.current?.(node.slug);
+        onNodeOpenRef.current?.(node.slug);
       })
       .onNodeHover((node) => {
         hoveredSlugRef.current = node?.id || null;
@@ -139,7 +144,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       forceGraph._destructor?.();
       graphRef.current = null;
     };
-  }, [onActiveSlugChange, onNodeOpen]);
+  }, []);
 
   useEffect(() => {
     const forceGraph = graphRef.current;
