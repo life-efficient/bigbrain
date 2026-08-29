@@ -326,7 +326,7 @@ test('processor rejects a filed RSS outcome that omits fetched source preservati
   }
 });
 
-test('processor treats a successful normal-language event task as complete without broker replay', async () => {
+test('processor rejects an RSS task that completes without a structured outcome', async () => {
   const paths = await fixture();
   try {
     const listener = rssListener({ skill: 'bigbrain-ingest' });
@@ -341,9 +341,9 @@ test('processor treats a successful normal-language event task as complete witho
       filingBroker: { file: async () => { throw new Error('broker must not replay a direct MCP write'); } },
     });
     const processed = await processor.process(queued.event.delivery_id);
-    assert.equal(processed.state, 'filed');
+    assert.equal(processed.state, 'failed');
     assert.equal(processed.thread_id, 'thread-1');
-    assert.match(processed.outcome.reason, /event-ingestion task/);
+    assert.match(processed.last_error, /without a structured filing outcome/);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
