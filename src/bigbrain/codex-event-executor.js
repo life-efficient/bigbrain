@@ -430,11 +430,24 @@ export function normalizeCodexOutcome(value) {
     status,
     capture_mode: ['none', 'summary', 'full'].includes(value.capture_mode) ? value.capture_mode : 'summary',
     reason: String(value.reason || ''),
-    destinations: Array.isArray(value.destinations) ? value.destinations.map((destination) => ({
-      ...destination,
-      writes: Array.isArray(destination?.writes) ? destination.writes : parseJsonText(destination?.writes_json || destination?.writes)?.filter?.((write) => write && typeof write === 'object') || [],
-    })) : [],
+    destinations: Array.isArray(value.destinations) ? value.destinations.map(normalizeCodexDestination) : [],
   };
+}
+
+function normalizeCodexDestination(destination) {
+  const parsedWrites = parseJsonText(destination?.writes_json || destination?.writes);
+  const writes = Array.isArray(destination?.writes)
+    ? destination.writes
+    : Array.isArray(parsedWrites)
+      ? parsedWrites
+      : destination?.operation || destination?.tool
+        ? [{
+          tool: destination.operation || destination.tool,
+          commit_message: destination.commit_message,
+          arguments: Object.fromEntries(Object.entries(destination).filter(([key]) => !['brain_id', 'operation', 'tool', 'commit_message', 'writes', 'writes_json'].includes(key))),
+        }]
+        : [];
+  return { ...destination, writes };
 }
 
 export function parseCodexJsonOutput(stdout) {

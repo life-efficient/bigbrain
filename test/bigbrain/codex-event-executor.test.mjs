@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { CodexAppThreadExecutor, CodexCliExecutor, buildEventPrompt, parseCodexJsonOutput, parseCodexThreadId, resolveThreadTitle, selectPromptPayload } from '../../src/bigbrain/codex-event-executor.js';
+import { CodexAppThreadExecutor, CodexCliExecutor, buildEventPrompt, normalizeCodexOutcome, parseCodexJsonOutput, parseCodexThreadId, resolveThreadTitle, selectPromptPayload } from '../../src/bigbrain/codex-event-executor.js';
 
 const event = {
   event_id: 'event-1',
@@ -69,6 +69,26 @@ test('RSS article prompt uses the source-article skill and preserves source byte
   assert.match(prompt, /raw_content_source set to event\.source_document\.raw_body/);
   assert.match(prompt, /Original article text/);
   assert.doesNotMatch(prompt, /<html>Original article text<\/html>/);
+});
+
+test('RSS outcomes accept the direct operation form emitted by the source-article skill', () => {
+  const outcome = normalizeCodexOutcome({ status: 'filed', capture_mode: 'full', reason: 'useful', destinations: [{
+    brain_id: 'personal',
+    operation: 'create_raw_file_with_page',
+    raw_path: 'concepts/.raw/article.html',
+    page_path: 'concepts/.raw/article.md',
+    raw_content_source: 'event.source_document.raw_body',
+    commit_message: 'Capture article source',
+  }] });
+  assert.deepEqual(outcome.destinations[0].writes, [{
+    tool: 'create_raw_file_with_page',
+    commit_message: 'Capture article source',
+    arguments: {
+      raw_path: 'concepts/.raw/article.html',
+      page_path: 'concepts/.raw/article.md',
+      raw_content_source: 'event.source_document.raw_body',
+    },
+  }]);
 });
 
 test('CLI executor captures structured outcome and stderr-safe output', async () => {
