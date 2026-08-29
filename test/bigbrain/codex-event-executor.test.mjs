@@ -25,19 +25,13 @@ test('Codex prompt gives a direct ingest instruction and names the workflow skil
   assert.doesNotMatch(prompt, /Inbound source material/);
 });
 
-test('Granola event prompt retrieves the exact generated note through MCP', () => {
+test('Granola event prompt is a compact skill handoff with the exact note ID', () => {
   const prompt = buildEventPrompt({
     event_id: 'granola:not_123:note.generated',
     type: 'granola.meeting.completed',
     payload: { event_type: 'note.generated', granola_id: 'not_123', title: 'Planning' },
   }, { provider: 'granola', skill: 'bigbrain-granola-ingest', prompt_payload_fields: ['event_type', 'granola_id', 'title'] });
-  assert.match(prompt, /Retrieve the completed Granola note by ID through the Granola MCP/);
-  assert.match(prompt, /payload\.granola_id/);
-  assert.match(prompt, /Use the Granola MCP to retrieve the complete note/);
-  assert.match(prompt, /narrow time window around payload\.occurred_at/);
-  assert.match(prompt, /more than one plausible match/);
-  assert.match(prompt, /"granola_id": "not_123"/);
-  assert.doesNotMatch(prompt, /Return JSON only/);
+  assert.equal(prompt, 'Ingest the Granola meeting with ID not_123 using $bigbrain-granola-ingest.');
 });
 
 test('prompt payload can be narrowed to configured fields and omits RSS raw XML by default', () => {

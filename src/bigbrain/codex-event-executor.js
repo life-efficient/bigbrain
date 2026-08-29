@@ -5,6 +5,12 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 export const DEFAULT_CODEX_EVENT_CWD = process.env.BIGBRAIN_CODEX_EVENT_CWD || process.cwd();
+export const DEFAULT_CODEX_TIMEOUT_MS = 60 * 60 * 1000;
+
+function configuredCodexTimeout(env = process.env) {
+  const value = Number(env?.BIGBRAIN_CODEX_TIMEOUT_MS);
+  return Number.isFinite(value) && value > 0 ? value : DEFAULT_CODEX_TIMEOUT_MS;
+}
 
 export function resolveThreadTitle(event, listener) {
   const configuredTitle = cleanThreadTitle(listener?.codex_thread_title || listener?.chat_title || listener?.thread_title);
@@ -23,8 +29,12 @@ function cleanThreadTitle(value) {
 export function buildEventPrompt(event, listener, { allowedDestinations = [] } = {}) {
   const sourceDescription = listener?.description || event?.source?.description || 'No source-specific guidance was provided.';
   const isRssArticle = listener?.type === 'rss' || event?.type === 'rss.item';
+  const isGranolaMeeting = listener?.provider === 'granola' || event?.type === 'granola.meeting.completed';
   const skill = listener?.skill || defaultSkillForEvent(event, listener);
   const payload = selectPromptPayload(event?.payload, listener, event);
+  if (isGranolaMeeting) {
+    return `Ingest the Granola meeting with ID ${payload?.granola_id || '(missing ID)'} using $${skill.replace(/^\$/, '')}.`;
+  }
   if (isRssArticle) {
     return [
       'Ingest this article into BigBrain using the normal article-ingestion workflow.',
@@ -193,7 +203,7 @@ export class CodexCliExecutor {
 }
 
 export class CodexAppThreadExecutor {
-  constructor({ command = process.env.BIGBRAIN_CODEX_COMMAND || 'codex', args = null, cwd = DEFAULT_CODEX_EVENT_CWD, spawnImpl = spawn, timeoutMs = 300_000, env = process.env, clientFactory = null } = {}) {
+  constructor({ command = process.env.BIGBRAIN_CODEX_COMMAND || 'codex', args = null, cwd = DEFAULT_CODEX_EVENT_CWD, spawnImpl = spawn, timeoutMs = configuredCodexTimeout(), env = process.env, clientFactory = null } = {}) {
     this.command = command;
     this.args = args;
     this.cwd = cwd;
@@ -281,7 +291,7 @@ export class CodexAppThreadExecutor {
 }
 
 export class AppServerJsonRpcClient {
-  constructor({ command, args, cwd, spawnImpl = spawn, timeoutMs = 300_000, env = process.env } = {}) {
+  constructor({ command, args, cwd, spawnImpl = spawn, timeoutMs = configuredCodexTimeout(), env = process.env } = {}) {
     this.command = command;
     this.args = args;
     this.cwd = cwd;
