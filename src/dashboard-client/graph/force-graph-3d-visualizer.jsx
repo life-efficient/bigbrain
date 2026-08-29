@@ -111,6 +111,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .nodeThreeObject((node) => createForceGraphNodeObject(node, settingsRef.current))
       .nodeThreeObjectExtend(false)
       .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDayRef.current))
+      .nodeLabel((node) => buildNodeTooltip(node))
       .linkSource('source')
       .linkTarget('target')
       .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDayRef.current))
@@ -141,7 +142,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       })
       .onNodeHover((node) => {
         hoveredSlugRef.current = node?.id || null;
-        updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlugRef.current, settingsRef.current.arcAnimation);
+        updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlugRef.current, settingsRef.current.arcAnimation, false);
       });
 
     syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
@@ -218,14 +219,14 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     updateForceGraphNodeObjects(forceGraph, settingsRef.current);
     if (arcStyleChanged) refreshForceGraphLinkCurves(forceGraph, arcStyle);
     if (forceGraph.__bigBrainArcAnimation?.mode !== arcAnimation) {
-      updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlugRef.current, arcAnimation);
+      updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlugRef.current, arcAnimation, !hoveredSlugRef.current);
     }
   }, [arcAnimation, arcStyle, colorMode, labelStyle, nodeFill, nodeIcon, nodeShape, nodeSize, theme, typeColors]);
 
   useEffect(() => {
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
-    updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlug, settingsRef.current.arcAnimation);
+    updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlug, settingsRef.current.arcAnimation, !hoveredSlugRef.current);
   }, [activeSlug]);
 
   useEffect(() => {
@@ -351,13 +352,13 @@ function isForceGraphLinkVisibleAtTimeline(link, timelineDay) {
     && isForceGraphNodeVisibleAtTimeline(link?.target, timelineDay);
 }
 
-function updateForceGraphHighlight(forceGraph, data, focusSlug, arcAnimation = 'instant') {
+function updateForceGraphHighlight(forceGraph, data, focusSlug, arcAnimation = 'instant', showFocusLabel = true) {
   const resolvedData = forceGraph.graphData?.() || data || { nodes: [], links: [] };
   graphDataRefFor(forceGraph, resolvedData);
   const nodes = Array.isArray(resolvedData.nodes) ? resolvedData.nodes : [];
   const links = Array.isArray(resolvedData.links) ? resolvedData.links : [];
   const focusNode = nodes.find((node) => node.id === focusSlug || node.slug === focusSlug);
-  const highlightedNodes = new Set(focusNode ? [focusNode.id] : []);
+  const highlightedNodes = new Set(showFocusLabel && focusNode ? [focusNode.id] : []);
   const highlightedLinks = new Set();
 
   if (focusNode) {
