@@ -93,6 +93,28 @@ export const GRAPH_COLOR_PALETTES = [
     label: 'Soft',
     colors: SOFT_PALETTE,
   },
+  {
+    id: 'crimson-loom',
+    label: 'Crimson Loom',
+    colors: {
+      people: '#1769B0',
+      organizations: '#B3263E',
+      companies: '#8D172B',
+      deals: '#D68724',
+      projects: '#1F5AA6',
+      ideas: '#E5A13A',
+      meetings: '#A9474B',
+      tasks: '#C96842',
+      concepts: '#D18A7D',
+      writing: '#E8C6B8',
+      protocol: '#B75D55',
+      archive: '#8D7777',
+      'personal-protocol': '#8F3D4B',
+      sources: '#4E7CA7',
+      ops: '#C87A35',
+      inbox: '#D33A3F',
+    },
+  },
 ];
 
 export const GRAPH_COLOR_PALETTE_OPTIONS = [
