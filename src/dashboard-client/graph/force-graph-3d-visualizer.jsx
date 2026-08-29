@@ -414,13 +414,28 @@ function updateForceGraphActivity(forceGraph, data, slugs, arcAnimation = 'insta
     }
   }
   const animatedLinks = arcAnimation === 'none' ? new Set() : highlightedLinks;
+  const previousLinks = getForceGraphHighlightLinks(forceGraph);
   forceGraph.__bigBrainHighlightLinks = animatedLinks;
   for (const node of nodes) syncForceGraphNodeState(node, focusNode ? new Set([focusNode.id]) : new Set());
-  startArcAnimation(forceGraph, arcAnimation, animatedLinks);
+  if (arcAnimation === 'grow' || arcAnimation === 'shoot') {
+    const affectedLinks = new Set([...previousLinks, ...animatedLinks]);
+    startArcAnimation(forceGraph, arcAnimation, animatedLinks, () => {
+      updateForceGraphAnimatedLinks(forceGraph, affectedLinks);
+    });
+    if (arcAnimation === 'shoot') {
+      animatedLinks.forEach((link) => forceGraph.emitParticle?.(link));
+    }
+  } else {
+    startArcAnimation(forceGraph, arcAnimation, animatedLinks);
+  }
   forceGraph
-    .linkColor((link) => getForceGraphLinkColor(link, highlightedLinks, forceGraph))
-    .linkOpacity((link) => getForceGraphLinkOpacity(link, highlightedLinks, forceGraph))
-    .linkWidth((link) => getForceGraphLinkWidth(link, highlightedLinks, forceGraph));
+    .linkColor((link) => getForceGraphLinkColor(link, animatedLinks, forceGraph))
+    .linkOpacity((link) => getForceGraphLinkOpacity(link, animatedLinks, forceGraph))
+    .linkWidth((link) => getForceGraphLinkWidth(link, animatedLinks, forceGraph))
+    .linkDirectionalParticles((link) => animatedLinks.has(link) ? 0 : (nodes.length <= 900 ? 1 : 0))
+    .linkDirectionalParticleSpeed((link) => getForceGraphParticleSpeed(link, forceGraph))
+    .linkDirectionalParticleWidth(() => 0.7)
+    .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, animatedLinks, forceGraph));
 }
 
 function getForceGraphHighlightLinks(forceGraph) {
