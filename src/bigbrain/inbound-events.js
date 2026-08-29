@@ -639,12 +639,9 @@ export class InboundEventProcessor {
       execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
       const outcome = execution?.outcome
         ? normalizeCodexOutcome(execution.outcome, { defaultBrainId: processingEvent.allowed_brain_ids?.length === 1 ? processingEvent.allowed_brain_ids[0] : null })
-        : { status: 'needs_review', reason: 'Codex returned no filing outcome.', destinations: [] };
+        : null;
       const executionMeta = executionMetadata(execution);
-      if ((listener.type === 'rss' || processingEvent.type === 'rss.item') && !execution?.outcome) {
-        throw new Error('RSS event completed without a structured filing outcome.');
-      }
-      validateRssArticleOutcome(processingEvent, listener, outcome);
+      if (outcome) validateRssArticleOutcome(processingEvent, listener, outcome);
       if (!execution?.outcome) {
         return this.inboxStore.complete(deliveryId, {
           state: 'filed',

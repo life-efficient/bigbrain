@@ -16,9 +16,9 @@ test('Codex prompt gives a direct ingest instruction and names the workflow skil
   const prompt = buildEventPrompt(event, { description: 'File meaningful meetings.', display_name: 'Calendar', provider: 'calendar', skill: 'bigbrain-meeting-ingest' }, { allowedDestinations: [{ id: 'personal', name: 'Personal' }] });
   assert.match(prompt, /Ingest this calendar update into BigBrain/);
   assert.match(prompt, /Use the \$bigbrain-meeting-ingest skill/);
-  assert.match(prompt, /Use the associated BigBrain MCP/);
+  assert.match(prompt, /Use the available BigBrain tools/);
   assert.match(prompt, /personal: Personal/);
-  assert.match(prompt, /Do not invent Brain IDs/);
+  assert.match(prompt, /Do not invent credentials/);
   assert.doesNotMatch(prompt, /Return JSON only/);
   assert.match(prompt, /"title": "Planning meeting"/);
   assert.doesNotMatch(prompt, /event-1/);
@@ -48,7 +48,7 @@ test('prompt payload can be narrowed to configured fields and omits RSS raw XML 
   }), { title: 'Meeting', data: { summary: 'Useful' } });
 });
 
-test('RSS article prompt uses the source-article skill and preserves source bytes through the broker placeholder', () => {
+test('RSS article prompt is a short normal Codex ingestion request', () => {
   const prompt = buildEventPrompt({
     event_id: 'rss-1',
     listener_id: 'openai-news',
@@ -66,8 +66,10 @@ test('RSS article prompt uses the source-article skill and preserves source byte
     allowed_brain_ids: ['personal'],
   }, { type: 'rss', display_name: 'OpenAI News' }, { allowedDestinations: [{ id: 'personal', name: 'Personal' }] });
   assert.match(prompt, /Use the \$bigbrain-source-article-ingest skill/);
-  assert.match(prompt, /raw_content_source set to event\.source_document\.raw_body/);
-  assert.match(prompt, /Original article text/);
+  assert.match(prompt, /normal Codex chat/);
+  assert.match(prompt, /Complete the ingestion directly/);
+  assert.doesNotMatch(prompt, /Return JSON only/);
+  assert.doesNotMatch(prompt, /Original article text/);
   assert.doesNotMatch(prompt, /<html>Original article text<\/html>/);
 });
 

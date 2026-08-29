@@ -27,37 +27,31 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
   const payload = selectPromptPayload(event?.payload, listener, event);
   const sourceDocument = promptSourceDocument(event?.metadata?.source_document);
   const destinations = allowedDestinations.length
-    ? allowedDestinations.map((brain) => `${brain.id || brain.brain_id}: ${brain.name || brain.brain_name || 'unnamed brain'}`).join('\n')
+    ? allowedDestinations.map((brain) => `${brain.id || brain.brain_id}: ${brain.name || brain.brain_name || 'unnamed brain'}`).join(', ')
     : (event?.allowed_brain_ids || []).join(', ');
   return [
-    `${eventInstruction(event, listener)}.`,
+    isRssArticle
+      ? 'Ingest this new article into BigBrain as if the user had opened a normal Codex chat and asked you to ingest it.'
+      : `${eventInstruction(event, listener)}.`,
     '',
     skill ? `Use the $${skill.replace(/^\$/, '')} skill as the primary workflow.` : 'Use the narrowest matching BigBrain ingest skill as the primary workflow.',
-    'Use the associated BigBrain MCP for filing rules, search, read, write, task, and read-back operations.',
-    'Query an available source MCP when additional source context is needed.',
+    'Use the available BigBrain tools and the normal Codex environment to complete the work directly.',
+    'Read filing rules before writing, search for existing coverage, file by primary subject, update canonical pages when warranted, and read back your changes.',
     listener?.provider === 'granola'
       ? 'Use the Granola MCP to retrieve the complete note before filing. Use payload.granola_id as the authoritative provider note ID; use the title only as a cross-check when it is present. Try the provider ID first. If the Granola MCP rejects the note ID because it requires a UUID, list meetings in a narrow time window around payload.occurred_at, select only one unambiguous match, and use that meeting UUID with the detail tool. If there is no match or more than one plausible match, stop and report the ambiguity rather than guessing.'
       : null,
-    isRssArticle
-      ? 'This RSS article route requires one final JSON filing outcome for the runtime broker. Use the source article ingest skill instructions below.'
-      : 'This is a normal event-triggered task. Do not return a machine-readable schema or JSON unless the selected skill specifically requires it.',
-    isRssArticle
-      ? 'Do not write directly to Brain from this task. Search and read as needed, then return the proposed writes for the runtime filing broker.'
-      : 'Complete the ingestion directly, then give a concise normal-language summary of what you did.',
+    'Complete the ingestion directly, then give a concise normal-language summary of what you did. Do not return a machine-readable schema or JSON.',
     '',
     'Source guidance:',
     sourceDescription,
     '',
     'Task constraints:',
     '- Decide whether this event contains useful knowledge. Ignore it when it does not.',
-    '- Only use the allowed Brain destinations listed below.',
-    '- Do not invent Brain IDs, credentials, paths, facts, or source provenance.',
-    '- Read destination filing rules and existing coverage before writing, and read back every write.',
+    destinations ? `- Use the normal Brain environment; the event scope is ${destinations}.` : null,
+    '- Do not invent credentials, paths, facts, or source provenance.',
     '- Every Git-backed BigBrain MCP write must include a short, single-line commit_message describing what changed and why, plus provenance metadata with the correct source_type and source_label.',
     '- Use assistant_chat only for a user message sent through this assistant harness; use direct_edit for file or Git-provider changes made outside MCP; use unknown only when the source truly cannot be established.',
     '- Do not send messages or reply externally. Only perform source-side cleanup when the selected skill explicitly authorizes that exact cleanup.',
-    '',
-    `Allowed Brain destinations:\n${destinations || '(none, so do not write)'}`,
     '',
     `Source: ${listener?.display_name || event?.source?.display_name || 'Inbound source'}`,
     `Event type: ${event?.type || 'inbound.event'}`,
@@ -65,15 +59,13 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
     '',
     'Payload:',
     JSON.stringify(payload, null, 2),
-    sourceDocument ? ['', 'Fetched source document:', JSON.stringify(sourceDocument, null, 2)] : null,
-    isRssArticle ? ['', 'RSS article outcome requirements:', rssArticleOutcomeInstructions()].join('\n') : null,
+    sourceDocument ? ['', 'Source retrieval status:', JSON.stringify(sourceDocument, null, 2)] : null,
   ].filter((line) => line !== null).join('\n');
 }
 
 function promptSourceDocument(value) {
   if (!value || typeof value !== 'object') return null;
-  const { raw_body: _rawBody, ...prompt } = value;
-  if (typeof prompt.text === 'string') prompt.text = prompt.text.slice(0, 120_000);
+  const { raw_body: _rawBody, text: _text, ...prompt } = value;
   return prompt;
 }
 
