@@ -535,6 +535,11 @@ For desktop development:
 npm run desktop:dev
 ```
 
+The developer desktop launcher watches the dashboard client and refreshes the
+open dashboard after a successful rebuild. Dashboard UI changes appear without
+restarting the app. Changes to Electron or dashboard server code still require
+restarting the developer app.
+
 To point the desktop shell at an existing BigBrain dashboard:
 
 ```bash

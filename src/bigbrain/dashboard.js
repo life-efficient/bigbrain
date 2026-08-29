@@ -96,6 +96,7 @@ export async function createDashboardRequestHandler(config, {
   const clientAssetPath = await ensureDashboardAssets(config);
   const authEnabled = authRoutesEnabled(authConfig);
   const normalizedBasePath = normalizeDashboardBasePath(basePath);
+  const dashboardDevVersionPath = `${normalizedBasePath}/__bigbrain/dev-version`.replace(/^\/\//, '/');
   const authStartPath = `${normalizedBasePath}/auth/start`.replace(/^\/\//, '/');
   const authLogoutPath = `${normalizedBasePath}/auth/logout`.replace(/^\/\//, '/');
   if (authEnabled) {
@@ -144,6 +145,11 @@ export async function createDashboardRequestHandler(config, {
         });
         res.end();
         return;
+      }
+      if (requestUrl.pathname === dashboardDevVersionPath && isDashboardDevRuntime()) {
+        const devBundlePath = path.join(repoRoot, '.bigbrain-dashboard', dashboardBundleFilename);
+        const stats = await fs.stat(devBundlePath).catch(() => null);
+        return json(res, { version: stats?.mtimeMs || null }, { noStore: true });
       }
       const publicRequest = isPublicAppPath(requestUrl.pathname)
         || isSharedAppPath(requestUrl.pathname)
@@ -194,7 +200,7 @@ export async function createDashboardRequestHandler(config, {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store',
         });
-        res.end(renderAppHtml());
+        res.end(renderAppHtml({ devVersionPath: dashboardDevVersionPath }));
         return;
       }
       if (isPublicAppPath(requestUrl.pathname)) {
@@ -211,7 +217,7 @@ export async function createDashboardRequestHandler(config, {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store',
         });
-        res.end(renderAppHtml());
+        res.end(renderAppHtml({ devVersionPath: dashboardDevVersionPath }));
         return;
       }
       if (isSharedAppPath(requestUrl.pathname)) {
@@ -228,7 +234,7 @@ export async function createDashboardRequestHandler(config, {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store',
         });
-        res.end(renderAppHtml());
+        res.end(renderAppHtml({ devVersionPath: dashboardDevVersionPath }));
         return;
       }
       if (isDashboardAppPath(requestUrl.pathname, normalizedBasePath)) {
@@ -236,7 +242,7 @@ export async function createDashboardRequestHandler(config, {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store',
         });
-        res.end(renderAppHtml());
+        res.end(renderAppHtml({ devVersionPath: dashboardDevVersionPath }));
         return;
       }
       if (requestUrl.pathname === '/favicon.ico') {
@@ -376,6 +382,9 @@ async function handleKeepInTouchMutation(config, db, req, requestUrl, actor = nu
 }
 
 async function ensureDashboardAssets(config) {
+  const devBundlePath = path.join(repoRoot, '.bigbrain-dashboard', dashboardBundleFilename);
+  if (isDashboardDevRuntime() && await fileExists(devBundlePath)) return devBundlePath;
+
   const outdir = path.join(config.metaDir, 'dashboard-assets');
   const outfile = path.join(outdir, dashboardBundleFilename);
   await fs.mkdir(outdir, { recursive: true });
@@ -390,6 +399,22 @@ async function ensureDashboardAssets(config) {
     target: ['es2022'],
   });
   return outfile;
+}
+
+function isDashboardDevRuntime() {
+  if (process.env.BIGBRAIN_DASHBOARD_DEV === '1') return true;
+  return process.env.ELECTRON_RUN_AS_NODE === '1'
+    && process.env.BIGBRAIN_SERVICE_SOURCE === 'desktop-bundle'
+    && process.execPath.includes(`${path.sep}build${path.sep}dev${path.sep}`);
+}
+
+async function fileExists(filePath) {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function serveFile(res, filePath, contentType) {
@@ -539,7 +564,7 @@ function isSharedAppPath(pathname) {
   return pathname === '/shared' || pathname.startsWith('/shared/');
 }
 
-function renderAppHtml() {
+function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version' } = {}) {
   return `<!doctype html>
 <html>
   <head>
@@ -1877,9 +1902,30 @@ function renderAppHtml() {
   </head>
   <body>
     <div id="root"></div>
+    ${dashboardDevReloadScript(devVersionPath)}
     <script type="module" src="/assets/${dashboardBundleFilename}"></script>
   </body>
 </html>`;
+}
+
+function dashboardDevReloadScript(devVersionPath) {
+  if (!isDashboardDevRuntime()) return '';
+  return `<script>
+(() => {
+  let version = null;
+  const check = async () => {
+    try {
+      const response = await fetch(${JSON.stringify(devVersionPath)}, { cache: 'no-store' });
+      if (!response.ok) return;
+      const nextVersion = await response.text();
+      if (version === null) version = nextVersion;
+      else if (nextVersion !== version) window.location.reload();
+    } catch {}
+  };
+  void check();
+  window.setInterval(check, 700);
+})();
+</script>`;
 }
 
 export async function buildTasksPayload(config, db = null, requestUrl = new URL('/api/tasks', 'http://127.0.0.1'), { actor = null } = {}) {

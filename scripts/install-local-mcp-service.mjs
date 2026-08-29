@@ -32,6 +32,7 @@ async function main() {
   const electronRunAsNode = Boolean(options.electronRunAsNode);
   const serviceManager = options.serviceManager || (electronRunAsNode ? SERVICE_MANAGER_DESKTOP : SERVICE_MANAGER_SOURCE);
   const serviceSource = options.serviceSource || (serviceManager === SERVICE_MANAGER_DESKTOP ? SERVICE_SOURCE_DESKTOP_BUNDLE : SERVICE_SOURCE_CHECKOUT);
+  const dashboardDev = process.env.BIGBRAIN_DASHBOARD_DEV === '1';
   validateServiceOwnershipMarkers({ serviceManager, serviceSource });
   const installAutomaticUpdater = serviceManager === SERVICE_MANAGER_SOURCE && !options.noAutoUpdate;
   const plistPath = options.plistPath || path.join(os.homedir(), 'Library', 'LaunchAgents', `${label}.plist`);
@@ -60,6 +61,7 @@ async function main() {
     electronRunAsNode,
     serviceManager,
     serviceSource,
+    dashboardDev,
   });
 
   if (options.dryRun) {
@@ -78,6 +80,7 @@ async function main() {
       electronRunAsNode,
       serviceManager,
       serviceSource,
+      dashboardDev,
       installAutomaticUpdater,
       stdoutPath,
       stderrPath,
@@ -246,6 +249,7 @@ export function renderLaunchAgentPlist({
   electronRunAsNode,
   serviceManager = electronRunAsNode ? SERVICE_MANAGER_DESKTOP : SERVICE_MANAGER_SOURCE,
   serviceSource = serviceManager === SERVICE_MANAGER_DESKTOP ? SERVICE_SOURCE_DESKTOP_BUNDLE : SERVICE_SOURCE_CHECKOUT,
+  dashboardDev = false,
 }) {
   validateServiceOwnershipMarkers({ serviceManager, serviceSource });
   const args = [
@@ -281,7 +285,9 @@ ${electronRunAsNode ? `    <key>ELECTRON_RUN_AS_NODE</key>
     <string>${xmlEscape(serviceManager)}</string>
     <key>BIGBRAIN_SERVICE_SOURCE</key>
     <string>${xmlEscape(serviceSource)}</string>
-    <key>PATH</key>
+${dashboardDev ? `    <key>BIGBRAIN_DASHBOARD_DEV</key>
+    <string>1</string>
+` : ''}    <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
     <key>BIGBRAIN_MCP_AUTH_MODE</key>
     <string>none</string>

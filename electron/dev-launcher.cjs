@@ -25,7 +25,7 @@ main();
 
 function main() {
   if (process.platform !== "darwin") {
-    launchElectronDirectly();
+    launchElectronDirectly(startDashboardWatcher());
     return;
   }
 
@@ -37,13 +37,15 @@ function main() {
     return;
   }
 
+  const watcher = startDashboardWatcher();
   const child = spawn(TARGET_EXECUTABLE_PATH, [], {
     cwd: ROOT_DIR,
-    env: process.env,
+    env: { ...process.env, BIGBRAIN_DASHBOARD_DEV: "1" },
     stdio: "inherit",
   });
 
   child.on("exit", (code, signal) => {
+    watcher.kill();
     if (signal) {
       process.kill(process.pid, signal);
       return;
@@ -53,20 +55,30 @@ function main() {
   });
 }
 
-function launchElectronDirectly() {
+function launchElectronDirectly(watcher) {
   const child = spawn(ELECTRON_EXECUTABLE_PATH, [ROOT_DIR], {
     cwd: ROOT_DIR,
-    env: process.env,
+    env: { ...process.env, BIGBRAIN_DASHBOARD_DEV: "1" },
     stdio: "inherit",
   });
 
   child.on("exit", (code, signal) => {
+    watcher.kill();
     if (signal) {
       process.kill(process.pid, signal);
       return;
     }
 
     process.exit(code ?? 0);
+  });
+}
+
+function startDashboardWatcher() {
+  const watcherPath = path.join(ROOT_DIR, "scripts", "watch-dashboard-client.mjs");
+  return spawn(process.execPath, [watcherPath], {
+    cwd: ROOT_DIR,
+    env: { ...process.env, BIGBRAIN_DASHBOARD_DEV: "1" },
+    stdio: "inherit",
   });
 }
 

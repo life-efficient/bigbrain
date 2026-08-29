@@ -216,6 +216,14 @@ test('desktop and source service plists carry explicit ownership markers', () =>
   });
   assert.match(desktop, /<key>BIGBRAIN_SERVICE_MANAGER<\/key>\s*<string>desktop<\/string>/);
   assert.match(desktop, /<key>BIGBRAIN_SERVICE_SOURCE<\/key>\s*<string>desktop-bundle<\/string>/);
+  const desktopDev = renderLaunchAgentPlist({
+    ...base,
+    electronRunAsNode: true,
+    serviceManager: 'desktop',
+    serviceSource: 'desktop-bundle',
+    dashboardDev: true,
+  });
+  assert.match(desktopDev, /<key>BIGBRAIN_DASHBOARD_DEV<\/key>\s*<string>1<\/string>/);
   const source = renderLaunchAgentPlist({
     ...base,
     nodePath: '/usr/local/bin/node',
