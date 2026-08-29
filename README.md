@@ -529,6 +529,16 @@ Start the local dashboard:
 bigbrain dashboard
 ```
 
+For a standalone dashboard with source hot reload:
+
+```bash
+npm run dashboard:dev -- --port 3474
+```
+
+This starts the dashboard client watcher and reloads the open dashboard when a
+source change produces a new client bundle. Stop the one development process to
+stop both the watcher and dashboard server.
+
 For desktop development:
 
 ```bash

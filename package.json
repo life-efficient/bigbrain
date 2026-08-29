@@ -14,6 +14,7 @@
     "recent": "node ./bin/bigbrain.js recent",
     "sync": "node ./bin/bigbrain.js sync",
     "schema": "node ./bin/bigbrain.js schema",
+    "dashboard:dev": "node ./scripts/dashboard-dev.mjs",
     "desktop:dev": "node electron/dev-launcher.cjs",
     "desktop:dist": "npm run build:dashboard && electron-builder --mac dmg zip --universal --publish never",
     "desktop:dir": "electron-builder --mac dir",
