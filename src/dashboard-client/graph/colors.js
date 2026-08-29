@@ -115,6 +115,28 @@ export const GRAPH_COLOR_PALETTES = [
       inbox: '#D33A3F',
     },
   },
+  {
+    id: 'neural-lumen',
+    label: 'Neural Lumen',
+    colors: {
+      people: '#58D7FF',
+      organizations: '#F0B36B',
+      companies: '#2B9DDB',
+      deals: '#F6D365',
+      projects: '#72CFFF',
+      ideas: '#FFE88A',
+      meetings: '#8EEBFF',
+      tasks: '#F4E27A',
+      concepts: '#61C8C9',
+      writing: '#F1B5AA',
+      protocol: '#F5D46C',
+      archive: '#71879A',
+      'personal-protocol': '#B8A7D9',
+      sources: '#9CEBFF',
+      ops: '#D8C45F',
+      inbox: '#F08A73',
+    },
+  },
 ];
 
 export const GRAPH_COLOR_PALETTE_OPTIONS = [
