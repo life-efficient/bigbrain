@@ -2482,6 +2482,21 @@ const GraphPanel = memo(function GraphPanel({
   }, [focusSlug, graph]);
 
   useEffect(() => {
+    if (!focusSlug || !isForceRenderer) return undefined;
+    let frame = 0;
+    let settleFrame = 0;
+    frame = window.requestAnimationFrame(() => {
+      settleFrame = window.requestAnimationFrame(() => {
+        visualizerRef.current?.resetView?.();
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.cancelAnimationFrame(settleFrame);
+    };
+  }, [focusSlug, isForceRenderer]);
+
+  useEffect(() => {
     if (!styleMenuOpen && !filterMenuOpen) return undefined;
 
     function handlePointerDown(event) {

@@ -246,6 +246,7 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(main, /if \(timelineIndex >= 0 \|\| focusSlug \|\| activeSlug\) return;/);
   assert.match(main, /motionEvent=\{eligibleMotionEvent\}/);
   assert.match(main, /onBackgroundClick=\{onLineageClose\}/);
+  assert.match(main, /visualizerRef\.current\?\.resetView\?\.\(\)/);
   assert.match(force2d, /forceGraph\.centerAt\(latestNode\.x, latestNode\.y, 850\)\.zoom\(/);
   assert.match(force2d, /forceGraph\.centerAt\(node\.x, node\.y, 850\)\.zoom\(/);
   assert.match(force3d, /forceGraph\.cameraPosition\(position, target, 850\)/);
