@@ -527,6 +527,7 @@ function createForceGraphNodeGlow(radius) {
   glow.scale.setScalar(radius * 7);
   glow.renderOrder = -1;
   glow.userData.bigBrainGlow = true;
+  glow.raycast = () => {};
   glow.visible = false;
   return glow;
 }
@@ -568,7 +569,7 @@ function disposeForceGraphObject(object) {
 }
 
 function createForceGraphNodeLabel(node, settings, radius) {
-  const labelWidth = Math.min(180, Math.max(34, String(node.title || node.slug).length * 1.55 + 28));
+  const labelWidth = Math.min(180, Math.max(34, String(node.title || node.slug).length * 4.8 + 6));
   const label = createForceGraphTextSprite(node.title || node.slug, settings.theme.graphLabel, labelWidth, 8.5, true);
   label.position.set(radius * 1.75, radius * 0.85, 0);
   return label;
