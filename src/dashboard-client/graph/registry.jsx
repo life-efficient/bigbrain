@@ -17,20 +17,22 @@ export const GRAPH_CONTROL_LABELS = {
 
 export const GRAPH_DEFAULTS = {
   visualizerId: 'force-graph-3d',
-  nodeShape: 'diamond',
-  nodeFill: 'outline',
+  nodeShape: 'pixel',
+  nodeFill: 'solid',
   nodeIcon: 'none',
-  nodeSize: 'medium',
-  arcStyle: 'curve',
-  arcAnimation: 'instant',
+  nodeSize: 'small',
+  arcStyle: 'straight',
+  arcAnimation: 'shoot',
   layoutStyle: 'lanes',
   labelStyle: 'off',
   colorMode: 'updated',
   colorPaletteId: GRAPH_DEFAULT_PALETTE_ID,
   flowVisible: false,
-  autoRotate: false,
+  autoRotate: true,
   demoMode: false,
 };
+
+export const GRAPH_PREFERENCES_VERSION = 2;
 
 export const GRAPH_NODE_SHAPES = [
   { id: 'orb', label: 'Orb' },
@@ -74,11 +76,35 @@ const LEGACY_NODE_STYLE_PREFERENCES = {
   'icon-hex': { nodeShape: 'hex', nodeFill: 'outline', nodeIcon: 'outline' },
 };
 
+const LEGACY_GRAPH_DEFAULTS = {
+  nodeShape: 'diamond',
+  nodeFill: 'outline',
+  nodeSize: 'medium',
+  arcStyle: 'curve',
+  arcAnimation: 'instant',
+  autoRotate: false,
+};
+
+const CURRENT_GRAPH_DEFAULTS = {
+  nodeShape: 'pixel',
+  nodeFill: 'solid',
+  nodeSize: 'small',
+  arcStyle: 'straight',
+  arcAnimation: 'shoot',
+  autoRotate: true,
+};
+
 export function migrateGraphPreferences(saved) {
   const next = saved && typeof saved === 'object' ? { ...saved } : {};
   const legacy = LEGACY_NODE_STYLE_PREFERENCES[next.nodeStyle];
   if (!next.nodeShape && legacy) Object.assign(next, legacy);
   if (next.arcStyle === 'beam') next.arcStyle = 'curve';
+  if (next.graphPreferencesVersion !== GRAPH_PREFERENCES_VERSION) {
+    for (const [key, legacyValue] of Object.entries(LEGACY_GRAPH_DEFAULTS)) {
+      if (next[key] === legacyValue) next[key] = CURRENT_GRAPH_DEFAULTS[key];
+    }
+    next.graphPreferencesVersion = GRAPH_PREFERENCES_VERSION;
+  }
   return next;
 }
 

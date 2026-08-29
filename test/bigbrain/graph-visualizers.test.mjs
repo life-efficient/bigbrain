@@ -289,11 +289,15 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(paletteGroup, /options=\{GRAPH_COLOR_PALETTE_OPTIONS\}/);
   assert.match(autoRotationGroup, /options=\{GRAPH_AUTO_ROTATION_OPTIONS\}/);
   assert.match(autoRotationGroup, /disabled=\{visualizerId !== 'force-graph-3d'\}/);
+  assert.doesNotMatch(main, /label="Spacing"/);
+  assert.doesNotMatch(main, /graph-recent-panel/);
   assert.ok(main.indexOf('label="Color"') > main.indexOf('label="Auto rotation"'));
   assert.ok(main.indexOf('function GraphTypeColorEditor(') > main.indexOf('label="Color"'));
   assert.match(main, /function GraphTypeColorEditor\(/);
   assert.match(main, /type="color"/);
-  assert.match(main, /type="text"/);
+  assert.doesNotMatch(main, /graph-type-color-code/);
+  assert.match(main, /key === 'r'/);
+  assert.match(main, /setAutoRotate\(\(value\) => !value\)/);
 });
 
 test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async () => {
@@ -304,7 +308,12 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   ]);
 
   assert.match(registry, /visualizerId: 'force-graph-3d'/);
-  assert.match(registry, /autoRotate: false/);
+  assert.match(registry, /nodeShape: 'pixel'/);
+  assert.match(registry, /nodeFill: 'solid'/);
+  assert.match(registry, /nodeSize: 'small'/);
+  assert.match(registry, /arcStyle: 'straight'/);
+  assert.match(registry, /arcAnimation: 'shoot'/);
+  assert.match(registry, /autoRotate: true/);
   assert.match(registry, /export const GRAPH_AUTO_ROTATION_OPTIONS = \[/);
   assert.match(registry, /\{ id: 'off', label: 'Off' \}/);
   assert.match(registry, /\{ id: 'on', label: 'On' \}/);

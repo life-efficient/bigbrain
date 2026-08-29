@@ -16,6 +16,7 @@ import {
   GRAPH_COLOR_MODES,
   GRAPH_CONTROL_LABELS,
   GRAPH_DEFAULTS,
+  GRAPH_PREFERENCES_VERSION,
   GRAPH_AUTO_ROTATION_OPTIONS,
   GRAPH_FLOW_VISIBILITY_OPTIONS,
   GRAPH_LABEL_STYLES,
@@ -167,7 +168,7 @@ function DashboardApp() {
   const [nodeSize, setNodeSize] = useState(savedGraphPreferences.nodeSize);
   const [arcStyle, setArcStyle] = useState(savedGraphPreferences.arcStyle);
   const [arcAnimation, setArcAnimation] = useState(savedGraphPreferences.arcAnimation);
-  const [layoutStyle, setLayoutStyle] = useState(savedGraphPreferences.layoutStyle);
+  const [layoutStyle] = useState(savedGraphPreferences.layoutStyle);
   const [labelStyle, setLabelStyle] = useState(savedGraphPreferences.labelStyle);
   const [colorMode, setColorMode] = useState(savedGraphPreferences.colorMode);
   const [colorPaletteId, setColorPaletteId] = useState(savedGraphPreferences.colorPaletteId);
@@ -204,7 +205,7 @@ function DashboardApp() {
   useEffect(() => {
     try {
       window.localStorage.setItem('bigbrain:graph-preferences', JSON.stringify({
-        visualizerId, nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, arcAnimation, layoutStyle, labelStyle, colorMode, colorPaletteId, typeColors, flowVisible, autoRotate, demoMode,
+        graphPreferencesVersion: GRAPH_PREFERENCES_VERSION, visualizerId, nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, arcAnimation, layoutStyle, labelStyle, colorMode, colorPaletteId, typeColors, flowVisible, autoRotate, demoMode,
       }));
     } catch {
       // Storage can be unavailable in restricted browser contexts; defaults remain usable.
@@ -420,6 +421,9 @@ function DashboardApp() {
       } else if (key === 'd') {
         event.preventDefault();
         handleDemoModeChange(!demoModeRef.current);
+      } else if (key === 'r' && visualizerId === 'force-graph-3d') {
+        event.preventDefault();
+        setAutoRotate((value) => !value);
       }
     }
 
@@ -427,7 +431,7 @@ function DashboardApp() {
     return () => {
       window.removeEventListener('keydown', handleKeydown);
     };
-  }, [enabledPlaybooks]);
+  }, [enabledPlaybooks, visualizerId]);
 
   const taskSections = Array.isArray(state.data?.tasks?.sections) ? state.data.tasks.sections : [];
   const displayTaskSections = useMemo(() => (
@@ -825,7 +829,6 @@ function DashboardApp() {
                 arcAnimation={arcAnimation}
                 setArcAnimation={setArcAnimation}
                 layoutStyle={layoutStyle}
-                setLayoutStyle={setLayoutStyle}
                 labelStyle={labelStyle}
                 setLabelStyle={setLabelStyle}
                 colorMode={colorMode}
@@ -2138,7 +2141,6 @@ const GraphPanel = memo(function GraphPanel({
   arcAnimation,
   setArcAnimation,
   layoutStyle,
-  setLayoutStyle,
   labelStyle,
   setLabelStyle,
   colorMode,
@@ -2225,7 +2227,6 @@ const GraphPanel = memo(function GraphPanel({
         .map((item) => ({ ...item, slug: item.page_slug }))
         .slice(0, GRAPH_FLOW_INPUT_LIMIT)
   ), [demoMode, demoSeed, filteredGraph, recentNodes, selectedTypeSet]);
-  const isCustomRenderer = visualizerId === 'custom';
   const visibleControls = Array.isArray(visualizer.controls)
     ? visualizer.controls.filter((control) => control === 'resetView')
     : [];
@@ -2350,27 +2351,6 @@ const GraphPanel = memo(function GraphPanel({
             </div>
           </div>
         ) : null}
-        {recentNodes.length ? (
-          <div className={`graph-recent-panel ${flowVisible ? 'graph-flow-sibling-hidden' : ''}`} aria-label="Recently updated files">
-            <div className="graph-recent-head">
-              <span>Recent</span>
-              <strong>{recentNodes.length}</strong>
-            </div>
-            <div className="graph-recent-list">
-              {recentNodes.map((node) => (
-                <button
-                  key={node.slug}
-                  type="button"
-                  className={`graph-recent-card ${activeSlug === node.slug ? 'active' : ''}`}
-                  onClick={() => onNodeOpen(node.slug)}
-                >
-                  <span className="graph-recent-title">{node.title || labelFromSlug(node.slug)}</span>
-                  <span className="graph-recent-update">{formatDateTime(node.updated_at)}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
       </div>
       <div className="graph-footer">
         <div>
@@ -2476,13 +2456,6 @@ const GraphPanel = memo(function GraphPanel({
                   value={arcAnimation}
                   options={GRAPH_ARC_ANIMATIONS}
                   onSelect={setArcAnimation}
-                />
-                <GraphStyleOptionGroup
-                  label="Spacing"
-                  value={layoutStyle}
-                  options={GRAPH_LAYOUT_STYLES}
-                  onSelect={setLayoutStyle}
-                  disabled={!isCustomRenderer}
                 />
                 <GraphStyleOptionGroup
                   label="Labels"
@@ -2893,15 +2866,6 @@ function GraphTypeColorEditor({ colors, onChange }) {
                 className="graph-type-color-swatch"
                 value={color}
                 aria-label={`${label} color picker`}
-                onChange={(event) => onChange(type, event.target.value)}
-              />
-              <input
-                type="text"
-                className="graph-type-color-code"
-                value={color}
-                aria-label={`${label} hex color`}
-                maxLength={7}
-                spellCheck="false"
                 onChange={(event) => onChange(type, event.target.value)}
               />
             </div>
