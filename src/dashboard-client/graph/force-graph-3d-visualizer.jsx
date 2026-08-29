@@ -27,6 +27,7 @@ const TYPE_GLYPHS = {
 
 const DEFAULT_NODE_COLOR = '#E4E4E7';
 const DEFAULT_LINK_COLOR = '#657083';
+const FORCE_GRAPH_PIXEL_RATIO = 1.5;
 
 export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer({
   graph,
@@ -77,6 +78,20 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     });
     graphRef.current = forceGraph;
 
+    const resize = () => {
+      const width = Math.max(1, Math.floor(containerRef.current?.clientWidth || 1));
+      const height = Math.max(1, Math.floor(containerRef.current?.clientHeight || 1));
+      if (forceGraph.width() !== width) forceGraph.width(width);
+      if (forceGraph.height() !== height) forceGraph.height(height);
+    };
+    resize();
+    const resizeObserver = typeof ResizeObserver === 'function'
+      ? new ResizeObserver(resize)
+      : null;
+    resizeObserver?.observe(containerRef.current);
+    window.addEventListener('resize', resize);
+    forceGraph.renderer()?.setPixelRatio?.(Math.min(FORCE_GRAPH_PIXEL_RATIO, window.devicePixelRatio || 1));
+
     forceGraph
       .backgroundColor(settingsRef.current.theme.graphBase)
       .showNavInfo(false)
@@ -93,14 +108,18 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .linkTarget('target')
       .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph)))
       .linkOpacity((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 0.72 : 0.2)
-      .linkWidth((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 1.5 : 0.45)
+      // Keep the dense background as GPU lines. Use thicker cylinders only for
+      // the focused neighborhood, where the extra geometry is visible.
+      .linkWidth((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 1.5 : 0)
+      .linkResolution(3)
       .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph)))
       .linkDirectionalParticleSpeed(0.004)
       .linkDirectionalParticleWidth((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 1.8 : 0.7)
       .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph)))
-      .d3VelocityDecay(0.34)
+      .d3AlphaDecay(0.06)
+      .d3VelocityDecay(0.42)
       .warmupTicks(80)
-      .cooldownTime(2600)
+      .cooldownTime(1400)
       .onNodeClick((node) => {
         onActiveSlugChange?.(node.slug);
         onNodeOpen?.(node.slug);
@@ -114,6 +133,8 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     window.requestAnimationFrame(() => forceGraph.zoomToFit(700, 42));
 
     return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', resize);
       forceGraph._destructor?.();
       graphRef.current = null;
     };
@@ -134,7 +155,8 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .nodeLabel((node) => buildNodeTooltip(node))
       .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph)))
       .linkOpacity((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 0.72 : 0.2)
-      .linkWidth((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 1.5 : 0.45)
+      .linkWidth((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 1.5 : 0)
+      .linkResolution(3)
       .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph)))
       .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph)));
     updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), activeSlugRef.current || hoveredSlugRef.current);
@@ -214,10 +236,9 @@ function updateForceGraphHighlight(forceGraph, data, focusSlug) {
   forceGraph
     .linkColor((link) => getForceGraphLinkColor(link, highlightedLinks))
     .linkOpacity((link) => highlightedLinks.has(link) ? 0.72 : 0.2)
-    .linkWidth((link) => highlightedLinks.has(link) ? 1.5 : 0.45)
+    .linkWidth((link) => highlightedLinks.has(link) ? 1.5 : 0)
     .linkDirectionalParticles((link) => shouldShowParticles(link, nodes.length, highlightedLinks))
-    .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, highlightedLinks))
-    .refresh();
+    .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, highlightedLinks));
 }
 
 function getForceGraphHighlightLinks(forceGraph) {
@@ -229,7 +250,7 @@ function syncForceGraphNodeState(node, highlightedNodes) {
   if (!visual) return;
   const emphasized = highlightedNodes.has(node.id);
   visual.group.scale.setScalar(emphasized ? 1.24 : 1);
-  visual.label.visible = visual.labelBaseVisible || emphasized;
+  if (visual.label) visual.label.visible = visual.labelBaseVisible || emphasized;
   if (visual.glow) visual.glow.visible = emphasized;
 }
 
@@ -237,29 +258,25 @@ function createForceGraphNodeObject(node, settings) {
   const group = new THREE.Group();
   const nodeColor = normalizeHex(getGraphNodeColor(node, settings.colorMode, settings.typeColors), DEFAULT_NODE_COLOR);
   const radius = getForceGraphNodeRadius(node, settings.nodeSize);
-  const geometry = createNodeGeometry(settings.nodeShape, radius);
-  const materials = [];
+  const geometry = settings.nodeFill === 'none' ? null : createNodeGeometry(settings.nodeShape, radius);
 
-  if (settings.nodeFill !== 'none') {
+  if (settings.nodeFill === 'solid') {
     const fillMaterial = new THREE.MeshLambertMaterial({
       color: nodeColor,
       transparent: true,
-      opacity: settings.nodeFill === 'solid' ? 0.86 : 0.02,
-      depthWrite: settings.nodeFill === 'solid',
+      opacity: 0.86,
+      depthWrite: true,
     });
-    materials.push(fillMaterial);
     const body = new THREE.Mesh(geometry, fillMaterial);
     group.add(body);
-    if (settings.nodeFill === 'outline') body.visible = false;
   }
 
-  if (settings.nodeFill !== 'none') {
+  if (settings.nodeFill === 'outline' || settings.nodeFill === 'solid') {
     const outline = new THREE.LineSegments(
       new THREE.EdgesGeometry(geometry),
       new THREE.LineBasicMaterial({ color: nodeColor, transparent: true, opacity: 0.9 }),
     );
     group.add(outline);
-    materials.push(outline.material);
   }
 
   if (settings.nodeIcon !== 'none') {
@@ -268,22 +285,20 @@ function createForceGraphNodeObject(node, settings) {
   }
 
   const labelBaseVisible = settings.labelStyle === 'all' || settings.labelSlugs?.has(node.slug);
+  const label = labelBaseVisible
+    ? createForceGraphNodeLabel(node, settings, radius)
+    : null;
+  group.userData = { nodeSlug: node.slug };
+  node.__bigBrainVisual = { group, label, labelBaseVisible, glow: null };
+  syncForceGraphNodeState(node, new Set());
+  return group;
+}
+
+function createForceGraphNodeLabel(node, settings, radius) {
   const labelWidth = Math.min(180, Math.max(34, String(node.title || node.slug).length * 1.55 + 28));
   const label = createForceGraphTextSprite(node.title || node.slug, settings.theme.graphLabel, labelWidth, 8.5, true);
   label.position.set(radius * 1.75, radius * 0.85, 0);
-  label.visible = labelBaseVisible;
-  group.add(label);
-
-  const glow = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 1.75, 10, 8),
-    new THREE.MeshBasicMaterial({ color: nodeColor, transparent: true, opacity: 0.11, depthWrite: false }),
-  );
-  glow.visible = false;
-  group.add(glow);
-  group.userData = { nodeSlug: node.slug };
-  node.__bigBrainVisual = { group, label, labelBaseVisible, glow, materials };
-  syncForceGraphNodeState(node, new Set());
-  return group;
+  return label;
 }
 
 function createNodeGeometry(shape, radius) {
