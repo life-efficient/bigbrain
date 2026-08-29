@@ -411,6 +411,13 @@ test('graph flow arcs attach side cards to their matching graph nodes', async ()
   assert.match(bloom, /data-graph-node-slug=\{node\.slug\}/);
 });
 
+test('graph flow limits the displayed input cards to the newest six', async () => {
+  const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
+
+  assert.match(main, /const GRAPH_FLOW_INPUT_LIMIT = 6;/);
+  assert.match(main, /\.map\(\(item\) => \(\{ \.\.\.item, slug: item\.page_slug \}\)\)\s*\.slice\(0, GRAPH_FLOW_INPUT_LIMIT\)/);
+});
+
 test('flow arcs sit below graph nodes while cards stay above the graph', async () => {
   const [main, dashboard] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),

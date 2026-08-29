@@ -1379,6 +1379,7 @@ function isTypingTarget(target) {
 }
 
 const ALL_MEMBERS_VALUE = '__all_members__';
+const GRAPH_FLOW_INPUT_LIMIT = 6;
 
 function AssigneeFilter({ members, value, onChange, disabled = false }) {
   const selectedValue = value || ALL_MEMBERS_VALUE;
@@ -2215,6 +2216,7 @@ const GraphPanel = memo(function GraphPanel({
       : (Array.isArray(filteredGraph?.inputs) ? filteredGraph.inputs : [])
         .filter((item) => selectedTypeSet.size === 0 || selectedTypeSet.has(filteredGraph.nodes?.find((node) => node.slug === item.page_slug)?.type))
         .map((item) => ({ ...item, slug: item.page_slug }))
+        .slice(0, GRAPH_FLOW_INPUT_LIMIT)
   ), [demoMode, demoSeed, filteredGraph, recentNodes, selectedTypeSet]);
   const isCustomRenderer = visualizerId === 'custom';
   const visibleControls = Array.isArray(visualizer.controls)
