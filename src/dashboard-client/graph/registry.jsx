@@ -15,7 +15,7 @@ export const GRAPH_CONTROL_LABELS = {
 };
 
 export const GRAPH_DEFAULTS = {
-  visualizerId: 'jarvis-bloom',
+  visualizerId: 'force-graph-3d',
   nodeShape: 'diamond',
   nodeFill: 'outline',
   nodeIcon: 'none',
@@ -76,13 +76,13 @@ export function migrateGraphPreferences(saved) {
   const next = saved && typeof saved === 'object' ? { ...saved } : {};
   const legacy = LEGACY_NODE_STYLE_PREFERENCES[next.nodeStyle];
   if (!next.nodeShape && legacy) Object.assign(next, legacy);
+  if (next.arcStyle === 'beam') next.arcStyle = 'curve';
   return next;
 }
 
 export const GRAPH_ARC_STYLES = [
   { id: 'straight', label: 'Straight' },
   { id: 'curve', label: 'Curve' },
-  { id: 'beam', label: 'Beam' },
 ];
 
 export const GRAPH_LAYOUT_STYLES = [

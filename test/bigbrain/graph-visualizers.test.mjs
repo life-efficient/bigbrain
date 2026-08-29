@@ -17,6 +17,7 @@ import {
   sanitizeGraphTypeColors,
 } from '../../src/dashboard-client/graph/colors.js';
 import { resolveThemeMode } from '../../src/dashboard-client/graph/theme.js';
+import { graphTypeIconSvg } from '../../src/dashboard-client/graph/graph-type-icon-data.js';
 import {
   GRAPH_FALLBACK_ICON_NAMES,
   GRAPH_TYPE_ICON_NAMES,
@@ -221,6 +222,7 @@ test('graph label and node controls remain available in the graph style menu', a
   const nodeFillGroup = main.match(/<GraphStyleOptionGroup\s+label="Node fill"[\s\S]*?\/>/)?.[0] || '';
   const nodeIconGroup = main.match(/<GraphStyleOptionGroup\s+label="Node icon"[\s\S]*?\/>/)?.[0] || '';
   const nodeSizeGroup = main.match(/<GraphStyleOptionGroup\s+label="Base size"[\s\S]*?\/>/)?.[0] || '';
+  const arcGroup = main.match(/<GraphStyleOptionGroup\s+label="Arc"[\s\S]*?\/>/)?.[0] || '';
   const paletteGroup = main.match(/<GraphStyleOptionGroup\s+label="Palette"[\s\S]*?\/>/)?.[0] || '';
   const autoRotationGroup = main.match(/<GraphStyleOptionGroup\s+label="Auto rotation"[\s\S]*?\/>/)?.[0] || '';
 
@@ -234,9 +236,13 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.doesNotMatch(nodeIconGroup, /disabled=/);
   assert.match(nodeSizeGroup, /options=\{GRAPH_NODE_SIZES\}/);
   assert.doesNotMatch(nodeSizeGroup, /disabled=/);
+  assert.match(arcGroup, /options=\{GRAPH_ARC_STYLES\}/);
+  assert.doesNotMatch(arcGroup, /disabled=/);
   assert.match(paletteGroup, /options=\{GRAPH_COLOR_PALETTE_OPTIONS\}/);
   assert.match(autoRotationGroup, /options=\{GRAPH_AUTO_ROTATION_OPTIONS\}/);
   assert.match(autoRotationGroup, /disabled=\{visualizerId !== 'force-graph-3d'\}/);
+  assert.ok(main.indexOf('label="Color"') > main.indexOf('label="Auto rotation"'));
+  assert.ok(main.indexOf('function GraphTypeColorEditor(') > main.indexOf('label="Color"'));
   assert.match(main, /function GraphTypeColorEditor\(/);
   assert.match(main, /type="color"/);
   assert.match(main, /type="text"/);
@@ -249,6 +255,7 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
     fs.readFile(new URL('../../src/dashboard-client/graph/force-graph-3d-visualizer.jsx', import.meta.url), 'utf8'),
   ]);
 
+  assert.match(registry, /visualizerId: 'force-graph-3d'/);
   assert.match(registry, /autoRotate: false/);
   assert.match(registry, /export const GRAPH_AUTO_ROTATION_OPTIONS = \[/);
   assert.match(registry, /\{ id: 'off', label: 'Off' \}/);
@@ -260,6 +267,10 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /if \(!forceGraph\.__bigBrainFitPending\) return;/);
   assert.match(visualizer, /forceGraph\.__bigBrainFitPending = true;/);
   assert.match(visualizer, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
+  assert.match(visualizer, /arcStyle = 'curve'/);
+  assert.match(visualizer, /linkCurvature\(\(\) => getForceGraphLinkCurvature/);
+  assert.match(visualizer, /createForceGraphIconSprite/);
+  assert.doesNotMatch(visualizer, /TYPE_GLYPHS/);
   assert.match(visualizer, /scene\.rotation\.z \+=/);
   assert.match(visualizer, /AUTO_ROTATION_RADIANS_PER_SECOND = 0\.035/);
   assert.doesNotMatch(visualizer, /requestAnimationFrame\(\(\) => forceGraph\.zoomToFit/);
@@ -274,6 +285,8 @@ test('node appearance controls are independent and migrate legacy styles', async
   assert.match(registry, /export const GRAPH_NODE_FILLS = \[/);
   assert.match(registry, /export const GRAPH_NODE_ICONS = \[/);
   assert.match(registry, /'pixel-solid': \{ nodeShape: 'pixel', nodeFill: 'solid', nodeIcon: 'outline' \}/);
+  assert.match(registry, /if \(next\.arcStyle === 'beam'\) next\.arcStyle = 'curve';/);
+  assert.doesNotMatch(registry, /id: 'beam'/);
 });
 
 test('graph node sizes offer stable one, two, and three times choices', () => {
@@ -313,6 +326,9 @@ test('icon nodes cover built-in schema types and use stable custom fallbacks', a
   assert.equal(GRAPH_FALLBACK_ICON_NAMES.includes(customIcon), true);
   assert.equal(getGraphTypeIconName('research-notes'), customIcon);
   assert.equal(getGraphTypeIconName('RESEARCH-NOTES'), customIcon);
+  assert.match(graphTypeIconSvg('people', { iconStyle: 'outline' }), /<svg[\s\S]*<circle/);
+  assert.match(graphTypeIconSvg('people', { iconStyle: 'solid' }), /fill="#FFFFFF"/);
+  assert.equal(graphTypeIconSvg('people', { iconStyle: 'none' }), null);
 
   const [registry, iconSource, composable, bloom] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/graph/registry.jsx', import.meta.url), 'utf8'),
@@ -663,6 +679,8 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.match(forceGraph2d, /new ForceGraph2D/);
   assert.match(forceGraph2d, /nodeCanvasObjectMode\('replace'\)/);
   assert.match(forceGraph2d, /nodeCanvasObject/);
+  assert.match(forceGraph2d, /graphTypeIconSvg/);
+  assert.doesNotMatch(forceGraph2d, /TYPE_GLYPHS/);
   assert.match(forceGraph2d, /onEngineStop/);
   assert.match(forceGraph2d, /if \(!forceGraph\.__bigBrainFitPending\) return;/);
   assert.match(forceGraph2d, /forceGraph\.__bigBrainFitPending = true;/);

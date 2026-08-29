@@ -260,32 +260,6 @@ const ArcLayer = memo(function ArcLayer({ arcStyle, laidOut, theme }) {
           );
         }
 
-        if (arcStyle === 'beam') {
-          const d = buildCurvedEdgePath(edge, 0.06);
-          return (
-            <g key={edge.key}>
-              <path
-                className={relationshipClass ? `${relationshipClass} graph-relationship-arc-glow` : undefined}
-                d={d}
-                fill="none"
-                stroke={theme.graphEdge}
-                strokeOpacity="0.12"
-                strokeWidth="4.5"
-                strokeLinecap="round"
-              />
-              <path
-                className={relationshipClass}
-                d={d}
-                fill="none"
-                stroke={theme.graphEdgeStrong}
-                strokeOpacity="0.42"
-                strokeWidth="1.1"
-                strokeLinecap="round"
-              />
-            </g>
-          );
-        }
-
         return (
           <line
             key={edge.key}

@@ -2,32 +2,15 @@ import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } fr
 import ForceGraph2D from 'force-graph';
 
 import { getGraphNodeColor } from './colors.js';
+import { graphTypeIconSvg } from './graph-type-icon-data.js';
 import { getGraphNodeSizeScale } from './node-sizes.js';
 import { PRESET_GRAPH_LABEL_FONT_SIZE, useGraphTheme } from './visualizer-core.jsx';
-
-const TYPE_GLYPHS = {
-  people: 'P',
-  organizations: 'O',
-  companies: 'C',
-  deals: '$',
-  projects: '◆',
-  ideas: '✦',
-  meetings: '◷',
-  tasks: '✓',
-  concepts: '◌',
-  writing: 'W',
-  protocol: '↗',
-  archive: 'A',
-  'personal-protocol': '↗',
-  sources: 'S',
-  ops: '⚙',
-  inbox: 'I',
-};
 
 const DEFAULT_NODE_COLOR = '#E4E4E7';
 const DEFAULT_LINK_COLOR = '#657083';
 const FIT_TO_CANVAS_DURATION = 700;
 const FIT_TO_CANVAS_PADDING = 42;
+const FORCE_GRAPH_ICON_CACHE = new Map();
 
 export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer({
   graph,
@@ -112,7 +95,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       .nodeVal((node) => Math.max(1, Math.sqrt(Number(node.degree) || 1)))
       .nodeCanvasObjectMode('replace')
       .nodeCanvasObject((node, context, globalScale) => {
-        drawForceGraphNode(node, context, globalScale, settingsRef.current);
+        drawForceGraphNode(node, context, globalScale, settingsRef.current, forceGraph);
       })
       .nodeLabel((node) => buildNodeTooltip(node))
       .linkSource('source')
@@ -146,6 +129,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
 
     return () => {
+      FORCE_GRAPH_ICON_CACHE.forEach((entry) => entry.graphs.delete(forceGraph));
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       forceGraph._destructor?.();
@@ -165,7 +149,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     forceGraph
       .backgroundColor(theme.graphBase)
       .nodeCanvasObject((node, context, globalScale) => {
-        drawForceGraphNode(node, context, globalScale, settingsRef.current);
+        drawForceGraphNode(node, context, globalScale, settingsRef.current, forceGraph);
       })
       .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph)))
       .linkWidth((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 1.5 : 0.7)
@@ -242,7 +226,7 @@ function getForceGraphHighlightLinks(forceGraph) {
   return forceGraph?.__bigBrainHighlightLinks || new Set();
 }
 
-function drawForceGraphNode(node, context, globalScale, settings) {
+function drawForceGraphNode(node, context, globalScale, settings, forceGraph) {
   if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
   const radius = getForceGraphNodeRadius(node, settings.nodeSize);
   const color = normalizeHex(node.color, DEFAULT_NODE_COLOR);
@@ -264,17 +248,45 @@ function drawForceGraphNode(node, context, globalScale, settings) {
   }
 
   if (settings.nodeIcon !== 'none') {
-    context.fillStyle = settings.nodeFill === 'solid' ? settings.theme.graphBase : color;
-    context.globalAlpha = 0.95;
-    context.font = `800 ${Math.max(8, drawRadius * 1.1)}px "SF Mono", "IBM Plex Mono", ui-monospace, monospace`;
-    context.textAlign = 'center';
-    context.textBaseline = 'middle';
-    context.fillText(TYPE_GLYPHS[node.type] || '•', node.x, node.y + 0.5 / globalScale);
+    drawForceGraphIcon(node, context, drawRadius, settings, forceGraph);
   }
 
   const labelVisible = settings.labelStyle === 'all' || settings.labelSlugs?.has(node.slug) || emphasized;
   if (labelVisible) drawForceGraphNodeLabel(node, context, globalScale, drawRadius, settings);
   context.restore();
+}
+
+function drawForceGraphIcon(node, context, radius, settings, forceGraph) {
+  const icon = getForceGraphIconImage(node.type, settings.nodeIcon, forceGraph);
+  if (!icon?.loaded) return;
+  const size = radius * 1.38;
+  const left = node.x - size / 2;
+  const top = node.y - size / 2;
+  const iconColor = settings.nodeFill === 'solid' ? settings.theme.graphBase : normalizeHex(node.color, DEFAULT_NODE_COLOR);
+  context.save();
+  context.globalAlpha = 0.96;
+  context.drawImage(icon.image, left, top, size, size);
+  context.globalCompositeOperation = 'source-in';
+  context.fillStyle = iconColor;
+  context.fillRect(left, top, size, size);
+  context.restore();
+}
+
+function getForceGraphIconImage(type, iconStyle, forceGraph) {
+  const key = `${String(type || 'unknown').toLowerCase()}:${iconStyle}`;
+  let entry = FORCE_GRAPH_ICON_CACHE.get(key);
+  if (!entry) {
+    const image = new Image();
+    entry = { image, loaded: false, graphs: new Set() };
+    image.onload = () => {
+      entry.loaded = true;
+      entry.graphs.forEach((graph) => graph.refresh?.());
+    };
+    image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(graphTypeIconSvg(type, { color: '#FFFFFF', iconStyle }))}`;
+    FORCE_GRAPH_ICON_CACHE.set(key, entry);
+  }
+  entry.graphs.add(forceGraph);
+  return entry;
 }
 
 function drawForceGraphNodeLabel(node, context, globalScale, radius, settings) {
@@ -344,7 +356,6 @@ function getForceGraphLinkColor(link, highlightedLinks) {
 
 function getForceGraphLinkCurvature(arcStyle, link) {
   if (arcStyle === 'straight') return 0;
-  if (arcStyle === 'beam') return link.id ? 0.12 : 0;
   return link.id ? 0.22 : 0;
 }
 

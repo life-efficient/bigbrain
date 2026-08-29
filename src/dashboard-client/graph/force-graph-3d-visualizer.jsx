@@ -3,27 +3,9 @@ import ForceGraph3D from '3d-force-graph';
 import * as THREE from 'three';
 
 import { getGraphNodeColor } from './colors.js';
+import { graphTypeIconSvg } from './graph-type-icon-data.js';
 import { getGraphNodeSizeScale } from './node-sizes.js';
 import { useGraphTheme } from './visualizer-core.jsx';
-
-const TYPE_GLYPHS = {
-  people: 'P',
-  organizations: 'O',
-  companies: 'C',
-  deals: '$',
-  projects: '◆',
-  ideas: '✦',
-  meetings: '◷',
-  tasks: '✓',
-  concepts: '◌',
-  writing: 'W',
-  protocol: '↗',
-  archive: 'A',
-  'personal-protocol': '↗',
-  sources: 'S',
-  ops: '⚙',
-  inbox: 'I',
-};
 
 const DEFAULT_NODE_COLOR = '#E4E4E7';
 const DEFAULT_LINK_COLOR = '#657083';
@@ -31,6 +13,7 @@ const FORCE_GRAPH_PIXEL_RATIO = 1.5;
 const AUTO_ROTATION_RADIANS_PER_SECOND = 0.035;
 const FIT_TO_CANVAS_DURATION = 700;
 const FIT_TO_CANVAS_PADDING = 42;
+const FORCE_GRAPH_ICON_TEXTURE_CACHE = new Map();
 
 export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer({
   graph,
@@ -39,6 +22,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   nodeFill = 'outline',
   nodeIcon = 'none',
   nodeSize = 'medium',
+  arcStyle = 'curve',
   labelStyle = 'selected',
   colorMode = 'updated',
   typeColors,
@@ -52,12 +36,12 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   const rotationFrameRef = useRef(0);
   const rotationLastTimeRef = useRef(0);
   const userInteractingRef = useRef(false);
-  const settingsRef = useRef({ nodeShape, nodeFill, nodeIcon, nodeSize, labelStyle, colorMode, typeColors, theme });
+  const settingsRef = useRef({ nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, labelStyle, colorMode, typeColors, theme });
   const activeSlugRef = useRef(activeSlug);
   const hoveredSlugRef = useRef(null);
   const labelSlugs = useMemo(() => getForceGraphLabelSlugs(graph?.nodes, labelStyle), [graph?.nodes, labelStyle]);
 
-  settingsRef.current = { nodeShape, nodeFill, nodeIcon, nodeSize, labelStyle, colorMode, typeColors, theme, labelSlugs, activeSlug };
+  settingsRef.current = { nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, labelStyle, colorMode, typeColors, theme, labelSlugs, activeSlug };
   activeSlugRef.current = activeSlug;
 
   useImperativeHandle(ref, () => ({
@@ -113,6 +97,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .nodeLabel((node) => buildNodeTooltip(node))
       .linkSource('source')
       .linkTarget('target')
+      .linkCurvature(() => getForceGraphLinkCurvature(settingsRef.current.arcStyle))
       .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph)))
       .linkOpacity((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 0.72 : 0.2)
       // Keep the dense background as GPU lines. Use thicker cylinders only for
@@ -203,6 +188,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .backgroundColor(theme.graphBase)
       .nodeThreeObject((node) => createForceGraphNodeObject(node, settingsRef.current))
       .nodeLabel((node) => buildNodeTooltip(node))
+      .linkCurvature(() => getForceGraphLinkCurvature(settingsRef.current.arcStyle))
       .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph)))
       .linkOpacity((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 0.72 : 0.2)
       .linkWidth((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 1.5 : 0)
@@ -210,7 +196,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph)))
       .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph)));
     updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), activeSlugRef.current || hoveredSlugRef.current);
-  }, [colorMode, labelStyle, nodeFill, nodeIcon, nodeShape, nodeSize, theme, typeColors]);
+  }, [arcStyle, colorMode, labelStyle, nodeFill, nodeIcon, nodeShape, nodeSize, theme, typeColors]);
 
   useEffect(() => {
     const forceGraph = graphRef.current;
@@ -332,7 +318,7 @@ function createForceGraphNodeObject(node, settings) {
 
   if (settings.nodeIcon !== 'none') {
     const iconColor = settings.nodeFill === 'solid' ? settings.theme.graphBase : nodeColor;
-    group.add(createForceGraphTextSprite(TYPE_GLYPHS[node.type] || '•', iconColor, radius * 1.1, radius * 1.1));
+    group.add(createForceGraphIconSprite(node.type, settings.nodeIcon, iconColor, radius));
   }
 
   const labelBaseVisible = settings.labelStyle === 'all' || settings.labelSlugs?.has(node.slug);
@@ -385,6 +371,27 @@ function createForceGraphTextSprite(text, color, width, height, label = false) {
   return sprite;
 }
 
+function createForceGraphIconSprite(type, iconStyle, color, radius) {
+  const key = `${String(type || 'unknown').toLowerCase()}:${iconStyle}`;
+  let texture = FORCE_GRAPH_ICON_TEXTURE_CACHE.get(key);
+  if (!texture) {
+    texture = new THREE.TextureLoader().load(`data:image/svg+xml;charset=utf-8,${encodeURIComponent(graphTypeIconSvg(type, { color: '#FFFFFF', iconStyle }))}`);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    FORCE_GRAPH_ICON_TEXTURE_CACHE.set(key, texture);
+  }
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: texture,
+    color,
+    transparent: true,
+    depthWrite: false,
+    depthTest: false,
+  }));
+  sprite.renderOrder = 10;
+  sprite.scale.setScalar(radius * 1.38);
+  sprite.center.set(0.5, 0.5);
+  return sprite;
+}
+
 function getForceGraphNodeRadius(node, nodeSize) {
   const sizeScale = getGraphNodeSizeScale(nodeSize);
   return (1.9 + Math.sqrt(Math.max(1, Number(node.degree) || 1)) * 0.42) * (0.72 + sizeScale * 0.22);
@@ -396,6 +403,10 @@ function getForceGraphLabelSlugs(nodes, labelStyle) {
     .sort((left, right) => (right.degree || 0) - (left.degree || 0) || String(left.slug).localeCompare(String(right.slug)))
     .slice(0, 12);
   return new Set(ordered.map((node) => node.slug));
+}
+
+function getForceGraphLinkCurvature(arcStyle) {
+  return arcStyle === 'straight' ? 0 : 0.22;
 }
 
 function getForceGraphLinkColor(link, highlightedLinks) {

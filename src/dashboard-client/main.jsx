@@ -2462,7 +2462,6 @@ const GraphPanel = memo(function GraphPanel({
                   value={arcStyle}
                   options={GRAPH_ARC_STYLES}
                   onSelect={setArcStyle}
-                  disabled={!isCustomRenderer}
                 />
                 <GraphStyleOptionGroup
                   label="Spacing"
@@ -2471,19 +2470,6 @@ const GraphPanel = memo(function GraphPanel({
                   onSelect={setLayoutStyle}
                   disabled={!isCustomRenderer}
                 />
-                <GraphStyleOptionGroup
-                  label="Palette"
-                  value={colorPaletteId}
-                  options={GRAPH_COLOR_PALETTE_OPTIONS}
-                  onSelect={selectColorPalette}
-                />
-                <GraphStyleOptionGroup
-                  label="Color"
-                  value={colorMode}
-                  options={GRAPH_COLOR_MODES}
-                  onSelect={setColorMode}
-                />
-                <GraphTypeColorEditor colors={typeColors} onChange={updateTypeColor} />
                 <GraphStyleOptionGroup
                   label="Labels"
                   value={labelStyle}
@@ -2503,6 +2489,19 @@ const GraphPanel = memo(function GraphPanel({
                   onSelect={(value) => setAutoRotate(value === 'on')}
                   disabled={visualizerId !== 'force-graph-3d'}
                 />
+                <GraphStyleOptionGroup
+                  label="Palette"
+                  value={colorPaletteId}
+                  options={GRAPH_COLOR_PALETTE_OPTIONS}
+                  onSelect={selectColorPalette}
+                />
+                <GraphStyleOptionGroup
+                  label="Color"
+                  value={colorMode}
+                  options={GRAPH_COLOR_MODES}
+                  onSelect={setColorMode}
+                />
+                <GraphTypeColorEditor colors={typeColors} onChange={updateTypeColor} />
               </div>
             ) : null}
           </div>
