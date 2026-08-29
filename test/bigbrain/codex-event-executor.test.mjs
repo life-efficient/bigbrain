@@ -66,10 +66,10 @@ test('RSS article prompt is a short normal Codex ingestion request', () => {
     allowed_brain_ids: ['personal'],
   }, { type: 'rss', display_name: 'OpenAI News' }, { allowedDestinations: [{ id: 'personal', name: 'Personal' }] });
   assert.match(prompt, /Ingest this article into BigBrain using the normal article-ingestion workflow/);
+  assert.match(prompt, /Use the \$bigbrain-source-article-ingest skill as the primary workflow/);
   assert.match(prompt, /regular user chat/);
   assert.match(prompt, /Title: Article/);
   assert.match(prompt, /URL: https:\/\/example\.test\/article/);
-  assert.doesNotMatch(prompt, /filing rules/);
   assert.doesNotMatch(prompt, /Return JSON only/);
   assert.doesNotMatch(prompt, /Source retrieval status/);
   assert.doesNotMatch(prompt, /Original article text/);

@@ -28,6 +28,7 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
   if (isRssArticle) {
     return [
       'Ingest this article into BigBrain using the normal article-ingestion workflow.',
+      `Use the $${skill.replace(/^\$/, '')} skill as the primary workflow.`,
       'Treat this as a regular user chat. Use the article link as the source, put it in the right Brain pages, and briefly tell me what you did when finished.',
       '',
       `Title: ${payload?.title || 'Untitled article'}`,
@@ -396,31 +397,6 @@ export class AppServerJsonRpcClient {
     this.process.kill?.();
     this.process = null;
   }
-}
-
-export function codexOutcomeSchema() {
-  return {
-    type: 'object',
-    additionalProperties: false,
-    required: ['status', 'capture_mode', 'reason', 'destinations'],
-    properties: {
-      status: { type: 'string', enum: ['filed', 'ignored', 'needs_review'] },
-      capture_mode: { type: 'string', enum: ['none', 'summary', 'full'] },
-      reason: { type: 'string' },
-      destinations: {
-        type: 'array',
-        items: {
-          type: 'object',
-          additionalProperties: false,
-          required: ['brain_id', 'writes_json'],
-          properties: {
-            brain_id: { type: 'string' },
-            writes_json: { type: 'string' },
-          },
-        },
-      },
-    },
-  };
 }
 
 export function normalizeCodexOutcome(value, { defaultBrainId = null } = {}) {

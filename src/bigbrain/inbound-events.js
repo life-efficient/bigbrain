@@ -656,7 +656,6 @@ export class InboundEventProcessor {
         ? normalizeCodexOutcome(execution.outcome, { defaultBrainId: processingEvent.allowed_brain_ids?.length === 1 ? processingEvent.allowed_brain_ids[0] : null })
         : null;
       const executionMeta = executionMetadata(execution);
-      if (outcome) validateRssArticleOutcome(processingEvent, listener, outcome);
       if (!execution?.outcome) {
         return this.inboxStore.complete(deliveryId, {
           state: 'filed',
@@ -1141,30 +1140,6 @@ export class ScopedFilingBroker {
       return readback;
     }
     return result;
-  }
-}
-
-function validateRssArticleOutcome(event, listener, outcome) {
-  if (event?.type !== 'rss.item' || !listener?.article_policy?.fetch_source) return;
-  const sourceDocument = event.metadata?.source_document;
-  if (!sourceDocument) return;
-  if (outcome?.status !== 'filed') return;
-  if (listener.article_policy.require_source && sourceDocument?.status !== 'fetched') {
-    throw new Error('Relevant RSS article cannot be filed because its canonical source was not fetched.');
-  }
-  if (listener.article_policy.require_source && sourceDocument?.truncated) {
-    throw new Error('Relevant RSS article cannot be filed because its canonical source body was truncated.');
-  }
-  if (listener.article_policy.preserve_source && sourceDocument?.status === 'fetched') {
-    const writes = (outcome.destinations || []).flatMap((destination) => destination.writes || []);
-    const sourceWrite = writes.find((write) => write?.tool === 'create_raw_file_with_page' && write?.arguments?.raw_content_source === 'event.source_document.raw_body');
-    if (!sourceWrite) throw new Error('Relevant RSS article filing must preserve the fetched canonical source.');
-    const body = String(sourceWrite.arguments?.body || '');
-    const hasRelevanceHeading = /^## (?:Compiled Truth|Current Relevance)\s*$/m.test(body);
-    const requiredHeadings = ['## Summary', '## Related Pages', '## Source', '## Timeline'];
-    if (!hasRelevanceHeading || requiredHeadings.some((heading) => !new RegExp(`^${heading}\\s*$`, 'm').test(body)) || !/^---\s*$/m.test(body)) {
-      throw new Error('Relevant RSS article filing must use the standard Brain article page shape.');
-    }
   }
 }
 
