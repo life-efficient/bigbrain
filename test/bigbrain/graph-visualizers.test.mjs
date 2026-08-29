@@ -110,7 +110,7 @@ test('none graph color mode leaves node color unmodified', () => {
 });
 
 test('graph palettes provide technical presets and editable type colors', () => {
-  assert.deepEqual(GRAPH_COLOR_PALETTE_OPTIONS.map(({ id }) => id), ['jarvis', 'terminal', 'cobalt', 'soft', 'crimson-loom', 'neural-lumen', 'thermal', 'irezumi', 'desert', 'arctic', 'woodland', 'digital', 'urban', 'blue-tiger', 'red-tiger', 'fall', 'spectral', 'aegis', 'inferno', 'frostveil', 'custom']);
+  assert.deepEqual(GRAPH_COLOR_PALETTE_OPTIONS.map(({ id }) => id), ['jarvis', 'terminal', 'cobalt', 'soft', 'crimson-loom', 'neural-lumen', 'thermal', 'irezumi', 'desert', 'arctic', 'woodland', 'digital', 'urban', 'blue-tiger', 'red-tiger', 'fall', 'spectral', 'aegis', 'inferno', 'frostveil', 'kusama', 'custom']);
   assert.equal(getGraphColorPalette('jarvis').people, '#00E5FF');
   assert.equal(getGraphColorPalette('crimson-loom').people, '#1769B0');
   assert.equal(getGraphColorPalette('crimson-loom').deals, '#D68724');
@@ -141,6 +141,9 @@ test('graph palettes provide technical presets and editable type colors', () => 
   assert.equal(getGraphColorPalette('frostveil').people, '#B8E2F2');
   assert.equal(getGraphColorPalette('frostveil').deals, '#B7A277');
   assert.equal(Object.keys(getGraphColorPalette('frostveil')).length, 16);
+  assert.equal(getGraphColorPalette('kusama').people, '#13BDEB');
+  assert.equal(getGraphColorPalette('kusama').deals, '#FFD21F');
+  assert.equal(Object.keys(getGraphColorPalette('kusama')).length, 16);
   assert.equal(getGraphNodeColor({ type: 'people' }, 'type', { people: '#123456' }), '#123456');
 
   const colors = sanitizeGraphTypeColors({ people: '#abc123', deals: 'invalid' }, getGraphColorPalette('jarvis'));

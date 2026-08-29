@@ -301,6 +301,16 @@ export const GRAPH_COLOR_PALETTES = [
       'personal-protocol': '#655596', sources: '#7DB6D1', ops: '#A18A5C', inbox: '#D47D7F',
     },
   },
+  {
+    id: 'kusama',
+    label: 'Kusama',
+    colors: {
+      people: '#13BDEB', organizations: '#F31B5B', companies: '#17151D', deals: '#FFD21F',
+      projects: '#7C16D8', ideas: '#F7E900', meetings: '#FF4E9A', tasks: '#7CE315',
+      concepts: '#16C79A', writing: '#FFFDF5', protocol: '#D70D3C', archive: '#47434C',
+      'personal-protocol': '#A91CD0', sources: '#087ED1', ops: '#FF9F0A', inbox: '#F20D24',
+    },
+  },
 ];
 
 export const GRAPH_COLOR_PALETTE_OPTIONS = [
