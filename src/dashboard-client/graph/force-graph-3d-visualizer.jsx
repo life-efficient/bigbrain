@@ -17,6 +17,7 @@ const FIT_TO_CANVAS_PADDING = 42;
 const SYSTEM_ACTIVITY_PREFOCUS_DURATION = 1200;
 const SYSTEM_FOCUS_HOLD_DURATION = 5000;
 const FORCE_GRAPH_ICON_TEXTURE_CACHE = new Map();
+let FORCE_GRAPH_GLOW_TEXTURE = null;
 
 export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer({
   graph,
@@ -456,7 +457,7 @@ function createForceGraphNodeObject(node, settings, existingGroup = null) {
   const nodeColor = normalizeHex(getGraphNodeColor(node, settings.colorMode, settings.typeColors), DEFAULT_NODE_COLOR);
   const radius = getForceGraphNodeRadius(node, settings.nodeSize);
   const geometry = settings.nodeFill === 'none' ? null : createNodeGeometry(settings.nodeShape, radius);
-  const glow = createForceGraphNodeGlow(nodeColor, radius);
+  const glow = createForceGraphNodeGlow(radius);
   group.add(glow);
 
   if (settings.nodeFill === 'solid') {
@@ -493,22 +494,41 @@ function createForceGraphNodeObject(node, settings, existingGroup = null) {
   return group;
 }
 
-function createForceGraphNodeGlow(color, radius) {
-  const glow = new THREE.Mesh(
-    new THREE.SphereGeometry(radius * 1.65, 12, 8),
-    new THREE.MeshBasicMaterial({
-      color,
+function createForceGraphNodeGlow(radius) {
+  const glow = new THREE.Sprite(
+    new THREE.SpriteMaterial({
+      map: getForceGraphGlowTexture(),
+      color: '#FFFFFF',
       transparent: true,
-      opacity: 0.16,
+      opacity: 0.72,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
       depthTest: false,
     }),
   );
+  glow.scale.setScalar(radius * 3.6);
   glow.renderOrder = -1;
   glow.userData.bigBrainGlow = true;
   glow.visible = false;
   return glow;
+}
+
+function getForceGraphGlowTexture() {
+  if (FORCE_GRAPH_GLOW_TEXTURE) return FORCE_GRAPH_GLOW_TEXTURE;
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const context = canvas.getContext('2d');
+  const gradient = context.createRadialGradient(32, 32, 2, 32, 32, 32);
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
+  gradient.addColorStop(0.28, 'rgba(255, 255, 255, 0.42)');
+  gradient.addColorStop(0.68, 'rgba(255, 255, 255, 0.12)');
+  gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, 64, 64);
+  FORCE_GRAPH_GLOW_TEXTURE = new THREE.CanvasTexture(canvas);
+  FORCE_GRAPH_GLOW_TEXTURE.needsUpdate = true;
+  return FORCE_GRAPH_GLOW_TEXTURE;
 }
 
 function disposeForceGraphNodeChildren(group) {
