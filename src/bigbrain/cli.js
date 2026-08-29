@@ -502,7 +502,7 @@ async function handleEvents(args, global) {
       return { ...current, listeners };
     }, { audit: { action: 'listener_configure', listener_id: listenerId, event_types: eventTypes, event_type_path: eventTypePath || null, prompt_fields: promptFields, prompt_omit_fields: promptOmitFields, codex_model: codexModel || null, codex_reasoning_effort: codexReasoningEffort || null, codex_thread_title: codexThreadTitle || null } });
     const listener = next.listeners.find((item) => item.id === listenerId);
-    output(global, listener, `Configured ${listenerId}: ${listener.event_types.join(', ') || 'all event types'}; prompt fields ${listener.prompt_payload_fields.length ? listener.prompt_payload_fields.join(', ') : 'all payload fields'}${listener.prompt_omit_fields.length ? `; omitted ${listener.prompt_omit_fields.join(', ')}` : ''}; Codex ${listener.codex_model || 'default'} / ${listener.codex_reasoning_effort || 'default'} / ${listener.codex_thread_title || 'source fallback'}.`);
+    output(global, listener, `Configured ${listenerId}: ${listener.event_types.join(', ') || 'all event types'}; prompt fields ${listener.prompt_payload_fields.length ? listener.prompt_payload_fields.join(', ') : 'all payload fields'}${listener.prompt_omit_fields.length ? `; omitted ${listener.prompt_omit_fields.join(', ')}` : ''}; Codex ${listener.codex_model || 'default'} / ${listener.codex_reasoning_effort || 'default'} / ${listener.codex_thread_title || 'payload title or source fallback'}.`);
     return;
   }
   if (['pause', 'resume', 'remove'].includes(action)) {

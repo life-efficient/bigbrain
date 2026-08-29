@@ -9,6 +9,8 @@ export const DEFAULT_CODEX_EVENT_CWD = process.env.BIGBRAIN_CODEX_EVENT_CWD || p
 export function resolveThreadTitle(event, listener) {
   const configuredTitle = cleanThreadTitle(listener?.codex_thread_title || listener?.chat_title || listener?.thread_title);
   if (configuredTitle) return configuredTitle;
+  const payloadTitle = cleanThreadTitle(event?.payload?.title);
+  if (payloadTitle) return payloadTitle;
   if (listener?.provider === 'granola' || event?.type === 'granola.meeting.completed') return 'Granola meeting ingestion';
   const source = cleanThreadTitle(listener?.display_name || event?.source?.display_name || listener?.provider || 'Inbound source');
   return source ? `${source} ingestion` : 'Inbound event ingestion';
@@ -34,7 +36,7 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
     'Use the associated BigBrain MCP for filing rules, search, read, write, task, and read-back operations.',
     'Query an available source MCP when additional source context is needed.',
     listener?.provider === 'granola'
-      ? 'Use the Granola MCP to retrieve the complete note before filing. Use payload.granola_id as the authoritative note ID; use the title only as a cross-check when it is present. If the ID is missing, do not guess or ingest a different note.'
+      ? 'Use the Granola MCP to retrieve the complete note before filing. Use payload.granola_id as the authoritative provider note ID; use the title only as a cross-check when it is present. Try the provider ID first. If the Granola MCP rejects the note ID because it requires a UUID, list meetings in a narrow time window around payload.occurred_at, select only one unambiguous match, and use that meeting UUID with the detail tool. If there is no match or more than one plausible match, stop and report the ambiguity rather than guessing.'
       : null,
     isRssArticle
       ? 'This RSS article route requires one final JSON filing outcome for the runtime broker. Use the source article ingest skill instructions below.'

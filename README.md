@@ -424,6 +424,20 @@ bigbrain events configure granola \
   --prompt-omit-field calendar_event
 ```
 
+Event listeners can also choose the Codex task model, reasoning effort, and a
+fallback chat title. A Granola task uses the provider meeting title when the
+webhook includes one, otherwise it uses the configured fallback:
+
+```bash
+bigbrain events configure granola \
+  --model gpt-5.6-luna \
+  --reasoning-effort xhigh \
+  --chat-title "Granola meeting ingestion"
+```
+
+The title is applied to the Codex task after it is created. The model and
+reasoning effort are applied to both the task and its first turn.
+
 Event tasks receive the selected payload fields plus only minimal source
 context. The internal event envelope remains available to the inbox for
 deduplication, audit, retry, and provenance, but it is not pasted into every

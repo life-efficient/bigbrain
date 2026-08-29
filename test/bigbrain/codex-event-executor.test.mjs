@@ -34,6 +34,8 @@ test('Granola event prompt retrieves the exact generated note through MCP', () =
   assert.match(prompt, /Retrieve the completed Granola note by ID through the Granola MCP/);
   assert.match(prompt, /payload\.granola_id/);
   assert.match(prompt, /Use the Granola MCP to retrieve the complete note/);
+  assert.match(prompt, /narrow time window around payload\.occurred_at/);
+  assert.match(prompt, /more than one plausible match/);
   assert.match(prompt, /"granola_id": "not_123"/);
   assert.doesNotMatch(prompt, /Return JSON only/);
 });
@@ -114,16 +116,17 @@ test('app-thread executor uses the supported app-server thread and turn methods'
   assert.deepEqual(calls.find((call) => call.method === 'initialize').params.capabilities, { experimentalApi: true });
   assert.deepEqual(calls.find((call) => call.method === 'thread/start').params.environments, []);
   assert.equal(calls.find((call) => call.method === 'thread/start').params.model, 'gpt-5.6-luna');
-  assert.equal(calls.find((call) => call.method === 'thread/name/set').params.name, 'Calendar ingestion');
+  assert.equal(calls.find((call) => call.method === 'thread/name/set').params.name, 'Planning meeting');
   assert.match(calls.find((call) => call.method === 'thread/start').params.developerInstructions, /available BigBrain MCP/);
   assert.equal(calls.find((call) => call.method === 'turn/start').params.model, 'gpt-5.6-luna');
   assert.equal(calls.find((call) => call.method === 'turn/start').params.effort, 'xhigh');
   assert.equal(calls.find((call) => call.method === 'turn/start').params.outputSchema, undefined);
 });
 
-test('thread title uses configured fallback and ignores unavailable Granola payload titles', () => {
-  assert.equal(resolveThreadTitle({ type: 'granola.meeting.completed', payload: { title: 'Board meeting' } }, { provider: 'granola' }), 'Granola meeting ingestion');
-  assert.equal(resolveThreadTitle({ type: 'granola.meeting.completed', payload: {} }, { provider: 'granola', codex_thread_title: 'Configured fallback' }), 'Configured fallback');
+test('thread title prioritizes configured title, then payload title, then safe fallback', () => {
+  assert.equal(resolveThreadTitle({ type: 'granola.meeting.completed', payload: { title: 'Board meeting' } }, { provider: 'granola', codex_thread_title: 'Configured fallback' }), 'Configured fallback');
+  assert.equal(resolveThreadTitle({ type: 'granola.meeting.completed', payload: { title: 'Board meeting' } }, { provider: 'granola' }), 'Board meeting');
+  assert.equal(resolveThreadTitle({ type: 'granola.meeting.completed', payload: { title: '' } }, { provider: 'granola' }), 'Granola meeting ingestion');
   assert.equal(resolveThreadTitle({ type: 'webhook.event', payload: {} }, { display_name: 'Calendar' }), 'Calendar ingestion');
 });
 
