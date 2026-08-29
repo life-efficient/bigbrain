@@ -498,8 +498,7 @@ function DashboardApp() {
     if (!slug) return;
     const requestId = previewRequestRef.current + 1;
     previewRequestRef.current = requestId;
-    const lineageRequestId = lineageRequestRef.current + 1;
-    lineageRequestRef.current = lineageRequestId;
+    lineageRequestRef.current += 1;
     setActiveGraphSlug(slug || null);
     const sourceNode = latestGraphRef.current?.nodes?.find((node) => node.slug === slug) || { slug };
     if (demoModeRef.current) {
@@ -507,17 +506,13 @@ function DashboardApp() {
       setPreview(buildDemoPagePreview(sourceNode, demoSeedRef.current));
       return;
     }
-    setLineage({ status: 'loading', slug });
+    setLineage(null);
     setPreview({ status: 'loading', slug });
     try {
       const params = new URLSearchParams({ slug });
-      const [data, lineageData] = await Promise.all([
-        fetchJson(`/api/page?${params.toString()}`),
-        fetchJson(`/api/graph/lineage?${params.toString()}`),
-      ]);
+      const data = await fetchJson(`/api/page?${params.toString()}`);
       if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setPreview({ status: 'ready', ...data });
-      if (lineageRequestId === lineageRequestRef.current) setLineage({ status: 'ready', ...lineageData });
     } catch (error) {
       if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setPreview({
@@ -525,7 +520,6 @@ function DashboardApp() {
         slug,
         message: error instanceof Error ? error.message : String(error),
       });
-      if (lineageRequestId === lineageRequestRef.current) setLineage({ status: 'error', slug, message: error instanceof Error ? error.message : String(error) });
     }
   });
 
@@ -554,7 +548,7 @@ function DashboardApp() {
       const params = new URLSearchParams({ slug });
       const lineageData = await fetchJson(`/api/graph/lineage?${params.toString()}`);
       if (requestId === lineageRequestRef.current && !demoModeRef.current) {
-        setLineage({ status: 'ready', ...lineageData });
+        setLineage({ status: 'ready', slug, ...lineageData });
       }
     } catch (error) {
       if (requestId === lineageRequestRef.current && !demoModeRef.current) {

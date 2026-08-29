@@ -107,7 +107,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
           <ArcLayer
             arcStyle={arcStyle}
             arcAnimation={arcAnimation}
-            focusedSlug={activeSlug || hoveredSlug}
+            focusedSlug={hoveredSlug || activeSlug}
             laidOut={laidOut}
             theme={theme}
           />

@@ -108,7 +108,7 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
           <BloomSectors laidOut={laidOut} theme={theme} />
           <BloomLinks
             arcAnimation={arcAnimation}
-            focusedSlug={activeSlug || hoveredSlug}
+            focusedSlug={hoveredSlug || activeSlug}
             laidOut={laidOut}
             theme={theme}
           />

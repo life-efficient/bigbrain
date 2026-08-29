@@ -137,7 +137,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       })
       .onNodeHover((node) => {
         hoveredSlugRef.current = node?.id || null;
-        updateForceGraphHighlight(forceGraph, activeSlugRef.current || hoveredSlugRef.current, settingsRef.current.arcAnimation);
+        updateForceGraphHighlight(forceGraph, hoveredSlugRef.current || activeSlugRef.current, settingsRef.current.arcAnimation);
       });
 
     syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
@@ -180,13 +180,13 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkDirectionalParticleSpeed((link) => getForceGraphParticleSpeed(link, forceGraph))
       .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph));
-    updateForceGraphHighlight(forceGraph, activeSlugRef.current || hoveredSlugRef.current, settingsRef.current.arcAnimation);
+    updateForceGraphHighlight(forceGraph, hoveredSlugRef.current || activeSlugRef.current, settingsRef.current.arcAnimation);
   }, [arcAnimation, arcStyle, colorMode, labelStyle, nodeFill, nodeIcon, nodeShape, nodeSize, theme, typeColors]);
 
   useEffect(() => {
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
-    updateForceGraphHighlight(forceGraph, activeSlug || hoveredSlugRef.current, settingsRef.current.arcAnimation);
+    updateForceGraphHighlight(forceGraph, hoveredSlugRef.current || activeSlug, settingsRef.current.arcAnimation);
   }, [activeSlug]);
 
   useEffect(() => {

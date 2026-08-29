@@ -468,7 +468,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
     if (removedEdgeIds.length) edgeData.remove(removedEdgeIds);
     if (nextEdges.length) edgeData.update(nextEdges);
 
-    applyFocusRef.current(activeSlugRef.current || hoveredSlugRef.current);
+    applyFocusRef.current(hoveredSlugRef.current || activeSlugRef.current);
     scheduleLabelsRef.current();
   }, [colorMode, graph, labelStyle, nodeShape, typeColors, theme.graphEdge, theme.graphEdgeStrong, theme.graphNodeStroke]);
 
@@ -500,7 +500,7 @@ export const VisNetworkVisualizer = forwardRef(function VisNetworkVisualizer({
       skipNextActiveSyncRef.current = false;
       return;
     }
-    applyFocusRef.current(activeSlug || hoveredSlugRef.current);
+    applyFocusRef.current(hoveredSlugRef.current || activeSlug);
     previousActiveSlugRef.current = activeSlug || null;
     scheduleLabelsRef.current();
   }, [activeSlug]);
