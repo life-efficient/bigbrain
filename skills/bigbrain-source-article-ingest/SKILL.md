@@ -16,7 +16,7 @@ Route one relevant web article into BigBrain as a source record, preserved sourc
 - Update existing canonical pages only when the article changes durable understanding or records a meaningful event.
 - Use stable RSS IDs and canonical URLs for deduplication and provenance.
 - Treat an unavailable source as `needs_review`, not as a complete filing.
-- Read back every write and re-sync after meaningful changes.
+- Read back every write and confirm the owning Brain reflects the expected changes.
 
 ## Workflow
 
@@ -58,7 +58,6 @@ Route one relevant web article into BigBrain as a source record, preserved sourc
    - Use relative Markdown links so the source sidecar is visible from entity pages through the Brain graph and backlinks.
    - Preserve uncertainty, distinguish publisher claims from verified facts, and do not infer a transaction, partnership, or relationship beyond the source.
    - Read back every created or updated page and confirm the expected source link, entity links, and provenance.
-   - Run `bigbrain sync --json` after the write path completes.
    - Anti-patterns: silently overwriting compiled truth, converting claims into facts, adding speculative relationships, declaring success without read-back.
 
 ## Article Page Template
@@ -112,8 +111,8 @@ What this establishes for the Brain, with uncertainty and attribution preserved.
 - Updating every entity named in an article without a durable change.
 - Using source pages as replacements for canonical entity pages.
 - Treating publisher claims, intentions, or announcements as independently verified facts.
-- Reporting `filed` when the source was unavailable, the page was not read back, or sync did not complete.
+- Reporting `filed` when the source was unavailable or the page was not read back.
 
 ## Output
 
-Report the relevance decision, chosen outcome, source artifact and sidecar paths, canonical pages created or updated, linked entities, read-back and sync status, stable event or RSS ID, and any uncertainty or follow-up needed.
+Report the relevance decision, chosen outcome, source artifact and sidecar paths, canonical pages created or updated, linked entities, read-back status, stable event or RSS ID, and any uncertainty or follow-up needed.
