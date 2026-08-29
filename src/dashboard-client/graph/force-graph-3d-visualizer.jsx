@@ -28,6 +28,9 @@ const TYPE_GLYPHS = {
 const DEFAULT_NODE_COLOR = '#E4E4E7';
 const DEFAULT_LINK_COLOR = '#657083';
 const FORCE_GRAPH_PIXEL_RATIO = 1.5;
+const AUTO_ROTATION_RADIANS_PER_SECOND = 0.035;
+const FIT_TO_CANVAS_DURATION = 700;
+const FIT_TO_CANVAS_PADDING = 42;
 
 export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer({
   graph,
@@ -39,12 +42,16 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   labelStyle = 'selected',
   colorMode = 'updated',
   typeColors,
+  autoRotate = false,
   activeSlug = null,
   onActiveSlugChange,
 }, ref) {
   const theme = useGraphTheme();
   const containerRef = useRef(null);
   const graphRef = useRef(null);
+  const rotationFrameRef = useRef(0);
+  const rotationLastTimeRef = useRef(0);
+  const userInteractingRef = useRef(false);
   const settingsRef = useRef({ nodeShape, nodeFill, nodeIcon, nodeSize, labelStyle, colorMode, typeColors, theme });
   const activeSlugRef = useRef(activeSlug);
   const hoveredSlugRef = useRef(null);
@@ -61,7 +68,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       zoomCamera(graphRef.current, 1.24);
     },
     resetView() {
-      graphRef.current?.zoomToFit(500, 42);
+      graphRef.current?.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
     },
   }), []);
 
@@ -119,7 +126,11 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .d3AlphaDecay(0.06)
       .d3VelocityDecay(0.42)
       .warmupTicks(80)
-      .cooldownTime(1400)
+      .cooldownTicks(100)
+      .cooldownTime(1800)
+      .onEngineStop(() => {
+        forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
+      })
       .onNodeClick((node) => {
         onActiveSlugChange?.(node.slug);
         onNodeOpen?.(node.slug);
@@ -130,15 +141,52 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       });
 
     syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
-    window.requestAnimationFrame(() => forceGraph.zoomToFit(700, 42));
+
+    const controls = forceGraph.controls?.();
+    const handleControlStart = () => {
+      userInteractingRef.current = true;
+    };
+    const handleControlEnd = () => {
+      userInteractingRef.current = false;
+    };
+    controls?.addEventListener?.('start', handleControlStart);
+    controls?.addEventListener?.('end', handleControlEnd);
 
     return () => {
+      controls?.removeEventListener?.('start', handleControlStart);
+      controls?.removeEventListener?.('end', handleControlEnd);
+      userInteractingRef.current = false;
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       forceGraph._destructor?.();
       graphRef.current = null;
     };
   }, [onActiveSlugChange, onNodeOpen]);
+
+  useEffect(() => {
+    if (!autoRotate) {
+      rotationLastTimeRef.current = 0;
+      return undefined;
+    }
+
+    const rotate = (time) => {
+      const scene = graphRef.current?.scene?.();
+      const previousTime = rotationLastTimeRef.current || time;
+      const delta = Math.min(Math.max(0, time - previousTime), 100);
+      if (scene && !userInteractingRef.current) {
+        scene.rotation.z += (delta / 1000) * AUTO_ROTATION_RADIANS_PER_SECOND;
+      }
+      rotationLastTimeRef.current = time;
+      rotationFrameRef.current = window.requestAnimationFrame(rotate);
+    };
+
+    rotationFrameRef.current = window.requestAnimationFrame(rotate);
+    return () => {
+      window.cancelAnimationFrame(rotationFrameRef.current);
+      rotationFrameRef.current = 0;
+      rotationLastTimeRef.current = 0;
+    };
+  }, [autoRotate]);
 
   useEffect(() => {
     const forceGraph = graphRef.current;

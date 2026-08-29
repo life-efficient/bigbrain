@@ -15,6 +15,7 @@ import {
   GRAPH_COLOR_MODES,
   GRAPH_CONTROL_LABELS,
   GRAPH_DEFAULTS,
+  GRAPH_AUTO_ROTATION_OPTIONS,
   GRAPH_FLOW_VISIBILITY_OPTIONS,
   GRAPH_LABEL_STYLES,
   GRAPH_LAYOUT_STYLES,
@@ -122,6 +123,7 @@ function loadGraphPreferences() {
     }
     defaults.typeColors = sanitizeGraphTypeColors(saved.typeColors, getGraphColorPalette(defaults.colorPaletteId));
     if (typeof saved.flowVisible === 'boolean') defaults.flowVisible = saved.flowVisible;
+    if (typeof saved.autoRotate === 'boolean') defaults.autoRotate = saved.autoRotate;
     if (typeof saved.demoMode === 'boolean') defaults.demoMode = saved.demoMode;
   } catch {
     // Invalid or unavailable storage falls back to the registry defaults.
@@ -168,6 +170,7 @@ function DashboardApp() {
   const [colorPaletteId, setColorPaletteId] = useState(savedGraphPreferences.colorPaletteId);
   const [typeColors, setTypeColors] = useState(savedGraphPreferences.typeColors);
   const [flowVisible, setFlowVisible] = useState(savedGraphPreferences.flowVisible);
+  const [autoRotate, setAutoRotate] = useState(savedGraphPreferences.autoRotate);
   const [demoMode, setDemoMode] = useState(savedGraphPreferences.demoMode);
   const [demoSeed, setDemoSeed] = useState(() => createDemoSeed());
   const [themeMode, setThemeMode] = useState('auto');
@@ -198,12 +201,12 @@ function DashboardApp() {
   useEffect(() => {
     try {
       window.localStorage.setItem('bigbrain:graph-preferences', JSON.stringify({
-        visualizerId, nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, layoutStyle, labelStyle, colorMode, colorPaletteId, typeColors, flowVisible, demoMode,
+        visualizerId, nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, layoutStyle, labelStyle, colorMode, colorPaletteId, typeColors, flowVisible, autoRotate, demoMode,
       }));
     } catch {
       // Storage can be unavailable in restricted browser contexts; defaults remain usable.
     }
-  }, [arcStyle, colorMode, colorPaletteId, demoMode, flowVisible, labelStyle, layoutStyle, nodeFill, nodeIcon, nodeShape, nodeSize, typeColors, visualizerId]);
+  }, [arcStyle, autoRotate, colorMode, colorPaletteId, demoMode, flowVisible, labelStyle, layoutStyle, nodeFill, nodeIcon, nodeShape, nodeSize, typeColors, visualizerId]);
 
   useEffect(() => {
     if (window.parent === window) return;
@@ -828,6 +831,8 @@ function DashboardApp() {
                 setTypeColors={setTypeColors}
                 flowVisible={flowVisible}
                 setFlowVisible={setFlowVisible}
+                autoRotate={autoRotate}
+                setAutoRotate={setAutoRotate}
                 flowTasks={graphFlowTasks}
                 visualizerRef={visualizerRef}
                 activeSlug={activeGraphSlug}
@@ -2136,6 +2141,8 @@ const GraphPanel = memo(function GraphPanel({
   setTypeColors,
   flowVisible,
   setFlowVisible,
+  autoRotate,
+  setAutoRotate,
   flowTasks,
   visualizerRef,
   activeSlug,
@@ -2284,6 +2291,7 @@ const GraphPanel = memo(function GraphPanel({
             labelStyle={labelStyle}
             colorMode={colorMode}
             typeColors={typeColors}
+            autoRotate={autoRotate}
             activeSlug={activeSlug}
             onActiveSlugChange={onActiveSlugChange}
           />
@@ -2485,6 +2493,13 @@ const GraphPanel = memo(function GraphPanel({
                   value={flowVisible ? 'visible' : 'hidden'}
                   options={GRAPH_FLOW_VISIBILITY_OPTIONS}
                   onSelect={(value) => setFlowVisible(value === 'visible')}
+                />
+                <GraphStyleOptionGroup
+                  label="Auto rotation"
+                  value={autoRotate ? 'on' : 'off'}
+                  options={GRAPH_AUTO_ROTATION_OPTIONS}
+                  onSelect={(value) => setAutoRotate(value === 'on')}
+                  disabled={visualizerId !== 'force-graph-3d'}
                 />
               </div>
             ) : null}

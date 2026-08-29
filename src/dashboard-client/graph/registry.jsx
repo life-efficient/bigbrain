@@ -25,6 +25,7 @@ export const GRAPH_DEFAULTS = {
   colorMode: 'updated',
   colorPaletteId: GRAPH_DEFAULT_PALETTE_ID,
   flowVisible: false,
+  autoRotate: false,
   demoMode: false,
 };
 
@@ -50,6 +51,11 @@ export const GRAPH_NODE_ICONS = [
 export const GRAPH_FLOW_VISIBILITY_OPTIONS = [
   { id: 'visible', label: 'Visible' },
   { id: 'hidden', label: 'Hidden' },
+];
+
+export const GRAPH_AUTO_ROTATION_OPTIONS = [
+  { id: 'off', label: 'Off' },
+  { id: 'on', label: 'On' },
 ];
 
 const LEGACY_NODE_STYLE_PREFERENCES = {

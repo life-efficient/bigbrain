@@ -222,6 +222,7 @@ test('graph label and node controls remain available in the graph style menu', a
   const nodeIconGroup = main.match(/<GraphStyleOptionGroup\s+label="Node icon"[\s\S]*?\/>/)?.[0] || '';
   const nodeSizeGroup = main.match(/<GraphStyleOptionGroup\s+label="Base size"[\s\S]*?\/>/)?.[0] || '';
   const paletteGroup = main.match(/<GraphStyleOptionGroup\s+label="Palette"[\s\S]*?\/>/)?.[0] || '';
+  const autoRotationGroup = main.match(/<GraphStyleOptionGroup\s+label="Auto rotation"[\s\S]*?\/>/)?.[0] || '';
 
   assert.match(labelsGroup, /options=\{GRAPH_LABEL_STYLES\}/);
   assert.doesNotMatch(labelsGroup, /disabled=/);
@@ -234,9 +235,32 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(nodeSizeGroup, /options=\{GRAPH_NODE_SIZES\}/);
   assert.doesNotMatch(nodeSizeGroup, /disabled=/);
   assert.match(paletteGroup, /options=\{GRAPH_COLOR_PALETTE_OPTIONS\}/);
+  assert.match(autoRotationGroup, /options=\{GRAPH_AUTO_ROTATION_OPTIONS\}/);
+  assert.match(autoRotationGroup, /disabled=\{visualizerId !== 'force-graph-3d'\}/);
   assert.match(main, /function GraphTypeColorEditor\(/);
   assert.match(main, /type="color"/);
   assert.match(main, /type="text"/);
+});
+
+test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async () => {
+  const [registry, main, visualizer] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/graph/registry.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/force-graph-3d-visualizer.jsx', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(registry, /autoRotate: false/);
+  assert.match(registry, /export const GRAPH_AUTO_ROTATION_OPTIONS = \[/);
+  assert.match(registry, /\{ id: 'off', label: 'Off' \}/);
+  assert.match(registry, /\{ id: 'on', label: 'On' \}/);
+  assert.match(main, /typeof saved\.autoRotate === 'boolean'/);
+  assert.match(main, /autoRotate, demoMode/);
+  assert.match(visualizer, /\.cooldownTicks\(100\)/);
+  assert.match(visualizer, /\.onEngineStop\(\(\) =>/);
+  assert.match(visualizer, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
+  assert.match(visualizer, /scene\.rotation\.z \+=/);
+  assert.match(visualizer, /AUTO_ROTATION_RADIANS_PER_SECOND = 0\.035/);
+  assert.doesNotMatch(visualizer, /requestAnimationFrame\(\(\) => forceGraph\.zoomToFit/);
 });
 
 test('node appearance controls are independent and migrate legacy styles', async () => {
