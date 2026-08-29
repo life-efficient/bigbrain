@@ -311,6 +311,16 @@ const GRAPH_COLOR_PALETTES_UNORDERED = [
       'personal-protocol': '#A91CD0', sources: '#087ED1', ops: '#FF9F0A', inbox: '#F20D24',
     },
   },
+  {
+    id: 'cherry-blossom',
+    label: 'Cherry Blossom',
+    colors: {
+      people: '#8FBCE8', organizations: '#E85D75', companies: '#2B3142', deals: '#D8A84E',
+      projects: '#6C91C5', ideas: '#F4B6C2', meetings: '#B9CFF0', tasks: '#E86B86',
+      concepts: '#C9A7C4', writing: '#FFF0F3', protocol: '#B84B63', archive: '#626A7A',
+      'personal-protocol': '#9A6A9A', sources: '#78A9D7', ops: '#D49350', inbox: '#F28CA3',
+    },
+  },
 ];
 
 const GRAPH_PALETTE_PRIORITY = ['crimson-loom', 'kusama', 'irezumi', 'red-tiger', 'urban'];
