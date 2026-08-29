@@ -57,3 +57,44 @@ Expected:
 - Classify the message as cleanup-only under the standing Preply rule.
 - Do not pass notification wording to action review as a human commitment or request.
 - Do not create a task from automated action language.
+
+## User-reported outbound send
+
+Evidence:
+
+- The user says a prepared follow-up was sent manually in Gmail.
+- The prepared draft has a known subject, recipient set, and attachment expectation.
+- Gmail search returns one matching `SENT` message with a provider message ID and thread ID.
+
+Expected:
+
+- Reconcile Gmail without calling a send tool.
+- Bind the actual sent recipients, timestamp, final body, thread, and attachment manifest.
+- Record `sent` before the Brain update and `sent_and_logged` only after the owning Brain record is read back.
+- Treat the provider message ID as the primary idempotency key.
+
+## Retry after canonical update
+
+Evidence:
+
+- The same outbound message is reconciled twice with the same provider message ID.
+- The first Brain update succeeded and its canonical page was read back.
+
+Expected:
+
+- Read back the existing action and return a verified no-op.
+- Keep exactly one timeline entry for the outbound action.
+- Do not call the generic page or task update a second time.
+
+## Ambiguous Brain write result
+
+Evidence:
+
+- Gmail read-back proves one sent message.
+- The canonical Brain update times out after the request is submitted.
+
+Expected:
+
+- Assume the write may have persisted and read the canonical page, task, and provenance using the action and provider keys.
+- Return `sent_and_logged` if the exact action is present and read-back succeeds.
+- Retry the generic update only if the exact action is absent, and never append a second timeline entry.

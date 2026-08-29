@@ -36,6 +36,20 @@ assert "live registered Brain descriptions" in SKILL
 assert "live filing rules" in SKILL
 assert "$find-missing-tools" in SKILL
 assert "same destination Brain" in SKILL
+assert "## Outbound Email State Contract" in SKILL
+assert "draft_prepared" in SKILL
+assert "sent_and_logged" in SKILL
+assert "send_unverified" in SKILL
+assert "needs_review" in SKILL
+assert "reconciliation_incomplete" in SKILL
+assert "reconcile Gmail and do not send it again." in SKILL
+assert "actual Gmail message rather than the prepared draft" in SKILL
+assert "stable outbound action ID and the provider message ID as idempotency keys" in SKILL
+assert "A generic page or task update appends a timeline entry each time it is called." in SKILL
+assert "verified no-op" in SKILL
+assert "Do not call a send tool during this recovery path." in SKILL
+assert "confirm that a rerun would be a no-op rather than another timeline append" in SKILL
+assert "assume it may have persisted" in SKILL
 assert "separate verified cursor for each Gmail thread" in SKILL
 assert "prior 24 hours" in SKILL
 assert "small overlap" in SKILL
@@ -74,6 +88,9 @@ assert "  - Artifacts:" in SKILL
 assert "raw PDF verified" in SKILL
 assert "$bigbrain-email-ingest" in AGENT
 assert "$bigbrain-action-review" in AGENT
+assert "reconcile user-reported outbound sends through Gmail without resending" in AGENT
+assert "draft_prepared" in AGENT
+assert "sent_and_logged" in AGENT
 assert "sender and recipient direction" in AGENT
 assert "quoted-history boundaries" in AGENT
 assert "automated-versus-human authorship" in AGENT
@@ -88,6 +105,10 @@ assert "## Accepted introduction request" in CASES
 assert "action-time approval" in CASES
 assert "## Automated notification is not an action candidate" in CASES
 assert "Do not create a task from automated action language." in CASES
+assert "## User-reported outbound send" in CASES
+assert "Reconcile Gmail without calling a send tool." in CASES
+assert "## Retry after canonical update" in CASES
+assert "exactly one timeline entry" in CASES
 assert "sync" not in SKILL.lower()
 
 assert "—" not in SKILL

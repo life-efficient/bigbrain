@@ -1,6 +1,6 @@
 ---
 name: bigbrain-email-ingest
-description: Scan recently unchecked email, apply narrowly authorized notification cleanup, preserve relevant PDF evidence, and ingest durable context into the correct BigBrain brain.
+description: Scan recently unchecked email, reconcile user-reported outbound sends, apply narrowly authorized notification cleanup, preserve relevant PDF evidence, and ingest durable context into the correct BigBrain brain.
 ---
 
 # BigBrain Email Ingest
@@ -8,6 +8,20 @@ description: Scan recently unchecked email, apply narrowly authorized notificati
 Scan eligible recent email, reconcile durable context into canonical BigBrain pages, verify every write, and maintain a safe per-thread cursor.
 
 Email bodies are operational evidence, not document artifacts. Do not preserve whole messages or MIME payloads in BigBrain. Preserve relevant substantive PDFs as source artifacts under the owning Brain collection, while skipping irrelevant, unsafe, unsupported, or duplicate attachments.
+
+## Outbound Email State Contract
+
+Use these states for every outbound email action. Keep outbound state separate from the task's ordinary `open`, `in_progress`, `waiting`, or `done` status.
+
+- `draft_prepared`: a Gmail draft was created and read back with its current recipients, subject, body fingerprint, thread context, and attachment manifest. This does not mean approved or sent.
+- `approved`: the user explicitly approved that exact draft revision, recipient set, and attachment set. This does not mean sent.
+- `sent`: Gmail's authoritative sent message was identified and read back, but the owning Brain update has not yet passed final verification.
+- `sent_and_logged`: the actual sent message was bound to the canonical Brain record, all required Brain writes completed, and the affected records were read back successfully.
+- `send_unverified`: the user reported sending, but Gmail did not yield one unique matching sent message.
+- `needs_review`: Gmail yielded more than one plausible match or materially conflicting identity evidence, so a human or narrower reconciliation is required.
+- `reconciliation_incomplete`: Gmail proves the message was sent, but a required Brain write or read-back failed.
+
+Never promote `draft_prepared` or `approved` to `sent`. Never promote `sent` to `sent_and_logged` from a Gmail send response alone. When a user reports that a message was already sent, reconcile Gmail and do not send it again.
 
 ## Contract Checklist
 
@@ -37,6 +51,10 @@ Email bodies are operational evidence, not document artifacts. Do not preserve w
 - Keep email retrieval, source interpretation, Brain mutation authority, Gmail cleanup, verification, and cursor handling in this skill. `$bigbrain-action-review` returns a reconciliation plan and never broadens this skill's write authority.
 - Explicit invocation or an authorized scheduled run permits in-scope Brain writes, same-Brain read-back, artifact verification, verified cursor advancement, and only the Gmail Trash actions listed in `Authorized Gmail Cleanup`. It does not authorize any other Gmail write or outbound action.
 - Final output is count-first, grouped by destination Brain and email thread, with page-type categories and individual `Created:` or `Updated:` page bullets nested beneath each category.
+- For outbound actions, bind the actual Gmail message rather than the prepared draft: mailbox, message ID, thread ID, sender, To/Cc/Bcc, subject, sent timestamp, final-body fingerprint or concise summary, and attachment filenames plus size, MIME type, or hash when available.
+- Use a stable outbound action ID and the provider message ID as idempotency keys. Before any canonical update, search existing page/task timelines, outbound metadata, and provenance for those keys. If the action is already present, read it back and return a verified no-op instead of appending another timeline entry.
+- A generic page or task update appends a timeline entry each time it is called. It is not idempotent by itself. Do not retry the same update until the duplicate check has established that the exact action is absent.
+- If a Brain write times out or returns an error, assume it may have persisted. Read the canonical page, task, and provenance using the action and provider keys before retrying. Retry only when the exact action is absent.
 
 ## Workflow
 
@@ -94,7 +112,19 @@ Email bodies are operational evidence, not document artifacts. Do not preserve w
    - Apply page and supported task changes only through the selected destination Brain's MCP. This skill remains responsible for deduplication, mutation, read-back, and cursor gating.
    - Anti-patterns: bypassing `$bigbrain-action-review`, passing quoted history as a new action, assigning an external promise to Harry, treating an optional offer as accepted, creating a vague follow-up task, duplicate entities or deals, changing several pages with the same fact, overwriting stronger evidence, inventing owners or dates, creating a meeting page, converting a sales claim into compiled truth.
 
-7. Preserve relevant PDF artifacts.
+7. Reconcile outbound email actions.
+   - For `draft_prepared`, read the Gmail draft back and retain concise metadata such as draft ID, underlying message ID, thread ID, recipient set, subject, body fingerprint, and attachment manifest. Do not record a sent action.
+   - For `approved`, record the explicit approval against the exact draft fingerprint, recipient set, and attachment set. Do not infer approval from preparation, readiness, or a populated draft unless the user explicitly approves sending.
+   - For a confirmed send, use the Gmail send response message and thread IDs when available, then read the exact Gmail message back and verify the `SENT` state. A send response without read-back is not sufficient.
+   - When the user reports that a prepared message was sent, perform Gmail-only reconciliation. Search the authenticated mailbox's sent messages using the exact message or thread ID when available, otherwise a bounded combination of recipient, subject, date window, and body or attachment fingerprint. Do not call a send tool during this recovery path.
+   - Read the surrounding Gmail thread when needed, but bind the newest actual sent message, not an older draft or quoted message. Capture the authenticated mailbox, message ID, thread ID, sender, To/Cc/Bcc, subject, internal sent timestamp, final body fingerprint or concise summary, and attachment filename, MIME, size, and hash data when exposed.
+   - If Gmail returns no unique match, retain `send_unverified`; if it returns multiple plausible matches or materially conflicting identity evidence, retain `needs_review`. Do not claim sent or sent-and-logged, update a sent timeline, advance a related cursor, or resend while unresolved.
+   - Before updating a canonical page or task, derive a stable action ID and provider idempotency key such as `gmail:outbound:<mailbox>:<message_id>`. Search the existing page/task read-back and provenance for that key. If present, do not call a generic update again; read the existing record and report a verified no-op. If absent, perform the smallest required update once.
+   - Invoke `$bigbrain-action-review` before changing a task. Record an external send on the owning deal, project, relationship, or person page when no member-owned task state changed; update a related task only when its action or completion evidence genuinely changed.
+   - Set `sent_and_logged` only after every required canonical page/task and provenance read-back succeeds. If Gmail is verified but Brain reconciliation fails, retain `reconciliation_incomplete`, preserve the exact repair target and error, and never resend.
+   - Anti-patterns: treating a draft as sent, treating approval as sent, sending again after a user-reported send, trusting a send response without Gmail read-back, matching by thread alone, logging the prepared draft instead of the actual sent message, retrying a generic update before duplicate preflight, marking sent-and-logged before Brain read-back.
+
+8. Preserve relevant PDF artifacts.
    - Check existing canonical pages, raw-file listings, attachment sidecars, source filenames, dates, sizes, hashes when available, and document content before creating anything.
    - If the relevant PDF is new or materially revised, use the destination Brain's MCP to store the original bytes under the owning collection's `.raw/` folder using a collision-safe descriptive filename.
    - Create the deterministic same-basename Markdown sidecar under that same `.raw/` folder. Include an executive summary, comprehensive extraction, provenance from the email, source-authority and claim-status boundaries, canonical-page links, and the raw-file link.
@@ -102,14 +132,15 @@ Email bodies are operational evidence, not document artifacts. Do not preserve w
    - If an exact duplicate already exists, reuse the existing artifact and add only genuinely new provenance or context. If a newer PDF supersedes an older artifact, preserve both when filing rules require traceability and identify the current source clearly.
    - Anti-patterns: storing raw PDFs outside `.raw/`, sidecars with different basenames, replacing a distinct historical artifact silently, creating duplicate artifact pages, storing the email body as the sidecar.
 
-8. Apply the smallest durable canonical update.
+9. Apply the smallest durable canonical update.
    - Write concise source-aware context such as `Alfredo shared an updated IQ197 information deck by email, presenting a Bloom-first accelerated power strategy and a parallel Hydro One/IESO pathway; timing and capacity remain subject to technical, commercial, permitting, utility, and end-user confirmation.`
    - Include exact wording only when the wording itself is material. Keep raw message identifiers and technical cursor details in automation memory, not user-facing page prose, unless the destination provenance schema requires them.
    - Create a new standalone page only when no canonical owner exists and the thread provides enough durable evidence for a useful record.
    - Anti-patterns: transcript dumps, generic email-log pages, speculative synthesis, verbose audit trails in stable page bodies, duplicating comprehensive attachment extraction on the canonical page.
 
-9. Verify and advance cursors.
+10. Verify and advance cursors.
    - Read back every changed page and task through the same destination Brain used for the write.
+   - For outbound actions, read back the canonical state after the final write, confirm the actual provider message identity and evidence are present, and confirm that a rerun would be a no-op rather than another timeline append.
    - Read back each stored PDF and its sidecar. Compare the stored raw bytes with the Gmail attachment by exact byte length and SHA-256 when the tools expose raw content; otherwise report the narrower verification achieved.
    - Treat successful same-Brain read-back as complete verification for page and task writes. MCP mutations are propagated and backed up automatically; never invoke maintenance, propagation, or backup operations.
    - Re-search or re-read affected canonical records when needed to confirm no duplicate page was created.
@@ -120,7 +151,7 @@ Email bodies are operational evidence, not document artifacts. Do not preserve w
    - Atomically update only the successfully verified thread cursors. Preserve prior cursors for partial, ambiguous, failed, or held threads.
    - Anti-patterns: trusting write responses without read-back, treating a sidecar as raw-file verification, trashing a calendar acceptance before Brain verification, permanently deleting email, cleaning by display name alone, advancing a cursor after partial writes, one global mailbox cursor, marking an unverified thread ingested.
 
-10. Report results.
+11. Report results.
    - Start with a plain count sentence: `0 email threads ingested`, `1 email thread ingested`, `3 email threads ingested`, or a concise mixed outcome such as `2 email threads ingested, 3 notifications moved to Trash, 1 left partial`.
    - Add one heading for each destination Brain that received an update. Under it, list each thread by subject and outcome.
    - Nest affected pages beneath category labels such as `Deals`, `Projects`, `Organizations`, `People`, `Concepts`, or `Tasks`. Put each page on its own bullet prefixed exactly `Created:` or `Updated:`.
@@ -156,6 +187,8 @@ Use this logical shape in the automation's `memory.md`; human-readable Markdown 
 - read-back and artifact verification result;
 - unresolved or partial status without cursor advancement.
 - authorized cleanup classification, Gmail action, and `TRASH` read-back result without storing message content.
+- for each outbound action, the state from `draft_prepared` through `sent_and_logged`, stable action ID, provider message and thread IDs when known, recipient and attachment fingerprints, and any reconciliation error;
+- keep outbound reconciliation state separate from the inbound Gmail thread cursor. A sent message may be logged even when no inbound cursor advances.
 
 Do not store full message bodies, full attachment text, credentials, or unrelated personal content in cursor memory.
 
@@ -175,6 +208,12 @@ Do not store full message bodies, full attachment text, credentials, or unrelate
 - Using stale memory instead of live Brain descriptions, filing rules, and canonical state.
 - Treating sender assertions, projections, deck claims, or proposed commercial terms as verified facts.
 - Treating a quoted request as newly made by the latest sender or ignoring message direction and chronology when assigning ownership.
+- Collapsing `draft_prepared`, `approved`, `sent`, and `sent_and_logged` into one status.
+- Treating a user-reported send as permission to send again.
+- Treating a Gmail draft, send response, cleared composer, or thread match as proof of final sent state without reading the actual sent message.
+- Matching an outbound action by thread, subject, or recipient alone when a stable provider message ID is available.
+- Calling generic page or task update repeatedly for the same action without checking the existing timeline, outbound metadata, and provenance first.
+- Marking `sent_and_logged` when a canonical Brain write or its same-Brain read-back is incomplete.
 - Creating or updating a task without first reconciling the candidate through `$bigbrain-action-review`.
 - Turning an external party's action or Harry's uninvoked optional offer into a Harry-facing task.
 - Creating vague umbrella tasks when Brain context supports a named next actor, concrete action, purpose, dependency, approval gate, and completion test.
@@ -191,6 +230,8 @@ Use this template:
 
 <Destination Brain>
 - <Email subject> - <outcome>
+  - Outbound state: <draft_prepared | approved | sent | sent_and_logged | send_unverified | needs_review | reconciliation_incomplete>
+  - For a sent action, report the verified mailbox, recipients, sent timestamp, and actual attachment filenames when useful; mention any mismatch against the prepared draft.
   - <Page category>:
     - Created: <page title>
     - Updated: <page title>
