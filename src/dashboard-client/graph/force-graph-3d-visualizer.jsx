@@ -14,6 +14,7 @@ const FORCE_GRAPH_PIXEL_RATIO = 1.5;
 const AUTO_ROTATION_RADIANS_PER_SECOND = 0.035;
 const FIT_TO_CANVAS_DURATION = 700;
 const FIT_TO_CANVAS_PADDING = 42;
+const SYSTEM_ACTIVITY_PREFOCUS_DURATION = 1200;
 const SYSTEM_FOCUS_HOLD_DURATION = 5000;
 const FORCE_GRAPH_ICON_TEXTURE_CACHE = new Map();
 
@@ -232,20 +233,32 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     if (!forceGraph || !motionEvent?.changes?.length) return undefined;
     const target = [...motionEvent.changes].reverse().find((change) => change.kind !== 'removed' && change.slug);
     if (!target) return undefined;
+    const activitySlugs = motionEvent.changes
+      .filter((change) => change.kind !== 'removed' && change.slug)
+      .map((change) => change.slug);
     let frame = 0;
     let attempts = 0;
+    let focusTimer = 0;
     const focus = () => {
       const data = getForceGraphData(forceGraph);
       const node = data.nodes?.find((item) => item.id === target.slug || item.slug === target.slug);
       if (node && Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z)) {
-        updateForceGraphHighlight(forceGraph, data, target.slug, settingsRef.current.arcAnimation);
-        focusForceGraphNode(forceGraph, node);
-        rotationPauseUntilRef.current = performance.now() + SYSTEM_FOCUS_HOLD_DURATION + FIT_TO_CANVAS_DURATION;
-        window.clearTimeout(focusReturnTimerRef.current);
-        focusReturnTimerRef.current = window.setTimeout(() => {
-          focusReturnTimerRef.current = 0;
-          forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
-        }, SYSTEM_FOCUS_HOLD_DURATION);
+        rotationPauseUntilRef.current = performance.now() + SYSTEM_ACTIVITY_PREFOCUS_DURATION + SYSTEM_FOCUS_HOLD_DURATION + FIT_TO_CANVAS_DURATION;
+        updateForceGraphActivity(forceGraph, data, activitySlugs, settingsRef.current.arcAnimation);
+        focusTimer = window.setTimeout(() => {
+          const latestData = getForceGraphData(forceGraph);
+          const latestNode = latestData.nodes?.find((item) => item.id === target.slug || item.slug === target.slug);
+          if (!latestNode || !Number.isFinite(latestNode.x) || !Number.isFinite(latestNode.y) || !Number.isFinite(latestNode.z)) return;
+          updateForceGraphHighlight(forceGraph, latestData, target.slug, settingsRef.current.arcAnimation);
+          focusForceGraphNode(forceGraph, latestNode);
+          rotationPauseUntilRef.current = performance.now() + SYSTEM_FOCUS_HOLD_DURATION + FIT_TO_CANVAS_DURATION;
+          window.clearTimeout(focusReturnTimerRef.current);
+          focusReturnTimerRef.current = window.setTimeout(() => {
+            focusReturnTimerRef.current = 0;
+            updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), null, 'instant');
+            forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
+          }, SYSTEM_FOCUS_HOLD_DURATION);
+        }, SYSTEM_ACTIVITY_PREFOCUS_DURATION);
         return;
       }
       if (attempts++ < 6) frame = window.requestAnimationFrame(focus);
@@ -253,6 +266,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     frame = window.requestAnimationFrame(focus);
     return () => {
       window.cancelAnimationFrame(frame);
+      window.clearTimeout(focusTimer);
       window.clearTimeout(focusReturnTimerRef.current);
     };
   }, [motionEvent]);
@@ -387,6 +401,32 @@ function updateForceGraphHighlight(forceGraph, data, focusSlug, arcAnimation = '
     .linkDirectionalParticles((link) => shouldShowParticles(link, nodes.length, animatedLinks, forceGraph))
     .linkDirectionalParticleSpeed((link) => getForceGraphParticleSpeed(link, forceGraph))
     .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, animatedLinks, forceGraph));
+}
+
+function updateForceGraphActivity(forceGraph, data, slugs, arcAnimation = 'instant') {
+  const resolvedData = forceGraph.graphData?.() || data || { nodes: [], links: [] };
+  const nodes = Array.isArray(resolvedData.nodes) ? resolvedData.nodes : [];
+  const links = Array.isArray(resolvedData.links) ? resolvedData.links : [];
+  const activitySet = new Set(slugs);
+  const highlightedNodes = new Set(nodes.filter((node) => activitySet.has(node.id) || activitySet.has(node.slug)).map((node) => node.id));
+  const highlightedLinks = new Set();
+  for (const link of links) {
+    const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
+    const targetId = typeof link.target === 'object' ? link.target.id : link.target;
+    if (highlightedNodes.has(sourceId) || highlightedNodes.has(targetId)) {
+      highlightedLinks.add(link);
+      highlightedNodes.add(sourceId);
+      highlightedNodes.add(targetId);
+    }
+  }
+  const animatedLinks = arcAnimation === 'none' ? new Set() : highlightedLinks;
+  forceGraph.__bigBrainHighlightLinks = animatedLinks;
+  for (const node of nodes) syncForceGraphNodeState(node, highlightedNodes);
+  startArcAnimation(forceGraph, arcAnimation, animatedLinks);
+  forceGraph
+    .linkColor((link) => getForceGraphLinkColor(link, highlightedLinks, forceGraph))
+    .linkOpacity((link) => getForceGraphLinkOpacity(link, highlightedLinks, forceGraph))
+    .linkWidth((link) => getForceGraphLinkWidth(link, highlightedLinks, forceGraph));
 }
 
 function getForceGraphHighlightLinks(forceGraph) {

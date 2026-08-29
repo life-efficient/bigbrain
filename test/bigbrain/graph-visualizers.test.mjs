@@ -245,15 +245,19 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(main, /graphMotionEligibleRef\.current = view === 'graph' && !preview && !lineage/);
   assert.match(main, /if \(timelineIndex >= 0 \|\| focusSlug \|\| activeSlug\) return;/);
   assert.match(main, /motionEvent=\{eligibleMotionEvent\}/);
-  assert.match(force2d, /forceGraph\.centerAt\(node\.x, node\.y, 850\)\.zoom\(/);
+  assert.match(force2d, /forceGraph\.centerAt\(latestNode\.x, latestNode\.y, 850\)\.zoom\(/);
   assert.match(force3d, /forceGraph\.cameraPosition\(position, target, 850\)/);
   assert.match(force2d, /SYSTEM_FOCUS_HOLD_DURATION = 5000/);
   assert.match(force3d, /SYSTEM_FOCUS_HOLD_DURATION = 5000/);
+  assert.match(force2d, /SYSTEM_ACTIVITY_PREFOCUS_DURATION = 1200/);
+  assert.match(force3d, /SYSTEM_ACTIVITY_PREFOCUS_DURATION = 1200/);
+  assert.match(force2d, /updateForceGraphActivity\(forceGraph, data, activitySlugs/);
+  assert.match(force3d, /updateForceGraphActivity\(forceGraph, data, activitySlugs/);
   assert.match(force2d, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
   assert.match(force3d, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
   assert.match(force3d, /rotationPauseUntilRef\.current/);
   assert.match(force2d, /updateForceGraphHighlight\(forceGraph, target\.slug, settingsRef\.current\.arcAnimation\)/);
-  assert.match(force3d, /updateForceGraphHighlight\(forceGraph, data, target\.slug, settingsRef\.current\.arcAnimation\)/);
+  assert.match(force3d, /updateForceGraphHighlight\(forceGraph, latestData, target\.slug, settingsRef\.current\.arcAnimation\)/);
 });
 
 test('unchanged graph refreshes do not restart vis network stabilization', async () => {
