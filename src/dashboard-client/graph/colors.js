@@ -261,6 +261,16 @@ export const GRAPH_COLOR_PALETTES = [
       'personal-protocol': '#98653A', sources: '#7E684A', ops: '#C47D2D', inbox: '#B64A2E',
     },
   },
+  {
+    id: 'spectral',
+    label: 'Spectral',
+    colors: {
+      people: '#B9DDE1', organizations: '#6F818B', companies: '#27343B', deals: '#A48C6A',
+      projects: '#8DA9B4', ideas: '#DCECEF', meetings: '#9BC7CD', tasks: '#C7E5E7',
+      concepts: '#78919B', writing: '#EEF7F5', protocol: '#5E747C', archive: '#3B474D',
+      'personal-protocol': '#718D95', sources: '#A6D4D9', ops: '#9A8364', inbox: '#B1CACE',
+    },
+  },
 ];
 
 export const GRAPH_COLOR_PALETTE_OPTIONS = [
