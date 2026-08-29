@@ -202,6 +202,13 @@ function DashboardApp() {
   demoModeRef.current = demoMode;
   demoSeedRef.current = demoSeed;
 
+  const clearGraphFocus = useEffectEvent(() => {
+    lineageRequestRef.current += 1;
+    setLineage(null);
+    setActiveGraphSlug(null);
+    setPreview(null);
+  });
+
   useEffect(() => {
     try {
       window.localStorage.setItem('bigbrain:graph-preferences', JSON.stringify({
@@ -552,13 +559,6 @@ function DashboardApp() {
         });
       }
     }
-  });
-
-  const clearGraphFocus = useEffectEvent(() => {
-    lineageRequestRef.current += 1;
-    setLineage(null);
-    setActiveGraphSlug(null);
-    setPreview(null);
   });
 
   const openPageBySlug = useEffectEvent((slug) => {
