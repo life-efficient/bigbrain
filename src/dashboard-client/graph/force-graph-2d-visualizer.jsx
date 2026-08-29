@@ -85,6 +85,9 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     resetView() {
       graphRef.current?.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
     },
+    focusNode(slug) {
+      focusForceGraphNode(graphRef.current, slug);
+    },
   }), []);
 
   useEffect(() => {
@@ -313,6 +316,13 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null) {
 
 function getForceGraphData(forceGraph) {
   return forceGraph?.graphData?.() || { nodes: [], links: [] };
+}
+
+function focusForceGraphNode(forceGraph, slug) {
+  const node = getForceGraphData(forceGraph).nodes?.find((item) => item.id === slug || item.slug === slug);
+  if (!forceGraph || !node || !Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
+  forceGraph.zoomToFit(0, FIT_TO_CANVAS_PADDING);
+  forceGraph.centerAt(node.x, node.y, 850).zoom(Math.max(forceGraph.zoom(), 2.4), 850);
 }
 
 function isForceGraphNodeVisibleAtTimeline(node, timelineDay) {

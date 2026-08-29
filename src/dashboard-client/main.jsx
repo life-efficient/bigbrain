@@ -2487,7 +2487,7 @@ const GraphPanel = memo(function GraphPanel({
     let settleFrame = 0;
     frame = window.requestAnimationFrame(() => {
       settleFrame = window.requestAnimationFrame(() => {
-        visualizerRef.current?.resetView?.();
+        visualizerRef.current?.focusNode?.(focusSlug);
       });
     });
     return () => {

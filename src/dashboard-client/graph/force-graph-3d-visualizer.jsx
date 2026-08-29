@@ -73,6 +73,9 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     resetView() {
       graphRef.current?.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
     },
+    focusNode(slug) {
+      focusForceGraphNodeBySlug(graphRef.current, slug);
+    },
   }), []);
 
   useEffect(() => {
@@ -826,4 +829,11 @@ function focusForceGraphNode(forceGraph, node) {
     ? { x: target.x + (dx / directionLength) * distance, y: target.y + (dy / directionLength) * distance, z: target.z + (dz / directionLength) * distance }
     : { x: target.x, y: target.y, z: target.z + distance };
   forceGraph.cameraPosition(position, target, 850);
+}
+
+function focusForceGraphNodeBySlug(forceGraph, slug) {
+  const node = getForceGraphData(forceGraph).nodes?.find((item) => item.id === slug || item.slug === slug);
+  if (!forceGraph || !node || !Number.isFinite(node.x) || !Number.isFinite(node.y) || !Number.isFinite(node.z)) return;
+  forceGraph.zoomToFit(0, FIT_TO_CANVAS_PADDING);
+  focusForceGraphNode(forceGraph, node);
 }
