@@ -31,12 +31,14 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   motionEvent = null,
   activeSlug = null,
   onActiveSlugChange,
+  onBackgroundClick,
 }, ref) {
   const theme = useGraphTheme();
   const containerRef = useRef(null);
   const graphRef = useRef(null);
   const onNodeOpenRef = useRef(onNodeOpen);
   const onActiveSlugChangeRef = useRef(onActiveSlugChange);
+  const onBackgroundClickRef = useRef(onBackgroundClick);
   const settingsRef = useRef({
     nodeShape,
     nodeFill,
@@ -69,6 +71,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   };
   onNodeOpenRef.current = onNodeOpen;
   onActiveSlugChangeRef.current = onActiveSlugChange;
+  onBackgroundClickRef.current = onBackgroundClick;
   activeSlugRef.current = activeSlug;
   timelineDayRef.current = timelineDay;
 
@@ -137,6 +140,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
         onActiveSlugChangeRef.current?.(node.slug);
         onNodeOpenRef.current?.(node.slug);
       })
+      .onBackgroundClick(() => onBackgroundClickRef.current?.())
       .onNodeHover((node) => {
         hoveredSlugRef.current = node?.id || null;
         updateForceGraphHighlight(forceGraph, hoveredSlugRef.current || activeSlugRef.current, settingsRef.current.arcAnimation);
@@ -189,6 +193,23 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
     updateForceGraphHighlight(forceGraph, hoveredSlugRef.current || activeSlug, settingsRef.current.arcAnimation);
+  }, [activeSlug]);
+
+  useEffect(() => {
+    const forceGraph = graphRef.current;
+    if (!forceGraph || !activeSlug) return undefined;
+    let frame = 0;
+    let attempts = 0;
+    const focus = () => {
+      const node = getForceGraphData(forceGraph).nodes?.find((item) => item.id === activeSlug || item.slug === activeSlug);
+      if (node && Number.isFinite(node.x) && Number.isFinite(node.y)) {
+        forceGraph.centerAt(node.x, node.y, 850).zoom(Math.max(forceGraph.zoom(), 2.4), 850);
+        return;
+      }
+      if (attempts++ < 8) frame = window.requestAnimationFrame(focus);
+    };
+    frame = window.requestAnimationFrame(focus);
+    return () => window.cancelAnimationFrame(frame);
   }, [activeSlug]);
 
   useEffect(() => {

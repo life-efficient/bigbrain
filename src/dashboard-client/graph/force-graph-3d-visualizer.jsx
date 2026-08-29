@@ -36,6 +36,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   motionEvent = null,
   activeSlug = null,
   onActiveSlugChange,
+  onBackgroundClick,
 }, ref) {
   const theme = useGraphTheme();
   const containerRef = useRef(null);
@@ -47,6 +48,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   const userInteractingRef = useRef(false);
   const onNodeOpenRef = useRef(onNodeOpen);
   const onActiveSlugChangeRef = useRef(onActiveSlugChange);
+  const onBackgroundClickRef = useRef(onBackgroundClick);
   const renderedArcStyleRef = useRef(arcStyle);
   const settingsRef = useRef({ nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, arcAnimation, labelStyle, colorMode, typeColors, theme });
   const activeSlugRef = useRef(activeSlug);
@@ -57,6 +59,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   settingsRef.current = { nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, arcAnimation, labelStyle, colorMode, typeColors, theme, labelSlugs, activeSlug };
   onNodeOpenRef.current = onNodeOpen;
   onActiveSlugChangeRef.current = onActiveSlugChange;
+  onBackgroundClickRef.current = onBackgroundClick;
   activeSlugRef.current = activeSlug;
   timelineDayRef.current = timelineDay;
 
@@ -140,6 +143,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
         onActiveSlugChangeRef.current?.(node.slug);
         onNodeOpenRef.current?.(node.slug);
       })
+      .onBackgroundClick(() => onBackgroundClickRef.current?.())
       .onNodeHover((node) => {
         hoveredSlugRef.current = node?.id || null;
         updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlugRef.current, settingsRef.current.arcAnimation, false);
@@ -227,6 +231,23 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
     updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlug, settingsRef.current.arcAnimation, !hoveredSlugRef.current);
+  }, [activeSlug]);
+
+  useEffect(() => {
+    const forceGraph = graphRef.current;
+    if (!forceGraph || !activeSlug) return undefined;
+    let frame = 0;
+    let attempts = 0;
+    const focus = () => {
+      const node = getForceGraphData(forceGraph).nodes?.find((item) => item.id === activeSlug || item.slug === activeSlug);
+      if (node && Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z)) {
+        focusForceGraphNode(forceGraph, node);
+        return;
+      }
+      if (attempts++ < 8) frame = window.requestAnimationFrame(focus);
+    };
+    frame = window.requestAnimationFrame(focus);
+    return () => window.cancelAnimationFrame(frame);
   }, [activeSlug]);
 
   useEffect(() => {
