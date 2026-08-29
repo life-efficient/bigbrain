@@ -159,6 +159,28 @@ export const GRAPH_COLOR_PALETTES = [
       inbox: '#FF00A8',
     },
   },
+  {
+    id: 'irezumi',
+    label: 'Irezumi',
+    colors: {
+      people: '#47BFC0',
+      organizations: '#E14A2B',
+      companies: '#252525',
+      deals: '#D9952F',
+      projects: '#8584A7',
+      ideas: '#F2A126',
+      meetings: '#5AC5C2',
+      tasks: '#E96B31',
+      concepts: '#A7A5B8',
+      writing: '#F6E6D0',
+      protocol: '#C85B4A',
+      archive: '#777777',
+      'personal-protocol': '#A56B49',
+      sources: '#3A9FA9',
+      ops: '#C99035',
+      inbox: '#EF6351',
+    },
+  },
 ];
 
 export const GRAPH_COLOR_PALETTE_OPTIONS = [
