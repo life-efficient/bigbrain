@@ -26,6 +26,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   colorMode = 'updated',
   typeColors,
   timelineDay = null,
+  motionEvent = null,
   activeSlug = null,
   onActiveSlugChange,
 }, ref) {
@@ -187,6 +188,26 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     if (!forceGraph) return;
     updateForceGraphHighlight(forceGraph, activeSlug || hoveredSlugRef.current, settingsRef.current.arcAnimation);
   }, [activeSlug]);
+
+  useEffect(() => {
+    const forceGraph = graphRef.current;
+    if (!forceGraph || !motionEvent?.changes?.length) return undefined;
+    const target = [...motionEvent.changes].reverse().find((change) => change.kind !== 'removed' && change.slug);
+    if (!target) return undefined;
+    let frame = 0;
+    let attempts = 0;
+    const focus = () => {
+      const node = getForceGraphData(forceGraph).nodes?.find((item) => item.id === target.slug || item.slug === target.slug);
+      if (node && Number.isFinite(node.x) && Number.isFinite(node.y)) {
+        updateForceGraphHighlight(forceGraph, target.slug, settingsRef.current.arcAnimation);
+        forceGraph.centerAt(node.x, node.y, 850).zoom(Math.max(forceGraph.zoom(), 2.4), 850);
+        return;
+      }
+      if (attempts++ < 6) frame = window.requestAnimationFrame(focus);
+    };
+    frame = window.requestAnimationFrame(focus);
+    return () => window.cancelAnimationFrame(frame);
+  }, [motionEvent]);
 
   return (
     <div className="graph-canvas-shell force2d-shell">

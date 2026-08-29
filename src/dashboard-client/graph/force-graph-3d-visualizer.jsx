@@ -30,6 +30,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   typeColors,
   autoRotate = false,
   timelineDay = null,
+  motionEvent = null,
   activeSlug = null,
   onActiveSlugChange,
 }, ref) {
@@ -221,6 +222,27 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     if (!forceGraph) return;
     updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), activeSlug || hoveredSlugRef.current, settingsRef.current.arcAnimation);
   }, [activeSlug]);
+
+  useEffect(() => {
+    const forceGraph = graphRef.current;
+    if (!forceGraph || !motionEvent?.changes?.length) return undefined;
+    const target = [...motionEvent.changes].reverse().find((change) => change.kind !== 'removed' && change.slug);
+    if (!target) return undefined;
+    let frame = 0;
+    let attempts = 0;
+    const focus = () => {
+      const data = getForceGraphData(forceGraph);
+      const node = data.nodes?.find((item) => item.id === target.slug || item.slug === target.slug);
+      if (node && Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z)) {
+        updateForceGraphHighlight(forceGraph, data, target.slug, settingsRef.current.arcAnimation);
+        focusForceGraphNode(forceGraph, node);
+        return;
+      }
+      if (attempts++ < 6) frame = window.requestAnimationFrame(focus);
+    };
+    frame = window.requestAnimationFrame(focus);
+    return () => window.cancelAnimationFrame(frame);
+  }, [motionEvent]);
 
   return (
     <div className="graph-canvas-shell force3d-shell">
@@ -637,4 +659,20 @@ function zoomCamera(forceGraph, factor) {
   if (!camera?.position) return;
   camera.position.multiplyScalar(factor);
   forceGraph.controls?.().update?.();
+}
+
+function focusForceGraphNode(forceGraph, node) {
+  const target = { x: node.x, y: node.y, z: node.z };
+  const camera = forceGraph.camera?.();
+  const current = camera?.position;
+  const dx = (current?.x || 0) - target.x;
+  const dy = (current?.y || 0) - target.y;
+  const dz = (current?.z || 0) - target.z;
+  const currentDistance = Math.hypot(dx, dy, dz);
+  const distance = Math.min(Math.max(currentDistance || 90, 42), 150);
+  const directionLength = currentDistance || 1;
+  const position = currentDistance
+    ? { x: target.x + (dx / directionLength) * distance, y: target.y + (dy / directionLength) * distance, z: target.z + (dz / directionLength) * distance }
+    : { x: target.x, y: target.y, z: target.z + distance };
+  forceGraph.cameraPosition(position, target, 850);
 }

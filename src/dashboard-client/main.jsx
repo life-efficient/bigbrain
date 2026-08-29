@@ -198,7 +198,9 @@ function DashboardApp() {
   const settingsMenuRef = useRef(null);
   const playbooksMenuRef = useRef(null);
   const latestGraphRef = useRef(null);
+  const graphMotionEligibleRef = useRef(false);
   latestGraphRef.current = state.data?.graph || latestGraphRef.current;
+  graphMotionEligibleRef.current = view === 'graph' && !preview && !lineage;
   demoModeRef.current = demoMode;
   demoSeedRef.current = demoSeed;
 
@@ -292,7 +294,7 @@ function DashboardApp() {
             ? { ...current, data: { ...current.data, graph: nextGraph } }
             : current);
         }
-        if (animate && motion.changes.length) setGraphMotion(motion);
+        if (animate && motion.changes.length && graphMotionEligibleRef.current) setGraphMotion(motion);
       } catch {
         // EventSource reconnects automatically; the next ready event heals missed graph state.
       } finally {
@@ -319,6 +321,11 @@ function DashboardApp() {
       source.close();
     };
   }, [state.status]);
+
+  useEffect(() => {
+    if (view === 'graph' && !preview && !lineage) return;
+    setGraphMotion(null);
+  }, [lineage, preview, view]);
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.matchMedia) {
@@ -2382,10 +2389,23 @@ const GraphPanel = memo(function GraphPanel({
       : buildActivityBuckets(graphNodes, graph?.activity)
   ), [activeGraphNodes, focusSlug, graph?.activity, graphNodes, lineage]);
   const [timelineIndex, setTimelineIndex] = useState(-1);
+  const [eligibleMotionEvent, setEligibleMotionEvent] = useState(null);
+  const consumedMotionEventRef = useRef(null);
   const latestTimelineIndex = activityBuckets.length - 1;
   const resolvedTimelineIndex = resolveTimelineIndex(timelineIndex < 0 ? latestTimelineIndex : timelineIndex, activityBuckets);
   const selectedActivityBucket = resolvedTimelineIndex >= 0 ? activityBuckets[resolvedTimelineIndex] : null;
   const selectedTimelineDay = selectedActivityBucket?.day || null;
+
+  useEffect(() => {
+    if (!motionEvent || consumedMotionEventRef.current === motionEvent) return;
+    consumedMotionEventRef.current = motionEvent;
+    if (timelineIndex >= 0 || focusSlug || activeSlug) return;
+    setEligibleMotionEvent(motionEvent);
+  }, [activeSlug, focusSlug, motionEvent, timelineIndex]);
+
+  useEffect(() => {
+    setEligibleMotionEvent(null);
+  }, [visualizerId]);
   const timelineFilteredNodes = useMemo(() => {
     if (!selectedTimelineDay) return activeGraphNodes;
     return activeGraphNodes.filter((node) => {
@@ -2558,7 +2578,7 @@ const GraphPanel = memo(function GraphPanel({
             ref={visualizerRef}
             graph={isForceRenderer ? forceGraph : filteredGraph}
             timelineDay={isForceRenderer ? selectedTimelineDay : null}
-            motionEvent={motionEvent}
+            motionEvent={eligibleMotionEvent}
             onNodeOpen={onGraphNodeFocus}
             nodeShape={nodeShape}
             nodeFill={nodeFill}

@@ -235,6 +235,22 @@ test('confirmed graph refreshes identify created and updated pages for live moti
   assert.deepEqual(linkedOnly.changes, []);
 });
 
+test('force renderers focus eligible live page changes without remounting', async () => {
+  const [main, force2d, force3d] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/force-graph-2d-visualizer.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/force-graph-3d-visualizer.jsx', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(main, /graphMotionEligibleRef\.current = view === 'graph' && !preview && !lineage/);
+  assert.match(main, /if \(timelineIndex >= 0 \|\| focusSlug \|\| activeSlug\) return;/);
+  assert.match(main, /motionEvent=\{eligibleMotionEvent\}/);
+  assert.match(force2d, /forceGraph\.centerAt\(node\.x, node\.y, 850\)\.zoom\(/);
+  assert.match(force3d, /forceGraph\.cameraPosition\(position, target, 850\)/);
+  assert.match(force2d, /updateForceGraphHighlight\(forceGraph, target\.slug, settingsRef\.current\.arcAnimation\)/);
+  assert.match(force3d, /updateForceGraphHighlight\(forceGraph, data, target\.slug, settingsRef\.current\.arcAnimation\)/);
+});
+
 test('unchanged graph refreshes do not restart vis network stabilization', async () => {
   const graph = {
     nodes: [{ slug: 'projects/jarvis', updated_at: '2026-08-22T10:00:00Z', degree: 1 }],
