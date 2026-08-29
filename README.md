@@ -429,6 +429,20 @@ context. The internal event envelope remains available to the inbox for
 deduplication, audit, retry, and provenance, but it is not pasted into every
 Codex task.
 
+Event listeners can also choose the Codex task model, reasoning effort, and a
+fallback chat title. Granola webhook payloads do not include the meeting title,
+so Granola tasks use the configured fallback title:
+
+```bash
+bigbrain events configure granola \
+  --model gpt-5.6-luna \
+  --reasoning-effort xhigh \
+  --chat-title "Granola meeting ingestion"
+```
+
+The title is applied to the Codex task after it is created. The model and
+reasoning effort are applied to both the task and its first turn.
+
 Granola listeners should accept `note.generated`, which is emitted when a
 meeting note's initial AI summary is ready. The event payload identifies the
 note but does not contain the full meeting content, so the event task retrieves

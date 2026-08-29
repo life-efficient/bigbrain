@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { CodexAppThreadExecutor, CodexCliExecutor, buildEventPrompt, parseCodexJsonOutput, parseCodexThreadId, selectPromptPayload } from '../../src/bigbrain/codex-event-executor.js';
+import { CodexAppThreadExecutor, CodexCliExecutor, buildEventPrompt, parseCodexJsonOutput, parseCodexThreadId, resolveThreadTitle, selectPromptPayload } from '../../src/bigbrain/codex-event-executor.js';
 
 const event = {
   event_id: 'event-1',
@@ -75,7 +75,7 @@ test('CLI executor captures structured outcome and stderr-safe output', async ()
     assert.equal(args[0], 'exec');
     return { stdout: `progress\n${JSON.stringify({ status: 'ignored', reason: 'not useful', destinations: [] })}\n`, stderr: 'diagnostic' };
   } });
-  const result = await executor.execute({ event, listener: { description: 'Calendar' } });
+  const result = await executor.execute({ event, listener: { description: 'Calendar', codex_model: 'gpt-5.6-luna', codex_reasoning_effort: 'xhigh' } });
   assert.equal(result.mode, 'cli');
   assert.equal(result.outcome.status, 'ignored');
   assert.equal(result.stderr, 'diagnostic');
@@ -106,15 +106,25 @@ test('app-thread executor uses the supported app-server thread and turn methods'
     notify: async (method) => calls.push({ method }),
     close: async () => {},
   }) });
-  const result = await executor.execute({ event, listener: { description: 'Calendar' } });
+  const result = await executor.execute({ event, listener: { description: 'Calendar', codex_model: 'gpt-5.6-luna', codex_reasoning_effort: 'xhigh' } });
   assert.equal(result.thread_id, 'thread-1');
   assert.equal(result.execution_id, 'turn-1');
   assert.equal(result.outcome.status, 'ignored');
-  assert.deepEqual(calls.map((call) => call.method), ['initialize', 'initialized', 'thread/start', 'turn/start']);
+  assert.deepEqual(calls.map((call) => call.method), ['initialize', 'initialized', 'thread/start', 'thread/name/set', 'turn/start']);
   assert.deepEqual(calls.find((call) => call.method === 'initialize').params.capabilities, { experimentalApi: true });
   assert.deepEqual(calls.find((call) => call.method === 'thread/start').params.environments, []);
+  assert.equal(calls.find((call) => call.method === 'thread/start').params.model, 'gpt-5.6-luna');
+  assert.equal(calls.find((call) => call.method === 'thread/name/set').params.name, 'Calendar ingestion');
   assert.match(calls.find((call) => call.method === 'thread/start').params.developerInstructions, /available BigBrain MCP/);
+  assert.equal(calls.find((call) => call.method === 'turn/start').params.model, 'gpt-5.6-luna');
+  assert.equal(calls.find((call) => call.method === 'turn/start').params.effort, 'xhigh');
   assert.equal(calls.find((call) => call.method === 'turn/start').params.outputSchema, undefined);
+});
+
+test('thread title uses configured fallback and ignores unavailable Granola payload titles', () => {
+  assert.equal(resolveThreadTitle({ type: 'granola.meeting.completed', payload: { title: 'Board meeting' } }, { provider: 'granola' }), 'Granola meeting ingestion');
+  assert.equal(resolveThreadTitle({ type: 'granola.meeting.completed', payload: {} }, { provider: 'granola', codex_thread_title: 'Configured fallback' }), 'Configured fallback');
+  assert.equal(resolveThreadTitle({ type: 'webhook.event', payload: {} }, { display_name: 'Calendar' }), 'Calendar ingestion');
 });
 
 test('app-thread executor accepts a normal-language completion without a structured outcome', async () => {

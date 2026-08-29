@@ -6,6 +6,18 @@ const execFileAsync = promisify(execFile);
 
 export const DEFAULT_CODEX_EVENT_CWD = process.env.BIGBRAIN_CODEX_EVENT_CWD || process.cwd();
 
+export function resolveThreadTitle(event, listener) {
+  const configuredTitle = cleanThreadTitle(listener?.codex_thread_title || listener?.chat_title || listener?.thread_title);
+  if (configuredTitle) return configuredTitle;
+  if (listener?.provider === 'granola' || event?.type === 'granola.meeting.completed') return 'Granola meeting ingestion';
+  const source = cleanThreadTitle(listener?.display_name || event?.source?.display_name || listener?.provider || 'Inbound source');
+  return source ? `${source} ingestion` : 'Inbound event ingestion';
+}
+
+function cleanThreadTitle(value) {
+  return typeof value === 'string' && value.trim() ? value.trim().slice(0, 160) : null;
+}
+
 export function buildEventPrompt(event, listener, { allowedDestinations = [] } = {}) {
   const sourceDescription = listener?.description || event?.source?.description || 'No source-specific guidance was provided.';
   const isRssArticle = listener?.type === 'rss' || event?.type === 'rss.item';
@@ -220,12 +232,20 @@ export class CodexAppThreadExecutor {
         threadSource: 'event',
         ephemeral: false,
         environments: [],
+        ...(listener?.codex_model ? { model: listener.codex_model } : {}),
         developerInstructions: 'This is an event-triggered BigBrain ingestion task. Follow the turn instructions, use the available BigBrain MCP and the named BigBrain ingest skill, read filing rules before writes, check existing coverage, and read back changes. Do not send external messages. Complete the work directly and summarize it normally.',
       });
       const threadId = started?.thread?.id || started?.id || started?.threadId;
       if (!threadId) throw new Error('Codex app-server did not return a thread ID.');
+      try {
+        await client.request('thread/name/set', { threadId, name: resolveThreadTitle(event, listener) });
+      } catch (error) {
+        client.notifications.push({ type: 'thread_name_warning', text: String(error?.message || error) });
+      }
       const turn = await client.request('turn/start', {
         threadId,
+        ...(listener?.codex_model ? { model: listener.codex_model } : {}),
+        ...(listener?.codex_reasoning_effort ? { effort: listener.codex_reasoning_effort } : {}),
         input: [{ type: 'text', text: prompt }],
       });
       const turnId = turn?.turn?.id || turn?.id || null;
