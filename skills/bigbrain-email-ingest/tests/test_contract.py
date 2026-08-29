@@ -42,7 +42,7 @@ assert "`patch`:" in SKILL
 assert "`minor`:" in SKILL
 assert "`major`:" in SKILL
 assert "Never rewrite or suppress prior history" in SKILL
-assert "Prefix the appended timeline entry with `[patch]`, `[minor]`, or `[major]`" in SKILL
+assert "Provide the mandatory `significance` field on the `create_page` or `update_page` MCP call" in SKILL
 assert "draft_prepared" in SKILL
 assert "sent_and_logged" in SKILL
 assert "send_unverified" in SKILL
@@ -97,7 +97,7 @@ assert "$bigbrain-action-review" in AGENT
 assert "reconcile user-reported outbound sends through Gmail without resending" in AGENT
 assert "draft_prepared" in AGENT
 assert "sent_and_logged" in AGENT
-assert "label every timeline update as patch, minor, or major" in AGENT
+assert "provide the mandatory significance field on every create_page or update_page call" in AGENT
 assert "preserve append-only history including deliberate corrections" in AGENT
 assert "sender and recipient direction" in AGENT
 assert "quoted-history boundaries" in AGENT

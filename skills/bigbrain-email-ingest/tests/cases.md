@@ -109,6 +109,6 @@ Evidence:
 
 Expected:
 
-- Label routine coordination as `[patch]`, meaningful progress or an accepted introduction as `[minor]`, and the job change or deal closing as `[major]` when those events change the owning page's durable trajectory.
+- Provide `significance: patch` for routine coordination, `significance: minor` for meaningful progress or an accepted introduction, and `significance: major` for the job change or deal closing when those events change the owning page's durable trajectory.
 - Classify the factual correction by its impact, append it as a new entry, and reference the earlier entry instead of rewriting history.
 - Do not assign significance from message length, emotional salience, or sender status.

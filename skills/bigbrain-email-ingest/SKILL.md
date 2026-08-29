@@ -25,13 +25,13 @@ Never promote `draft_prepared` or `approved` to `sent`. Never promote `sent` to 
 
 ## Timeline Significance Contract
 
-Every appended timeline entry must carry one semantic significance label. This is an impact label, not a page version number and not a replacement for the dated append-only history. When the timeline tool accepts only text, put `[patch]`, `[minor]`, or `[major]` immediately after the date separator.
+Every `create_page` or `update_page` MCP call must provide the required `significance` field with one semantic impact label: `patch`, `minor`, or `major`. The existing `provenance` object continues to carry the source and event identity; the page mutation's significance is recorded alongside that provenance. Do not encode significance into the free-form `timeline_entry` text.
 
 - `patch`: routine coordination, message sent or received without material state change, typo or formatting correction, source-link correction, or other low-impact repair.
 - `minor`: a material but non-transformative change such as a meaningful reply, completed meeting, accepted introduction, new diligence answer, agreed next step, or progress that changes what happens next.
 - `major`: a transformative change to the page's identity, control, outcome, or trajectory such as a deal closing or collapsing, a hostile buyer entering, a key contact being fired or changing jobs, an organization being acquired, a project launching or being cancelled, or a person's death.
 
-Classify a correction by its resulting impact, not by the fact that it is corrective. A typo fix is usually `patch`; correcting a material deal status or person identity is `minor` or `major` according to its effect. A deliberate correction or newly discovered evidence is a new timeline event with its own significance label and should reference the earlier entry when useful. Never rewrite or suppress prior history merely to make the timeline look deduplicated.
+Classify a correction by its resulting impact, not by the fact that it is corrective. A typo fix is usually `patch`; correcting a material deal status or person identity is `minor` or `major` according to its effect. A deliberate correction or newly discovered evidence is a new timeline update with its own significance value and should reference the earlier entry when useful. Never rewrite or suppress prior history merely to make the timeline look deduplicated.
 
 ## Contract Checklist
 
@@ -113,7 +113,7 @@ Classify a correction by its resulting impact, not by the fact that it is correc
    - Search and read the canonical deal, project, organization, person, concept, artifact, and task pages that could own the update.
    - Compare email timestamps and direction with existing source provenance. Use the newest verified evidence while retaining uncertainty and source attribution.
    - Prefer one concise timeline or state update on the best owning page. Update broader related pages only when their durable canonical state genuinely changed.
-   - Assign the timeline significance label from `Timeline Significance Contract` based on the impact on that page. Keep routine correspondence visible as `patch`, material forward movement as `minor`, and transformative state changes as `major`.
+   - Assign `significance` for every page create or update from `Timeline Significance Contract` based on the impact on that page. Keep routine correspondence as `patch`, material forward movement as `minor`, and transformative state changes as `major`.
    - Build a concise action evidence packet from newly authored message content. Preserve source thread, sender, recipients, direction, timestamp, exact wording only when material, and email-specific interpretation such as request, accepted commitment, external promise, optional offer, proposal, or discussion.
    - Invoke `$bigbrain-action-review` with that evidence packet, the most relevant canonical Brain context, live open, in-progress, and waiting tasks, and this skill's approval boundaries. Do this before every task write.
    - Treat the review result as a task reconciliation plan. It may recommend updating an existing task, creating a concrete task, recording an external action only on its owning page, keeping a conditional follow-up, or holding ambiguity for review.
@@ -145,7 +145,7 @@ Classify a correction by its resulting impact, not by the fact that it is correc
 
 9. Apply the smallest durable canonical update.
    - Write concise source-aware context such as `Alfredo shared an updated IQ197 information deck by email, presenting a Bloom-first accelerated power strategy and a parallel Hydro One/IESO pathway; timing and capacity remain subject to technical, commercial, permitting, utility, and end-user confirmation.`
-   - Prefix the appended timeline entry with `[patch]`, `[minor]`, or `[major]` according to its page-specific impact. Preserve the complete history; a corrective entry should identify what it corrects and why when that matters.
+   - Provide the mandatory `significance` field on the `create_page` or `update_page` MCP call. Preserve the complete history; a corrective entry should identify what it corrects and why when that matters. Keep the free-form `timeline_entry` readable without embedding the significance label.
    - Include exact wording only when the wording itself is material. Keep raw message identifiers and technical cursor details in automation memory, not user-facing page prose, unless the destination provenance schema requires them.
    - Create a new standalone page only when no canonical owner exists and the thread provides enough durable evidence for a useful record.
    - Anti-patterns: transcript dumps, generic email-log pages, speculative synthesis, verbose audit trails in stable page bodies, duplicating comprehensive attachment extraction on the canonical page.
@@ -226,7 +226,7 @@ Do not store full message bodies, full attachment text, credentials, or unrelate
 - Matching an outbound action by thread, subject, or recipient alone when a stable provider message ID is available.
 - Calling generic page or task update repeatedly for the same event without checking the existing timeline, outbound metadata, and provenance first.
 - Treating every repeated timeline entry as a duplicate, suppressing a deliberate correction, or rewriting prior history to hide it.
-- Omitting the `patch`, `minor`, or `major` significance label or assigning it from message length, emotional salience, or sender status instead of page impact.
+- Omitting the mandatory `significance` field on a `create_page` or `update_page` call, encoding significance only in `timeline_entry`, or assigning it from message length, emotional salience, or sender status instead of page impact.
 - Marking `sent_and_logged` when a canonical Brain write or its same-Brain read-back is incomplete.
 - Creating or updating a task without first reconciling the candidate through `$bigbrain-action-review`.
 - Turning an external party's action or Harry's uninvoked optional offer into a Harry-facing task.
@@ -247,8 +247,8 @@ Use this template:
   - Outbound state: <draft_prepared | approved | sent | sent_and_logged | send_unverified | needs_review | reconciliation_incomplete>
   - For a sent action, report the verified mailbox, recipients, sent timestamp, and actual attachment filenames when useful; mention any mismatch against the prepared draft.
   - <Page category>:
-    - Created: <page title> [<patch | minor | major>]
-    - Updated: <page title> [<patch | minor | major>]
+    - Created: <page title> (<patch | minor | major>)
+    - Updated: <page title> (<patch | minor | major>)
   - Artifacts:
     - Created: <PDF artifact sidecar title>, raw PDF verified
 
