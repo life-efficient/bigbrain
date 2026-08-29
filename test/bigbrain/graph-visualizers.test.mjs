@@ -257,6 +257,8 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(main, /autoRotate, demoMode/);
   assert.match(visualizer, /\.cooldownTicks\(100\)/);
   assert.match(visualizer, /\.onEngineStop\(\(\) =>/);
+  assert.match(visualizer, /if \(!forceGraph\.__bigBrainFitPending\) return;/);
+  assert.match(visualizer, /forceGraph\.__bigBrainFitPending = true;/);
   assert.match(visualizer, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
   assert.match(visualizer, /scene\.rotation\.z \+=/);
   assert.match(visualizer, /AUTO_ROTATION_RADIANS_PER_SECOND = 0\.035/);
@@ -655,6 +657,8 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.match(forceGraph2d, /nodeCanvasObjectMode\('replace'\)/);
   assert.match(forceGraph2d, /nodeCanvasObject/);
   assert.match(forceGraph2d, /onEngineStop/);
+  assert.match(forceGraph2d, /if \(!forceGraph\.__bigBrainFitPending\) return;/);
+  assert.match(forceGraph2d, /forceGraph\.__bigBrainFitPending = true;/);
   assert.match(forceGraph2d, /aria-label="2D force-directed brain graph"/);
   assert.doesNotMatch(forceGraph2d, /source\?\.color/);
   assert.doesNotMatch(forceGraph2d, /autoRotate/);

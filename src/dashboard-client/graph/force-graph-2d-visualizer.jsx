@@ -130,6 +130,8 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       .cooldownTicks(100)
       .cooldownTime(1800)
       .onEngineStop(() => {
+        if (!forceGraph.__bigBrainFitPending) return;
+        forceGraph.__bigBrainFitPending = false;
         forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
       })
       .onNodeClick((node) => {
@@ -203,6 +205,7 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null) {
       target: edge.target,
     }));
 
+  forceGraph.__bigBrainFitPending = true;
   forceGraph.graphData({ nodes, links });
   updateForceGraphHighlight(forceGraph, focusSlug);
 }
