@@ -271,6 +271,16 @@ export const GRAPH_COLOR_PALETTES = [
       'personal-protocol': '#718D95', sources: '#A6D4D9', ops: '#9A8364', inbox: '#B1CACE',
     },
   },
+  {
+    id: 'aegis',
+    label: 'Aegis',
+    colors: {
+      people: '#D9E0E4', organizations: '#B7BEC3', companies: '#252B30', deals: '#C6A45B',
+      projects: '#AEB8BE', ideas: '#E8E9E5', meetings: '#C8D0D3', tasks: '#D0B36A',
+      concepts: '#9DA6AC', writing: '#F4F5F1', protocol: '#8E979C', archive: '#4A5156',
+      'personal-protocol': '#A9976D', sources: '#C2CDD1', ops: '#B88E3D', inbox: '#D1B66F',
+    },
+  },
 ];
 
 export const GRAPH_COLOR_PALETTE_OPTIONS = [
