@@ -181,6 +181,86 @@ export const GRAPH_COLOR_PALETTES = [
       inbox: '#EF6351',
     },
   },
+  {
+    id: 'desert',
+    label: 'Desert',
+    colors: {
+      people: '#A79B70', organizations: '#766B45', companies: '#4D4933', deals: '#B68A45',
+      projects: '#8E845B', ideas: '#C2A86A', meetings: '#6A6245', tasks: '#9B783E',
+      concepts: '#B0A889', writing: '#D1C29A', protocol: '#81764F', archive: '#625F4B',
+      'personal-protocol': '#927F57', sources: '#77745D', ops: '#B39A5F', inbox: '#A66B3D',
+    },
+  },
+  {
+    id: 'arctic',
+    label: 'Arctic',
+    colors: {
+      people: '#D4D7D9', organizations: '#AEB4BA', companies: '#72777D', deals: '#E3E4E3',
+      projects: '#BFC5CA', ideas: '#F0F0EC', meetings: '#969CA2', tasks: '#C9CDD0',
+      concepts: '#858B91', writing: '#E5E6E4', protocol: '#A2A8AD', archive: '#555B61',
+      'personal-protocol': '#777D83', sources: '#BBC2C8', ops: '#D8D9D6', inbox: '#92979B',
+    },
+  },
+  {
+    id: 'woodland',
+    label: 'Woodland',
+    colors: {
+      people: '#626C50', organizations: '#464C38', companies: '#252B21', deals: '#7C704A',
+      projects: '#566149', ideas: '#8A8055', meetings: '#394332', tasks: '#6E7952',
+      concepts: '#73765A', writing: '#A19A76', protocol: '#4D583E', archive: '#30372B',
+      'personal-protocol': '#596045', sources: '#65705A', ops: '#85764C', inbox: '#765E3D',
+    },
+  },
+  {
+    id: 'digital',
+    label: 'Digital',
+    colors: {
+      people: '#777A7D', organizations: '#5C6063', companies: '#303235', deals: '#919497',
+      projects: '#686B70', ideas: '#A0A2A3', meetings: '#45484B', tasks: '#85888A',
+      concepts: '#6F7274', writing: '#B2B3B1', protocol: '#55585B', archive: '#292B2D',
+      'personal-protocol': '#66686A', sources: '#878A8C', ops: '#9A9690', inbox: '#4B4D50',
+    },
+  },
+  {
+    id: 'urban',
+    label: 'Urban',
+    colors: {
+      people: '#74777A', organizations: '#505357', companies: '#292C2F', deals: '#9C4A48',
+      projects: '#62666A', ideas: '#A35B55', meetings: '#3E4246', tasks: '#7D5551',
+      concepts: '#858789', writing: '#B0B0AB', protocol: '#5C5F60', archive: '#35383B',
+      'personal-protocol': '#6E5554', sources: '#687075', ops: '#8F4844', inbox: '#A44442',
+    },
+  },
+  {
+    id: 'blue-tiger',
+    label: 'Blue Tiger',
+    colors: {
+      people: '#839CC5', organizations: '#52698F', companies: '#263B60', deals: '#9EACC7',
+      projects: '#6883B0', ideas: '#A6B8D5', meetings: '#435B83', tasks: '#7993BD',
+      concepts: '#71819B', writing: '#BBC7D9', protocol: '#4F709F', archive: '#27344E',
+      'personal-protocol': '#5E769E', sources: '#6889BA', ops: '#8C9CB9', inbox: '#5676AF',
+    },
+  },
+  {
+    id: 'red-tiger',
+    label: 'Red Tiger',
+    colors: {
+      people: '#D65A54', organizations: '#A62E31', companies: '#4B171D', deals: '#E27852',
+      projects: '#B83A3D', ideas: '#E88955', meetings: '#7D2028', tasks: '#C94943',
+      concepts: '#A64A43', writing: '#F0A079', protocol: '#8B252D', archive: '#35161C',
+      'personal-protocol': '#9E3438', sources: '#B74C4A', ops: '#D05E43', inbox: '#E53E36',
+    },
+  },
+  {
+    id: 'fall',
+    label: 'Fall',
+    colors: {
+      people: '#A56E38', organizations: '#7A4F2D', companies: '#3F3029', deals: '#D08A28',
+      projects: '#8E5A2F', ideas: '#C79A3A', meetings: '#67452D', tasks: '#B56A2C',
+      concepts: '#96724A', writing: '#D9B26E', protocol: '#87552D', archive: '#4B3B30',
+      'personal-protocol': '#98653A', sources: '#7E684A', ops: '#C47D2D', inbox: '#B64A2E',
+    },
+  },
 ];
 
 export const GRAPH_COLOR_PALETTE_OPTIONS = [

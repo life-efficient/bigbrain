@@ -18,6 +18,7 @@ import {
 } from '../../src/dashboard-client/graph/colors.js';
 import { resolveThemeMode } from '../../src/dashboard-client/graph/theme.js';
 import { graphTypeIconSvg } from '../../src/dashboard-client/graph/graph-type-icon-data.js';
+import { blendArcColors, GRAPH_ARC_ANIMATIONS } from '../../src/dashboard-client/graph/arc-animation.js';
 import {
   GRAPH_FALLBACK_ICON_NAMES,
   GRAPH_TYPE_ICON_NAMES,
@@ -78,6 +79,16 @@ test('resolveThemeMode respects auto and manual modes', () => {
   assert.equal(resolveThemeMode('light', true), 'light');
 });
 
+test('arc hover animation modes expose the shared four-state contract', () => {
+  assert.deepEqual(GRAPH_ARC_ANIMATIONS.map(({ id, label }) => [id, label]), [
+    ['none', 'None'],
+    ['instant', 'Instant'],
+    ['grow', 'Grow'],
+    ['shoot', 'Shoot'],
+  ]);
+  assert.equal(blendArcColors('#000000', '#FFFFFF', 0.5), '#808080');
+});
+
 test('updated node colors use acid green on a five-day eased scale', () => {
   const now = Date.parse('2026-06-21T12:00:00.000Z');
 
@@ -99,7 +110,7 @@ test('none graph color mode leaves node color unmodified', () => {
 });
 
 test('graph palettes provide technical presets and editable type colors', () => {
-  assert.deepEqual(GRAPH_COLOR_PALETTE_OPTIONS.map(({ id }) => id), ['jarvis', 'terminal', 'cobalt', 'soft', 'crimson-loom', 'neural-lumen', 'thermal', 'irezumi', 'custom']);
+  assert.deepEqual(GRAPH_COLOR_PALETTE_OPTIONS.map(({ id }) => id), ['jarvis', 'terminal', 'cobalt', 'soft', 'crimson-loom', 'neural-lumen', 'thermal', 'irezumi', 'desert', 'arctic', 'woodland', 'digital', 'urban', 'blue-tiger', 'red-tiger', 'fall', 'custom']);
   assert.equal(getGraphColorPalette('jarvis').people, '#00E5FF');
   assert.equal(getGraphColorPalette('crimson-loom').people, '#1769B0');
   assert.equal(getGraphColorPalette('crimson-loom').deals, '#D68724');
@@ -113,6 +124,11 @@ test('graph palettes provide technical presets and editable type colors', () => 
   assert.equal(getGraphColorPalette('irezumi').people, '#47BFC0');
   assert.equal(getGraphColorPalette('irezumi').deals, '#D9952F');
   assert.equal(Object.keys(getGraphColorPalette('irezumi')).length, 16);
+  for (const paletteId of ['desert', 'arctic', 'woodland', 'digital', 'urban', 'blue-tiger', 'red-tiger', 'fall']) {
+    assert.equal(Object.keys(getGraphColorPalette(paletteId)).length, 16);
+  }
+  assert.equal(getGraphColorPalette('blue-tiger').people, '#839CC5');
+  assert.equal(getGraphColorPalette('red-tiger').people, '#D65A54');
   assert.equal(getGraphNodeColor({ type: 'people' }, 'type', { people: '#123456' }), '#123456');
 
   const colors = sanitizeGraphTypeColors({ people: '#abc123', deals: 'invalid' }, getGraphColorPalette('jarvis'));
@@ -237,6 +253,7 @@ test('graph label and node controls remain available in the graph style menu', a
   const arcGroup = main.match(/<GraphStyleOptionGroup\s+label="Arc"[\s\S]*?\/>/)?.[0] || '';
   const paletteGroup = main.match(/<GraphStyleOptionGroup\s+label="Palette"[\s\S]*?\/>/)?.[0] || '';
   const autoRotationGroup = main.match(/<GraphStyleOptionGroup\s+label="Auto rotation"[\s\S]*?\/>/)?.[0] || '';
+  const arcAnimationGroup = main.match(/<GraphStyleOptionGroup\s+label="Arc animation"[\s\S]*?\/>/)?.[0] || '';
 
   assert.match(labelsGroup, /options=\{GRAPH_LABEL_STYLES\}/);
   assert.doesNotMatch(labelsGroup, /disabled=/);
@@ -250,6 +267,8 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.doesNotMatch(nodeSizeGroup, /disabled=/);
   assert.match(arcGroup, /options=\{GRAPH_ARC_STYLES\}/);
   assert.doesNotMatch(arcGroup, /disabled=/);
+  assert.match(arcAnimationGroup, /options=\{GRAPH_ARC_ANIMATIONS\}/);
+  assert.doesNotMatch(arcAnimationGroup, /disabled=/);
   assert.match(paletteGroup, /options=\{GRAPH_COLOR_PALETTE_OPTIONS\}/);
   assert.match(autoRotationGroup, /options=\{GRAPH_AUTO_ROTATION_OPTIONS\}/);
   assert.match(autoRotationGroup, /disabled=\{visualizerId !== 'force-graph-3d'\}/);
@@ -280,6 +299,10 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /forceGraph\.__bigBrainFitPending = true;/);
   assert.match(visualizer, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
   assert.match(visualizer, /arcStyle = 'curve'/);
+  assert.match(visualizer, /arcAnimation = 'instant'/);
+  assert.match(visualizer, /startArcAnimation/);
+  const dashboard = await fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8');
+  assert.match(dashboard, /graph-arc-hover-grow/);
   assert.match(visualizer, /linkCurvature\(\(\) => getForceGraphLinkCurvature/);
   assert.match(visualizer, /createForceGraphIconSprite/);
   assert.doesNotMatch(visualizer, /TYPE_GLYPHS/);
@@ -679,7 +702,7 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.match(forceGraph, /new ForceGraph3D/);
   assert.match(forceGraph, /new ResizeObserver\(resize\)/);
   assert.match(forceGraph, /forceGraph\.width\(width\)/);
-  assert.match(forceGraph, /linkWidth\(\(link\) => getForceGraphHighlightLinks\(forceGraph\)\.has\(link\) \? 1\.5 : 0\)/);
+  assert.match(forceGraph, /getForceGraphLinkWidth\(link, getForceGraphHighlightLinks\(forceGraph\), forceGraph\)/);
   assert.doesNotMatch(forceGraph, /source\?\.color/);
   assert.match(forceGraph, /d3AlphaDecay\(0\.06\)/);
   assert.doesNotMatch(forceGraph, /\.refresh\(\)/);
@@ -694,6 +717,8 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.match(forceGraph2d, /graphTypeIconSvg/);
   assert.doesNotMatch(forceGraph2d, /TYPE_GLYPHS/);
   assert.match(forceGraph2d, /onEngineStop/);
+  assert.match(forceGraph2d, /arcAnimation = 'instant'/);
+  assert.match(forceGraph2d, /startArcAnimation/);
   assert.match(forceGraph2d, /if \(!forceGraph\.__bigBrainFitPending\) return;/);
   assert.match(forceGraph2d, /forceGraph\.__bigBrainFitPending = true;/);
   assert.match(forceGraph2d, /aria-label="2D force-directed brain graph"/);
