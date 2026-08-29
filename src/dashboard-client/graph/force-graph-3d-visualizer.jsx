@@ -514,7 +514,7 @@ function createForceGraphNodeGlow(radius) {
       depthTest: false,
     }),
   );
-  glow.scale.setScalar(radius * 5.2);
+  glow.scale.setScalar(radius * 7);
   glow.renderOrder = -1;
   glow.userData.bigBrainGlow = true;
   glow.visible = false;
@@ -528,9 +528,11 @@ function getForceGraphGlowTexture() {
   canvas.height = 64;
   const context = canvas.getContext('2d');
   const gradient = context.createRadialGradient(32, 32, 2, 32, 32, 32);
-  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.9)');
-  gradient.addColorStop(0.28, 'rgba(255, 255, 255, 0.42)');
-  gradient.addColorStop(0.68, 'rgba(255, 255, 255, 0.12)');
+  gradient.addColorStop(0, 'rgba(255, 255, 255, 0.72)');
+  gradient.addColorStop(0.18, 'rgba(255, 255, 255, 0.55)');
+  gradient.addColorStop(0.42, 'rgba(255, 255, 255, 0.34)');
+  gradient.addColorStop(0.68, 'rgba(255, 255, 255, 0.16)');
+  gradient.addColorStop(0.86, 'rgba(255, 255, 255, 0.05)');
   gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
   context.fillStyle = gradient;
   context.fillRect(0, 0, 64, 64);
