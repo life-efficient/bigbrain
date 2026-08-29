@@ -98,3 +98,17 @@ Expected:
 - Assume the write may have persisted and read the canonical page, task, and provenance using the action and provider keys.
 - Return `sent_and_logged` if the exact action is present and read-back succeeds.
 - Retry the generic update only if the exact action is absent, and never append a second timeline entry.
+
+## Timeline significance
+
+Evidence:
+
+- A person page records routine message coordination, an accepted introduction, and a later job change.
+- A deal page records meeting coordination, a newly agreed diligence step, and the deal closing.
+- One earlier timeline entry contains a material factual error that needs correction.
+
+Expected:
+
+- Label routine coordination as `[patch]`, meaningful progress or an accepted introduction as `[minor]`, and the job change or deal closing as `[major]` when those events change the owning page's durable trajectory.
+- Classify the factual correction by its impact, append it as a new entry, and reference the earlier entry instead of rewriting history.
+- Do not assign significance from message length, emotional salience, or sender status.

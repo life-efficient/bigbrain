@@ -37,6 +37,12 @@ assert "live filing rules" in SKILL
 assert "$find-missing-tools" in SKILL
 assert "same destination Brain" in SKILL
 assert "## Outbound Email State Contract" in SKILL
+assert "## Timeline Significance Contract" in SKILL
+assert "`patch`:" in SKILL
+assert "`minor`:" in SKILL
+assert "`major`:" in SKILL
+assert "Never rewrite or suppress prior history" in SKILL
+assert "Prefix the appended timeline entry with `[patch]`, `[minor]`, or `[major]`" in SKILL
 assert "draft_prepared" in SKILL
 assert "sent_and_logged" in SKILL
 assert "send_unverified" in SKILL
@@ -48,7 +54,7 @@ assert "stable outbound action ID and the provider message ID as idempotency key
 assert "A generic page or task update appends a timeline entry each time it is called." in SKILL
 assert "verified no-op" in SKILL
 assert "Do not call a send tool during this recovery path." in SKILL
-assert "confirm that a rerun would be a no-op rather than another timeline append" in SKILL
+assert "replaying the same event would be a no-op while a deliberate correction would create a distinct significance-labeled entry" in SKILL
 assert "assume it may have persisted" in SKILL
 assert "separate verified cursor for each Gmail thread" in SKILL
 assert "prior 24 hours" in SKILL
@@ -91,6 +97,8 @@ assert "$bigbrain-action-review" in AGENT
 assert "reconcile user-reported outbound sends through Gmail without resending" in AGENT
 assert "draft_prepared" in AGENT
 assert "sent_and_logged" in AGENT
+assert "label every timeline update as patch, minor, or major" in AGENT
+assert "preserve append-only history including deliberate corrections" in AGENT
 assert "sender and recipient direction" in AGENT
 assert "quoted-history boundaries" in AGENT
 assert "automated-versus-human authorship" in AGENT
@@ -109,6 +117,8 @@ assert "## User-reported outbound send" in CASES
 assert "Reconcile Gmail without calling a send tool." in CASES
 assert "## Retry after canonical update" in CASES
 assert "exactly one timeline entry" in CASES
+assert "## Timeline significance" in CASES
+assert "Classify the factual correction by its impact" in CASES
 assert "sync" not in SKILL.lower()
 
 assert "—" not in SKILL

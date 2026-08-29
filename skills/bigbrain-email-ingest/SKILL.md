@@ -23,6 +23,16 @@ Use these states for every outbound email action. Keep outbound state separate f
 
 Never promote `draft_prepared` or `approved` to `sent`. Never promote `sent` to `sent_and_logged` from a Gmail send response alone. When a user reports that a message was already sent, reconcile Gmail and do not send it again.
 
+## Timeline Significance Contract
+
+Every appended timeline entry must carry one semantic significance label. This is an impact label, not a page version number and not a replacement for the dated append-only history. When the timeline tool accepts only text, put `[patch]`, `[minor]`, or `[major]` immediately after the date separator.
+
+- `patch`: routine coordination, message sent or received without material state change, typo or formatting correction, source-link correction, or other low-impact repair.
+- `minor`: a material but non-transformative change such as a meaningful reply, completed meeting, accepted introduction, new diligence answer, agreed next step, or progress that changes what happens next.
+- `major`: a transformative change to the page's identity, control, outcome, or trajectory such as a deal closing or collapsing, a hostile buyer entering, a key contact being fired or changing jobs, an organization being acquired, a project launching or being cancelled, or a person's death.
+
+Classify a correction by its resulting impact, not by the fact that it is corrective. A typo fix is usually `patch`; correcting a material deal status or person identity is `minor` or `major` according to its effect. A deliberate correction or newly discovered evidence is a new timeline event with its own significance label and should reference the earlier entry when useful. Never rewrite or suppress prior history merely to make the timeline look deduplicated.
+
 ## Contract Checklist
 
 - A bare invocation scans the recently unchecked queue. A named sender, thread, topic, mailbox query, or date range limits the scan to that scope.
@@ -52,9 +62,9 @@ Never promote `draft_prepared` or `approved` to `sent`. Never promote `sent` to 
 - Explicit invocation or an authorized scheduled run permits in-scope Brain writes, same-Brain read-back, artifact verification, verified cursor advancement, and only the Gmail Trash actions listed in `Authorized Gmail Cleanup`. It does not authorize any other Gmail write or outbound action.
 - Final output is count-first, grouped by destination Brain and email thread, with page-type categories and individual `Created:` or `Updated:` page bullets nested beneath each category.
 - For outbound actions, bind the actual Gmail message rather than the prepared draft: mailbox, message ID, thread ID, sender, To/Cc/Bcc, subject, sent timestamp, final-body fingerprint or concise summary, and attachment filenames plus size, MIME type, or hash when available.
-- Use a stable outbound action ID and the provider message ID as idempotency keys. Before any canonical update, search existing page/task timelines, outbound metadata, and provenance for those keys. If the action is already present, read it back and return a verified no-op instead of appending another timeline entry.
-- A generic page or task update appends a timeline entry each time it is called. It is not idempotent by itself. Do not retry the same update until the duplicate check has established that the exact action is absent.
-- If a Brain write times out or returns an error, assume it may have persisted. Read the canonical page, task, and provenance using the action and provider keys before retrying. Retry only when the exact action is absent.
+- Use a stable outbound action ID and the provider message ID as idempotency keys for external action state and provider reconciliation. Before any canonical update, search existing page/task timelines, outbound metadata, and provenance for those keys. If the exact action is already present and there is no new evidence, read it back and return a verified no-op. If a deliberate correction or new evidence exists, append a new event with a new action or event ID and a significance label, linked to the earlier event when useful.
+- A generic page or task update appends a timeline entry each time it is called. It is intentionally append-only and is not idempotent by itself. Do not use a retry to replay the exact same event, but do append a distinct, significance-labeled entry for an actual correction or newly discovered material fact.
+- If a Brain write times out or returns an error, assume it may have persisted. Read the canonical page, task, and provenance using the action and provider keys before retrying. If the exact event is present and no new evidence exists, do not replay it. If the persisted result needs correction, append a separate correction entry with its own significance label.
 
 ## Workflow
 
@@ -103,6 +113,7 @@ Never promote `draft_prepared` or `approved` to `sent`. Never promote `sent` to 
    - Search and read the canonical deal, project, organization, person, concept, artifact, and task pages that could own the update.
    - Compare email timestamps and direction with existing source provenance. Use the newest verified evidence while retaining uncertainty and source attribution.
    - Prefer one concise timeline or state update on the best owning page. Update broader related pages only when their durable canonical state genuinely changed.
+   - Assign the timeline significance label from `Timeline Significance Contract` based on the impact on that page. Keep routine correspondence visible as `patch`, material forward movement as `minor`, and transformative state changes as `major`.
    - Build a concise action evidence packet from newly authored message content. Preserve source thread, sender, recipients, direction, timestamp, exact wording only when material, and email-specific interpretation such as request, accepted commitment, external promise, optional offer, proposal, or discussion.
    - Invoke `$bigbrain-action-review` with that evidence packet, the most relevant canonical Brain context, live open, in-progress, and waiting tasks, and this skill's approval boundaries. Do this before every task write.
    - Treat the review result as a task reconciliation plan. It may recommend updating an existing task, creating a concrete task, recording an external action only on its owning page, keeping a conditional follow-up, or holding ambiguity for review.
@@ -119,7 +130,7 @@ Never promote `draft_prepared` or `approved` to `sent`. Never promote `sent` to 
    - When the user reports that a prepared message was sent, perform Gmail-only reconciliation. Search the authenticated mailbox's sent messages using the exact message or thread ID when available, otherwise a bounded combination of recipient, subject, date window, and body or attachment fingerprint. Do not call a send tool during this recovery path.
    - Read the surrounding Gmail thread when needed, but bind the newest actual sent message, not an older draft or quoted message. Capture the authenticated mailbox, message ID, thread ID, sender, To/Cc/Bcc, subject, internal sent timestamp, final body fingerprint or concise summary, and attachment filename, MIME, size, and hash data when exposed.
    - If Gmail returns no unique match, retain `send_unverified`; if it returns multiple plausible matches or materially conflicting identity evidence, retain `needs_review`. Do not claim sent or sent-and-logged, update a sent timeline, advance a related cursor, or resend while unresolved.
-   - Before updating a canonical page or task, derive a stable action ID and provider idempotency key such as `gmail:outbound:<mailbox>:<message_id>`. Search the existing page/task read-back and provenance for that key. If present, do not call a generic update again; read the existing record and report a verified no-op. If absent, perform the smallest required update once.
+   - Before updating a canonical page or task, derive a stable action ID and provider idempotency key such as `gmail:outbound:<mailbox>:<message_id>`. Search the existing page/task read-back and provenance for that key. If present and no new evidence exists, do not call a generic update again; read the existing record and report a verified no-op. If a deliberate correction or new evidence exists, append a separate significance-labeled entry rather than treating it as a duplicate.
    - Invoke `$bigbrain-action-review` before changing a task. Record an external send on the owning deal, project, relationship, or person page when no member-owned task state changed; update a related task only when its action or completion evidence genuinely changed.
    - Set `sent_and_logged` only after every required canonical page/task and provenance read-back succeeds. If Gmail is verified but Brain reconciliation fails, retain `reconciliation_incomplete`, preserve the exact repair target and error, and never resend.
    - Anti-patterns: treating a draft as sent, treating approval as sent, sending again after a user-reported send, trusting a send response without Gmail read-back, matching by thread alone, logging the prepared draft instead of the actual sent message, retrying a generic update before duplicate preflight, marking sent-and-logged before Brain read-back.
@@ -134,13 +145,14 @@ Never promote `draft_prepared` or `approved` to `sent`. Never promote `sent` to 
 
 9. Apply the smallest durable canonical update.
    - Write concise source-aware context such as `Alfredo shared an updated IQ197 information deck by email, presenting a Bloom-first accelerated power strategy and a parallel Hydro One/IESO pathway; timing and capacity remain subject to technical, commercial, permitting, utility, and end-user confirmation.`
+   - Prefix the appended timeline entry with `[patch]`, `[minor]`, or `[major]` according to its page-specific impact. Preserve the complete history; a corrective entry should identify what it corrects and why when that matters.
    - Include exact wording only when the wording itself is material. Keep raw message identifiers and technical cursor details in automation memory, not user-facing page prose, unless the destination provenance schema requires them.
    - Create a new standalone page only when no canonical owner exists and the thread provides enough durable evidence for a useful record.
    - Anti-patterns: transcript dumps, generic email-log pages, speculative synthesis, verbose audit trails in stable page bodies, duplicating comprehensive attachment extraction on the canonical page.
 
 10. Verify and advance cursors.
    - Read back every changed page and task through the same destination Brain used for the write.
-   - For outbound actions, read back the canonical state after the final write, confirm the actual provider message identity and evidence are present, and confirm that a rerun would be a no-op rather than another timeline append.
+   - For outbound actions, read back the canonical state after the final write, confirm the actual provider message identity and evidence are present, and confirm that replaying the same event would be a no-op while a deliberate correction would create a distinct significance-labeled entry.
    - Read back each stored PDF and its sidecar. Compare the stored raw bytes with the Gmail attachment by exact byte length and SHA-256 when the tools expose raw content; otherwise report the narrower verification achieved.
    - Treat successful same-Brain read-back as complete verification for page and task writes. MCP mutations are propagated and backed up automatically; never invoke maintenance, propagation, or backup operations.
    - Re-search or re-read affected canonical records when needed to confirm no duplicate page was created.
@@ -212,7 +224,9 @@ Do not store full message bodies, full attachment text, credentials, or unrelate
 - Treating a user-reported send as permission to send again.
 - Treating a Gmail draft, send response, cleared composer, or thread match as proof of final sent state without reading the actual sent message.
 - Matching an outbound action by thread, subject, or recipient alone when a stable provider message ID is available.
-- Calling generic page or task update repeatedly for the same action without checking the existing timeline, outbound metadata, and provenance first.
+- Calling generic page or task update repeatedly for the same event without checking the existing timeline, outbound metadata, and provenance first.
+- Treating every repeated timeline entry as a duplicate, suppressing a deliberate correction, or rewriting prior history to hide it.
+- Omitting the `patch`, `minor`, or `major` significance label or assigning it from message length, emotional salience, or sender status instead of page impact.
 - Marking `sent_and_logged` when a canonical Brain write or its same-Brain read-back is incomplete.
 - Creating or updating a task without first reconciling the candidate through `$bigbrain-action-review`.
 - Turning an external party's action or Harry's uninvoked optional offer into a Harry-facing task.
@@ -233,8 +247,8 @@ Use this template:
   - Outbound state: <draft_prepared | approved | sent | sent_and_logged | send_unverified | needs_review | reconciliation_incomplete>
   - For a sent action, report the verified mailbox, recipients, sent timestamp, and actual attachment filenames when useful; mention any mismatch against the prepared draft.
   - <Page category>:
-    - Created: <page title>
-    - Updated: <page title>
+    - Created: <page title> [<patch | minor | major>]
+    - Updated: <page title> [<patch | minor | major>]
   - Artifacts:
     - Created: <PDF artifact sidecar title>, raw PDF verified
 
