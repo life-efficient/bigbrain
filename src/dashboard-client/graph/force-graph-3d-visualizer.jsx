@@ -111,7 +111,6 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .nodeThreeObject((node) => createForceGraphNodeObject(node, settingsRef.current))
       .nodeThreeObjectExtend(false)
       .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDayRef.current))
-      .nodeLabel((node) => buildNodeTooltip(node))
       .linkSource('source')
       .linkTarget('target')
       .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDayRef.current))
@@ -751,19 +750,6 @@ function shouldShowParticles(link, nodeCount, highlightedLinks, forceGraph) {
 function getForceGraphParticleSpeed(link, forceGraph) {
   if (forceGraph?.__bigBrainArcAnimation?.mode === 'shoot' && getForceGraphHighlightLinks(forceGraph).has(link)) return 0.012;
   return 0.004;
-}
-
-function buildNodeTooltip(node) {
-  return `<strong>${escapeHtml(node.title || node.slug)}</strong><br><small>${escapeHtml(node.type || 'page')}</small>`;
-}
-
-function escapeHtml(value) {
-  return String(value || '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
 }
 
 function normalizeHex(value, fallback) {
