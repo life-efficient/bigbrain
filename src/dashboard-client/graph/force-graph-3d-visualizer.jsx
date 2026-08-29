@@ -188,17 +188,11 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     if (!forceGraph) return;
     forceGraph
       .backgroundColor(theme.graphBase)
-      .nodeThreeObject((node) => createForceGraphNodeObject(node, settingsRef.current))
-      .nodeLabel((node) => buildNodeTooltip(node))
-      .linkCurvature(() => getForceGraphLinkCurvature(settingsRef.current.arcStyle))
-      .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
-      .linkOpacity((link) => getForceGraphLinkOpacity(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
-      .linkWidth((link) => getForceGraphLinkWidth(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
-      .linkResolution(3)
-      .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph), forceGraph))
-      .linkDirectionalParticleSpeed((link) => getForceGraphParticleSpeed(link, forceGraph))
-      .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph));
-    updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), activeSlugRef.current || hoveredSlugRef.current, arcAnimation);
+      .linkCurvature(() => getForceGraphLinkCurvature(settingsRef.current.arcStyle));
+    updateForceGraphNodeObjects(forceGraph, settingsRef.current);
+    if (forceGraph.__bigBrainArcAnimation?.mode !== arcAnimation) {
+      updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), activeSlugRef.current || hoveredSlugRef.current, arcAnimation);
+    }
   }, [arcAnimation, arcStyle, colorMode, labelStyle, nodeFill, nodeIcon, nodeShape, nodeSize, theme, typeColors]);
 
   useEffect(() => {
@@ -312,8 +306,17 @@ function syncForceGraphNodeState(node, highlightedNodes) {
   if (visual.glow) visual.glow.visible = emphasized;
 }
 
-function createForceGraphNodeObject(node, settings) {
-  const group = new THREE.Group();
+function updateForceGraphNodeObjects(forceGraph, settings) {
+  const data = getForceGraphData(forceGraph);
+  for (const node of data.nodes || []) {
+    const group = node.__bigBrainVisual?.group;
+    if (group) createForceGraphNodeObject(node, settings, group);
+  }
+}
+
+function createForceGraphNodeObject(node, settings, existingGroup = null) {
+  const group = existingGroup || new THREE.Group();
+  if (existingGroup) disposeForceGraphNodeChildren(group);
   const nodeColor = normalizeHex(getGraphNodeColor(node, settings.colorMode, settings.typeColors), DEFAULT_NODE_COLOR);
   const radius = getForceGraphNodeRadius(node, settings.nodeSize);
   const geometry = settings.nodeFill === 'none' ? null : createNodeGeometry(settings.nodeShape, radius);
@@ -350,6 +353,22 @@ function createForceGraphNodeObject(node, settings) {
   node.__bigBrainVisual = { group, label, labelBaseVisible, glow: null };
   syncForceGraphNodeState(node, new Set());
   return group;
+}
+
+function disposeForceGraphNodeChildren(group) {
+  for (const child of [...group.children]) {
+    disposeForceGraphObject(child);
+    group.remove(child);
+  }
+}
+
+function disposeForceGraphObject(object) {
+  object.children?.forEach(disposeForceGraphObject);
+  object.geometry?.dispose?.();
+  if (object.material) {
+    if (object.userData?.bigBrainOwnedTexture) object.material.map?.dispose?.();
+    object.material.dispose?.();
+  }
 }
 
 function createForceGraphNodeLabel(node, settings, radius) {
@@ -389,6 +408,7 @@ function createForceGraphTextSprite(text, color, width, height, label = false) {
   sprite.renderOrder = label ? 20 : 10;
   sprite.scale.set(width, height, 1);
   sprite.center.set(label ? 0 : 0.5, 0.5);
+  if (label) sprite.userData.bigBrainOwnedTexture = true;
   return sprite;
 }
 
