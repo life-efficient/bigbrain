@@ -318,8 +318,6 @@ function updateForceGraphHighlight(forceGraph, focusSlug, arcAnimation = 'instan
       const targetId = typeof link.target === 'object' ? link.target.id : link.target;
       if (sourceId === focusNode.id || targetId === focusNode.id) {
         highlightedLinks.add(link);
-        highlightedNodes.add(sourceId);
-        highlightedNodes.add(targetId);
       }
     }
   }
@@ -338,28 +336,26 @@ function updateForceGraphHighlight(forceGraph, focusSlug, arcAnimation = 'instan
     // to the intended visual result, but they do not schedule any work.
     startArcAnimation(forceGraph, arcAnimation, animatedLinks);
   }
-  for (const node of nodes) node.__bigBrainEmphasized = highlightedNodes.has(node.id);
+  for (const node of nodes) node.__bigBrainEmphasized = focusNode?.id === node.id;
 }
 
 function updateForceGraphActivity(forceGraph, data, slugs, arcAnimation = 'instant') {
   const nodes = Array.isArray(data?.nodes) ? data.nodes : [];
   const links = Array.isArray(data?.links) ? data.links : [];
   const activitySet = new Set(slugs);
-  const highlightedNodes = new Set(nodes.filter((node) => activitySet.has(node.id) || activitySet.has(node.slug)).map((node) => node.id));
+  const focusNode = nodes.find((node) => activitySet.has(node.id) || activitySet.has(node.slug));
   const highlightedLinks = new Set();
   for (const link of links) {
     const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
     const targetId = typeof link.target === 'object' ? link.target.id : link.target;
-    if (highlightedNodes.has(sourceId) || highlightedNodes.has(targetId)) {
+    if (focusNode && (sourceId === focusNode.id || targetId === focusNode.id)) {
       highlightedLinks.add(link);
-      highlightedNodes.add(sourceId);
-      highlightedNodes.add(targetId);
     }
   }
   const animatedLinks = arcAnimation === 'none' ? new Set() : highlightedLinks;
   forceGraph.__bigBrainHighlightLinks = animatedLinks;
   startArcAnimation(forceGraph, arcAnimation, animatedLinks);
-  for (const node of nodes) node.__bigBrainEmphasized = highlightedNodes.has(node.id);
+  for (const node of nodes) node.__bigBrainEmphasized = focusNode?.id === node.id;
 }
 
 function getForceGraphHighlightLinks(forceGraph) {
@@ -371,7 +367,7 @@ function drawForceGraphNode(node, context, globalScale, settings, forceGraph) {
   const radius = getForceGraphNodeRadius(node, settings.nodeSize);
   const color = normalizeHex(node.color, DEFAULT_NODE_COLOR);
   const emphasized = Boolean(node.__bigBrainEmphasized);
-  const drawRadius = radius * (emphasized ? 1.24 : 1);
+  const drawRadius = radius;
 
   context.save();
   traceNodeShape(context, settings.nodeShape, node.x, node.y, drawRadius);

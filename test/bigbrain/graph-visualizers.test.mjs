@@ -253,6 +253,8 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(force3d, /SYSTEM_ACTIVITY_PREFOCUS_DURATION = 1200/);
   assert.match(force2d, /updateForceGraphActivity\(forceGraph, data, \[target\.slug\]/);
   assert.match(force3d, /updateForceGraphActivity\(forceGraph, data, \[target\.slug\]/);
+  assert.match(force2d, /focusNode\?\.id === node\.id/);
+  assert.match(force3d, /syncForceGraphNodeState\(node, focusNode \? new Set\(\[focusNode\.id\]\)/);
   assert.match(force2d, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
   assert.match(force3d, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
   assert.match(force3d, /rotationPauseUntilRef\.current/);

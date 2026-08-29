@@ -367,8 +367,6 @@ function updateForceGraphHighlight(forceGraph, data, focusSlug, arcAnimation = '
       const targetId = typeof link.target === 'object' ? link.target.id : link.target;
       if (sourceId === focusNode.id || targetId === focusNode.id) {
         highlightedLinks.add(link);
-        highlightedNodes.add(sourceId);
-        highlightedNodes.add(targetId);
       }
     }
   }
@@ -406,20 +404,18 @@ function updateForceGraphActivity(forceGraph, data, slugs, arcAnimation = 'insta
   const nodes = Array.isArray(resolvedData.nodes) ? resolvedData.nodes : [];
   const links = Array.isArray(resolvedData.links) ? resolvedData.links : [];
   const activitySet = new Set(slugs);
-  const highlightedNodes = new Set(nodes.filter((node) => activitySet.has(node.id) || activitySet.has(node.slug)).map((node) => node.id));
+  const focusNode = nodes.find((node) => activitySet.has(node.id) || activitySet.has(node.slug));
   const highlightedLinks = new Set();
   for (const link of links) {
     const sourceId = typeof link.source === 'object' ? link.source.id : link.source;
     const targetId = typeof link.target === 'object' ? link.target.id : link.target;
-    if (highlightedNodes.has(sourceId) || highlightedNodes.has(targetId)) {
+    if (focusNode && (sourceId === focusNode.id || targetId === focusNode.id)) {
       highlightedLinks.add(link);
-      highlightedNodes.add(sourceId);
-      highlightedNodes.add(targetId);
     }
   }
   const animatedLinks = arcAnimation === 'none' ? new Set() : highlightedLinks;
   forceGraph.__bigBrainHighlightLinks = animatedLinks;
-  for (const node of nodes) syncForceGraphNodeState(node, highlightedNodes);
+  for (const node of nodes) syncForceGraphNodeState(node, focusNode ? new Set([focusNode.id]) : new Set());
   startArcAnimation(forceGraph, arcAnimation, animatedLinks);
   forceGraph
     .linkColor((link) => getForceGraphLinkColor(link, highlightedLinks, forceGraph))
@@ -435,7 +431,7 @@ function syncForceGraphNodeState(node, highlightedNodes) {
   const visual = node.__bigBrainVisual;
   if (!visual) return;
   const emphasized = highlightedNodes.has(node.id);
-  visual.group.scale.setScalar(emphasized ? 1.24 : 1);
+  visual.group.scale.setScalar(1);
   if (visual.label) visual.label.visible = visual.labelBaseVisible || emphasized;
   if (visual.glow) visual.glow.visible = emphasized;
 }
