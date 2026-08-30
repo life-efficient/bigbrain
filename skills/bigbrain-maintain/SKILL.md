@@ -104,6 +104,21 @@ Use only these built-in repair paths unless the user asks for deeper edits:
    - If the repository is clean and the only remaining git status issue is being
      ahead of the remote, run `git push`
 
+5. Inbound event triage:
+   - When health reports `inbound_event_failed` or
+     `inbound_event_quarantined`, inspect the exact delivery with
+     `bigbrain events inbox` before deciding what to do.
+   - Classify each delivery as `retryable`, `needs_review`, or `legacy` and
+     include the observed cause and one concrete proposed action in the final
+     report.
+   - Retry only when the cause is deterministic and the retry is idempotent or
+     the underlying write has been read back. Discard only when the delivery
+     is demonstrably obsolete, duplicated, or intentionally ignored. Otherwise
+     leave it untouched and propose the exact follow-up.
+   - After any retry or discard, run `bigbrain events drain` and re-run health.
+   - A maintenance pass must never leave an aggregate event-failure message
+     without the delivery ID, listener, exact error, and proposed resolution.
+
 ## When to stop
 
 Do not keep digging once one of these is true:
@@ -158,3 +173,6 @@ Do not keep digging once one of these is true:
 - Never report unresolved items as the final outcome until each remaining
   finding has been classified as either attempted, not safely fixable, or
   intentionally deferred
+- Never leave inbound event failures as an unexplained backlog. Every failed or
+  quarantined delivery must have an evidence-backed classification and
+  proposed next action.
