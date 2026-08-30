@@ -51,3 +51,23 @@ configuration, and app data assumptions.
 - Never replace a newer local service with an older app bundle. Source-managed,
   remote, server-managed, and unknown-owner services are read-only to the
   desktop updater.
+
+## Inbound Codex Task Ownership
+
+- The desktop app owns the lifecycle of user-visible tasks created from RSS and
+  webhook events. The event-ingester owns event receipt and prompt preparation,
+  then hands off to the desktop task creator.
+- The selected implementation is a desktop-native foreground task handoff. It
+  is not currently equivalent to spawning an independent app-server stdio
+  client: that client can create a durable task, but it retains active-turn
+  ownership and can produce the "open in another app" lock.
+- An enqueue-only handoff is acceptable only once the desktop side durably
+  consumes the queued prompt and proves task creation. A task is not complete
+  merely because a queue entry was written.
+- A shared app-server daemon or explicit ownership transfer remains an
+  alternative, but requires a supported protocol for releasing active-turn
+  ownership and must not be inferred from `ephemeral: false` or
+  `threadSource: user`.
+- The event ledger is intentionally not part of this ownership fix. Revisit it
+  later only if durable retries, duplicate prevention, crash recovery, audit
+  history, or provider delivery reconciliation becomes necessary.
