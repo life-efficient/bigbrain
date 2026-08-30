@@ -1374,6 +1374,9 @@ function formatHealthMessage(item) {
       return item.details?.expected_path
         ? `Missing ${item.details.expected_path}.`
         : 'Folder is missing FILING.md.';
+    case 'inbound_event_failed':
+    case 'inbound_event_quarantined':
+      return `${item.details?.listener_id || 'Inbound'} event failed: ${item.details?.last_error || 'review required.'}`;
     case 'invalid_meeting_prep_heading':
       return 'Meeting prep has unexpected headings.';
     default:

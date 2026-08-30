@@ -246,12 +246,14 @@ export async function runHealthCheck(config, {
   }
 
   const eventStatus = await readEventRuntimeHealth(config);
-  if (eventStatus && (eventStatus.counts.failed || eventStatus.counts.quarantined)) {
-    await insertHealthFinding(db, {
-      findingType: 'inbound_event_failures',
-      severity: 'high',
-      details: { counts: eventStatus.counts, registry_revision: eventStatus.registry_revision },
-    });
+  if (eventStatus?.attention?.length) {
+    for (const event of eventStatus.attention) {
+      await insertHealthFinding(db, {
+        findingType: event.state === 'quarantined' ? 'inbound_event_quarantined' : 'inbound_event_failed',
+        severity: event.state === 'quarantined' ? 'medium' : 'high',
+        details: event,
+      });
+    }
   }
 
   const findings = (await listHealthFindings(db)).map((row) => ({
@@ -289,8 +291,28 @@ async function readEventRuntimeHealth(config) {
   if (!registryExists && !inboxExists) return null;
   const registry = await new EventRegistryStore({ filePath: registryPath }).get();
   const inbox = await new EventInboxStore({ filePath: inboxPath }).get();
-  const counts = Object.values(inbox.deliveries).reduce((value, event) => { value[event.state] = (value[event.state] || 0) + 1; return value; }, {});
-  return { registry_revision: registry.revision, runtime: registry.runtime, listener_count: registry.listeners.filter((listener) => !listener.removed).length, counts, registry_path: registryPath, inbox_path: inboxPath };
+  const deliveries = Object.values(inbox.deliveries);
+  const counts = deliveries.reduce((value, event) => { value[event.state] = (value[event.state] || 0) + 1; return value; }, {});
+  const attention = deliveries
+    .filter((event) => ['failed', 'quarantined'].includes(event.state))
+    .sort((left, right) => String(left.finished_at || left.received_at).localeCompare(String(right.finished_at || right.received_at)))
+    .map((event) => ({
+      state: event.state,
+      delivery_id: event.delivery_id,
+      event_id: event.event_id,
+      listener_id: event.listener_id,
+      type: event.type,
+      received_at: event.received_at,
+      finished_at: event.finished_at,
+      attempts: event.attempts,
+      last_error: event.last_error || null,
+      remediation: {
+        inspect: `bigbrain events inbox --state ${event.state} --limit 50`,
+        retry: `bigbrain events retry ${event.delivery_id}`,
+        discard: `bigbrain events discard ${event.delivery_id} --reason "resolved or intentionally dismissed"`,
+      },
+    }));
+  return { registry_revision: registry.revision, runtime: registry.runtime, listener_count: registry.listeners.filter((listener) => !listener.removed).length, counts, attention, registry_path: registryPath, inbox_path: inboxPath };
 }
 
 function severityForFinding(findingType) {

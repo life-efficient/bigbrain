@@ -470,6 +470,13 @@ async function handleEvents(args, global) {
     output(global, { events }, events.map((event) => `${event.state.padEnd(11)} ${event.delivery_id}  ${event.listener_id}  ${event.event_id}`).join('\n') || 'Inbox is empty.');
     return;
   }
+  if (action === 'drain') {
+    const { InboundEventProcessor, defaultExecutorFactory } = await import('./inbound-events.js');
+    const processor = new InboundEventProcessor({ registryStore: registry, inboxStore: inbox, executorFactory: defaultExecutorFactory });
+    const results = await processor.drain({ limit: argValue(args, '--limit') || 10, type: argValue(args, '--type') || null });
+    output(global, { results }, results.map((event) => `${event.state.padEnd(11)} ${event.delivery_id}`).join('\n') || 'No received events to drain. Failed events require an explicit retry first.');
+    return;
+  }
   if (action === 'configure') {
     const listenerId = requireFirstArg(args.slice(1), 'events configure requires <listener-id>.');
     const eventTypes = argValues(args, '--event-type').map((value) => value.toLowerCase());
@@ -982,6 +989,7 @@ Commands:
   events rss-backfill <listener-id> --item-id STABLE_ID [--item-id STABLE_ID ...] [--dry-run|--apply] [--max-items N]
   events listeners
   events inbox [--state STATE] [--listener ID] [--limit N]
+  events drain [--limit N] [--type TYPE]
   events configure <listener-id> [--event-type-path PATH] [--event-type TYPE ...] [--prompt-field FIELD ...] [--prompt-omit-field FIELD ...] [--model MODEL] [--reasoning-effort EFFORT] [--chat-title TITLE]
   events listener-upsert --from <listener.json>
   events subscription-upsert --from <subscription.json>
