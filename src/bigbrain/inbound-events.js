@@ -7,6 +7,7 @@ import { CodexAppThreadExecutor, CodexCliExecutor, normalizeCodexOutcome } from 
 import { DEFAULT_RSS_POLL_LIMIT, RssCollector } from './rss-events.js';
 import { InboundWebhookServer } from './webhook-events.js';
 import { normalizeSourceType } from './source-taxonomy.js';
+import { DEFAULT_COLLECTIONS } from './page-ops.js';
 
 export { RssCollector } from './rss-events.js';
 export { InboundWebhookServer, configuredWebhookEventType } from './webhook-events.js';
@@ -1118,6 +1119,7 @@ export class ScopedFilingBroker {
     if (!commitMessage) throw new Error(`Filing write ${write.tool} must include a short commit_message.`);
     args.commit_message = commitMessage;
     args.provenance = provenance;
+    if (sourceTypeForEvent(event) === 'rss') assertRssWritePath(write.tool, args);
     if (write.tool === 'create_raw_file_with_page' && args.raw_content_source === 'event.source_document.raw_body') {
       const sourceDocument = event?.metadata?.source_document;
       if (sourceDocument?.status !== 'fetched' || typeof sourceDocument.raw_body !== 'string' || !sourceDocument.raw_body) {
@@ -1140,6 +1142,17 @@ export class ScopedFilingBroker {
       return readback;
     }
     return result;
+  }
+}
+
+function assertRssWritePath(tool, args) {
+  const paths = [args?.path, args?.page_path, args?.raw_path].filter(Boolean);
+  for (const value of paths) {
+    const normalized = String(value).replace(/\\/g, '/').replace(/^\/+/, '');
+    const collection = normalized.split('/')[0];
+    if (!DEFAULT_COLLECTIONS.includes(collection)) {
+      throw new Error(`RSS filing may only write established Brain collections; rejected ${tool} path ${value}.`);
+    }
   }
 }
 

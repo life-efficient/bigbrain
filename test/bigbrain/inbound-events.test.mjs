@@ -395,6 +395,22 @@ test('filing broker treats an already-provenanced event as an idempotent duplica
   assert.deepEqual(calls.map((call) => call.name), ['events/provenance_list', 'events/provenance']);
 });
 
+test('filing broker rejects RSS writes into invented or feed-named folders', async () => {
+  const broker = new ScopedFilingBroker({
+    brainRegistry: [{ id: 'brain_personal', name: 'Personal' }],
+    mcpFactory: async () => ({
+      callTool: async (name) => name === 'events/provenance_list' ? { provenance: [] } : { ok: true },
+    }),
+  });
+  await assert.rejects(
+    broker.file({ event_id: 'rss-1', type: 'rss.item', allowed_brain_ids: ['brain_personal'] }, {
+      status: 'filed',
+      destinations: [{ brain_id: 'brain_personal', writes: [{ tool: 'create_page', arguments: { path: 'inbound/openai-news/article', title: 'Article', body: 'Body' }, commit_message: 'Capture article' }] }],
+    }),
+    /RSS filing may only write established Brain collections/,
+  );
+});
+
 test('webhook server authenticates, limits, and deduplicates generic events', async () => {
   const paths = await fixture();
   const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
