@@ -13,6 +13,7 @@ let credentialOptionsError = '';
 let discoveredBrains = [];
 let discoveryLoading = false;
 let discoveryError = '';
+let onboardingSession = 0;
 
 const content = document.querySelector('#step-content');
 const steps = [...document.querySelectorAll('.step')];
@@ -40,7 +41,7 @@ function render() {
     4: `<h1>Ready to connect</h1><p>If this BigBrain requires sign-in, you’ll be asked to sign in when its dashboard opens.</p><div id="error"></div>${actions(true, 'Connect BigBrain')}`,
   };
   const pages = {
-    1: `<h1>How do you want to add this brain?</h1><p>Choose whether to create a new private local brain, use a brain folder already on this Mac, or connect to a brain that is already running somewhere else.</p>${discoveredBrainPicker()}<button class="choice choice-option" data-mode="local" data-setup-kind="new-local"><strong>Create a new private local brain</strong><p>Start with a name, description, folder, privacy, backup, and AI connection.</p></button><button class="choice choice-option" data-mode="local" data-setup-kind="existing-local"><strong>Use an existing brain folder on this Mac</strong><p>Adopt an existing BigBrain repository without moving its files.</p></button><button class="choice choice-option" data-mode="service"><strong>Connect to an existing remote brain</strong><p>Enter the address of a BigBrain service already running elsewhere.</p></button>`,
+    1: `<h1>How do you want to add this brain?</h1><p>Choose whether to create a new private local brain, use a brain folder already on this Mac, or connect to a brain that is already running somewhere else.</p>${discoveredBrainPicker()}<button class="choice choice-option" data-mode="local" data-setup-kind="new-local"><strong>Create a new private local brain</strong><p>Start with a name, description, folder, privacy, backup, and AI connection.</p></button><button class="choice choice-option" data-mode="local" data-setup-kind="existing-local"><strong>Use an existing brain folder on this Mac</strong><p>Adopt an existing BigBrain repository without moving its files.</p></button><button class="choice choice-option" data-mode="service"><strong>Connect to an existing remote brain</strong><p>Enter the address of a BigBrain service already running elsewhere.</p></button><div class="setup-exit"><button class="secondary" type="button" data-cancel>Cancel setup</button></div>`,
     ...(form.mode === 'service' ? servicePages : form.setupKind === 'existing-local' ? existingLocalPages : localPages),
   };
 
@@ -70,6 +71,7 @@ function render() {
     render();
   }));
   content.querySelector('[data-next]')?.addEventListener('click', next);
+  content.querySelector('[data-cancel]')?.addEventListener('click', cancelOnboarding);
   content.querySelector('[data-back]')?.addEventListener('click', () => {
     step -= 1;
     render();
@@ -155,6 +157,7 @@ function selectDiscoveredBrain(index) {
 }
 
 async function loadDiscoveredBrains() {
+  const session = onboardingSession;
   discoveryLoading = true;
   discoveryError = '';
   render();
@@ -164,6 +167,7 @@ async function loadDiscoveredBrains() {
     discoveredBrains = [];
     discoveryError = error.message;
   } finally {
+    if (session !== onboardingSession) return;
     discoveryLoading = false;
     render();
   }
@@ -203,7 +207,7 @@ function textarea(name, label, placeholder) {
 }
 
 function actions(back, label = 'Continue') {
-  return `<div class="actions">${back ? '<button class="secondary" data-back>Back</button>' : '<span></span>'}<button class="primary" data-next>${label}</button></div>`;
+  return `<div class="actions"><div class="action-start">${back ? '<button class="secondary" type="button" data-back>Back</button>' : ''}<button class="secondary" type="button" data-cancel>Cancel setup</button></div><button class="primary" type="button" data-next>${label}</button></div>`;
 }
 
 function credentialPicker() {
@@ -368,6 +372,7 @@ function renderBrainSelector() {
 }
 
 function startOnboarding() {
+  onboardingSession += 1;
   void api.setDashboardVisible(false).catch(() => {});
   document.querySelector('#app').classList.add('hidden');
   document.querySelector('#onboarding').classList.remove('hidden');
@@ -380,6 +385,19 @@ function startOnboarding() {
   discoveryError = '';
   render();
   void loadDiscoveredBrains();
+}
+
+function cancelOnboarding() {
+  onboardingSession += 1;
+  document.querySelector('#onboarding').classList.add('hidden');
+  document.querySelector('#app').classList.remove('hidden');
+  if (!state) {
+    void loadApp(true);
+    return;
+  }
+  renderBrainSelector();
+  document.querySelector('#content').innerHTML = '<div class="empty">Choose a brain, or add another one.</div>';
+  void api.setDashboardVisible(false).catch(() => {});
 }
 
 async function showActiveBrain() {
@@ -424,6 +442,12 @@ function emptyForm() {
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
 }
+
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || document.querySelector('#onboarding').classList.contains('hidden')) return;
+  event.preventDefault();
+  void cancelOnboarding();
+});
 
 (async () => {
   state = await api.state();
