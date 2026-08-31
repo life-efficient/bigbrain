@@ -43,14 +43,18 @@ export class BrainRegistry {
     return value;
   }
 
-  async createDraft({ name, ownerName, ownerEmail }) {
+  async createDraft({ name, ownerName, ownerEmail, home = null }) {
     const registry = await this.load();
     const id = crypto.randomUUID();
     const port = await allocatePort(registry.brains.map((brain) => brain.port), this.host);
+    const resolvedHome = path.resolve(home || path.join(this.appSupport, 'brains', id));
+    if (registry.brains.some((brain) => path.resolve(brain.home || '') === resolvedHome)) {
+      throw new Error(`A brain is already registered at ${resolvedHome}.`);
+    }
     const brain = {
       id,
       name: String(name).trim(),
-      home: path.join(this.appSupport, 'brains', id),
+      home: resolvedHome,
       port,
       host: this.host,
       serviceLabel: `ai.diffusing.bigbrain.${id}`,

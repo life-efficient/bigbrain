@@ -17,7 +17,7 @@
     "dashboard:dev": "node ./scripts/dashboard-dev.mjs",
     "desktop:dev": "node electron/dev-launcher.cjs",
     "desktop:dist": "npm run build:dashboard && electron-builder --mac dmg zip --universal --publish never",
-    "desktop:dir": "electron-builder --mac dir",
+    "desktop:dir": "npm run build:dashboard && electron-builder --mac dir",
     "test": "node --test test/bigbrain/*.test.mjs"
   },
   "dependencies": {
@@ -73,6 +73,7 @@
       "README.md",
       "skills/**/*",
       "automations/**/*",
+      ".bigbrain-dashboard/**/*",
       "schemas/**/*",
       "scripts/install-local-mcp-service.mjs",
       "scripts/bigbrain-event-ingestor.mjs",

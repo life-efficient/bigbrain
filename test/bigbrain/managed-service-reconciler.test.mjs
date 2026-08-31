@@ -79,6 +79,22 @@ test('mismatched and unavailable managed services are safely reinstalled then ve
   assert.deepEqual(report, result);
 });
 
+test('same-version services from an old desktop bundle are reinstalled', async () => {
+  const brain = managedBrain({ serviceOwnershipReason: 'desktop_bundle_path_mismatch' });
+  const reinstalls = [];
+  const reconciler = new ManagedServiceReconciler({
+    appVersion: '0.16.0',
+    listBrains: async () => [brain],
+    probe: async () => ready('0.16.0'),
+    reinstall: async (candidate) => reinstalls.push(candidate.id),
+  });
+
+  const result = await reconciler.reconcile();
+  assert.deepEqual(reinstalls, ['local-one']);
+  assert.equal(result.results[0].reason, 'service_bundle_mismatch');
+  assert.equal(result.results[0].status, 'updated');
+});
+
 test('one local repair failure is reported without stopping other managed services', async () => {
   const one = managedBrain();
   const two = managedBrain({ id: 'local-two', name: 'Second Brain', port: 55561, serviceLabel: 'ai.diffusing.bigbrain.local-two' });

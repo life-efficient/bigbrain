@@ -22,6 +22,7 @@ if (isDesktopShell) {
       return () => ipcRenderer.removeListener('desktop:dashboard-visibility', handler);
     },
     chooseExistingBrain: () => ipcRenderer.invoke('desktop:choose-existing-brain'),
+    chooseBrainHome: () => ipcRenderer.invoke('desktop:choose-brain-home'),
     activate: (id) => ipcRenderer.invoke('desktop:activate', id),
     rename: (id, name) => ipcRenderer.invoke('desktop:rename', id, name),
     restart: (id) => ipcRenderer.invoke('desktop:restart', id),

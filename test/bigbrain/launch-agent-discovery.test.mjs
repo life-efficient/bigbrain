@@ -67,6 +67,17 @@ test('legacy path classification distinguishes app bundles from source checkouts
   assert.equal(classifyLaunchAgentOwnership({ bigbrainBin: '/opt/tools/bigbrain.js' }).ownership, 'unknown');
 });
 
+test('desktop markers identify a service launched from a different app bundle path', () => {
+  assert.deepEqual(classifyLaunchAgentOwnership({
+    bigbrainBin: '/Users/example/projects/bigbrain/bin/bigbrain.js',
+    workingDirectory: '/Users/example/projects/bigbrain',
+    serviceManager: 'desktop',
+    serviceSource: 'desktop-bundle',
+  }, { appPath: '/Applications/BigBrain.app/Contents/Resources/app' }), {
+    ownership: 'desktop_bundle', reason: 'desktop_bundle_path_mismatch',
+  });
+});
+
 function launchAgent({ label, brainHome, workingDirectory, bigbrainBin, manager, source }) {
   return `<plist><dict>
 <key>Label</key><string>${label}</string>

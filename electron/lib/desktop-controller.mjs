@@ -8,6 +8,7 @@ import { MacKeychain, redactSecrets } from './keychain.mjs';
 import { connectionInstructions } from './connection-instructions.mjs';
 import { classifyLaunchAgentOwnership, findBrainLaunchAgent } from './launch-agent-discovery.mjs';
 import { discoverLocalBrains, findBrainConfigPath } from './brain-discovery.mjs';
+import { formatServiceInstallError } from './service-errors.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -157,11 +158,13 @@ export class DesktopController {
   async createBrain(input) {
     validateInput(input);
     const existing = input.existingHome ? await this.inspectExistingBrain(input.existingHome) : null;
+    const newHome = input.newHome ? await this.validateNewBrainHome(input.newHome) : null;
+    if (existing && newHome) throw new Error('Choose either an existing brain folder or a new folder, not both.');
     const apiKey = await this.resolveApiKey(input);
     await this.validateApiKey(apiKey);
     const draft = existing
       ? await this.registry.registerExisting({ ...existing, ownerName: input.ownerName, ownerEmail: input.ownerEmail })
-      : await this.registry.createDraft(input);
+      : await this.registry.createDraft({ ...input, home: newHome });
     try {
       await this.keychain.set(draft.id, apiKey);
       const [{ initializeBrainHome }, { loadConfig }, { syncBrain }] = await Promise.all([
@@ -185,6 +188,21 @@ export class DesktopController {
       await this.registry.update(draft.id, { status: 'error', onboarding: { step: 4, completed: false, error: redactSecrets(error.message) } });
       throw new Error(redactSecrets(error.message));
     }
+  }
+
+  async validateNewBrainHome(home) {
+    const resolvedHome = path.resolve(String(home).trim());
+    let stats;
+    try {
+      stats = await fs.stat(resolvedHome);
+    } catch (error) {
+      if (error?.code !== 'ENOENT') throw error;
+      return resolvedHome;
+    }
+    if (!stats.isDirectory()) throw new Error('Choose a folder for the new private brain.');
+    const configPath = await findBrainConfigPath(resolvedHome, { home: this.home });
+    if (configPath) throw new Error('That folder already contains a BigBrain brain. Choose it as an existing brain folder instead.');
+    return resolvedHome;
   }
 
   async connectService(input) {
@@ -216,13 +234,36 @@ export class DesktopController {
     if (brain.serviceOwnership !== SERVICE_OWNERSHIPS.DESKTOP_BUNDLE) {
       throw new Error('Only a desktop-bundle service can be installed by the BigBrain desktop app.');
     }
+    if (!this.appPath) {
+      throw new Error('BigBrain cannot manage local services because the desktop app path is unavailable. Restart or reinstall BigBrain, then retry.');
+    }
     const installer = path.join(this.appPath, 'scripts/install-local-mcp-service.mjs');
     const args = [installer, '--repo-root', this.appPath, '--brain-home', brain.home, '--port', String(brain.port), '--label', brain.serviceLabel,
       '--local-person-slug', ownerSlug || '', '--local-owner-email', brain.owner?.email || '', '--local-owner-name', brain.owner?.name || '', '--keychain-account', brain.id,
       '--service-manager', 'desktop', '--service-source', 'desktop-bundle'];
     if (brain.replacedService?.plistPath && brain.replacedService.label !== brain.serviceLabel) args.push('--replace-plist', brain.replacedService.plistPath);
     if (this.nodePath === process.execPath && process.versions.electron) args.push('--electron-run-as-node');
-    await execFileAsync(this.nodePath, args, { env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' } });
+    try {
+      await fs.access(installer);
+    } catch (error) {
+      throw new Error(formatServiceInstallError(error, {
+        brainName: brain.name,
+        port: brain.port,
+        installerPath: installer,
+      }), { cause: error });
+    }
+    try {
+      await execFileAsync(this.nodePath, args, {
+        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
+        maxBuffer: 128 * 1024,
+      });
+    } catch (error) {
+      throw new Error(formatServiceInstallError(error, {
+        brainName: brain.name,
+        port: brain.port,
+        installerPath: installer,
+      }), { cause: error });
+    }
   }
 
   async activate(id) { return publicBrain(await this.registry.activate(id)); }

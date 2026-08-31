@@ -32,6 +32,7 @@ export class ManagedServiceReconciler {
       }
 
       let repairReason = 'service_unavailable';
+      const bundlePathMismatch = brain.serviceOwnershipReason === 'desktop_bundle_path_mismatch';
       try {
         const before = await this.probe(brain);
         const inspection = inspectService(brain, before, this.appVersion);
@@ -45,7 +46,7 @@ export class ManagedServiceReconciler {
           }));
           continue;
         }
-        if (inspection.ready && inspection.version === this.appVersion) {
+        if (inspection.ready && inspection.version === this.appVersion && !bundlePathMismatch) {
           results.push(resultFor(brain, {
             status: 'current',
             action: 'none',
@@ -65,7 +66,7 @@ export class ManagedServiceReconciler {
           }));
           continue;
         }
-        repairReason = inspection.reason;
+        repairReason = bundlePathMismatch ? 'service_bundle_mismatch' : inspection.reason;
       } catch {
         // Explicitly desktop-owned unavailable services are repaired from the app bundle.
       }

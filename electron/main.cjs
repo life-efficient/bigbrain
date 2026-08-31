@@ -79,7 +79,7 @@ if (!singleInstanceLock) {
       await initializeUpdateRestartCoordinator();
       registerUpdateIpc();
       createAppMenu();
-      createMainWindow();
+      createMainWindow({ select: process.argv.includes("--select") });
       managedServiceReconciliationPromise = coordinateManagedServicesAfterLaunch();
       desktopUpdater.start();
     } catch (error) {
@@ -145,7 +145,7 @@ async function startDashboardRuntime() {
   return localDashboardUrl;
 }
 
-function createMainWindow() {
+function createMainWindow({ select = false } = {}) {
   if (!dashboardUrl) {
     throw new Error("Dashboard URL has not been initialized.");
   }
@@ -236,7 +236,7 @@ function createMainWindow() {
 
   mainWindow.on("resize", layoutDashboardView);
 
-  loadDashboardWindow();
+  loadDashboardWindow({ select });
 }
 
 function createAppMenu() {
@@ -353,13 +353,14 @@ async function startManagedServiceReconciliation({ report = true } = {}) {
     });
     return await reconciler.reconcile();
   } catch (error) {
+    const { formatServiceInstallError } = await importModule("electron/lib/service-errors.mjs");
     const summary = {
       phase: "error",
       managedCount: 0,
       current: 0,
       updated: 0,
       failed: 1,
-      results: [{ name: "Local MCP", status: "failed", action: "retry_service_reconciliation", message: error instanceof Error ? error.message : String(error) }],
+      results: [{ name: "Local MCP", status: "failed", action: "retry_service_reconciliation", message: formatServiceInstallError(error, { brainName: "local BigBrain services" }) }],
     };
     if (report) await reportManagedServiceReconciliation(summary);
     return summary;
@@ -621,6 +622,11 @@ function registerDesktopIpc() {
       if (result.canceled || !result.filePaths[0]) return null;
       return desktopController.inspectExistingBrain(result.filePaths[0]);
     },
+    "desktop:choose-brain-home": async () => {
+      const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory"], title: "Choose a folder for your private local BigBrain" });
+      if (result.canceled || !result.filePaths[0]) return null;
+      return { home: result.filePaths[0] };
+    },
     "desktop:activate": async (_event, id) => rememberConnectedDashboardOrigins(await desktopController.activate(id)),
     "desktop:rename": (_event, id, name) => desktopController.rename(id, name),
     "desktop:restart": (_event, id) => desktopController.restart(id),
@@ -683,10 +689,12 @@ function isSafeExternalUrl(url) {
   }
 }
 
-function loadDashboardWindow() {
+function loadDashboardWindow({ select = false } = {}) {
   if (!mainWindow || !dashboardUrl) return;
   loadFailureActive = false;
-  void mainWindow.loadURL(dashboardUrl).catch((error) => {
+  const targetUrl = new URL(dashboardUrl);
+  if (select && desktopController) targetUrl.searchParams.set("select", "1");
+  void mainWindow.loadURL(targetUrl.href).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error("Dashboard load failed", message);
     showLoadFailure(message);

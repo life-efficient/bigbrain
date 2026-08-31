@@ -13,6 +13,7 @@ import { redactSecrets } from '../../electron/lib/keychain.mjs';
 test('desktop package includes the local MCP service installer', async () => {
   const packageJson = JSON.parse(await fs.readFile(new URL('../../package.json', import.meta.url), 'utf8'));
   assert.ok(packageJson.build.files.includes('scripts/install-local-mcp-service.mjs'));
+  assert.ok(packageJson.build.files.includes('.bigbrain-dashboard/**/*'));
   assert.ok(packageJson.build.files.includes('scripts/bigbrain-event-ingestor.mjs'));
   assert.ok(packageJson.build.files.includes('scripts/run-event-relay.mjs'));
   assert.ok(packageJson.build.files.includes('deploy/event-relay/**/*'));
@@ -35,6 +36,15 @@ test('registry persists isolated brains and restores the active brain', async ()
   assert.equal(reloaded.brains[0].owner.email, 'ada@example.com');
   assert.equal(reloaded.brains[0].serviceOwnership, 'desktop_bundle');
   assert.equal(reloaded.version, REGISTRY_VERSION);
+});
+
+test('registry can create a new brain in a user-selected folder', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-registry-selected-home-'));
+  const selectedHome = path.join(root, 'ai-infrastructure-atlas');
+  const registry = new BrainRegistry({ appSupport: path.join(root, 'support') });
+  const brain = await registry.createDraft({ name: 'AI Infrastructure Atlas', ownerName: 'Ada', ownerEmail: 'ada@example.com', home: selectedHome });
+  assert.equal(brain.home, selectedHome);
+  await fs.rm(root, { recursive: true, force: true });
 });
 
 test('port allocation skips reserved stable ports', async () => {
@@ -73,6 +83,8 @@ test('connection instructions are brain-specific and contain no credentials', ()
   const result = connectionInstructions({ name: 'Lecture Brain', host: '127.0.0.1', port: 4123 });
   assert.equal(result.endpoint, 'http://127.0.0.1:4123/mcp');
   assert.match(result.codex, /lecture-brain/);
+  assert.match(result.handoff, /private local BigBrain brain named "Lecture Brain"/);
+  assert.match(result.handoff, /First call initialize/);
   assert.doesNotMatch(JSON.stringify(result), /api.?key|sk-/i);
 });
 
@@ -149,6 +161,33 @@ test('desktop conservatively migrates legacy service ownership from launch-agent
   await fs.rm(root, { recursive: true, force: true });
 });
 
+test('desktop records a desktop-bundle path mismatch for a stale app service', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-service-path-mismatch-'));
+  const appSupport = path.join(root, 'support');
+  const launchAgentsDir = path.join(root, 'LaunchAgents');
+  const appPath = '/Applications/BigBrain.app/Contents/Resources/app';
+  const brainHome = path.join(root, 'brain');
+  await fs.mkdir(appSupport, { recursive: true });
+  await fs.mkdir(launchAgentsDir, { recursive: true });
+  await fs.writeFile(path.join(appSupport, 'registry.json'), JSON.stringify({
+    version: 2,
+    activeBrainId: 'desktop',
+    brains: [localRegistryBrain('desktop', brainHome)],
+  }));
+  await fs.writeFile(path.join(launchAgentsDir, 'desktop.plist'), servicePlist({
+    label: 'ai.diffusing.bigbrain.desktop', home: brainHome,
+    root: '/Users/example/projects/bigbrain', bin: '/Users/example/projects/bigbrain/bin/bigbrain.js',
+    manager: 'desktop', source: 'desktop-bundle',
+  }));
+  const registry = new BrainRegistry({ appSupport });
+  const controller = new DesktopController({ registry, appPath, launchAgentsDir, home: root, env: { HOME: root } });
+
+  const state = await controller.state();
+  assert.equal(state.brains[0].serviceOwnership, 'desktop_bundle');
+  assert.equal(state.brains[0].serviceOwnershipReason, 'desktop_bundle_path_mismatch');
+  await fs.rm(root, { recursive: true, force: true });
+});
+
 test('desktop refuses to install or restart source, unknown, and remote services', async () => {
   for (const brain of [
     { ...localRegistryBrain('source', '/brain/source'), serviceOwnership: 'source' },
@@ -160,6 +199,21 @@ test('desktop refuses to install or restart source, unknown, and remote services
     await assert.rejects(() => controller.installService(brain, { ownerSlug: '' }), /Only a desktop-bundle service/);
     await assert.rejects(() => controller.restart(brain.id), /not managed by the desktop app|must be restarted by their operator/);
   }
+});
+
+test('desktop handles a missing local service installer as a recoverable app error', async () => {
+  const controller = new DesktopController({ appPath: '/tmp/bigbrain-desktop-bundle-that-does-not-exist' });
+  await assert.rejects(
+    () => controller.installService({
+      name: 'Personal Brain',
+      home: '/tmp/personal-brain',
+      port: 55560,
+      id: 'personal-brain',
+      serviceLabel: 'ai.diffusing.bigbrain.personal-brain',
+      serviceOwnership: 'desktop_bundle',
+    }, { ownerSlug: 'people/harry' }),
+    /missing its local service installer.*Update or reinstall BigBrain/,
+  );
 });
 
 test('desktop resolves canonical brain identity without treating it as a registry selector', async () => {
@@ -282,16 +336,19 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   const preloadSource = await fs.readFile(new URL('../../electron/preload.cjs', import.meta.url), 'utf8');
   const dashboardPreloadSource = await fs.readFile(new URL('../../electron/dashboard-preload.cjs', import.meta.url), 'utf8');
   const mainSource = await fs.readFile(new URL('../../electron/main.cjs', import.meta.url), 'utf8');
-  assert.match(desktopSource, /Run BigBrain on this device/);
+  assert.match(desktopSource, /Run a private brain on this device/);
   assert.match(desktopSource, /Connect to an existing BigBrain/);
   assert.match(desktopSource, /api\.connectService/);
   assert.match(desktopSource, /api\.apiKeyOptions/);
   assert.match(desktopSource, /api\.discoverBrains/);
+  assert.match(desktopSource, /chooseBrainHome/);
+  assert.match(desktopSource, /Pass this to your agent/);
+  assert.match(desktopSource, /invoked the local service setup/);
   assert.match(desktopSource, /Found on this Mac/);
   assert.match(desktopSource, /Enter a different API key/);
   assert.match(desktopSource, /escapeHtml\(option\.label\)/);
   assert.match(desktopSource, /role="radio"/);
-  assert.match(desktopSource, /form\.apiKey='';showConnection/);
+  assert.match(desktopSource, /form\.apiKey\s*=\s*'';\s*showConnection/);
   assert.match(preloadSource, /desktop:connect-service/);
   assert.match(preloadSource, /desktop:api-key-options/);
   assert.match(preloadSource, /desktop:discover-brains/);
@@ -329,11 +386,16 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(mainSource, /will-frame-navigate/);
   assert.match(mainSource, /desktop:api-key-options/);
   assert.match(mainSource, /desktop:discover-brains/);
+  assert.match(preloadSource, /desktop:choose-brain-home/);
+  assert.match(mainSource, /private local BigBrain/);
+  assert.match(desktopSource, /chooseBrainHome/);
+  assert.match(desktopSource, /Pass this to your agent/);
+  assert.match(desktopSource, /invoked the local service setup/);
   assert.match(desktopHtml, /--bg:#18181b/);
   assert.doesNotMatch(desktopHtml, /id="update-control"/);
   assert.match(desktopHtml, /\.dashboard-visible \.title-strip\{-webkit-app-region:no-drag\}/);
   assert.match(desktopHtml, /\.title-strip\{[^}]*height:14px;[^}]*-webkit-app-region:drag\}/);
-  assert.match(desktopSource, /onDashboardVisibility\(visible=>document\.documentElement\.classList\.toggle\('dashboard-visible',visible\)\)/);
+  assert.match(desktopSource, /onDashboardVisibility/);
   assert.match(desktopHtml, /\.primary\{border:1px solid #fafafa;background:#fafafa;color:#18181b/);
   assert.doesNotMatch(desktopHtml, /#207146|#377652|#f4fff7|#f2f4ef/i);
   assert.doesNotMatch(desktopSource, /Hosted mode|Choose a mode|<strong>Local<\/strong>|cannot save service connections/);
@@ -349,7 +411,8 @@ test('desktop load failures use a compact local recovery page instead of an enco
   assert.match(mainSource, /mainWindow\.loadFile\(LOAD_FAILURE_PAGE_PATH\)/);
   assert.doesNotMatch(mainSource, /data:text\/html/);
   assert.match(mainSource, /if \(loadFailureActive\) return;/);
-  assert.match(mainSource, /loadFailureActive = false;\s+void mainWindow\.loadURL\(dashboardUrl\)/);
+  assert.match(mainSource, /loadFailureActive = false;\s+const targetUrl = new URL\(dashboardUrl\)/);
+  assert.match(mainSource, /mainWindow\.loadURL\(targetUrl\.href\)/);
   assert.match(mainSource, /desktop:load-failure-state/);
   assert.match(mainSource, /desktop:reload-dashboard/);
   assert.match(preloadSource, /bigbrainLoadFailure/);

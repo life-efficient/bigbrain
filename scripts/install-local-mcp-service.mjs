@@ -7,12 +7,15 @@ import net from 'node:net';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 
+import { formatServiceInstallError } from '../electron/lib/service-errors.mjs';
+
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_LABEL = 'local.bigbrain.mcp';
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 55560;
 const SERVICE_START_TIMEOUT_MS = 60_000;
+const PORT_RELEASE_TIMEOUT_MS = 10_000;
 const SERVICE_MANAGER_DESKTOP = 'desktop';
 const SERVICE_MANAGER_SOURCE = 'source';
 const SERVICE_SOURCE_DESKTOP_BUNDLE = 'desktop-bundle';
@@ -113,11 +116,11 @@ async function main() {
   try {
     if (replacementPlist) await execFileAsync('launchctl', ['bootout', `gui/${process.getuid()}`, replacementPlist]).catch(() => null);
     await execFileAsync('launchctl', ['bootout', `gui/${process.getuid()}`, plistPath]).catch(() => null);
-    await assertPortAvailable({ host, port });
+    await waitForPortAvailable({ host, port });
     await fs.writeFile(plistPath, plist, 'utf8');
     await execFileAsync('launchctl', ['bootstrap', `gui/${process.getuid()}`, plistPath]);
     await execFileAsync('launchctl', ['kickstart', '-k', serviceTarget]);
-    await verifyHealth({ host, port });
+    await verifyHealth({ host, port, stderrPath });
     await verifyMcpTools({ host, port });
     if (installAutomaticUpdater) {
       const { installHeadlessUpdater } = await import('./install-headless-updater.mjs');
@@ -343,7 +346,7 @@ function normalizeLocalPersonSlug(value) {
   return normalized;
 }
 
-async function verifyHealth({ host, port }) {
+async function verifyHealth({ host, port, stderrPath = null }) {
   const url = `http://${host}:${port}/health`;
   const deadline = Date.now() + SERVICE_START_TIMEOUT_MS;
   let lastError;
@@ -357,7 +360,8 @@ async function verifyHealth({ host, port }) {
     }
     await sleep(500);
   }
-  throw new Error(`BigBrain MCP service did not become healthy at ${url}: ${lastError?.message || 'unknown error'}`);
+  const logHint = stderrPath ? ` Check the local service diagnostics at ${stderrPath}.` : '';
+  throw new Error(`BigBrain MCP service did not become healthy at ${url} within ${SERVICE_START_TIMEOUT_MS / 1000} seconds.${logHint}`);
 }
 
 async function ensureLocalOwner({
@@ -422,6 +426,21 @@ async function assertPortAvailable({ host, port }) {
   });
 }
 
+async function waitForPortAvailable({ host, port, timeoutMs = PORT_RELEASE_TIMEOUT_MS }) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError;
+  while (Date.now() < deadline) {
+    try {
+      await assertPortAvailable({ host, port });
+      return;
+    } catch (error) {
+      lastError = error;
+      await sleep(250);
+    }
+  }
+  throw new Error(`Local port ${port} is still occupied after BigBrain stopped the registered service. The existing service was left in place.${lastError ? ` ${lastError.message}` : ''}`);
+}
+
 async function userId() {
   const { stdout } = await execFileAsync('id', ['-u']);
   return stdout.trim();
@@ -429,7 +448,15 @@ async function userId() {
 
 if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
   main().catch((error) => {
-    console.error(error.message);
+    console.error(formatServiceInstallError(error, {
+      brainName: argumentValue('--brain-home') ? path.basename(argumentValue('--brain-home')) : 'this brain',
+      port: argumentValue('--port') || DEFAULT_PORT,
+    }));
     process.exitCode = 1;
   });
+}
+
+function argumentValue(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] || '' : '';
 }

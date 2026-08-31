@@ -70,7 +70,12 @@ export function classifyLaunchAgentOwnership(agent, { appPath = null } = {}) {
       && (!source || source === 'desktop-bundle');
     const sourceMarker = (!manager || manager === 'source')
       && (!source || source === 'source-checkout');
-    if (desktopMarker) return { ownership: SERVICE_OWNERSHIPS.DESKTOP_BUNDLE, reason: 'launch_agent_marker' };
+    if (desktopMarker) {
+      if (resolvedPath(appPath) && !isCurrentAppBundleAgent(agent, resolvedPath(appPath))) {
+        return { ownership: SERVICE_OWNERSHIPS.DESKTOP_BUNDLE, reason: 'desktop_bundle_path_mismatch' };
+      }
+      return { ownership: SERVICE_OWNERSHIPS.DESKTOP_BUNDLE, reason: 'launch_agent_marker' };
+    }
     if (sourceMarker) return { ownership: SERVICE_OWNERSHIPS.SOURCE, reason: 'launch_agent_marker' };
     return { ownership: SERVICE_OWNERSHIPS.UNKNOWN, reason: 'conflicting_launch_agent_markers' };
   }
@@ -91,6 +96,16 @@ export function classifyLaunchAgentOwnership(agent, { appPath = null } = {}) {
     return { ownership: SERVICE_OWNERSHIPS.SOURCE, reason: 'source_checkout_path' };
   }
   return { ownership: SERVICE_OWNERSHIPS.UNKNOWN, reason: 'insufficient_launch_agent_evidence' };
+}
+
+function isCurrentAppBundleAgent(agent, appPath) {
+  const bigbrainBin = resolvedPath(agent?.bigbrainBin);
+  const workingDirectory = resolvedPath(agent?.workingDirectory);
+  return Boolean(
+    bigbrainBin
+      && isPathInside(bigbrainBin, appPath)
+      && (!workingDirectory || isPathInside(workingDirectory, appPath)),
+  );
 }
 
 function normalizeLoopbackHost(value) {

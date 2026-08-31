@@ -385,19 +385,27 @@ async function ensureDashboardAssets(config) {
   const devBundlePath = path.join(repoRoot, '.bigbrain-dashboard', dashboardBundleFilename);
   if (isDashboardDevRuntime() && await fileExists(devBundlePath)) return devBundlePath;
 
+  // Installed desktop builds carry a prebuilt dashboard bundle. Serving it avoids
+  // rebuilding browser dependencies from a pruned production node_modules tree.
+  if (await fileExists(devBundlePath)) return devBundlePath;
+
   const outdir = path.join(config.metaDir, 'dashboard-assets');
   const outfile = path.join(outdir, dashboardBundleFilename);
   await fs.mkdir(outdir, { recursive: true });
-  await build({
-    entryPoints: [dashboardClientEntry],
-    bundle: true,
-    format: 'esm',
-    platform: 'browser',
-    outfile,
-    sourcemap: 'inline',
-    jsx: 'automatic',
-    target: ['es2022'],
-  });
+  try {
+    await build({
+      entryPoints: [dashboardClientEntry],
+      bundle: true,
+      format: 'esm',
+      platform: 'browser',
+      outfile,
+      sourcemap: 'inline',
+      jsx: 'automatic',
+      target: ['es2022'],
+    });
+  } catch (error) {
+    throw new Error('BigBrain could not prepare the dashboard runtime. This installation is missing the packaged dashboard assets. Update or reinstall BigBrain, then retry.', { cause: error });
+  }
   return outfile;
 }
 
