@@ -999,6 +999,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version' } = {}) {
       .error-card { max-width: min(820px, 100%); }
       .error-actions { display: flex; gap: 10px; margin-top: 6px; }
       .error-details { margin: 0; max-height: 320px; overflow: auto; border-radius: 14px; border: 1px solid var(--line); background: var(--pre-bg); color: var(--pre-ink); padding: 14px 16px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+      .error-report-status { color: var(--muted); font-size: 12px; }
       .section-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }
       .section-subtle { font-size: 13px; margin-top: 2px; }
       .graph-footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 14px; }

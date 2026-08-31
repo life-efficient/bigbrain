@@ -4,6 +4,7 @@ const path = require("path");
 const { pathToFileURL } = require("url");
 const { dashboardPartition, dashboardViewBounds, isAllowedDashboardNavigation } = require("./lib/dashboard-view-policy.cjs");
 const { waitForDashboardReady } = require("./lib/dashboard-readiness.cjs");
+const { recordAppError } = require("./lib/local-error-log.cjs");
 
 const APP_DISPLAY_NAME = "BigBrain";
 const LOCAL_HOST = "127.0.0.1";
@@ -11,7 +12,6 @@ const DEFAULT_WINDOW_SIZE = { width: 1079, height: 945 };
 const DESKTOP_CHROME_HEIGHT = 0;
 const APP_ICON_PATH = path.join(__dirname, "assets", "desktop-icon.png");
 const LOAD_FAILURE_PAGE_PATH = path.join(__dirname, "load-failure.html");
-const MAX_RENDERER_RECOVERY_ATTEMPTS = 2;
 const REMOTE_DASHBOARD_URL_ENV = "BIGBRAIN_DASHBOARD_URL";
 
 let mainWindow = null;
@@ -23,7 +23,6 @@ let localPageLinkServer = null;
 let dashboardUrl = null;
 let dashboardOrigin = null;
 let remoteDashboardMode = false;
-let rendererRecoveryAttempts = 0;
 let pendingLoadFailureMessage = "The dashboard did not finish loading.";
 let loadFailureActive = false;
 let desktopController = null;
@@ -36,6 +35,14 @@ let localServiceUpdateState = { phase: "idle", message: "Local MCP services are 
 const connectedDashboardOrigins = new Set();
 
 const singleInstanceLock = app.requestSingleInstanceLock();
+
+process.on("uncaughtException", (error) => {
+  try { recordAppError(app, "uncaught-exception", error); } catch { /* preserve process failure */ }
+  throw error;
+});
+process.on("unhandledRejection", (reason) => {
+  try { recordAppError(app, "unhandled-rejection", reason); } catch { /* diagnostics are best effort */ }
+});
 
 app.setName(APP_DISPLAY_NAME);
 
@@ -77,6 +84,7 @@ if (!singleInstanceLock) {
       desktopUpdater.start();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
+      recordAppError(app, "desktop-startup-failure", error);
       dialog.showErrorBox("BigBrain failed to start", message);
       app.quit();
     }
@@ -190,12 +198,14 @@ function createMainWindow() {
 
   mainWindow.webContents.on("render-process-gone", (_event, details) => {
     console.error("Dashboard renderer process exited", details);
-    recoverRenderer(`The dashboard renderer stopped unexpectedly (${details.reason || "unknown reason"}).`);
+    recordAppError(app, "dashboard-renderer-gone", details);
+    showLoadFailure(`The dashboard renderer stopped unexpectedly (${details.reason || "unknown reason"}).`);
   });
 
   mainWindow.webContents.on("unresponsive", () => {
     console.error("Dashboard renderer became unresponsive");
-    recoverRenderer("The dashboard window stopped responding.");
+    recordAppError(app, "dashboard-renderer-unresponsive", new Error("The dashboard window stopped responding."));
+    showLoadFailure("The dashboard window stopped responding.");
   });
 
   mainWindow.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedUrl) => {
@@ -211,9 +221,7 @@ function createMainWindow() {
 
   mainWindow.webContents.on("did-finish-load", () => {
     const currentUrl = mainWindow?.webContents.getURL();
-    if (currentUrl && isTrustedInternalUrl(currentUrl)) {
-      rendererRecoveryAttempts = 0;
-    }
+    if (currentUrl && isTrustedInternalUrl(currentUrl)) return;
   });
 
   mainWindow.on("closed", () => {
@@ -711,7 +719,6 @@ async function loadDashboardViewUrl(url, brainId) {
   setDashboardViewVisible(false);
   try {
     await view.webContents.loadURL(url);
-    rendererRecoveryAttempts = 0;
     setDashboardViewVisible(true);
   } catch (error) {
     setDashboardViewVisible(false);
@@ -768,10 +775,13 @@ function configureDashboardWebContents(webContents) {
   webContents.session.setPermissionRequestHandler((_requestingWebContents, _permission, callback) => callback(false));
   webContents.on("render-process-gone", (_event, details) => {
     console.error("Dashboard renderer process exited", details);
-    setDashboardViewVisible(false);
+    recordAppError(app, "brain-dashboard-renderer-gone", details);
+    showLoadFailure(`The dashboard renderer stopped unexpectedly (${details.reason || "unknown reason"}).`);
   });
   webContents.on("unresponsive", () => {
     console.error("Dashboard renderer became unresponsive");
+    recordAppError(app, "brain-dashboard-renderer-unresponsive", new Error("The dashboard window stopped responding."));
+    showLoadFailure("The dashboard window stopped responding.");
   });
   webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
     if (!isMainFrame || errorCode === -3) return;
@@ -793,19 +803,6 @@ function setDashboardViewVisible(visible) {
   return true;
 }
 
-function recoverRenderer(message) {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
-  if (rendererRecoveryAttempts >= MAX_RENDERER_RECOVERY_ATTEMPTS) {
-    showLoadFailure(`${message} Automatic recovery was attempted ${MAX_RENDERER_RECOVERY_ATTEMPTS} times.`);
-    return;
-  }
-  rendererRecoveryAttempts += 1;
-  setTimeout(() => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    loadDashboardWindow();
-  }, 250);
-}
-
 function showLoadFailure(message) {
   if (!mainWindow || mainWindow.isDestroyed()) {
     dialog.showErrorBox("BigBrain dashboard unavailable", message);
@@ -814,6 +811,7 @@ function showLoadFailure(message) {
   if (loadFailureActive) return;
   loadFailureActive = true;
   pendingLoadFailureMessage = String(message || "The dashboard did not finish loading.");
+  recordAppError(app, "dashboard-load-failure", new Error(pendingLoadFailureMessage));
   setDashboardViewVisible(false);
   void mainWindow.loadFile(LOAD_FAILURE_PAGE_PATH).catch((error) => {
     dialog.showErrorBox("BigBrain dashboard unavailable", error instanceof Error ? error.message : String(error));

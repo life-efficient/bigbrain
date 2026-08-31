@@ -47,6 +47,7 @@ import {
 import { resolveExplorerLinkPath } from './explorer-links.js';
 import { MarkdownDocument } from './markdown.jsx';
 import { privatePageHrefFromMarkdown, privatePageRouteFromPath } from './page-links.js';
+import { recordDashboardError } from './error-reporting.js';
 
 class DashboardErrorBoundary extends React.Component {
   constructor(props) {
@@ -60,6 +61,7 @@ class DashboardErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('Dashboard render failure', error, errorInfo);
+    recordDashboardError({ source: 'react-boundary', error, errorInfo });
   }
 
   render() {
@@ -72,11 +74,13 @@ class DashboardErrorBoundary extends React.Component {
 }
 
 function DashboardFatalError({ error }) {
+  const report = useMemo(() => recordDashboardError({ source: 'fatal-screen', error }), [error]);
   return (
     <main className="fallback-main">
       <section className="card loading-card error-card">
         <h1>Dashboard unavailable</h1>
         <p>The dashboard hit a frontend error.</p>
+        <p className="error-report-status">Diagnostic report saved locally as {report.id}.</p>
         <div className="error-actions">
           <button
             type="button"
@@ -618,14 +622,7 @@ function DashboardApp() {
   }
 
   if (state.status === 'error') {
-    return (
-      <main className="fallback-main">
-        <section className="card loading-card error-card">
-          <h1>Dashboard unavailable</h1>
-          <p>{state.error}</p>
-        </section>
-      </main>
-    );
+    return <DashboardFatalError error={new Error(state.error)} />;
   }
 
   const { about, schema, tasks, recent, health, graph, explorer } = state.data;
@@ -3231,6 +3228,7 @@ function installGlobalErrorHandlers(rootInstance) {
   let fatalRendered = false;
   const renderFatal = (label, error) => {
     console.error(label, error);
+    recordDashboardError({ source: label, error });
     if (fatalRendered) return;
     fatalRendered = true;
     rootInstance.render(<DashboardFatalError error={error} />);
