@@ -392,12 +392,11 @@ function cancelOnboarding() {
   document.querySelector('#onboarding').classList.add('hidden');
   document.querySelector('#app').classList.remove('hidden');
   if (!state) {
-    void loadApp(true);
+    void loadApp(false);
     return;
   }
   renderBrainSelector();
-  document.querySelector('#content').innerHTML = '<div class="empty">Choose a brain, or add another one.</div>';
-  void api.setDashboardVisible(false).catch(() => {});
+  void showActiveBrain();
 }
 
 async function showActiveBrain() {

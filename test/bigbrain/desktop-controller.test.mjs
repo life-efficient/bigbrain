@@ -344,7 +344,7 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(desktopSource, /Connect to an existing remote brain/);
   assert.match(desktopSource, /data-cancel/);
   assert.match(desktopSource, /cancelOnboarding/);
-  assert.match(desktopSource, /document\.querySelector\('#content'\)\.innerHTML = '<div class="empty">Choose a brain, or add another one\.<\/div>'/);
+  assert.match(desktopSource, /void showActiveBrain\(\);/);
   assert.match(desktopSource, /event\.key !== 'Escape'/);
   assert.match(desktopSource, /Run locally on this device/);
   assert.match(desktopSource, /Name your brain/);
