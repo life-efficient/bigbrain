@@ -43,7 +43,7 @@ export class BrainRegistry {
     return value;
   }
 
-  async createDraft({ name, ownerName, ownerEmail, home = null }) {
+  async createDraft({ name, description = '', ownerName, ownerEmail, home = null, backupPreference = 'github' }) {
     const registry = await this.load();
     const id = crypto.randomUUID();
     const port = await allocatePort(registry.brains.map((brain) => brain.port), this.host);
@@ -54,6 +54,7 @@ export class BrainRegistry {
     const brain = {
       id,
       name: String(name).trim(),
+      description: String(description || '').trim(),
       home: resolvedHome,
       port,
       host: this.host,
@@ -63,6 +64,9 @@ export class BrainRegistry {
       status: 'setup',
       owner: { name: String(ownerName).trim(), email: String(ownerEmail).trim().toLowerCase() },
       aiAccess: { type: 'bring_your_own_key', provider: 'openai' },
+      hosting: 'local',
+      visibility: 'private',
+      backupPreference: backupPreference === 'none' ? 'none' : 'github',
       onboarding: { step: 4, completed: false, error: null },
       createdAt: new Date().toISOString(),
       lastOpenedAt: new Date().toISOString(),

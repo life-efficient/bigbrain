@@ -216,6 +216,7 @@ test('desktop and source service plists carry explicit ownership markers', () =>
   });
   assert.match(desktop, /<key>BIGBRAIN_SERVICE_MANAGER<\/key>\s*<string>desktop<\/string>/);
   assert.match(desktop, /<key>BIGBRAIN_SERVICE_SOURCE<\/key>\s*<string>desktop-bundle<\/string>/);
+  assert.match(desktop, /<key>BIGBRAIN_MCP_GIT_BACKUP<\/key>\s*<string>1<\/string>/);
   const desktopDev = renderLaunchAgentPlist({
     ...base,
     electronRunAsNode: true,
@@ -224,6 +225,14 @@ test('desktop and source service plists carry explicit ownership markers', () =>
     dashboardDev: true,
   });
   assert.match(desktopDev, /<key>BIGBRAIN_DASHBOARD_DEV<\/key>\s*<string>1<\/string>/);
+  const noBackup = renderLaunchAgentPlist({
+    ...base,
+    electronRunAsNode: true,
+    serviceManager: 'desktop',
+    serviceSource: 'desktop-bundle',
+    gitBackupEnabled: false,
+  });
+  assert.match(noBackup, /<key>BIGBRAIN_MCP_GIT_BACKUP<\/key>\s*<string>0<\/string>/);
   const source = renderLaunchAgentPlist({
     ...base,
     nodePath: '/usr/local/bin/node',

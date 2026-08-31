@@ -14,13 +14,13 @@ export function brainProfilePath(config) {
   return path.join(config.brainDir, BRAIN_PROFILE_FILENAME);
 }
 
-export function conservativeBrainProfileDraft(config) {
+export function conservativeBrainProfileDraft(config, { description = null } = {}) {
   return {
     schema_version: BRAIN_PROFILE_SCHEMA_VERSION,
     identity: {
       brain_id: config.brainId,
       brain_name: config.brainName,
-      description: `${config.brainName} has not set a routing description yet.`,
+      description: description?.trim() || `${config.brainName} has not set a routing description yet.`,
     },
   };
 }

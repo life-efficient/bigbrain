@@ -99,7 +99,11 @@ test('brain identity supports an explicit editable name and immutable ID', async
   try {
     const brainHome = path.join(rootDir, 'brain');
     const env = { ...process.env, BIGBRAIN_POINTER_PATH: path.join(rootDir, 'pointer'), BIGBRAIN_STATE_ROOT: path.join(rootDir, 'state') };
-    const init = await initializeBrainHome(brainHome, { env, brainName: 'Personal Brain' });
+    const init = await initializeBrainHome(brainHome, {
+      env,
+      brainName: 'Personal Brain',
+      brainDescription: 'Private notes and personal operating context.',
+    });
     const before = await loadConfig({ configPath: init.configPath });
     assert.equal(before.brainName, 'Personal Brain');
     const after = await updateBrainName({ configPath: init.configPath }, 'Private Brain');
@@ -108,6 +112,7 @@ test('brain identity supports an explicit editable name and immutable ID', async
     const profile = await loadBrainProfile(after);
     assert.equal(profile.profile.identity.brain_name, 'Private Brain');
     assert.equal(profile.profile.identity.brain_id, before.brainId);
+    assert.equal(profile.profile.identity.description, 'Private notes and personal operating context.');
   } finally {
     await fs.rm(rootDir, { recursive: true, force: true });
   }

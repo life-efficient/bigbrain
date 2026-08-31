@@ -42,8 +42,10 @@ test('registry can create a new brain in a user-selected folder', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-registry-selected-home-'));
   const selectedHome = path.join(root, 'ai-infrastructure-atlas');
   const registry = new BrainRegistry({ appSupport: path.join(root, 'support') });
-  const brain = await registry.createDraft({ name: 'AI Infrastructure Atlas', ownerName: 'Ada', ownerEmail: 'ada@example.com', home: selectedHome });
+  const brain = await registry.createDraft({ name: 'AI Infrastructure Atlas', description: 'AI infrastructure terminology and company research.', ownerName: 'Ada', ownerEmail: 'ada@example.com', home: selectedHome, backupPreference: 'none' });
   assert.equal(brain.home, selectedHome);
+  assert.equal(brain.description, 'AI infrastructure terminology and company research.');
+  assert.equal(brain.backupPreference, 'none');
   await fs.rm(root, { recursive: true, force: true });
 });
 
@@ -337,6 +339,10 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   const dashboardPreloadSource = await fs.readFile(new URL('../../electron/dashboard-preload.cjs', import.meta.url), 'utf8');
   const mainSource = await fs.readFile(new URL('../../electron/main.cjs', import.meta.url), 'utf8');
   assert.match(desktopSource, /Run a private brain on this device/);
+  assert.match(desktopSource, /Name your brain/);
+  assert.match(desktopSource, /Privacy and backup/);
+  assert.match(desktopSource, /Back up to a private GitHub repository/);
+  assert.match(desktopSource, /document\.querySelector\('#app'\)\.classList\.add\('hidden'\)/);
   assert.match(desktopSource, /Connect to an existing BigBrain/);
   assert.match(desktopSource, /api\.connectService/);
   assert.match(desktopSource, /api\.apiKeyOptions/);
@@ -349,6 +355,8 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(desktopSource, /escapeHtml\(option\.label\)/);
   assert.match(desktopSource, /role="radio"/);
   assert.match(desktopSource, /form\.apiKey\s*=\s*'';\s*showConnection/);
+  assert.match(desktopSource, /step === 6 && form\.mode === 'local'/);
+  assert.match(desktopHtml, /7\. Ready/);
   assert.match(preloadSource, /desktop:connect-service/);
   assert.match(preloadSource, /desktop:api-key-options/);
   assert.match(preloadSource, /desktop:discover-brains/);
@@ -396,6 +404,8 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(desktopHtml, /\.dashboard-visible \.title-strip\{-webkit-app-region:no-drag\}/);
   assert.match(desktopHtml, /\.title-strip\{[^}]*height:14px;[^}]*-webkit-app-region:drag\}/);
   assert.match(desktopSource, /onDashboardVisibility/);
+  const selectorLoad = desktopSource.match(/async function loadApp\([\s\S]*?\nfunction renderBrainSelector/)?.[0] || '';
+  assert.doesNotMatch(selectorLoad, /await api\.setDashboardVisible\(false\)/);
   assert.match(desktopHtml, /\.primary\{border:1px solid #fafafa;background:#fafafa;color:#18181b/);
   assert.doesNotMatch(desktopHtml, /#207146|#377652|#f4fff7|#f2f4ef/i);
   assert.doesNotMatch(desktopSource, /Hosted mode|Choose a mode|<strong>Local<\/strong>|cannot save service connections/);

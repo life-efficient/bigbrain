@@ -162,7 +162,7 @@ export function buildDefaultConfig(brainHome, env = process.env, { brainId = nul
   };
 }
 
-export async function initializeBrainHome(brainHome, { env = process.env, brainName = null } = {}) {
+export async function initializeBrainHome(brainHome, { env = process.env, brainName = null, brainDescription = null } = {}) {
   const resolvedBrainHome = path.resolve(brainHome);
   const config = buildDefaultConfig(resolvedBrainHome, env, { brainName });
   const metaDir = metaDirForBrainHome(resolvedBrainHome, env);
@@ -179,7 +179,7 @@ export async function initializeBrainHome(brainHome, { env = process.env, brainN
     brainId: config.brain_id,
     brainName: config.brain_name,
     brainDir: resolvedBrainHome,
-  }, { updatedBy: 'bigbrain-init', generationMethod: 'migration' })));
+  }, { description: brainDescription, updatedBy: 'bigbrain-init', generationMethod: 'migration' })));
   await reconcileConfigFile(configPathForBrainHome(resolvedBrainHome, env), config);
   await saveDefaultBrainHomePointer(resolvedBrainHome, env);
 

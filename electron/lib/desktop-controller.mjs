@@ -164,7 +164,12 @@ export class DesktopController {
     await this.validateApiKey(apiKey);
     const draft = existing
       ? await this.registry.registerExisting({ ...existing, ownerName: input.ownerName, ownerEmail: input.ownerEmail })
-      : await this.registry.createDraft({ ...input, home: newHome });
+      : await this.registry.createDraft({
+        ...input,
+        home: newHome,
+        description: input.description,
+        backupPreference: input.gitBackup === false ? 'none' : 'github',
+      });
     try {
       await this.keychain.set(draft.id, apiKey);
       const [{ initializeBrainHome }, { loadConfig }, { syncBrain }] = await Promise.all([
@@ -172,9 +177,12 @@ export class DesktopController {
         import(pathToModule(this.appPath, 'src/bigbrain/config.js')),
         import(pathToModule(this.appPath, 'src/bigbrain/sync.js')),
       ]);
-      if (!existing) await initializeBrainHome(draft.home, { brainName: draft.name });
+      if (!existing) await initializeBrainHome(draft.home, {
+        brainName: draft.name,
+        brainDescription: draft.description,
+      });
       const ownerSlug = `people/${slugify(input.ownerName)}`;
-      await this.installService(draft, { ownerSlug });
+      await this.installService(draft, { ownerSlug, gitBackup: draft.backupPreference !== 'none' });
       const config = await loadConfig({ brainHome: draft.home });
       await syncBrain({ config, apiKey }).catch(() => null);
       const brain = await this.registry.update(draft.id, {
@@ -183,7 +191,11 @@ export class DesktopController {
         owner: { ...draft.owner, personSlug: ownerSlug },
         onboarding: { step: 5, completed: true, error: null },
       });
-      return { brain: publicBrain(brain), instructions: connectionInstructions(brain) };
+      return {
+        brain: publicBrain(brain),
+        instructions: connectionInstructions(brain),
+        backupPreference: brain.backupPreference || 'github',
+      };
     } catch (error) {
       await this.registry.update(draft.id, { status: 'error', onboarding: { step: 4, completed: false, error: redactSecrets(error.message) } });
       throw new Error(redactSecrets(error.message));
@@ -230,7 +242,7 @@ export class DesktopController {
     }));
   }
 
-  async installService(brain, { ownerSlug }) {
+  async installService(brain, { ownerSlug, gitBackup = true } = {}) {
     if (brain.serviceOwnership !== SERVICE_OWNERSHIPS.DESKTOP_BUNDLE) {
       throw new Error('Only a desktop-bundle service can be installed by the BigBrain desktop app.');
     }
@@ -240,7 +252,7 @@ export class DesktopController {
     const installer = path.join(this.appPath, 'scripts/install-local-mcp-service.mjs');
     const args = [installer, '--repo-root', this.appPath, '--brain-home', brain.home, '--port', String(brain.port), '--label', brain.serviceLabel,
       '--local-person-slug', ownerSlug || '', '--local-owner-email', brain.owner?.email || '', '--local-owner-name', brain.owner?.name || '', '--keychain-account', brain.id,
-      '--service-manager', 'desktop', '--service-source', 'desktop-bundle'];
+      '--service-manager', 'desktop', '--service-source', 'desktop-bundle', gitBackup ? '--git-backup' : '--no-git-backup'];
     if (brain.replacedService?.plistPath && brain.replacedService.label !== brain.serviceLabel) args.push('--replace-plist', brain.replacedService.plistPath);
     if (this.nodePath === process.execPath && process.versions.electron) args.push('--electron-run-as-node');
     try {
@@ -341,6 +353,7 @@ function slugify(value) { return String(value).toLowerCase().replace(/[^a-z0-9]+
 function validateInput(input) {
   if (!input?.ownerName?.trim() || !input?.ownerEmail?.includes('@')) throw new Error('Name and a valid email are required.');
   if (!input?.name?.trim()) throw new Error('Brain name is required.');
+  if (!input?.existingHome && !input?.description?.trim()) throw new Error('Brain description is required.');
   if (input.mode && input.mode !== 'local') throw new Error('Run-on-device setup requires local mode.');
 }
 function publicBrain(brain) {

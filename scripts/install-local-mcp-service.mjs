@@ -32,6 +32,7 @@ async function main() {
   const localOwnerEmail = options.localOwnerEmail || '';
   const localOwnerName = options.localOwnerName || '';
   const keychainAccount = options.keychainAccount || '';
+  const gitBackupEnabled = options.gitBackup !== false;
   const electronRunAsNode = Boolean(options.electronRunAsNode);
   const serviceManager = options.serviceManager || (electronRunAsNode ? SERVICE_MANAGER_DESKTOP : SERVICE_MANAGER_SOURCE);
   const serviceSource = options.serviceSource || (serviceManager === SERVICE_MANAGER_DESKTOP ? SERVICE_SOURCE_DESKTOP_BUNDLE : SERVICE_SOURCE_CHECKOUT);
@@ -65,6 +66,7 @@ async function main() {
     serviceManager,
     serviceSource,
     dashboardDev,
+    gitBackupEnabled,
   });
 
   if (options.dryRun) {
@@ -84,6 +86,7 @@ async function main() {
       serviceManager,
       serviceSource,
       dashboardDev,
+      gitBackupEnabled,
       installAutomaticUpdater,
       stdoutPath,
       stderrPath,
@@ -207,6 +210,12 @@ function parseArgs(args) {
       case '--no-auto-update':
         options.noAutoUpdate = true;
         break;
+      case '--git-backup':
+        options.gitBackup = true;
+        break;
+      case '--no-git-backup':
+        options.gitBackup = false;
+        break;
       case '--update-channel':
         options.updateChannel = args[++index];
         break;
@@ -253,6 +262,7 @@ export function renderLaunchAgentPlist({
   serviceManager = electronRunAsNode ? SERVICE_MANAGER_DESKTOP : SERVICE_MANAGER_SOURCE,
   serviceSource = serviceManager === SERVICE_MANAGER_DESKTOP ? SERVICE_SOURCE_DESKTOP_BUNDLE : SERVICE_SOURCE_CHECKOUT,
   dashboardDev = false,
+  gitBackupEnabled = true,
 }) {
   validateServiceOwnershipMarkers({ serviceManager, serviceSource });
   const args = [
@@ -299,7 +309,7 @@ ${localPersonSlug ? `    <key>BIGBRAIN_MCP_LOCAL_PERSON_SLUG</key>
 ` : ''}${keychainAccount ? `    <key>BIGBRAIN_OPENAI_KEYCHAIN_ACCOUNT</key>
     <string>${xmlEscape(keychainAccount)}</string>
 ` : ''}    <key>BIGBRAIN_MCP_GIT_BACKUP</key>
-    <string>1</string>
+    <string>${gitBackupEnabled ? '1' : '0'}</string>
     <key>BIGBRAIN_MCP_SYNC_INTERVAL_MS</key>
     <string>300000</string>
     <key>BIGBRAIN_MCP_GIT_BACKUP_INTERVAL_MS</key>

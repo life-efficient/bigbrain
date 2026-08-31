@@ -348,7 +348,10 @@ async function startManagedServiceReconciliation({ report = true } = {}) {
       appVersion: app.getVersion(),
       listBrains: async () => (await desktopController.state()).brains,
       probe: (brain) => probeManagedService(brain),
-      reinstall: (brain) => desktopController.installService(brain, { ownerSlug: brain.owner?.personSlug || "" }),
+      reinstall: (brain) => desktopController.installService(brain, {
+        ownerSlug: brain.owner?.personSlug || "",
+        gitBackup: brain.backupPreference !== "none",
+      }),
       report: report ? reportManagedServiceReconciliation : () => {},
     });
     return await reconciler.reconcile();
