@@ -10,12 +10,26 @@ import { runHealthCheck } from '../../src/bigbrain/health.js';
 test('media ingest skill enforces YouTube video-title and channel-suffix naming', async () => {
   const skillPath = new URL('../../skills/bigbrain-media-ingest/SKILL.md', import.meta.url);
   const skill = await fs.readFile(skillPath, 'utf8');
+  const agentPath = new URL('../../skills/bigbrain-media-ingest/agents/openai.yaml', import.meta.url);
+  const agent = await fs.readFile(agentPath, 'utf8');
 
   assert.match(skill, /<exact YouTube video title> - <exact YouTube channel name>/);
   assert.match(skill, /<slugified video title>-<slugified channel name>/);
   assert.match(skill, /Keep the channel name as the final suffix/);
   assert.match(skill, /Do not use a generated topic label/);
+  assert.match(skill, /Store the raw values separately in frontmatter as `youtube_title`, `channel`, and `youtube_id`/);
+  assert.match(skill, /preserve every chapter label and its order/);
+  assert.match(skill, /`chapter_source: none`/);
+  assert.match(skill, /validateYouTubeMetadata/);
+  assert.match(skill, /parseYouTubeChapters/);
+  assert.match(skill, /findYouTubeRecordById/);
+  assert.match(skill, /assertExistingYouTubeRecordCompatible/);
+  assert.match(skill, /validateYouTubeSidecar/);
+  assert.match(skill, /a thrown error stops the run before any raw or page write/);
+  assert.match(skill, /a failed read-back assertion is a failed run/);
   assert.match(skill, /directly read back the canonical page and source sidecar/);
+  assert.match(agent, /\$bigbrain-media-ingest/);
+  assert.match(agent, /exact source metadata and published chapters/);
 });
 
 test('source article ingest keeps filing optional and gates writes on relevance', async () => {

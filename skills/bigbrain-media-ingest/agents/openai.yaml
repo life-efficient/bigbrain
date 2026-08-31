@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Media Ingest"
-  short_description: "Preserve media and write a faithful chronological exposition"
-  default_prompt: "Use $bigbrain-media-ingest to preserve the complete source transcript and create a comprehensive chronological prose exposition in BigBrain, with optional canonical enrichment only when genuinely useful."
+  short_description: "Preserve exact media metadata, chapters, and chronology"
+  default_prompt: "Use $bigbrain-media-ingest to preserve exact source metadata and published chapters, validate them before writing, retain the complete transcript, and create a comprehensive chronological prose exposition in BigBrain."

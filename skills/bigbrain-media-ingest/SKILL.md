@@ -13,18 +13,21 @@ Preserve time-based media and create a comprehensive, readable account of what t
 - Deduplicate by stable source ID, exact title, proposed path, and direct reads of plausible matches.
 - Preserve the complete timestamped transcript when one is available or can reasonably be produced.
 - Store the transcript under the owning collection's flat `.raw/` path with exactly one same-basename Markdown sidecar.
-- For YouTube, use the exact video title with the exact channel name as the final suffix of the sidecar title and normalized basename.
+- For YouTube, preserve the exact video title and channel as source metadata, then derive the sidecar title and normalized basename from them.
+- When YouTube provides chapters, preserve every chapter label and its order as the sidecar's primary section structure.
+- Run the deterministic YouTube metadata and sidecar checks before writing; if a check fails, stop and let the chat show the error.
 - Make the sidecar a comprehensive chronological prose exposition, not a condensed thematic summary or an analytical rewrite.
 - Write as a third-person observer taking detailed, readable meeting minutes: preserve the source's sequence, substance, reported facts, definitions, examples, evidence, counterarguments, qualifications, and key short quotes without forcing them into a rigid schema.
 - Attribute claims to the source and distinguish what the source reports from independently verified facts. Do not add an unlabelled agent take.
 - Treat canonical concept enrichment as optional. Create or update a concept page only when the source materially improves a durable subject beyond the source itself.
 - Run BigBrain sync after writes, then read back the sidecar and raw transcript through the owning Brain MCP. Read back any optional canonical update as well.
 
-## YouTube Naming Standard
+## YouTube Identity and Chapter Standard
 
 For every YouTube transcript ingest:
 
-- Set the sidecar title to `<exact YouTube video title> - <exact YouTube channel name>`.
+- Store the raw values separately in frontmatter as `youtube_title`, `channel`, and `youtube_id`.
+- Set the sidecar title to `<exact YouTube video title> - <exact YouTube channel name>` only after preserving and validating the raw values.
 - Do not use a generated topic label in place of the exact YouTube video title.
 - Derive the sidecar and raw transcript basename from `<slugified video title>-<slugified channel name>`.
 - Keep the channel name as the final suffix in both the display title and normalized basename.
@@ -32,6 +35,9 @@ For every YouTube transcript ingest:
 - Store the YouTube ID in frontmatter for deduplication and provenance.
 - If distinct videos share a title and channel, place a short ID disambiguator before the channel suffix.
 - If live metadata cannot resolve the exact title or channel, stop before writing. Do not invent either value.
+- If the YouTube description contains a `Timestamps:` or `Chapters:` block, parse its timestamp and label pairs before drafting the exposition.
+- Use one primary heading for every parsed chapter, preserving the exact label and source order. Agent-authored headings may appear only as subordinate headings beneath the source chapter.
+- If no chapters are present, label the sidecar metadata with `chapter_source: none` and make any fallback chronology visibly agent-authored.
 
 ## Source Exposition Standard
 
@@ -48,23 +54,30 @@ Keep the exposition observational. It may explain how one part leads to the next
 1. Resolve the source and destination:
    - identify the source URL or local media, exact title, publisher or channel, stable source ID, duration, publication date, speakers when known, and primary subject
    - call live `filing_rules` and select the owning collection by primary subject rather than media format
-   - apply the YouTube Naming Standard before constructing any write arguments
-   - Anti-patterns: filing by format, guessing metadata, using a generated topic label as the source identity
+   - preserve `youtube_title`, `channel`, `youtube_id`, and the raw description before drafting or constructing write arguments
+   - run `validateYouTubeMetadata` and `buildYouTubeIdentity` from `src/bigbrain/youtube-ingest.js`; a thrown error stops the run before any raw or page write
+   - Anti-patterns: filing by format, guessing metadata, using a generated topic label as the source identity, constructing the display title before validating raw metadata
 2. Deduplicate before retrieval or mutation:
    - search for the stable source ID, exact title, proposed sidecar path, and close source matches
    - directly read plausible matches and update the existing source record when the stable ID already exists
-   - Anti-patterns: creating from semantic-search absence, duplicate pages for one source, reading only snippets
+   - use `findYouTubeRecordById` and `assertExistingYouTubeRecordCompatible` before mutation; same-ID records are updated in place or left for direct review, never duplicated
+   - if more than one existing record has the ID, stop and resolve the duplicate before writing
+   - distinct IDs with the same title and channel receive an ID disambiguator before the channel suffix
+   - Anti-patterns: creating from semantic-search absence, duplicate pages for one source, reading only snippets, overwriting a same-ID conflict
 3. Retrieve complete source support:
    - prefer published manual captions, then published automatic captions, then a clearly labelled local transcription
    - preserve the complete available transcript and record coverage, method, diarization status, and accuracy caveats
    - retain source metadata and any user-highlighted passages or interpretations
-   - Anti-patterns: excerpt-only capture, calling a partial transcript complete, presenting machine captions as human-verified
+   - parse the YouTube description's chapter block with `parseYouTubeChapters` before prose synthesis
+   - Anti-patterns: excerpt-only capture, calling a partial transcript complete, presenting machine captions as human-verified, treating chapters as optional context
 4. Write the raw transcript and chronological sidecar:
    - upload the transcript to `<collection>/.raw/<basename>.<ext>` and create the sole same-basename sidecar
    - write a faithful chronological exposition using the Source Exposition Standard
+   - when chapters exist, use `chapter.heading` values as the primary section headings and place the detailed prose under the corresponding source section
+   - when chapters do not exist, set `chapter_source: none` and label fallback headings as agent-authored chronology
    - preserve source claims as attributed claims and integrate concise key quotes only where their wording materially matters
    - link the sidecar to its raw transcript and any directly relevant existing pages
-   - Anti-patterns: condensed thematic summary, rigid fact ledger or glossary schema, agent-authored thesis replacing the source, long transcript copy in the Markdown page
+   - Anti-patterns: condensed thematic summary, rigid fact ledger or glossary schema, merged or renamed source chapters, agent-authored thesis replacing the source, long transcript copy in the Markdown page
 5. Consider optional canonical enrichment:
    - search and read before any concept write
    - update an existing canonical page only when the recording contributes independently reusable knowledge beyond its own account
@@ -74,16 +87,20 @@ Keep the exposition observational. It may explain how one part leads to the next
 6. Sync and verify through the owning Brain:
    - run maintenance sync
    - directly read back the canonical page and source sidecar when canonical enrichment was written
-   - read back the sidecar and confirm its exact title, stable source metadata, raw-file link, chronological coverage, and evidence caveats
+   - read back the sidecar and run `validateYouTubeSidecar` against the retrieved metadata, description, frontmatter, and body before treating the run as complete
+   - confirm exact source metadata, derived title, stable source ID, raw-file link, chapter count, chapter labels, chapter order, chronological coverage, and evidence caveats
    - read back the raw transcript, compare its bytes when practical, and confirm it appears in the raw-file listing
    - read back any optional canonical page and verify its link to the source sidecar
-   - Anti-patterns: declaring success from a write response, skipping raw-file verification, reporting an optional concept update that was not read back
+   - a failed read-back assertion is a failed run; do not report sync as sufficient evidence of source fidelity
+   - Anti-patterns: declaring success from a write response, skipping raw-file verification, skipping the metadata or chapter audit, reporting an optional concept update that was not read back
 
 ## Anti-Patterns
 
 - Treating the sidecar as a short summary, list of takeaways, or new analytical framework.
 - Reorganizing the source primarily by themes when that loses its original progression.
-- Requiring timestamp ranges, a fact ledger, a glossary, or a coverage matrix as fixed sidecar sections.
+- Replacing a published YouTube chapter map with an agent-authored thematic taxonomy.
+- Treating the derived display title as proof that the exact source title was preserved.
+- Requiring timestamp ranges, a fact ledger, a glossary, or a coverage matrix as fixed sidecar sections when the source does not provide them.
 - Omitting quantitative claims, terminology, examples, evidence, counterarguments, or key quotes merely because they are inconvenient to summarize.
 - Treating every mentioned entity or concept as a reason to create another Brain page.
 - Confusing source-reported claims with independently verified facts.
