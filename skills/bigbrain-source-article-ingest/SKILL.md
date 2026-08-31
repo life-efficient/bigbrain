@@ -3,12 +3,16 @@ name: bigbrain-source-article-ingest
 description: Ingest a web article or RSS item when it is relevant to the user's learning, conversation, or sector awareness, preserving the source and updating linked Brain entities when warranted.
 ---
 
-Route one relevant web article into BigBrain as a source record, preserved source artifact, and evidence-backed entity update when appropriate.
+Review one web article through the BigBrain source-article workflow and file it only when it clears the digest-value gate.
 
 ## Contract Checklist
 
 - Decide relevance for the user's digest before creating any Brain page or raw artifact.
+- Filing is optional: the valid outcomes are `ignored`, `source_only`, `source_and_update`, or `needs_review`.
 - Ignore routine, administrative, promotional, or otherwise low-value updates even when they mention a tracked entity.
+- Treat first-party promotional material as `ignored` by default unless a concrete, durable implication is clearly material to the user's existing knowledge or work.
+- Require a short user-specific relevance rationale before any raw-file or Brain-page write.
+- If relevance is ambiguous, stop before writing and either return `ignored` or ask for clarification when the intended scope cannot be inferred safely.
 - Fetch and preserve the canonical source for every relevant article when the source is available and the filing rules permit it.
 - Use the source-retrieval fallback order: direct web search, in-Codex browser, `curl`, then an external browser.
 - Keep the source text faithful to the publisher; never replace it with an AI rewrite.
@@ -34,15 +38,18 @@ Route one relevant web article into BigBrain as a source record, preserved sourc
 2. Apply the digest-value test before filing:
    - Ask whether the item will help the user master an idea, stay current in a sector they care about, bring something useful up in conversation, or read for enrichment.
    - Ignore privacy-policy changes, routine collaborations, generic announcements, awards, hiring notices, and promotional updates unless they have a concrete durable implication for the user's existing knowledge or work.
-   - Entity mention alone is not enough. A tracked company or person may still have an irrelevant update.
-   - Anti-patterns: filing everything from a trusted feed, treating entity relevance as automatic user relevance, storing raw material for a no-op.
+   - Entity mention, topical similarity, regional relevance, and a plausible connection to a project are not enough on their own. The article must change durable understanding, provide reusable learning, or record a material event for the user.
+   - For first-party promotional material, identify the promotional status and name the concrete durable implication that outweighs it. If that implication cannot be stated briefly and specifically, choose `ignored`.
+   - Write the relevance rationale before proceeding to any source-artifact or Brain-page write. This is a decision gate, not a post-hoc justification.
+   - Anti-patterns: filing everything from a trusted feed, treating entity relevance or topical similarity as automatic user relevance, using a project link to justify filing, storing raw material for a no-op, justifying a write after it has begun.
 
 3. Choose the filing outcome:
    - `ignored`: no Brain page or raw source; retain only the event audit record.
    - `source_only`: preserve the source and create its indexed sidecar when it is useful for learning, enrichment, or awareness but does not change a canonical entity page.
    - `source_and_update`: preserve the source, create the indexed sidecar, and update existing canonical pages when the article changes durable understanding or records a meaningful event.
    - Create a new canonical entity page only when the article establishes a distinct durable person, organization, company, project, concept, deal, or other Brain subject that does not already exist.
-   - Anti-patterns: updating every mentioned entity, creating duplicate canonical pages, making a source page the compiled truth for an entity.
+   - When relevance is uncertain, do not resolve the uncertainty by creating a source artifact or new concept page. Return `ignored` or ask for clarification if the user's intended retention scope is genuinely unclear.
+   - Anti-patterns: treating `source_and_update` as the default, updating every mentioned entity, creating duplicate canonical pages, making a source page the compiled truth for an entity, writing before the outcome is selected.
 
 4. Build the source sidecar:
    - Follow the active Brain `filing_rules` for the owning collection and `.raw/` path.
@@ -104,6 +111,7 @@ What this establishes for the Brain, with uncertainty and attribution preserved.
 
 ## Anti-Patterns
 
+- Treating “ingest this article” or “put it in the right Brain pages” as permission or instruction to file without independently applying the relevance gate.
 - Filing every RSS item merely because the feed is trusted.
 - Treating a short RSS description as sufficient source content.
 - Rewriting a strong author's prose into an AI-authored substitute.
@@ -115,4 +123,4 @@ What this establishes for the Brain, with uncertainty and attribution preserved.
 
 ## Output
 
-Report the relevance decision, chosen outcome, source artifact and sidecar paths, canonical pages created or updated, linked entities, read-back status, stable event or RSS ID, and any uncertainty or follow-up needed.
+Report the relevance decision and concise user-specific rationale first. Then report the chosen outcome, source artifact and sidecar paths, canonical pages created or updated, linked entities, read-back status, stable event or RSS ID, and any uncertainty or follow-up needed. For `ignored`, explicitly state that no raw artifact or Brain page was created.

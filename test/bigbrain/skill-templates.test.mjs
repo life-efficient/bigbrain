@@ -18,6 +18,22 @@ test('media ingest skill enforces YouTube video-title and channel-suffix naming'
   assert.match(skill, /directly read back the canonical page and source sidecar/);
 });
 
+test('source article ingest keeps filing optional and gates writes on relevance', async () => {
+  const skillPath = new URL('../../skills/bigbrain-source-article-ingest/SKILL.md', import.meta.url);
+  const skill = await fs.readFile(skillPath, 'utf8');
+  const agentPath = new URL('../../skills/bigbrain-source-article-ingest/agents/openai.yaml', import.meta.url);
+  const agent = await fs.readFile(agentPath, 'utf8');
+
+  assert.match(skill, /Filing is optional/);
+  assert.match(skill, /first-party promotional material as `ignored` by default/);
+  assert.match(skill, /Require a short user-specific relevance rationale before any raw-file or Brain-page write/);
+  assert.match(skill, /Entity mention, topical similarity, regional relevance/);
+  assert.match(skill, /“ingest this article” or “put it in the right Brain pages”/);
+  assert.match(skill, /For `ignored`, explicitly state that no raw artifact or Brain page was created/);
+  assert.match(agent, /First decide whether it clears the digest-value gate; filing is optional/);
+  assert.match(agent, /do not create a source artifact or Brain page unless it does/);
+});
+
 test('health accepts active skill symlinks that match repo skills', async () => {
   const fixture = await createFixture('bigbrain-skill-template-health-');
   try {

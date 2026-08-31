@@ -42,7 +42,7 @@ test('prompt payload can be narrowed to configured fields and omits RSS raw XML 
   }), { title: 'Meeting', data: { summary: 'Useful' } });
 });
 
-test('RSS article prompt is a short normal Codex ingestion request', () => {
+test('RSS article prompt makes filing optional and gates writes on relevance', () => {
   const prompt = buildEventPrompt({
     event_id: 'rss-1',
     listener_id: 'openai-news',
@@ -59,9 +59,11 @@ test('RSS article prompt is a short normal Codex ingestion request', () => {
     },
     allowed_brain_ids: ['personal'],
   }, { type: 'rss', display_name: 'OpenAI News' }, { allowedDestinations: [{ id: 'personal', name: 'Personal' }] });
-  assert.match(prompt, /Ingest this article into BigBrain using the normal article-ingestion workflow/);
+  assert.match(prompt, /Run the BigBrain source-article workflow for this article/);
   assert.match(prompt, /Use the \$bigbrain-source-article-ingest skill as the primary workflow/);
-  assert.match(prompt, /regular user chat/);
+  assert.match(prompt, /Filing is optional/);
+  assert.match(prompt, /Do not create a raw artifact or Brain page unless it clears the gate/);
+  assert.doesNotMatch(prompt, /put it in the right Brain pages/);
   assert.match(prompt, /Title: Article/);
   assert.match(prompt, /URL: https:\/\/example\.test\/article/);
   assert.doesNotMatch(prompt, /Return JSON only/);

@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Source Article Ingest"
-  short_description: "Preserve relevant articles and connect them to Brain entities"
-  default_prompt: "Use $bigbrain-source-article-ingest to decide whether this article is worth keeping, preserve the source faithfully, and update only materially affected Brain pages."
+  short_description: "Review article relevance before optional BigBrain filing"
+  default_prompt: "Run $bigbrain-source-article-ingest for this article. First decide whether it clears the digest-value gate; filing is optional, and do not create a source artifact or Brain page unless it does."

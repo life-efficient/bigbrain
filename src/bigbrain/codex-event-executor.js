@@ -37,9 +37,9 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
   }
   if (isRssArticle) {
     return [
-      'Ingest this article into BigBrain using the normal article-ingestion workflow.',
+      'Run the BigBrain source-article workflow for this article.',
       `Use the $${skill.replace(/^\$/, '')} skill as the primary workflow.`,
-      'Treat this as a regular user chat. Use the article link as the source, put it in the right Brain pages, and briefly tell me what you did when finished.',
+      'First decide whether the article clears the digest-value gate. Filing is optional: choose ignored, source_only, source_and_update, or needs_review as appropriate. Do not create a raw artifact or Brain page unless it clears the gate, and briefly tell me what you decided and did when finished.',
       '',
       `Title: ${payload?.title || 'Untitled article'}`,
       `URL: ${payload?.link || payload?.url || 'No URL supplied'}`,
@@ -66,7 +66,7 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
     sourceDescription,
     '',
     'Task constraints:',
-    '- Decide whether this event contains useful knowledge. Ignore it when it does not.',
+    '- Decide whether this event contains useful knowledge before any write. Filing is optional; ignore it when it does not clear the digest-value gate.',
     destinations ? `- Use the normal Brain environment; the event scope is ${destinations}.` : null,
     '- Do not invent credentials, paths, facts, or source provenance.',
     '- Every Git-backed BigBrain MCP write must include a short, single-line commit_message describing what changed and why, plus provenance metadata with the correct source_type and source_label.',
