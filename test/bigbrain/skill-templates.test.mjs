@@ -28,6 +28,10 @@ test('source article ingest keeps filing optional and gates writes on relevance'
   assert.match(skill, /first-party promotional material as `ignored` by default/);
   assert.match(skill, /Require a short user-specific relevance rationale before any raw-file or Brain-page write/);
   assert.match(skill, /Entity mention, topical similarity, regional relevance/);
+  assert.match(skill, /Visit the supplied article page and confirm that you landed on the correct article/);
+  assert.match(skill, /Do not substitute another page/);
+  assert.doesNotMatch(skill, /source-retrieval fallback order/);
+  assert.doesNotMatch(skill, /after all fallbacks/);
   assert.match(skill, /“ingest this article” or “put it in the right Brain pages”/);
   assert.match(skill, /For `ignored`, explicitly state that no raw artifact or Brain page was created/);
   assert.match(agent, /First decide whether it clears the digest-value gate; filing is optional/);

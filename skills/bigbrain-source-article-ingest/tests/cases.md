@@ -24,9 +24,12 @@ sidecar, link the author, publisher, subject, and materially mentioned Brain
 entities, and update canonical pages only when the durable understanding
 changes.
 
-Retrieval order: try direct web search first, then the in-Codex browser, then
-`curl`, then an external browser. Resolve redirects and trailing slashes, and
-confirm the final title and publisher before filing.
+Visit the supplied article page, confirm that it is the requested article, and
+file it if it is accessible and clears the digest-value gate. If it is blocked
+or cannot be accessed, return `needs_review` without substituting another page.
+
+An accessible article whose URL slug is shorter than its title is still the
+requested article when the page itself confirms the title and publisher.
 
 ## Should not trigger as a filed article
 
@@ -67,6 +70,4 @@ truncated.
 
 Expected behavior: return `needs_review` and do not file a synthetic article.
 
-The review result should include the retrieval methods attempted and their
-errors, including a browser success that could not be converted into faithful
-source bytes.
+The review result should say that the supplied source could not be retrieved.
