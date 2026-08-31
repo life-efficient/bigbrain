@@ -18,18 +18,21 @@ const content = document.querySelector('#step-content');
 const steps = [...document.querySelectorAll('.step')];
 
 function render() {
-  steps.forEach((element, index) => {
-    element.classList.toggle('active', index === step - 1);
-    element.classList.toggle('done', index < step - 1);
-  });
+  renderSteps();
 
   const localPages = {
-    1: `<h1>Name your brain</h1><p>Give this private knowledge space a clear identity. The description helps you and your agents understand what belongs here.</p>${field('name', 'Brain name', 'AI Infrastructure Atlas')}${textarea('description', 'Description', 'AI infrastructure, data centers, terminology, companies, narratives, and finance.')}${stepError()}${actions(false)}`,
-    2: `<h1>Where should it run?</h1><p>This first setup will create a private brain on this Mac. Hosted setup is shown here so the choice is explicit, but it is not part of this local-first test yet.</p><button class="choice choice-option selected" type="button" data-mode="local"><strong>Run locally on this device</strong><p>Files and the service stay on this Mac.</p></button><button class="choice choice-option" type="button" disabled><strong>Run in a hosted BigBrain</strong><p>Hosted setup will be available in a later flow.</p></button>${actions(true)}`,
-    3: `<h1>Privacy and backup</h1><p>This brain is private by default. Choose whether BigBrain should keep Git backup enabled for the local service.</p><button class="choice choice-option selected" type="button" disabled><strong>Private brain</strong><p>Only this local setup and agents you explicitly connect can use it.</p></button><button class="choice choice-option" type="button" disabled><strong>Public or shared brain</strong><p>Not available in this local-first setup.</p></button><fieldset class="credential-options" role="radiogroup"><legend>Git backup</legend><button type="button" class="credential-option${form.gitBackup ? ' selected' : ''}" data-backup="github" role="radio" aria-checked="${form.gitBackup}"><span><strong>Back up to a private GitHub repository</strong><small>Recommended for a local brain.</small></span></button><button type="button" class="credential-option${!form.gitBackup ? ' selected' : ''}" data-backup="none" role="radio" aria-checked="${!form.gitBackup}"><span><strong>Keep it only on this Mac</strong><small>You can add a backup later.</small></span></button></fieldset><div class="warning"><strong>STRONGLY RECOMMENDED:</strong> everything in your brain could be lost if you delete the folder or lose access to your device.</div>${actions(true)}`,
+    2: `<h1>Name your brain</h1><p>Give this private knowledge space a clear identity. The description helps you and your agents understand what belongs here.</p>${field('name', 'Brain name', 'AI Infrastructure Atlas')}${textarea('description', 'Description', 'AI infrastructure, data centers, terminology, companies, narratives, and finance.')}${stepError()}${actions(true)}`,
+    3: `<h1>Where should it run?</h1><p>This setup will create a private brain on this Mac. Hosted deployment is shown so the choice is explicit, but it is not part of this local-first setup yet.</p><button class="choice choice-option selected" type="button" disabled><strong>Run locally on this device</strong><p>Files and the service stay on this Mac.</p></button><button class="choice choice-option" type="button" disabled><strong>Run in a hosted BigBrain</strong><p>Hosted setup will be available in a later flow.</p></button>${actions(true)}`,
+    4: `<h1>Privacy and backup</h1><p>This brain is private by default. Choose whether BigBrain should keep Git backup enabled for the local service.</p><button class="choice choice-option selected" type="button" disabled><strong>Private brain</strong><p>Only this local setup and agents you explicitly connect can use it.</p></button><button class="choice choice-option" type="button" disabled><strong>Public or shared brain</strong><p>Not available in this local-first setup.</p></button>${backupChoices()}${actions(true)}`,
+    5: `<h1>Who will use this brain?</h1><p>Your identity stays on this Mac and helps BigBrain recognize your work.</p>${field('ownerName', 'Your name', 'Your name')}${field('ownerEmail', 'Email', 'you@example.com', 'email')}${actions(true)}`,
+    6: localBrainHomePage(),
+    7: `<h1>Connect AI</h1><p>Choose a detected OpenAI API key or enter a different one. It is validated once and stored securely in macOS Keychain, not in your brain or logs.</p>${credentialPicker()}<div id="error"></div>${actions(true, 'Run BigBrain')}`,
+  };
+  const existingLocalPages = {
+    2: existingBrainFolderPage(),
+    3: `<h1>Review this existing brain</h1><p>BigBrain will leave its files in place and add one clearly labelled local service for this Mac. It will not move or overwrite the existing knowledge.</p><div class="existing-box"><strong>${escapeHtml(form.name || 'Existing brain')}</strong><small>${escapeHtml(form.existingHome || 'Choose a folder to continue.')}</small></div>${backupChoices()}${actions(true)}`,
     4: `<h1>Who will use this brain?</h1><p>Your identity stays on this Mac and helps BigBrain recognize your work.</p>${field('ownerName', 'Your name', 'Your name')}${field('ownerEmail', 'Email', 'you@example.com', 'email')}${actions(true)}`,
-    5: localBrainHomePage(),
-    6: `<h1>Connect AI</h1><p>Choose a detected OpenAI API key or enter a different one. It is validated once and stored securely in macOS Keychain, not in your brain or logs.</p>${credentialPicker()}<div id="error"></div>${actions(true, 'Run BigBrain')}`,
+    5: `<h1>Connect AI</h1><p>Choose a detected OpenAI API key or enter a different one. It is validated once and stored securely in macOS Keychain, not in your brain or logs.</p>${credentialPicker()}<div id="error"></div>${actions(true, 'Add existing brain')}`,
   };
   const servicePages = {
     2: `<h1>Connect to an existing BigBrain</h1><p>Enter the address of BigBrain already running on this machine, your organization’s network, or online.</p>${field('serviceUrl', 'BigBrain service address', 'https://brain.example.com', 'url')}${actions(true)}`,
@@ -37,8 +40,8 @@ function render() {
     4: `<h1>Ready to connect</h1><p>If this BigBrain requires sign-in, you’ll be asked to sign in when its dashboard opens.</p><div id="error"></div>${actions(true, 'Connect BigBrain')}`,
   };
   const pages = {
-    1: `<h1>Give your AI persistent memory</h1><p>Choose where BigBrain runs. A private local brain stays in the folder you select on this Mac. You can change between connected brains later.</p>${discoveredBrainPicker()}<button class="choice choice-option" data-mode="local"><strong>Run a private brain on this device</strong><p>Choose a folder, initialize it, and install one clearly labelled local service.</p></button><button class="choice choice-option" data-mode="service"><strong>Connect using an address</strong><p>Use a BigBrain service on your organization’s network or online.</p></button>`,
-    ...(form.mode === 'service' ? servicePages : localPages),
+    1: `<h1>How do you want to add this brain?</h1><p>Choose whether to create a new private local brain, use a brain folder already on this Mac, or connect to a brain that is already running somewhere else.</p>${discoveredBrainPicker()}<button class="choice choice-option" data-mode="local" data-setup-kind="new-local"><strong>Create a new private local brain</strong><p>Start with a name, description, folder, privacy, backup, and AI connection.</p></button><button class="choice choice-option" data-mode="local" data-setup-kind="existing-local"><strong>Use an existing brain folder on this Mac</strong><p>Adopt an existing BigBrain repository without moving its files.</p></button><button class="choice choice-option" data-mode="service"><strong>Connect to an existing remote brain</strong><p>Enter the address of a BigBrain service already running elsewhere.</p></button>`,
+    ...(form.mode === 'service' ? servicePages : form.setupKind === 'existing-local' ? existingLocalPages : localPages),
   };
 
   content.innerHTML = pages[step] || pages[1];
@@ -62,7 +65,8 @@ function render() {
   }));
   content.querySelectorAll('[data-mode]').forEach((element) => element.addEventListener('click', () => {
     form.mode = element.dataset.mode;
-    step = 3;
+    form.setupKind = element.dataset.setupKind || (form.mode === 'service' ? 'remote-service' : 'new-local');
+    step = 2;
     render();
   }));
   content.querySelector('[data-next]')?.addEventListener('click', next);
@@ -84,6 +88,33 @@ function render() {
 
 function stepError() {
   return '<div id="error"></div>';
+}
+
+function renderSteps() {
+  const labels = form.mode === 'service'
+    ? ['1. Choose path', '2. Address', '3. Review', '4. Ready']
+    : form.setupKind === 'existing-local'
+      ? ['1. Choose path', '2. Folder', '3. Review', '4. Owner', '5. Connect', '6. Ready']
+      : form.mode === 'local'
+        ? ['1. Choose path', '2. Name', '3. Where it runs', '4. Privacy & backup', '5. Owner', '6. Folder', '7. Connect & ready']
+        : ['1. Choose path'];
+  steps.forEach((element, index) => {
+    element.textContent = labels[index] || '';
+    element.classList.toggle('hidden', index >= labels.length);
+    element.classList.toggle('active', index === step - 1);
+    element.classList.toggle('done', index < step - 1);
+  });
+}
+
+function backupChoices() {
+  return `<fieldset class="credential-options" role="radiogroup"><legend>Git backup</legend><button type="button" class="credential-option${form.gitBackup ? ' selected' : ''}" data-backup="github" role="radio" aria-checked="${form.gitBackup}"><span><strong>Back up to a private GitHub repository</strong><small>Recommended for a local brain.</small></span></button><button type="button" class="credential-option${!form.gitBackup ? ' selected' : ''}" data-backup="none" role="radio" aria-checked="${!form.gitBackup}"><span><strong>Keep it only on this Mac</strong><small>You can add a backup later.</small></span></button></fieldset><div class="warning"><strong>STRONGLY RECOMMENDED:</strong> everything in your brain could be lost if you delete the folder or lose access to your device.</div>`;
+}
+
+function existingBrainFolderPage() {
+  if (!form.existingHome) {
+    return `<h1>Choose an existing brain folder</h1><p>Select a folder that already contains a BigBrain brain or repository. BigBrain will inspect it before making any changes.</p><p><button class="secondary" id="choose-existing">Choose an existing brain folder…</button></p>${stepError()}${actions(true)}`;
+  }
+  return `<h1>Use this existing brain?</h1><p>BigBrain found an initialized brain in this folder. Its files will stay where they are.</p><div class="existing-box"><strong>${escapeHtml(form.name || 'Existing brain')}</strong><small>${escapeHtml(form.existingHome)}</small></div><p><button class="secondary" id="clear-existing">Choose a different folder</button></p>${actions(true)}`;
 }
 
 function localBrainHomePage() {
@@ -111,12 +142,14 @@ function selectDiscoveredBrain(index) {
   form.name = brain.name || 'My Brain';
   if (brain.status === 'running' && brain.serviceUrl) {
     form.mode = 'service';
+    form.setupKind = 'remote-service';
     form.serviceUrl = brain.serviceUrl;
-    step = 3;
+    step = 2;
   } else {
     form.mode = 'local';
+    form.setupKind = 'existing-local';
     form.existingHome = brain.home || '';
-    step = 5;
+    step = 2;
   }
   render();
 }
@@ -199,11 +232,11 @@ async function loadApiKeyOptions() {
 }
 
 async function next() {
-  const finalStep = form.mode === 'service' ? 4 : 6;
+  const finalStep = form.mode === 'service' ? 4 : form.setupKind === 'existing-local' ? 5 : 7;
   if (step < finalStep) {
     if (!validateStep()) return;
     step += 1;
-    if (step === 6 && form.mode === 'local') await loadApiKeyOptions();
+    if ((step === 7 && form.setupKind === 'new-local') || (step === 5 && form.setupKind === 'existing-local')) await loadApiKeyOptions();
     else render();
     return;
   }
@@ -211,7 +244,7 @@ async function next() {
   const button = content.querySelector('[data-next]');
   button.disabled = true;
   const service = form.mode === 'service';
-  button.textContent = service ? 'Checking and connecting…' : 'Creating and checking your brain…';
+  button.textContent = service ? 'Checking and connecting…' : form.setupKind === 'existing-local' ? 'Adding and checking your brain…' : 'Creating and checking your brain…';
   try {
     if (service) {
       const brain = await api.connectService({ serviceUrl: form.serviceUrl });
@@ -224,19 +257,23 @@ async function next() {
   } catch (error) {
     content.querySelector('#error').innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
     button.disabled = false;
-    button.textContent = service ? 'Connect BigBrain' : 'Run BigBrain';
+    button.textContent = service ? 'Connect BigBrain' : form.setupKind === 'existing-local' ? 'Add existing brain' : 'Run BigBrain';
   }
 }
 
 function validateStep() {
-  if (form.mode === 'local' && step === 1) {
+  if (form.setupKind === 'new-local' && step === 2) {
     if (!form.name?.trim()) return showStepError('Give this brain a name before continuing.');
     if (!form.description?.trim()) return showStepError('Add a short description so this brain has a clear scope.');
   }
-  if (form.mode === 'local' && step === 5 && !form.newHome && !form.existingHome) {
+  if (form.setupKind === 'new-local' && step === 6 && !form.newHome && !form.existingHome) {
     return showStepError('Choose a folder for this private local brain.');
   }
-  if (step === 4 && (!form.ownerName?.trim() || !form.ownerEmail?.includes('@'))) {
+  if (form.setupKind === 'existing-local' && step === 2 && !form.existingHome) {
+    return showStepError('Choose an existing BigBrain folder.');
+  }
+  const ownerStep = form.setupKind === 'existing-local' ? 4 : 5;
+  if (form.mode === 'local' && step === ownerStep && (!form.ownerName?.trim() || !form.ownerEmail?.includes('@'))) {
     return showStepError('Enter your name and a valid email address.');
   }
   return true;
@@ -249,21 +286,15 @@ function showStepError(message) {
 }
 
 function showServiceConnection(brain) {
-  step = 5;
-  steps.forEach((element, index) => {
-    element.classList.toggle('active', index === 4);
-    element.classList.toggle('done', index < 4);
-  });
+  step = 4;
+  renderSteps();
   content.innerHTML = `<h1>BigBrain connected</h1><p>${escapeHtml(brain?.name || 'This service')} is saved on this Mac. Open BigBrain to use its dashboard.</p><div class="actions"><span></span><button class="primary" id="open">Open BigBrain</button></div>`;
   document.querySelector('#open').onclick = loadApp;
 }
 
 function showConnection(result) {
-  step = 7;
-  steps.forEach((element, index) => {
-    element.classList.toggle('active', index === 6);
-    element.classList.toggle('done', index < 6);
-  });
+  step = result.brain?.setupKind === 'existing-local' || form.setupKind === 'existing-local' ? 6 : 7;
+  renderSteps();
   const instructions = result.instructions;
   const backupMessage = result.backupPreference === 'none'
     ? 'GitHub backup was not selected. This brain currently stays only on this Mac.'
@@ -377,7 +408,8 @@ function emptyForm() {
     ownerEmail: '',
     name: 'AI Infrastructure Atlas',
     description: '',
-    mode: 'local',
+    mode: '',
+    setupKind: '',
     hosting: 'local',
     visibility: 'private',
     gitBackup: true,

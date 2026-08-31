@@ -77,7 +77,7 @@ export class BrainRegistry {
     return brain;
   }
 
-  async registerExisting({ id, name, home, ownerName, ownerEmail, port: existingPort = null, replacedService = null }) {
+  async registerExisting({ id, name, home, ownerName, ownerEmail, port: existingPort = null, replacedService = null, backupPreference = 'github' }) {
     const registry = await this.load();
     const resolvedHome = path.resolve(home);
     const duplicate = registry.brains.find((brain) => brain.id === id || path.resolve(brain.home) === resolvedHome);
@@ -91,6 +91,9 @@ export class BrainRegistry {
       serviceOwnershipReason: 'adopted_by_desktop',
       owner: { name: String(ownerName).trim(), email: String(ownerEmail).trim().toLowerCase() },
       aiAccess: { type: 'bring_your_own_key', provider: 'openai' },
+      hosting: 'local',
+      visibility: 'private',
+      backupPreference: backupPreference === 'none' ? 'none' : 'github',
       onboarding: { step: 4, completed: false, error: null },
       createdAt: new Date().toISOString(), lastOpenedAt: new Date().toISOString(),
     };

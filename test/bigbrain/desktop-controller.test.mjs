@@ -338,7 +338,11 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   const preloadSource = await fs.readFile(new URL('../../electron/preload.cjs', import.meta.url), 'utf8');
   const dashboardPreloadSource = await fs.readFile(new URL('../../electron/dashboard-preload.cjs', import.meta.url), 'utf8');
   const mainSource = await fs.readFile(new URL('../../electron/main.cjs', import.meta.url), 'utf8');
-  assert.match(desktopSource, /Run a private brain on this device/);
+  assert.match(desktopSource, /How do you want to add this brain/);
+  assert.match(desktopSource, /Create a new private local brain/);
+  assert.match(desktopSource, /Use an existing brain folder on this Mac/);
+  assert.match(desktopSource, /Connect to an existing remote brain/);
+  assert.match(desktopSource, /Run locally on this device/);
   assert.match(desktopSource, /Name your brain/);
   assert.match(desktopSource, /Privacy and backup/);
   assert.match(desktopSource, /Back up to a private GitHub repository/);
@@ -355,7 +359,8 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(desktopSource, /escapeHtml\(option\.label\)/);
   assert.match(desktopSource, /role="radio"/);
   assert.match(desktopSource, /form\.apiKey\s*=\s*'';\s*showConnection/);
-  assert.match(desktopSource, /step === 6 && form\.mode === 'local'/);
+  assert.match(desktopSource, /step === 7 && form\.setupKind === 'new-local'/);
+  assert.match(desktopSource, /step === 5 && form\.setupKind === 'existing-local'/);
   assert.match(desktopHtml, /7\. Ready/);
   assert.match(preloadSource, /desktop:connect-service/);
   assert.match(preloadSource, /desktop:api-key-options/);

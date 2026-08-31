@@ -163,7 +163,12 @@ export class DesktopController {
     const apiKey = await this.resolveApiKey(input);
     await this.validateApiKey(apiKey);
     const draft = existing
-      ? await this.registry.registerExisting({ ...existing, ownerName: input.ownerName, ownerEmail: input.ownerEmail })
+      ? await this.registry.registerExisting({
+        ...existing,
+        ownerName: input.ownerName,
+        ownerEmail: input.ownerEmail,
+        backupPreference: input.gitBackup === false ? 'none' : 'github',
+      })
       : await this.registry.createDraft({
         ...input,
         home: newHome,

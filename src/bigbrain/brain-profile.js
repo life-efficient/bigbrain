@@ -20,7 +20,9 @@ export function conservativeBrainProfileDraft(config, { description = null } = {
     identity: {
       brain_id: config.brainId,
       brain_name: config.brainName,
-      description: description?.trim() || `${config.brainName} has not set a routing description yet.`,
+      description: typeof description === 'string' && description.trim()
+        ? description.trim()
+        : `${config.brainName} has not set a routing description yet.`,
     },
   };
 }
