@@ -406,6 +406,8 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(mainSource, /will-frame-navigate/);
   assert.match(mainSource, /desktop:api-key-options/);
   assert.match(mainSource, /BIGBRAIN_DASHBOARD_DEV/);
+  assert.match(devLauncherSource, /BIGBRAIN_LOCAL_PAGE_LINK_PORT/);
+  assert.match(devLauncherSource, /DEV_PAGE_LINK_PORT = "55558"/);
   assert.match(mainSource, /DEV_BUILD \? "BigBrain Dev" : "BigBrain"/);
   assert.match(mainSource, /desktop-dev-icon\.png/);
   assert.match(mainSource, /app\.setPath\("userData", path\.join\(app\.getPath\("appData"\), "BigBrain Dev"\)\)/);

@@ -402,6 +402,7 @@ async function reportManagedServiceReconciliation(summary) {
 
 function localServiceUpdateMessage(summary) {
   if (summary.phase === "none") return "No desktop-managed local MCP services";
+  if (summary.phase === "development") return "Developer desktop leaves the shared local MCP service unchanged";
   if (summary.phase === "updated") return `Local MCP updated with BigBrain ${app.getVersion()}`;
   if (summary.phase === "current") return `Local MCP is current with BigBrain ${app.getVersion()}`;
   if (summary.phase === "attention" && summary.newer) return "A local MCP is newer than this app; update BigBrain";
@@ -454,11 +455,36 @@ async function initializeUpdateRestartCoordinator() {
   updateRestartCoordinator = new UpdateRestartCoordinator({
     receiptPath: path.join(app.getPath("userData"), "pending-update.json"),
     appVersion: app.getVersion(),
-    reconcile: () => startManagedServiceReconciliation({ report: false }),
+    reconcile: () => DEV_BUILD
+      ? developmentServiceReconciliationSummary()
+      : startManagedServiceReconciliation({ report: false }),
   });
 }
 
+function developmentServiceReconciliationSummary() {
+  return {
+    phase: "development",
+    managedCount: 0,
+    current: 0,
+    updated: 0,
+    newer: 0,
+    blocked: 0,
+    sourceManaged: 0,
+    ownershipUnknown: 0,
+    remote: 0,
+    failed: 0,
+    results: [],
+  };
+}
+
 async function coordinateManagedServicesAfterLaunch() {
+  if (DEV_BUILD) {
+    const summary = developmentServiceReconciliationSummary();
+    localServiceUpdateState = { ...summary, message: localServiceUpdateMessage(summary) };
+    createAppMenu();
+    sendLocalServiceUpdateState();
+    return summary;
+  }
   const verification = await updateRestartCoordinator.verifyAfterRelaunch();
   if (verification.phase === "none") return startManagedServiceReconciliation();
   await reportCoordinatedUpdateVerification(verification);

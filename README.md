@@ -557,6 +557,15 @@ installed release app keeps the silver-on-black icon and the Dock label
 `npm run desktop:dev`, so the development app and dashboard watcher start
 together and source dashboard changes are rebuilt live.
 
+The release desktop owns the local page-link router on `127.0.0.1:55559`.
+The developer desktop uses `127.0.0.1:55558` so both desktop shells can run
+together. The Personal Brain MCP remains the shared desktop-managed service on
+`127.0.0.1:55560`; normal desktop development does not start a second MCP.
+The developer desktop also leaves that shared MCP service unchanged when it
+starts. To develop MCP code itself, stop or deliberately reconfigure the
+shared service first rather than starting a second MCP against the same brain
+home.
+
 To point the desktop shell at an existing BigBrain dashboard:
 
 ```bash

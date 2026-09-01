@@ -6,6 +6,7 @@ const { spawn, execFileSync } = require("child_process");
 
 const APP_NAME = "BigBrain";
 const DEV_DISPLAY_NAME = "BigBrain Dev";
+const DEV_PAGE_LINK_PORT = "55558";
 const DEV_APP_NAME = `${APP_NAME}.app`;
 const DEV_BUNDLE_ID = "ai.diffusing.bigbrain.dashboard.dev";
 const ROOT_DIR = path.resolve(__dirname, "..");
@@ -41,7 +42,7 @@ function main() {
   const watcher = startDashboardWatcher();
   const child = spawn(TARGET_EXECUTABLE_PATH, [], {
     cwd: ROOT_DIR,
-    env: { ...process.env, BIGBRAIN_DASHBOARD_DEV: "1" },
+    env: devEnvironment(),
     stdio: "inherit",
   });
 
@@ -59,7 +60,7 @@ function main() {
 function launchElectronDirectly(watcher) {
   const child = spawn(ELECTRON_EXECUTABLE_PATH, [ROOT_DIR], {
     cwd: ROOT_DIR,
-    env: { ...process.env, BIGBRAIN_DASHBOARD_DEV: "1" },
+    env: devEnvironment(),
     stdio: "inherit",
   });
 
@@ -78,9 +79,17 @@ function startDashboardWatcher() {
   const watcherPath = path.join(ROOT_DIR, "scripts", "watch-dashboard-client.mjs");
   return spawn(process.execPath, [watcherPath], {
     cwd: ROOT_DIR,
-    env: { ...process.env, BIGBRAIN_DASHBOARD_DEV: "1" },
+    env: devEnvironment(),
     stdio: "inherit",
   });
+}
+
+function devEnvironment() {
+  return {
+    ...process.env,
+    BIGBRAIN_DASHBOARD_DEV: "1",
+    BIGBRAIN_LOCAL_PAGE_LINK_PORT: DEV_PAGE_LINK_PORT,
+  };
 }
 
 function prepareDevAppBundle() {

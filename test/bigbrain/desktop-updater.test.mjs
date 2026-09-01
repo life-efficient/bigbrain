@@ -141,6 +141,8 @@ test('desktop persists the downloaded target and verifies the app plus local ser
   assert.match(mainSource, /recordDownloadedTarget\(state\.updateVersion\)/);
   assert.match(mainSource, /verifyAfterRelaunch\(\)/);
   assert.match(mainSource, /coordinateManagedServicesAfterLaunch/);
+  assert.match(mainSource, /if \(DEV_BUILD\) \{[\s\S]*developmentServiceReconciliationSummary\(\)/);
+  assert.match(mainSource, /Developer desktop leaves the shared local MCP service unchanged/);
   assert.match(mainSource, /startManagedServiceReconciliation\(\{ report: false \}\)/);
   assert.match(mainSource, /updateLifecyclePhase: "complete"/);
   assert.match(mainSource, /Remote services were not changed/);

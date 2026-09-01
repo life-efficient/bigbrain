@@ -4,7 +4,12 @@ import { assertAllowedPagePath } from './page-ops.js';
 
 export const CANONICAL_PAGE_ROUTE = '/dashboard/page';
 export const LOCAL_PAGE_LINK_HOST = '127.0.0.1';
-export const LOCAL_PAGE_LINK_PORT = 55559;
+const configuredLocalPageLinkPort = Number(process.env.BIGBRAIN_LOCAL_PAGE_LINK_PORT);
+export const LOCAL_PAGE_LINK_PORT = Number.isInteger(configuredLocalPageLinkPort)
+  && configuredLocalPageLinkPort > 0
+  && configuredLocalPageLinkPort <= 65_535
+  ? configuredLocalPageLinkPort
+  : 55559;
 export const LOCAL_PAGE_LINK_ORIGIN = `http://${LOCAL_PAGE_LINK_HOST}:${LOCAL_PAGE_LINK_PORT}`;
 
 const BRAIN_ID_PATTERN = /^brn_[0-9a-f-]{36}$/i;

@@ -41,3 +41,23 @@ test('desktop page-link resolver binds to loopback and opens the matching protec
     await new Promise((resolve) => server.close(resolve));
   }
 });
+
+test('desktop page-link resolver reports a readable port conflict', async () => {
+  const blocker = await import('node:http').then(({ createServer }) => new Promise((resolve) => {
+    const server = createServer();
+    server.listen(0, '127.0.0.1', () => resolve(server));
+  }));
+  try {
+    const port = blocker.address().port;
+    await assert.rejects(
+      () => startLocalPageLinkServer({
+        port,
+        resolveBrain: async () => null,
+        openPage: async () => {},
+      }),
+      /local page-link router.*already in use/i,
+    );
+  } finally {
+    await new Promise((resolve) => blocker.close(resolve));
+  }
+});

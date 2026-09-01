@@ -37,9 +37,15 @@ export async function startLocalPageLinkServer({
     }
   });
   await new Promise((resolve, reject) => {
-    server.once('error', reject);
+    const handleError = (error) => {
+      const message = error?.code === 'EADDRINUSE'
+        ? `BigBrain could not start its local page-link router on ${LOCAL_PAGE_LINK_HOST}:${port} because that port is already in use.`
+        : `BigBrain could not start its local page-link router on ${LOCAL_PAGE_LINK_HOST}:${port}.`;
+      reject(Object.assign(new Error(message, { cause: error }), { code: error?.code }));
+    };
+    server.once('error', handleError);
     server.listen(port, LOCAL_PAGE_LINK_HOST, () => {
-      server.off('error', reject);
+      server.off('error', handleError);
       resolve();
     });
   });
