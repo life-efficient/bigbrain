@@ -36,20 +36,19 @@ export function graphPayloadsEqual(left, right) {
 export const INITIAL_GRAPH_REVEAL_STEP_MS = 110;
 
 export function buildInitialGraphRevealStages(graph, {
-  maxNodes = 900,
+  maxNodes = 5000,
   maxStages = 10,
-  minNodes = 16,
+  minNodes = 2,
 } = {}) {
   const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   if (nodes.length < minNodes || nodes.length > maxNodes) return [];
 
-  const datedNodes = nodes.filter((node) => Number.isFinite(graphNodeTimestamp(node)));
-  if (datedNodes.length < Math.ceil(nodes.length * 0.6)) return [];
-
   const orderedNodes = [...nodes].sort((left, right) => {
     const leftTime = graphNodeTimestamp(left);
     const rightTime = graphNodeTimestamp(right);
-    if (leftTime !== rightTime) return (leftTime || Number.POSITIVE_INFINITY) - (rightTime || Number.POSITIVE_INFINITY);
+    const leftOrder = Number.isFinite(leftTime) ? leftTime : Number.POSITIVE_INFINITY;
+    const rightOrder = Number.isFinite(rightTime) ? rightTime : Number.POSITIVE_INFINITY;
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
     return String(left.slug).localeCompare(String(right.slug));
   });
   const stageCount = Math.min(maxStages, Math.max(2, Math.ceil(nodes.length / 48)));

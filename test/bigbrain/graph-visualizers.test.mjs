@@ -38,6 +38,11 @@ import {
   graphPayloadsEqual,
 } from '../../src/dashboard-client/graph/live-graph.js';
 import {
+  GRAPH_MEMBERSHIP_TRANSITION_MS,
+  graphTransitionProgress,
+  prepareGraphTransitionData,
+} from '../../src/dashboard-client/graph/graph-transition.js';
+import {
   GRAPH_NODE_SIZES,
   getGraphNodeScreenScale,
   getGraphNodeSizeScale,
@@ -262,6 +267,51 @@ test('initial graph reveal stages are chronological and keep only connected link
   ]);
 });
 
+test('graph membership transitions visibly enter, exit, and reverse during a scrub', () => {
+  const startTime = 10_000;
+  const original = {
+    nodes: [
+      { id: 'old', slug: 'old' },
+      { id: 'stays', slug: 'stays' },
+    ],
+    links: [{ id: 'old:stays', source: 'old', target: 'stays' }],
+  };
+  const earlier = {
+    nodes: [{ id: 'stays', slug: 'stays' }],
+    links: [],
+  };
+  const exiting = prepareGraphTransitionData(original, earlier, startTime);
+  const exitingNode = exiting.displayData.nodes.find((node) => node.id === 'old');
+  assert.equal(exiting.displayData.nodes.length, 2);
+  assert.equal(exiting.displayData.links.length, 1);
+  assert.equal(graphTransitionProgress(exitingNode, startTime), 1);
+  assert.ok(graphTransitionProgress(exitingNode, startTime + GRAPH_MEMBERSHIP_TRANSITION_MS / 2) < 1);
+
+  const later = {
+    nodes: [
+      { id: 'old', slug: 'old' },
+      { id: 'stays', slug: 'stays' },
+    ],
+    links: [{ id: 'old:stays', source: 'old', target: 'stays' }],
+  };
+  const exitProgress = graphTransitionProgress(exitingNode, startTime + 120);
+  const reversing = prepareGraphTransitionData(exiting.displayData, later, startTime + 120);
+  const returningNode = reversing.displayData.nodes.find((node) => node.id === 'old');
+  assert.equal(reversing.displayData.nodes.length, 2);
+  assert.equal(graphTransitionProgress(returningNode, startTime + 120), exitProgress);
+  assert.ok(graphTransitionProgress(returningNode, startTime + 120 + GRAPH_MEMBERSHIP_TRANSITION_MS / 2) > exitProgress);
+});
+
+test('initial graph reveal remains enabled for the current-sized Brain', () => {
+  const nodes = Array.from({ length: 1290 }, (_, index) => ({
+    slug: `projects/node-${index}`,
+    created_at: `2024-01-01T00:00:${String(index % 60).padStart(2, '0')}Z`,
+  }));
+  const stages = buildInitialGraphRevealStages({ nodes, edges: [] });
+  assert.ok(stages.length > 1);
+  assert.equal(stages.at(-1).nodes.length, nodes.length);
+});
+
 test('force renderers focus eligible live page changes without remounting', async () => {
   const [main, force2d, force3d] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
@@ -290,6 +340,12 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(main, /const forceSourceNodes = timelineFilteredNodes/);
   assert.match(force2d, /forceGraph\.d3ReheatSimulation\?\.\(\)/);
   assert.match(force3d, /forceGraph\.d3ReheatSimulation\?\.\(\)/);
+  assert.match(force2d, /startGraphTransitionLoop/);
+  assert.match(force3d, /startGraphTransitionLoop/);
+  assert.match(force2d, /graphTransitionActive\(node\)/);
+  assert.match(force3d, /graphTransitionActive\(node\)/);
+  assert.match(force2d, /graphTransitionProgress\(node\)/);
+  assert.match(force3d, /graphTransitionProgress\(node\)/);
   assert.match(force2d, /buildInitialGraphRevealStages/);
   assert.match(force3d, /buildInitialGraphRevealStages/);
   assert.match(force2d, /focusNode\?\.id === node\.id/);

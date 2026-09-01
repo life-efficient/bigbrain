@@ -4,6 +4,13 @@ import ForceGraph2D from 'force-graph';
 import { getGraphNodeColor } from './colors.js';
 import { arcAnimationProgress, blendArcColors, cancelArcAnimation, startArcAnimation } from './arc-animation.js';
 import { graphTypeIconSvg } from './graph-type-icon-data.js';
+import {
+  cancelGraphTransitionLoop,
+  graphTransitionActive,
+  graphTransitionProgress,
+  prepareGraphTransitionData,
+  startGraphTransitionLoop,
+} from './graph-transition.js';
 import { buildInitialGraphRevealStages, INITIAL_GRAPH_REVEAL_STEP_MS } from './live-graph.js';
 import { getGraphNodeSizeScale } from './node-sizes.js';
 import { PRESET_GRAPH_LABEL_FONT_SIZE, useGraphTheme } from './visualizer-core.jsx';
@@ -120,11 +127,11 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       .nodeCanvasObject((node, context, globalScale) => {
         drawForceGraphNode(node, context, globalScale, settingsRef.current, forceGraph);
       })
-      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDayRef.current))
+      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDayRef.current) || graphTransitionActive(node))
       .nodeLabel((node) => buildNodeTooltip(node))
       .linkSource('source')
       .linkTarget('target')
-      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDayRef.current))
+      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDayRef.current) || graphTransitionActive(link))
       .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkWidth((link) => getForceGraphLinkWidth(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkCurvature((link) => getForceGraphLinkCurvature(settingsRef.current.arcStyle, link))
@@ -161,6 +168,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       FORCE_GRAPH_ICON_CACHE.forEach((entry) => entry.graphs.delete(forceGraph));
       cancelArcAnimation(forceGraph);
       cancelInitialGraphReveal(forceGraph);
+      cancelGraphTransitionLoop(forceGraph);
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       forceGraph._destructor?.();
@@ -178,8 +186,8 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
     forceGraph
-      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDay))
-      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDay));
+      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDay) || graphTransitionActive(node))
+      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDay) || graphTransitionActive(link));
   }, [timelineDay]);
 
   useEffect(() => {
@@ -306,18 +314,26 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
       return next;
     });
 
+  const targetData = { nodes, links };
+  const transitioned = prepareGraphTransitionData(previousData, targetData);
+  const data = transitioned.displayData;
   const previousNodeIds = new Set(previousData.nodes?.map((node) => node.id) || []);
   const previousLinkIds = new Set(previousData.links?.map((link) => link.id) || []);
+  const targetNodeIds = new Set(nodes.map((node) => node.id));
+  const targetLinkIds = new Set(links.map((link) => link.id));
+  const previousTargetNodeIds = forceGraph.__bigBrainTargetNodeIds;
+  const previousTargetLinkIds = forceGraph.__bigBrainTargetLinkIds;
   const wasInitialized = Boolean(forceGraph.__bigBrainInitialized);
   const membershipChanged = !forceGraph.__bigBrainInitialized
-    || nodes.length !== previousNodeIds.size
-    || links.length !== previousLinkIds.size
-    || nodes.some((node) => !previousNodeIds.has(node.id))
-    || links.some((link) => !previousLinkIds.has(link.id));
+    || data.nodes.length !== previousNodeIds.size
+    || data.links.length !== previousLinkIds.size
+    || data.nodes.some((node) => !previousNodeIds.has(node.id))
+    || data.links.some((link) => !previousLinkIds.has(link.id));
+  const targetChanged = !sameIdSet(previousTargetNodeIds, targetNodeIds)
+    || !sameIdSet(previousTargetLinkIds, targetLinkIds);
   const layoutChanged = nodes.some((node) => previousNodes.get(node.id)?.degree !== node.degree);
-  const data = { nodes, links };
-  if (membershipChanged || layoutChanged) {
-    links.forEach((link) => {
+  if (membershipChanged || targetChanged || layoutChanged) {
+    data.links.forEach((link) => {
       link.source = typeof link.source === 'object' ? link.source.id : link.source;
       link.target = typeof link.target === 'object' ? link.target.id : link.target;
     });
@@ -329,6 +345,22 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
     if (wasInitialized) forceGraph.d3ReheatSimulation?.();
   } else {
     forceGraph.linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph));
+    forceGraph.refresh?.();
+  }
+  forceGraph.__bigBrainTargetNodeIds = targetNodeIds;
+  forceGraph.__bigBrainTargetLinkIds = targetLinkIds;
+  if (transitioned.transitionItems.length) {
+    const transitionTarget = targetData;
+    forceGraph.__bigBrainTransitionTarget = transitionTarget;
+    startGraphTransitionLoop(forceGraph, {
+      items: transitioned.transitionItems,
+      onComplete: () => {
+        if (forceGraph.__bigBrainTransitionTarget !== transitionTarget) return;
+        forceGraph.__bigBrainTransitionTarget = null;
+        forceGraph.graphData(targetData);
+        forceGraph.refresh?.();
+      },
+    });
   }
   forceGraph.__bigBrainInitialized = true;
   updateForceGraphHighlight(forceGraph, focusSlug, settings.arcAnimation);
@@ -368,6 +400,12 @@ function cancelInitialGraphReveal(forceGraph) {
   if (!reveal) return;
   window.clearTimeout(reveal.timer);
   forceGraph.__bigBrainInitialReveal = null;
+}
+
+function sameIdSet(left, right) {
+  if (!left || left.size !== right.size) return false;
+  for (const id of right) if (!left.has(id)) return false;
+  return true;
 }
 
 function getForceGraphData(forceGraph) {
@@ -455,34 +493,36 @@ function getForceGraphHighlightLinks(forceGraph) {
 function drawForceGraphNode(node, context, globalScale, settings, forceGraph) {
   if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
   const radius = getForceGraphNodeRadius(node, settings.nodeSize);
+  const transition = graphTransitionProgress(node);
   const color = normalizeHex(node.color, DEFAULT_NODE_COLOR);
   const emphasized = Boolean(node.__bigBrainEmphasized);
-  const drawRadius = radius;
+  const drawRadius = radius * (0.24 + transition * 0.76);
 
   context.save();
+  context.globalAlpha = transition;
   traceNodeShape(context, settings.nodeShape, node.x, node.y, drawRadius);
   if (settings.nodeFill === 'solid') {
     context.fillStyle = color;
-    context.globalAlpha = 0.86;
+    context.globalAlpha = transition * 0.86;
     context.fill();
   }
   if (settings.nodeFill === 'outline' || settings.nodeFill === 'solid') {
     context.strokeStyle = color;
     context.lineWidth = Math.max(1, 1.5 / globalScale);
-    context.globalAlpha = 0.9;
+    context.globalAlpha = transition * 0.9;
     context.stroke();
   }
 
   if (settings.nodeIcon !== 'none') {
-    drawForceGraphIcon(node, context, drawRadius, settings, forceGraph);
+    drawForceGraphIcon(node, context, drawRadius, settings, forceGraph, transition);
   }
 
   const labelVisible = settings.labelStyle === 'all' || settings.labelSlugs?.has(node.slug) || emphasized;
-  if (labelVisible) drawForceGraphNodeLabel(node, context, globalScale, drawRadius, settings);
+  if (labelVisible) drawForceGraphNodeLabel(node, context, globalScale, drawRadius, settings, transition);
   context.restore();
 }
 
-function drawForceGraphIcon(node, context, radius, settings, forceGraph) {
+function drawForceGraphIcon(node, context, radius, settings, forceGraph, transition = 1) {
   const icon = getForceGraphIconImage(node.type, settings.nodeIcon, forceGraph);
   if (!icon?.loaded) return;
   const size = radius * 1.38;
@@ -490,7 +530,7 @@ function drawForceGraphIcon(node, context, radius, settings, forceGraph) {
   const top = node.y - size / 2;
   const iconColor = settings.nodeFill === 'solid' ? settings.theme.graphBase : normalizeHex(node.color, DEFAULT_NODE_COLOR);
   context.save();
-  context.globalAlpha = 0.96;
+  context.globalAlpha = transition * 0.96;
   context.drawImage(icon.image, left, top, size, size);
   context.globalCompositeOperation = 'source-in';
   context.fillStyle = iconColor;
@@ -515,7 +555,7 @@ function getForceGraphIconImage(type, iconStyle, forceGraph) {
   return entry;
 }
 
-function drawForceGraphNodeLabel(node, context, globalScale, radius, settings) {
+function drawForceGraphNodeLabel(node, context, globalScale, radius, settings, transition = 1) {
   const label = String(node.title || node.slug);
   const fontSize = PRESET_GRAPH_LABEL_FONT_SIZE / globalScale;
   const x = node.x + radius * 1.55;
@@ -525,10 +565,10 @@ function drawForceGraphNodeLabel(node, context, globalScale, radius, settings) {
   context.textBaseline = 'middle';
   const textWidth = context.measureText(label).width;
   context.fillStyle = settings.theme.graphBase;
-  context.globalAlpha = 0.72;
+  context.globalAlpha = transition * 0.72;
   context.fillRect(x - 4 / globalScale, y - fontSize * 0.72, textWidth + 8 / globalScale, fontSize * 1.44);
   context.fillStyle = settings.theme.graphLabel;
-  context.globalAlpha = 0.92;
+  context.globalAlpha = transition * 0.92;
   context.fillText(label, x, y);
 }
 
@@ -573,21 +613,23 @@ function getForceGraphLabelSlugs(nodes, labelStyle) {
 }
 
 function getForceGraphLinkColor(link, highlightedLinks, forceGraph) {
+  const transition = graphTransitionProgress(link);
   if (highlightedLinks.has(link)) {
     const progress = arcAnimationProgress(forceGraph, link);
-    if (progress >= 1) return '#DDE7F5';
-    return hexToRgba(blendArcColors(DEFAULT_LINK_COLOR, '#DDE7F5', progress), 0.22 + progress * 0.78);
+    if (progress >= 1 && transition >= 1) return '#DDE7F5';
+    return hexToRgba(blendArcColors(DEFAULT_LINK_COLOR, '#DDE7F5', progress), (0.22 + progress * 0.78) * transition);
   }
   // Keep relationship lines neutral across the graph. ForceGraph resolves
   // string endpoints into node objects after the initial draw, so deriving
   // this from source.color makes links unexpectedly change color on redraw.
-  return hexToRgba(DEFAULT_LINK_COLOR, 0.22);
+  return hexToRgba(DEFAULT_LINK_COLOR, 0.22 * transition);
 }
 
 function getForceGraphLinkWidth(link, highlightedLinks, forceGraph) {
-  if (!highlightedLinks.has(link)) return 0.7;
+  const transition = graphTransitionProgress(link);
+  if (!highlightedLinks.has(link)) return 0.7 * transition;
   if (forceGraph?.__bigBrainArcAnimation?.mode === 'instant') return 0.7;
-  return 0.7 + arcAnimationProgress(forceGraph, link) * 0.8;
+  return (0.7 + arcAnimationProgress(forceGraph, link) * 0.8) * transition;
 }
 
 function getForceGraphLinkCurvature(arcStyle, link) {

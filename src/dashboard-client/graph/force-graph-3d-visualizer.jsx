@@ -5,6 +5,13 @@ import * as THREE from 'three';
 import { getGraphNodeColor } from './colors.js';
 import { arcAnimationProgress, blendArcColors, cancelArcAnimation, startArcAnimation } from './arc-animation.js';
 import { graphTypeIconSvg } from './graph-type-icon-data.js';
+import {
+  cancelGraphTransitionLoop,
+  graphTransitionActive,
+  graphTransitionProgress,
+  prepareGraphTransitionData,
+  startGraphTransitionLoop,
+} from './graph-transition.js';
 import { buildInitialGraphRevealStages, INITIAL_GRAPH_REVEAL_STEP_MS } from './live-graph.js';
 import { getGraphNodeSizeScale } from './node-sizes.js';
 import { useGraphTheme } from './visualizer-core.jsx';
@@ -163,11 +170,11 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .nodeVal((node) => Math.max(1, Math.sqrt(Number(node.degree) || 1)))
       .nodeThreeObject((node) => createForceGraphNodeObject(node, settingsRef.current))
       .nodeThreeObjectExtend(false)
-      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDayRef.current))
+      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDayRef.current) || graphTransitionActive(node))
       .nodeLabel((node) => buildNodeTooltip(node))
       .linkSource('source')
       .linkTarget('target')
-      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDayRef.current))
+      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDayRef.current) || graphTransitionActive(link))
       .linkCurvature(() => getForceGraphLinkCurvature(settingsRef.current.arcStyle))
       .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkOpacity((link) => getForceGraphLinkOpacity(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
@@ -227,6 +234,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       window.removeEventListener('resize', resize);
       hideFocusLabel();
       cancelInitialGraphReveal(forceGraph);
+      cancelGraphTransitionLoop(forceGraph);
       forceGraph._destructor?.();
       graphRef.current = null;
     };
@@ -268,8 +276,8 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
     forceGraph
-      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDay))
-      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDay));
+      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDay) || graphTransitionActive(node))
+      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDay) || graphTransitionActive(link));
   }, [timelineDay]);
 
   useEffect(() => {
@@ -426,18 +434,26 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
       return next;
     });
 
-  const data = { nodes, links };
+  const targetData = { nodes, links };
+  const transitioned = prepareGraphTransitionData(previousData, targetData);
+  const data = transitioned.displayData;
   const previousNodeIds = new Set(previousData.nodes?.map((node) => node.id) || []);
   const previousLinkIds = new Set(previousData.links?.map((link) => link.id) || []);
+  const targetNodeIds = new Set(nodes.map((node) => node.id));
+  const targetLinkIds = new Set(links.map((link) => link.id));
+  const previousTargetNodeIds = forceGraph.__bigBrainTargetNodeIds;
+  const previousTargetLinkIds = forceGraph.__bigBrainTargetLinkIds;
   const wasInitialized = Boolean(forceGraph.__bigBrainInitialized);
   const membershipChanged = !forceGraph.__bigBrainInitialized
-    || nodes.length !== previousNodeIds.size
-    || links.length !== previousLinkIds.size
-    || nodes.some((node) => !previousNodeIds.has(node.id))
-    || links.some((link) => !previousLinkIds.has(link.id));
+    || data.nodes.length !== previousNodeIds.size
+    || data.links.length !== previousLinkIds.size
+    || data.nodes.some((node) => !previousNodeIds.has(node.id))
+    || data.links.some((link) => !previousLinkIds.has(link.id));
+  const targetChanged = !sameIdSet(previousTargetNodeIds, targetNodeIds)
+    || !sameIdSet(previousTargetLinkIds, targetLinkIds);
   const layoutChanged = nodes.some((node) => previousNodes.get(node.id)?.degree !== node.degree);
-  if (membershipChanged || layoutChanged) {
-    links.forEach((link) => {
+  if (membershipChanged || targetChanged || layoutChanged) {
+    data.links.forEach((link) => {
       link.source = typeof link.source === 'object' ? link.source.id : link.source;
       link.target = typeof link.target === 'object' ? link.target.id : link.target;
     });
@@ -450,9 +466,27 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
   } else {
     updateForceGraphNodeObjects(forceGraph, settings);
   }
+  forceGraph.__bigBrainTargetNodeIds = targetNodeIds;
+  forceGraph.__bigBrainTargetLinkIds = targetLinkIds;
+  if (transitioned.transitionItems.length) {
+    const transitionTarget = targetData;
+    forceGraph.__bigBrainTransitionTarget = transitionTarget;
+    startGraphTransitionLoop(forceGraph, {
+      items: transitioned.transitionItems,
+      onFrame: () => {
+        updateForceGraphTransitionNodes(data.nodes);
+      },
+      onComplete: () => {
+        if (forceGraph.__bigBrainTransitionTarget !== transitionTarget) return;
+        forceGraph.__bigBrainTransitionTarget = null;
+        forceGraph.graphData(targetData);
+        graphDataRefFor(forceGraph, targetData);
+      },
+    });
+  }
   forceGraph.__bigBrainInitialized = true;
-  graphDataRefFor(forceGraph, data);
-  updateForceGraphHighlight(forceGraph, data, focusSlug, settings.arcAnimation);
+  graphDataRefFor(forceGraph, getForceGraphData(forceGraph));
+  updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), focusSlug, settings.arcAnimation);
 }
 
 function startInitialGraphReveal(forceGraph, stages, settings, focusSlug) {
@@ -489,6 +523,12 @@ function cancelInitialGraphReveal(forceGraph) {
   if (!reveal) return;
   window.clearTimeout(reveal.timer);
   forceGraph.__bigBrainInitialReveal = null;
+}
+
+function sameIdSet(left, right) {
+  if (!left || left.size !== right.size) return false;
+  for (const id of right) if (!left.has(id)) return false;
+  return true;
 }
 
 function graphDataRefFor(forceGraph, data) {
@@ -609,9 +649,16 @@ function syncForceGraphNodeState(node, highlightedNodes) {
   const visual = node.__bigBrainVisual;
   if (!visual) return;
   const emphasized = highlightedNodes.has(node.id);
-  visual.group.scale.setScalar(1);
+  visual.group.scale.setScalar(graphTransitionProgress(node));
   if (visual.label) visual.label.visible = visual.labelBaseVisible;
   if (visual.glow) visual.glow.visible = emphasized;
+}
+
+function updateForceGraphTransitionNodes(nodes) {
+  for (const node of nodes) {
+    const group = node.__bigBrainVisual?.group;
+    if (group) group.scale.setScalar(graphTransitionProgress(node));
+  }
 }
 
 function updateForceGraphNodeObjects(forceGraph, settings) {
@@ -867,14 +914,16 @@ function getForceGraphLinkColor(link, highlightedLinks, forceGraph) {
 }
 
 function getForceGraphLinkOpacity(link, highlightedLinks, forceGraph) {
-  if (!highlightedLinks.has(link)) return 0.2;
-  return 0.2 + arcAnimationProgress(forceGraph, link) * 0.52;
+  const transition = graphTransitionProgress(link);
+  if (!highlightedLinks.has(link)) return 0.2 * transition;
+  return (0.2 + arcAnimationProgress(forceGraph, link) * 0.52) * transition;
 }
 
 function getForceGraphLinkWidth(link, highlightedLinks, forceGraph) {
+  const transition = graphTransitionProgress(link);
   if (!highlightedLinks.has(link)) return 0;
   if (forceGraph?.__bigBrainArcAnimation?.mode === 'instant') return 0;
-  return arcAnimationProgress(forceGraph, link) >= 0.18 ? 1.5 : 0;
+  return (arcAnimationProgress(forceGraph, link) >= 0.18 ? 1.5 : 0) * transition;
 }
 
 function updateForceGraphAnimatedLinks(forceGraph, links) {
