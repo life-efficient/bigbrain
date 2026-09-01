@@ -290,7 +290,7 @@ test('dashboard graph derives inputs from per-page timeline provenance', async (
     assert.equal(graph.meta.input_count, 1);
     assert.equal(graph.inputs[0].source_message, 'Please carry the updated commercial terms into both pages.');
     assert.deepEqual(graph.inputs[0].source, {
-      id: 'whatsapp:event-1',
+      id: 'whatsapp',
       type: 'whatsapp',
       label: 'Harry chat',
       icon: 'MessageCircle',
