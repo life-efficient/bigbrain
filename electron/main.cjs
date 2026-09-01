@@ -30,6 +30,7 @@ let dashboardView = null;
 let dashboardViewBrainId = null;
 let activeDashboardOrigin = null;
 let dashboardServer = null;
+const devDashboardRuntimes = new Map();
 let localPageLinkServer = null;
 let dashboardUrl = null;
 let dashboardOrigin = null;
@@ -118,6 +119,10 @@ if (!singleInstanceLock) {
       await new Promise((resolve) => dashboardServer.close(resolve));
       dashboardServer = null;
     }
+    await Promise.all([...devDashboardRuntimes.values()].map(({ server }) => (
+      new Promise((resolve) => server.close(resolve))
+    )));
+    devDashboardRuntimes.clear();
     if (localPageLinkServer) {
       await new Promise((resolve) => localPageLinkServer.close(resolve));
       localPageLinkServer = null;
@@ -693,7 +698,10 @@ async function openCanonicalPage({ brain, targetUrl }) {
   if (!mainWindow || mainWindow.isDestroyed()) throw new Error("BigBrain window is unavailable.");
   if (mainWindow.isMinimized()) mainWindow.restore();
   await ensureDesktopShell();
-  await loadDashboardViewUrl(targetUrl, brain.id);
+  const dashboard = await resolveDashboardTarget(brain);
+  const canonicalUrl = new URL(targetUrl);
+  canonicalUrl.origin = new URL(dashboard.url).origin;
+  await loadDashboardViewUrl(canonicalUrl.href, brain.id);
   mainWindow.show();
   mainWindow.focus();
 }
@@ -753,11 +761,32 @@ async function ensureDesktopShell() {
 async function loadBrainDashboard(brain) {
   if (!brain?.dashboardUrl) throw new Error("This brain does not expose a dashboard.");
   rememberConnectedDashboardOrigins(brain);
-  if (brain.connectionType !== "service") {
+  const dashboard = await resolveDashboardTarget(brain);
+  if (brain.connectionType !== "service" && !dashboard.dev) {
     await managedServiceReconciliationPromise;
     await waitForDashboardReady(brain.dashboardUrl);
   }
-  await loadDashboardViewUrl(brain.dashboardUrl, brain.id);
+  await loadDashboardViewUrl(dashboard.url, brain.id);
+}
+
+async function resolveDashboardTarget(brain) {
+  if (!DEV_BUILD || brain?.connectionType === "service" || !brain?.home) {
+    return { url: brain.dashboardUrl, dev: false };
+  }
+
+  const existing = devDashboardRuntimes.get(brain.id);
+  if (existing) return existing;
+
+  const [{ loadConfig }, { startDashboard }] = await Promise.all([
+    importModule("src/bigbrain/config.js"),
+    importModule("src/bigbrain/dashboard.js"),
+  ]);
+  const config = await loadConfig({ brainHome: brain.home });
+  const port = await getFreePort(config.dashboardPort);
+  const server = await startDashboard(config, { host: LOCAL_HOST, port });
+  const target = { url: `http://${LOCAL_HOST}:${port}/dashboard`, server, dev: true };
+  devDashboardRuntimes.set(brain.id, target);
+  return target;
 }
 
 async function loadDashboardViewUrl(url, brainId) {
