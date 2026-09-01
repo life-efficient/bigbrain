@@ -73,7 +73,7 @@ if (!singleInstanceLock) {
         dashboardUrl = await startDashboardRuntime();
       } else {
         const { DesktopController } = await importModule("electron/lib/desktop-controller.mjs");
-        desktopController = new DesktopController({ appPath: app.getAppPath() });
+        desktopController = new DesktopController({ appPath: app.getAppPath(), clientVersion: app.getVersion() });
         const desktopState = rememberConnectedDashboardOrigins(await desktopController.state());
         const { EventRuntimeManager } = await importModule("electron/lib/event-runtime-manager.mjs");
         eventRuntimeManager = new EventRuntimeManager({
@@ -660,7 +660,8 @@ function registerDesktopIpc() {
       return brain;
     },
     "desktop:open-brain": async (_event, id) => {
-      const brain = rememberConnectedDashboardOrigins(await desktopController.activate(id));
+      const activated = await desktopController.activate(id);
+      const brain = rememberConnectedDashboardOrigins(await desktopController.checkConnection(activated.id));
       await loadBrainDashboard(brain);
       return true;
     },

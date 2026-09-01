@@ -107,7 +107,7 @@ export class BrainRegistry {
     return brain;
   }
 
-  async registerService({ brainId, name, serviceUrl }) {
+  async registerService({ brainId, name, serviceUrl, mcpCompatibility = null }) {
     const registry = await this.load();
     const duplicate = registry.brains.find((brain) => brain.connectionType === 'service' && normalizeServiceOrigin(brain.serviceUrl) === normalizeServiceOrigin(serviceUrl));
     if (duplicate) throw new Error(`This BigBrain service is already connected as ${duplicate.name}.`);
@@ -121,6 +121,7 @@ export class BrainRegistry {
       serviceOwnership: SERVICE_OWNERSHIPS.REMOTE,
       serviceOwnershipReason: 'remote_connection',
       status: 'connected',
+      mcpCompatibility,
       onboarding: { step: 5, completed: true, error: null },
       createdAt: new Date().toISOString(),
       lastOpenedAt: new Date().toISOString(),
@@ -219,6 +220,14 @@ function desktopBrainFromCatalog(entry) {
       completed: desktop.onboarding.completed,
       error: desktop.onboarding.error,
     } : null,
+    mcpCompatibility: desktop.mcp_compatibility ? {
+      state: desktop.mcp_compatibility.state,
+      serverVersion: desktop.mcp_compatibility.server_version,
+      apiContract: desktop.mcp_compatibility.api_contract,
+      protocolVersion: desktop.mcp_compatibility.protocol_version,
+      checkedAt: desktop.mcp_compatibility.checked_at,
+      message: desktop.mcp_compatibility.message,
+    } : null,
     replacedService: desktop.replaced_service ? {
       label: desktop.replaced_service.label,
       plistPath: desktop.replaced_service.plist_path,
@@ -306,6 +315,7 @@ function desktopMetadataFromBrain(brain, existing = null) {
   const owner = brain.owner || existing?.owner;
   const aiAccess = brain.aiAccess || existing?.ai_access;
   const onboarding = brain.onboarding || existing?.onboarding;
+  const mcpCompatibility = brain.mcpCompatibility || existing?.mcp_compatibility;
   const replacedService = brain.replacedService || existing?.replaced_service;
   return {
     description: brain.description ?? existing?.description ?? '',
@@ -326,6 +336,14 @@ function desktopMetadataFromBrain(brain, existing = null) {
       step: onboarding.step ?? null,
       completed: Boolean(onboarding.completed),
       error: onboarding.error || null,
+    } : null,
+    mcp_compatibility: mcpCompatibility ? {
+      state: mcpCompatibility.state || 'unknown',
+      server_version: mcpCompatibility.serverVersion || mcpCompatibility.server_version || null,
+      api_contract: mcpCompatibility.apiContract || mcpCompatibility.api_contract || null,
+      protocol_version: mcpCompatibility.protocolVersion || mcpCompatibility.protocol_version || null,
+      checked_at: mcpCompatibility.checkedAt || mcpCompatibility.checked_at || null,
+      message: mcpCompatibility.message || null,
     } : null,
     replaced_service: replacedService ? {
       label: replacedService.label || null,

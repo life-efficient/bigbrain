@@ -38,8 +38,11 @@ async function mountBrainSelector(container) {
     .chevron { flex: 0 0 auto; width: 7px; height: 7px; border-right: 1.5px solid #a1a1aa; border-bottom: 1.5px solid #a1a1aa; transform: translateY(-2px) rotate(45deg); }
     .menu { position: absolute; z-index: 1000; top: 48px; left: 0; width: 224px; padding: 5px; border: 1px solid rgba(255,255,255,.14); border-radius: 10px; background: #27272a; box-shadow: 0 18px 45px rgba(0,0,0,.48); }
     .menu[hidden] { display: none; }
-    .menu button { width: 100%; min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-radius: 6px; background: transparent; color: #f4f4f5; padding: 8px 9px; text-align: left; outline: none; }
+    .menu button { width: 100%; min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 0; border-radius: 6px; background: transparent; color: #f4f4f5; padding: 7px 9px; text-align: left; outline: none; }
     .menu button:hover, .menu button:focus-visible { background: rgba(255,255,255,.09); }
+    .brain-copy { min-width: 0; display: grid; gap: 3px; }
+    .brain-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .brain-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #a1a1aa; font-size: 11px; }
     .check { color: #d4d4d8; }
     .separator { height: 1px; margin: 5px -1px; background: rgba(255,255,255,.1); }
   `;
@@ -78,12 +81,19 @@ async function mountBrainSelector(container) {
     item.type = 'button';
     item.setAttribute('role', 'menuitemradio');
     item.setAttribute('aria-checked', String(brain.id === state.activeBrainId));
+    const copy = document.createElement('span');
+    copy.className = 'brain-copy';
     const name = document.createElement('span');
+    name.className = 'brain-name';
     name.textContent = brain.name;
+    const meta = document.createElement('span');
+    meta.className = 'brain-meta';
+    meta.textContent = mcpStatusLabel(brain, state.desktop?.supported_mcp);
+    copy.append(name, meta);
     const check = document.createElement('span');
     check.className = 'check';
     check.textContent = brain.id === state.activeBrainId ? '✓' : '';
-    item.append(name, check);
+    item.append(copy, check);
     item.addEventListener('click', async () => {
       close();
       await ipcRenderer.invoke('desktop:open-brain', brain.id);
@@ -116,6 +126,21 @@ async function mountBrainSelector(container) {
   window.addEventListener('pointerdown', (event) => {
     if (!event.composedPath().includes(host)) close();
   });
+}
+
+function mcpStatusLabel(brain, supported = null) {
+  const compatibility = brain.mcpCompatibility;
+  if (compatibility?.serverVersion && compatibility.state) {
+    return `MCP ${compatibility.serverVersion} · ${compatibility.state}`;
+  }
+  if (compatibility?.state === 'incompatible') return 'MCP compatibility needs attention';
+  if (supported?.api_contract?.minimum) {
+    const range = supported.api_contract.minimum === supported.api_contract.maximum
+      ? String(supported.api_contract.minimum)
+      : `${supported.api_contract.minimum}-${supported.api_contract.maximum}`;
+    return `MCP version not checked · supports API ${range}`;
+  }
+  return 'MCP version not checked';
 }
 
 async function mountUpdateStatus(actions) {

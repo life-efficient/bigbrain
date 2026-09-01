@@ -9,6 +9,7 @@ import { connectionInstructions } from './connection-instructions.mjs';
 import { classifyLaunchAgentOwnership, findBrainLaunchAgent } from './launch-agent-discovery.mjs';
 import { discoverLocalBrains, findBrainConfigPath } from './brain-discovery.mjs';
 import { formatServiceInstallError } from './service-errors.mjs';
+import { assessMcpCompatibility, desktopMcpSupportMetadata } from '../../src/bigbrain/mcp-compatibility.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -23,6 +24,8 @@ export class DesktopController {
     userEnvFile = null,
     home = null,
     launchAgentsDir = null,
+    clientVersion = null,
+    now = () => new Date(),
   } = {}) {
     this.registry = registry;
     this.keychain = keychain;
@@ -33,11 +36,20 @@ export class DesktopController {
     this.home = path.resolve(home || env.HOME || os.homedir());
     this.launchAgentsDir = launchAgentsDir || path.join(this.home, 'Library', 'LaunchAgents');
     this.userEnvFile = userEnvFile || path.join(this.home, '.config', 'bigbrain', '.env');
+    this.clientVersion = clientVersion;
+    this.now = now;
   }
 
   async state() {
     const registry = await this.loadClassifiedRegistry();
-    return { ...registry, brains: registry.brains.map(publicBrain) };
+    return {
+      ...registry,
+      desktop: {
+        version: this.clientVersion,
+        supported_mcp: desktopMcpSupportMetadata(),
+      },
+      brains: registry.brains.map(publicBrain),
+    };
   }
 
   async loadClassifiedRegistry() {
@@ -190,9 +202,11 @@ export class DesktopController {
       await this.installService(draft, { ownerSlug, gitBackup: draft.backupPreference !== 'none' });
       const config = await loadConfig({ brainHome: draft.home });
       await syncBrain({ config, apiKey }).catch(() => null);
+      const health = await this.readServiceHealth(`http://${draft.host}:${draft.port}`);
       const brain = await this.registry.update(draft.id, {
         brainId: config.brainId,
         status: 'running',
+        mcpCompatibility: checkedCompatibility(health, this.now),
         owner: { ...draft.owner, personSlug: ownerSlug },
         onboarding: { step: 5, completed: true, error: null },
       });
@@ -224,6 +238,39 @@ export class DesktopController {
 
   async connectService(input) {
     const serviceUrl = normalizeServiceUrl(input?.serviceUrl);
+    const health = await this.readServiceHealth(serviceUrl);
+    if (health?.ok !== true || typeof health.brain_id !== 'string' || typeof health.brain_name !== 'string') {
+      throw new Error(`The service at ${serviceUrl} did not identify itself as BigBrain.`);
+    }
+    const mcpCompatibility = checkedCompatibility(health, this.now);
+    return publicBrain(await this.registry.registerService({
+      brainId: health.brain_id,
+      name: health.brain_name,
+      serviceUrl,
+      mcpCompatibility,
+    }));
+  }
+
+  async checkConnection(id) {
+    const registry = await this.loadClassifiedRegistry();
+    const brain = registry.brains.find((item) => item.id === id);
+    if (!brain) throw new Error(`Unknown brain: ${id}`);
+    const publicValue = publicBrain(brain);
+    const serviceUrl = publicValue.mcpUrl?.replace(/\/mcp$/, '');
+    if (!serviceUrl) return publicValue;
+    try {
+      const health = await this.readServiceHealth(serviceUrl);
+      if (health?.ok !== true || (brain.brainId && health.brain_id !== brain.brainId)) return publicValue;
+      return publicBrain(await this.registry.update(id, {
+        status: brain.connectionType === 'service' ? 'connected' : 'running',
+        mcpCompatibility: checkedCompatibility(health, this.now),
+      }));
+    } catch {
+      return publicValue;
+    }
+  }
+
+  async readServiceHealth(serviceUrl) {
     let response;
     try {
       response = await this.fetchImpl(`${serviceUrl}/health`, { headers: { accept: 'application/json' } });
@@ -231,20 +278,11 @@ export class DesktopController {
       throw new Error(`Could not reach BigBrain at ${serviceUrl}: ${redactSecrets(error.message)}`);
     }
     if (!response.ok) throw new Error(`BigBrain at ${serviceUrl} returned HTTP ${response.status}.`);
-    let health;
     try {
-      health = await response.json();
+      return await response.json();
     } catch {
       throw new Error(`The service at ${serviceUrl} did not return a valid BigBrain health response.`);
     }
-    if (health?.ok !== true || typeof health.brain_id !== 'string' || typeof health.brain_name !== 'string') {
-      throw new Error(`The service at ${serviceUrl} did not identify itself as BigBrain.`);
-    }
-    return publicBrain(await this.registry.registerService({
-      brainId: health.brain_id,
-      name: health.brain_name,
-      serviceUrl,
-    }));
   }
 
   async installService(brain, { ownerSlug, gitBackup = true } = {}) {
@@ -366,6 +404,13 @@ function publicBrain(brain) {
     return { ...brain, dashboardUrl: `${brain.serviceUrl}/dashboard`, mcpUrl: `${brain.serviceUrl}/mcp` };
   }
   return { ...brain, dashboardUrl: `http://${brain.host}:${brain.port}/dashboard`, mcpUrl: `http://${brain.host}:${brain.port}/mcp` };
+}
+
+function checkedCompatibility(health, now) {
+  return {
+    ...assessMcpCompatibility(health),
+    checked_at: now().toISOString(),
+  };
 }
 
 async function fetchBrainHealth(serviceUrl, fetchImpl) {

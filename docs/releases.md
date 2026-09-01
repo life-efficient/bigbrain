@@ -14,30 +14,41 @@ Every release must update:
 - `package-lock.json`
 - `CHANGELOG.md`
 
-`package.json` is the canonical public BigBrain release version. Runtime
-metadata builds one release manifest from it for the CLI, dashboard, MCP,
-desktop, bundled skills, and bundled automations. Skill frontmatter versions
-and automation `version = 1` values describe their own schema or workflow
-format; they are not independent BigBrain product versions.
+`package.json` remains the canonical source version for the monorepo during the
+release split. Runtime metadata exposes the connected MCP runtime version and
+contract separately from the desktop client version. Skill frontmatter
+versions and automation `version = 1` values describe their own schema or
+workflow format; they are not independent BigBrain product versions.
 
-Release verification must prove that the package lock, tag, latest changelog
-entry, CLI output, runtime metadata, dashboard health payload, and bundled
-template manifest all agree with `package.json`.
+Release verification must prove that the package lock and source tag match the
+declared source version, and that each desktop or MCP artifact reports its own
+declared version in runtime metadata, dashboard health, and bundled template
+manifest checks.
 
-One release tag publishes the matching desktop and server artifacts:
+Desktop and MCP runtime artifacts are separate release targets. They may be
+published from the same source tag while the independent version and
+compatibility contract is being rolled out, but the desktop must never assume
+that its own release version is the MCP version. The desktop uses the MCP
+runtime metadata and compatibility range returned by the connected instance.
+
+The desktop release publishes:
 
 - when Apple credentials are configured, a signed and notarized universal
   macOS DMG and ZIP plus Electron update metadata (`latest-mac.yml` and
   blockmaps)
 - otherwise, explicitly named `-unsigned` DMG and ZIP manual downloads with a
   Gatekeeper warning and no automatic-update metadata
-- a multi-architecture server image at
-  `ghcr.io/life-efficient/bigbrain:<version>` plus its immutable digest
 
-The desktop and server packages include the release manifest plus the bundled
-skill and automation templates from that tag. Active Codex copies remain
-machine-local and are compared by health checks instead of being overwritten
-silently.
+The MCP runtime release publishes a multi-architecture server image at
+`ghcr.io/life-efficient/bigbrain:<version>` plus its immutable digest. Local
+MCP bundles use the same runtime contract and can be restarted independently of
+the desktop client.
+
+The MCP runtime package includes the release manifest plus the bundled skill
+and automation templates from its release. The desktop package includes the
+client assets and the compatibility contract it supports. Active Codex copies
+remain machine-local and are compared by health checks instead of being
+overwritten silently.
 
 The macOS release job requires the protected `MACOS_CERTIFICATE_P12`,
 `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and

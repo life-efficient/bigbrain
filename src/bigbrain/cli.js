@@ -20,14 +20,14 @@ import { syncBrain } from './sync.js';
 import { resolveWindow } from './time.js';
 import { applyUpdate, checkForUpdate, renderUpdateText, updateExitCode } from './update.js';
 import { EventInboxStore, EventRegistryStore, RssCollector, normalizeListener, normalizeSubscription, defaultEventInboxPath, defaultEventRegistryPath } from './inbound-events.js';
-import { BIGBRAIN_RELEASE_MANIFEST, BIGBRAIN_RELEASE_VERSION } from './release-manifest.js';
+import { BIGBRAIN_MCP_RELEASE_VERSION, BIGBRAIN_RELEASE_MANIFEST } from './release-manifest.js';
 
 export async function runCli(argv) {
   await loadUserEnv();
   const { command, args, global } = parseGlobalArgs(argv);
   switch (command) {
     case '--version':
-      output(global, BIGBRAIN_RELEASE_MANIFEST, BIGBRAIN_RELEASE_VERSION);
+      output(global, BIGBRAIN_RELEASE_MANIFEST, BIGBRAIN_MCP_RELEASE_VERSION);
       return;
     case 'init': return handleInit(args, global);
     case 'identity': return handleIdentity(args, global);

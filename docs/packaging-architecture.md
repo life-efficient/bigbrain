@@ -56,6 +56,29 @@ Wrappers
   external agents and browsers
 ```
 
+## Independent Desktop And MCP Releases
+
+The desktop client and the MCP runtime are separate release boundaries, even
+when they are built from the same source checkout:
+
+- The desktop owns connection profiles, Brain creation UX, authentication
+  setup, dashboard presentation, and local runtime controls.
+- The MCP runtime owns one Brain instance, its storage, migrations, tools,
+  events, sync, and dashboard/API backend.
+- A local runner or deployment operator starts and updates the MCP runtime.
+  The desktop may invoke that runner during local Brain creation, but it does
+  not become the runtime.
+
+Every MCP advertises its application version, MCP protocol, API contract, and
+supported compatibility range through `/health` and `/ready`. The desktop
+advertises the MCP API contract and protocol versions it supports, records the
+last compatibility check for each connection, and keeps legacy connections
+available when an older runtime does not yet publish this metadata.
+
+This allows a Dev or release desktop client to connect to the same local MCP,
+or to multiple local and hosted MCP instances. Dev hot reload applies only to
+desktop dashboard assets. It does not require a second Dev MCP service.
+
 The dashboard should stay endpoint-relative. It should talk to the same
 BigBrain HTTP API whether it is loaded from a device-managed service or an
 existing server-managed service.
@@ -80,6 +103,11 @@ The desktop app should become a controller for the device-managed service:
 - show the MCP URL for agent setup
 - configure the owner identity used for `assignee=me`
 
+Creating a Brain remains a desktop action. For a local Brain, the desktop
+initializes the selected folder and calls the local runner to install or start
+the independent MCP instance. For a hosted Brain, the same desktop flow will
+eventually call the hosting provisioner and then save the returned connection.
+
 ### Service Ownership And Updates
 
 Every local service has an explicit lifecycle owner. The supported ownership
@@ -87,9 +115,9 @@ states are `desktop-bundle`, `source-checkout`, `server-managed`, and `unknown`.
 Loopback addresses, ports, and LaunchAgent labels are discovery hints, not proof
 of ownership.
 
-- A `desktop-bundle` service runs the CLI and runtime inside the installed app
-  bundle. The desktop may reinstall, restart, and verify it when the service is
-  older or unavailable.
+- A `desktop-bundle` service runs the CLI and runtime from the installed app
+  bundle through the local runner. The desktop may ask that runner to reinstall,
+  restart, and verify it when the service is older or unavailable.
 - A `source-checkout` service runs from a Git checkout. Only the source updater
   or its operator may change it.
 - A `server-managed` service is controlled by its deployment operator even when

@@ -1,12 +1,17 @@
 import { BIGBRAIN_STORAGE_SCHEMA_VERSION } from './db.js';
 import {
   BIGBRAIN_RELEASE_MANIFEST,
-  BIGBRAIN_RELEASE_VERSION,
+  BIGBRAIN_MCP_RELEASE_VERSION,
 } from './release-manifest.js';
+import {
+  DESKTOP_MCP_PROTOCOL_VERSIONS,
+  MCP_API_CONTRACT_VERSION,
+  MCP_PROTOCOL_VERSION,
+} from './mcp-compatibility.js';
 
-export const BIGBRAIN_APP_VERSION = BIGBRAIN_RELEASE_VERSION;
-export const BIGBRAIN_API_CONTRACT_VERSION = 1;
-export const BIGBRAIN_MCP_PROTOCOL_VERSION = '2024-11-05';
+export const BIGBRAIN_APP_VERSION = BIGBRAIN_MCP_RELEASE_VERSION;
+export const BIGBRAIN_API_CONTRACT_VERSION = MCP_API_CONTRACT_VERSION;
+export const BIGBRAIN_MCP_PROTOCOL_VERSION = MCP_PROTOCOL_VERSION;
 export { BIGBRAIN_STORAGE_SCHEMA_VERSION };
 
 const API_CONTRACT_COMPATIBILITY = Object.freeze({
@@ -38,6 +43,7 @@ export function runtimeMetadata(env = process.env) {
     compatibility: {
       api_contract: API_CONTRACT_COMPATIBILITY,
       storage_schema: STORAGE_SCHEMA_COMPATIBILITY,
+      mcp_protocols: [...DESKTOP_MCP_PROTOCOL_VERSIONS],
     },
     capabilities: [
       'health.live',

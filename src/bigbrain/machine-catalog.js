@@ -13,6 +13,7 @@ const AUTH_STATES = new Set(['authenticated', 'local_trusted', 'needs_auth', 'un
 const WRITABILITY_STATES = new Set(['writable', 'read_only', 'approval_required', 'unknown']);
 const HEALTH_STATES = new Set(['healthy', 'degraded', 'unreachable', 'unknown']);
 const DESKTOP_SERVICE_OWNERSHIPS = new Set(['desktop_bundle', 'source', 'remote', 'unknown']);
+const MCP_COMPATIBILITY_STATES = new Set(['compatible', 'incompatible', 'legacy', 'unknown']);
 const SECRET_KEY = /(?:token|secret|password|authorization|cookie|api[_-]?key|credential)/i;
 const BRAIN_ID = /^brn_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -262,6 +263,9 @@ function normalizeDesktopMetadata(value) {
   const replacedService = value.replaced_service === null || value.replaced_service === undefined
     ? null
     : normalizeReplacedService(value.replaced_service);
+  const mcpCompatibility = value.mcp_compatibility === null || value.mcp_compatibility === undefined
+    ? null
+    : normalizeMcpCompatibility(value.mcp_compatibility);
   const serviceOwnership = value.service_ownership === null || value.service_ownership === undefined
     ? null
     : requireEnum(value.service_ownership, DESKTOP_SERVICE_OWNERSHIPS, 'desktop.service_ownership');
@@ -278,8 +282,33 @@ function normalizeDesktopMetadata(value) {
     backup_preference: optionalString(value.backup_preference),
     onboarding,
     replaced_service: replacedService,
+    mcp_compatibility: mcpCompatibility,
     last_opened_at: optionalIsoDate(value.last_opened_at),
   };
+}
+
+function normalizeMcpCompatibility(value) {
+  requireObject(value, 'desktop.mcp_compatibility');
+  const apiContract = value.api_contract === null || value.api_contract === undefined
+    ? null
+    : normalizeApiContract(value.api_contract);
+  return {
+    state: requireEnum(value.state, MCP_COMPATIBILITY_STATES, 'desktop.mcp_compatibility.state'),
+    server_version: optionalString(value.server_version),
+    api_contract: apiContract,
+    protocol_version: optionalString(value.protocol_version),
+    checked_at: optionalIsoDate(value.checked_at),
+    message: optionalString(value.message),
+  };
+}
+
+function normalizeApiContract(value) {
+  requireObject(value, 'desktop.mcp_compatibility.api_contract');
+  const minimum = optionalPositiveInteger(value.minimum, 'desktop.mcp_compatibility.api_contract.minimum');
+  const maximum = optionalPositiveInteger(value.maximum, 'desktop.mcp_compatibility.api_contract.maximum');
+  if (!minimum || !maximum) throw new Error('desktop.mcp_compatibility.api_contract requires positive minimum and maximum values.');
+  if (minimum > maximum) throw new Error('desktop.mcp_compatibility.api_contract.minimum cannot exceed maximum.');
+  return { minimum, maximum };
 }
 
 function normalizeDesktopOwner(value) {

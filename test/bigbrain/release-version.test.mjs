@@ -41,6 +41,16 @@ test('one package version identifies every public BigBrain component and bundled
   assert.equal(runtimeMetadata().release.version, packageJson.version);
 });
 
+test('release manifests can identify desktop and MCP components independently', () => {
+  const manifest = createReleaseManifest({ repoRoot, desktopVersion: '1.4.0', mcpVersion: '0.25.0' });
+  assert.equal(manifest.version, packageJson.version);
+  assert.equal(manifest.components.desktop, '1.4.0');
+  assert.equal(manifest.components.cli, '0.25.0');
+  assert.equal(manifest.components.local_mcp, '0.25.0');
+  assert.equal(manifest.components.server, '0.25.0');
+  assert.equal(manifest.components.skills, '0.25.0');
+});
+
 test('CLI version output and dashboard health expose the canonical release version', async () => {
   const plain = await execFileAsync(process.execPath, [path.join(repoRoot, 'bin', 'bigbrain.js'), '--version'], { cwd: repoRoot });
   assert.equal(plain.stdout.trim(), packageJson.version);

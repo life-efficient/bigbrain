@@ -222,9 +222,8 @@ test('desktop and source service plists carry explicit ownership markers', () =>
     electronRunAsNode: true,
     serviceManager: 'desktop',
     serviceSource: 'desktop-bundle',
-    dashboardDev: true,
   });
-  assert.match(desktopDev, /<key>BIGBRAIN_DASHBOARD_DEV<\/key>\s*<string>1<\/string>/);
+  assert.doesNotMatch(desktopDev, /BIGBRAIN_DASHBOARD_DEV/);
   const noBackup = renderLaunchAgentPlist({
     ...base,
     electronRunAsNode: true,

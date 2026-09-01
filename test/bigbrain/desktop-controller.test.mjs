@@ -100,7 +100,16 @@ test('desktop connects to and persists an existing BigBrain service', async () =
     registry,
     fetchImpl: async (url) => {
       requests.push(url);
-      return new Response(JSON.stringify({ ok: true, brain_id: 'brn_service', brain_name: 'Company Memory' }), {
+      return new Response(JSON.stringify({
+        ok: true,
+        brain_id: 'brn_service',
+        brain_name: 'Company Memory',
+        runtime: {
+          application: { version: '0.25.0' },
+          contracts: { api: 1, mcp_protocol: '2024-11-05' },
+          compatibility: { api_contract: { minimum: 1, maximum: 1 } },
+        },
+      }), {
         status: 200,
         headers: { 'content-type': 'application/json' },
       });
@@ -114,10 +123,23 @@ test('desktop connects to and persists an existing BigBrain service', async () =
   assert.equal(brain.serviceOwnership, 'remote');
   assert.equal(brain.dashboardUrl, 'https://brain.example.test/dashboard');
   assert.equal(brain.mcpUrl, 'https://brain.example.test/mcp');
+  assert.deepEqual(brain.mcpCompatibility, {
+    state: 'compatible',
+    serverVersion: '0.25.0',
+    apiContract: { minimum: 1, maximum: 1 },
+    protocolVersion: '2024-11-05',
+    checkedAt: brain.mcpCompatibility.checkedAt,
+    message: 'MCP 0.25.0 is compatible with this desktop.',
+  });
 
   const reloaded = await controller.state();
   assert.equal(reloaded.activeBrainId, brain.id);
   assert.equal(reloaded.brains[0].serviceUrl, 'https://brain.example.test');
+  assert.equal(reloaded.brains[0].mcpCompatibility.state, 'compatible');
+  assert.deepEqual(reloaded.desktop.supported_mcp, {
+    api_contract: { minimum: 1, maximum: 1 },
+    protocol_versions: ['2024-11-05'],
+  });
   await assert.rejects(() => controller.connectService({ serviceUrl: 'https://brain.example.test/mcp' }), /already connected/);
   await fs.rm(root, { recursive: true, force: true });
 });
@@ -440,6 +462,7 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(mainSource, /mainWindow\.webContents\.send\("desktop:dashboard-visibility", visible\)/);
   assert.match(mainSource, /sandbox: true/);
   assert.match(mainSource, /await loadBrainDashboard\(brain\)/);
+  assert.match(mainSource, /desktopController\.checkConnection\(activated\.id\)/);
   assert.match(mainSource, /await managedServiceReconciliationPromise;\s+await waitForDashboardReady\(brain\.dashboardUrl\);/);
   assert.match(mainSource, /layoutDashboardView\(\);\s+setDashboardViewVisible\(false\);[\s\S]*await view\.webContents\.loadURL\(url\);[\s\S]*setDashboardViewVisible\(true\);/);
   assert.match(mainSource, /catch \(error\) \{\s+setDashboardViewVisible\(false\);/);
@@ -461,6 +484,7 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(mainSource, /will-frame-navigate/);
   assert.match(mainSource, /desktop:api-key-options/);
   assert.match(mainSource, /BIGBRAIN_DASHBOARD_DEV/);
+  assert.match(dashboardPreloadSource, /supported_mcp/);
   assert.match(mainSource, /SHARED_BIGBRAIN_CONFIG_DIR/);
   assert.match(mainSource, /app\.getPath\("home"\), "\.config", "bigbrain"/);
   assert.match(devLauncherSource, /BIGBRAIN_LOCAL_PAGE_LINK_PORT/);
