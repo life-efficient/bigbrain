@@ -12,6 +12,8 @@ import { redactSecrets } from '../../electron/lib/keychain.mjs';
 
 test('desktop package includes the local MCP service installer', async () => {
   const packageJson = JSON.parse(await fs.readFile(new URL('../../package.json', import.meta.url), 'utf8'));
+  assert.equal(packageJson.scripts['desktop:dev'], 'node electron/dev-launcher.cjs');
+  assert.equal(packageJson.scripts['desktop:release'], 'open -a BigBrain');
   assert.ok(packageJson.build.files.includes('scripts/install-local-mcp-service.mjs'));
   assert.ok(packageJson.build.files.includes('.bigbrain-dashboard/**/*'));
   assert.ok(packageJson.build.files.includes('scripts/bigbrain-event-ingestor.mjs'));
@@ -339,6 +341,7 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   const dashboardPreloadSource = await fs.readFile(new URL('../../electron/dashboard-preload.cjs', import.meta.url), 'utf8');
   const mainSource = await fs.readFile(new URL('../../electron/main.cjs', import.meta.url), 'utf8');
   const devLauncherSource = await fs.readFile(new URL('../../electron/dev-launcher.cjs', import.meta.url), 'utf8');
+  const readmeSource = await fs.readFile(new URL('../../README.md', import.meta.url), 'utf8');
   const devIcon = await fs.stat(new URL('../../electron/assets/desktop-dev-icon.png', import.meta.url));
   const devIconSet = await fs.stat(new URL('../../electron/assets/desktop-dev-app-icon.icns', import.meta.url));
   assert.match(desktopSource, /How do you want to add this brain/);
@@ -422,6 +425,12 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(devLauncherSource, /productName = DEV_DISPLAY_NAME/);
   assert.match(devLauncherSource, /export BIGBRAIN_DASHBOARD_DEV=1/);
   assert.match(devLauncherSource, /setPlistValue\("CFBundleDisplayName", DEV_DISPLAY_NAME\)/);
+  assert.match(devLauncherSource, /stopRunningDevApps\(\)/);
+  assert.match(devLauncherSource, /ps", \["-axo", "pid=,command="\]/);
+  assert.match(devLauncherSource, /TARGET_ELECTRON_BINARY_PATH/);
+  assert.match(devLauncherSource, /terminateDevAppPids\(runningDevAppPids\(\), "SIGKILL"\)/);
+  assert.match(devLauncherSource, /process\.once\(signal/);
+  assert.match(devLauncherSource, /stopChild\(watcher, signal\)/);
   assert.ok(devIcon.size > 0);
   assert.ok(devIconSet.size > 0);
   assert.match(mainSource, /desktop:discover-brains/);
@@ -441,6 +450,10 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(desktopHtml, /\.primary\{border:1px solid #fafafa;background:#fafafa;color:#18181b/);
   assert.doesNotMatch(desktopHtml, /#207146|#377652|#f4fff7|#f2f4ef/i);
   assert.doesNotMatch(desktopSource, /Hosted mode|Choose a mode|<strong>Local<\/strong>|cannot save service connections/);
+  assert.match(readmeSource, /one canonical owner for each local process/);
+  assert.match(readmeSource, /ai\.diffusing\.bigbrain\.dashboard-ui.*invokes/);
+  assert.match(readmeSource, /Personal Brain MCP.*desktop-managed brain LaunchAgent/);
+  assert.match(readmeSource, /local\.bigbrain\.mcp.*not part of the canonical setup/);
 });
 
 test('desktop load failures use a compact local recovery page instead of an encoded data URL', async () => {

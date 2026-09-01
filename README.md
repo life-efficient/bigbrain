@@ -553,9 +553,34 @@ restarting the developer app.
 The developer launcher uses a separate bundle at `build/dev/BigBrain Dev.app` with
 the black-on-silver developer icon and the Dock label `BigBrain Dev`. The
 installed release app keeps the silver-on-black icon and the Dock label
-`BigBrain`. On the developer Mac, the local login agent runs
-`npm run desktop:dev`, so the development app and dashboard watcher start
-together and source dashboard changes are rebuilt live.
+`BigBrain`.
+
+There is one canonical owner for each local process:
+
+- **Dev desktop:** the `ai.diffusing.bigbrain.dashboard-ui` login agent invokes
+  `electron/dev-launcher.cjs` directly. `npm run desktop:dev` invokes that same
+  launcher for an interactive session. The launcher stops any existing Dev
+  Electron process at the exact Dev bundle path before starting another one,
+  and forwards shutdown signals to the app and dashboard watcher.
+- **Release desktop:** `/Applications/BigBrain.app`, launched from the Dock or
+  Finder. It uses the release page-link router on port `55559`.
+- **Personal Brain MCP:** the desktop-managed brain LaunchAgent, using the
+  installed release bundle and port `55560`. The old source-managed
+  `local.bigbrain.mcp` LaunchAgent is not part of the canonical setup and must
+  not be loaded alongside it.
+
+On the developer Mac, the login agent starts the Dev desktop and dashboard
+watcher together, while source dashboard changes are rebuilt live. This avoids
+the previous `npm` wrapper process being left behind during a restart.
+
+To open the installed release desktop through the same explicit interface:
+
+```bash
+npm run desktop:release
+```
+
+That command opens `/Applications/BigBrain.app`, the same release app that is
+available from the Dock and Finder.
 
 The release desktop owns the local page-link router on `127.0.0.1:55559`.
 The developer desktop uses `127.0.0.1:55558` so both desktop shells can run

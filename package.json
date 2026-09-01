@@ -16,6 +16,7 @@
     "schema": "node ./bin/bigbrain.js schema",
     "dashboard:dev": "node ./scripts/dashboard-dev.mjs",
     "desktop:dev": "node electron/dev-launcher.cjs",
+    "desktop:release": "open -a BigBrain",
     "desktop:dist": "npm run build:dashboard && electron-builder --mac dmg zip --universal --publish never",
     "desktop:dir": "npm run build:dashboard && electron-builder --mac dir",
     "test": "node --test test/bigbrain/*.test.mjs"

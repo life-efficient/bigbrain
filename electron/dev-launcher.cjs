@@ -25,7 +25,7 @@ const TARGET_ELECTRON_BINARY_PATH = path.join(TARGET_APP_PATH, "Contents", "MacO
 const DEV_ICON_SOURCE_PATH = path.join(ROOT_DIR, "electron", "assets", "desktop-dev-app-icon.icns");
 const CUSTOM_ICON_TARGET_PATH = path.join(TARGET_RESOURCES_DIR, "app-icon.icns");
 const STAMP_PATH = path.join(BUILD_DIR, "launcher-stamp.json");
-const LAUNCHER_VERSION = 8;
+const LAUNCHER_VERSION = 9;
 
 main();
 
@@ -35,7 +35,7 @@ function main() {
     return;
   }
 
-  quitRunningDevApp();
+  stopRunningDevApps();
   prepareDevAppBundle();
 
   if (process.argv.includes("--prepare-only")) {
@@ -49,16 +49,7 @@ function main() {
     env: devEnvironment(),
     stdio: "inherit",
   });
-
-  child.on("exit", (code, signal) => {
-    watcher.kill();
-    if (signal) {
-      process.kill(process.pid, signal);
-      return;
-    }
-
-    process.exit(code ?? 0);
-  });
+  attachChildLifecycle(child, watcher);
 }
 
 function launchElectronDirectly(watcher) {
@@ -67,16 +58,41 @@ function launchElectronDirectly(watcher) {
     env: devEnvironment(),
     stdio: "inherit",
   });
+  attachChildLifecycle(child, watcher);
+}
+
+function attachChildLifecycle(child, watcher) {
+  let shuttingDown = false;
+
+  for (const signal of ["SIGTERM", "SIGINT", "SIGHUP"]) {
+    process.once(signal, () => {
+      shuttingDown = true;
+      stopChild(watcher, signal);
+      stopChild(child, signal);
+    });
+  }
 
   child.on("exit", (code, signal) => {
-    watcher.kill();
-    if (signal) {
+    stopChild(watcher, signal || "SIGTERM");
+    if (signal && !shuttingDown) {
       process.kill(process.pid, signal);
       return;
     }
 
-    process.exit(code ?? 0);
+    process.exit(signal ? 0 : (code ?? 0));
   });
+}
+
+function stopChild(child, signal) {
+  if (!child || child.exitCode !== null || child.signalCode) {
+    return;
+  }
+
+  try {
+    child.kill(signal);
+  } catch {
+    // The child may have exited between the check and the signal.
+  }
 }
 
 function startDashboardWatcher() {
@@ -183,37 +199,73 @@ function shellSingleQuote(value) {
   return `'${String(value).replace(/'/g, `'"'"'`)}'`;
 }
 
-function quitRunningDevApp() {
-  try {
-    if (!isDevAppRunning()) {
+function stopRunningDevApps() {
+  requestDevAppQuit();
+
+  const deadline = Date.now() + 5000;
+  while (Date.now() < deadline) {
+    const pids = runningDevAppPids();
+    if (pids.length === 0) {
       return;
     }
 
+    terminateDevAppPids(pids, "SIGTERM");
+    waitBriefly();
+  }
+
+  terminateDevAppPids(runningDevAppPids(), "SIGKILL");
+}
+
+function requestDevAppQuit() {
+  try {
     execFileSync("osascript", ["-e", `tell application id "${DEV_BUNDLE_ID}" to quit`], {
       stdio: "ignore",
     });
-
-    const deadline = Date.now() + 5000;
-    while (Date.now() < deadline) {
-      if (!isDevAppRunning()) {
-        return;
-      }
-      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150);
-    }
   } catch {
-    // Fall through. Launching will still work when no app is running.
+    // Exact process cleanup below is the source of truth when AppleScript is
+    // unavailable or the app has already lost its UI registration.
   }
 }
 
-function isDevAppRunning() {
+function runningDevAppPids() {
   try {
-    const result = execFileSync("osascript", ["-e", `application id "${DEV_BUNDLE_ID}" is running`], {
+    const output = execFileSync("ps", ["-axo", "pid=,command="], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     });
-    return result.trim() === "true";
+
+    return output
+      .split("\n")
+      .map((line) => line.trimStart().match(/^(\d+)\s+(.+)$/))
+      .filter(Boolean)
+      .filter(([, pid, command]) => {
+        if (Number(pid) === process.pid) {
+          return false;
+        }
+        return command === TARGET_ELECTRON_BINARY_PATH
+          || command.startsWith(`${TARGET_ELECTRON_BINARY_PATH} `);
+      })
+      .map(([, pid]) => Number(pid));
   } catch {
-    return false;
+    return [];
+  }
+}
+
+function terminateDevAppPids(pids, signal) {
+  for (const pid of pids) {
+    try {
+      process.kill(pid, signal);
+    } catch {
+      // The process may have exited between enumeration and termination.
+    }
+  }
+}
+
+function waitBriefly() {
+  try {
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150);
+  } catch {
+    // Best effort only. The next process scan remains authoritative.
   }
 }
 
