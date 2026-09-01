@@ -135,6 +135,15 @@ const DEMO_INPUT_SENDERS = [
   'Jon Bell',
 ];
 
+const DEMO_INPUT_MESSAGES = [
+  'Follow up on the latest partner note',
+  'Capture a new relationship signal',
+  'Review the meeting takeaways',
+  'Add context from the incoming request',
+  'Record the new decision',
+  'Check the latest source update',
+];
+
 export function createDemoSeed() {
   return `demo-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
@@ -161,6 +170,9 @@ export function buildDemoGraphFlowInputs(nodes, seed = 'demo') {
       demo_input: true,
       input_source: source,
       input_sender: { name: sender },
+      source_message: DEMO_INPUT_MESSAGES[stableHash(`${seed}:input-message:${key}`) % DEMO_INPUT_MESSAGES.length],
+      target_pages: [{ slug: node.slug, title: node.title }],
+      target_count: 1,
     };
   });
 }

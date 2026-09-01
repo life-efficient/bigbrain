@@ -1,7 +1,21 @@
 import React, { memo, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import * as SelectPrimitive from '@radix-ui/react-select';
-import { AudioLines, CalendarDays, Mail, MessageCircle, Slack, UserRound } from 'lucide-react';
+import {
+  AudioLines,
+  Bot,
+  CalendarDays,
+  CircleHelp,
+  FilePenLine,
+  Mail,
+  MessageCircle,
+  MessageSquare,
+  Rss,
+  Slack,
+  Terminal,
+  UserRound,
+  Webhook,
+} from 'lucide-react';
 
 import {
   GRAPH_COLOR_PALETTE_OPTIONS,
@@ -2166,6 +2180,57 @@ function labelFromSlug(slug) {
     .join(' ');
 }
 
+function graphFlowInputTargets(item) {
+  if (Array.isArray(item?.target_pages)) return item.target_pages.filter((target) => target?.slug);
+  const slug = item?.page_slug || item?.slug;
+  return slug ? [{ slug, title: item?.title || labelFromSlug(slug) }] : [];
+}
+
+const GRAPH_FLOW_SOURCE_ICONS = {
+  assistant_chat: Bot,
+  whatsapp: MessageCircle,
+  gmail: Mail,
+  google_calendar: CalendarDays,
+  calendar: CalendarDays,
+  granola: AudioLines,
+  rss: Rss,
+  webhook: Webhook,
+  cli: Terminal,
+  direct_edit: FilePenLine,
+  slack: Slack,
+  unknown: CircleHelp,
+};
+
+const GRAPH_FLOW_SOURCE_LABELS = {
+  assistant_chat: 'Assistant chat',
+  whatsapp: 'WhatsApp',
+  gmail: 'Gmail',
+  google_calendar: 'Google Calendar',
+  calendar: 'Calendar',
+  granola: 'Granola',
+  rss: 'RSS',
+  webhook: 'Webhook',
+  cli: 'CLI',
+  direct_edit: 'Direct edit',
+  slack: 'Slack',
+  unknown: 'Unknown source',
+};
+
+function graphFlowSourceType(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  return GRAPH_FLOW_SOURCE_ICONS[normalized] ? normalized : 'unknown';
+}
+
+function graphFlowSourceLabel(value) {
+  const normalized = graphFlowSourceType(value);
+  return GRAPH_FLOW_SOURCE_LABELS[normalized] || GRAPH_FLOW_SOURCE_LABELS.unknown;
+}
+
+function formatGraphFlowTargetCount(item) {
+  const count = graphFlowInputTargets(item).length;
+  return `${count} ${count === 1 ? 'page' : 'pages'}`;
+}
+
 function buildActivityBuckets(nodes, activity = []) {
   if (Array.isArray(activity) && activity.length) return activity;
   const counts = new Map();
@@ -2465,8 +2530,8 @@ const GraphPanel = memo(function GraphPanel({
     demoMode
       ? buildDemoGraphFlowInputs(recentNodes, demoSeed)
       : (Array.isArray(filteredGraph?.inputs) ? filteredGraph.inputs : [])
-        .filter((item) => selectedTypeSet.size === 0 || selectedTypeSet.has(filteredGraph.nodes?.find((node) => node.slug === item.page_slug)?.type))
-        .map((item) => ({ ...item, slug: item.page_slug }))
+        .map((item) => ({ ...item, target_pages: graphFlowInputTargets(item) }))
+        .filter((item) => selectedTypeSet.size === 0 || item.target_pages.some((target) => selectedTypeSet.has(filteredGraph.nodes?.find((node) => node.slug === target.slug)?.type)))
         .slice(0, GRAPH_FLOW_INPUT_LIMIT)
   ), [demoMode, demoSeed, filteredGraph, recentNodes, selectedTypeSet]);
   const activitySeries = useMemo(() => buildActivitySeries(activityBuckets), [activityBuckets]);
@@ -2879,10 +2944,13 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
       setLayout({
         width: stageRect.width,
         height: stageRect.height,
-        inputs: inputs.map((item) => ({
-          source: pointFor(inputRefs.current.get(item.id || item.slug), 'right'),
-          target: graphPointFor(item.slug),
-        })).filter(({ source, target }) => source && target),
+        inputs: inputs.flatMap((item) => {
+          const source = pointFor(inputRefs.current.get(item.id || item.event_id || item.slug), 'right');
+          return graphFlowInputTargets(item).map((target) => ({
+            source,
+            target: graphPointFor(target.slug),
+          }));
+        }).filter(({ source, target }) => source && target),
         outputs: tasks.map((item) => ({
           source: graphPointFor(item.slug),
           target: pointFor(taskRefs.current.get(item.slug), 'left'),
@@ -2927,17 +2995,25 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
           <div className="graph-flow-column-head"><span>Inputs</span><small>{inputs.length}</small></div>
           <div className="graph-flow-card-list">
             {inputs.map((item) => (
-              <button
-                key={item.id || item.slug}
-                ref={(node) => node ? inputRefs.current.set(item.id || item.slug, node) : inputRefs.current.delete(item.id || item.slug)}
-                type="button"
-                className="graph-flow-card"
-                onClick={() => onNodeOpen?.(item.page_slug || item.slug)}
-              >
-                {item.demo_input ? <GraphFlowInputMarkers item={item} /> : <span className="graph-flow-card-type">{sourceIconLabel(item.source?.icon || item.source?.type)}</span>}
-                <span className="graph-flow-card-copy"><strong>{item.title || labelFromSlug(item.page_slug || item.slug)}</strong><small>{item.demo_input ? `${item.input_source.label} · ${item.input_sender.name}` : `${item.source?.label || item.source?.type || 'inbound'} · ${formatDateTime(item.received_at || item.occurred_at)}`}</small></span>
-                <i />
-              </button>
+              (() => {
+                const targets = graphFlowInputTargets(item);
+                const source = item.demo_input ? item.input_source : item.source;
+                const sourceMessage = item.source_message || source?.label || item.event_id || 'Inbound input';
+                return (
+                  <button
+                    key={item.id || item.event_id || item.slug}
+                    ref={(node) => node ? inputRefs.current.set(item.id || item.event_id || item.slug, node) : inputRefs.current.delete(item.id || item.event_id || item.slug)}
+                    type="button"
+                    className="graph-flow-card"
+                    title={sourceMessage}
+                    onClick={() => onNodeOpen?.(targets[0]?.slug)}
+                  >
+                    {item.demo_input ? <GraphFlowInputMarkers item={item} /> : <GraphFlowSourceIcon source={source} />}
+                    <span className="graph-flow-card-copy"><strong>{sourceMessage}</strong><small>{item.demo_input ? `${item.input_source.label} · ${item.input_sender.name}` : `${graphFlowSourceLabel(source?.type)} · ${formatDateTime(item.received_at || item.occurred_at)}`}</small></span>
+                    <span className="graph-flow-card-status">{formatGraphFlowTargetCount(item)}</span>
+                  </button>
+                );
+              })()
             ))}
           </div>
         </div>
@@ -2964,31 +3040,28 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
   );
 }
 
-function sourceIconLabel(value) {
-  const normalized = String(value || '').toLowerCase();
-  return ({ rss: 'R', webhook: 'W', gmail: 'G', whatsapp: 'W', calendar: 'C', granola: 'G', chat: 'C' })[normalized] || 'I';
+function GraphFlowSourceIcon({ source }) {
+  const type = graphFlowSourceType(source?.type);
+  const SourceIcon = GRAPH_FLOW_SOURCE_ICONS[type];
+  const label = source?.label || graphFlowSourceLabel(type);
+  return (
+    <span
+      className={`graph-flow-card-source graph-flow-card-source-${type.replaceAll('_', '-')}`}
+      title={label}
+      aria-label={label}
+    >
+      <SourceIcon size={14} strokeWidth={2.1} aria-hidden="true" />
+    </span>
+  );
 }
 
 function GraphFlowInputMarkers({ item }) {
   const source = item.input_source || {};
   const sender = item.input_sender || {};
-  const SourceIcon = {
-    gmail: Mail,
-    whatsapp: MessageCircle,
-    slack: Slack,
-    calendar: CalendarDays,
-    granola: AudioLines,
-  }[source.type] || Mail;
   const senderName = sender.name || 'Demo sender';
   return (
     <span className="graph-flow-card-markers">
-      <span
-        className={`graph-flow-card-source graph-flow-card-source-${source.type || 'gmail'}`}
-        title={source.label || 'Demo input'}
-        aria-label={source.label || 'Demo input'}
-      >
-        <SourceIcon size={14} strokeWidth={2.1} aria-hidden="true" />
-      </span>
+      <GraphFlowSourceIcon source={source} />
       <span
         className="graph-flow-card-avatar"
         title={`Sent by ${senderName}`}

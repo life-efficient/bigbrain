@@ -200,13 +200,12 @@ test('dashboard graph exposes only filed provenance inputs with source snapshots
     const graph = await buildGraphPayload(db, config);
     assert.equal(graph.meta.input_count, 1);
     assert.deepEqual(graph.inputs[0], {
-      id: String(graph.inputs[0].id),
-      page_slug: 'organizations/openai',
-      title: 'OpenAI',
+      id: 'event:openai-news:event-1',
+      event_id: 'openai-news:event-1',
+      source_message: 'OpenAI News',
       occurred_at: null,
       received_at: '2026-08-26T13:00:00.000Z',
       source: { id: 'openai-news', type: 'rss', label: 'OpenAI News', icon: 'Rss' },
-      event_id: 'openai-news:event-1',
       listener_id: 'openai-news',
       codex_execution_id: null,
       codex_thread_id: 'thread-1',
@@ -214,7 +213,46 @@ test('dashboard graph exposes only filed provenance inputs with source snapshots
       raw_ref: null,
       outcome: 'filed',
       commit_message: 'Record the OpenAI news update',
+      target_pages: [{ slug: 'organizations/openai', title: 'OpenAI' }],
+      target_count: 1,
     });
+    await db.close?.();
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('dashboard graph represents one source event once when it files multiple pages', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-graph-multi-target-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', '# Alice\n');
+    await writeMarkdown(fixture.brainHome, 'projects/relay.md', '# Relay\n');
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+    const provenance = {
+      event_id: 'assistant-chat:event-1',
+      source_type: 'assistant_chat',
+      source: 'Capture the partner context',
+      source_icon: 'MessageSquare',
+      received_at: '2026-08-26T13:00:00.000Z',
+      outcome: 'filed',
+      codex_thread_id: 'thread-1',
+      commit_message: 'Record the partner context',
+    };
+    await upsertPageProvenance(db, { ...provenance, page_slug: 'people/alice' });
+    await upsertPageProvenance(db, { ...provenance, page_slug: 'projects/relay' });
+
+    const graph = await buildGraphPayload(db, config);
+
+    assert.equal(graph.meta.input_count, 1);
+    assert.equal(graph.inputs.length, 1);
+    assert.equal(graph.inputs[0].source_message, 'Capture the partner context');
+    assert.equal(graph.inputs[0].target_count, 2);
+    assert.deepEqual(graph.inputs[0].target_pages, [
+      { slug: 'people/alice', title: 'Alice' },
+      { slug: 'projects/relay', title: 'Relay' },
+    ]);
     await db.close?.();
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

@@ -1049,11 +1049,17 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version' } = {}) {
       .graph-flow-card-markers { display: flex; align-items: center; gap: 4px; }
       .graph-flow-card-source, .graph-flow-card-avatar { width: 25px; height: 25px; display: grid; place-items: center; flex: 0 0 auto; border: 1px solid currentColor; }
       .graph-flow-card-source { border-radius: 7px; background: rgba(244,244,245,0.07); }
+      .graph-flow-card-source-assistant-chat { color: #a78bfa; }
       .graph-flow-card-source-gmail { color: #f28b82; }
       .graph-flow-card-source-whatsapp { color: #5bd48b; }
       .graph-flow-card-source-slack { color: #c084fc; }
-      .graph-flow-card-source-calendar { color: #7dd3fc; }
+      .graph-flow-card-source-google-calendar, .graph-flow-card-source-calendar { color: #7dd3fc; }
       .graph-flow-card-source-granola { color: #f5c26b; }
+      .graph-flow-card-source-rss { color: #fb923c; }
+      .graph-flow-card-source-webhook { color: #94a3b8; }
+      .graph-flow-card-source-cli { color: #67e8f9; }
+      .graph-flow-card-source-direct-edit { color: #fda4af; }
+      .graph-flow-card-source-unknown { color: #a1a1aa; }
       .graph-flow-card-avatar { border-radius: 999px; color: rgba(244,244,245,0.9); background: rgba(244,244,245,0.1); font: 800 8px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.02em; }
       .graph-flow-card-task { border-radius: 999px; }
       .graph-flow-card-copy { min-width: 0; display: grid; gap: 4px; }
@@ -2906,29 +2912,7 @@ export async function buildGraphPayload(db, config = null) {
   const allowed = new Set(candidateNodes.map((node) => node.slug));
   const provenanceRows = await listPageProvenance(db, { pageSlugs: [...allowed], limit: 200 });
   const titles = new Map(candidateNodes.map((node) => [node.slug, node.title]));
-  const inputs = provenanceRows
-    .filter((row) => row.outcome === 'filed' && allowed.has(row.page_slug))
-    .map((row) => ({
-      id: String(row.id),
-      page_slug: row.page_slug,
-      title: titles.get(row.page_slug) || row.page_slug,
-      occurred_at: row.occurred_at || null,
-      received_at: row.received_at || null,
-      source: {
-        id: row.listener_id || row.source_type,
-        type: row.source_type,
-        label: row.source_label,
-        icon: row.source_icon || null,
-      },
-      event_id: row.event_id,
-      listener_id: row.listener_id || null,
-      codex_execution_id: row.codex_execution_id || null,
-      codex_thread_id: row.codex_thread_id || null,
-      source_url: row.source_url || null,
-      raw_ref: row.raw_ref || null,
-      outcome: row.outcome,
-      commit_message: row.commit_message || null,
-    }));
+  const inputs = buildGraphInputEvents(provenanceRows, { allowed, titles });
   const history = await buildGraphHistory(config, candidateNodes);
   const edges = [];
   for (const node of candidateNodes) {
@@ -2959,6 +2943,52 @@ export async function buildGraphPayload(db, config = null) {
     })),
     edges,
   };
+}
+
+function buildGraphInputEvents(provenanceRows, { allowed, titles }) {
+  const inputsByEvent = new Map();
+  for (const row of provenanceRows) {
+    if (row.outcome !== 'filed' || !allowed.has(row.page_slug)) continue;
+    const eventId = String(row.event_id || '').trim();
+    if (!eventId) continue;
+    let input = inputsByEvent.get(eventId);
+    if (!input) {
+      // A source event is the input primitive. Pages are its downstream targets.
+      input = {
+        id: `event:${eventId}`,
+        event_id: eventId,
+        source_message: row.source_message || row.source_label || row.commit_message || eventId,
+        occurred_at: row.occurred_at || null,
+        received_at: row.received_at || null,
+        source: {
+          id: row.listener_id || row.source_type,
+          type: row.source_type,
+          label: row.source_label,
+          icon: row.source_icon || null,
+        },
+        listener_id: row.listener_id || null,
+        codex_execution_id: row.codex_execution_id || null,
+        codex_thread_id: row.codex_thread_id || null,
+        source_url: row.source_url || null,
+        raw_ref: row.raw_ref || null,
+        outcome: row.outcome,
+        commit_message: row.commit_message || null,
+        target_pages: [],
+      };
+      inputsByEvent.set(eventId, input);
+    }
+    if (!input.target_pages.some((page) => page.slug === row.page_slug)) {
+      input.target_pages.push({
+        slug: row.page_slug,
+        title: titles.get(row.page_slug) || row.page_slug,
+      });
+    }
+  }
+  return [...inputsByEvent.values()].map((input) => ({
+    ...input,
+    target_pages: [...input.target_pages].sort((left, right) => left.slug.localeCompare(right.slug)),
+    target_count: input.target_pages.length,
+  }));
 }
 
 export async function buildGraphLineagePayload(db, config, slug) {

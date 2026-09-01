@@ -635,7 +635,9 @@ test('graph flow arcs attach side cards to their matching graph nodes', async ()
   ]);
 
   assert.match(main, /querySelectorAll\('\[data-graph-node-slug\]'\)/);
-  assert.match(main, /target: graphPointFor\(item\.slug\)/);
+  assert.match(main, /graphFlowInputTargets\(item\)/);
+  assert.match(main, /target: graphPointFor\(target\.slug\)/);
+  assert.match(main, /inputs\.flatMap\(\(item\) =>/);
   assert.match(main, /source: graphPointFor\(item\.slug\)/);
   assert.match(main, /function graphFlowDirectedPath\(source, target\)/);
   assert.match(main, /setTimeout\(scheduleMeasure, 1400\)/);
@@ -648,7 +650,9 @@ test('graph flow limits the displayed input cards to the newest six', async () =
   const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
 
   assert.match(main, /const GRAPH_FLOW_INPUT_LIMIT = 6;/);
-  assert.match(main, /\.map\(\(item\) => \(\{ \.\.\.item, slug: item\.page_slug \}\)\)\s*\.slice\(0, GRAPH_FLOW_INPUT_LIMIT\)/);
+  assert.match(main, /\.map\(\(item\) => \(\{ \.\.\.item, target_pages: graphFlowInputTargets\(item\) \}\)\)\s*\.filter/);
+  assert.match(main, /source_message/);
+  assert.match(main, /GraphFlowSourceIcon/);
 });
 
 test('flow arcs sit below graph nodes while cards stay above the graph', async () => {

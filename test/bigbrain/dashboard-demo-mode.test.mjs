@@ -43,6 +43,7 @@ test('demo flow inputs provide safe source channels and sender avatars', () => {
 
   assert.deepEqual(inputs.map((item) => item.input_source.type).sort(), ['calendar', 'gmail', 'granola', 'slack', 'whatsapp']);
   assert.equal(inputs.every((item) => item.demo_input && item.input_sender?.name), true);
+  assert.equal(inputs.every((item) => item.source_message && item.target_count === 1 && item.target_pages?.length === 1), true);
   assert.doesNotMatch(inputs[0].input_sender.name, /Private source|real/i);
   assert.deepEqual(buildDemoGraphFlowInputs([{ slug: 'sources/one' }], 'seed-a'), buildDemoGraphFlowInputs([{ slug: 'sources/one' }], 'seed-a'));
 });
