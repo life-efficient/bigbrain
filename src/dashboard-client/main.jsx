@@ -1048,6 +1048,22 @@ function formatAnalyticsTime(value) {
 function PrivatePageApp({ route }) {
   const [state, setState] = useState({ status: 'loading', error: null, page: null });
 
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (event.key !== 'Escape' || event.defaultPrevented) return;
+      const target = event.target;
+      if (target instanceof HTMLElement && (
+        target.isContentEditable
+        || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)
+      )) return;
+      event.preventDefault();
+      window.location.assign(dashboardRootHrefFromBasePath(document.body?.dataset?.dashboardBasePath));
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   function privatePageHref(href, sourceSlug) {
     return privatePageHrefFromMarkdown({
       pathname: window.location.pathname,
