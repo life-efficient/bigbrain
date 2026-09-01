@@ -380,7 +380,7 @@ test('force graph arc modes keep grow line-only and shoot beam-driven', async ()
   ]);
 
   for (const source of [force2d, force3d]) {
-    assert.match(source, /if \(highlightedLinks\.has\(link\)\) return 0;/);
+    assert.match(source, /if \(highlightedLinks\.has\(link\)\) \{\s*return forceGraph\?\.__bigBrainArcAnimation\?\.mode === 'shoot' \? 4 : 0;/);
     assert.match(source, /arcAnimation === 'shoot'/);
     assert.match(source, /emitParticle/);
     assert.match(source, /applyForceGraphArcAccessors\(forceGraph\)/);

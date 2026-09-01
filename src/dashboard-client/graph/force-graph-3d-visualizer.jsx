@@ -949,7 +949,9 @@ function updateForceGraphMaterial(lineObject, color, opacity) {
 }
 
 function shouldShowParticles(link, nodeCount, highlightedLinks, forceGraph) {
-  if (highlightedLinks.has(link)) return 0;
+  if (highlightedLinks.has(link)) {
+    return forceGraph?.__bigBrainArcAnimation?.mode === 'shoot' ? 4 : 0;
+  }
   return nodeCount <= 900 ? 1 : 0;
 }
 
