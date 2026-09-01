@@ -205,9 +205,9 @@ Each page should have:
 Generic canonical pages should use:
 
 1. YAML frontmatter
-2. Title and short executive summary
-3. Compiled truth / current state / key context
-4. Open threads where relevant
+2. Title
+3. One concise opening compiled-truth paragraph
+4. Additional current-state context and open threads where relevant
 5. `---`
 6. Append-only timeline / evidence log
 
@@ -244,19 +244,18 @@ Meetings should use one canonical page across the full lifecycle:
 - summary and decisions after the meeting
 - attached transcript dumps or other supporting files under `meetings/.raw/`
 
-The meeting page format is intentionally lighter than the generic entity-page
-schema. A meeting page may include:
+Meeting pages use the same generic page shape. Their current body may include:
 
 - title and metadata
 - optional `## Prep`
   - `### Context`
   - `### Meeting Plan`
-- `## Summary`
-- `## Key Decisions`
-- `## Action Items`
-- `## Discussion Notes`
+- a summary
+- decisions
+- discussion context
+- owner-labelled actions or next steps
 
-For meetings, `---` and `## Timeline` are optional rather than required.
+These are editorial sections, not a separate programmatic meeting schema.
 
 Raw transcript dumps should not be forced into page schema; they belong under
 the meeting collection `.raw/` folder.

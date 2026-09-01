@@ -1,6 +1,6 @@
 import path from 'node:path';
 
-import { CANONICAL_SCHEMA_DIRS, PAGE_REQUIRED_TIMELINE_TYPES } from './constants.js';
+import { CANONICAL_SCHEMA_DIRS } from './constants.js';
 
 const FOLDER_RULES = [
   ['people', 'One page per human being. File by the person as the primary subject.'],
@@ -21,18 +21,11 @@ export function schemaDescription() {
     directories: FOLDER_RULES.map(([name, purpose]) => ({ name, purpose })),
     page_shape: [
       'YAML frontmatter',
-      'Title and short executive summary',
-      'Compiled truth / current state / key context',
-      'Open threads where relevant',
-      '---',
-      'Append-only timeline / evidence log',
-    ],
-    meeting_page_shape: [
-      'YAML frontmatter',
-      'Title and meeting metadata',
-      'Optional Prep section with Context and Meeting Plan',
-      'Structured meeting sections such as Summary, Key Decisions, Action Items, and Discussion Notes',
-      'Separator and timeline are optional for meetings',
+      'Title',
+      'One concise opening compiled-truth paragraph',
+      'Additional current-context sections; assignable work belongs in tasks/',
+      '--- followed by ## Timeline',
+      'Append-only structured timeline / evidence log',
     ],
     raw_attachment_shape: [
       '<collection>/<page-slug>.md',
@@ -56,9 +49,19 @@ export function schemaDescription() {
       },
       body: 'current task context above --- plus append-only ## Timeline evidence log',
     },
+    timeline_entry: {
+      occurred_at: 'YYYY-MM-DD or ISO timestamp for when the underlying event happened; defaults to now and may be overridden for historical ingestion',
+      recorded_at: 'ISO timestamp for when BigBrain recorded the entry; defaults to the actual write time',
+      text: 'human-readable durable update',
+      provenance: 'source event metadata for this entry, including event_id, source_type, source_label, and optional source URL/listener/raw reference',
+      significance: ['patch', 'minor', 'major'],
+      ordering: 'entries render newest occurred_at first; equal timestamps retain stable input order',
+    },
     notes: [
       'Compiled truth lives above --- and gets rewritten as understanding changes.',
       'Timeline lives below --- and is append-only evidence.',
+      'Timeline entries carry occurred_at, recorded_at, text, per-entry provenance, and optional significance; new entries render newest first.',
+      'Source attribution belongs to the timeline entry that it caused, not to mutable page-level source frontmatter.',
       'Use relative markdown links instead of duplicate pages.',
       'Raw binaries live under per-collection .raw/ directories; each valuable artifact has one same-basename indexed Markdown attachment sidecar.',
       'Task pages live under tasks/*.md; do not use ops/tasks.md.',
@@ -79,19 +82,11 @@ export function renderSchemaMarkdown() {
     '## Page Shape',
     '',
     '1. YAML frontmatter',
-    '2. Title and short executive summary',
-    '3. Compiled truth / current state / key context',
-    '4. Open threads where relevant',
-    '5. `---`',
-    '6. Append-only timeline / evidence log',
-    '',
-    '## Meeting Page Shape',
-    '',
-    '1. YAML frontmatter',
-    '2. Title and meeting metadata',
-    '3. Optional `## Prep` with `### Context` and `### Meeting Plan`',
-    '4. Structured meeting sections such as `## Summary`, `## Key Decisions`, `## Action Items`, and `## Discussion Notes`',
-    '5. `---` and `## Timeline` are optional for meetings',
+    '2. Title',
+    '3. One concise opening compiled-truth paragraph',
+    '4. Additional current-context sections; assignable work belongs in `tasks/`',
+    '5. `---` followed by `## Timeline`',
+    '6. Append-only structured timeline / evidence log',
     '',
     'Raw transcript dumps belong under the meeting collection `.raw/` folder, not as standalone brain pages.',
     '',
@@ -109,6 +104,8 @@ export function renderSchemaMarkdown() {
     '- Use the owning collection `.raw/` folder for raw attachments; `sources/.raw/` is legacy or domain-specific evidence storage, not the generic default.',
     '- Do not nest page-slug folders or any other folders inside `.raw`; use collision-safe filenames.',
     '- The `filing_rules` tool is the operational source of truth for the active brain.',
+    '- Timeline entries carry occurred_at, recorded_at, text, per-entry provenance, and optional significance; new entries render newest first.',
+    '- Source attribution belongs to the timeline entry that it caused, not to mutable page-level source frontmatter.',
     '',
     '## Task Page Shape',
     '',
@@ -185,13 +182,21 @@ export function validatePageShape(parsedPage) {
   if (isRepoDocumentationPage(parsedPage.slug)) return [];
 
   const findings = [];
-  const attachmentSidecar = isAttachmentSidecarSlug(parsedPage.slug);
   if (!parsedPage.hasFrontmatter) findings.push({ type: 'missing_frontmatter' });
   if (!parsedPage.title) findings.push({ type: 'missing_title' });
   if (!parsedPage.compiledTruth.trim()) findings.push({ type: 'missing_compiled_truth' });
-  if (requiresSeparator(parsedPage) && !parsedPage.hasSeparator) findings.push({ type: 'missing_separator' });
-  if ((attachmentSidecar || PAGE_REQUIRED_TIMELINE_TYPES.has(parsedPage.type)) && !parsedPage.timeline.trim()) findings.push({ type: 'missing_timeline' });
-  if (!attachmentSidecar && parsedPage.type === 'meetings') findings.push(...validateMeetingPage(parsedPage));
+  if (!parsedPage.hasSeparator) findings.push({ type: 'missing_separator' });
+  if (!hasTimelineEvidence(parsedPage)) findings.push({ type: 'missing_timeline' });
+  if (parsedPage.timeline_clean === false) findings.push({ type: 'invalid_timeline' });
+  if (parsedPage.timelineBoundaryCount > 1 || parsedPage.timelineHeadingCount > 1) {
+    findings.push({
+      type: 'duplicate_timeline',
+      details: {
+        boundaries: parsedPage.timelineBoundaryCount,
+        headings: parsedPage.timelineHeadingCount,
+      },
+    });
+  }
   return findings;
 }
 
@@ -200,102 +205,14 @@ export function isAttachmentSidecarSlug(slug) {
   return parts.length === 3 && parts[1] === '.raw';
 }
 
-function requiresSeparator(parsedPage) {
-  return parsedPage.type !== 'meetings';
-}
-
 function isRepoDocumentationPage(slug) {
   return path.posix.basename(slug).toLowerCase() === 'readme';
 }
 
-function validateMeetingPage(parsedPage) {
-  const findings = [];
-  const outline = extractMeetingOutline(parsedPage.compiledTruth);
-  const requiredSections = ['Summary', 'Key Decisions', 'Action Items', 'Discussion Notes'];
-  const missingSections = requiredSections.filter((section) => !outline.topNormalized.includes(normalizeHeading(section)));
-
-  if (missingSections.length > 0) {
-    findings.push({
-      type: 'missing_meeting_heading',
-      details: {
-        missing: missingSections,
-        found: outline.topHeadings,
-      },
-    });
-  }
-
-  const hasPrep = outline.topNormalized.includes('prep');
-  const misplacedPrepSubheadings = outline.topHeadings.filter((heading) => {
-    const normalized = normalizeHeading(heading);
-    return normalized === 'context' || normalized === 'meeting plan';
-  });
-
-  if (!hasPrep && misplacedPrepSubheadings.length > 0) {
-    findings.push({
-      type: 'invalid_meeting_prep_structure',
-      details: {
-        message: 'Context and Meeting Plan should live under ## Prep, not as top-level headings.',
-        found: misplacedPrepSubheadings,
-      },
-    });
-  }
-
-  if (hasPrep) {
-    const prepSubheadings = outline.subheadingsBySection.get('prep') || [];
-    const prepSubNormalized = prepSubheadings.map(normalizeHeading);
-    const requiredPrepSubheadings = ['Context', 'Meeting Plan'];
-    const missingPrepSubheadings = requiredPrepSubheadings.filter((heading) => !prepSubNormalized.includes(normalizeHeading(heading)));
-    const unexpectedPrepSubheadings = prepSubheadings.filter((heading) => !requiredPrepSubheadings.some((required) => normalizeHeading(required) === normalizeHeading(heading)));
-
-    if (missingPrepSubheadings.length > 0 || unexpectedPrepSubheadings.length > 0) {
-      findings.push({
-        type: 'invalid_meeting_prep_heading',
-        details: {
-          required: requiredPrepSubheadings,
-          missing: missingPrepSubheadings,
-          found: prepSubheadings,
-          unexpected: unexpectedPrepSubheadings,
-        },
-      });
-    }
-  }
-
-  return findings;
-}
-
-function extractMeetingOutline(markdown) {
-  const topHeadings = [];
-  const topNormalized = [];
-  const subheadingsBySection = new Map();
-  let currentTopSection = null;
-
-  for (const line of markdown.split('\n')) {
-    const topMatch = line.match(/^##\s+(.+?)\s*$/);
-    if (topMatch) {
-      const heading = cleanHeading(topMatch[1]);
-      const normalized = normalizeHeading(heading);
-      currentTopSection = normalized;
-      topHeadings.push(heading);
-      topNormalized.push(normalized);
-      if (!subheadingsBySection.has(normalized)) subheadingsBySection.set(normalized, []);
-      continue;
-    }
-
-    const subMatch = line.match(/^###\s+(.+?)\s*$/);
-    if (subMatch && currentTopSection) {
-      subheadingsBySection.get(currentTopSection).push(cleanHeading(subMatch[1]));
-    }
-  }
-
-  return { topHeadings, topNormalized, subheadingsBySection };
-}
-
-function cleanHeading(value) {
-  return value.trim().replace(/\s+/g, ' ');
-}
-
-function normalizeHeading(value) {
-  return cleanHeading(value).toLowerCase();
+function hasTimelineEvidence(parsedPage) {
+  return String(parsedPage.timeline || '')
+    .replace(/^##\s+(?:Timeline|History)\s*\n?/i, '')
+    .trim().length > 0;
 }
 
 function recommendation(folder, input, reason) {

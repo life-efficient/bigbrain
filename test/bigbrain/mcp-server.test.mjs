@@ -290,6 +290,8 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     const createPageTool = listedMutationTools.result.tools.find((tool) => tool.name === 'create_page');
     const updatePageTool = listedMutationTools.result.tools.find((tool) => tool.name === 'update_page');
     assert.deepEqual(createPageTool.inputSchema.properties.significance.enum, ['patch', 'minor', 'major']);
+    assert.match(createPageTool.inputSchema.properties.body.description, /compiled truth/);
+    assert.match(updatePageTool.inputSchema.properties.body.description, /compiled truth/);
     assert.equal(createPageTool.inputSchema.required.includes('significance'), true);
     assert.equal(updatePageTool.inputSchema.required.includes('significance'), true);
 
@@ -306,10 +308,15 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(created.error, undefined, created.error?.message);
     assert.equal(created.result.structuredContent.slug, 'people/mcp-test');
     assert.match(created.result.structuredContent.markdown, /Created through MCP endpoint test/);
+    assert.equal(created.result.structuredContent.page_health.ok, true);
+    assert.equal(created.result.structuredContent.page_health.assertions.single_timeline, true);
     assert.equal(created.result.structuredContent.frontmatter.visibility, undefined);
-    assert.equal(created.result.structuredContent.frontmatter.source_type, 'assistant_chat');
-    assert.equal(created.result.structuredContent.frontmatter.source_label, 'MCP server test');
-    assert.equal(created.result.structuredContent.frontmatter.commit_message, 'Test create_page');
+    assert.equal(created.result.structuredContent.frontmatter.source_type, undefined);
+    assert.equal(created.result.structuredContent.frontmatter.source_label, undefined);
+    assert.equal(created.result.structuredContent.frontmatter.commit_message, undefined);
+    assert.equal(created.result.structuredContent.timeline_entries[0].provenance.source_type, 'assistant_chat');
+    assert.equal(created.result.structuredContent.timeline_entries[0].provenance.source_label, 'MCP server test');
+    assert.equal(created.result.structuredContent.timeline_entries[0].provenance.commit_message, 'Test create_page');
 
     const readPage = await rpc(running.url, 'tools/call', {
       name: 'read',
@@ -317,6 +324,18 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     }, 'secret');
     assert.equal(readPage.error, undefined, readPage.error?.message);
     assert.equal(readPage.result.structuredContent.slug, 'people/mcp-test');
+
+    const updated = await rpc(running.url, 'tools/call', {
+      name: 'update_page',
+      arguments: {
+        path: 'people/mcp-test',
+        body: 'Updated current content through MCP. [PDF](.raw/public.pdf)',
+        timeline_entry: 'Updated through MCP endpoint test.',
+      },
+    }, 'secret');
+    assert.equal(updated.error, undefined, updated.error?.message);
+    assert.equal(updated.result.structuredContent.page_health.ok, true);
+    assert.equal(updated.result.structuredContent.page_health.assertions.single_timeline, true);
 
     const provenance = await rpc(running.url, 'tools/call', {
       name: 'events/provenance_list',
@@ -424,7 +443,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     const db = await openDatabase(config);
     const record = await getPageRecord(db, 'people/mcp-test');
     assert.equal(record.title, 'MCP Test');
-    assert.match(record.compiled_truth, /Created through the MCP server/);
+    assert.match(record.compiled_truth, /Updated current content through MCP/);
     const auditRows = await listMcpAuditLog(db);
     const readAudit = auditRows.find((row) => row.action === 'mcp.tool.read');
     assert.equal(readAudit?.outcome, 'success');
@@ -985,7 +1004,8 @@ test('MCP server uploads raw files with associated brain pages', async () => {
     assert.equal(created.result.structuredContent.raw_file.size, pdfBytes.length);
     assert.equal(created.result.structuredContent.page.slug, 'sources/.raw/mcp-upload');
     assert.equal(created.result.structuredContent.page.frontmatter.raw_file, 'sources/.raw/mcp-upload.pdf');
-    assert.match(created.result.structuredContent.page.markdown, /- \[mcp-upload\.pdf\]\(mcp-upload\.pdf\)/);
+    assert.doesNotMatch(created.result.structuredContent.page.markdown, /## Source File/);
+    assert.equal(created.result.structuredContent.page_health.ok, true);
 
     const storedRaw = await fs.readFile(path.join(fixture.brainHome, 'sources', '.raw', 'mcp-upload.pdf'));
     assert.deepEqual(storedRaw, pdfBytes);

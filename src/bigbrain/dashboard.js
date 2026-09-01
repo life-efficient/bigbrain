@@ -21,6 +21,7 @@ import {
 import { runHealthCheck } from './health.js';
 import { authenticatedBrainAbout, isBrainProfileDocument, loadBrainProfile } from './brain-profile.js';
 import { fullPathFromSlug, parseMarkdownPage, resolveMarkdownLink, slugFromPath } from './markdown.js';
+import { latestTimelineEntry as latestStructuredTimelineEntry } from './timeline.js';
 import { findActiveMemberByEmail, findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug } from './members.js';
 import {
   authRoutesEnabled,
@@ -3195,15 +3196,8 @@ async function resolveGraphNodeUpdatedAt(config, page) {
 }
 
 function latestTimelineEntry(timeline) {
-  const entries = String(timeline || '')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith('- '));
-  if (!entries.length) return '';
-  return entries[entries.length - 1]
-    .replace(/^-\s*/, '')
-    .replace(/^\*\*(\d{4}-\d{2}-\d{2})\*\*\s*\|\s*/, '$1 | ')
-    .trim();
+  const entry = latestStructuredTimelineEntry(timeline);
+  return entry?.display || '';
 }
 
 export function isDirectoryBackedGraphPage(page) {

@@ -1,5 +1,10 @@
 import path from 'node:path';
 
+import { parseTimeline } from './timeline.js';
+
+const TIMELINE_BOUNDARY_PATTERN = /\n---\n(?=\s*##\s+(?:Timeline|History)\b)|\n<!--\s*timeline\s*-->\s*/gi;
+const TIMELINE_HEADING_PATTERN = /^##\s+(?:Timeline|History)\s*$/gim;
+
 export function slugFromPath(brainDir, fullPath) {
   const relative = toPosix(path.relative(brainDir, fullPath));
   return relative.replace(/\.md$/i, '');
@@ -15,12 +20,14 @@ export function inferTypeFromSlug(slug) {
 
 export function parseMarkdownPage(markdown, slug) {
   const { frontmatter, body, hasFrontmatter } = parseFrontmatter(markdown);
-  const separator = '\n---\n';
-  const separatorIndex = body.indexOf(separator);
+  const boundaryMatches = [...body.matchAll(TIMELINE_BOUNDARY_PATTERN)];
+  const separatorIndex = boundaryMatches[0]?.index ?? -1;
+  const separator = boundaryMatches[0]?.[0] || '';
   const hasSeparator = separatorIndex >= 0;
   const compiledTruth = hasSeparator ? body.slice(0, separatorIndex).trim() : body.trim();
   const timeline = hasSeparator ? body.slice(separatorIndex + separator.length).trim() : '';
   const title = extractTitle(frontmatter, body, slug);
+  const parsedTimeline = parseTimeline(timeline);
   return {
     slug,
     type: inferTypeFromSlug(slug),
@@ -31,10 +38,23 @@ export function parseMarkdownPage(markdown, slug) {
     bodyContentMarkdown: body,
     compiledTruth,
     timeline,
+    timeline_entries: parsedTimeline.entries,
+    timeline_clean: parsedTimeline.clean,
+    timelineBoundaryCount: boundaryMatches.length,
+    timelineHeadingCount: body.match(TIMELINE_HEADING_PATTERN)?.length || 0,
     bodyMarkdown: markdown,
     bodyText: stripMarkdown(body),
     summary: extractSummary(compiledTruth),
   };
+}
+
+export function replaceTimelineSection(markdown, timelineBlock) {
+  const { body, bodyStart } = splitMarkdownFrontmatter(markdown);
+  const boundaryMatches = [...body.matchAll(TIMELINE_BOUNDARY_PATTERN)];
+  const match = boundaryMatches[0];
+  if (!match) throw new Error('Cannot replace timeline without a timeline boundary.');
+  const separatorEnd = match.index + match[0].length;
+  return `${markdown.slice(0, bodyStart + separatorEnd)}\n\n${String(timelineBlock || '').trim()}\n`;
 }
 
 export function extractLinks(markdown, currentSlug) {
@@ -92,6 +112,13 @@ function parseFrontmatter(markdown) {
   };
 }
 
+function splitMarkdownFrontmatter(markdown) {
+  if (!markdown.startsWith('---\n')) return { body: markdown, bodyStart: 0 };
+  const end = markdown.indexOf('\n---\n', 4);
+  if (end < 0) return { body: markdown, bodyStart: 0 };
+  return { body: markdown.slice(end + 5), bodyStart: end + 5 };
+}
+
 function parseSimpleYaml(raw) {
   const result = {};
   for (const line of raw.split('\n')) {
@@ -129,6 +156,7 @@ function extractSummary(compiledTruth) {
 function stripMarkdown(value) {
   return value
     .replace(/^---[\s\S]*?---\n/, '')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '$1')
     .replace(/\[\[([^[\]]+)\]\]/g, '$1')
     .replace(/[`*_>#-]/g, ' ')

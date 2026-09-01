@@ -250,11 +250,12 @@ node scripts/prepare-raw-upload.mjs \
 
 Raw reads return `content_base64` so binary files can round-trip safely. The
 generated page from `create_raw_file_with_page` gets a `raw_file` frontmatter
-field and a `## Source File` link back to the raw upload. Canonical markdown
-pages remain the searchable surface. Raw sidecar markdown under `.raw/` is
-metadata for the raw file and should not be shown as the public item when a
-group shares that raw file; published group views should show the raw file
-itself.
+field. The writer does not inject a verbose `## Source File` section; add a
+concise inline link in the current body only when it helps the page reader.
+Canonical markdown pages remain the searchable surface. Raw sidecar markdown
+under `.raw/` is metadata for the raw file and should not be shown as the
+public item when a group shares that raw file; published group views should
+show the raw file itself.
 
 Raw uploads are limited to 25 MiB decoded bytes by default so git-backed brains
 do not accept files likely to break backup or sync. The limit can be changed

@@ -12,6 +12,7 @@ import { fullPathFromSlug } from './markdown.js';
 import { ensureLocalOwnerMember, listMembers, upsertMember } from './members.js';
 import { startMcpServer } from './mcp-server.js';
 import { migrateBrain } from './migrate.js';
+import { migrateTimelinePages } from './timeline-migrate.js';
 import { listRecentFiles } from './recent.js';
 import { renderSchemaMarkdown, recommendFolderForInput, schemaDescription } from './schema.js';
 import { queryBrain, searchBrain, searchModesReport } from './search.js';
@@ -564,6 +565,18 @@ async function handleEvents(args, global) {
 }
 
 async function handleMigrate(args, global) {
+  if (args[0] === 'timeline' || args[0] === 'timelines') {
+    const config = await loadRuntimeConfig(global);
+    const report = await migrateTimelinePages({
+      config,
+      apply: args.includes('--apply'),
+      limit: argValue(args, '--limit') || 50,
+      pagePath: argValue(args, '--path'),
+      type: argValue(args, '--type'),
+    });
+    output(global, report, `${report.mode === 'apply' ? 'Migrated' : 'Would migrate'} ${report.migrated || report.changes.length} page(s); ${report.remaining_candidates} candidate(s) remain.`);
+    return;
+  }
   const sourceDir = requireFirstArg(args, 'migrate requires <source-dir>.');
   const config = await loadRuntimeConfig(global);
   const report = await migrateBrain({ sourceDir, config });
@@ -976,6 +989,7 @@ Commands:
   recent [--since 24h] [--until ISO]
   health
   migrate <source-dir>
+  migrate timeline [--dry-run|--apply] [--limit N] [--path SLUG] [--type TYPE]
   db doctor
   db migrate sqlite-to-postgres
   schema

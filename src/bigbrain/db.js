@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 import { ensureDefaultRoles, ensureDefaultRolesSync } from './roles.js';
 import { commitMessageSchema, normalizeSourceType, provenanceSchema } from './source-taxonomy.js';
+import { latestTimelineDate } from './timeline.js';
 
 export const BIGBRAIN_STORAGE_SCHEMA_VERSION = 1;
 
@@ -594,7 +595,7 @@ export async function replacePageIndex(db, page) {
 
 async function resolvePageUpdatedAt(page, fallback) {
   if (page?.updatedAt) return page.updatedAt;
-  const timelineDate = latestTimelineDate(page?.timeline);
+  const timelineDate = latestTimelineDate(page?.timeline_entries || page?.timeline);
   if (timelineDate) return timelineDate;
   if (page?.path) {
     try {
@@ -607,12 +608,6 @@ async function resolvePageUpdatedAt(page, fallback) {
   return fallback;
 }
 
-function latestTimelineDate(timeline) {
-  if (!timeline) return null;
-  const matches = [...String(timeline).matchAll(/\b(20\d{2}-\d{2}-\d{2})\b/g)];
-  const latest = matches.map((match) => match[1]).sort().at(-1);
-  return latest ? `${latest}T00:00:00.000Z` : null;
-}
 
 export async function replaceLinksForPage(db, slug, links, knownSlugs) {
   if (db.backend === 'postgres') {

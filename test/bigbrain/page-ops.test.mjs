@@ -14,6 +14,7 @@ import {
   listBrainPath,
   listRawFiles,
   pageVisibility,
+  quickPageHealthCheck,
   readBrainPage,
   readRawFile,
   renameBrainPage,
@@ -69,6 +70,23 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
   }
 });
 
+test('page ops reject writer-owned timeline content in the current body', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-body-boundary-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await assert.rejects(() => createBrainPage({
+      config,
+      pagePath: 'people/bad-body',
+      title: 'Bad Body',
+      body: '# Bad Body\n\nCurrent context.\n\n---\n\n## Timeline\n\n- Existing evidence.',
+      timelineEntry: 'Created page.',
+    }), /timeline boundary and timeline are writer-managed/);
+    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'people/bad-body.md')), /ENOENT/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('page ops normalizes legacy timeline separators before appending evidence', async () => {
   const fixture = await createFixture('bigbrain-page-ops-timeline-');
   try {
@@ -87,6 +105,41 @@ test('page ops normalizes legacy timeline separators before appending evidence',
     assert.doesNotMatch(updated.markdown, /## Timeline\n\n---/);
     assert.match(updated.timeline, /Existing evidence/);
     assert.match(updated.timeline, /Appended evidence/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('quick page health catches duplicate timeline boundaries and accepts valid pages', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-health-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await fs.mkdir(path.join(fixture.brainHome, 'organizations'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'organizations/duplicate.md'), `---\ntitle: Duplicate\n---\n# Duplicate\n\nCurrent context.\n\n---\n\n## Timeline\n\n- Existing evidence.\n\n---\n\n## Timeline\n\n- Repeated evidence.\n`, 'utf8');
+    const invalid = await quickPageHealthCheck({ config, pagePath: 'organizations/duplicate' });
+    assert.equal(invalid.ok, false);
+    assert.equal(invalid.assertions.single_timeline, false);
+    assert.equal(invalid.findings.some((finding) => finding.type === 'duplicate_timeline'), true);
+
+    await fs.writeFile(path.join(fixture.brainHome, 'organizations', 'malformed.md'), `---\ntitle: Malformed\n---\n# Malformed\n\nCurrent context.\n\n---\n\n## Timeline\n\n- **2026-09-01** | Valid-looking evidence.\n\n## Notes\n\nThis does not belong in the timeline.\n`, 'utf8');
+    const malformed = await quickPageHealthCheck({ config, pagePath: 'organizations/malformed' });
+    assert.equal(malformed.ok, false);
+    assert.equal(malformed.assertions.timeline_clean, false);
+    assert.equal(malformed.findings.some((finding) => finding.type === 'invalid_timeline'), true);
+
+    const valid = await createBrainPage({
+      config,
+      pagePath: 'organizations/valid',
+      title: 'Valid',
+      body: '# Valid\n\nCurrent context.\n\n---\n\n## Additional context\n\nA useful current detail.',
+      timelineEntry: 'Created valid page.',
+    });
+    const health = await quickPageHealthCheck({ config, pagePath: valid.path });
+    assert.equal(health.ok, true);
+    assert.deepEqual(health.findings, []);
+    assert.equal(health.assertions.timeline_clean, true);
+    assert.equal(health.assertions.single_timeline, true);
+    assert.match(valid.body, /Additional context/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -114,7 +167,7 @@ test('page ops create raw files with associated brain pages', async () => {
     assert.equal(result.page.slug, 'sources/.raw/example-deck');
     assert.equal(result.page.frontmatter.raw_file, 'sources/.raw/example-deck.pdf');
     assert.match(result.page.markdown, /raw_mime_type: application\/pdf/);
-    assert.match(result.page.markdown, /- \[example-deck\.pdf\]\(example-deck\.pdf\)/);
+    assert.doesNotMatch(result.page.markdown, /## Source File/);
 
     const storedRaw = await fs.readFile(path.join(fixture.brainHome, 'sources', '.raw', 'example-deck.pdf'));
     assert.deepEqual(storedRaw, pdfBytes);
@@ -243,7 +296,7 @@ test('page ops rename raw files and rewrite page references', async () => {
     const page = await readBrainPage({ config, pagePath: 'deals/.raw/regional-platform-blind-teaser' });
     assert.equal(page.frontmatter.raw_file, 'deals/.raw/regional-platform-blind-teaser.pdf');
     assert.deepEqual(page.frontmatter.public_raw_files, ['deals/.raw/regional-platform-blind-teaser.pdf']);
-    assert.match(page.markdown, /\[regional-platform-blind-teaser\.pdf\]\(regional-platform-blind-teaser\.pdf\)/);
+    assert.match(page.markdown, /raw_file: deals\/.raw\/regional-platform-blind-teaser\.pdf/);
     assert.doesNotMatch(page.markdown, /company-name-blind-teaser\.pdf/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

@@ -1579,7 +1579,7 @@ rrule = "FREQ=DAILY;BYHOUR=3;BYMINUTE=30;BYSECOND=0"
   }
 });
 
-test('health does not flag meeting pages for missing separator or timeline', async () => {
+test('health applies the generic page boundary to meeting pages', async () => {
   const fixture = await createFixture('bigbrain-meeting-health-');
   try {
     await writeMarkdown(fixture.brainHome, 'meetings/client-sync.md', `---
@@ -1615,14 +1615,14 @@ date: 2026-05-19
     await syncBrain({ config, apiKey: null });
     const report = await runHealthCheck(config);
     const meetingFindings = report.findings.filter((finding) => finding.page_slug === 'meetings/client-sync');
-    assert.equal(meetingFindings.some((finding) => finding.finding_type === 'missing_separator'), false);
-    assert.equal(meetingFindings.some((finding) => finding.finding_type === 'missing_timeline'), false);
+    assert.equal(meetingFindings.some((finding) => finding.finding_type === 'missing_separator'), true);
+    assert.equal(meetingFindings.some((finding) => finding.finding_type === 'missing_timeline'), true);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
 });
 
-test('health flags missing required meeting headings clearly', async () => {
+test('health does not require meeting-specific headings', async () => {
   const fixture = await createFixture('bigbrain-meeting-headings-');
   try {
     await writeMarkdown(fixture.brainHome, 'meetings/missing-sections.md', `---
@@ -1636,19 +1636,25 @@ date: 2026-05-19
 
 ## Summary
 - Only summary exists.
+
+---
+
+## Timeline
+
+- **2026-05-19** | Captured meeting note.
 `);
     const config = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({ config, apiKey: null });
     const report = await runHealthCheck(config);
-    const finding = report.findings.find((item) => item.page_slug === 'meetings/missing-sections' && item.finding_type === 'missing_meeting_heading');
-    assert.equal(Boolean(finding), true);
-    assert.deepEqual(finding.details.missing, ['Key Decisions', 'Action Items', 'Discussion Notes']);
+    const meetingFindings = report.findings.filter((item) => item.page_slug === 'meetings/missing-sections');
+    assert.equal(meetingFindings.some((finding) => finding.finding_type.startsWith('missing_meeting_')), false);
+    assert.equal(meetingFindings.some((finding) => finding.finding_type.startsWith('invalid_meeting_')), false);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
 });
 
-test('health flags prep sections missing required subheadings', async () => {
+test('health accepts arbitrary current meeting sections with the generic boundary', async () => {
   const fixture = await createFixture('bigbrain-meeting-prep-headings-');
   try {
     await writeMarkdown(fixture.brainHome, 'meetings/prep-missing-plan.md', `---
@@ -1675,13 +1681,19 @@ date: 2026-05-19
 
 ## Discussion Notes
 - Notes.
+
+---
+
+## Timeline
+
+- **2026-05-19** | Captured meeting note.
 `);
     const config = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({ config, apiKey: null });
     const report = await runHealthCheck(config);
-    const finding = report.findings.find((item) => item.page_slug === 'meetings/prep-missing-plan' && item.finding_type === 'invalid_meeting_prep_heading');
-    assert.equal(Boolean(finding), true);
-    assert.deepEqual(finding.details.missing, ['Meeting Plan']);
+    const meetingFindings = report.findings.filter((item) => item.page_slug === 'meetings/prep-missing-plan');
+    assert.equal(meetingFindings.some((finding) => finding.finding_type.startsWith('missing_meeting_')), false);
+    assert.equal(meetingFindings.some((finding) => finding.finding_type.startsWith('invalid_meeting_')), false);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -1752,7 +1764,8 @@ test('schema and filing guidance stay inspectable', async () => {
   const recommendation = recommendFolderForInput('board meeting prep for Acme');
   try {
     assert.match(markdown, /Directory Structure/);
-    assert.match(markdown, /Meeting Page Shape/);
+    assert.match(markdown, /One concise opening compiled-truth paragraph/);
+    assert.doesNotMatch(markdown, /Meeting Page Shape/);
     assert.match(markdown, /Task Page Shape/);
     assert.match(markdown, /status.*open.*in_progress.*waiting.*done.*archived/s);
     assert.match(markdown, /readiness.*underspecified.*ready/s);

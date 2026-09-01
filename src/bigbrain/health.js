@@ -316,7 +316,7 @@ async function readEventRuntimeHealth(config) {
 }
 
 function severityForFinding(findingType) {
-  if (findingType === 'missing_frontmatter' || findingType === 'missing_separator') return 'medium';
+  if (findingType === 'missing_frontmatter' || findingType === 'missing_separator' || findingType === 'invalid_timeline' || findingType === 'duplicate_timeline') return 'medium';
   if (findingType === 'missing_meeting_heading' || findingType === 'invalid_meeting_prep_heading' || findingType === 'invalid_meeting_prep_structure') return 'medium';
   if (findingType === 'attachment_sidecar_missing_raw_file' || findingType === 'attachment_sidecar_mismatched_raw_file' || findingType === 'attachment_sidecar_missing_raw_artifact') return 'medium';
   if (findingType === 'nested_raw_file_path') return 'medium';
@@ -357,14 +357,33 @@ async function insertSourceAttributionFinding(db, { scope, pageSlug = null, path
 function sourceAttributionForPage(parsed, provenance = null, { skipAttachment = false } = {}) {
   if (skipAttachment && isAttachmentSidecarSlug(parsed.slug)) return { ok: true, skipped: true };
 
+  const timelineCandidate = mutationMetadataCandidateFromTimeline(parsed.timeline_entries);
+  if (timelineCandidate) return validateMutationMetadata(timelineCandidate);
+
   const frontmatter = parsed.frontmatter || {};
   const candidate = mutationMetadataCandidate(frontmatter);
   if (candidate) return validateMutationMetadata(candidate);
+  const provenanceCandidate = mutationMetadataCandidateFromProvenance(provenance);
+  if (provenanceCandidate) return validateMutationMetadata(provenanceCandidate);
   return {
     ok: false,
     reason: 'missing',
     expected_fields: ['event_id', 'source_type', 'source_label', 'commit_message'],
     details: { source_type: null, normalized_source_type: 'unknown', provenance_row_present: Boolean(provenance) },
+  };
+}
+
+function mutationMetadataCandidateFromTimeline(entries) {
+  const entry = (Array.isArray(entries) ? entries : []).find((item) => item?.provenance?.event_id);
+  if (!entry?.provenance) return null;
+  const { commit_message: commitMessage, significance, ...provenance } = entry.provenance;
+  return {
+    commit_message: commitMessage,
+    provenance: {
+      ...provenance,
+      ...(significance !== undefined ? { significance } : {}),
+      ...(entry.significance && significance === undefined ? { significance: entry.significance } : {}),
+    },
   };
 }
 

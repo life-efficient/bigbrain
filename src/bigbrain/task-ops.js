@@ -4,6 +4,7 @@ import path from 'node:path';
 import { parseMarkdownPage, slugFromPath } from './markdown.js';
 import { assertAllowedPagePath, createBrainPage, normalizePagePath, readBrainPage, safeBrainPath } from './page-ops.js';
 import { findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug, resolveActorMember } from './members.js';
+import { appendTimelineEntries, timelineText } from './timeline.js';
 
 const TASK_STATUSES = ['open', 'in_progress', 'waiting', 'done', 'archived'];
 const TASK_PRIORITIES = ['p0', 'p1', 'p2', 'p3'];
@@ -124,6 +125,8 @@ export async function createTaskPage({
   source = [],
   path: taskPath = null,
   timelineEntry = null,
+  timelineEntries = null,
+  timelineSignificance = null,
   frontmatterValues = {},
   actor = null,
   memberResolution = {},
@@ -139,7 +142,7 @@ export async function createTaskPage({
   assertCompletionHandoff({
     nextStatus: normalizedStatus,
     previousStatus: null,
-    timelineEntry,
+    timelineEntry: timelineEntries ?? timelineEntry,
   });
   const slug = taskPath ? normalizeTaskSlug(taskPath) : `tasks/${slugify(normalizedTitle)}`;
   const page = await createBrainPage({
@@ -148,6 +151,8 @@ export async function createTaskPage({
     title: normalizedTitle,
     body: normalizedBody,
     timelineEntry: timelineEntry || 'Task created.',
+    timelineEntries,
+    timelineSignificance,
     frontmatter: {
       type: 'task',
       status: normalizedStatus,
@@ -174,6 +179,8 @@ export async function updateTaskPage({
   assignees = null,
   source = null,
   timelineEntry = null,
+  timelineEntries = null,
+  timelineSignificance = null,
   frontmatterValues = {},
   actor = null,
   memberResolution = {},
@@ -188,7 +195,7 @@ export async function updateTaskPage({
   assertCompletionHandoff({
     nextStatus: normalizedStatus,
     previousStatus,
-    timelineEntry,
+    timelineEntry: timelineEntries ?? timelineEntry,
     isExplicitStatusChange: statusProvided,
   });
   const nextFrontmatter = {
@@ -211,13 +218,14 @@ export async function updateTaskPage({
   Object.assign(nextFrontmatter, frontmatterValues || {});
 
   const nextBody = body === null || body === undefined ? parsed.compiledTruth : requireNonEmpty(body, 'body');
-  const now = new Date().toISOString().slice(0, 10);
-  const nextTimeline = appendTimelineEntry(parsed.timeline, timelineEntry || 'Task updated.', now);
+  const now = new Date().toISOString();
+  const timelineInput = timelineEntries ?? timelineEntry ?? 'Task updated.';
+  const nextTimeline = appendTimelineEntries(parsed.timeline, timelineInput, { recordedAt: now, significance: timelineSignificance });
   const markdown = renderTaskMarkdown({
     frontmatter: {
       ...nextFrontmatter,
       title: parsed.title,
-      created: parsed.frontmatter.created || now,
+      created: parsed.frontmatter.created || now.slice(0, 10),
     },
     title: parsed.title,
     body: nextBody,
@@ -307,6 +315,7 @@ function decorateParsedTask(parsed, memberMap, updatedAt = null, pagePath = null
     source_slugs: normalizeSlugList(parsed.frontmatter.source),
     body: parsed.compiledTruth,
     timeline: parsed.timeline,
+    timeline_entries: parsed.timeline_entries,
     markdown: parsed.bodyContentMarkdown,
     updated_at: updatedAt,
   };
@@ -477,7 +486,7 @@ function assertCompletionHandoff({
 } = {}) {
   if (!isExplicitStatusChange || !isTerminalTaskStatus(nextStatus)) return;
   if (isTerminalTaskStatus(previousStatus)) return;
-  const entry = String(timelineEntry || '').trim();
+  const entry = timelineText(timelineEntry);
   if (!hasCompletionHandoff(entry)) throw new Error(COMPLETION_HANDOFF_ERROR);
 }
 
@@ -554,17 +563,6 @@ function normalizeCurrentBody(title, body) {
   const trimmed = body.trim();
   if (/^#\s+/m.test(trimmed)) return trimmed;
   return [`# ${title}`, '', trimmed].join('\n');
-}
-
-function appendTimelineEntry(timeline, entry, date) {
-  return [normalizeTimelineEntries(timeline), `- **${date}** | ${entry}`].filter(Boolean).join('\n');
-}
-
-function normalizeTimelineEntries(timeline) {
-  return String(timeline || '')
-    .trim()
-    .replace(/^##\s+Timeline\s*/i, '')
-    .trim();
 }
 
 function slugify(value) {

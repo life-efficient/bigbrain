@@ -7,6 +7,7 @@ import { isAttachmentSidecarPath, isExcludedPath, matchesIncludeGlobs, shouldSki
 import { isBrainProfileDocument } from './brain-profile.js';
 import { embedTexts } from './openai.js';
 import { extractLinks, parseMarkdownPage, slugFromPath } from './markdown.js';
+import { latestTimelineDate } from './timeline.js';
 
 export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, embedder = embedTexts } = {}) {
   const db = await openDatabase(config);
@@ -23,7 +24,7 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
       const parsed = parseMarkdownPage(raw, slug);
       parsed.pageKind = isAttachmentSidecarPath(relativePath(config.brainDir, fullPath)) ? 'attachment' : 'canonical';
       parsed.path = fullPath;
-      parsed.updatedAt = latestTimelineDate(parsed.timeline) || fileStat.mtime.toISOString();
+      parsed.updatedAt = latestTimelineDate(parsed.timeline_entries) || fileStat.mtime.toISOString();
       parsed.contentHash = sha256(raw);
       parsed.links = extractLinks(raw, slug);
       knownSlugs.add(slug);
@@ -211,11 +212,4 @@ async function walk(rootDir, onFile, relativeDir = '') {
 
 function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex');
-}
-
-function latestTimelineDate(timeline) {
-  if (!timeline) return null;
-  const matches = [...String(timeline).matchAll(/\b(20\d{2}-\d{2}-\d{2})\b/g)];
-  const latest = matches.map((match) => match[1]).sort().at(-1);
-  return latest ? `${latest}T00:00:00.000Z` : null;
 }

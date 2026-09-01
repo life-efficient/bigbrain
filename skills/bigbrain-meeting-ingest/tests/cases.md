@@ -3,6 +3,29 @@
 These cases test the prompt contract in natural language. They do not require
 a persisted action object, status enum, or other fixed workflow schema.
 
+## Generic page body and writer-owned timeline
+
+Prompt:
+
+```text
+Ingest this meeting into its canonical meeting page and transcript sidecar.
+Use the generic page writer. Include the current meeting facts, chronology,
+decisions, discussion context, and owner-labelled next steps.
+```
+
+Expected behavior:
+
+- The current body follows the generic page-writing schema.
+- The page writer receives only current content and adds the single timeline.
+- The meeting skill does not require a fixed list of section headings.
+- Provenance and raw-file association remain in metadata or concise inline links.
+
+Forbidden behavior:
+
+- Supplying `## Timeline` or another writer-owned boundary in the body.
+- Adding a verbose `Source File` or provenance section solely because the page
+  has an attached raw artifact.
+
 ## Task-backed actions use the verified task path
 
 Prompt:

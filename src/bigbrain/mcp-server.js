@@ -34,6 +34,7 @@ import {
   normalizePageVisibility,
   pageVisibility,
   publicRawFiles,
+  quickPageHealthCheck,
   readBrainPage,
   readRawFile,
   renameBrainPage,
@@ -652,12 +653,13 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         pagePath: args.path,
         title: args.title,
         body: args.body,
-        timelineEntry: timelineWithActor(args.timeline_entry, actor),
-        frontmatter: { ...(args.frontmatter || {}), ...sourceAttributionFrontmatter(args) },
+        timelineEntry: timelineForMutation(args, actor),
+        timelineSignificance: args.significance,
+        frontmatter: args.frontmatter || {},
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       await recordWriteProvenance(config, args.path, { ...args.provenance, significance: args.significance }, args.commit_message);
-      return toolJson(page);
+      return toolJson({ ...page, page_health: await quickPageHealthCheck({ config, pagePath: page.path }) });
     }
     case 'create_raw_file_with_page': {
       const result = await createRawFileWithPage({
@@ -669,12 +671,12 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         pagePath: args.page_path,
         title: args.title,
         body: args.body,
-        timelineEntry: timelineWithActor(args.timeline_entry, actor),
-        frontmatter: { ...(args.frontmatter || {}), ...sourceAttributionFrontmatter(args) },
+        timelineEntry: timelineForMutation(args, actor),
+        frontmatter: args.frontmatter || {},
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       await recordWriteProvenance(config, args.page_path || args.raw_path, args.provenance, args.commit_message);
-      return toolJson(result);
+      return toolJson({ ...result, page_health: await quickPageHealthCheck({ config, pagePath: result.page.path }) });
     }
     case 'update_raw_file': {
       const rawFile = await updateRawFile({
@@ -707,8 +709,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         fromPagePath: args.from_path,
         toPagePath: args.to_path,
         title: args.title,
-        timelineEntry: timelineWithActor(args.timeline_entry, actor),
-        frontmatterValues: sourceAttributionFrontmatter(args),
+        timelineEntry: timelineForMutation(args, actor),
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       return toolJson(page);
@@ -718,12 +719,12 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         config,
         pagePath: args.path,
         body: args.body,
-        timelineEntry: timelineWithActor(args.timeline_entry, actor),
-        frontmatterValues: sourceAttributionFrontmatter(args),
+        timelineEntry: timelineForMutation(args, actor),
+        timelineSignificance: args.significance,
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       await recordWriteProvenance(config, args.path, { ...args.provenance, significance: args.significance }, args.commit_message);
-      return toolJson(page);
+      return toolJson({ ...page, page_health: await quickPageHealthCheck({ config, pagePath: page.path }) });
     }
     case 'set_page_visibility': {
       const visibility = normalizePageVisibility(args.visibility);
@@ -732,8 +733,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         pagePath: args.path,
         visibility,
         publicRawFiles: args.public_raw_files,
-        timelineEntry: timelineWithActor(args.timeline_entry || `Visibility set to ${visibility}.`, actor),
-        frontmatterValues: sourceAttributionFrontmatter(args),
+        timelineEntry: timelineForMutation(args, actor, `Visibility set to ${visibility}.`),
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       return toolJson(pageVisibilityToolResponse(page, config, authConfig));
@@ -1086,8 +1086,7 @@ async function toolTasksCreate(config, args, actor, authConfig) {
       executionMode: args.execution_mode || 'agent',
       source: args.source || [],
       path: args.path || null,
-      timelineEntry: timelineWithActor(args.timeline_entry || 'Task created through MCP.', actor),
-      frontmatterValues: sourceAttributionFrontmatter(args),
+      timelineEntries: timelineForMutation(args, actor, 'Task created through MCP.'),
       actor,
       memberResolution: memberResolutionFromAuthConfig(authConfig),
     });
@@ -1110,8 +1109,7 @@ async function toolTasksUpdate(config, args, actor, authConfig) {
       executionMode: args.execution_mode,
       assignees: args.assignees,
       source: args.source,
-      timelineEntry: timelineWithActor(args.timeline_entry || 'Task updated through MCP.', actor),
-      frontmatterValues: sourceAttributionFrontmatter(args),
+      timelineEntry: timelineForMutation(args, actor, 'Task updated through MCP.'),
       actor,
       memberResolution: memberResolutionFromAuthConfig(authConfig),
     });
@@ -1692,19 +1690,20 @@ function toolDefinitions() {
     },
     {
       name: 'create_page',
-      description: 'Create a markdown brain page with frontmatter, current body, and a timeline entry classified by significance.',
+      description: 'Create a markdown brain page. body is the current compiled-truth zone; the writer adds the single timeline boundary and timeline entry classified by significance, then returns a quick read-back page health check.',
       inputSchema: {
         type: 'object',
         properties: {
           ...mutationProperties(),
           path: { type: 'string' },
           title: { type: 'string' },
-          body: { type: 'string' },
-          timeline_entry: { type: 'string' },
+          body: { type: 'string', description: 'Current page content, including compiled truth and any current-context sections. Do not include the separator or ## Timeline; the writer owns them.' },
+          ...timelineInputProperties(),
           significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this timeline update on the owning page: patch, minor, or major.' },
           frontmatter: { type: 'object' },
         },
-        required: ['path', 'title', 'body', 'timeline_entry', 'significance', ...mutationRequired()],
+        required: ['path', 'title', 'body', 'significance', ...mutationRequired()],
+        anyOf: timelineInputRequirements(),
       },
     },
     {
@@ -1720,11 +1719,12 @@ function toolDefinitions() {
           mime_type: { type: 'string' },
           page_path: { type: 'string', description: 'Optional deterministic attachment sidecar path. When supplied it must equal <collection>/.raw/<raw-basename>.md; otherwise it is derived from raw_path.' },
           title: { type: 'string' },
-          body: { type: 'string' },
-          timeline_entry: { type: 'string' },
+          body: { type: 'string', description: 'Current page content, including compiled truth and any current-context sections. Do not include the separator or ## Timeline; the writer owns them.' },
+          ...timelineInputProperties(),
           frontmatter: { type: 'object' },
         },
-        required: ['raw_path', 'title', 'body', 'timeline_entry', ...mutationRequired()],
+        required: ['raw_path', 'title', 'body', ...mutationRequired()],
+        anyOf: timelineInputRequirements(),
       },
     },
     {
@@ -1777,24 +1777,26 @@ function toolDefinitions() {
           from_path: { type: 'string', description: 'Existing markdown page path such as deals/company-specific-teaser.md.' },
           to_path: { type: 'string', description: 'Destination markdown page path such as deals/regional-platform-blind-teaser.md.' },
           title: { type: 'string', description: 'Optional replacement title for the moved page.' },
-          timeline_entry: { type: 'string' },
+          ...timelineInputProperties(),
         },
-        required: ['from_path', 'to_path', 'timeline_entry', ...mutationRequired()],
+        required: ['from_path', 'to_path', ...mutationRequired()],
+        anyOf: timelineInputRequirements(),
       },
     },
     {
       name: 'update_page',
-      description: 'Replace the current body of a markdown brain page and append a timeline entry classified by significance.',
+      description: 'Replace the current compiled-truth/body zone of a markdown brain page and append one writer-managed timeline entry classified by significance. Returns a quick read-back page health check.',
       inputSchema: {
         type: 'object',
         properties: {
           ...mutationProperties(),
           path: { type: 'string' },
-          body: { type: 'string' },
-          timeline_entry: { type: 'string' },
+          body: { type: 'string', description: 'Replacement current page content, including compiled truth and any current-context sections. Do not include the separator or ## Timeline; the writer owns them.' },
+          ...timelineInputProperties(),
           significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this timeline update on the owning page: patch, minor, or major.' },
         },
-        required: ['path', 'body', 'timeline_entry', 'significance', ...mutationRequired()],
+        required: ['path', 'body', 'significance', ...mutationRequired()],
+        anyOf: timelineInputRequirements(),
       },
     },
     {
@@ -2456,7 +2458,7 @@ function pageVisibilitySchema({ requireVisibility }) {
         items: { type: 'string' },
         description: 'Optional explicit raw-file allowlist such as ["ops/.raw/onboarding.pdf"]. Only linked or attached PDF, PNG, JPG, JPEG, WebP, TXT, and CSV files can be served on public pages.',
       },
-      timeline_entry: { type: 'string', description: 'Optional timeline note for the visibility change.' },
+      ...timelineInputProperties(),
     },
     required: [...(requireVisibility ? ['path', 'visibility'] : ['path']), ...mutationRequired()],
   };
@@ -2475,24 +2477,63 @@ function mutationProperties() {
         event_id: { type: 'string', description: 'Stable source event identifier used for idempotency.' },
         source_type: { type: 'string', enum: SOURCE_TYPE_VALUES, description: SOURCE_TYPE_VALUES.map((value) => `${value}: ${SOURCE_TYPE_DEFINITIONS[value].description}`).join(' ') },
         source_label: { type: 'string', description: 'Short AI-selected name for the triggering event, such as a sender, thread, meeting, feed, or chat title.' },
+        origin_id: { type: 'string', description: 'Optional upstream event or provider object identifier.' },
+        listener_id: { type: 'string', description: 'Optional registered listener that delivered the source event.' },
+        source_icon: { type: 'string', description: 'Optional compact source icon identifier.' },
+        source_url: { type: 'string', format: 'uri', description: 'Optional canonical URL for the source event or source item.' },
+        occurred_at: { type: 'string', format: 'date-time', description: 'Optional source event timestamp. Use this when the source event happened before ingestion.' },
+        received_at: { type: 'string', format: 'date-time', description: 'Optional timestamp when the source was received by the integration.' },
+        codex_execution_id: { type: 'string' },
+        codex_thread_id: { type: 'string' },
+        raw_ref: { type: 'string', description: 'Optional reference to retained raw source material.' },
+        outcome: { type: 'string', description: 'Optional processing outcome label.' },
       },
       required: ['event_id', 'source_type', 'source_label'],
     },
   };
 }
 
-function mutationRequired() {
-  return ['commit_message', 'provenance'];
+function timelineInputProperties() {
+  return {
+    timeline_entry: {
+      type: 'string',
+      description: 'Backward-compatible shorthand for one timeline entry. New callers may use timeline for structured entries.',
+    },
+    timeline: {
+      type: 'array',
+      minItems: 1,
+      items: timelineEntrySchema(),
+      description: 'Structured append-only timeline entries. occurred_at defaults to the current time and may be overridden for historical events; recorded_at defaults to the actual write time. Provenance is stored on each entry, not as mutable page-level source metadata.',
+    },
+  };
 }
 
-function sourceAttributionFrontmatter(args = {}) {
-  const provenance = args.provenance || {};
+function timelineEntrySchema() {
   return {
-    event_id: provenance.event_id,
-    source_type: provenance.source_type,
-    source_label: provenance.source_label,
-    commit_message: args.commit_message,
+    type: 'object',
+    properties: {
+      entry_id: { type: 'string', description: 'Optional stable identifier. When omitted, the source event_id is used.' },
+      occurred_at: { type: 'string', description: 'When the underlying event happened: YYYY-MM-DD or an ISO timestamp. Defaults to now.' },
+      timestamp: { type: 'string', format: 'date-time', description: 'Compatibility alias for occurred_at.' },
+      date: { type: 'string', format: 'date', description: 'Compatibility alias for a date-only occurred_at value.' },
+      recorded_at: { type: 'string', format: 'date-time', description: 'When BigBrain recorded the entry. Defaults to the actual write time.' },
+      text: { type: 'string' },
+      provenance: { type: 'object', description: 'Source provenance for this specific timeline entry.' },
+      significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES },
+    },
+    required: ['text'],
   };
+}
+
+function timelineInputRequirements() {
+  return [
+    { required: ['timeline_entry'] },
+    { required: ['timeline'] },
+  ];
+}
+
+function mutationRequired() {
+  return ['commit_message', 'provenance'];
 }
 
 function sharedGroupWriteSchema() {
@@ -2550,7 +2591,7 @@ function taskWriteSchema({ requireBody = false, update = false } = {}) {
       execution_mode: { type: 'string', enum: ['agent', 'user', 'interactive'], description: 'Who can execute the task: agent for autonomous agent-completable work, interactive for guided work needing user judgement/review/decisions, user only for real-world actions Codex cannot perform.' },
       assignees: { type: 'array', items: { type: 'string' }, description: 'Active member person slugs, or me for the authenticated member.' },
       source: { type: 'array', items: { type: 'string' }, description: 'Related brain slugs such as meetings/example or initiatives/example.' },
-      timeline_entry: { type: 'string', description: 'Required when completing or archiving a task. Use "Next task: tasks/<slug>" or "No successor task needed: <reason>".' },
+      ...timelineInputProperties(),
     },
     required: [...(update ? ['path'] : requireBody ? ['title', 'body'] : ['title']), ...mutationRequired()],
   };
@@ -2667,9 +2708,36 @@ function normalizeLimit(value, fallback) {
   return Math.min(Math.floor(number), 50);
 }
 
-function timelineWithActor(entry, actor) {
-  if (!actor?.email) return entry;
-  return `${entry} (via ${actor.email})`;
+function timelineForMutation(args = {}, actor = null, fallback = null) {
+  const input = args.timeline !== undefined
+    ? args.timeline
+    : args.timeline_entry !== undefined
+      ? args.timeline_entry
+      : fallback;
+  if (input === null || input === undefined) return input;
+
+  const enrich = (value) => {
+    const base = value && typeof value === 'object' && !Array.isArray(value)
+      ? { ...value }
+      : { text: value };
+    const rawText = String(base.text ?? base.entry ?? base.timeline_entry ?? '').trim();
+    const text = actor?.email && rawText && !rawText.includes(`(via ${actor.email})`)
+      ? `${rawText} (via ${actor.email})`
+      : rawText;
+    const provenance = {
+      ...(args.provenance || {}),
+      ...(base.provenance || {}),
+    };
+    if (args.commit_message && Object.keys(provenance).length) provenance.commit_message = args.commit_message;
+    return {
+      ...base,
+      text,
+      ...(Object.keys(provenance).length ? { provenance } : {}),
+      ...(base.significance === undefined && args.significance !== undefined ? { significance: args.significance } : {}),
+    };
+  };
+
+  return Array.isArray(input) ? input.map(enrich) : enrich(input);
 }
 
 function backupMessage(actor) {

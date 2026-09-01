@@ -4,6 +4,8 @@ import path from 'node:path';
 import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
 import { parseMarkdownPage } from './markdown.js';
 import { assertSafePublicRawPath, isSafePublicRawPath } from './public-raw-policy.js';
+import { appendTimelineEntries, formatTimelineEntries } from './timeline.js';
+import { validatePageShape } from './schema.js';
 
 export const DEFAULT_COLLECTIONS = [
   'archive',
@@ -59,7 +61,32 @@ export async function readBrainPage({ config, pagePath }) {
     frontmatter_raw: parts.frontmatterRaw,
     body: parsed.compiledTruth,
     timeline: parsed.timeline,
+    timeline_entries: parsed.timeline_entries,
     markdown,
+  };
+}
+
+export async function quickPageHealthCheck({ config, pagePath }) {
+  const relative = normalizePagePath(pagePath);
+  const fullPath = safeBrainPath(config.brainDir, relative);
+  const markdown = await fs.readFile(fullPath, 'utf8');
+  const parsed = parseMarkdownPage(markdown, relative.replace(/\.md$/i, ''));
+  const findings = validatePageShape(parsed);
+  const timelineEvidence = String(parsed.timeline || '')
+    .replace(/^##\s+(?:Timeline|History)\s*\n?/i, '')
+    .trim();
+  return {
+    ok: findings.length === 0,
+    assertions: {
+      frontmatter: parsed.hasFrontmatter,
+      title: Boolean(parsed.title),
+      compiled_truth: Boolean(parsed.compiledTruth.trim()),
+      timeline_boundary: parsed.hasSeparator,
+      timeline_evidence: Boolean(timelineEvidence),
+      timeline_clean: parsed.timeline_clean !== false,
+      single_timeline: parsed.timelineBoundaryCount === 1 && parsed.timelineHeadingCount === 1,
+    },
+    findings,
   };
 }
 
@@ -69,24 +96,29 @@ export async function createBrainPage({
   title,
   body,
   timelineEntry,
+  timelineEntries = null,
+  timelineSignificance = null,
   frontmatter = {},
 }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
   const fullPath = safeBrainPath(config.brainDir, relative);
   if (await exists(fullPath)) throw new Error(`Page already exists: ${relative}`);
+  const currentBody = requireNonEmpty(body, 'body');
+  assertWritablePageBody(currentBody);
 
-  const now = new Date().toISOString().slice(0, 10);
+  const now = new Date().toISOString();
+  const timelineInput = timelineEntries ?? timelineEntry;
   const metadata = {
     title: requireNonEmpty(title, 'title'),
-    created: now,
+    created: now.slice(0, 10),
     ...omitReservedFrontmatter(frontmatter),
   };
   const markdown = renderPageMarkdown({
     frontmatterRaw: renderFrontmatter(metadata),
     title: metadata.title,
-    body: requireNonEmpty(body, 'body'),
-    timeline: formatTimelineEntry(timelineEntry, now),
+    body: currentBody,
+    timeline: formatTimelineEntries(timelineInput, { recordedAt: now, significance: timelineSignificance }),
   });
 
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
@@ -103,6 +135,8 @@ export async function createRawFileWithPage({
   title,
   body,
   timelineEntry,
+  timelineEntries = null,
+  timelineSignificance = null,
   frontmatter = {},
   mimeType = null,
 }) {
@@ -121,8 +155,8 @@ export async function createRawFileWithPage({
 
   const rawBytes = decodeRawContent({ rawContentBase64, rawContentText });
   assertRawFileSize(rawBytes, config);
-  const rawLink = path.posix.relative(path.posix.dirname(pageRelative), rawRelative) || path.posix.basename(rawRelative);
-  const pageBody = appendRawFileSection(requireNonEmpty(body, 'body'), rawRelative, rawLink);
+  const pageBody = requireNonEmpty(body, 'body');
+  assertWritablePageBody(pageBody);
 
   await fs.mkdir(path.dirname(rawFullPath), { recursive: true });
   await fs.writeFile(rawFullPath, rawBytes);
@@ -133,6 +167,8 @@ export async function createRawFileWithPage({
       title,
       body: pageBody,
       timelineEntry,
+      timelineEntries,
+      timelineSignificance,
       frontmatter: {
         ...frontmatter,
         raw_file: rawRelative,
@@ -268,18 +304,21 @@ export async function listRawFiles({
   return normalizedLimit === null ? entries : entries.slice(0, normalizedLimit);
 }
 
-export async function updateBrainPage({ config, pagePath, body, timelineEntry, frontmatterValues = {} }) {
+export async function updateBrainPage({ config, pagePath, body, timelineEntry, timelineEntries = null, timelineSignificance = null, frontmatterValues = {} }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
+  const currentBody = requireNonEmpty(body, 'body');
+  assertWritablePageBody(currentBody);
   const existing = await readBrainPage({ config, pagePath: relative });
-  const now = new Date().toISOString().slice(0, 10);
-  const nextTimeline = appendTimelineEntry(existing.timeline, timelineEntry, now);
+  const now = new Date().toISOString();
+  const timelineInput = timelineEntries ?? timelineEntry;
+  const nextTimeline = appendTimelineEntries(existing.timeline, timelineInput, { recordedAt: now, significance: timelineSignificance });
   let frontmatterRaw = existing.frontmatter_raw;
   for (const [key, value] of Object.entries(frontmatterValues || {})) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
   const markdown = renderPageMarkdown({
     frontmatterRaw,
     title: existing.title,
-    body: requireNonEmpty(body, 'body'),
+    body: currentBody,
     timeline: nextTimeline,
   });
   await fs.writeFile(safeBrainPath(config.brainDir, relative), markdown, 'utf8');
@@ -292,6 +331,8 @@ export async function renameBrainPage({
   toPagePath,
   title = null,
   timelineEntry,
+  timelineEntries = null,
+  timelineSignificance = null,
   frontmatterValues = {},
 }) {
   const fromRelative = normalizePagePath(fromPagePath);
@@ -306,7 +347,8 @@ export async function renameBrainPage({
   if (await exists(toFullPath)) throw new Error(`Page already exists: ${toRelative}`);
 
   const existing = await readBrainPage({ config, pagePath: fromRelative });
-  const now = new Date().toISOString().slice(0, 10);
+  const now = new Date().toISOString();
+  const timelineInput = timelineEntries ?? timelineEntry;
   const nextTitle = title ? requireNonEmpty(title, 'title') : existing.title;
   const nextBody = title ? replaceLeadingHeading(existing.body, existing.title, nextTitle) : existing.body;
   let frontmatterRaw = title
@@ -322,7 +364,7 @@ export async function renameBrainPage({
     frontmatterRaw,
     title: nextTitle,
     body: nextBody,
-    timeline: appendTimelineEntry(existing.timeline, timelineEntry, now),
+    timeline: appendTimelineEntries(existing.timeline, timelineInput, { recordedAt: now, significance: timelineSignificance }),
   });
 
   await fs.mkdir(path.dirname(toFullPath), { recursive: true });
@@ -342,7 +384,7 @@ export async function renameBrainPage({
   };
 }
 
-export async function updatePageVisibility({ config, pagePath, visibility, timelineEntry, publicRawFiles, frontmatterValues = {} }) {
+export async function updatePageVisibility({ config, pagePath, visibility, timelineEntry, timelineEntries = null, timelineSignificance = null, publicRawFiles, frontmatterValues = {} }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
   const nextVisibility = normalizePageVisibility(visibility);
@@ -355,7 +397,8 @@ export async function updatePageVisibility({ config, pagePath, visibility, timel
       throw new Error('Attachment sidecars publish only their same-basename raw_file; public_raw_files cannot expose siblings.');
     }
   }
-  const now = new Date().toISOString().slice(0, 10);
+  const now = new Date().toISOString();
+  const timelineInput = timelineEntries ?? timelineEntry ?? `Visibility set to ${nextVisibility}.`;
   let frontmatterRaw = setFrontmatterValue(existing.frontmatter_raw, 'visibility', nextVisibility);
   if (publicRawFiles !== undefined) {
     frontmatterRaw = setFrontmatterValue(
@@ -369,7 +412,7 @@ export async function updatePageVisibility({ config, pagePath, visibility, timel
     frontmatterRaw,
     title: existing.title,
     body: existing.body,
-    timeline: appendTimelineEntry(existing.timeline, timelineEntry || `Visibility set to ${nextVisibility}.`, now),
+    timeline: appendTimelineEntries(existing.timeline, timelineInput, { recordedAt: now, significance: timelineSignificance }),
   });
   await fs.writeFile(safeBrainPath(config.brainDir, relative), markdown, 'utf8');
   return readBrainPage({ config, pagePath: relative });
@@ -527,6 +570,13 @@ function normalizeCurrentBody(title, body) {
   return [`# ${title}`, '', trimmed].join('\n');
 }
 
+export function assertWritablePageBody(body) {
+  const value = String(body || '');
+  if (/^##\s+(?:Timeline|History)\s*$/im.test(value) || /<!--\s*timeline\s*-->/i.test(value)) {
+    throw new Error('Page body must contain current content only; the timeline boundary and timeline are writer-managed.');
+  }
+}
+
 function replaceLeadingHeading(body, oldTitle, nextTitle) {
   const lines = String(body || '').split('\n');
   const index = lines.findIndex((line) => line.trim());
@@ -573,30 +623,6 @@ function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function appendTimelineEntry(timeline, entry, date) {
-  const formatted = formatTimelineEntry(entry, date);
-  return [normalizeTimelineEntries(timeline), formatted].filter(Boolean).join('\n');
-}
-
-function normalizeTimelineEntries(timeline) {
-  return String(timeline || '')
-    .trim()
-    .replace(/^---\s*/i, '')
-    .replace(/^##\s+Timeline\s*/i, '')
-    .trim();
-}
-
-function appendRawFileSection(body, rawRelative, rawLink) {
-  const label = path.posix.basename(rawRelative);
-  return [
-    body.trim(),
-    '',
-    '## Source File',
-    '',
-    `- [${label}](${rawLink})`,
-  ].join('\n');
-}
-
 function decodeRawContent({ rawContentBase64, rawContentText }) {
   const hasBase64 = typeof rawContentBase64 === 'string' && rawContentBase64.length > 0;
   const hasText = typeof rawContentText === 'string' && rawContentText.length > 0;
@@ -622,12 +648,6 @@ function formatBytes(bytes) {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
   return `${bytes} bytes`;
-}
-
-function formatTimelineEntry(entry, date) {
-  const text = requireNonEmpty(entry, 'timeline_entry');
-  if (/^\s*-\s+\*\*\d{4}-\d{2}-\d{2}\*\*/.test(text)) return text.trim();
-  return `- **${date}** | ${text.trim()}`;
 }
 
 function splitPageMarkdown(markdown) {

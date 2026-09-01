@@ -15,6 +15,7 @@ Turn one meeting transcript, summary, or set of call notes into a verified canon
 - Delegated completion is an intermediate result. It never implies that the caller's routing, ledger, cursor, batch, or reporting lifecycle is complete.
 - One canonical meeting page is used across preparation and post-meeting updates, and existing `## Prep` content is preserved.
 - The meeting page contains an evidence-backed summary, decisions, actual-owner action items, and discussion context.
+- Follow the generic page-writing schema for the current page body; do not define a meeting-specific page contract.
 - Valuable raw transcripts and attachments follow live filing rules and have verified same-basename indexed sidecars.
 - Speaker, responsible actor, and commitment strength remain distinct, with transcript evidence preferred over generated-summary attribution when they conflict.
 - Candidate task changes pass through `$bigbrain-action-review`; external actions and optional offers remain useful context without becoming backlog tasks unless a member owns a concrete follow-up.
@@ -66,7 +67,8 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
    - Review transcripts for specifically unsafe, slanderous, highly personal, or sensitive spans. Redact only the unsafe span when required and leave a clear marker.
    - Anti-patterns: conflating speaker with actor, treating a request as acceptance, converting optional help into a commitment, broad redaction, promoting a summary inference over transcript evidence
 4. Plan the canonical meeting and source artifacts.
-   - Keep or create one meeting page with `## Prep`, `## Summary`, `## Key Decisions`, `## Action Items`, and `## Discussion Notes` as applicable under live filing rules.
+   - Compose the current meeting page from the supported facts, chronology, decisions, discussion context, and owner-labelled actions. Preserve existing `## Prep` content when present, but do not require fixed meeting headings.
+   - Send only current page content to the generic page writer. Do not include its separator, `## Timeline`, or a verbose provenance or raw-file wrapper section.
    - Record external actions with their actual owner and preserve optional offers in the most natural meeting, sidecar, deal, project, or relationship context.
    - Keep comprehensive transcript extraction and document-specific synthesis in the indexed sidecar rather than forcing raw dumps into the canonical meeting page.
    - Store each valuable raw artifact at the path required by filing rules and create its deterministic same-basename indexed sidecar.
