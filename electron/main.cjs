@@ -259,6 +259,7 @@ function createMainWindow({ setup = false } = {}) {
 
 async function showSetupFlow() {
   if (!mainWindow || mainWindow.isDestroyed()) return false;
+  loadFailureActive = false;
   setDashboardViewVisible(false);
   const shellUrl = pathToFileURL(path.join(__dirname, "desktop.html"));
   shellUrl.searchParams.set("setup", "1");
@@ -938,6 +939,7 @@ function showLoadFailure(message) {
   loadFailureActive = true;
   pendingLoadFailureMessage = String(message || "The dashboard did not finish loading.");
   recordAppError(app, "dashboard-load-failure", new Error(pendingLoadFailureMessage));
+  activeDashboardAuthorization = null;
   setDashboardViewVisible(false);
   void mainWindow.loadFile(LOAD_FAILURE_PAGE_PATH).catch((error) => {
     dialog.showErrorBox("BigBrain dashboard unavailable", error instanceof Error ? error.message : String(error));
