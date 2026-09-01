@@ -5,6 +5,7 @@ const path = require("path");
 const { spawn, execFileSync } = require("child_process");
 
 const APP_NAME = "BigBrain";
+const DEV_DISPLAY_NAME = "BigBrain Dev";
 const DEV_APP_NAME = `${APP_NAME}.app`;
 const DEV_BUNDLE_ID = "ai.diffusing.bigbrain.dashboard.dev";
 const ROOT_DIR = path.resolve(__dirname, "..");
@@ -106,8 +107,8 @@ function prepareDevAppBundle() {
     fs.writeFileSync(STAMP_PATH, expectedStamp);
   }
 
-  setPlistValue("CFBundleName", APP_NAME);
-  setPlistValue("CFBundleDisplayName", APP_NAME);
+  setPlistValue("CFBundleName", DEV_DISPLAY_NAME);
+  setPlistValue("CFBundleDisplayName", DEV_DISPLAY_NAME);
   setPlistValue("CFBundleIdentifier", DEV_BUNDLE_ID);
   setPlistValue("CFBundleIconFile", "app-icon.icns");
   setPlistValue("LSApplicationCategoryType", "public.app-category.productivity");

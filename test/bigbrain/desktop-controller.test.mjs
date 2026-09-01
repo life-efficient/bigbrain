@@ -406,10 +406,13 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(mainSource, /will-frame-navigate/);
   assert.match(mainSource, /desktop:api-key-options/);
   assert.match(mainSource, /BIGBRAIN_DASHBOARD_DEV/);
+  assert.match(mainSource, /DEV_BUILD \? "BigBrain Dev" : "BigBrain"/);
   assert.match(mainSource, /desktop-dev-icon\.png/);
   assert.match(mainSource, /app\.setPath\("userData", path\.join\(app\.getPath\("appData"\), "BigBrain Dev"\)\)/);
   assert.match(mainSource, /app\.isPackaged && !DEV_BUILD/);
   assert.match(devLauncherSource, /desktop-dev-app-icon\.icns/);
+  assert.match(devLauncherSource, /DEV_DISPLAY_NAME = "BigBrain Dev"/);
+  assert.match(devLauncherSource, /setPlistValue\("CFBundleDisplayName", DEV_DISPLAY_NAME\)/);
   assert.ok(devIcon.size > 0);
   assert.ok(devIconSet.size > 0);
   assert.match(mainSource, /desktop:discover-brains/);

@@ -6,11 +6,11 @@ const { dashboardPartition, dashboardViewBounds, isAllowedDashboardNavigation } 
 const { waitForDashboardReady } = require("./lib/dashboard-readiness.cjs");
 const { recordAppError } = require("./lib/local-error-log.cjs");
 
-const APP_DISPLAY_NAME = "BigBrain";
 const LOCAL_HOST = "127.0.0.1";
 const DEFAULT_WINDOW_SIZE = { width: 1079, height: 945 };
 const DESKTOP_CHROME_HEIGHT = 0;
 const DEV_BUILD = process.env.BIGBRAIN_DASHBOARD_DEV === "1";
+const APP_DISPLAY_NAME = DEV_BUILD ? "BigBrain Dev" : "BigBrain";
 const APP_ICON_PATH = path.join(__dirname, "assets", DEV_BUILD ? "desktop-dev-icon.png" : "desktop-icon.png");
 const LOAD_FAILURE_PAGE_PATH = path.join(__dirname, "load-failure.html");
 const REMOTE_DASHBOARD_URL_ENV = "BIGBRAIN_DASHBOARD_URL";
