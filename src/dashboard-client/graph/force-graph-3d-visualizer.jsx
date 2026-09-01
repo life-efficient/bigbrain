@@ -235,6 +235,8 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       hideFocusLabel();
       cancelInitialGraphReveal(forceGraph);
       cancelGraphTransitionLoop(forceGraph);
+      forceGraph.__bigBrainDisposed = true;
+      cancelScheduledForceGraphReheat(forceGraph);
       forceGraph._destructor?.();
       graphRef.current = null;
     };
@@ -460,7 +462,7 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
     }
     forceGraph.__bigBrainFitPending = options.fitAfterUpdate ?? !wasInitialized;
     forceGraph.graphData(data);
-    if (wasInitialized) forceGraph.d3ReheatSimulation?.();
+    if (wasInitialized) scheduleForceGraphReheat(forceGraph);
   } else {
     updateForceGraphNodeObjects(forceGraph, settings);
   }
@@ -499,6 +501,20 @@ function resolveForceGraphLinkEndpoints(data) {
       link.target = target;
     }
   }
+}
+
+function scheduleForceGraphReheat(forceGraph) {
+  cancelScheduledForceGraphReheat(forceGraph);
+  forceGraph.__bigBrainReheatFrame = window.requestAnimationFrame(() => {
+    forceGraph.__bigBrainReheatFrame = 0;
+    if (!forceGraph.__bigBrainDisposed) forceGraph.d3ReheatSimulation?.();
+  });
+}
+
+function cancelScheduledForceGraphReheat(forceGraph) {
+  if (!forceGraph?.__bigBrainReheatFrame) return;
+  window.cancelAnimationFrame(forceGraph.__bigBrainReheatFrame);
+  forceGraph.__bigBrainReheatFrame = 0;
 }
 
 function startInitialGraphReveal(forceGraph, stages, settings, focusSlug) {
