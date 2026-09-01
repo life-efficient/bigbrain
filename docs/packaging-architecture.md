@@ -105,8 +105,9 @@ The desktop app should become a controller for the device-managed service:
 
 Creating a Brain remains a desktop action. For a local Brain, the desktop
 initializes the selected folder and calls the local runner to install or start
-the independent MCP instance. For a hosted Brain, the same desktop flow will
-eventually call the hosting provisioner and then save the returned connection.
+the independent MCP instance. The desktop also exposes the future hosted Brain
+path and its Railway provisioner boundary, but currently stops with a clear WIP
+message before sending any Brain details or creating a remote service.
 
 ### Service Ownership And Updates
 

@@ -6,7 +6,7 @@ import path from 'node:path';
 import vm from 'node:vm';
 import { BrainRegistry, REGISTRY_VERSION, allocatePort } from '../../electron/lib/brain-registry.mjs';
 import { connectionInstructions } from '../../electron/lib/connection-instructions.mjs';
-import { DesktopController, normalizeServiceUrl } from '../../electron/lib/desktop-controller.mjs';
+import { DesktopController, normalizeServiceUrl, REMOTE_PROVISIONING_WIP_MESSAGE } from '../../electron/lib/desktop-controller.mjs';
 import { DisabledManagedInferenceClient, DisabledAuthProvider, DisabledEntitlementProvider, NoopUsageMeter } from '../../electron/lib/access-providers.mjs';
 import { redactSecrets } from '../../electron/lib/keychain.mjs';
 
@@ -277,6 +277,45 @@ test('desktop refuses to install or restart source, unknown, and remote services
   }
 });
 
+test('desktop delegates local service lifecycle to LocalMcpRunner', async () => {
+  const calls = [];
+  const runner = {
+    provision: async (brain, options) => {
+      calls.push({ action: 'provision', brain, options });
+      return 'installer-output';
+    },
+    restart: async (brain) => {
+      calls.push({ action: 'restart', brain });
+    },
+  };
+  const brain = {
+    ...localRegistryBrain('local', '/tmp/local-brain'),
+    serviceOwnership: 'desktop_bundle',
+  };
+  const registry = {
+    load: async () => ({ version: 2, activeBrainId: brain.id, brains: [brain] }),
+    update: async (_id, updates) => ({ ...brain, ...updates }),
+  };
+  const controller = new DesktopController({ registry, localMcpRunner: runner });
+
+  assert.equal(await controller.installService(brain, { ownerSlug: 'people/harry', gitBackup: false }), 'installer-output');
+  await controller.restart(brain.id);
+  assert.equal(calls[0].action, 'provision');
+  assert.deepEqual(calls[0].options, { ownerSlug: 'people/harry', gitBackup: false });
+  assert.equal(calls[1].action, 'restart');
+});
+
+test('desktop exposes Railway provisioning as an explicit WIP blocker', async () => {
+  const controller = new DesktopController();
+  await assert.rejects(() => controller.provisionRemoteBrain({ name: 'Remote Brain' }), new RegExp(REMOTE_PROVISIONING_WIP_MESSAGE));
+  const state = await controller.state();
+  assert.deepEqual(state.desktop.remote_provisioning, {
+    provider: 'railway',
+    state: 'wip',
+    message: REMOTE_PROVISIONING_WIP_MESSAGE,
+  });
+});
+
 test('desktop handles a missing local service installer as a recoverable app error', async () => {
   const controller = new DesktopController({ appPath: '/tmp/bigbrain-desktop-bundle-that-does-not-exist' });
   await assert.rejects(
@@ -430,6 +469,9 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(desktopSource, /Back up to a private GitHub repository/);
   assert.match(desktopSource, /document\.querySelector\('#app'\)\.classList\.add\('hidden'\)/);
   assert.match(desktopSource, /Connect to an existing BigBrain/);
+  assert.match(desktopSource, /Create a remote brain on Railway/);
+  assert.match(desktopSource, /provisionRemoteBrain/);
+  assert.match(desktopSource, /Remote provisioning is coming next/);
   assert.match(desktopSource, /api\.connectService/);
   assert.match(desktopSource, /api\.apiKeyOptions/);
   assert.match(desktopSource, /api\.discoverBrains/);
@@ -445,6 +487,7 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(desktopSource, /step === 5 && form\.setupKind === 'existing-local'/);
   assert.match(desktopHtml, /7\. Ready/);
   assert.match(preloadSource, /desktop:connect-service/);
+  assert.match(preloadSource, /desktop:provision-remote-brain/);
   assert.match(preloadSource, /desktop:api-key-options/);
   assert.match(preloadSource, /desktop:discover-brains/);
   assert.match(preloadSource, /desktop:open-brain/);

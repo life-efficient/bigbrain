@@ -14,6 +14,7 @@ if (isDesktopShell) {
     apiKeyOptions: (input) => ipcRenderer.invoke('desktop:api-key-options', input),
     createBrain: (input) => ipcRenderer.invoke('desktop:create-brain', input),
     connectService: (input) => ipcRenderer.invoke('desktop:connect-service', input),
+    provisionRemoteBrain: (input) => ipcRenderer.invoke('desktop:provision-remote-brain', input),
     openBrain: (id) => ipcRenderer.invoke('desktop:open-brain', id),
     setDashboardVisible: (visible) => ipcRenderer.invoke('desktop:set-dashboard-visible', visible),
     onDashboardVisibility: (listener) => {

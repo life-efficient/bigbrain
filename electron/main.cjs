@@ -659,6 +659,7 @@ function registerDesktopIpc() {
       await eventRuntimeManager?.start();
       return brain;
     },
+    "desktop:provision-remote-brain": (_event, input) => desktopController.provisionRemoteBrain(input),
     "desktop:open-brain": async (_event, id) => {
       const activated = await desktopController.activate(id);
       const brain = rememberConnectedDashboardOrigins(await desktopController.checkConnection(activated.id));

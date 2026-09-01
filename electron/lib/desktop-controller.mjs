@@ -1,17 +1,15 @@
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import { BrainRegistry, SERVICE_OWNERSHIPS } from './brain-registry.mjs';
 import { MacKeychain, redactSecrets } from './keychain.mjs';
 import { connectionInstructions } from './connection-instructions.mjs';
 import { classifyLaunchAgentOwnership, findBrainLaunchAgent } from './launch-agent-discovery.mjs';
 import { discoverLocalBrains, findBrainConfigPath } from './brain-discovery.mjs';
-import { formatServiceInstallError } from './service-errors.mjs';
+import { LocalMcpRunner } from './local-mcp-runner.mjs';
 import { assessMcpCompatibility, desktopMcpSupportMetadata } from '../../src/bigbrain/mcp-compatibility.js';
 
-const execFileAsync = promisify(execFile);
+export const REMOTE_PROVISIONING_WIP_MESSAGE = 'Remote Brain provisioning through Railway is not available yet. No remote service was created.';
 
 export class DesktopController {
   constructor({
@@ -26,6 +24,7 @@ export class DesktopController {
     launchAgentsDir = null,
     clientVersion = null,
     now = () => new Date(),
+    localMcpRunner = null,
   } = {}) {
     this.registry = registry;
     this.keychain = keychain;
@@ -38,6 +37,7 @@ export class DesktopController {
     this.userEnvFile = userEnvFile || path.join(this.home, '.config', 'bigbrain', '.env');
     this.clientVersion = clientVersion;
     this.now = now;
+    this.localMcpRunner = localMcpRunner || new LocalMcpRunner({ appPath, nodePath, env });
   }
 
   async state() {
@@ -47,6 +47,11 @@ export class DesktopController {
       desktop: {
         version: this.clientVersion,
         supported_mcp: desktopMcpSupportMetadata(),
+        remote_provisioning: {
+          provider: 'railway',
+          state: 'wip',
+          message: REMOTE_PROVISIONING_WIP_MESSAGE,
+        },
       },
       brains: registry.brains.map(publicBrain),
     };
@@ -251,6 +256,10 @@ export class DesktopController {
     }));
   }
 
+  async provisionRemoteBrain() {
+    throw new Error(REMOTE_PROVISIONING_WIP_MESSAGE);
+  }
+
   async checkConnection(id) {
     const registry = await this.loadClassifiedRegistry();
     const brain = registry.brains.find((item) => item.id === id);
@@ -289,36 +298,7 @@ export class DesktopController {
     if (brain.serviceOwnership !== SERVICE_OWNERSHIPS.DESKTOP_BUNDLE) {
       throw new Error('Only a desktop-bundle service can be installed by the BigBrain desktop app.');
     }
-    if (!this.appPath) {
-      throw new Error('BigBrain cannot manage local services because the desktop app path is unavailable. Restart or reinstall BigBrain, then retry.');
-    }
-    const installer = path.join(this.appPath, 'scripts/install-local-mcp-service.mjs');
-    const args = [installer, '--repo-root', this.appPath, '--brain-home', brain.home, '--port', String(brain.port), '--label', brain.serviceLabel,
-      '--local-person-slug', ownerSlug || '', '--local-owner-email', brain.owner?.email || '', '--local-owner-name', brain.owner?.name || '', '--keychain-account', brain.id,
-      '--service-manager', 'desktop', '--service-source', 'desktop-bundle', gitBackup ? '--git-backup' : '--no-git-backup'];
-    if (brain.replacedService?.plistPath && brain.replacedService.label !== brain.serviceLabel) args.push('--replace-plist', brain.replacedService.plistPath);
-    if (this.nodePath === process.execPath && process.versions.electron) args.push('--electron-run-as-node');
-    try {
-      await fs.access(installer);
-    } catch (error) {
-      throw new Error(formatServiceInstallError(error, {
-        brainName: brain.name,
-        port: brain.port,
-        installerPath: installer,
-      }), { cause: error });
-    }
-    try {
-      await execFileAsync(this.nodePath, args, {
-        env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
-        maxBuffer: 128 * 1024,
-      });
-    } catch (error) {
-      throw new Error(formatServiceInstallError(error, {
-        brainName: brain.name,
-        port: brain.port,
-        installerPath: installer,
-      }), { cause: error });
-    }
+    return this.localMcpRunner.provision(brain, { ownerSlug, gitBackup });
   }
 
   async activate(id) { return publicBrain(await this.registry.activate(id)); }
@@ -355,7 +335,7 @@ export class DesktopController {
     if (brain.serviceOwnership !== SERVICE_OWNERSHIPS.DESKTOP_BUNDLE) {
       throw new Error('This local BigBrain service is not managed by the desktop app.');
     }
-    await execFileAsync('launchctl', ['kickstart', '-k', `gui/${process.getuid()}/${brain.serviceLabel}`]);
+    await this.localMcpRunner.restart(brain);
     return publicBrain(await this.registry.update(id, { status: 'running' }));
   }
   async setDefault(id) {

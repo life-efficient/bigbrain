@@ -40,9 +40,12 @@ function render() {
     3: `<h1>Check the connection</h1><p>The desktop app will verify the BigBrain service and save this connection on this Mac.</p><div class="existing-box"><strong>BigBrain service</strong><small>${escapeHtml(form.serviceUrl || 'Enter a service address in the previous step.')}</small></div>${actions(true)}`,
     4: `<h1>Ready to connect</h1><p>If this BigBrain requires sign-in, you’ll be asked to sign in when its dashboard opens.</p><div id="error"></div>${actions(true, 'Connect BigBrain')}`,
   };
+  const remotePages = {
+    2: `<h1>Create a remote brain</h1><p>This will eventually provision an isolated BigBrain service on Railway and return its MCP connection to this desktop.</p>${field('name', 'Brain name', 'AI Infrastructure Atlas')}${textarea('description', 'Description', 'What should this remote brain contain?')}<div class="credential-note"><strong>Railway provisioning</strong><br>Private deployment, service credentials, and billing setup will be handled in the next version.</div>${stepError()}${actions(true, 'Provision on Railway')}`,
+  };
   const pages = {
-    1: `<h1>How do you want to add this brain?</h1><p>Choose whether to create a new private local brain, use a brain folder already on this Mac, or connect to a brain that is already running somewhere else.</p>${discoveredBrainPicker()}<button class="choice choice-option" data-mode="local" data-setup-kind="new-local"><strong>Create a new private local brain</strong><p>Start with a name, description, folder, privacy, backup, and AI connection.</p></button><button class="choice choice-option" data-mode="local" data-setup-kind="existing-local"><strong>Use an existing brain folder on this Mac</strong><p>Adopt an existing BigBrain repository without moving its files.</p></button><button class="choice choice-option" data-mode="service"><strong>Connect to an existing remote brain</strong><p>Enter the address of a BigBrain service already running elsewhere.</p></button><div class="setup-exit"><button class="secondary" type="button" data-cancel>Cancel setup</button></div>`,
-    ...(form.mode === 'service' ? servicePages : form.setupKind === 'existing-local' ? existingLocalPages : localPages),
+    1: `<h1>How do you want to add this brain?</h1><p>Choose whether to create a new private local brain, use a brain folder already on this Mac, connect to a brain that is already running elsewhere, or start a hosted Brain setup.</p>${discoveredBrainPicker()}<button class="choice choice-option" data-mode="local" data-setup-kind="new-local"><strong>Create a new private local brain</strong><p>Start with a name, description, folder, privacy, backup, and AI connection.</p></button><button class="choice choice-option" data-mode="local" data-setup-kind="existing-local"><strong>Use an existing brain folder on this Mac</strong><p>Adopt an existing BigBrain repository without moving its files.</p></button><button class="choice choice-option" data-mode="service"><strong>Connect to an existing remote brain</strong><p>Enter the address of a BigBrain service already running elsewhere.</p></button><button class="choice choice-option" data-mode="remote" data-setup-kind="railway-provision"><strong>Create a remote brain on Railway</strong><p>Start the hosted provisioning flow. Railway setup is currently a work in progress.</p></button><div class="setup-exit"><button class="secondary" type="button" data-cancel>Cancel setup</button></div>`,
+    ...(form.mode === 'service' ? servicePages : form.mode === 'remote' ? remotePages : form.setupKind === 'existing-local' ? existingLocalPages : localPages),
   };
 
   content.innerHTML = pages[step] || pages[1];
@@ -67,6 +70,7 @@ function render() {
   content.querySelectorAll('[data-mode]').forEach((element) => element.addEventListener('click', () => {
     form.mode = element.dataset.mode;
     form.setupKind = element.dataset.setupKind || (form.mode === 'service' ? 'remote-service' : 'new-local');
+    form.hosting = form.mode === 'remote' ? 'remote' : 'local';
     step = 2;
     render();
   }));
@@ -95,6 +99,8 @@ function stepError() {
 function renderSteps() {
   const labels = form.mode === 'service'
     ? ['1. Choose path', '2. Address', '3. Review', '4. Ready']
+    : form.mode === 'remote'
+      ? ['1. Choose path', '2. Railway setup']
     : form.setupKind === 'existing-local'
       ? ['1. Choose path', '2. Folder', '3. Review', '4. Owner', '5. Connect', '6. Ready']
       : form.mode === 'local'
@@ -236,7 +242,7 @@ async function loadApiKeyOptions() {
 }
 
 async function next() {
-  const finalStep = form.mode === 'service' ? 4 : form.setupKind === 'existing-local' ? 5 : 7;
+  const finalStep = form.mode === 'service' ? 4 : form.mode === 'remote' ? 2 : form.setupKind === 'existing-local' ? 5 : 7;
   if (step < finalStep) {
     if (!validateStep()) return;
     step += 1;
@@ -246,19 +252,27 @@ async function next() {
   }
 
   const button = content.querySelector('[data-next]');
+  if (form.mode === 'remote' && !validateStep()) return;
   button.disabled = true;
   const service = form.mode === 'service';
-  button.textContent = service ? 'Checking and connecting…' : form.setupKind === 'existing-local' ? 'Adding and checking your brain…' : 'Creating and checking your brain…';
+  button.textContent = service ? 'Checking and connecting…' : form.mode === 'remote' ? 'Starting Railway setup…' : form.setupKind === 'existing-local' ? 'Adding and checking your brain…' : 'Creating and checking your brain…';
   try {
     if (service) {
       const brain = await api.connectService({ serviceUrl: form.serviceUrl });
       showServiceConnection(brain);
+    } else if (form.mode === 'remote') {
+      await api.provisionRemoteBrain(form);
+      showRemoteProvisionWip();
     } else {
       const result = await api.createBrain(form);
       form.apiKey = '';
       showConnection(result);
     }
   } catch (error) {
+    if (form.mode === 'remote') {
+      showRemoteProvisionWip(error.message);
+      return;
+    }
     content.querySelector('#error').innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;
     button.disabled = false;
     button.textContent = service ? 'Connect BigBrain' : form.setupKind === 'existing-local' ? 'Add existing brain' : 'Run BigBrain';
@@ -272,6 +286,9 @@ function validateStep() {
   }
   if (form.setupKind === 'new-local' && step === 6 && !form.newHome && !form.existingHome) {
     return showStepError('Choose a folder for this private local brain.');
+  }
+  if (form.mode === 'remote' && step === 2 && (!form.name?.trim() || !form.description?.trim())) {
+    return showStepError('Give the remote brain a name and a short description before continuing.');
   }
   if (form.setupKind === 'existing-local' && step === 2 && !form.existingHome) {
     return showStepError('Choose an existing BigBrain folder.');
@@ -294,6 +311,17 @@ function showServiceConnection(brain) {
   renderSteps();
   content.innerHTML = `<h1>BigBrain connected</h1><p>${escapeHtml(brain?.name || 'This service')} is saved on this Mac. Open BigBrain to use its dashboard.</p><div class="actions"><span></span><button class="primary" id="open">Open BigBrain</button></div>`;
   document.querySelector('#open').onclick = loadApp;
+}
+
+function showRemoteProvisionWip(message = 'Railway provisioning is not available yet. No remote service was created.') {
+  step = 2;
+  renderSteps();
+  content.innerHTML = `<h1>Remote provisioning is coming next</h1><p>${escapeHtml(message)}</p><div class="warning"><strong>Work in progress</strong><br>This flow is ready for the Railway provisioner, but it has not been connected yet. Your Brain details were not sent anywhere and no remote service was created.</div><div class="actions"><button class="secondary" id="choose-another-path">Choose another path</button><span></span></div>`;
+  content.querySelector('#choose-another-path').onclick = () => {
+    form = emptyForm();
+    step = 1;
+    render();
+  };
 }
 
 function showConnection(result) {
