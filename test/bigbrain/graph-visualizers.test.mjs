@@ -42,6 +42,7 @@ import {
   graphTransitionProgress,
   prepareGraphTransitionData,
 } from '../../src/dashboard-client/graph/graph-transition.js';
+import { prepareForceGraphData } from '../../src/dashboard-client/graph/force-graph-data.js';
 import {
   GRAPH_NODE_SIZES,
   getGraphNodeScreenScale,
@@ -312,6 +313,19 @@ test('initial graph reveal remains enabled for the current-sized Brain', () => {
   assert.equal(stages.at(-1).nodes.length, nodes.length);
 });
 
+test('force graph snapshots isolate links and keep endpoints as node ids', () => {
+  const source = { id: 'pages/source', slug: 'pages/source', x: 10 };
+  const target = { id: 'pages/target', slug: 'pages/target', y: 20 };
+  const link = { id: 'source-target', source, target, color: '#fff' };
+  const snapshot = prepareForceGraphData({ nodes: [source, target], links: [link] });
+
+  assert.notEqual(snapshot.links[0], link);
+  assert.equal(snapshot.links[0].source, source.id);
+  assert.equal(snapshot.links[0].target, target.id);
+  assert.equal(link.source, source);
+  assert.equal(link.target, target);
+});
+
 test('force renderers focus eligible live page changes without remounting', async () => {
   const [main, force2d, force3d] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
@@ -338,8 +352,8 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(force2d, /updateForceGraphActivity\(forceGraph, data, \[target\.slug\]/);
   assert.match(force3d, /updateForceGraphActivity\(forceGraph, data, \[target\.slug\]/);
   assert.match(main, /const forceSourceNodes = timelineFilteredNodes/);
-  assert.match(force2d, /forceGraph\.d3ReheatSimulation\?\.\(\)/);
-  assert.match(force3d, /forceGraph\.d3ReheatSimulation\?\.\(\)/);
+  assert.doesNotMatch(force2d, /scheduleForceGraphReheat|forceGraph\.d3ReheatSimulation\?\.\(\)/);
+  assert.doesNotMatch(force3d, /scheduleForceGraphReheat|forceGraph\.d3ReheatSimulation\?\.\(\)/);
   assert.match(force2d, /startGraphTransitionLoop/);
   assert.match(force3d, /startGraphTransitionLoop/);
   assert.match(force2d, /graphTransitionActive\(node\)/);
