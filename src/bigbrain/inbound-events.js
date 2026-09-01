@@ -1031,8 +1031,9 @@ export function provenanceForEvent(event, { capturedAs = null } = {}) {
     listener_id: event.listener_id,
     source_type: sourceType,
     source_label: sourceLabel,
+    source_message: sourceMessageForEvent(event, sourceLabel),
     source_icon: event.source?.icon || null,
-    source_endpoint: event.source?.endpoint || null,
+    source_url: event.source?.endpoint || null,
     codex_thread_id: event.thread_id || null,
     codex_execution_id: event.execution_id || null,
     occurred_at: event.occurred_at || null,
@@ -1040,6 +1041,33 @@ export function provenanceForEvent(event, { capturedAs = null } = {}) {
     raw_ref: event.raw_ref || event.metadata?.raw_ref || null,
     outcome: capturedAs ? `captured:${capturedAs}` : 'filed',
   };
+}
+
+function sourceMessageForEvent(event, fallback) {
+  const payload = event?.payload && typeof event.payload === 'object' ? event.payload : {};
+  const payloadText = typeof event?.payload === 'string' ? event.payload : null;
+  const sourceDocument = event?.metadata?.source_document && typeof event.metadata.source_document === 'object'
+    ? event.metadata.source_document
+    : {};
+  const candidates = [
+    event?.source_message,
+    event?.metadata?.source_message,
+    payloadText,
+    payload.message,
+    payload.text,
+    payload.body,
+    payload.content,
+    payload.subject,
+    payload.title,
+    payload.description,
+    sourceDocument.message,
+    sourceDocument.text,
+    sourceDocument.subject,
+    event?.source?.description,
+    fallback,
+  ];
+  const value = candidates.find((candidate) => typeof candidate === 'string' && candidate.trim());
+  return String(value || fallback || 'Source message unavailable').trim().slice(0, 4000);
 }
 
 export function sourceTypeForEvent(event) {

@@ -35,7 +35,16 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
       title: 'Jordan Lee',
       body: 'Jordan Lee is a example contact for Example Brain.',
       timelineEntry: 'Created from MCP contribution.',
-      frontmatter: { tags: ['example-brain', 'person'], visibility: 'public', public: true },
+      frontmatter: {
+        tags: ['example-brain', 'person'],
+        visibility: 'public',
+        public: true,
+        source_type: 'gmail',
+        source_label: 'Legacy source label',
+        source_message: 'Legacy source message',
+        source_url: 'https://example.test/source',
+        commit_message: 'Legacy page metadata',
+      },
     });
 
     assert.equal(created.path, 'people/jordan-lee.md');
@@ -47,6 +56,11 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
     assert.equal(created.type, 'people');
     assert.match(created.markdown, /^---\ntitle: Jordan Lee\ncreated: \d{4}-\d{2}-\d{2}\ntags: \[example-brain, person\]\n---/);
     assert.doesNotMatch(created.markdown, /^type:/m);
+    assert.doesNotMatch(created.markdown, /^source_type:/m);
+    assert.doesNotMatch(created.markdown, /^source_label:/m);
+    assert.doesNotMatch(created.markdown, /^source_message:/m);
+    assert.doesNotMatch(created.markdown, /^source_url:/m);
+    assert.doesNotMatch(created.markdown, /^commit_message:/m);
     assert.match(created.markdown, /\n---\n\n## Timeline\n\n- \*\*\d{4}-\d{2}-\d{2}\*\* \| Created from MCP contribution\.\n$/);
 
     const updated = await updateBrainPage({

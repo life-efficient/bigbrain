@@ -65,6 +65,7 @@ export const provenanceSchema = z.object({
   event_id: nonEmptyText(500),
   source_type: sourceTypeSchema,
   source_label: nonEmptyText(240),
+  source_message: nonEmptyText(4000),
   origin_id: z.string().trim().max(500).nullable().optional(),
   listener_id: z.string().trim().max(240).nullable().optional(),
   source_icon: z.string().trim().max(80).nullable().optional(),

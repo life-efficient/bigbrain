@@ -52,6 +52,7 @@ test('mutation metadata requires a compact source and single-line commit message
       event_id: 'gmail:event-1',
       source_type: 'gmail',
       source_label: 'Data center thread',
+      source_message: 'The data center discussion updated the project context.',
     },
   };
   assert.deepEqual(parseMutationMetadata(valid), valid);

@@ -21,7 +21,7 @@ import {
 import { runHealthCheck } from './health.js';
 import { authenticatedBrainAbout, isBrainProfileDocument, loadBrainProfile } from './brain-profile.js';
 import { fullPathFromSlug, parseMarkdownPage, resolveMarkdownLink, slugFromPath } from './markdown.js';
-import { latestTimelineEntry as latestStructuredTimelineEntry } from './timeline.js';
+import { latestTimelineEntry as latestStructuredTimelineEntry, parseTimeline } from './timeline.js';
 import { findActiveMemberByEmail, findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug } from './members.js';
 import {
   authRoutesEnabled,
@@ -2911,7 +2911,13 @@ export async function buildGraphPayload(db, config = null) {
   }))).sort((a, b) => b.degree - a.degree || a.slug.localeCompare(b.slug));
 
   const allowed = new Set(candidateNodes.map((node) => node.slug));
-  const provenanceRows = await listPageProvenance(db, { pageSlugs: [...allowed], limit: 200 });
+  const legacyProvenanceRows = await listPageProvenance(db, { pageSlugs: [...allowed], limit: 200 });
+  const timelineRows = timelineProvenanceRows(graphPages);
+  const timelineKeys = new Set(timelineRows.map((row) => `${row.page_slug}:${row.event_id}`));
+  const provenanceRows = [
+    ...timelineRows,
+    ...legacyProvenanceRows.filter((row) => !timelineKeys.has(`${row.page_slug}:${row.event_id}`)),
+  ];
   const titles = new Map(candidateNodes.map((node) => [node.slug, node.title]));
   const inputs = buildGraphInputEvents(provenanceRows, { allowed, titles });
   const history = await buildGraphHistory(config, candidateNodes);
@@ -2944,6 +2950,32 @@ export async function buildGraphPayload(db, config = null) {
     })),
     edges,
   };
+}
+
+function timelineProvenanceRows(pages) {
+  return pages.flatMap((page) => parseTimeline(page.timeline).entries.flatMap((entry) => {
+    const provenance = entry.provenance;
+    if (!provenance?.event_id || !provenance.source_type) return [];
+    return [{
+      id: `timeline:${page.slug}:${entry.entry_id || provenance.event_id}`,
+      page_slug: page.slug,
+      event_id: provenance.event_id,
+      source_type: provenance.source_type,
+      source_label: provenance.source_label || provenance.source_type,
+      source_message: provenance.source_message || provenance.source_label || entry.text,
+      source_icon: provenance.source_icon || null,
+      source_url: provenance.source_url || null,
+      listener_id: provenance.listener_id || null,
+      codex_execution_id: provenance.codex_execution_id || null,
+      codex_thread_id: provenance.codex_thread_id || null,
+      raw_ref: provenance.raw_ref || null,
+      occurred_at: entry.occurred_at || provenance.occurred_at || null,
+      received_at: provenance.received_at || entry.recorded_at || null,
+      outcome: provenance.outcome || 'filed',
+      commit_message: provenance.commit_message || null,
+      significance: entry.significance || provenance.significance || null,
+    }];
+  }));
 }
 
 function buildGraphInputEvents(provenanceRows, { allowed, titles }) {
@@ -2995,14 +3027,20 @@ function buildGraphInputEvents(provenanceRows, { allowed, titles }) {
 export async function buildGraphLineagePayload(db, config, slug) {
   const normalizedSlug = String(slug || '').trim().replace(/\.md$/i, '');
   if (!normalizedSlug) return null;
-  const page = (await getPagesBySlugs(db, [normalizedSlug]))[0];
+  const page = (await listPages(db, { includeTimeline: true })).find((item) => item.slug === normalizedSlug);
   if (!page) return null;
-  const [outgoing, backlinks, provenance, events] = await Promise.all([
+  const [outgoing, backlinks, legacyProvenance, events] = await Promise.all([
     getOutgoingLinks(db, normalizedSlug),
     getBacklinks(db, normalizedSlug),
     listPageProvenance(db, { pageSlugs: [normalizedSlug], limit: 200 }),
     getRelatedLinkHistory({ repoRoot: config?.brainDir, pagePath: normalizedSlug, limit: 200 }).catch(() => []),
   ]);
+  const timelineProvenance = timelineProvenanceRows([page]);
+  const timelineKeys = new Set(timelineProvenance.map((row) => `${row.page_slug}:${row.event_id}`));
+  const provenance = [
+    ...timelineProvenance,
+    ...legacyProvenance.filter((row) => !timelineKeys.has(`${row.page_slug}:${row.event_id}`)),
+  ];
   const relatedSlugs = [...new Set([
     normalizedSlug,
     ...outgoing.map((link) => link.to_slug),
@@ -3024,6 +3062,9 @@ export async function buildGraphLineagePayload(db, config, slug) {
         event_id: row.event_id,
         source_type: row.source_type,
         source_label: row.source_label,
+        source_message: row.source_message || row.source_label || null,
+        source_icon: row.source_icon || null,
+        source_url: row.source_url || null,
         commit_message: row.commit_message || null,
         occurred_at: row.occurred_at || null,
         received_at: row.received_at || null,

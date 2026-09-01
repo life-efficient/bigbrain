@@ -259,6 +259,52 @@ test('dashboard graph represents one source event once when it files multiple pa
   }
 });
 
+test('dashboard graph derives inputs from per-page timeline provenance', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-timeline-inputs-');
+  try {
+    const timeline = (title) => `# ${title}\n\nCurrent context.\n\n---\n\n## Timeline\n\n- **2026-08-27** | Updated from one source event.\n  <!-- bigbrain:timeline ${JSON.stringify({
+      schema_version: 1,
+      entry_id: 'whatsapp:event-1',
+      occurred_at: '2026-08-27',
+      recorded_at: '2026-09-01T12:00:00.000Z',
+      text: 'Updated from one source event.',
+      provenance: {
+        event_id: 'whatsapp:event-1',
+        source_type: 'whatsapp',
+        source_label: 'Harry chat',
+        source_message: 'Please carry the updated commercial terms into both pages.',
+        source_icon: 'MessageCircle',
+        received_at: '2026-09-01T12:00:00.000Z',
+        outcome: 'filed',
+      },
+      significance: 'minor',
+    })} -->\n`;
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', timeline('Alice'));
+    await writeMarkdown(fixture.brainHome, 'projects/relay.md', timeline('Relay'));
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+
+    const graph = await buildGraphPayload(db, config);
+
+    assert.equal(graph.meta.input_count, 1);
+    assert.equal(graph.inputs[0].source_message, 'Please carry the updated commercial terms into both pages.');
+    assert.deepEqual(graph.inputs[0].source, {
+      id: 'whatsapp:event-1',
+      type: 'whatsapp',
+      label: 'Harry chat',
+      icon: 'MessageCircle',
+    });
+    assert.deepEqual(graph.inputs[0].target_pages, [
+      { slug: 'people/alice', title: 'Alice' },
+      { slug: 'projects/relay', title: 'Relay' },
+    ]);
+    await db.close?.();
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('graph lineage combines current connections with source events', async () => {
   const fixture = await createFixture('bigbrain-dashboard-lineage-');
   try {
@@ -273,6 +319,7 @@ test('graph lineage combines current connections with source events', async () =
       event_id: 'gmail:event-1',
       source_type: 'gmail',
       source_label: 'Mentor thread',
+      source_message: 'Mentor thread',
       received_at: '2026-08-28T10:00:00.000Z',
       outcome: 'filed',
       commit_message: 'Record the mentor update',
@@ -284,6 +331,9 @@ test('graph lineage combines current connections with source events', async () =
       event_id: 'gmail:event-1',
       source_type: 'gmail',
       source_label: 'Mentor thread',
+      source_message: 'Mentor thread',
+      source_icon: null,
+      source_url: null,
       commit_message: 'Record the mentor update',
       occurred_at: null,
       received_at: '2026-08-28T10:00:00.000Z',

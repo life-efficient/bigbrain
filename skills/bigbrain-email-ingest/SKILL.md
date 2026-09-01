@@ -27,6 +27,13 @@ Never promote `draft_prepared` or `approved` to `sent`. Never promote `sent` to 
 
 Every `create_page` or `update_page` MCP call must provide the required `significance` field with one semantic impact label: `patch`, `minor`, or `major`. The existing `provenance` object continues to carry the source and event identity; the page mutation's significance is recorded alongside that provenance. Do not encode significance into the free-form `timeline_entry` text.
 
+Every page mutation must also provide `provenance.source_message`, containing
+the relevant source message or concise source content that caused the update.
+Keep this source message separate from the timeline entry text: the timeline
+entry describes the durable page change in human-readable Markdown, while the
+nested provenance describes the input event. Do not put source type, source
+label, source message, or commit attribution in page frontmatter.
+
 - `patch`: routine coordination, message sent or received without material state change, typo or formatting correction, source-link correction, or other low-impact repair.
 - `minor`: a material but non-transformative change such as a meaningful reply, completed meeting, accepted introduction, new diligence answer, agreed next step, or progress that changes what happens next.
 - `major`: a transformative change to the page's identity, control, outcome, or trajectory such as a deal closing or collapsing, a hostile buyer entering, a key contact being fired or changing jobs, an organization being acquired, a project launching or being cancelled, or a person's death.

@@ -45,7 +45,7 @@ commit_message: Record the change
   }
 });
 
-test('health accepts explicit taxonomy-backed page attribution without rewriting it', async () => {
+test('health does not accept mutable page attribution as timeline provenance', async () => {
   const fixture = await createFixture('bigbrain-health-provenance-valid-');
   try {
     const original = page('Attributed page', `
@@ -60,8 +60,8 @@ commit_message: Record the Gmail update
     await syncBrain({ config, apiKey: null });
     const report = await runHealthCheck(config, { cliCommand: process.execPath, repairUnknownSource: false });
 
-    assert.equal(report.provenance_status.pages_with_source_attribution, 1);
-    assert.equal(report.findings.some((finding) => finding.page_slug === 'projects/attributed' && finding.finding_type === 'missing_source_attribution'), false);
+    assert.equal(report.provenance_status.pages_missing_source_attribution, 1);
+    assert.equal(report.findings.find((finding) => finding.page_slug === 'projects/attributed' && finding.finding_type === 'missing_source_attribution').details.reason, 'page_metadata');
     assert.equal(await fs.readFile(path.join(fixture.brainHome, 'projects/attributed.md'), 'utf8'), original);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
@@ -127,10 +127,14 @@ test('health repairs missing page attribution with explicit unknown metadata', a
     const report = await runHealthCheck(config, { cliCommand: process.execPath, repairUnknownSource: true });
     const repaired = await fs.readFile(path.join(fixture.brainHome, 'projects/repairable.md'), 'utf8');
     assert.equal(report.provenance_status.repaired_unknown_count, 1);
-    assert.match(repaired, /source_type: unknown/);
-    assert.match(repaired, /source_label: Unknown source/);
-    assert.match(repaired, /event_id: health:unknown:projects\/repairable/);
-    assert.match(repaired, /commit_message: Repair missing source attribution/);
+    assert.match(repaired, /bigbrain:timeline .*"source_type":"unknown"/);
+    assert.match(repaired, /"source_label":"Unknown source"/);
+    assert.match(repaired, /"event_id":"health:unknown:projects\/repairable"/);
+    assert.match(repaired, /"commit_message":"Move page source attribution into timeline"/);
+    assert.doesNotMatch(repaired, /^source_type:/m);
+    assert.doesNotMatch(repaired, /^source_label:/m);
+    assert.doesNotMatch(repaired, /^event_id:/m);
+    assert.doesNotMatch(repaired, /^commit_message:/m);
     assert.equal(report.findings.some((finding) => finding.page_slug === 'projects/repairable' && finding.finding_type === 'missing_source_attribution'), false);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

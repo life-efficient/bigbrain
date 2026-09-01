@@ -395,11 +395,11 @@ export class EventIngestor {
         event_id: key,
         source_type: 'rss',
         source_label: `${source.publisher || source.display_name || source.id} RSS feed`,
+        source_message: normalized.title,
+        source_url: normalized.link || null,
       },
       frontmatter: {
         source_kind: 'rss',
-        source_type: 'web',
-        source_url: normalized.link || normalized.guid,
         feed_url: source.url,
         publisher: source.publisher || null,
         published: normalized.publishedAt || normalized.pubDate || null,
@@ -424,6 +424,8 @@ export class EventIngestor {
         event_id: key,
         source_type: 'rss',
         source_label: `${source.publisher || source.display_name || source.id} RSS feed`,
+        source_message: normalized.title,
+        source_url: normalized.link || null,
       },
     });
     const readback = await this.mcp.callTool('read', { path: source.target_page });

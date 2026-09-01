@@ -23,7 +23,13 @@ test('structured timeline entries sort by occurred_at and retain per-entry prove
     {
       occurred_at: '2026-06-15T10:30:00Z',
       text: 'Newer event.',
-      provenance: { event_id: 'evt-new', source_type: 'whatsapp', source_label: 'Harry chat', source_url: 'https://example.test/event' },
+      provenance: {
+        event_id: 'evt-new',
+        source_type: 'whatsapp',
+        source_label: 'Harry chat',
+        source_message: 'Can you send the revised proposal tomorrow?',
+        source_url: 'https://example.test/event',
+      },
       significance: 'minor',
     },
   ]);
@@ -32,6 +38,7 @@ test('structured timeline entries sort by occurred_at and retain per-entry prove
   assert.equal(parsed.clean, true);
   assert.deepEqual(parsed.entries.map((entry) => entry.occurred_at), ['2026-06-15T10:30:00Z', '2026-05-01']);
   assert.equal(parsed.entries[0].provenance.event_id, 'evt-new');
+  assert.equal(parsed.entries[0].provenance.source_message, 'Can you send the revised proposal tomorrow?');
   assert.equal(parsed.entries[0].significance, 'minor');
   assert.equal(latestTimelineEntry(parsed.entries).display, '2026-06-15 | Newer event.');
 });

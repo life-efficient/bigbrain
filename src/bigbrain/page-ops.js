@@ -23,6 +23,29 @@ export const DEFAULT_COLLECTIONS = [
 
 const LIST_ORDER_BY = new Set(['updated_at', 'created_at', 'alphanumeric']);
 
+// Provenance describes a particular update event. It must live on the
+// timeline entry that records that update, never on mutable page metadata.
+const PROVENANCE_FRONTMATTER_KEYS = new Set([
+  'event_id',
+  'origin_id',
+  'listener_id',
+  'source_type',
+  'source_label',
+  'source_message',
+  'source_icon',
+  'source_url',
+  'source_endpoint',
+  'occurred_at',
+  'received_at',
+  'codex_execution_id',
+  'codex_thread_id',
+  'raw_ref',
+  'outcome',
+  'commit_message',
+  'mutation_metadata',
+  'provenance',
+]);
+
 export async function listBrainPath({
   config,
   relativePath = '',
@@ -314,7 +337,9 @@ export async function updateBrainPage({ config, pagePath, body, timelineEntry, t
   const timelineInput = timelineEntries ?? timelineEntry;
   const nextTimeline = appendTimelineEntries(existing.timeline, timelineInput, { recordedAt: now, significance: timelineSignificance });
   let frontmatterRaw = existing.frontmatter_raw;
-  for (const [key, value] of Object.entries(frontmatterValues || {})) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
+  for (const [key, value] of Object.entries(frontmatterValues || {})) {
+    if (!PROVENANCE_FRONTMATTER_KEYS.has(key)) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
+  }
   const markdown = renderPageMarkdown({
     frontmatterRaw,
     title: existing.title,
@@ -359,7 +384,9 @@ export async function renameBrainPage({
     'redirect_from',
     appendUniqueFrontmatterList(existing.frontmatter.redirect_from, fromRelative.replace(/\.md$/i, '')),
   );
-  for (const [key, value] of Object.entries(frontmatterValues || {})) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
+  for (const [key, value] of Object.entries(frontmatterValues || {})) {
+    if (!PROVENANCE_FRONTMATTER_KEYS.has(key)) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
+  }
   const markdown = renderPageMarkdown({
     frontmatterRaw,
     title: nextTitle,
@@ -407,7 +434,9 @@ export async function updatePageVisibility({ config, pagePath, visibility, timel
       await validatePublicRawFilesForPage({ config, page: existing, publicRawFiles }),
     );
   }
-  for (const [key, value] of Object.entries(frontmatterValues || {})) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
+  for (const [key, value] of Object.entries(frontmatterValues || {})) {
+    if (!PROVENANCE_FRONTMATTER_KEYS.has(key)) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
+  }
   const markdown = renderPageMarkdown({
     frontmatterRaw,
     title: existing.title,
@@ -597,7 +626,7 @@ function renderFrontmatter(frontmatter) {
 
 function omitReservedFrontmatter(frontmatter) {
   const { type, title, created, visibility, public: legacyPublic, ...rest } = frontmatter || {};
-  return rest;
+  return Object.fromEntries(Object.entries(rest).filter(([key]) => !PROVENANCE_FRONTMATTER_KEYS.has(key)));
 }
 
 function setFrontmatterValue(frontmatterRaw, key, value) {

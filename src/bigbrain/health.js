@@ -5,13 +5,14 @@ import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-import { openDatabase, clearHealthFindings, getBacklinks, getOutgoingLinks, insertHealthFinding, listHealthFindings, listPageProvenance, listPages, upsertHostedBrainGitState } from './db.js';
-import { fullPathFromSlug, parseMarkdownPage } from './markdown.js';
+import { openDatabase, clearHealthFindings, getBacklinks, getOutgoingLinks, insertHealthFinding, listHealthFindings, listPages, upsertHostedBrainGitState } from './db.js';
+import { fullPathFromSlug, parseMarkdownPage, replaceTimelineSection } from './markdown.js';
 import { safeBrainPath } from './page-ops.js';
 import { isAttachmentSidecarSlug, validatePageShape } from './schema.js';
 import { normalizeSourceType, parseMutationMetadata, SOURCE_TYPE_DEFINITIONS } from './source-taxonomy.js';
 import { EventInboxStore, EventRegistryStore, defaultEventInboxPath, defaultEventRegistryPath } from './inbound-events.js';
 import { runtimeMetadata } from './runtime-metadata.js';
+import { appendTimelineEntries, renderTimelineBlock } from './timeline.js';
 
 const execFileAsync = promisify(execFile);
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -30,8 +31,7 @@ export async function runHealthCheck(config, {
 } = {}) {
   const db = await openDatabase(config);
   await clearHealthFindings(db);
-  const pages = await listPages(db);
-  const pageProvenance = await loadPageProvenance(db, pages);
+  const pages = await listPages(db, { includeTimeline: true });
   const pageAttributions = new Map();
   const provenanceStatus = createProvenanceStatus(pages.length);
 
@@ -49,9 +49,9 @@ export async function runHealthCheck(config, {
     }
 
     let parsed = parseMarkdownPage(raw, page.slug);
-    let attribution = sourceAttributionForPage(parsed, pageProvenance.get(page.slug), { skipAttachment: true });
+    let attribution = sourceAttributionForPage(parsed, null, { skipAttachment: true });
     if (!attribution.ok && repairUnknownSource && !attribution.skipped) {
-      const repaired = repairUnknownSourceAttribution(raw, page.slug);
+      const repaired = repairUnknownSourceAttribution(raw, page.slug, parsed);
       if (repaired !== raw) {
         await fs.writeFile(fullPath, repaired, 'utf8');
         provenanceStatus.repaired_unknown_count += 1;
@@ -59,7 +59,7 @@ export async function runHealthCheck(config, {
         attribution = sourceAttributionForPage(parsed, null, { skipAttachment: true });
       }
     }
-    pageAttributions.set(page.slug, { parsed, provenance: pageProvenance.get(page.slug), attribution });
+    pageAttributions.set(page.slug, { parsed, provenance: null, attribution });
     if (attribution.skipped) {
       provenanceStatus.pages_skipped += 1;
     } else if (!attribution.ok) {
@@ -359,17 +359,27 @@ function sourceAttributionForPage(parsed, provenance = null, { skipAttachment = 
 
   const timelineCandidate = mutationMetadataCandidateFromTimeline(parsed.timeline_entries);
   if (timelineCandidate) return validateMutationMetadata(timelineCandidate);
-
-  const frontmatter = parsed.frontmatter || {};
-  const candidate = mutationMetadataCandidate(frontmatter);
-  if (candidate) return validateMutationMetadata(candidate);
-  const provenanceCandidate = mutationMetadataCandidateFromProvenance(provenance);
-  if (provenanceCandidate) return validateMutationMetadata(provenanceCandidate);
+  const legacyCandidate = mutationMetadataCandidate(parsed.frontmatter || {});
+  if (legacyCandidate) {
+    const validation = validateMutationMetadata(legacyCandidate);
+    if (!validation.ok) return validation;
+    return {
+      ok: false,
+      reason: 'page_metadata',
+      expected_fields: ['event_id', 'source_type', 'source_label', 'source_message', 'commit_message'],
+      details: {
+        ...validation.details,
+        source_type: validation.value.provenance.source_type,
+        normalized_source_type: validation.normalized_source_type,
+        message: 'Source attribution is attached to page metadata; move it to the timeline entry for the update it describes.',
+      },
+    };
+  }
   return {
     ok: false,
     reason: 'missing',
-    expected_fields: ['event_id', 'source_type', 'source_label', 'commit_message'],
-    details: { source_type: null, normalized_source_type: 'unknown', provenance_row_present: Boolean(provenance) },
+    expected_fields: ['event_id', 'source_type', 'source_label', 'source_message', 'commit_message'],
+    details: { source_type: null, normalized_source_type: 'unknown', provenance_row_present: false },
   };
 }
 
@@ -388,9 +398,10 @@ function mutationMetadataCandidateFromTimeline(entries) {
 }
 
 function validateMutationMetadata(candidate) {
-  const normalizedSourceType = normalizeSourceType(candidate.provenance?.source_type);
+  const normalizedCandidate = withSourceMessage(candidate);
+  const normalizedSourceType = normalizeSourceType(normalizedCandidate.provenance?.source_type);
   try {
-    const normalized = parseMutationMetadata(candidate);
+    const normalized = parseMutationMetadata(normalizedCandidate);
     return {
       ok: true,
       value: normalized,
@@ -400,9 +411,9 @@ function validateMutationMetadata(candidate) {
     return {
       ok: false,
       reason: 'invalid',
-      expected_fields: ['event_id', 'source_type', 'source_label', 'commit_message'],
+      expected_fields: ['event_id', 'source_type', 'source_label', 'source_message', 'commit_message'],
       details: {
-        source_type: candidate.provenance?.source_type ?? null,
+        source_type: normalizedCandidate.provenance?.source_type ?? null,
         normalized_source_type: normalizedSourceType,
         validation_error: error instanceof Error ? error.message : String(error),
       },
@@ -424,56 +435,44 @@ function mutationMetadataCandidate(frontmatter) {
       event_id: frontmatter.event_id,
       source_type: frontmatter.source_type,
       source_label: frontmatter.source_label,
+      source_message: frontmatter.source_message,
       ...optionalProvenanceFields(frontmatter),
     },
   };
 }
 
-function repairUnknownSourceAttribution(raw, slug) {
-  const fields = {
-    event_id: `health:unknown:${slug}`,
-    source_type: 'unknown',
-    source_label: 'Unknown source',
-    commit_message: 'Repair missing source attribution',
-  };
-  const text = String(raw || '');
-  if (text.startsWith('---\n')) {
-    const end = text.indexOf('\n---\n', 4);
-    if (end < 0) return text;
-    const lines = text.slice(4, end).split('\n');
-    const seen = new Set();
-    const next = lines.map((line) => {
-      const key = line.match(/^\s*([A-Za-z0-9_-]+):/)?.[1];
-      if (!key || fields[key] === undefined) return line;
-      seen.add(key);
-      return `${key}: ${fields[key]}`;
-    });
-    for (const [key, value] of Object.entries(fields)) if (!seen.has(key)) next.push(`${key}: ${value}`);
-    return `---\n${next.join('\n')}\n---\n${text.slice(end + 5)}`;
-  }
-  const metadata = Object.entries(fields).map(([key, value]) => `${key}: ${value}`).join('\n');
-  return `---\n${metadata}\n---\n${text}`;
-}
-
-function mutationMetadataCandidateFromProvenance(provenance) {
-  if (!provenance || typeof provenance !== 'object') return null;
-  return {
-    commit_message: provenance.commit_message,
+function repairUnknownSourceAttribution(raw, slug, parsed = parseMarkdownPage(String(raw || ''), slug)) {
+  const now = new Date().toISOString();
+  const legacy = mutationMetadataCandidate(parsed.frontmatter || {});
+  const legacyProvenance = legacy?.provenance || {};
+  const sourceType = normalizeSourceType(legacyProvenance.source_type);
+  const sourceLabel = cleanAttributionText(legacyProvenance.source_label, 240) || 'Unknown source';
+  const sourceMessage = cleanAttributionText(legacyProvenance.source_message, 4000) || sourceLabel;
+  const eventId = cleanAttributionText(legacyProvenance.event_id, 500) || `health:unknown:${slug}`;
+  const commitMessage = cleanSingleLine(legacy?.commit_message, 200) || 'Move page source attribution into timeline';
+  const occurredAt = validTimelineDate(legacyProvenance.occurred_at) || now;
+  const entry = {
+    entry_id: eventId,
+    occurred_at: occurredAt,
+    recorded_at: now,
+    text: legacy
+      ? 'Moved legacy page source attribution into the timeline.'
+      : 'Recorded that the source attribution for this page was unavailable.',
     provenance: {
-      event_id: provenance.event_id,
-      source_type: provenance.source_type,
-      source_label: provenance.source_label,
-      ...optionalProvenanceFields(provenance),
+      event_id: eventId,
+      source_type: sourceType,
+      source_label: sourceLabel,
+      source_message: sourceMessage,
+      source_icon: cleanAttributionText(legacyProvenance.source_icon, 80) || null,
+      source_url: validUrl(legacyProvenance.source_url) || null,
+      outcome: 'filed',
+      commit_message: commitMessage,
     },
   };
-}
-
-async function loadPageProvenance(db, pages) {
-  const entries = await Promise.all(pages.map(async (page) => {
-    const rows = await listPageProvenance(db, { pageSlugs: [page.slug], limit: 1 });
-    return [page.slug, rows[0] || null];
-  }));
-  return new Map(entries);
+  const text = removeProvenanceFrontmatter(String(raw || ''));
+  const nextTimeline = appendTimelineEntries(parsed.timeline, entry, { recordedAt: now });
+  if (parsed.hasSeparator) return replaceTimelineSection(text, `## Timeline\n\n${nextTimeline}`);
+  return `${text.trimEnd()}\n\n---\n\n${renderTimelineBlock([entry], { includeMetadata: true })}\n`;
 }
 
 function optionalProvenanceFields(frontmatter) {
@@ -481,6 +480,7 @@ function optionalProvenanceFields(frontmatter) {
     ['origin_id', frontmatter.origin_id],
     ['listener_id', frontmatter.listener_id],
     ['source_icon', frontmatter.source_icon],
+    ['source_message', frontmatter.source_message],
     ['source_url', frontmatter.source_url],
     ['occurred_at', frontmatter.occurred_at],
     ['received_at', frontmatter.received_at],
@@ -489,6 +489,59 @@ function optionalProvenanceFields(frontmatter) {
     ['raw_ref', frontmatter.raw_ref],
     ['outcome', frontmatter.outcome],
   ].filter(([, value]) => value !== undefined));
+}
+
+function withSourceMessage(candidate) {
+  if (!candidate || typeof candidate !== 'object') return candidate;
+  const provenance = candidate.provenance && typeof candidate.provenance === 'object' ? candidate.provenance : {};
+  return {
+    ...candidate,
+    provenance: {
+      ...provenance,
+      source_message: provenance.source_message || provenance.source_label || 'Source message unavailable',
+    },
+  };
+}
+
+function removeProvenanceFrontmatter(markdown) {
+  const text = String(markdown || '');
+  if (!text.startsWith('---\n')) return text;
+  const end = text.indexOf('\n---\n', 4);
+  if (end < 0) return text;
+  const reserved = new Set([
+    'event_id', 'origin_id', 'listener_id', 'source_type', 'source_label', 'source_message',
+    'source_icon', 'source_url', 'source_endpoint', 'occurred_at', 'received_at',
+    'codex_execution_id', 'codex_thread_id', 'raw_ref', 'outcome', 'commit_message',
+    'mutation_metadata', 'provenance',
+  ]);
+  const lines = text.slice(4, end).split('\n').filter((line) => {
+    const key = line.match(/^\s*([A-Za-z0-9_-]+):/)?.[1];
+    return !key || !reserved.has(key);
+  });
+  return `---\n${lines.join('\n')}\n---\n${text.slice(end + 5)}`;
+}
+
+function cleanAttributionText(value, max) {
+  return typeof value === 'string' && value.trim() ? value.trim().slice(0, max) : '';
+}
+
+function cleanSingleLine(value, max) {
+  return cleanAttributionText(value, max).replace(/[\r\n]+/g, ' ').trim();
+}
+
+function validTimelineDate(value) {
+  const text = cleanAttributionText(value, 80);
+  if (!text || Number.isNaN(Date.parse(text))) return null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) || !Number.isNaN(Date.parse(text)) ? text : null;
+}
+
+function validUrl(value) {
+  const text = cleanAttributionText(value, 2000);
+  try {
+    return /^https?:\/\//i.test(text) ? new URL(text).toString() : null;
+  } catch {
+    return null;
+  }
 }
 
 function parseJsonObject(value) {
@@ -568,18 +621,18 @@ async function attributionForGitPath(brainDir, sourcePath, pageAttributions) {
   if (sourcePath.endsWith('.md')) {
     const slug = sourcePath.replace(/\.md$/i, '');
     const known = pageAttributions.get(slug);
-    if (known) return sourceAttributionForPage(known.parsed, known.provenance);
+    if (known) return sourceAttributionForPage(known.parsed, null, { skipAttachment: true });
   }
   const raw = await fs.readFile(path.join(brainDir, sourcePath), 'utf8').catch(() => null);
   if (!raw) {
     return {
       ok: false,
       reason: 'missing',
-      expected_fields: ['event_id', 'source_type', 'source_label', 'commit_message'],
+      expected_fields: ['event_id', 'source_type', 'source_label', 'source_message', 'commit_message'],
       details: { source_type: null, normalized_source_type: 'unknown' },
     };
   }
-  return sourceAttributionForPage(parseMarkdownPage(raw, sourcePath.replace(/\.md$/i, '')));
+  return sourceAttributionForPage(parseMarkdownPage(raw, sourcePath.replace(/\.md$/i, '')), null, { skipAttachment: true });
 }
 
 async function validateAttachmentSidecarBinding(config, parsed) {

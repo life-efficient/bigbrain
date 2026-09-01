@@ -316,6 +316,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(created.result.structuredContent.frontmatter.commit_message, undefined);
     assert.equal(created.result.structuredContent.timeline_entries[0].provenance.source_type, 'assistant_chat');
     assert.equal(created.result.structuredContent.timeline_entries[0].provenance.source_label, 'MCP server test');
+    assert.equal(created.result.structuredContent.timeline_entries[0].provenance.source_message, 'MCP server test source message');
     assert.equal(created.result.structuredContent.timeline_entries[0].provenance.commit_message, 'Test create_page');
 
     const readPage = await rpc(running.url, 'tools/call', {
@@ -499,6 +500,7 @@ test('MCP page mutations reject missing or invalid timeline significance', async
         event_id: 'test:missing-significance',
         source_type: 'assistant_chat',
         source_label: 'MCP server test',
+        source_message: 'MCP server test source message',
       },
     };
     const missing = await rpc(running.url, 'tools/call', {
@@ -2406,6 +2408,7 @@ async function rpc(url, method, params, token) {
         event_id: `test:${callName}:${requestParams.arguments?.path || requestParams.arguments?.page_path || 'mutation'}`,
         source_type: 'assistant_chat',
         source_label: 'MCP server test',
+        source_message: 'MCP server test source message',
       },
     };
   }

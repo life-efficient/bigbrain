@@ -14,6 +14,7 @@ const PROVENANCE_KEYS = [
   'listener_id',
   'source_type',
   'source_label',
+  'source_message',
   'source_icon',
   'source_url',
   'occurred_at',
@@ -131,6 +132,7 @@ export function normalizeTimelineProvenance(value) {
   for (const key of PROVENANCE_KEYS) {
     if (value[key] !== undefined && value[key] !== null && String(value[key]).trim() !== '') normalized[key] = value[key];
   }
+  if (!normalized.source_message && normalized.source_label) normalized.source_message = normalized.source_label;
   return Object.keys(normalized).length ? normalized : null;
 }
 

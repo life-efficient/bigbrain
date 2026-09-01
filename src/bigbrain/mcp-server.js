@@ -2477,6 +2477,7 @@ function mutationProperties() {
         event_id: { type: 'string', description: 'Stable source event identifier used for idempotency.' },
         source_type: { type: 'string', enum: SOURCE_TYPE_VALUES, description: SOURCE_TYPE_VALUES.map((value) => `${value}: ${SOURCE_TYPE_DEFINITIONS[value].description}`).join(' ') },
         source_label: { type: 'string', description: 'Short AI-selected name for the triggering event, such as a sender, thread, meeting, feed, or chat title.' },
+        source_message: { type: 'string', description: 'Human-readable source message or concise source content that caused the page update. This is stored on the timeline entry.' },
         origin_id: { type: 'string', description: 'Optional upstream event or provider object identifier.' },
         listener_id: { type: 'string', description: 'Optional registered listener that delivered the source event.' },
         source_icon: { type: 'string', description: 'Optional compact source icon identifier.' },
@@ -2488,7 +2489,7 @@ function mutationProperties() {
         raw_ref: { type: 'string', description: 'Optional reference to retained raw source material.' },
         outcome: { type: 'string', description: 'Optional processing outcome label.' },
       },
-      required: ['event_id', 'source_type', 'source_label'],
+      required: ['event_id', 'source_type', 'source_label', 'source_message'],
     },
   };
 }
@@ -2518,7 +2519,18 @@ function timelineEntrySchema() {
       date: { type: 'string', format: 'date', description: 'Compatibility alias for a date-only occurred_at value.' },
       recorded_at: { type: 'string', format: 'date-time', description: 'When BigBrain recorded the entry. Defaults to the actual write time.' },
       text: { type: 'string' },
-      provenance: { type: 'object', description: 'Source provenance for this specific timeline entry.' },
+      provenance: {
+        type: 'object',
+        description: 'Source provenance for this specific timeline entry, including the source type and source message that caused the page change.',
+        properties: {
+          event_id: { type: 'string' },
+          source_type: { type: 'string', enum: SOURCE_TYPE_VALUES },
+          source_label: { type: 'string' },
+          source_message: { type: 'string' },
+          source_icon: { type: 'string' },
+          source_url: { type: 'string', format: 'uri' },
+        },
+      },
       significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES },
     },
     required: ['text'],
@@ -2728,6 +2740,7 @@ function timelineForMutation(args = {}, actor = null, fallback = null) {
       ...(args.provenance || {}),
       ...(base.provenance || {}),
     };
+    if (!provenance.source_message && provenance.source_label) provenance.source_message = provenance.source_label;
     if (args.commit_message && Object.keys(provenance).length) provenance.commit_message = args.commit_message;
     return {
       ...base,

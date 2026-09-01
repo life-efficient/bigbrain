@@ -283,6 +283,17 @@ provenance, MIME type, and sharing state. It belongs at the same basename inside
 the same `.raw/` folder. It participates in search and links like other brain pages.
 When public, its route renders the raw artifact rather than exposing the sidecar body.
 
+### Timeline update provenance
+
+Source provenance belongs to the append-only timeline update that records a page
+change, not to page frontmatter. Each structured update carries the date the
+underlying source event occurred (`occurred_at`, defaulting to the write date and
+overridable for historical evidence), the recording timestamp (`recorded_at`), a
+human-readable Markdown description of the page change, and nested source
+provenance containing `source_type`, `source_label`, and `source_message`. One
+source event may therefore update multiple pages while remaining one input in the
+flow context.
+
 Suggested frontmatter for a canonical page that discusses an attachment:
 
 ```yaml
