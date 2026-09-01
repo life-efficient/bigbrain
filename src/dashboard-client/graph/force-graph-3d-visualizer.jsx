@@ -49,7 +49,6 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   onBackgroundClick,
 }, ref) {
   const theme = useGraphTheme();
-  const shellRef = useRef(null);
   const containerRef = useRef(null);
   const focusLabelRef = useRef(null);
   const focusLabelNodeRef = useRef(null);
@@ -145,7 +144,8 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       },
     });
     graphRef.current = forceGraph;
-    forceGraph.__bigBrainInitialFadeElement = shellRef.current;
+    forceGraph.__bigBrainInitialFadeContainer = containerRef.current;
+    forceGraph.__bigBrainInitialFadeElement = containerRef.current.querySelector('canvas');
 
     const resize = () => {
       const width = Math.max(1, Math.floor(containerRef.current?.clientWidth || 1));
@@ -165,7 +165,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     forceGraph.renderer()?.setPixelRatio?.(Math.min(FORCE_GRAPH_PIXEL_RATIO, window.devicePixelRatio || 1));
 
     forceGraph
-      .backgroundColor(settingsRef.current.theme.graphBase)
+      .backgroundColor('transparent')
       .showNavInfo(false)
       .enableNavigationControls(true)
       // Orbit controls own the primary gesture so clicks remain reliable on
@@ -241,6 +241,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       cancelScheduledForceGraphFit(forceGraph);
       forceGraph.__bigBrainDisposed = true;
       forceGraph._destructor?.();
+      forceGraph.__bigBrainInitialFadeContainer = null;
       forceGraph.__bigBrainInitialFadeElement = null;
       graphRef.current = null;
     };
@@ -292,7 +293,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     const arcStyleChanged = renderedArcStyleRef.current !== arcStyle;
     renderedArcStyleRef.current = arcStyle;
     forceGraph
-      .backgroundColor(theme.graphBase)
+      .backgroundColor('transparent')
       .linkCurvature(() => getForceGraphLinkCurvature(settingsRef.current.arcStyle));
     updateForceGraphNodeObjects(forceGraph, settingsRef.current);
     if (arcStyleChanged) refreshForceGraphLinkCurves(forceGraph, arcStyle);
@@ -372,7 +373,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   }, [motionEvent]);
 
   return (
-    <div ref={shellRef} className="graph-canvas-shell force3d-shell">
+    <div className="graph-canvas-shell force3d-shell">
       <div ref={containerRef} className="force3d-surface" aria-label="3D force-directed brain graph" />
       <div
         ref={focusLabelRef}
@@ -495,10 +496,12 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
 
 function startForceGraphInitialFade(forceGraph) {
   if (forceGraph.__bigBrainInitialFadeStarted) return;
-  const element = forceGraph.__bigBrainInitialFadeElement;
+  const element = forceGraph.__bigBrainInitialFadeElement
+    || forceGraph.__bigBrainInitialFadeContainer?.querySelector('canvas');
   if (!element) return;
   forceGraph.__bigBrainInitialFadeStarted = true;
-  element.classList.add('force-graph-initial-fade');
+  forceGraph.__bigBrainInitialFadeElement = element;
+  element.classList.add('force-graph-canvas-initial-fade');
 }
 
 function scheduleForceGraphFit(forceGraph) {

@@ -332,8 +332,12 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(force3d, /const transitioned = hadGraphData\s*\?\s*prepareGraphTransitionData/);
   assert.match(force2d, /__bigBrainInitialFadeElement/);
   assert.match(force3d, /__bigBrainInitialFadeElement/);
+  assert.match(force2d, /__bigBrainInitialFadeContainer\?\.querySelector\('canvas'\)/);
+  assert.match(force3d, /__bigBrainInitialFadeContainer\?\.querySelector\('canvas'\)/);
   assert.match(force2d, /startForceGraphInitialFade\(forceGraph\)/);
   assert.match(force3d, /startForceGraphInitialFade\(forceGraph\)/);
+  assert.match(force2d, /\.backgroundColor\('transparent'\)/);
+  assert.match(force3d, /\.backgroundColor\('transparent'\)/);
   assert.doesNotMatch(force2d, /className="graph-canvas-shell force2d-shell force-graph-initial-fade"/);
   assert.doesNotMatch(force3d, /className="graph-canvas-shell force3d-shell force-graph-initial-fade"/);
   assert.match(force2d, /focusNode\?\.id === node\.id/);
@@ -469,8 +473,8 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /startArcAnimation/);
   const dashboard = await fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8');
   assert.match(dashboard, /graph-arc-hover-grow/);
-  assert.match(dashboard, /\.force-graph-initial-fade \{ animation: force-graph-initial-fade 620ms ease-out both; \}/);
-  assert.match(dashboard, /@keyframes force-graph-initial-fade \{ from \{ opacity: 0; \} to \{ opacity: 1; \} \}/);
+  assert.match(dashboard, /\.force-graph-canvas-initial-fade \{ animation: force-graph-canvas-initial-fade 620ms ease-out both; \}/);
+  assert.match(dashboard, /@keyframes force-graph-canvas-initial-fade \{ from \{ opacity: 0; \} to \{ opacity: 1; \} \}/);
   assert.match(visualizer, /linkCurvature\(\(\) => getForceGraphLinkCurvature/);
   assert.match(visualizer, /renderedArcStyleRef/);
   assert.match(visualizer, /refreshForceGraphLinkCurves/);

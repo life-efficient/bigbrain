@@ -44,7 +44,6 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   onBackgroundClick,
 }, ref) {
   const theme = useGraphTheme();
-  const shellRef = useRef(null);
   const containerRef = useRef(null);
   const graphRef = useRef(null);
   const onNodeOpenRef = useRef(onNodeOpen);
@@ -106,7 +105,8 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
 
     const forceGraph = new ForceGraph2D(containerRef.current);
     graphRef.current = forceGraph;
-    forceGraph.__bigBrainInitialFadeElement = shellRef.current;
+    forceGraph.__bigBrainInitialFadeContainer = containerRef.current;
+    forceGraph.__bigBrainInitialFadeElement = containerRef.current.querySelector('canvas');
 
     const resize = () => {
       const width = Math.max(1, Math.floor(containerRef.current?.clientWidth || 1));
@@ -125,7 +125,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     window.addEventListener('resize', resize);
 
     forceGraph
-      .backgroundColor(settingsRef.current.theme.graphBase)
+      .backgroundColor('transparent')
       .nodeId('id')
       .nodeVal((node) => Math.max(1, Math.sqrt(Number(node.degree) || 1)))
       .nodeCanvasObjectMode('replace')
@@ -177,6 +177,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       forceGraph._destructor?.();
+      forceGraph.__bigBrainInitialFadeContainer = null;
       forceGraph.__bigBrainInitialFadeElement = null;
       graphRef.current = null;
     };
@@ -200,7 +201,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
     forceGraph
-      .backgroundColor(theme.graphBase)
+      .backgroundColor('transparent')
       .nodeCanvasObject((node, context, globalScale) => {
         drawForceGraphNode(node, context, globalScale, settingsRef.current, forceGraph);
       })
@@ -275,7 +276,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   }, [motionEvent]);
 
   return (
-    <div ref={shellRef} className="graph-canvas-shell force2d-shell">
+    <div className="graph-canvas-shell force2d-shell">
       <div ref={containerRef} className="force2d-surface" aria-label="2D force-directed brain graph" />
     </div>
   );
@@ -371,10 +372,12 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
 
 function startForceGraphInitialFade(forceGraph) {
   if (forceGraph.__bigBrainInitialFadeStarted) return;
-  const element = forceGraph.__bigBrainInitialFadeElement;
+  const element = forceGraph.__bigBrainInitialFadeElement
+    || forceGraph.__bigBrainInitialFadeContainer?.querySelector('canvas');
   if (!element) return;
   forceGraph.__bigBrainInitialFadeStarted = true;
-  element.classList.add('force-graph-initial-fade');
+  forceGraph.__bigBrainInitialFadeElement = element;
+  element.classList.add('force-graph-canvas-initial-fade');
 }
 
 function scheduleForceGraphFit(forceGraph) {
