@@ -120,6 +120,9 @@ test('timeline migration is dry-run by default, bounded, and skips unsafe sectio
     const parsed = parseMarkdownPage(migrated, 'people/alice');
     assert.deepEqual(parsed.timeline_entries.map((entry) => entry.occurred_at), ['2026-05-01', '2026-04-01']);
     assert.equal(parsed.timeline_entries[0].recorded_at, null);
+
+    const rerun = await migrateTimelinePages({ config, limit: 1 });
+    assert.equal(rerun.candidates, 0);
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }

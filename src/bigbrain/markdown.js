@@ -54,7 +54,8 @@ export function replaceTimelineSection(markdown, timelineBlock) {
   const match = boundaryMatches[0];
   if (!match) throw new Error('Cannot replace timeline without a timeline boundary.');
   const separatorEnd = match.index + match[0].length;
-  return `${markdown.slice(0, bodyStart + separatorEnd)}\n\n${String(timelineBlock || '').trim()}\n`;
+  const prefix = markdown.slice(0, bodyStart + separatorEnd).replace(/\n+$/, '\n');
+  return `${prefix}\n${String(timelineBlock || '').trim()}\n`;
 }
 
 export function extractLinks(markdown, currentSlug) {
