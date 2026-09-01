@@ -330,8 +330,12 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.doesNotMatch(force3d, /buildInitialGraphRevealStages|startInitialGraphReveal/);
   assert.match(force2d, /const transitioned = hadGraphData\s*\?\s*prepareGraphTransitionData/);
   assert.match(force3d, /const transitioned = hadGraphData\s*\?\s*prepareGraphTransitionData/);
-  assert.match(force2d, /force-graph-initial-fade/);
-  assert.match(force3d, /force-graph-initial-fade/);
+  assert.match(force2d, /__bigBrainInitialFadeElement/);
+  assert.match(force3d, /__bigBrainInitialFadeElement/);
+  assert.match(force2d, /startForceGraphInitialFade\(forceGraph\)/);
+  assert.match(force3d, /startForceGraphInitialFade\(forceGraph\)/);
+  assert.doesNotMatch(force2d, /className="graph-canvas-shell force2d-shell force-graph-initial-fade"/);
+  assert.doesNotMatch(force3d, /className="graph-canvas-shell force3d-shell force-graph-initial-fade"/);
   assert.match(force2d, /focusNode\?\.id === node\.id/);
   assert.match(force3d, /syncForceGraphNodeState\(node, focusNode \? new Set\(\[focusNode\.id\]\)/);
   assert.match(force3d, /animatedLinks\.forEach\(\(link\) => forceGraph\.emitParticle/);
@@ -514,7 +518,7 @@ test('force graphs refit after late canvas sizing and async first data', async (
     assert.match(source, /forceGraph\.__bigBrainFitNodeIds = shouldFitAfterUpdate \? targetNodeIds : null;/);
     assert.match(source, /forceGraph\.__bigBrainFitLinkIds = shouldFitAfterUpdate \? targetLinkIds : null;/);
     assert.match(source, /if \(forceGraph\.__bigBrainFitPending && \([\s\S]*fitNodeIds/);
-    assert.match(source, /if \(nodes\.length > 0\) forceGraph\.__bigBrainHasData = true;/);
+    assert.match(source, /if \(nodes\.length > 0\) \{\s*forceGraph\.__bigBrainHasData = true;\s*startForceGraphInitialFade\(forceGraph\);\s*\}/);
     assert.match(source, /cancelScheduledForceGraphFit\(forceGraph\);/);
   }
 });

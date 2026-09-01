@@ -49,6 +49,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   onBackgroundClick,
 }, ref) {
   const theme = useGraphTheme();
+  const shellRef = useRef(null);
   const containerRef = useRef(null);
   const focusLabelRef = useRef(null);
   const focusLabelNodeRef = useRef(null);
@@ -144,6 +145,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       },
     });
     graphRef.current = forceGraph;
+    forceGraph.__bigBrainInitialFadeElement = shellRef.current;
 
     const resize = () => {
       const width = Math.max(1, Math.floor(containerRef.current?.clientWidth || 1));
@@ -239,6 +241,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       cancelScheduledForceGraphFit(forceGraph);
       forceGraph.__bigBrainDisposed = true;
       forceGraph._destructor?.();
+      forceGraph.__bigBrainInitialFadeElement = null;
       graphRef.current = null;
     };
   }, []);
@@ -369,7 +372,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   }, [motionEvent]);
 
   return (
-    <div className="graph-canvas-shell force3d-shell force-graph-initial-fade">
+    <div ref={shellRef} className="graph-canvas-shell force3d-shell">
       <div ref={containerRef} className="force3d-surface" aria-label="3D force-directed brain graph" />
       <div
         ref={focusLabelRef}
@@ -462,7 +465,10 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
   } else {
     updateForceGraphNodeObjects(forceGraph, settings);
   }
-  if (nodes.length > 0) forceGraph.__bigBrainHasData = true;
+  if (nodes.length > 0) {
+    forceGraph.__bigBrainHasData = true;
+    startForceGraphInitialFade(forceGraph);
+  }
   forceGraph.__bigBrainTargetNodeIds = targetNodeIds;
   forceGraph.__bigBrainTargetLinkIds = targetLinkIds;
   if (transitioned.transitionItems.length) {
@@ -485,6 +491,14 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
   forceGraph.__bigBrainInitialized = true;
   graphDataRefFor(forceGraph, getForceGraphData(forceGraph));
   updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), focusSlug, settings.arcAnimation);
+}
+
+function startForceGraphInitialFade(forceGraph) {
+  if (forceGraph.__bigBrainInitialFadeStarted) return;
+  const element = forceGraph.__bigBrainInitialFadeElement;
+  if (!element) return;
+  forceGraph.__bigBrainInitialFadeStarted = true;
+  element.classList.add('force-graph-initial-fade');
 }
 
 function scheduleForceGraphFit(forceGraph) {

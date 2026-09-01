@@ -44,6 +44,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   onBackgroundClick,
 }, ref) {
   const theme = useGraphTheme();
+  const shellRef = useRef(null);
   const containerRef = useRef(null);
   const graphRef = useRef(null);
   const onNodeOpenRef = useRef(onNodeOpen);
@@ -105,6 +106,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
 
     const forceGraph = new ForceGraph2D(containerRef.current);
     graphRef.current = forceGraph;
+    forceGraph.__bigBrainInitialFadeElement = shellRef.current;
 
     const resize = () => {
       const width = Math.max(1, Math.floor(containerRef.current?.clientWidth || 1));
@@ -175,6 +177,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       forceGraph._destructor?.();
+      forceGraph.__bigBrainInitialFadeElement = null;
       graphRef.current = null;
     };
   }, []);
@@ -272,7 +275,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   }, [motionEvent]);
 
   return (
-    <div className="graph-canvas-shell force2d-shell force-graph-initial-fade">
+    <div ref={shellRef} className="graph-canvas-shell force2d-shell">
       <div ref={containerRef} className="force2d-surface" aria-label="2D force-directed brain graph" />
     </div>
   );
@@ -343,7 +346,10 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
     forceGraph.linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph));
     forceGraph.refresh?.();
   }
-  if (nodes.length > 0) forceGraph.__bigBrainHasData = true;
+  if (nodes.length > 0) {
+    forceGraph.__bigBrainHasData = true;
+    startForceGraphInitialFade(forceGraph);
+  }
   forceGraph.__bigBrainTargetNodeIds = targetNodeIds;
   forceGraph.__bigBrainTargetLinkIds = targetLinkIds;
   if (transitioned.transitionItems.length) {
@@ -361,6 +367,14 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
   }
   forceGraph.__bigBrainInitialized = true;
   updateForceGraphHighlight(forceGraph, focusSlug, settings.arcAnimation);
+}
+
+function startForceGraphInitialFade(forceGraph) {
+  if (forceGraph.__bigBrainInitialFadeStarted) return;
+  const element = forceGraph.__bigBrainInitialFadeElement;
+  if (!element) return;
+  forceGraph.__bigBrainInitialFadeStarted = true;
+  element.classList.add('force-graph-initial-fade');
 }
 
 function scheduleForceGraphFit(forceGraph) {
