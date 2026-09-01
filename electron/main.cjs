@@ -784,7 +784,7 @@ async function resolveDashboardTarget(brain) {
   const config = await loadConfig({ brainHome: brain.home });
   const port = await getFreePort(config.dashboardPort);
   const server = await startDashboard(config, { host: LOCAL_HOST, port });
-  const target = { url: `http://${LOCAL_HOST}:${port}/dashboard`, server, dev: true };
+  const target = { url: `http://${LOCAL_HOST}:${port}`, server, dev: true };
   devDashboardRuntimes.set(brain.id, target);
   return target;
 }
