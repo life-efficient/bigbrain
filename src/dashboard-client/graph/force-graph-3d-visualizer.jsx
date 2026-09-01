@@ -149,8 +149,11 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     const resize = () => {
       const width = Math.max(1, Math.floor(containerRef.current?.clientWidth || 1));
       const height = Math.max(1, Math.floor(containerRef.current?.clientHeight || 1));
-      if (forceGraph.width() !== width) forceGraph.width(width);
-      if (forceGraph.height() !== height) forceGraph.height(height);
+      const sizeChanged = forceGraph.width() !== width || forceGraph.height() !== height;
+      if (sizeChanged) {
+        forceGraph.width(width).height(height);
+        if (forceGraph.__bigBrainHasData) scheduleForceGraphFit(forceGraph);
+      }
     };
     resize();
     const resizeObserver = typeof ResizeObserver === 'function'
@@ -194,8 +197,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .cooldownTime(1800)
       .onEngineStop(() => {
         if (!forceGraph.__bigBrainFitPending) return;
-        forceGraph.__bigBrainFitPending = false;
-        forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
+        scheduleForceGraphFit(forceGraph);
       })
       .onNodeClick((node) => {
         if (Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z)) {
@@ -236,6 +238,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       hideFocusLabel();
       cancelInitialGraphReveal(forceGraph);
       cancelGraphTransitionLoop(forceGraph);
+      cancelScheduledForceGraphFit(forceGraph);
       forceGraph.__bigBrainDisposed = true;
       forceGraph._destructor?.();
       graphRef.current = null;
@@ -400,7 +403,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
 function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, options = {}) {
   const fromInitialReveal = options.fromInitialReveal === true;
   if (!fromInitialReveal) cancelInitialGraphReveal(forceGraph);
-  if (!forceGraph.__bigBrainInitialized && !fromInitialReveal && !focusSlug) {
+  if (!forceGraph.__bigBrainHasData && !fromInitialReveal && !focusSlug) {
     const stages = buildInitialGraphRevealStages(graph);
     if (stages.length > 1) {
       startInitialGraphReveal(forceGraph, stages, settings, focusSlug);
@@ -447,6 +450,7 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
   const previousTargetNodeIds = forceGraph.__bigBrainTargetNodeIds;
   const previousTargetLinkIds = forceGraph.__bigBrainTargetLinkIds;
   const wasInitialized = Boolean(forceGraph.__bigBrainInitialized);
+  const hadGraphData = Boolean(forceGraph.__bigBrainHasData);
   const membershipChanged = !forceGraph.__bigBrainInitialized
     || data.nodes.length !== previousNodeIds.size
     || data.links.length !== previousLinkIds.size
@@ -459,11 +463,13 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
     if (wasInitialized) {
       forceGraph.warmupTicks(0).cooldownTicks(GRAPH_UPDATE_COOLDOWN_TICKS).cooldownTime(GRAPH_UPDATE_COOLDOWN_TIME);
     }
-    forceGraph.__bigBrainFitPending = options.fitAfterUpdate ?? !wasInitialized;
+    forceGraph.__bigBrainFitPending = options.fitAfterUpdate
+      ?? (!wasInitialized || (!hadGraphData && nodes.length > 0));
     forceGraph.graphData(forceData);
   } else {
     updateForceGraphNodeObjects(forceGraph, settings);
   }
+  if (nodes.length > 0) forceGraph.__bigBrainHasData = true;
   forceGraph.__bigBrainTargetNodeIds = targetNodeIds;
   forceGraph.__bigBrainTargetLinkIds = targetLinkIds;
   if (transitioned.transitionItems.length) {
@@ -522,6 +528,29 @@ function cancelInitialGraphReveal(forceGraph) {
   if (!reveal) return;
   window.clearTimeout(reveal.timer);
   forceGraph.__bigBrainInitialReveal = null;
+}
+
+function scheduleForceGraphFit(forceGraph) {
+  cancelScheduledForceGraphFit(forceGraph);
+  forceGraph.__bigBrainFitFrame = window.requestAnimationFrame(() => {
+    forceGraph.__bigBrainFitFrame = 0;
+    if (forceGraph.__bigBrainDisposed) return;
+    const data = getForceGraphData(forceGraph);
+    const width = forceGraph.width?.() || 0;
+    const height = forceGraph.height?.() || 0;
+    if (width <= 1 || height <= 1 || !data.nodes?.length) {
+      forceGraph.__bigBrainFitPending = true;
+      return;
+    }
+    forceGraph.__bigBrainFitPending = false;
+    forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
+  });
+}
+
+function cancelScheduledForceGraphFit(forceGraph) {
+  if (!forceGraph?.__bigBrainFitFrame) return;
+  window.cancelAnimationFrame(forceGraph.__bigBrainFitFrame);
+  forceGraph.__bigBrainFitFrame = 0;
 }
 
 function sameIdSet(left, right) {

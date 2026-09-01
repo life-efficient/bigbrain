@@ -485,7 +485,7 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /\.cooldownTicks\(100\)/);
   assert.match(visualizer, /\.onEngineStop\(\(\) =>/);
   assert.match(visualizer, /if \(!forceGraph\.__bigBrainFitPending\) return;/);
-  assert.match(visualizer, /forceGraph\.__bigBrainFitPending = options\.fitAfterUpdate \?\? !wasInitialized;/);
+  assert.match(visualizer, /forceGraph\.__bigBrainFitPending = options\.fitAfterUpdate[\s\S]*hadGraphData/);
   assert.match(visualizer, /forceGraph\.__bigBrainInitialized = true;/);
   assert.match(visualizer, /nodeVisibility/);
   assert.match(visualizer, /linkVisibility/);
@@ -523,6 +523,25 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /!hoveredSlugRef\.current && time >= rotationPauseUntilRef\.current/);
   assert.match(visualizer, /AUTO_ROTATION_RADIANS_PER_SECOND = 0\.035/);
   assert.doesNotMatch(visualizer, /requestAnimationFrame\(\(\) => forceGraph\.zoomToFit/);
+});
+
+test('force graphs refit after late canvas sizing and async first data', async () => {
+  const sources = await Promise.all([
+    'force-graph-2d-visualizer.jsx',
+    'force-graph-3d-visualizer.jsx',
+  ].map((file) => fs.readFile(new URL(`../../src/dashboard-client/graph/${file}`, import.meta.url), 'utf8')));
+
+  for (const source of sources) {
+    assert.match(source, /const sizeChanged = forceGraph\.width\(\) !== width \|\| forceGraph\.height\(\) !== height;/);
+    assert.match(source, /forceGraph\.width\(width\)\.height\(height\);/);
+    assert.match(source, /if \(forceGraph\.__bigBrainHasData\) scheduleForceGraphFit\(forceGraph\);/);
+    assert.match(source, /function scheduleForceGraphFit\(forceGraph\)/);
+    assert.match(source, /if \(width <= 1 \|\| height <= 1 \|\| !data\.nodes\?\.length\)/);
+    assert.match(source, /forceGraph\.__bigBrainFitPending = true;/);
+    assert.match(source, /forceGraph\.__bigBrainFitPending = options\.fitAfterUpdate[\s\S]*hadGraphData/);
+    assert.match(source, /if \(nodes\.length > 0\) forceGraph\.__bigBrainHasData = true;/);
+    assert.match(source, /cancelScheduledForceGraphFit\(forceGraph\);/);
+  }
 });
 
 test('node appearance controls are independent and migrate legacy styles', async () => {
@@ -944,7 +963,7 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.match(forceGraph2d, /getForceGraphLinkCurvature/);
   assert.match(forceGraph2d, /startArcAnimation/);
   assert.match(forceGraph2d, /if \(!forceGraph\.__bigBrainFitPending\) return;/);
-  assert.match(forceGraph2d, /forceGraph\.__bigBrainFitPending = options\.fitAfterUpdate \?\? !wasInitialized;/);
+  assert.match(forceGraph2d, /forceGraph\.__bigBrainFitPending = options\.fitAfterUpdate[\s\S]*hadGraphData/);
   assert.match(forceGraph2d, /forceGraph\.__bigBrainInitialized = true;/);
   assert.match(forceGraph2d, /nodeVisibility/);
   assert.match(forceGraph2d, /linkVisibility/);
