@@ -68,6 +68,22 @@ commit_message: Record the Gmail update
   }
 });
 
+test('health accepts timeline provenance without requiring mutable page source frontmatter', async () => {
+  const fixture = await createFixture('bigbrain-health-provenance-timeline-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'projects/timeline-attributed.md', `---\ntitle: Timeline attributed\n---\n# Timeline attributed\n\nCurrent context.\n\n---\n\n## Timeline\n\n- **2026-08-28** | Captured from an older email.\n  <!-- bigbrain:timeline {"schema_version":1,"entry_id":"gmail:event-1","occurred_at":"2026-08-28","recorded_at":"2026-09-01T12:00:00.000Z","text":"Captured from an older email.","provenance":{"event_id":"gmail:event-1","source_type":"gmail","source_label":"Data center thread","source_url":"https://example.test/email","commit_message":"Record the email update"},"significance":"minor"} -->\n`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const report = await runHealthCheck(config, { cliCommand: process.execPath, repairUnknownSource: false });
+
+    assert.equal(report.provenance_status.pages_with_source_attribution, 1);
+    assert.equal(report.findings.some((finding) => finding.page_slug === 'projects/timeline-attributed' && finding.finding_type === 'missing_source_attribution'), false);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('health reports changed Git-backed content without source attribution', async () => {
   const fixture = await createFixture('bigbrain-health-provenance-git-');
   try {

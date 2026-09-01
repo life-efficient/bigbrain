@@ -31,8 +31,11 @@ export function parseTimeline(timeline) {
       index,
       includeMetadata: true,
     }));
+    const sorted = sortTimelineEntries(entries);
     return {
-      entries: sortTimelineEntries(entries),
+      entries: sorted,
+      original_entries: entries,
+      order_changed: timelineOrderChanged(entries, sorted),
       clean: true,
       hasMetadata: entries.some((entry) => entry._includeMetadata),
       source: 'structured',
@@ -40,7 +43,7 @@ export function parseTimeline(timeline) {
   }
 
   const raw = stripTimelineHeading(String(timeline || ''));
-  if (!raw) return { entries: [], clean: true, hasMetadata: false, source: 'empty' };
+  if (!raw) return { entries: [], original_entries: [], order_changed: false, clean: true, hasMetadata: false, source: 'empty' };
 
   const entries = [];
   let clean = true;
@@ -70,8 +73,11 @@ export function parseTimeline(timeline) {
     const entry = normalizeTimelineEntry(visible, { index: entries.length, recordedAt: null, includeMetadata: false });
     entries.push(entry);
   }
+  const sorted = sortTimelineEntries(entries);
   return {
-    entries: sortTimelineEntries(entries),
+    entries: sorted,
+    original_entries: entries,
+    order_changed: timelineOrderChanged(entries, sorted),
     clean,
     hasMetadata: entries.some((entry) => entry._includeMetadata),
     source: 'markdown',
@@ -261,7 +267,7 @@ function parseVisibleTimelineLine(line) {
 }
 
 function stripTimelineHeading(value) {
-  return String(value || '').trim().replace(/^##\s+Timeline\s*/i, '').trim();
+  return String(value || '').trim().replace(/^##\s+(?:Timeline|History)\s*/i, '').trim();
 }
 
 function normalizeOccurredAt(value, name) {
@@ -286,6 +292,16 @@ function timelineSortValue(entry) {
     ? Date.parse(`${entry.occurred_at}T00:00:00.000Z`)
     : Date.parse(entry.occurred_at);
   return Number.isFinite(value) ? value : Number.NEGATIVE_INFINITY;
+}
+
+function timelineOrderChanged(original, sorted) {
+  return original.some((entry, index) => {
+    const next = sorted[index];
+    return !next
+      || entry.entry_id !== next.entry_id
+      || entry.occurred_at !== next.occurred_at
+      || entry.text !== next.text;
+  });
 }
 
 function timelineDisplayDate(value) {

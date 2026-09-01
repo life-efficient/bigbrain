@@ -69,7 +69,8 @@ export async function migrateTimelinePages({
         path: file.relative,
         entries: entries.length,
         legacy_entries: timeline.entries.filter((entry) => !entry._includeMetadata).length,
-        before_first_date: timeline.entries[0]?.occurred_at || null,
+        order_changed: timeline.order_changed,
+        before_first_date: timeline.original_entries[0]?.occurred_at || null,
         after_first_date: entries[0]?.occurred_at || null,
       });
     }
@@ -99,7 +100,7 @@ async function walkMarkdownFiles(rootDir, relativeDir = '', files = []) {
       await walkMarkdownFiles(rootDir, relative, files);
     } else if (entry.isFile() && entry.name.endsWith('.md')) {
       const normalized = relative.split(path.sep).join('/');
-      if (!['README.md', 'FILING.md'].includes(entry.name.toUpperCase())) files.push({ fullPath: path.join(rootDir, relative), relative: normalized });
+      if (!['readme.md', 'filing.md'].includes(entry.name.toLowerCase())) files.push({ fullPath: path.join(rootDir, relative), relative: normalized });
     }
   }
   return files.sort((a, b) => a.relative.localeCompare(b.relative));
