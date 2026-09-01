@@ -33,7 +33,6 @@ import {
   seedVisNetworkNodePosition,
 } from '../../src/dashboard-client/graph/vis-network-data.js';
 import {
-  buildInitialGraphRevealStages,
   deriveGraphMotion,
   graphPayloadsEqual,
 } from '../../src/dashboard-client/graph/live-graph.js';
@@ -245,29 +244,6 @@ test('confirmed graph refreshes identify created and updated pages for live moti
   assert.deepEqual(linkedOnly.changes, []);
 });
 
-test('initial graph reveal stages are chronological and keep only connected links', () => {
-  const nodes = Array.from({ length: 100 }, (_, index) => ({
-    slug: `projects/node-${String(index).padStart(3, '0')}`,
-    created_at: `2026-01-${String((index % 28) + 1).padStart(2, '0')}T12:00:00Z`,
-  })).reverse();
-  const stages = buildInitialGraphRevealStages({
-    nodes,
-    edges: [
-      { source: 'projects/node-000', target: 'projects/node-098' },
-      { source: 'projects/node-000', target: 'projects/node-099' },
-    ],
-  }, { maxStages: 3, minNodes: 2 });
-
-  assert.equal(stages.length, 3);
-  assert.equal(stages[0].nodes[0].slug, 'projects/node-000');
-  assert.equal(stages.at(-1).nodes.length, 100);
-  assert.deepEqual(stages[0].edges, []);
-  assert.deepEqual(stages.at(-1).edges.map(({ source, target }) => [source, target]), [
-    ['projects/node-000', 'projects/node-098'],
-    ['projects/node-000', 'projects/node-099'],
-  ]);
-});
-
 test('graph membership transitions visibly enter, exit, and reverse during a scrub', () => {
   const startTime = 10_000;
   const original = {
@@ -301,16 +277,6 @@ test('graph membership transitions visibly enter, exit, and reverse during a scr
   assert.equal(reversing.displayData.nodes.length, 2);
   assert.equal(graphTransitionProgress(returningNode, startTime + 120), exitProgress);
   assert.ok(graphTransitionProgress(returningNode, startTime + 120 + GRAPH_MEMBERSHIP_TRANSITION_MS / 2) > exitProgress);
-});
-
-test('initial graph reveal remains enabled for the current-sized Brain', () => {
-  const nodes = Array.from({ length: 1290 }, (_, index) => ({
-    slug: `projects/node-${index}`,
-    created_at: `2024-01-01T00:00:${String(index % 60).padStart(2, '0')}Z`,
-  }));
-  const stages = buildInitialGraphRevealStages({ nodes, edges: [] });
-  assert.ok(stages.length > 1);
-  assert.equal(stages.at(-1).nodes.length, nodes.length);
 });
 
 test('force graph snapshots isolate links and keep endpoints as node ids', () => {
@@ -360,8 +326,12 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(force3d, /graphTransitionActive\(node\)/);
   assert.match(force2d, /graphTransitionProgress\(node\)/);
   assert.match(force3d, /graphTransitionProgress\(node\)/);
-  assert.match(force2d, /buildInitialGraphRevealStages/);
-  assert.match(force3d, /buildInitialGraphRevealStages/);
+  assert.doesNotMatch(force2d, /buildInitialGraphRevealStages|startInitialGraphReveal/);
+  assert.doesNotMatch(force3d, /buildInitialGraphRevealStages|startInitialGraphReveal/);
+  assert.match(force2d, /const transitioned = hadGraphData\s*\?\s*prepareGraphTransitionData/);
+  assert.match(force3d, /const transitioned = hadGraphData\s*\?\s*prepareGraphTransitionData/);
+  assert.match(force2d, /force-graph-initial-fade/);
+  assert.match(force3d, /force-graph-initial-fade/);
   assert.match(force2d, /focusNode\?\.id === node\.id/);
   assert.match(force3d, /syncForceGraphNodeState\(node, focusNode \? new Set\(\[focusNode\.id\]\)/);
   assert.match(force3d, /animatedLinks\.forEach\(\(link\) => forceGraph\.emitParticle/);
@@ -495,6 +465,8 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /startArcAnimation/);
   const dashboard = await fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8');
   assert.match(dashboard, /graph-arc-hover-grow/);
+  assert.match(dashboard, /\.force-graph-initial-fade \{ animation: force-graph-initial-fade 620ms ease-out both; \}/);
+  assert.match(dashboard, /@keyframes force-graph-initial-fade \{ from \{ opacity: 0; \} to \{ opacity: 1; \} \}/);
   assert.match(visualizer, /linkCurvature\(\(\) => getForceGraphLinkCurvature/);
   assert.match(visualizer, /renderedArcStyleRef/);
   assert.match(visualizer, /refreshForceGraphLinkCurves/);

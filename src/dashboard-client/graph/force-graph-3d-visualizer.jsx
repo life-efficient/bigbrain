@@ -13,7 +13,6 @@ import {
   startGraphTransitionLoop,
 } from './graph-transition.js';
 import { prepareForceGraphData } from './force-graph-data.js';
-import { buildInitialGraphRevealStages, INITIAL_GRAPH_REVEAL_STEP_MS } from './live-graph.js';
 import { getGraphNodeSizeScale } from './node-sizes.js';
 import { useGraphTheme } from './visualizer-core.jsx';
 
@@ -236,7 +235,6 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       hideFocusLabel();
-      cancelInitialGraphReveal(forceGraph);
       cancelGraphTransitionLoop(forceGraph);
       cancelScheduledForceGraphFit(forceGraph);
       forceGraph.__bigBrainDisposed = true;
@@ -371,7 +369,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   }, [motionEvent]);
 
   return (
-    <div className="graph-canvas-shell force3d-shell">
+    <div className="graph-canvas-shell force3d-shell force-graph-initial-fade">
       <div ref={containerRef} className="force3d-surface" aria-label="3D force-directed brain graph" />
       <div
         ref={focusLabelRef}
@@ -401,16 +399,6 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
 });
 
 function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, options = {}) {
-  const fromInitialReveal = options.fromInitialReveal === true;
-  if (!fromInitialReveal) cancelInitialGraphReveal(forceGraph);
-  if (!forceGraph.__bigBrainHasData && !fromInitialReveal && !focusSlug) {
-    const stages = buildInitialGraphRevealStages(graph);
-    if (stages.length > 1) {
-      startInitialGraphReveal(forceGraph, stages, settings, focusSlug);
-      return;
-    }
-  }
-
   const previousData = getForceGraphData(forceGraph);
   const previousNodes = new Map((previousData.nodes || []).map((node) => [node.id, node]));
   const previousLinks = new Map((previousData.links || []).map((link) => [link.id, link]));
@@ -440,7 +428,11 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
     });
 
   const targetData = { nodes, links };
-  const transitioned = prepareGraphTransitionData(previousData, targetData);
+  const wasInitialized = Boolean(forceGraph.__bigBrainInitialized);
+  const hadGraphData = Boolean(forceGraph.__bigBrainHasData);
+  const transitioned = hadGraphData
+    ? prepareGraphTransitionData(previousData, targetData)
+    : { displayData: targetData, transitionItems: [] };
   const data = transitioned.displayData;
   const forceData = prepareForceGraphData(data);
   const previousNodeIds = new Set(previousData.nodes?.map((node) => node.id) || []);
@@ -449,8 +441,6 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
   const targetLinkIds = new Set(links.map((link) => link.id));
   const previousTargetNodeIds = forceGraph.__bigBrainTargetNodeIds;
   const previousTargetLinkIds = forceGraph.__bigBrainTargetLinkIds;
-  const wasInitialized = Boolean(forceGraph.__bigBrainInitialized);
-  const hadGraphData = Boolean(forceGraph.__bigBrainHasData);
   const membershipChanged = !forceGraph.__bigBrainInitialized
     || data.nodes.length !== previousNodeIds.size
     || data.links.length !== previousLinkIds.size
@@ -495,42 +485,6 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
   forceGraph.__bigBrainInitialized = true;
   graphDataRefFor(forceGraph, getForceGraphData(forceGraph));
   updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), focusSlug, settings.arcAnimation);
-}
-
-function startInitialGraphReveal(forceGraph, stages, settings, focusSlug) {
-  cancelInitialGraphReveal(forceGraph);
-  const reveal = { stages, nextIndex: 1, timer: 0 };
-  forceGraph.__bigBrainInitialReveal = reveal;
-  syncForceGraphData(forceGraph, stages[0], settings, focusSlug, {
-    fromInitialReveal: true,
-    fitAfterUpdate: false,
-  });
-
-  const advance = () => {
-    if (forceGraph.__bigBrainInitialReveal !== reveal) return;
-    const stage = stages[reveal.nextIndex];
-    if (!stage) {
-      forceGraph.__bigBrainInitialReveal = null;
-      return;
-    }
-    const isFinalStage = reveal.nextIndex === stages.length - 1;
-    reveal.nextIndex += 1;
-    syncForceGraphData(forceGraph, stage, settings, focusSlug, {
-      fromInitialReveal: true,
-      fitAfterUpdate: isFinalStage,
-    });
-    if (!isFinalStage) reveal.timer = window.setTimeout(advance, INITIAL_GRAPH_REVEAL_STEP_MS);
-    else forceGraph.__bigBrainInitialReveal = null;
-  };
-
-  reveal.timer = window.setTimeout(advance, INITIAL_GRAPH_REVEAL_STEP_MS);
-}
-
-function cancelInitialGraphReveal(forceGraph) {
-  const reveal = forceGraph?.__bigBrainInitialReveal;
-  if (!reveal) return;
-  window.clearTimeout(reveal.timer);
-  forceGraph.__bigBrainInitialReveal = null;
 }
 
 function scheduleForceGraphFit(forceGraph) {
