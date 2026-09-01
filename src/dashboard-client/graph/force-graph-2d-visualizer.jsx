@@ -113,7 +113,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       const sizeChanged = forceGraph.width() !== width || forceGraph.height() !== height;
       if (sizeChanged) {
         forceGraph.width(width).height(height);
-        if (forceGraph.__bigBrainHasData) scheduleForceGraphFit(forceGraph);
+        if (forceGraph.__bigBrainHasData && !forceGraph.isEngineRunning?.()) scheduleForceGraphFit(forceGraph);
       }
     };
     resize();
@@ -343,8 +343,11 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
     if (wasInitialized) {
       forceGraph.warmupTicks(0).cooldownTicks(GRAPH_UPDATE_COOLDOWN_TICKS).cooldownTime(GRAPH_UPDATE_COOLDOWN_TIME);
     }
-    forceGraph.__bigBrainFitPending = options.fitAfterUpdate
+    const shouldFitAfterUpdate = options.fitAfterUpdate
       ?? (!wasInitialized || (!hadGraphData && nodes.length > 0));
+    forceGraph.__bigBrainFitPending = shouldFitAfterUpdate;
+    forceGraph.__bigBrainFitNodeIds = shouldFitAfterUpdate ? targetNodeIds : null;
+    forceGraph.__bigBrainFitLinkIds = shouldFitAfterUpdate ? targetLinkIds : null;
     forceGraph.graphData(forceData);
   } else {
     forceGraph.linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph));
@@ -414,11 +417,19 @@ function scheduleForceGraphFit(forceGraph) {
     const data = getForceGraphData(forceGraph);
     const width = forceGraph.width?.() || 0;
     const height = forceGraph.height?.() || 0;
+    const fitNodeIds = forceGraph.__bigBrainFitNodeIds;
+    const fitLinkIds = forceGraph.__bigBrainFitLinkIds;
     if (width <= 1 || height <= 1 || !data.nodes?.length) {
       forceGraph.__bigBrainFitPending = true;
       return;
     }
+    if (forceGraph.__bigBrainFitPending && (
+      (fitNodeIds && !sameIdSet(fitNodeIds, new Set(data.nodes.map((node) => node.id))))
+      || (fitLinkIds && !sameIdSet(fitLinkIds, new Set(data.links.map((link) => link.id))))
+    )) return;
     forceGraph.__bigBrainFitPending = false;
+    forceGraph.__bigBrainFitNodeIds = null;
+    forceGraph.__bigBrainFitLinkIds = null;
     forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
   });
 }
