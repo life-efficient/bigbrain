@@ -308,17 +308,12 @@ function showConnection(result) {
   document.querySelector('#open').onclick = loadApp;
 }
 
-async function loadApp(skipActive = false) {
+async function loadApp() {
   state = await api.state();
   document.querySelector('#onboarding').classList.add('hidden');
   document.querySelector('#app').classList.remove('hidden');
   renderBrainSelector();
-  if (skipActive) {
-    document.querySelector('#content').innerHTML = '<div class="empty">Choose a brain, or add another one.</div>';
-    void api.setDashboardVisible(false).catch(() => {});
-  } else {
-    showActiveBrain();
-  }
+  showActiveBrain();
 }
 
 function renderBrainSelector() {
@@ -373,6 +368,9 @@ function renderBrainSelector() {
 
 function startOnboarding() {
   onboardingSession += 1;
+  if (new URLSearchParams(location.search).has('setup')) {
+    history.replaceState(null, '', location.pathname);
+  }
   void api.setDashboardVisible(false).catch(() => {});
   document.querySelector('#app').classList.add('hidden');
   document.querySelector('#onboarding').classList.remove('hidden');
@@ -392,7 +390,7 @@ function cancelOnboarding() {
   document.querySelector('#onboarding').classList.add('hidden');
   document.querySelector('#app').classList.remove('hidden');
   if (!state) {
-    void loadApp(false);
+    void loadApp();
     return;
   }
   renderBrainSelector();
@@ -450,7 +448,9 @@ document.addEventListener('keydown', (event) => {
 
 (async () => {
   state = await api.state();
-  if (state.brains.some((brain) => brain.onboarding?.completed)) loadApp(new URLSearchParams(location.search).has('select'));
+  const params = new URLSearchParams(location.search);
+  if (params.has('setup')) startOnboarding();
+  else if (state.brains.some((brain) => brain.onboarding?.completed)) loadApp();
   else await loadDiscoveredBrains();
 })().catch((error) => {
   content.innerHTML = `<div class="error">${escapeHtml(error.message)}</div>`;

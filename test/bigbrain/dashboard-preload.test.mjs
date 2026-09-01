@@ -17,7 +17,7 @@ test('dashboard preload keeps desktop chrome isolated and inline with dashboard 
   assert.match(source, /aria-haspopup/);
   assert.match(source, /aria-expanded/);
   assert.match(source, /desktop:open-brain/);
-  assert.match(source, /desktop:show-selector/);
+  assert.match(source, /desktop:show-setup/);
   assert.match(source, /desktop:check-for-updates/);
   assert.match(source, /desktop:restart-to-update/);
   assert.match(source, /ipcRenderer\.on\('desktop:update-state'/);

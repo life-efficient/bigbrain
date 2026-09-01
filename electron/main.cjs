@@ -90,7 +90,7 @@ if (!singleInstanceLock) {
       await initializeUpdateRestartCoordinator();
       registerUpdateIpc();
       createAppMenu();
-      createMainWindow({ select: process.argv.includes("--select") });
+      createMainWindow({ setup: process.argv.includes("--select") });
       managedServiceReconciliationPromise = coordinateManagedServicesAfterLaunch();
       desktopUpdater.start();
     } catch (error) {
@@ -156,7 +156,7 @@ async function startDashboardRuntime() {
   return localDashboardUrl;
 }
 
-function createMainWindow({ select = false } = {}) {
+function createMainWindow({ setup = false } = {}) {
   if (!dashboardUrl) {
     throw new Error("Dashboard URL has not been initialized.");
   }
@@ -247,7 +247,16 @@ function createMainWindow({ select = false } = {}) {
 
   mainWindow.on("resize", layoutDashboardView);
 
-  loadDashboardWindow({ select });
+  loadDashboardWindow({ setup });
+}
+
+async function showSetupFlow() {
+  if (!mainWindow || mainWindow.isDestroyed()) return false;
+  setDashboardViewVisible(false);
+  const shellUrl = pathToFileURL(path.join(__dirname, "desktop.html"));
+  shellUrl.searchParams.set("setup", "1");
+  await mainWindow.loadURL(shellUrl.href);
+  return true;
 }
 
 function createAppMenu() {
@@ -261,10 +270,7 @@ function createAppMenu() {
           enabled: Boolean(desktopController),
           click: () => {
             if (!mainWindow || !desktopController) return;
-            setDashboardViewVisible(false);
-            const shellUrl = pathToFileURL(path.join(__dirname, "desktop.html"));
-            shellUrl.searchParams.set("select", "1");
-            void mainWindow.loadURL(shellUrl.href);
+            void showSetupFlow();
           },
         },
         { type: "separator" },
@@ -650,13 +656,7 @@ function registerDesktopIpc() {
       await loadBrainDashboard(brain);
       return true;
     },
-    "desktop:show-selector": async () => {
-      setDashboardViewVisible(false);
-      const shellUrl = pathToFileURL(path.join(__dirname, "desktop.html"));
-      shellUrl.searchParams.set("select", "1");
-      await mainWindow.loadURL(shellUrl.href);
-      return true;
-    },
+    "desktop:show-setup": () => showSetupFlow(),
     "desktop:set-dashboard-visible": (_event, visible) => setDashboardViewVisible(Boolean(visible)),
     "desktop:choose-existing-brain": async () => {
       const result = await dialog.showOpenDialog(mainWindow, { properties: ["openDirectory"], title: "Choose an existing BigBrain folder" });
@@ -730,11 +730,11 @@ function isSafeExternalUrl(url) {
   }
 }
 
-function loadDashboardWindow({ select = false } = {}) {
+function loadDashboardWindow({ setup = false } = {}) {
   if (!mainWindow || !dashboardUrl) return;
   loadFailureActive = false;
   const targetUrl = new URL(dashboardUrl);
-  if (select && desktopController) targetUrl.searchParams.set("select", "1");
+  if (setup && desktopController) targetUrl.searchParams.set("setup", "1");
   void mainWindow.loadURL(targetUrl.href).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error("Dashboard load failed", message);

@@ -98,7 +98,7 @@ async function mountBrainSelector(container) {
   add.textContent = '＋ Add brain…';
   add.addEventListener('click', async () => {
     close();
-    await ipcRenderer.invoke('desktop:show-selector');
+    await ipcRenderer.invoke('desktop:show-setup');
   });
   menu.append(separator, add);
   wrap.append(trigger, menu);

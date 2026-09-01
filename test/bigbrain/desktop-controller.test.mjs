@@ -400,9 +400,11 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(dashboardPreloadSource, /document\.querySelector\('\.topline-brand'\)/);
   assert.match(dashboardPreloadSource, /document\.querySelector\('\.topline-actions'\)/);
   assert.match(dashboardPreloadSource, /attachShadow\(\{ mode: 'closed' \}\)/);
-  assert.match(dashboardPreloadSource, /desktop:show-selector/);
+  assert.match(dashboardPreloadSource, /desktop:show-setup/);
   assert.doesNotMatch(dashboardPreloadSource, /contextBridge|exposeInMainWorld/);
   assert.match(mainSource, /Choose or add brain/);
+  assert.match(mainSource, /searchParams\.set\("setup", "1"\)/);
+  assert.doesNotMatch(mainSource, /searchParams\.set\("select", "1"\)/);
   assert.match(mainSource, /will-frame-navigate/);
   assert.match(mainSource, /desktop:api-key-options/);
   assert.match(mainSource, /BIGBRAIN_DASHBOARD_DEV/);
@@ -433,8 +435,9 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(desktopHtml, /\.dashboard-visible \.title-strip\{-webkit-app-region:no-drag\}/);
   assert.match(desktopHtml, /\.title-strip\{[^}]*height:14px;[^}]*-webkit-app-region:drag\}/);
   assert.match(desktopSource, /onDashboardVisibility/);
-  const selectorLoad = desktopSource.match(/async function loadApp\([\s\S]*?\nfunction renderBrainSelector/)?.[0] || '';
-  assert.doesNotMatch(selectorLoad, /await api\.setDashboardVisible\(false\)/);
+  assert.match(desktopSource, /params\.has\('setup'\)\) startOnboarding\(\)/);
+  assert.match(desktopSource, /history\.replaceState\(null, '', location\.pathname\)/);
+  assert.doesNotMatch(desktopSource, /Choose a brain, or add another one/);
   assert.match(desktopHtml, /\.primary\{border:1px solid #fafafa;background:#fafafa;color:#18181b/);
   assert.doesNotMatch(desktopHtml, /#207146|#377652|#f4fff7|#f2f4ef/i);
   assert.doesNotMatch(desktopSource, /Hosted mode|Choose a mode|<strong>Local<\/strong>|cannot save service connections/);
