@@ -320,7 +320,7 @@ test('force renderers focus eligible live page changes without remounting', asyn
   ]);
 
   assert.match(main, /graphMotionEligibleRef\.current = view === 'graph' && !preview && !lineage/);
-  assert.match(main, /if \(timelineIndex >= 0 \|\| focusSlug \|\| activeSlug\) return;/);
+  assert.match(main, /if \(timelineIndex >= 0 \|\| focusSlug\) return;\s*consumedMotionEventRef\.current = motionEvent;/);
   assert.match(main, /motionEvent=\{eligibleMotionEvent\}/);
   assert.match(main, /onBackgroundClick=\{onLineageClose\}/);
   assert.match(main, /visualizerRef\.current\?\.focusNode\?\.\(focusSlug\)/);
@@ -351,12 +351,30 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(force2d, /focusNode\?\.id === node\.id/);
   assert.match(force3d, /syncForceGraphNodeState\(node, focusNode \? new Set\(\[focusNode\.id\]\)/);
   assert.match(force3d, /animatedLinks\.forEach\(\(link\) => forceGraph\.emitParticle/);
-  assert.match(force3d, /linkDirectionalParticles\(\(link\) => animatedLinks\.has\(link\) \? 0/);
+  assert.match(force3d, /linkDirectionalParticles\(\(link\) => shouldShowParticles/);
   assert.match(force2d, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
   assert.match(force3d, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
   assert.match(force3d, /rotationPauseUntilRef\.current/);
   assert.match(force2d, /updateForceGraphHighlight\(forceGraph, target\.slug, settingsRef\.current\.arcAnimation\)/);
   assert.match(force3d, /updateForceGraphHighlight\(forceGraph, latestData, target\.slug, settingsRef\.current\.arcAnimation\)/);
+});
+
+test('force graph arc modes keep grow line-only and shoot beam-driven', async () => {
+  const [force2d, force3d] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/graph/force-graph-2d-visualizer.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/force-graph-3d-visualizer.jsx', import.meta.url), 'utf8'),
+  ]);
+
+  for (const source of [force2d, force3d]) {
+    assert.match(source, /if \(highlightedLinks\.has\(link\)\) return 0;/);
+    assert.match(source, /arcAnimation === 'shoot'/);
+    assert.match(source, /emitParticle/);
+    assert.match(source, /applyForceGraphArcAccessors\(forceGraph\)/);
+  }
+  assert.match(force2d, /requestForceGraphRedraw\(forceGraph\)/);
+  assert.doesNotMatch(force2d, /forceGraph\.tickFrame\?\.\(\)/);
+  assert.match(force3d, /\.linkOpacity\(1\)/);
+  assert.match(force3d, /hexToRgba\(/);
 });
 
 test('unchanged graph refreshes do not restart vis network stabilization', async () => {

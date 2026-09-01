@@ -2457,8 +2457,8 @@ const GraphPanel = memo(function GraphPanel({
 
   useEffect(() => {
     if (!motionEvent || consumedMotionEventRef.current === motionEvent) return;
+    if (timelineIndex >= 0 || focusSlug) return;
     consumedMotionEventRef.current = motionEvent;
-    if (timelineIndex >= 0 || focusSlug || activeSlug) return;
     setEligibleMotionEvent(motionEvent);
   }, [activeSlug, focusSlug, motionEvent, timelineIndex]);
 

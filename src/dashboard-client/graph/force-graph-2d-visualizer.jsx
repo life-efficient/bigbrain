@@ -456,14 +456,18 @@ function updateForceGraphHighlight(forceGraph, focusSlug, arcAnimation = 'instan
     startArcAnimation(forceGraph, arcAnimation, animatedLinks, () => {
       // Canvas force graphs have no separate link materials to mutate. Let
       // the library paint the current frame, without touching the graph data
-      // or restarting its simulation.
-      if (!forceGraph.isEngineRunning?.()) forceGraph.tickFrame?.();
+      // or restarting its simulation. ForceGraph pauses its canvas when the
+      // engine is settled, so re-assigning the accessor marks the canvas
+      // dirty for this frame.
+      requestForceGraphRedraw(forceGraph);
     });
   } else {
     // Instant and None still need a completed state so their accessors resolve
     // to the intended visual result, but they do not schedule any work.
     startArcAnimation(forceGraph, arcAnimation, animatedLinks);
   }
+  applyForceGraphArcAccessors(forceGraph);
+  if (arcAnimation === 'shoot') emitShootParticles(forceGraph, animatedLinks);
   for (const node of nodes) node.__bigBrainEmphasized = focusNode?.id === node.id;
 }
 
@@ -482,8 +486,29 @@ function updateForceGraphActivity(forceGraph, data, slugs, arcAnimation = 'insta
   }
   const animatedLinks = arcAnimation === 'none' ? new Set() : highlightedLinks;
   forceGraph.__bigBrainHighlightLinks = animatedLinks;
-  startArcAnimation(forceGraph, arcAnimation, animatedLinks);
+  startArcAnimation(forceGraph, arcAnimation, animatedLinks, () => requestForceGraphRedraw(forceGraph));
+  applyForceGraphArcAccessors(forceGraph);
+  if (arcAnimation === 'shoot') emitShootParticles(forceGraph, animatedLinks);
   for (const node of nodes) node.__bigBrainEmphasized = focusNode?.id === node.id;
+}
+
+function applyForceGraphArcAccessors(forceGraph) {
+  forceGraph
+    .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
+    .linkWidth((link) => getForceGraphLinkWidth(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
+    .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph), forceGraph))
+    .linkDirectionalParticleSpeed((link) => getForceGraphParticleSpeed(link, forceGraph))
+    .linkDirectionalParticleWidth((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 1.8 : 0.7)
+    .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph));
+}
+
+function requestForceGraphRedraw(forceGraph) {
+  const linkColor = forceGraph.linkColor?.();
+  if (linkColor) forceGraph.linkColor(linkColor);
+}
+
+function emitShootParticles(forceGraph, links) {
+  links.forEach((link) => forceGraph.emitParticle?.(link));
 }
 
 function getForceGraphHighlightLinks(forceGraph) {
@@ -638,11 +663,7 @@ function getForceGraphLinkCurvature(arcStyle, link) {
 }
 
 function shouldShowParticles(link, nodeCount, highlightedLinks, forceGraph) {
-  if (highlightedLinks.has(link)) {
-    const state = forceGraph?.__bigBrainArcAnimation;
-    if (state?.mode === 'grow') return 0;
-    return 4;
-  }
+  if (highlightedLinks.has(link)) return 0;
   return nodeCount <= 900 ? 1 : 0;
 }
 

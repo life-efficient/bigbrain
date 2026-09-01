@@ -177,7 +177,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDayRef.current) || graphTransitionActive(link))
       .linkCurvature(() => getForceGraphLinkCurvature(settingsRef.current.arcStyle))
       .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
-      .linkOpacity((link) => getForceGraphLinkOpacity(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
+      .linkOpacity(1)
       // Keep the dense background as GPU lines. Use thicker cylinders only for
       // the focused neighborhood, where the extra geometry is visible.
       .linkWidth((link) => getForceGraphLinkWidth(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
@@ -584,22 +584,15 @@ function updateForceGraphHighlight(forceGraph, data, focusSlug, arcAnimation = '
     startArcAnimation(forceGraph, arcAnimation, animatedLinks, () => {
       updateForceGraphAnimatedLinks(forceGraph, affectedLinks);
     });
-    if (arcAnimation === 'shoot') {
-      animatedLinks.forEach((link) => forceGraph.emitParticle?.(link));
-    }
-    return;
+  } else {
+    // Set the completed state before the library evaluates its accessors. This
+    // keeps Instant identical to the original immediate highlight path.
+    startArcAnimation(forceGraph, arcAnimation, animatedLinks);
   }
-
-  // Set the completed state before the library evaluates its accessors. This
-  // keeps Instant identical to the original immediate highlight path.
-  startArcAnimation(forceGraph, arcAnimation, animatedLinks);
-  forceGraph
-    .linkColor((link) => getForceGraphLinkColor(link, animatedLinks, forceGraph))
-    .linkOpacity((link) => getForceGraphLinkOpacity(link, animatedLinks, forceGraph))
-    .linkWidth((link) => getForceGraphLinkWidth(link, animatedLinks, forceGraph))
-    .linkDirectionalParticles((link) => shouldShowParticles(link, nodes.length, animatedLinks, forceGraph))
-    .linkDirectionalParticleSpeed((link) => getForceGraphParticleSpeed(link, forceGraph))
-    .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, animatedLinks, forceGraph));
+  applyForceGraphArcAccessors(forceGraph);
+  if (arcAnimation === 'shoot') {
+    animatedLinks.forEach((link) => forceGraph.emitParticle?.(link));
+  }
 }
 
 function updateForceGraphActivity(forceGraph, data, slugs, arcAnimation = 'instant') {
@@ -625,20 +618,24 @@ function updateForceGraphActivity(forceGraph, data, slugs, arcAnimation = 'insta
     startArcAnimation(forceGraph, arcAnimation, animatedLinks, () => {
       updateForceGraphAnimatedLinks(forceGraph, affectedLinks);
     });
-    if (arcAnimation === 'shoot') {
-      animatedLinks.forEach((link) => forceGraph.emitParticle?.(link));
-    }
   } else {
     startArcAnimation(forceGraph, arcAnimation, animatedLinks);
   }
+  applyForceGraphArcAccessors(forceGraph);
+  if (arcAnimation === 'shoot') {
+    animatedLinks.forEach((link) => forceGraph.emitParticle?.(link));
+  }
+}
+
+function applyForceGraphArcAccessors(forceGraph) {
   forceGraph
-    .linkColor((link) => getForceGraphLinkColor(link, animatedLinks, forceGraph))
-    .linkOpacity((link) => getForceGraphLinkOpacity(link, animatedLinks, forceGraph))
-    .linkWidth((link) => getForceGraphLinkWidth(link, animatedLinks, forceGraph))
-    .linkDirectionalParticles((link) => animatedLinks.has(link) ? 0 : (nodes.length <= 900 ? 1 : 0))
+    .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
+    .linkOpacity(1)
+    .linkWidth((link) => getForceGraphLinkWidth(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
+    .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph), forceGraph))
     .linkDirectionalParticleSpeed((link) => getForceGraphParticleSpeed(link, forceGraph))
-    .linkDirectionalParticleWidth(() => 0.7)
-    .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, animatedLinks, forceGraph));
+    .linkDirectionalParticleWidth((link) => getForceGraphHighlightLinks(forceGraph).has(link) ? 1.8 : 0.7)
+    .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph));
 }
 
 function getForceGraphHighlightLinks(forceGraph) {
@@ -903,20 +900,18 @@ function toForceGraphPoint(node) {
 }
 
 function getForceGraphLinkColor(link, highlightedLinks, forceGraph) {
+  const transition = graphTransitionProgress(link);
   if (highlightedLinks.has(link)) {
     const progress = arcAnimationProgress(forceGraph, link);
-    return progress >= 1 ? '#DDE7F5' : blendArcColors(DEFAULT_LINK_COLOR, '#DDE7F5', progress);
+    return hexToRgba(
+      progress >= 1 ? '#DDE7F5' : blendArcColors(DEFAULT_LINK_COLOR, '#DDE7F5', progress),
+      (0.2 + progress * 0.52) * transition,
+    );
   }
   // Keep relationship lines neutral across the graph. ForceGraph resolves
   // string endpoints into node objects after the initial draw, so deriving
   // this from source.color makes links unexpectedly change color on redraw.
-  return DEFAULT_LINK_COLOR;
-}
-
-function getForceGraphLinkOpacity(link, highlightedLinks, forceGraph) {
-  const transition = graphTransitionProgress(link);
-  if (!highlightedLinks.has(link)) return 0.2 * transition;
-  return (0.2 + arcAnimationProgress(forceGraph, link) * 0.52) * transition;
+  return hexToRgba(DEFAULT_LINK_COLOR, 0.2 * transition);
 }
 
 function getForceGraphLinkWidth(link, highlightedLinks, forceGraph) {
@@ -955,10 +950,7 @@ function updateForceGraphMaterial(lineObject, color, opacity) {
 }
 
 function shouldShowParticles(link, nodeCount, highlightedLinks, forceGraph) {
-  if (highlightedLinks.has(link)) {
-    if (forceGraph?.__bigBrainArcAnimation?.mode === 'grow') return 0;
-    return 4;
-  }
+  if (highlightedLinks.has(link)) return 0;
   return nodeCount <= 900 ? 1 : 0;
 }
 
@@ -982,6 +974,14 @@ function escapeHtml(value) {
 
 function normalizeHex(value, fallback) {
   return /^#[0-9a-f]{6}$/i.test(String(value || '')) ? value : fallback;
+}
+
+function hexToRgba(hex, alpha) {
+  const value = normalizeHex(hex, DEFAULT_LINK_COLOR).slice(1);
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+  return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 }
 
 function zoomCamera(forceGraph, factor) {
