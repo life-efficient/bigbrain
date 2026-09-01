@@ -8,13 +8,14 @@ const OPERATIONS = new Set([
   'renew',
   'verify',
   'fail',
+  'retry',
   'advance',
 ]);
 
 export async function runGranolaLedgerCommand(args, { env = process.env } = {}) {
   const operation = args[0];
   if (!OPERATIONS.has(operation)) {
-    throw new Error('Granola ledger operation must be one of: preflight, inspect, record, claim, renew, verify, fail, advance.');
+    throw new Error('Granola ledger operation must be one of: preflight, inspect, record, claim, renew, verify, fail, retry, advance.');
   }
 
   const ledger = await openRoutingLedger({ env });
@@ -103,6 +104,16 @@ export async function runGranolaLedgerCommand(args, { env = process.env } = {}) 
         }),
       };
     }
+    if (operation === 'retry') {
+      return {
+        ok: true,
+        operation,
+        route: ledger.retry({
+          ...identity,
+          actorId: optionalValue(args, '--actor'),
+        }),
+      };
+    }
     const route = ledger.get(identity);
     if (!route || route.decision_state !== 'verified') {
       throw new Error('Cursor advancement requires a verified route for the same source item.');
@@ -131,6 +142,7 @@ Operations:
   renew --source granola --item ID --lease-token TOKEN [--duration-ms N]
   verify --source granola --item ID --lease-token TOKEN --verification-ref REF
   fail --source granola --item ID --lease-token TOKEN --error-code CODE
+  retry --source granola --item ID [--actor ACTOR_ID]
   advance --source granola --item ID --meeting-timestamp ISO`;
 }
 

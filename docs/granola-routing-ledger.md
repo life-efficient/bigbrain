@@ -42,6 +42,17 @@ bigbrain-granola-ledger fail --source granola --item ID \
   --lease-token TOKEN --error-code CODE
 ```
 
+An explicit user-requested retry can reset a failed route for another isolated
+attempt. It preserves the route history, does not create a second route, and
+does not verify or advance the source cursor. Claim the route again before any
+destination write:
+
+```bash
+bigbrain-granola-ledger retry --source granola --item ID [--actor ACTOR_ID]
+bigbrain-granola-ledger claim --source granola --item ID \
+  --duration-ms 1800000
+```
+
 Advance the monotonic source cursor only after the corresponding route is
 verified and destination provenance has been read back:
 

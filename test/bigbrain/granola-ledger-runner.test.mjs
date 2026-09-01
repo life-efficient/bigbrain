@@ -104,3 +104,40 @@ test('record resumes a discovery row left by an invalid decision attempt', async
     await fs.rm(rootDir, { recursive: true, force: true });
   }
 });
+
+test('retry resets a failed route for a new isolated claim', async () => {
+  const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-granola-ledger-retry-'));
+  const ledgerPath = path.join(rootDir, 'routing-ledger.sqlite');
+  const env = { BIGBRAIN_ROUTING_LEDGER_PATH: ledgerPath };
+  try {
+    await runGranolaLedgerCommand([
+      'record', '--source', 'granola', '--item', 'meeting-retry', '--decision', 'auto',
+      '--brain', 'brn_dealmaking', '--policy-revision', 'policy-v1', '--confidence', 'deterministic',
+    ], { env });
+    const firstClaim = await runGranolaLedgerCommand([
+      'claim', '--source', 'granola', '--item', 'meeting-retry', '--duration-ms', '60000',
+    ], { env });
+    await runGranolaLedgerCommand([
+      'fail', '--source', 'granola', '--item', 'meeting-retry',
+      '--lease-token', firstClaim.route.lease_token, '--error-code', 'worker_failed',
+    ], { env });
+
+    const retried = await runGranolaLedgerCommand([
+      'retry', '--source', 'granola', '--item', 'meeting-retry', '--actor', 'user-request',
+    ], { env });
+    assert.equal(retried.route.decision_state, 'approved');
+    assert.equal(retried.route.last_error_code, null);
+    assert.equal(retried.route.lease_token, null);
+
+    const secondClaim = await runGranolaLedgerCommand([
+      'claim', '--source', 'granola', '--item', 'meeting-retry', '--duration-ms', '60000',
+    ], { env });
+    assert.equal(secondClaim.claimed, true);
+    assert.equal(secondClaim.route.attempt_count, 2);
+    await assert.rejects(runGranolaLedgerCommand([
+      'retry', '--source', 'granola', '--item', 'meeting-retry',
+    ], { env }), /Only failed routes can be retried/);
+  } finally {
+    await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});

@@ -39,7 +39,11 @@ helper. Do not use removed `bigbrain granola cursor` or low-level
 4. Keep the lease token private. Use `renew` while work continues. After every
    destination write and same-Brain read-back succeeds, use `verify` with a
    non-sensitive verification reference. Use `fail` with a non-sensitive error
-   code for a terminal failure.
+   code for a terminal failure. For an explicit user-requested retry of a
+   failed route, use `retry --source granola --item ID` and then inspect and
+   claim the route again. A retry starts a new isolated attempt and still
+   requires the full delegation, sync, read-back, verification, and cursor
+   gates.
 5. Use `advance` only after the matching route is verified. The helper enforces
    that gate and monotonic cursor ordering. Held, failed, partial, unavailable,
    or merely claimed routes never advance the cursor.
