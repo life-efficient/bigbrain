@@ -305,6 +305,68 @@ test('desktop delegates local service lifecycle to LocalMcpRunner', async () => 
   assert.equal(calls[1].action, 'restart');
 });
 
+test('desktop creates a local brain through the runner and records its MCP contract', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-local-create-flow-'));
+  const brainHome = path.join(root, 'personal-brain');
+  const calls = [];
+  const requests = [];
+  const registry = new BrainRegistry({ appSupport: path.join(root, 'support'), env: { HOME: root } });
+  const controller = new DesktopController({
+    registry,
+    keychain: { set: async (id, value) => calls.push({ action: 'keychain', id, value }) },
+    appPath: path.resolve(import.meta.dirname, '..', '..'),
+    env: { HOME: root },
+    home: root,
+    userEnvFile: path.join(root, '.env'),
+    localMcpRunner: {
+      provision: async (brain, options) => {
+        calls.push({ action: 'provision', brain, options });
+      },
+    },
+    fetchImpl: async (url) => {
+      requests.push(url);
+      if (url === 'https://api.openai.com/v1/models') return new Response('{}', { status: 200 });
+      return new Response(JSON.stringify({
+        ok: true,
+        brain_id: 'brn_local_service',
+        brain_name: 'Personal Brain',
+        runtime: {
+          application: { version: '0.24.0' },
+          contracts: { api: 1, mcp_protocol: '2024-11-05' },
+          compatibility: { api_contract: { minimum: 1, maximum: 1 } },
+        },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    },
+  });
+
+  try {
+    const result = await controller.createBrain({
+      name: 'Personal Brain',
+      description: 'Private notes and working context.',
+      ownerName: 'Harry',
+      ownerEmail: 'harry@example.com',
+      mode: 'local',
+      newHome: brainHome,
+      gitBackup: false,
+      apiKey: 'sk-test-local-create',
+      apiKeySource: 'manual',
+    });
+
+    assert.equal(calls[0].action, 'keychain');
+    assert.equal(calls[1].action, 'provision');
+    assert.equal(calls[1].brain.home, brainHome);
+    assert.deepEqual(calls[1].options, { ownerSlug: 'people/harry', gitBackup: false });
+    assert.equal(result.brain.status, 'running');
+    assert.equal(result.brain.mcpCompatibility.state, 'compatible');
+    assert.deepEqual(requests, ['https://api.openai.com/v1/models', `http://127.0.0.1:${result.brain.port}/health`]);
+    const persisted = await controller.state();
+    assert.equal(persisted.activeBrainId, result.brain.id);
+    assert.equal(persisted.brains[0].mcpCompatibility.serverVersion, '0.24.0');
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('desktop exposes Railway provisioning as an explicit WIP blocker', async () => {
   const controller = new DesktopController();
   await assert.rejects(() => controller.provisionRemoteBrain({ name: 'Remote Brain' }), new RegExp(REMOTE_PROVISIONING_WIP_MESSAGE));

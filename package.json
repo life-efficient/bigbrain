@@ -10,6 +10,7 @@
   },
   "scripts": {
     "build:dashboard": "node ./scripts/build-dashboard-client.mjs",
+    "mcp:bundle": "node ./scripts/build-mcp-bundle.mjs",
     "init": "node ./bin/bigbrain.js init",
     "recent": "node ./bin/bigbrain.js recent",
     "sync": "node ./bin/bigbrain.js sync",

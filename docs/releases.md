@@ -50,6 +50,17 @@ client assets and the compatibility contract it supports. Active Codex copies
 remain machine-local and are compared by health checks instead of being
 overwritten silently.
 
+Build the standalone local or server MCP runtime bundle with:
+
+```bash
+npm run mcp:bundle
+```
+
+This writes `dist/mcp/bigbrain-mcp-<version>.tar.gz` and its SHA-256 checksum.
+The `release-mcp.yml` workflow publishes that bundle and the server image
+independently of the macOS desktop workflow. Both workflows currently use the
+same source release tag while component versioning is being rolled out.
+
 The macOS release job requires the protected `MACOS_CERTIFICATE_P12`,
 `MACOS_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, and
 `APPLE_TEAM_ID` repository secrets. Unsigned artifacts may be offered only as

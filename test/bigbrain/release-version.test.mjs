@@ -97,11 +97,16 @@ test('desktop and server artifacts carry the versioned skill and automation bund
   assert.match(dockerfile, /COPY src \.\/src/);
 });
 
-test('manual release runs cannot publish the server image from a branch', async () => {
-  const workflow = await fs.readFile(path.join(repoRoot, '.github', 'workflows', 'release-macos.yml'), 'utf8');
-  assert.match(workflow, /publish_server:/);
-  assert.match(workflow, /if: github\.event_name == 'push' \|\| \(inputs\.publish_server == true && github\.ref_type == 'tag'\)/);
-  assert.match(workflow, /Verify tag matches package version[\s\S]*expected="v\$\{\{ steps\.image\.outputs\.version \}\}"/);
+test('desktop and MCP release workflows are independently scoped to release tags', async () => {
+  const desktopWorkflow = await fs.readFile(path.join(repoRoot, '.github', 'workflows', 'release-macos.yml'), 'utf8');
+  const mcpWorkflow = await fs.readFile(path.join(repoRoot, '.github', 'workflows', 'release-mcp.yml'), 'utf8');
+  assert.doesNotMatch(desktopWorkflow, /publish_server:/);
+  assert.doesNotMatch(desktopWorkflow, /docker\/build-push-action/);
+  assert.match(mcpWorkflow, /name: Release BigBrain MCP runtime/);
+  assert.match(mcpWorkflow, /if: github\.ref_type == 'tag'/);
+  assert.match(mcpWorkflow, /npm run mcp:bundle/);
+  assert.match(mcpWorkflow, /docker\/build-push-action/);
+  assert.match(mcpWorkflow, /gh release upload/);
 });
 
 async function bundleIds(relativeRoot, markerFilename) {
