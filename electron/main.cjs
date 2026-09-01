@@ -710,8 +710,12 @@ async function openCanonicalPage({ brain, targetUrl }) {
   if (mainWindow.isMinimized()) mainWindow.restore();
   await ensureDesktopShell();
   const dashboard = await resolveDashboardTarget(brain);
-  const canonicalUrl = new URL(targetUrl);
-  canonicalUrl.origin = new URL(dashboard.url).origin;
+  const requestedUrl = new URL(targetUrl);
+  const dashboardOrigin = new URL(dashboard.url).origin;
+  const canonicalUrl = new URL(
+    `${requestedUrl.pathname}${requestedUrl.search}${requestedUrl.hash}`,
+    dashboardOrigin,
+  );
   await loadDashboardViewUrl(canonicalUrl.href, brain.id, brain);
   mainWindow.show();
   mainWindow.focus();
