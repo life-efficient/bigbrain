@@ -93,6 +93,20 @@ class DashboardErrorBoundary extends React.Component {
 
 function DashboardFatalError({ error }) {
   const report = useMemo(() => recordDashboardError({ source: 'fatal-screen', error }), [error]);
+  const [copyState, setCopyState] = useState('idle');
+  const errorDetails = formatErrorDetails(error);
+
+  async function copyErrorDetails() {
+    setCopyState('copying');
+    try {
+      await copyTextToClipboard(errorDetails);
+      setCopyState('copied');
+      window.setTimeout(() => setCopyState('idle'), 1800);
+    } catch {
+      setCopyState('failed');
+    }
+  }
+
   return (
     <main className="fallback-main">
       <section className="card loading-card error-card">
@@ -107,8 +121,17 @@ function DashboardFatalError({ error }) {
           >
             Reload dashboard
           </button>
+          <button
+            type="button"
+            className="graph-button"
+            onClick={copyErrorDetails}
+            disabled={copyState === 'copying'}
+          >
+            <CopyIcon />
+            {copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy error'}
+          </button>
         </div>
-        <pre className="error-details">{formatErrorDetails(error)}</pre>
+        <pre className="error-details">{errorDetails}</pre>
       </section>
     </main>
   );

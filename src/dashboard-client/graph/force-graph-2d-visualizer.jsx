@@ -125,7 +125,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     window.addEventListener('resize', resize);
 
     forceGraph
-      .backgroundColor('transparent')
+      .backgroundColor('rgba(0,0,0,0)')
       .nodeId('id')
       .nodeVal((node) => Math.max(1, Math.sqrt(Number(node.degree) || 1)))
       .nodeCanvasObjectMode('replace')
@@ -201,7 +201,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
     forceGraph
-      .backgroundColor('transparent')
+      .backgroundColor('rgba(0,0,0,0)')
       .nodeCanvasObject((node, context, globalScale) => {
         drawForceGraphNode(node, context, globalScale, settingsRef.current, forceGraph);
       })

@@ -165,7 +165,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     forceGraph.renderer()?.setPixelRatio?.(Math.min(FORCE_GRAPH_PIXEL_RATIO, window.devicePixelRatio || 1));
 
     forceGraph
-      .backgroundColor('transparent')
+      .backgroundColor('rgba(0,0,0,0)')
       .showNavInfo(false)
       .enableNavigationControls(true)
       // Orbit controls own the primary gesture so clicks remain reliable on
@@ -293,7 +293,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     const arcStyleChanged = renderedArcStyleRef.current !== arcStyle;
     renderedArcStyleRef.current = arcStyle;
     forceGraph
-      .backgroundColor('transparent')
+      .backgroundColor('rgba(0,0,0,0)')
       .linkCurvature(() => getForceGraphLinkCurvature(settingsRef.current.arcStyle));
     updateForceGraphNodeObjects(forceGraph, settingsRef.current);
     if (arcStyleChanged) refreshForceGraphLinkCurves(forceGraph, arcStyle);

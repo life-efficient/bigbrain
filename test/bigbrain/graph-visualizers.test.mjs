@@ -336,8 +336,10 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(force3d, /__bigBrainInitialFadeContainer\?\.querySelector\('canvas'\)/);
   assert.match(force2d, /startForceGraphInitialFade\(forceGraph\)/);
   assert.match(force3d, /startForceGraphInitialFade\(forceGraph\)/);
-  assert.match(force2d, /\.backgroundColor\('transparent'\)/);
-  assert.match(force3d, /\.backgroundColor\('transparent'\)/);
+  assert.match(force2d, /\.backgroundColor\('rgba\(0,0,0,0\)'\)/);
+  assert.match(force3d, /\.backgroundColor\('rgba\(0,0,0,0\)'\)/);
+  assert.doesNotMatch(force2d, /\.backgroundColor\('transparent'\)/);
+  assert.doesNotMatch(force3d, /\.backgroundColor\('transparent'\)/);
   assert.doesNotMatch(force2d, /className="graph-canvas-shell force2d-shell force-graph-initial-fade"/);
   assert.doesNotMatch(force3d, /className="graph-canvas-shell force3d-shell force-graph-initial-fade"/);
   assert.match(force2d, /focusNode\?\.id === node\.id/);

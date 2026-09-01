@@ -39,4 +39,7 @@ test('desktop error handling records failures without automatic renderer recover
   assert.match(clientSource, /recordDashboardError/);
   assert.match(clientSource, /Diagnostic report saved locally as/);
   assert.match(clientSource, /window\.location\.reload\(\)/);
+  assert.match(clientSource, /async function copyErrorDetails\(\)/);
+  assert.match(clientSource, /await copyTextToClipboard\(errorDetails\)/);
+  assert.match(clientSource, /Copy error/);
 });
