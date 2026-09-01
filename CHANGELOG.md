@@ -5,6 +5,81 @@ actions` section for agents maintaining device and server installations.
 
 ## [Unreleased]
 
+## [0.23.0] - 2026-09-01
+
+### Added
+
+- Added a guided desktop brain flow for creating a private local Brain,
+  connecting an existing local Brain folder, or connecting to an existing
+  BigBrain service.
+- Added Brain name and description capture, local Brain discovery, explicit
+  GitHub-backup preference, and secure API-key selection during setup.
+- Added actionable inbound-event draining with `bigbrain events drain`, plus
+  clearer health and maintenance guidance for failed or quarantined events.
+- Added bounded local dashboard error reports that save diagnostics locally
+  without sending them automatically.
+- Added exact YouTube metadata, stable-source identity, chapter preservation,
+  and pre-write validation for media ingest.
+- Added animated graph membership transitions for timeline scrubbing, live
+  graph updates, and chronological initial graph reveal.
+
+### Changed
+
+- Made local desktop setup and cancellation return to the dashboard cleanly,
+  with readable handling for missing installers, occupied ports, and services
+  that do not become ready.
+- Separated the developer desktop identity and launch ownership from the
+  release desktop and shared local MCP services, while keeping desktop event
+  configuration in the shared user configuration directory.
+- Added safe `BIGBRAIN_CONFIG_DIR` overrides while preserving the existing
+  `~/.config/bigbrain` default for event registry, inbox, and ingestor state.
+- Made RSS filing reject paths outside established Brain collections and made
+  source-article ingest choose relevance before writing source artifacts.
+
+### Fixed
+
+- Fixed the add-Brain route that previously rendered the unusable blank
+  “Choose a brain, or add another one” page.
+- Fixed setup-flow escape behavior and prevented duplicate developer desktop
+  launchers from competing for the same port.
+- Fixed graph membership updates appearing instantaneous by retaining entering
+  and exiting nodes and links while their visual state transitions complete.
+
+### Agent update actions
+
+- Packaged desktop installs: update to BigBrain `v0.23.0` and restart the app.
+  Use the client update control when available, then verify that the desktop
+  and each desktop-owned local MCP service report `0.23.0`. Existing source,
+  remote, newer, or unknown-owner services must remain untouched.
+- Source installs: update to the `v0.23.0` tag, run `npm install`, `npm link`,
+  and `npm run build:dashboard`, then restart every BigBrain desktop, dashboard,
+  and local MCP service. Verify with `bigbrain --version`,
+  `bigbrain sync --json`, `bigbrain health --json`, `npm test`, and
+  `npm pack --dry-run`.
+- If using the new local setup flow, choose the GitHub-backup preference that
+  matches the Brain owner’s intent. This preference applies to the new or
+  adopted Brain registration and does not rewrite existing Brain content.
+- No Brain Markdown migration, Brain profile schema migration, task/page field
+  migration, database migration, member-role migration, OAuth/API-key
+  migration, or event-registry migration is required. Existing task values for
+  `status`, `readiness`, `priority`, `assignees`, `source`, and execution mode
+  remain valid. Existing event files continue to use their current default
+  location unless `BIGBRAIN_CONFIG_DIR` is deliberately configured.
+- Server deployments: deploy only the immutable `v0.23.0` release tag, preserve
+  Brain and database volumes, and verify `/live`, `/ready`, authenticated MCP
+  tool listing, and owning-MCP read-back after restart.
+
+### Verification
+
+- Full `npm test` suite: 457 passed, 6 skipped, 0 failed.
+- Dashboard production build completed successfully.
+- Graph transition, local setup, service ownership, error reporting, event
+  handling, YouTube provenance, and skill-template regressions passed.
+- Local-data compatibility audit completed against `v0.22.0`; no persisted
+  Brain or task migration is required.
+- Developer desktop restarted and verified as the single active Dev app on
+  its expected local port.
+
 ## [0.22.0] - 2026-08-30
 
 ### Added
