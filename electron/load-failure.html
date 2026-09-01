@@ -11,15 +11,21 @@
     h1 { margin: 0 0 8px; font-size: 20px; }
     p { margin: 0 0 16px; color: #57534a; line-height: 1.5; }
     pre { overflow: auto; white-space: pre-wrap; word-break: break-word; border: 1px solid #e5e2da; border-radius: 8px; padding: 12px; background: #f8f8f6; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
     button { border: 1px solid #222; border-radius: 6px; background: #222; color: #fff; padding: 8px 12px; font: inherit; cursor: pointer; }
+    button.secondary { border-color: #d8d5cc; background: #fff; color: #20201d; }
     button:disabled { cursor: wait; opacity: .65; }
   </style>
 </head>
 <body>
   <main>
     <h1>Dashboard unavailable</h1>
-    <p>BigBrain did not finish opening. Reloading usually fixes a temporary startup problem.</p>
-    <button id="reload" type="button">Reload BigBrain</button>
+    <p>BigBrain could not finish opening the selected dashboard. You can retry or switch to another brain.</p>
+    <div class="actions">
+      <button id="personal" type="button">Open Personal Brain</button>
+      <button id="choose" class="secondary" type="button">Choose or add a brain</button>
+      <button id="reload" class="secondary" type="button">Retry</button>
+    </div>
     <pre id="details">Loading error details…</pre>
   </main>
   <script src="./load-failure.js"></script>

@@ -470,9 +470,16 @@ test('desktop load failures use a compact local recovery page instead of an enco
   assert.match(mainSource, /mainWindow\.loadURL\(targetUrl\.href\)/);
   assert.match(mainSource, /desktop:load-failure-state/);
   assert.match(mainSource, /desktop:reload-dashboard/);
+  assert.match(mainSource, /desktop:open-personal-brain/);
+  assert.match(mainSource, /onBeforeSendHeaders/);
+  assert.match(mainSource, /onHeadersReceived/);
   assert.match(preloadSource, /bigbrainLoadFailure/);
-  assert.match(failureHtml, /Reload BigBrain/);
-  assert.match(failureSource, /api\.reload\(\)/);
+  assert.match(preloadSource, /openPersonalBrain/);
+  assert.match(preloadSource, /chooseBrain/);
+  assert.match(failureHtml, /Open Personal Brain/);
+  assert.match(failureHtml, /Choose or add a brain/);
+  assert.match(failureHtml, />Retry</);
+  assert.match(failureSource, /api\.reload/);
   assert.doesNotMatch(failureHtml, /data:text\/html/);
 });
 

@@ -59,5 +59,7 @@ if (isLoadFailurePage) {
   contextBridge.exposeInMainWorld('bigbrainLoadFailure', {
     state: () => ipcRenderer.invoke('desktop:load-failure-state'),
     reload: () => ipcRenderer.invoke('desktop:reload-dashboard'),
+    openPersonalBrain: () => ipcRenderer.invoke('desktop:open-personal-brain'),
+    chooseBrain: () => ipcRenderer.invoke('desktop:show-setup'),
   });
 }

@@ -5,6 +5,7 @@ const { pathToFileURL } = require("url");
 const { dashboardPartition, dashboardViewBounds, isAllowedDashboardNavigation } = require("./lib/dashboard-view-policy.cjs");
 const { waitForDashboardReady } = require("./lib/dashboard-readiness.cjs");
 const { recordAppError } = require("./lib/local-error-log.cjs");
+const { findRemoteDashboardTokenPath, readProtectedDashboardToken, dashboardBasicAuthorization } = require("./lib/remote-dashboard-auth.cjs");
 
 const LOCAL_HOST = "127.0.0.1";
 const DEFAULT_WINDOW_SIZE = { width: 1079, height: 945 };
@@ -29,6 +30,7 @@ let mainWindow = null;
 let dashboardView = null;
 let dashboardViewBrainId = null;
 let activeDashboardOrigin = null;
+let activeDashboardAuthorization = null;
 let dashboardServer = null;
 const devDashboardRuntimes = new Map();
 let localPageLinkServer = null;
@@ -661,6 +663,14 @@ function registerDesktopIpc() {
       await loadBrainDashboard(brain);
       return true;
     },
+    "desktop:open-personal-brain": async () => {
+      const state = await desktopController.state();
+      const localBrain = state.brains.find((brain) => brain.connectionType !== "service");
+      if (!localBrain) throw new Error("No local brain is registered on this Mac.");
+      await desktopController.activate(localBrain.id);
+      await ensureDesktopShell();
+      return true;
+    },
     "desktop:show-setup": () => showSetupFlow(),
     "desktop:set-dashboard-visible": (_event, visible) => setDashboardViewVisible(Boolean(visible)),
     "desktop:choose-existing-brain": async () => {
@@ -701,7 +711,7 @@ async function openCanonicalPage({ brain, targetUrl }) {
   const dashboard = await resolveDashboardTarget(brain);
   const canonicalUrl = new URL(targetUrl);
   canonicalUrl.origin = new URL(dashboard.url).origin;
-  await loadDashboardViewUrl(canonicalUrl.href, brain.id);
+  await loadDashboardViewUrl(canonicalUrl.href, brain.id, brain);
   mainWindow.show();
   mainWindow.focus();
 }
@@ -754,6 +764,7 @@ async function ensureDesktopShell() {
   if (!mainWindow || !desktopController) return;
   const shellUrl = pathToFileURL(path.join(__dirname, "desktop.html")).href;
   if (mainWindow.webContents.getURL().split("?")[0] === shellUrl) return;
+  loadFailureActive = false;
   setDashboardViewVisible(false);
   await mainWindow.loadURL(shellUrl);
 }
@@ -766,7 +777,7 @@ async function loadBrainDashboard(brain) {
     await managedServiceReconciliationPromise;
     await waitForDashboardReady(brain.dashboardUrl);
   }
-  await loadDashboardViewUrl(dashboard.url, brain.id);
+  await loadDashboardViewUrl(dashboard.url, brain.id, brain);
 }
 
 async function resolveDashboardTarget(brain) {
@@ -789,9 +800,10 @@ async function resolveDashboardTarget(brain) {
   return target;
 }
 
-async function loadDashboardViewUrl(url, brainId) {
+async function loadDashboardViewUrl(url, brainId, brain = null) {
   if (!mainWindow || !desktopController) throw new Error("The desktop shell is unavailable.");
   activeDashboardOrigin = new URL(url).origin;
+  activeDashboardAuthorization = await resolveDashboardAuthorization(brain);
   const view = ensureDashboardView(brainId);
   layoutDashboardView();
   setDashboardViewVisible(false);
@@ -801,6 +813,19 @@ async function loadDashboardViewUrl(url, brainId) {
   } catch (error) {
     setDashboardViewVisible(false);
     throw error;
+  }
+}
+
+async function resolveDashboardAuthorization(brain) {
+  if (brain?.connectionType !== "service" || !brain.serviceUrl) return null;
+  const tokenPath = await findRemoteDashboardTokenPath(brain.serviceUrl);
+  if (!tokenPath) return null;
+  try {
+    const token = await readProtectedDashboardToken(tokenPath);
+    return dashboardBasicAuthorization(token);
+  } catch (error) {
+    recordAppError(app, "remote-dashboard-credential-unavailable", error);
+    return null;
   }
 }
 
@@ -851,6 +876,28 @@ function configureDashboardWebContents(webContents) {
     if (isSafeExternalUrl(url)) void shell.openExternal(url);
   });
   webContents.session.setPermissionRequestHandler((_requestingWebContents, _permission, callback) => callback(false));
+  webContents.session.webRequest.onBeforeSendHeaders({ urls: ["*://*/*"] }, (details, callback) => {
+    try {
+      if (activeDashboardAuthorization && new URL(details.url).origin === activeDashboardOrigin) {
+        const hasAuthorization = Object.keys(details.requestHeaders || {}).some((key) => key.toLowerCase() === "authorization");
+        if (!hasAuthorization) details.requestHeaders.Authorization = activeDashboardAuthorization;
+      }
+    } catch {
+      // A malformed request URL is rejected by the navigation policy below.
+    }
+    callback({ requestHeaders: details.requestHeaders });
+  });
+  webContents.session.webRequest.onHeadersReceived({ urls: ["*://*/*"] }, (details, callback) => {
+    try {
+      const isActiveDashboard = new URL(details.url).origin === activeDashboardOrigin;
+      if (details.resourceType === "mainFrame" && isActiveDashboard && [401, 403].includes(details.statusCode)) {
+        setTimeout(() => showLoadFailure("The selected dashboard could not be authenticated inside BigBrain. You can retry or switch to another brain."), 0);
+      }
+    } catch {
+      // The dashboard view handles only validated origins.
+    }
+    callback({ responseHeaders: details.responseHeaders });
+  });
   webContents.on("render-process-gone", (_event, details) => {
     console.error("Dashboard renderer process exited", details);
     recordAppError(app, "brain-dashboard-renderer-gone", details);
@@ -864,6 +911,7 @@ function configureDashboardWebContents(webContents) {
   webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedUrl, isMainFrame) => {
     if (!isMainFrame || errorCode === -3) return;
     console.error("Dashboard failed to load", { errorCode, errorDescription, validatedUrl });
+    setTimeout(() => showLoadFailure(errorDescription || `Load failed with code ${errorCode}`), 0);
   });
 }
 
