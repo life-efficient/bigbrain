@@ -12,6 +12,7 @@ const PROFILE_STATES = new Set(['valid', 'draft', 'missing', 'invalid', 'unknown
 const AUTH_STATES = new Set(['authenticated', 'local_trusted', 'needs_auth', 'unknown']);
 const WRITABILITY_STATES = new Set(['writable', 'read_only', 'approval_required', 'unknown']);
 const HEALTH_STATES = new Set(['healthy', 'degraded', 'unreachable', 'unknown']);
+const DESKTOP_SERVICE_OWNERSHIPS = new Set(['desktop_bundle', 'source', 'remote', 'unknown']);
 const SECRET_KEY = /(?:token|secret|password|authorization|cookie|api[_-]?key|credential)/i;
 const BRAIN_ID = /^brn_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -80,6 +81,7 @@ export class MachineCatalog {
     if (index >= 0) {
       next.entry_id = catalog.brains[index].entry_id;
       next.created_at = catalog.brains[index].created_at;
+      if (input.desktop === undefined) next.desktop = catalog.brains[index].desktop;
       catalog.brains[index] = next;
     } else {
       catalog.brains.push({ ...next, created_at: next.created_at || now });
@@ -241,8 +243,78 @@ function normalizeBrainEntry(value, { requireCanonicalId = false } = {}) {
       checked_at: healthCheckedAt,
     },
     local,
+    desktop: normalizeDesktopMetadata(value.desktop),
     created_at: optionalIsoDate(value.created_at),
     updated_at: optionalIsoDate(value.updated_at),
+  };
+}
+
+function normalizeDesktopMetadata(value) {
+  if (value === null || value === undefined) return null;
+  requireObject(value, 'desktop');
+  const owner = value.owner === null || value.owner === undefined ? null : normalizeDesktopOwner(value.owner);
+  const aiAccess = value.ai_access === null || value.ai_access === undefined
+    ? null
+    : normalizeDesktopAiAccess(value.ai_access);
+  const onboarding = value.onboarding === null || value.onboarding === undefined
+    ? null
+    : normalizeDesktopOnboarding(value.onboarding);
+  const replacedService = value.replaced_service === null || value.replaced_service === undefined
+    ? null
+    : normalizeReplacedService(value.replaced_service);
+  const serviceOwnership = value.service_ownership === null || value.service_ownership === undefined
+    ? null
+    : requireEnum(value.service_ownership, DESKTOP_SERVICE_OWNERSHIPS, 'desktop.service_ownership');
+  return {
+    description: optionalString(value.description) || '',
+    service_label: optionalString(value.service_label),
+    service_ownership: serviceOwnership,
+    service_ownership_reason: optionalString(value.service_ownership_reason),
+    status: optionalString(value.status),
+    owner,
+    ai_access: aiAccess,
+    hosting: optionalString(value.hosting),
+    visibility: optionalString(value.visibility),
+    backup_preference: optionalString(value.backup_preference),
+    onboarding,
+    replaced_service: replacedService,
+    last_opened_at: optionalIsoDate(value.last_opened_at),
+  };
+}
+
+function normalizeDesktopOwner(value) {
+  requireObject(value, 'desktop.owner');
+  return {
+    name: optionalString(value.name),
+    email: optionalString(value.email)?.toLowerCase() || null,
+    person_slug: optionalString(value.person_slug),
+  };
+}
+
+function normalizeDesktopAiAccess(value) {
+  requireObject(value, 'desktop.ai_access');
+  return {
+    type: optionalString(value.type),
+    provider: optionalString(value.provider),
+  };
+}
+
+function normalizeDesktopOnboarding(value) {
+  requireObject(value, 'desktop.onboarding');
+  const step = value.step === null || value.step === undefined ? null : optionalPositiveInteger(value.step, 'desktop.onboarding.step');
+  return {
+    step,
+    completed: Boolean(value.completed),
+    error: optionalString(value.error),
+  };
+}
+
+function normalizeReplacedService(value) {
+  requireObject(value, 'desktop.replaced_service');
+  return {
+    label: optionalString(value.label),
+    plist_path: optionalString(value.plist_path || value.plistPath),
+    port: optionalPort(value.port),
   };
 }
 

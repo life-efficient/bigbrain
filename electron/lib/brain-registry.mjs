@@ -3,6 +3,10 @@ import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import {
+  MachineCatalog,
+  defaultMachineCatalogPath,
+} from '../../src/bigbrain/machine-catalog.js';
 
 export const REGISTRY_VERSION = 2;
 export const DEFAULT_PORT_START = 55560;
@@ -18,29 +22,29 @@ export function defaultAppSupport(home = os.homedir()) {
 }
 
 export class BrainRegistry {
-  constructor({ appSupport = defaultAppSupport(), host = '127.0.0.1' } = {}) {
-    this.appSupport = appSupport;
-    this.registryPath = path.join(appSupport, 'registry.json');
+  constructor({ appSupport = null, catalogPath = null, host = '127.0.0.1', env = process.env, now = () => new Date() } = {}) {
+    const home = path.resolve(env.HOME || os.homedir());
+    this.appSupport = path.resolve(appSupport || defaultAppSupport(home));
+    this.catalogPath = path.resolve(catalogPath || (appSupport
+      ? path.join(this.appSupport, 'brains.json')
+      : defaultMachineCatalogPath(env)));
+    this.registryPath = this.catalogPath;
+    this.legacyRegistryPath = path.join(this.appSupport, 'registry.json');
+    this.legacyBackupPath = `${this.legacyRegistryPath}.legacy`;
     this.host = host;
+    this.now = now;
+    this.catalog = new MachineCatalog({ catalogPath: this.catalogPath, now });
   }
 
   async load() {
-    try {
-      const value = JSON.parse(await fs.readFile(this.registryPath, 'utf8'));
-      return normalizeRegistry(value);
-    } catch (error) {
-      if (error?.code === 'ENOENT') return emptyRegistry();
-      throw error;
-    }
+    return desktopRegistryFromCatalog(await this.loadCatalog());
   }
 
   async save(registry) {
     const value = normalizeRegistry(registry);
-    await fs.mkdir(this.appSupport, { recursive: true });
-    const temporary = `${this.registryPath}.${process.pid}.tmp`;
-    await fs.writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 });
-    await fs.rename(temporary, this.registryPath);
-    return value;
+    const catalog = await this.loadCatalog();
+    const saved = await this.catalog.save(mergeDesktopRegistryIntoCatalog(catalog, value, this.now));
+    return desktopRegistryFromCatalog(saved);
   }
 
   async createDraft({ name, description = '', ownerName, ownerEmail, home = null, backupPreference = 'github' }) {
@@ -105,14 +109,15 @@ export class BrainRegistry {
 
   async registerService({ brainId, name, serviceUrl }) {
     const registry = await this.load();
-    const duplicate = registry.brains.find((brain) => brain.connectionType === 'service' && brain.serviceUrl === serviceUrl);
+    const duplicate = registry.brains.find((brain) => brain.connectionType === 'service' && normalizeServiceOrigin(brain.serviceUrl) === normalizeServiceOrigin(serviceUrl));
     if (duplicate) throw new Error(`This BigBrain service is already connected as ${duplicate.name}.`);
     const brain = {
-      id: crypto.randomUUID(),
+      id: isCanonicalBrainId(brainId) ? brainId : crypto.randomUUID(),
       brainId,
       name: String(name).trim(),
       connectionType: 'service',
       serviceUrl,
+      connectionHandle: `remote:${new URL(serviceUrl).hostname}`,
       serviceOwnership: SERVICE_OWNERSHIPS.REMOTE,
       serviceOwnershipReason: 'remote_connection',
       status: 'connected',
@@ -122,8 +127,8 @@ export class BrainRegistry {
     };
     registry.brains.push(brain);
     registry.activeBrainId = brain.id;
-    await this.save(registry);
-    return brain;
+    const saved = await this.save(registry);
+    return saved.brains.find((candidate) => candidate.id === brain.id) || brain;
   }
 
   async update(id, updates) {
@@ -131,8 +136,8 @@ export class BrainRegistry {
     const index = registry.brains.findIndex((brain) => brain.id === id);
     if (index < 0) throw new Error(`Unknown brain: ${id}`);
     registry.brains[index] = { ...registry.brains[index], ...updates, id };
-    await this.save(registry);
-    return registry.brains[index];
+    const saved = await this.save(registry);
+    return saved.brains.find((brain) => brain.id === id) || registry.brains[index];
   }
 
   async activate(id) {
@@ -141,8 +146,17 @@ export class BrainRegistry {
     if (!brain) throw new Error(`Unknown brain: ${id}`);
     brain.lastOpenedAt = new Date().toISOString();
     registry.activeBrainId = id;
-    await this.save(registry);
-    return brain;
+    const saved = await this.save(registry);
+    return saved.brains.find((candidate) => candidate.id === id) || brain;
+  }
+
+  async loadCatalog() {
+    let catalog = await this.catalog.load();
+    if (await fileExists(this.legacyBackupPath) || !await fileExists(this.legacyRegistryPath)) return catalog;
+    const legacy = normalizeRegistry(JSON.parse(await fs.readFile(this.legacyRegistryPath, 'utf8')));
+    catalog = await this.catalog.save(mergeDesktopRegistryIntoCatalog(catalog, legacy, this.now));
+    await fs.rename(this.legacyRegistryPath, this.legacyBackupPath);
+    return catalog;
   }
 }
 
@@ -161,6 +175,209 @@ function normalizeRegistry(value) {
         .map(normalizeBrainServiceOwnership)
       : [],
   };
+}
+
+function desktopRegistryFromCatalog(catalog) {
+  return {
+    version: REGISTRY_VERSION,
+    activeBrainId: catalog.active_entry_id || null,
+    brains: catalog.brains.map(desktopBrainFromCatalog),
+  };
+}
+
+function desktopBrainFromCatalog(entry) {
+  const desktop = entry.desktop || {};
+  const remote = entry.kind === 'remote';
+  const local = entry.local || {};
+  const healthStatus = entry.health?.status || 'unknown';
+  const defaultStatus = remote
+    ? (healthStatus === 'healthy' ? 'connected' : healthStatus)
+    : (healthStatus === 'healthy' ? 'running' : healthStatus);
+  return {
+    id: entry.entry_id,
+    brainId: entry.brain_id,
+    name: entry.brain_name,
+    description: desktop.description || '',
+    home: remote ? null : local.home,
+    host: remote ? null : (local.host || '127.0.0.1'),
+    port: remote ? null : local.port,
+    serviceLabel: remote ? null : local.service_label || desktop.service_label,
+    serviceOwnership: desktop.service_ownership || (remote ? SERVICE_OWNERSHIPS.REMOTE : SERVICE_OWNERSHIPS.UNKNOWN),
+    serviceOwnershipReason: desktop.service_ownership_reason || (remote ? 'remote_connection' : 'catalog_entry'),
+    status: desktop.status || defaultStatus,
+    owner: desktop.owner ? {
+      name: desktop.owner.name,
+      email: desktop.owner.email,
+      personSlug: desktop.owner.person_slug,
+    } : null,
+    aiAccess: desktop.ai_access ? { ...desktop.ai_access } : null,
+    hosting: desktop.hosting,
+    visibility: desktop.visibility,
+    backupPreference: desktop.backup_preference,
+    onboarding: desktop.onboarding ? {
+      step: desktop.onboarding.step,
+      completed: desktop.onboarding.completed,
+      error: desktop.onboarding.error,
+    } : null,
+    replacedService: desktop.replaced_service ? {
+      label: desktop.replaced_service.label,
+      plistPath: desktop.replaced_service.plist_path,
+      port: desktop.replaced_service.port,
+    } : null,
+    connectionType: remote ? 'service' : undefined,
+    serviceUrl: remote ? normalizeServiceOrigin(entry.connection.endpoint) : undefined,
+    connectionHandle: entry.connection.handle,
+    createdAt: entry.created_at,
+    lastOpenedAt: desktop.last_opened_at || entry.updated_at || entry.created_at,
+  };
+}
+
+function mergeDesktopRegistryIntoCatalog(catalog, registry, nowFactory) {
+  const next = {
+    ...catalog,
+    brains: [...catalog.brains],
+  };
+  const activeBrain = registry.brains.find((brain) => brain.id === registry.activeBrainId);
+  let activeEntryId = catalog.active_entry_id;
+  for (const desktopBrain of registry.brains) {
+    const canonicalId = canonicalBrainIdForDesktopBrain(desktopBrain);
+    const index = next.brains.findIndex((entry) => desktopBrainMatchesEntry(desktopBrain, canonicalId, entry));
+    const existing = index >= 0 ? next.brains[index] : null;
+    const entry = desktopBrainToCatalogEntry(desktopBrain, existing, nowFactory);
+    if (index >= 0) next.brains[index] = entry;
+    else next.brains.push(entry);
+    if (activeBrain && desktopBrain.id === activeBrain.id) activeEntryId = entry.entry_id;
+  }
+  next.active_entry_id = activeEntryId;
+  return next;
+}
+
+function desktopBrainToCatalogEntry(brain, existing, nowFactory) {
+  const now = nowFactory().toISOString();
+  const canonicalId = canonicalBrainIdForDesktopBrain(brain) || existing?.brain_id || null;
+  const remote = brain.connectionType === 'service' || existing?.kind === 'remote';
+  const serviceUrl = remote
+    ? normalizeServiceOrigin(brain.serviceUrl || existing?.connection.endpoint)
+    : null;
+  if (remote && !serviceUrl) throw new Error(`Remote brain ${brain.name || brain.id} has no valid service URL.`);
+  const entryId = existing?.entry_id || (canonicalId || String(brain.id));
+  const handle = existing?.connection.handle
+    || safeConnectionHandle(brain.connectionHandle || (remote ? `remote:${new URL(serviceUrl).hostname}` : brain.serviceLabel || `local:${entryId}`));
+  const createdAt = existing?.created_at || optionalDate(brain.createdAt) || now;
+  const existingVerification = existing?.verification;
+  const verification = canonicalId
+    ? (existingVerification?.state === 'verified'
+      ? existingVerification
+      : { state: 'verified', verified_at: createdAt })
+    : { state: 'unverified', verified_at: null };
+  const local = remote ? null : {
+    ...(existing?.local || {}),
+    home: brain.home ? path.resolve(brain.home) : existing?.local?.home || null,
+    host: brain.host || existing?.local?.host || '127.0.0.1',
+    port: brain.port || existing?.local?.port || null,
+    service_label: brain.serviceLabel || existing?.local?.service_label || null,
+    service_status: brain.status || existing?.local?.service_status || 'unknown',
+  };
+  return {
+    entry_id: entryId,
+    brain_id: canonicalId,
+    brain_name: String(brain.name || existing?.brain_name || 'Unnamed brain').trim(),
+    kind: remote ? 'remote' : 'local',
+    connection: {
+      type: remote ? 'codex_mcp' : 'local_runtime',
+      handle,
+      endpoint: remote ? `${serviceUrl}/mcp` : null,
+    },
+    verification,
+    profile: existing?.profile || { state: 'unknown', schema_version: null, profile_version: null },
+    access: existing?.access || {
+      auth_state: remote ? 'unknown' : 'local_trusted',
+      writability: remote ? 'unknown' : 'writable',
+    },
+    health: existing?.health || { status: 'unknown', checked_at: null },
+    local,
+    desktop: desktopMetadataFromBrain(brain, existing?.desktop),
+    created_at: createdAt,
+    updated_at: now,
+  };
+}
+
+function desktopMetadataFromBrain(brain, existing = null) {
+  const owner = brain.owner || existing?.owner;
+  const aiAccess = brain.aiAccess || existing?.ai_access;
+  const onboarding = brain.onboarding || existing?.onboarding;
+  const replacedService = brain.replacedService || existing?.replaced_service;
+  return {
+    description: brain.description ?? existing?.description ?? '',
+    service_label: brain.serviceLabel ?? existing?.service_label ?? null,
+    service_ownership: brain.serviceOwnership || existing?.service_ownership || null,
+    service_ownership_reason: brain.serviceOwnershipReason || existing?.service_ownership_reason || null,
+    status: brain.status || existing?.status || null,
+    owner: owner ? {
+      name: owner.name || null,
+      email: owner.email?.toLowerCase() || null,
+      person_slug: owner.personSlug || owner.person_slug || null,
+    } : null,
+    ai_access: aiAccess ? { type: aiAccess.type || null, provider: aiAccess.provider || null } : null,
+    hosting: brain.hosting ?? existing?.hosting ?? null,
+    visibility: brain.visibility ?? existing?.visibility ?? null,
+    backup_preference: brain.backupPreference ?? existing?.backup_preference ?? null,
+    onboarding: onboarding ? {
+      step: onboarding.step ?? null,
+      completed: Boolean(onboarding.completed),
+      error: onboarding.error || null,
+    } : null,
+    replaced_service: replacedService ? {
+      label: replacedService.label || null,
+      plist_path: replacedService.plistPath || replacedService.plist_path || null,
+      port: replacedService.port || null,
+    } : null,
+    last_opened_at: optionalDate(brain.lastOpenedAt) || existing?.last_opened_at || null,
+  };
+}
+
+function desktopBrainMatchesEntry(brain, canonicalId, entry) {
+  if (canonicalId && entry.brain_id === canonicalId) return true;
+  if (entry.entry_id === brain.id) return true;
+  if (brain.connectionType === 'service' && entry.kind === 'remote') {
+    return normalizeServiceOrigin(brain.serviceUrl) === normalizeServiceOrigin(entry.connection.endpoint);
+  }
+  return Boolean(brain.home && entry.kind === 'local' && path.resolve(brain.home) === path.resolve(entry.local?.home || ''));
+}
+
+function canonicalBrainIdForDesktopBrain(brain) {
+  const candidate = brain.brainId || brain.brain_id || brain.id;
+  return isCanonicalBrainId(candidate) ? candidate : null;
+}
+
+function isCanonicalBrainId(value) {
+  return typeof value === 'string' && /^brn_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
+function normalizeServiceOrigin(value) {
+  if (!value) return null;
+  try {
+    const parsed = new URL(String(value));
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) return null;
+    parsed.pathname = '';
+    return parsed.toString().replace(/\/$/, '');
+  } catch {
+    return null;
+  }
+}
+
+function safeConnectionHandle(value) {
+  const handle = String(value || '').trim().replace(/\s+/g, '-');
+  return handle || `brain-${crypto.randomUUID()}`;
+}
+
+function optionalDate(value) {
+  if (typeof value !== 'string' || !value.trim() || Number.isNaN(Date.parse(value))) return null;
+  return new Date(value).toISOString();
+}
+
+async function fileExists(filePath) {
+  return fs.access(filePath).then(() => true).catch(() => false);
 }
 
 function normalizeBrainServiceOwnership(brain) {

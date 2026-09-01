@@ -30,7 +30,10 @@ weaken the one-instance-one-brain boundary.
 MCP registrations, service labels, deployment names, and ports are installation
 aliases rather than canonical brain identity. Installers may normalize an alias
 from `brain_name`, but must persist it independently so a display-name change
-does not silently rename or disconnect clients.
+does not silently rename or disconnect clients. The single machine-level
+catalog for those registrations is `~/.config/bigbrain/brains.json`, shared by
+the CLI and desktop. Desktop operational metadata is nested in the matching
+catalog entry; the old app-support `registry.json` is migration input only.
 
 ## Layering
 
@@ -94,8 +97,8 @@ of ownership.
 - An `unknown` service is advisory-only until ownership can be proven or the
   user explicitly transfers it.
 
-The registry, LaunchAgent, and runtime metadata must agree before the desktop
-claims a service. A newer service is never replaced by an older desktop bundle.
+The machine catalog, LaunchAgent, and runtime metadata must agree before the
+desktop claims a service. A newer service is never replaced by an older desktop bundle.
 The desktop reports the mismatch and asks the user to update the app. Remote,
 source-managed, server-managed, and unknown services are never restarted by the
 desktop updater.
@@ -125,7 +128,8 @@ operator-controlled environment. Docker is the canonical server package for
 both. A Docker service on the client's physical machine is still
 server-managed because the client connects to an independently managed service.
 
-The normal Electron app owns the local registry and brain selector. It keeps
+The normal Electron app reads the canonical machine catalog for the brain
+selector. It keeps
 that desktop chrome visible while loading the selected local or hosted service
 dashboard in an isolated content view. Each service dashboard remains
 single-brain and does not discover or switch to other services.

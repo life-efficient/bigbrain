@@ -593,8 +593,18 @@ home.
 
 Release and developer desktop builds share the user configuration directory
 `~/.config/bigbrain`. RSS feeds, webhook listeners, event-ingestor settings,
-and the event inbox are shared there. The connected-brain catalog is also
-shared, separately, at `~/Library/Application Support/BigBrain/registry.json`.
+the event inbox, and the canonical connected-brain catalog are shared there.
+The catalog is `~/.config/bigbrain/brains.json`, and both the CLI and desktop
+read and write it. Canonical brain identity, connection handles, endpoints,
+verification, access, profile, and health live in each catalog entry. Desktop
+operational metadata, such as local service ownership and onboarding state,
+is nested under that same entry and never contains credentials.
+
+Older desktop installations may still have
+`~/Library/Application Support/BigBrain/registry.json`. BigBrain imports it
+into the canonical catalog on first launch and renames it to
+`registry.json.legacy` as a recoverable migration backup. The app-support
+directory then contains only desktop UI state, not a second brain catalog.
 The developer-only `~/Library/Application Support/BigBrain Dev` directory
 contains desktop UI state and does not hold a second copy of those settings.
 

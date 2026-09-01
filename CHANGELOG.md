@@ -5,6 +5,53 @@ actions` section for agents maintaining device and server installations.
 
 ## [Unreleased]
 
+## [0.24.0] - 2026-09-01
+
+### Added
+
+- Added desktop operational metadata to the machine catalog without storing
+  credentials.
+- Added one-time migration of the legacy desktop brain registry into the
+  canonical machine catalog, with a recoverable `.legacy` backup.
+
+### Changed
+
+- Made `~/.config/bigbrain/brains.json` the single connected-brain catalog used
+  by the CLI and desktop app.
+- Made desktop selection, service ownership, onboarding, and remote endpoints
+  resolve from the same catalog entries as machine-level Brain discovery.
+
+### Fixed
+
+- Fixed the desktop dropdown missing registered brains that existed only in the
+  machine catalog, including ICAIRE.
+- Fixed the force-graph startup race that could call the layout before the
+  renderer had initialized it.
+
+### Agent update actions
+
+- Update packaged desktop and hosted server installations to BigBrain
+  `v0.24.0`, restart them, and verify the reported runtime version is
+  `0.24.0`.
+- Run `bigbrain brains list --json` and confirm every expected local and remote
+  Brain appears from `~/.config/bigbrain/brains.json`.
+- On first desktop launch, allow the app to migrate
+  `~/Library/Application Support/BigBrain/registry.json`; confirm the active
+  catalog is `~/.config/bigbrain/brains.json` and retain the generated
+  `registry.json.legacy` backup.
+- Verify `bigbrain sync --json`, `bigbrain health --json`, `npm test`, and the
+  hosted service `/live` and `/ready` endpoints. Preserve Brain and database
+  volumes during server deployment.
+
+### Verification
+
+- Full `npm test` suite: 473 passed, 6 skipped, 0 failed.
+- Focused machine-catalog and desktop-controller tests passed, including
+  canonical catalog merge, legacy registry archival, service ownership, and
+  credential-redaction coverage.
+- Dashboard production build and hosted runtime verification remain required
+  release-gate checks.
+
 ## [0.23.0] - 2026-09-01
 
 ### Added

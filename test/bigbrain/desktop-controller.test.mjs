@@ -122,6 +122,52 @@ test('desktop connects to and persists an existing BigBrain service', async () =
   await fs.rm(root, { recursive: true, force: true });
 });
 
+test('desktop reads the canonical machine catalog and archives the legacy registry after merging it', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-canonical-desktop-catalog-'));
+  const icaireId = 'brn_aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+  const dealmakingId = 'brn_bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+  try {
+    await fs.writeFile(path.join(root, 'brains.json'), JSON.stringify({
+      version: 2,
+      active_entry_id: icaireId,
+      brains: [{
+        entry_id: icaireId,
+        brain_id: icaireId,
+        brain_name: 'ICAIRE Brain',
+        kind: 'remote',
+        connection: { type: 'codex_mcp', handle: 'icaire', endpoint: 'https://icaire.example.test/mcp' },
+        verification: { state: 'verified', verified_at: '2026-08-01T00:00:00.000Z' },
+        profile: { state: 'unknown', schema_version: null, profile_version: null },
+        access: { auth_state: 'authenticated', writability: 'approval_required' },
+        health: { status: 'healthy', checked_at: '2026-08-01T00:00:00.000Z' },
+        local: null,
+      }],
+    }));
+    await fs.writeFile(path.join(root, 'registry.json'), JSON.stringify({
+      version: 2,
+      activeBrainId: 'dealmaking-desktop-id',
+      brains: [{
+        id: 'dealmaking-desktop-id',
+        brainId: dealmakingId,
+        name: 'Dealmaking Brain',
+        connectionType: 'service',
+        serviceUrl: 'https://dealmaking.example.test',
+        status: 'connected',
+      }],
+    }));
+
+    const registry = new BrainRegistry({ appSupport: root });
+    const loaded = await registry.load();
+    assert.deepEqual(loaded.brains.map((brain) => brain.id), [icaireId, dealmakingId]);
+    assert.equal(loaded.activeBrainId, dealmakingId);
+    assert.equal(loaded.brains[1].serviceUrl, 'https://dealmaking.example.test');
+    await fs.stat(path.join(root, 'registry.json.legacy'));
+    await assert.rejects(() => fs.stat(path.join(root, 'registry.json')), { code: 'ENOENT' });
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('desktop conservatively migrates legacy service ownership from launch-agent evidence', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-service-ownership-'));
   const appSupport = path.join(root, 'support');
@@ -161,7 +207,11 @@ test('desktop conservatively migrates legacy service ownership from launch-agent
   ]);
   const persisted = JSON.parse(await fs.readFile(registry.registryPath, 'utf8'));
   assert.equal(persisted.version, REGISTRY_VERSION);
-  assert.equal(persisted.brains.find((brain) => brain.id === 'source').serviceOwnershipReason, 'source_checkout_path');
+  assert.equal(persisted.active_entry_id, 'desktop');
+  assert.equal(persisted.brains.find((brain) => brain.entry_id === 'source').desktop.service_ownership_reason, 'source_checkout_path');
+  await fs.stat(path.join(appSupport, 'registry.json.legacy'));
+  await assert.rejects(() => fs.stat(path.join(appSupport, 'registry.json')),
+    { code: 'ENOENT' });
   await fs.rm(root, { recursive: true, force: true });
 });
 

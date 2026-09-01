@@ -28,8 +28,10 @@ transcript to multiple brains.
    configuration and is never indexed as knowledge.
 2. The authenticated `about` contract combines that description with bounded
    runtime capability information. Public `/health` remains minimal.
-3. The machine catalog records verified local and remote BigBrain connections.
-   It stores invocation handles, never credentials.
+3. The machine catalog at `~/.config/bigbrain/brains.json` records verified
+   local and remote BigBrain connections for both CLI and desktop. It stores
+   invocation handles, never credentials. Desktop-only operational metadata is
+   nested in the same entry, so there is no second connected-brain registry.
 4. The machine routing ledger records decisions, leases, manual approvals,
    retries, and destination verification. It stores no transcript, summary,
    participant list, credential, or model prompt.

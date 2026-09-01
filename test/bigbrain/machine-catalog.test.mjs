@@ -136,6 +136,33 @@ test('valid description catalog entries do not require a profile version', async
   }
 });
 
+test('catalog preserves non-secret desktop metadata when a CLI entry is updated', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-machine-catalog-desktop-metadata-'));
+  const catalog = new MachineCatalog({ catalogPath: path.join(root, 'catalog.json') });
+  try {
+    const local = verifiedLocal(path.join(root, 'personal'));
+    local.desktop = {
+      service_ownership: 'desktop_bundle',
+      service_ownership_reason: 'created_by_desktop',
+      status: 'running',
+      owner: { name: 'Ada', email: 'ada@example.com', person_slug: 'people/ada' },
+      onboarding: { step: 5, completed: true, error: null },
+    };
+    await catalog.upsert(local);
+    const updated = verifiedLocal(path.join(root, 'personal'));
+    updated.brain_name = 'Personal Brain Renamed';
+    await catalog.upsert(updated);
+
+    const loaded = await catalog.load();
+    assert.equal(loaded.brains[0].brain_name, 'Personal Brain Renamed');
+    assert.equal(loaded.brains[0].desktop.service_ownership, 'desktop_bundle');
+    assert.equal(loaded.brains[0].desktop.owner.email, 'ada@example.com');
+    assert.doesNotMatch(JSON.stringify(loaded), /sk-|token|password/i);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('catalog rejects duplicate handles, credential fields, and credential-bearing endpoints', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-machine-catalog-secret-'));
   const catalog = new MachineCatalog({ catalogPath: path.join(root, 'catalog.json') });

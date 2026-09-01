@@ -53,6 +53,7 @@ handoff for friends' agents and should say exactly what to do after pulling.
 Mention actions when a release includes:
 
 - schema or filing-rules changes
+- machine-catalog or desktop registry migrations
 - new, renamed, or removed skills
 - new, changed, or removed automation templates
 - CLI command changes
@@ -72,6 +73,12 @@ bigbrain health --json
 
 If a change needs judgment rather than a command, state what the agent should
 ask the user.
+
+The canonical connected-brain catalog is `~/.config/bigbrain/brains.json`.
+Desktop and CLI code must use that file. A legacy desktop
+`~/Library/Application Support/BigBrain/registry.json` may be imported once
+and retained as `registry.json.legacy` for recovery, but it is not an active
+source of brain identity or connection data.
 
 ## Release Checklist
 
