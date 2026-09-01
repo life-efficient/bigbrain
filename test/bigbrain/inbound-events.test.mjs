@@ -23,6 +23,10 @@ import {
   parseRssDocument,
   RssCollector,
   ScopedFilingBroker,
+  defaultEventConfigDir,
+  defaultEventInboxPath,
+  defaultEventIngestorConfigPath,
+  defaultEventRegistryPath,
 } from '../../src/bigbrain/inbound-events.js';
 import { granolaWebhookSignature } from '../../src/bigbrain/granola-webhook.js';
 
@@ -34,6 +38,14 @@ async function fixture() {
 function rssListener(extra = {}) {
   return normalizeListener({ id: 'openai-news', type: 'rss', url: 'https://example.test/feed.xml', brain_ids: ['brain_personal'], article_policy: { fetch_source: false }, ...extra });
 }
+
+test('event configuration paths use one shared user directory for release and development builds', () => {
+  const env = { HOME: '/Users/ada', BIGBRAIN_CONFIG_DIR: '/Users/ada/.config/bigbrain-shared' };
+  assert.equal(defaultEventConfigDir(env), '/Users/ada/.config/bigbrain-shared');
+  assert.equal(defaultEventRegistryPath(env), '/Users/ada/.config/bigbrain-shared/event-registry.json');
+  assert.equal(defaultEventInboxPath(env), '/Users/ada/.config/bigbrain-shared/event-inbox.json');
+  assert.equal(defaultEventIngestorConfigPath(env), '/Users/ada/.config/bigbrain-shared/event-ingestor.json');
+});
 
 test('event registry validates independent collection and Codex placement controls and reloads direct edits', async () => {
   const paths = await fixture();

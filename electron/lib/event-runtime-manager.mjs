@@ -6,10 +6,10 @@ import { spawn } from 'node:child_process';
 import { EventInboxStore, EventRegistryStore, createEmptyEventRegistry, normalizeEventRegistry, normalizeListener, normalizeSubscription, defaultEventInboxPath, defaultEventRegistryPath } from '../../src/bigbrain/inbound-events.js';
 
 export class EventRuntimeManager {
-  constructor({ appPath = process.cwd(), registryPath = defaultEventRegistryPath(), inboxPath = defaultEventInboxPath(), configPath = null, runnerPath = null, spawnImpl = spawn, env = process.env, logger = console } = {}) {
+  constructor({ appPath = process.cwd(), registryPath = null, inboxPath = null, configPath = null, runnerPath = null, spawnImpl = spawn, env = process.env, logger = console } = {}) {
     this.appPath = appPath;
-    this.registryPath = path.resolve(registryPath);
-    this.inboxPath = path.resolve(inboxPath);
+    this.registryPath = path.resolve(registryPath || defaultEventRegistryPath(env));
+    this.inboxPath = path.resolve(inboxPath || defaultEventInboxPath(env));
     this.configPath = path.resolve(configPath || path.join(path.dirname(this.registryPath), 'event-ingestor.json'));
     this.runnerPath = runnerPath || path.join(appPath, 'scripts', 'bigbrain-event-ingestor.mjs');
     this.spawnImpl = spawnImpl;

@@ -26,16 +26,24 @@ export const CODEX_REASONING_EFFORTS = ['none', 'minimal', 'low', 'medium', 'hig
 
 const SECRET_KEYS = new Set(['authorization', 'cookie', 'set-cookie', 'token', 'access_token', 'refresh_token', 'client_secret', 'webhook_secret']);
 
+export function defaultEventConfigDir(env = process.env) {
+  if (env.BIGBRAIN_CONFIG_DIR) return path.resolve(env.BIGBRAIN_CONFIG_DIR);
+  const home = env.HOME || os.homedir();
+  return path.join(path.resolve(home), '.config', 'bigbrain');
+}
+
 export function defaultEventRegistryPath(env = process.env) {
   if (env.BIGBRAIN_EVENT_REGISTRY) return path.resolve(env.BIGBRAIN_EVENT_REGISTRY);
-  const home = env.HOME || os.homedir();
-  return path.join(path.resolve(home), '.config', 'bigbrain', 'event-registry.json');
+  return path.join(defaultEventConfigDir(env), 'event-registry.json');
 }
 
 export function defaultEventInboxPath(env = process.env) {
   if (env.BIGBRAIN_EVENT_INBOX) return path.resolve(env.BIGBRAIN_EVENT_INBOX);
-  const home = env.HOME || os.homedir();
-  return path.join(path.resolve(home), '.config', 'bigbrain', 'event-inbox.json');
+  return path.join(defaultEventConfigDir(env), 'event-inbox.json');
+}
+
+export function defaultEventIngestorConfigPath(env = process.env) {
+  return path.join(defaultEventConfigDir(env), 'event-ingestor.json');
 }
 
 export function createEmptyEventRegistry({ runtimeId = null, runtimeKind = 'client' } = {}) {

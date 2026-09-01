@@ -14,6 +14,10 @@ const APP_DISPLAY_NAME = DEV_BUILD ? "BigBrain Dev" : "BigBrain";
 const APP_ICON_PATH = path.join(__dirname, "assets", DEV_BUILD ? "desktop-dev-icon.png" : "desktop-icon.png");
 const LOAD_FAILURE_PAGE_PATH = path.join(__dirname, "load-failure.html");
 const REMOTE_DASHBOARD_URL_ENV = "BIGBRAIN_DASHBOARD_URL";
+const SHARED_BIGBRAIN_CONFIG_DIR = path.resolve(
+  process.env.BIGBRAIN_CONFIG_DIR || path.join(app.getPath("home"), ".config", "bigbrain"),
+);
+process.env.BIGBRAIN_CONFIG_DIR = SHARED_BIGBRAIN_CONFIG_DIR;
 
 // Keep the live developer app independent from the installed release app so
 // both can hold a single-instance lock and run together on the developer Mac.

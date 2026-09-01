@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createEmptyEventInbox, createEmptyEventRegistry, normalizeEventInbox, normalizeEventRegistry } from '../src/bigbrain/inbound-events.js';
+import { createEmptyEventInbox, createEmptyEventRegistry, defaultEventConfigDir, defaultEventInboxPath, defaultEventIngestorConfigPath, defaultEventRegistryPath, normalizeEventInbox, normalizeEventRegistry } from '../src/bigbrain/inbound-events.js';
 
 const execFileAsync = promisify(execFile);
 const DEFAULT_LABEL = 'local.bigbrain.event-ingestor';
@@ -14,11 +14,11 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const repoRoot = path.resolve(options.repoRoot || process.cwd());
   const brainHome = path.resolve(options.brainHome || await readDefaultBrainHome());
-  const configPath = path.resolve(options.config || path.join(os.homedir(), '.config', 'bigbrain', 'event-ingestor.json'));
-  const registryPath = path.resolve(options.registry || path.join(os.homedir(), '.config', 'bigbrain', 'event-registry.json'));
-  const inboxPath = path.resolve(options.inbox || path.join(os.homedir(), '.config', 'bigbrain', 'event-inbox.json'));
+  const configPath = path.resolve(options.config || defaultEventIngestorConfigPath());
+  const registryPath = path.resolve(options.registry || defaultEventRegistryPath());
+  const inboxPath = path.resolve(options.inbox || defaultEventInboxPath());
   const plistPath = path.resolve(options.plist || path.join(os.homedir(), 'Library', 'LaunchAgents', `${options.label || DEFAULT_LABEL}.plist`));
-  const logDir = path.resolve(options.logDir || path.join(os.homedir(), '.config', 'bigbrain'));
+  const logDir = path.resolve(options.logDir || defaultEventConfigDir());
   const scriptPath = path.join(repoRoot, 'scripts', 'bigbrain-event-ingestor.mjs');
   const statePath = path.join(brainHome, '.bigbrain-state', 'event-ingestor-state.json');
   const brainIdentity = await readBrainIdentity(brainHome);

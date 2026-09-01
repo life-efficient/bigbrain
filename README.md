@@ -566,6 +566,12 @@ starts. To develop MCP code itself, stop or deliberately reconfigure the
 shared service first rather than starting a second MCP against the same brain
 home.
 
+Release and developer desktop builds share the user configuration directory
+`~/.config/bigbrain`. RSS feeds, webhook listeners, event-ingestor settings,
+the event inbox, and the connected-brain catalog are shared there. The
+developer-only `~/Library/Application Support/BigBrain Dev` directory contains
+desktop UI state and does not hold a second copy of those settings.
+
 To point the desktop shell at an existing BigBrain dashboard:
 
 ```bash
