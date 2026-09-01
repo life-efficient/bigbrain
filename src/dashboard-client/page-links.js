@@ -13,6 +13,12 @@ export function privatePageRouteFromPath(pathname) {
   }
 }
 
+export function dashboardRootHrefFromBasePath(basePath) {
+  const normalized = String(basePath || '').trim().replace(/\/+$/, '');
+  if (!normalized || normalized === '/') return '/';
+  return normalized.startsWith('/') ? normalized : `/${normalized}`;
+}
+
 export function privatePageHrefFromMarkdown({ pathname, brainId, sourceSlug, href }) {
   if (!BRAIN_ID_PATTERN.test(String(brainId || '')) || !isCanonicalSlug(sourceSlug)) return null;
   const target = String(href || '').trim();

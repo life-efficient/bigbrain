@@ -60,7 +60,11 @@ import {
 } from './demo-mode.js';
 import { resolveExplorerLinkPath } from './explorer-links.js';
 import { MarkdownDocument } from './markdown.jsx';
-import { privatePageHrefFromMarkdown, privatePageRouteFromPath } from './page-links.js';
+import {
+  dashboardRootHrefFromBasePath,
+  privatePageHrefFromMarkdown,
+  privatePageRouteFromPath,
+} from './page-links.js';
 import { recordDashboardError } from './error-reporting.js';
 
 class DashboardErrorBoundary extends React.Component {
@@ -1076,21 +1080,41 @@ function PrivatePageApp({ route }) {
   }, [route.slug]);
 
   if (state.status === 'loading') {
-    return <main className="public-main"><article className="public-document"><div className="empty-copy">Loading page…</div></article></main>;
+    return (
+      <main className="public-main">
+        <article className="public-document private-document">
+          <header className="public-document-head private-document-head">
+            <PrivatePageBackLink />
+          </header>
+          <div className="empty-copy">Loading page…</div>
+        </article>
+      </main>
+    );
   }
 
   if (state.status === 'error') {
-    return <main className="public-main"><article className="public-document"><h1>Page not found</h1><p className="empty-copy">{state.error}</p></article></main>;
+    return (
+      <main className="public-main">
+        <article className="public-document private-document">
+          <header className="public-document-head private-document-head">
+            <PrivatePageBackLink />
+          </header>
+          <h1>Page not found</h1>
+          <p className="empty-copy">{state.error}</p>
+        </article>
+      </main>
+    );
   }
 
   return (
     <main className="public-main">
       <article className="public-document private-document">
-        <header className="public-document-head">
+        <header className="public-document-head private-document-head">
           <div>
             <div className="meta">{state.page.path}</div>
             <h1>{state.page.title}</h1>
           </div>
+          <PrivatePageBackLink />
         </header>
         <MarkdownDocument
           markdown={state.page.markdown}
@@ -1101,6 +1125,17 @@ function PrivatePageApp({ route }) {
         />
       </article>
     </main>
+  );
+}
+
+function PrivatePageBackLink() {
+  return (
+    <a
+      className="private-page-back-link"
+      href={dashboardRootHrefFromBasePath(document.body?.dataset?.dashboardBasePath)}
+    >
+      Back to dashboard
+    </a>
   );
 }
 

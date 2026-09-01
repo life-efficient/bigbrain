@@ -201,7 +201,7 @@ export async function createDashboardRequestHandler(config, {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store',
         });
-        res.end(renderAppHtml({ devVersionPath: dashboardDevVersionPath }));
+        res.end(renderAppHtml({ devVersionPath: dashboardDevVersionPath, dashboardBasePath: normalizedBasePath }));
         return;
       }
       if (isPublicAppPath(requestUrl.pathname)) {
@@ -218,7 +218,7 @@ export async function createDashboardRequestHandler(config, {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store',
         });
-        res.end(renderAppHtml({ devVersionPath: dashboardDevVersionPath }));
+        res.end(renderAppHtml({ devVersionPath: dashboardDevVersionPath, dashboardBasePath: normalizedBasePath }));
         return;
       }
       if (isSharedAppPath(requestUrl.pathname)) {
@@ -235,7 +235,7 @@ export async function createDashboardRequestHandler(config, {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store',
         });
-        res.end(renderAppHtml({ devVersionPath: dashboardDevVersionPath }));
+        res.end(renderAppHtml({ devVersionPath: dashboardDevVersionPath, dashboardBasePath: normalizedBasePath }));
         return;
       }
       if (isDashboardAppPath(requestUrl.pathname, normalizedBasePath)) {
@@ -243,7 +243,7 @@ export async function createDashboardRequestHandler(config, {
           'Content-Type': 'text/html; charset=utf-8',
           'Cache-Control': 'no-store',
         });
-        res.end(renderAppHtml({ devVersionPath: dashboardDevVersionPath }));
+        res.end(renderAppHtml({ devVersionPath: dashboardDevVersionPath, dashboardBasePath: normalizedBasePath }));
         return;
       }
       if (requestUrl.pathname === '/favicon.ico') {
@@ -573,7 +573,8 @@ function isSharedAppPath(pathname) {
   return pathname === '/shared' || pathname.startsWith('/shared/');
 }
 
-function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version' } = {}) {
+function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBasePath = '' } = {}) {
+  const normalizedDashboardBasePath = normalizeDashboardBasePath(dashboardBasePath);
   return `<!doctype html>
 <html>
   <head>
@@ -630,6 +631,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version' } = {}) {
       .public-document { width: min(820px, 100%); margin: 0 auto; display: grid; gap: 22px; }
       .public-document.shared-group-document { width: min(1040px, 100%); }
       .public-document-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid #e4e4e7; }
+      .private-document-head { align-items: flex-start; flex-wrap: wrap; }
+      .private-page-back-link { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid #d4d4d8; border-radius: 8px; background: #fff; color: #18181b; font-size: 13px; font-weight: 650; text-decoration: none; white-space: nowrap; }
+      .private-page-back-link:hover { border-color: #a1a1aa; background: #f4f4f5; }
+      .private-page-back-link:focus-visible { outline: 3px solid rgba(23,86,232,0.28); outline-offset: 3px; }
       .public-document-head h1,
       .public-document > h1 { margin: 0; color: #18181b; font-size: 40px; line-height: 1.08; letter-spacing: 0; }
       .shared-group-head { align-items: flex-end; }
@@ -1883,12 +1888,20 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version' } = {}) {
       }
     </style>
   </head>
-  <body>
+  <body data-dashboard-base-path="${escapeHtmlAttribute(normalizedDashboardBasePath)}">
     <div id="root"></div>
     ${dashboardDevReloadScript(devVersionPath)}
     <script type="module" src="/assets/${dashboardBundleFilename}"></script>
   </body>
 </html>`;
+}
+
+function escapeHtmlAttribute(value) {
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
 }
 
 function dashboardDevReloadScript(devVersionPath) {

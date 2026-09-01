@@ -16,6 +16,7 @@ import {
   parseCanonicalPagePath,
 } from '../../src/bigbrain/page-links.js';
 import {
+  dashboardRootHrefFromBasePath,
   privatePageHrefFromMarkdown,
   privatePageRouteFromPath,
 } from '../../src/dashboard-client/page-links.js';
@@ -45,6 +46,11 @@ test('canonical page links are deterministic and preserve canonical identity', (
     canonicalPagePath(previouslyAcceptedBrainId, 'organizations/acme-intralog'),
     new RegExp(`/dashboard/page/${previouslyAcceptedBrainId}/organizations/acme-intralog$`),
   );
+});
+
+test('private page routes provide an escape back to the configured dashboard root', () => {
+  assert.equal(dashboardRootHrefFromBasePath(''), '/');
+  assert.equal(dashboardRootHrefFromBasePath('/dashboard/'), '/dashboard');
 });
 
 test('canonical page links reject malformed IDs, traversal, separators, and encoded input', () => {
