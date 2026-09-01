@@ -411,10 +411,7 @@ async function ensureDashboardAssets(config) {
 }
 
 function isDashboardDevRuntime() {
-  if (process.env.BIGBRAIN_DASHBOARD_DEV === '1') return true;
-  return process.env.ELECTRON_RUN_AS_NODE === '1'
-    && process.env.BIGBRAIN_SERVICE_SOURCE === 'desktop-bundle'
-    && process.execPath.includes(`${path.sep}build${path.sep}dev${path.sep}`);
+  return process.env.BIGBRAIN_DASHBOARD_DEV === '1';
 }
 
 async function fileExists(filePath) {
