@@ -6,6 +6,7 @@ export const TIMELINE_SCHEMA_VERSION = 1;
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIMESTAMP_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/;
+const DATE_LABEL_RE = /^\d{4}-(?:early|mid|late)$/;
 const TIMELINE_METADATA_RE = /^\s*<!--\s*bigbrain:timeline\s+(\{[\s\S]*\})\s*-->\s*$/i;
 const TIMELINE_HEADING_RE = /^\s*##\s+Timeline\s*$/i;
 const PROVENANCE_KEYS = [
@@ -102,8 +103,15 @@ export function normalizeTimelineEntry(input, {
   const text = String(value.text ?? value.entry ?? value.timeline_entry ?? '').trim();
   if (!text) throw new Error('Timeline entry text is required.');
 
-  const rawOccurredAt = value.occurred_at ?? value.timestamp ?? value.date ?? fallbackOccurredAt;
-  const occurredAt = normalizeOccurredAt(rawOccurredAt, 'occurred_at');
+  const hasExplicitOccurredAt = Object.prototype.hasOwnProperty.call(value, 'occurred_at');
+  const rawOccurredAt = hasExplicitOccurredAt ? value.occurred_at : value.timestamp ?? value.date ?? fallbackOccurredAt;
+  const occurredAt = rawOccurredAt === null ? null : normalizeOccurredAt(rawOccurredAt, 'occurred_at');
+  const occurredLabel = value.occurred_label
+    ? String(value.occurred_label).trim()
+    : DATE_LABEL_RE.test(String(value.date || '').trim())
+      ? String(value.date).trim()
+      : null;
+  if (occurredAt === null && !occurredLabel) throw new Error('Timeline occurred_at or occurred_label is required.');
   const rawRecordedAt = Object.prototype.hasOwnProperty.call(value, 'recorded_at') ? value.recorded_at : recordedAt;
   const normalizedRecordedAt = rawRecordedAt === null ? null : normalizeTimestamp(rawRecordedAt, 'recorded_at');
   const provenance = normalizeTimelineProvenance(value.provenance);
@@ -116,6 +124,7 @@ export function normalizeTimelineEntry(input, {
     schema_version: TIMELINE_SCHEMA_VERSION,
     entry_id: value.entry_id ? String(value.entry_id).trim() : eventId || null,
     occurred_at: occurredAt,
+    occurred_label: occurredLabel,
     recorded_at: normalizedRecordedAt,
     text,
     provenance,
@@ -165,7 +174,7 @@ export function renderTimelineEntries(entries, { includeMetadata = false } = {})
       index: entry._order,
       includeMetadata: entry._includeMetadata,
     });
-    const date = timelineDisplayDate(normalized.occurred_at);
+    const date = timelineDisplayDate(normalized.occurred_at, normalized.occurred_label);
     const line = `- **${date}** | ${normalized.text}`;
     if (!includeMetadata && !normalized._includeMetadata) return line;
     return `${line}\n  <!-- bigbrain:timeline ${JSON.stringify(timelineMetadata(normalized))} -->`;
@@ -214,14 +223,14 @@ export function latestTimelineEntry(input) {
   if (!entry) return null;
   return {
     ...entry,
-    display: `${timelineDisplayDate(entry.occurred_at)} | ${entry.text}`,
+    display: `${timelineDisplayDate(entry.occurred_at, entry.occurred_label)} | ${entry.text}`,
   };
 }
 
 export function latestTimelineDate(input) {
   const entry = latestTimelineEntry(input);
   if (!entry?.occurred_at) return null;
-  const day = timelineDisplayDate(entry.occurred_at);
+  const day = timelineDisplayDate(entry.occurred_at, entry.occurred_label);
   return `${day}T00:00:00.000Z`;
 }
 
@@ -240,7 +249,10 @@ export function isTimelineEntryMetadataLine(line) {
 function applyTimelineMetadata(entry, metadata) {
   if (metadata.schema_version !== TIMELINE_SCHEMA_VERSION) throw new Error('Unsupported timeline metadata schema version.');
   if (metadata.entry_id) entry.entry_id = String(metadata.entry_id).trim();
-  if (metadata.occurred_at !== undefined) entry.occurred_at = normalizeOccurredAt(metadata.occurred_at, 'occurred_at');
+  if (metadata.occurred_at !== undefined) {
+    entry.occurred_at = metadata.occurred_at === null ? null : normalizeOccurredAt(metadata.occurred_at, 'occurred_at');
+  }
+  if (metadata.occurred_label !== undefined) entry.occurred_label = metadata.occurred_label === null ? null : String(metadata.occurred_label).trim();
   if (metadata.recorded_at !== undefined) entry.recorded_at = metadata.recorded_at === null ? null : normalizeTimestamp(metadata.recorded_at, 'recorded_at');
   if (metadata.provenance !== undefined) entry.provenance = normalizeTimelineProvenance(metadata.provenance);
   if (metadata.significance !== undefined && metadata.significance !== null) {
@@ -251,7 +263,7 @@ function applyTimelineMetadata(entry, metadata) {
 }
 
 function timelineMetadata(entry) {
-  return {
+  const metadata = {
     schema_version: TIMELINE_SCHEMA_VERSION,
     entry_id: entry.entry_id,
     occurred_at: entry.occurred_at,
@@ -260,11 +272,14 @@ function timelineMetadata(entry) {
     provenance: entry.provenance,
     significance: entry.significance,
   };
+  if (entry.occurred_label) metadata.occurred_label = entry.occurred_label;
+  return metadata;
 }
 
 function parseVisibleTimelineLine(line) {
-  const match = String(line || '').match(/^\s*-\s+(?:\*\*)?(\d{4}-\d{2}-\d{2})(?:\*\*)?\s*\|\s*(.*?)\s*$/);
+  const match = String(line || '').match(/^\s*-\s+(?:\*\*)?(\d{4}-\d{2}-\d{2}|\d{4}-(?:early|mid|late))(?:\*\*)?\s*\|\s*(.*?)\s*$/);
   if (!match || !match[2]) return null;
+  if (DATE_LABEL_RE.test(match[1])) return { occurred_at: null, occurred_label: match[1], text: match[2] };
   return { date: match[1], text: match[2] };
 }
 
@@ -306,7 +321,8 @@ function timelineOrderChanged(original, sorted) {
   });
 }
 
-function timelineDisplayDate(value) {
+function timelineDisplayDate(value, label = null) {
   const text = String(value || '');
-  return DATE_RE.test(text) ? text : text.slice(0, 10);
+  if (DATE_RE.test(text)) return text;
+  return label || text.slice(0, 10) || 'unknown date';
 }

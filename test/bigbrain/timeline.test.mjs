@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { parseMarkdownPage } from '../../src/bigbrain/markdown.js';
 import { migrateTimelinePages } from '../../src/bigbrain/timeline-migrate.js';
+import { repairTimelinePage } from '../../src/bigbrain/timeline-repair.js';
 import {
   appendTimelineEntries,
   formatTimelineEntries,
@@ -126,4 +127,76 @@ test('timeline migration is dry-run by default, bounded, and skips unsafe sectio
   } finally {
     await fs.rm(root, { recursive: true, force: true });
   }
+});
+
+test('timeline repair merges duplicate sections and preserves source-file context', () => {
+  const legacy = [
+    '---',
+    'title: Source page',
+    '---',
+    '',
+    '# Source page',
+    '',
+    'Current truth.',
+    '',
+    '---',
+    '## Timeline',
+    '',
+    '- **2026-06-01** | First capture.',
+    '',
+    '## Source File',
+    '',
+    '- [capture.txt](capture.txt)',
+    '',
+    '---',
+    '## Timeline',
+    '',
+    '- **2026-06-02** | Second capture.',
+    '- **2026-06-01** | First capture.',
+    '',
+  ].join('\n');
+
+  const repaired = repairTimelinePage(legacy, 'concepts/source-page');
+  assert.equal(repaired.changed, true);
+  const parsed = parseMarkdownPage(repaired.markdown, 'concepts/source-page');
+  assert.equal(parsed.timelineHeadingCount, 1);
+  assert.equal(parsed.timelineBoundaryCount, 1);
+  assert.equal(parsed.timeline_clean, true);
+  assert.deepEqual(parsed.timeline_entries.map((entry) => entry.occurred_at), ['2026-06-02', '2026-06-01']);
+  assert.match(parsed.compiledTruth, /## Source File/);
+  assert.match(parsed.compiledTruth, /capture\.txt/);
+  assert.equal(repaired.duplicateEntriesRemoved, 1);
+});
+
+test('timeline repair normalizes wrapped legacy dates without inventing an approximate day', () => {
+  const legacy = [
+    '---',
+    'title: Legacy page',
+    '---',
+    '',
+    '# Legacy page',
+    '',
+    'Current truth.',
+    '',
+    '---',
+    '## Timeline',
+    '',
+    '- **2026-06-16**: A wrapped event with',
+    '  continuation text.',
+    '',
+    '## Open questions',
+    '',
+    '- Keep checking.',
+    '- **2025-early** | An approximate historical event.',
+    '',
+  ].join('\n');
+
+  const repaired = repairTimelinePage(legacy, 'projects/legacy-page');
+  const parsed = parseMarkdownPage(repaired.markdown, 'projects/legacy-page');
+  assert.equal(parsed.timeline_clean, true);
+  assert.equal(parsed.timeline_entries.length, 2);
+  assert.match(parsed.timeline_entries.find((entry) => entry.occurred_at === '2026-06-16').text, /continuation text/);
+  const approximate = parsed.timeline_entries.find((entry) => entry.occurred_label === '2025-early');
+  assert.equal(approximate.occurred_at, null);
+  assert.match(repaired.markdown, /## Open questions[\s\S]*Keep checking/);
 });
