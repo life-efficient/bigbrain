@@ -568,9 +568,10 @@ home.
 
 Release and developer desktop builds share the user configuration directory
 `~/.config/bigbrain`. RSS feeds, webhook listeners, event-ingestor settings,
-the event inbox, and the connected-brain catalog are shared there. The
-developer-only `~/Library/Application Support/BigBrain Dev` directory contains
-desktop UI state and does not hold a second copy of those settings.
+and the event inbox are shared there. The connected-brain catalog is also
+shared, separately, at `~/Library/Application Support/BigBrain/registry.json`.
+The developer-only `~/Library/Application Support/BigBrain Dev` directory
+contains desktop UI state and does not hold a second copy of those settings.
 
 To point the desktop shell at an existing BigBrain dashboard:
 
