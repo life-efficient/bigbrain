@@ -121,6 +121,7 @@ async function main() {
     await execFileAsync('launchctl', ['bootout', `gui/${process.getuid()}`, plistPath]).catch(() => null);
     await waitForPortAvailable({ host, port });
     await fs.writeFile(plistPath, plist, 'utf8');
+    await execFileAsync('launchctl', ['enable', serviceTarget]);
     await execFileAsync('launchctl', ['bootstrap', `gui/${process.getuid()}`, plistPath]);
     await execFileAsync('launchctl', ['kickstart', '-k', serviceTarget]);
     await verifyHealth({ host, port, stderrPath });
