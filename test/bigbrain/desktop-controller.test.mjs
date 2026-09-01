@@ -416,6 +416,9 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(mainSource, /app\.isPackaged && !DEV_BUILD/);
   assert.match(devLauncherSource, /desktop-dev-app-icon\.icns/);
   assert.match(devLauncherSource, /DEV_DISPLAY_NAME = "BigBrain Dev"/);
+  assert.match(devLauncherSource, /DEV_APP_NAME = `\$\{DEV_DISPLAY_NAME\}\.app`/);
+  assert.match(devLauncherSource, /productName = DEV_DISPLAY_NAME/);
+  assert.match(devLauncherSource, /export BIGBRAIN_DASHBOARD_DEV=1/);
   assert.match(devLauncherSource, /setPlistValue\("CFBundleDisplayName", DEV_DISPLAY_NAME\)/);
   assert.ok(devIcon.size > 0);
   assert.ok(devIconSet.size > 0);

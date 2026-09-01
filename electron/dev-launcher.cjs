@@ -7,21 +7,25 @@ const { spawn, execFileSync } = require("child_process");
 const APP_NAME = "BigBrain";
 const DEV_DISPLAY_NAME = "BigBrain Dev";
 const DEV_PAGE_LINK_PORT = "55558";
-const DEV_APP_NAME = `${APP_NAME}.app`;
+const DEV_APP_NAME = `${DEV_DISPLAY_NAME}.app`;
+const DEV_EXECUTABLE_NAME = DEV_DISPLAY_NAME;
+const DEV_ELECTRON_BINARY_NAME = `${DEV_DISPLAY_NAME}-bin`;
 const DEV_BUNDLE_ID = "ai.diffusing.bigbrain.dashboard.dev";
 const ROOT_DIR = path.resolve(__dirname, "..");
 const BUILD_DIR = path.join(ROOT_DIR, "build", "dev");
 const ELECTRON_EXECUTABLE_PATH = require("electron");
 const SOURCE_APP_PATH = path.resolve(ELECTRON_EXECUTABLE_PATH, "..", "..", "..");
+const LEGACY_DEV_APP_PATH = path.join(BUILD_DIR, `${APP_NAME}.app`);
 const TARGET_APP_PATH = path.join(BUILD_DIR, DEV_APP_NAME);
 const TARGET_PLIST_PATH = path.join(TARGET_APP_PATH, "Contents", "Info.plist");
 const TARGET_RESOURCES_DIR = path.join(TARGET_APP_PATH, "Contents", "Resources");
-const TARGET_EXECUTABLE_PATH = path.join(TARGET_APP_PATH, "Contents", "MacOS", "Electron");
-const TARGET_ELECTRON_BINARY_PATH = path.join(TARGET_APP_PATH, "Contents", "MacOS", "Electron-bin");
+const DEV_RUNTIME_APP_PATH = path.join(TARGET_RESOURCES_DIR, "app");
+const TARGET_EXECUTABLE_PATH = path.join(TARGET_APP_PATH, "Contents", "MacOS", DEV_EXECUTABLE_NAME);
+const TARGET_ELECTRON_BINARY_PATH = path.join(TARGET_APP_PATH, "Contents", "MacOS", DEV_ELECTRON_BINARY_NAME);
 const DEV_ICON_SOURCE_PATH = path.join(ROOT_DIR, "electron", "assets", "desktop-dev-app-icon.icns");
 const CUSTOM_ICON_TARGET_PATH = path.join(TARGET_RESOURCES_DIR, "app-icon.icns");
 const STAMP_PATH = path.join(BUILD_DIR, "launcher-stamp.json");
-const LAUNCHER_VERSION = 4;
+const LAUNCHER_VERSION = 8;
 
 main();
 
@@ -31,8 +35,8 @@ function main() {
     return;
   }
 
-  prepareDevAppBundle();
   quitRunningDevApp();
+  prepareDevAppBundle();
 
   if (process.argv.includes("--prepare-only")) {
     process.stdout.write(`${TARGET_APP_PATH}\n`);
@@ -94,6 +98,7 @@ function devEnvironment() {
 
 function prepareDevAppBundle() {
   fs.mkdirSync(BUILD_DIR, { recursive: true });
+  removeLegacyDevAppBundle();
 
   const expectedStamp = JSON.stringify(
     {
@@ -118,11 +123,35 @@ function prepareDevAppBundle() {
 
   setPlistValue("CFBundleName", DEV_DISPLAY_NAME);
   setPlistValue("CFBundleDisplayName", DEV_DISPLAY_NAME);
+  setPlistValue("CFBundleExecutable", DEV_EXECUTABLE_NAME);
   setPlistValue("CFBundleIdentifier", DEV_BUNDLE_ID);
   setPlistValue("CFBundleIconFile", "app-icon.icns");
   setPlistValue("LSApplicationCategoryType", "public.app-category.productivity");
+  installDevRuntimeApp();
   syncDevAppIcon();
   installSelfLaunchingExecutable();
+}
+
+function removeLegacyDevAppBundle() {
+  if (LEGACY_DEV_APP_PATH !== TARGET_APP_PATH && fs.existsSync(LEGACY_DEV_APP_PATH)) {
+    fs.rmSync(LEGACY_DEV_APP_PATH, { recursive: true, force: true });
+  }
+}
+
+function installDevRuntimeApp() {
+  fs.rmSync(DEV_RUNTIME_APP_PATH, { recursive: true, force: true });
+  fs.mkdirSync(DEV_RUNTIME_APP_PATH, { recursive: true });
+
+  const packageJson = JSON.parse(fs.readFileSync(path.join(ROOT_DIR, "package.json"), "utf8"));
+  packageJson.productName = DEV_DISPLAY_NAME;
+  fs.writeFileSync(
+    path.join(DEV_RUNTIME_APP_PATH, "package.json"),
+    `${JSON.stringify(packageJson, null, 2)}\n`,
+  );
+
+  for (const directory of [".bigbrain-dashboard", "automations", "bin", "electron", "node_modules", "schemas", "scripts", "skills", "src"]) {
+    fs.symlinkSync(path.join(ROOT_DIR, directory), path.join(DEV_RUNTIME_APP_PATH, directory), "dir");
+  }
 }
 
 function installSelfLaunchingExecutable() {
@@ -132,12 +161,20 @@ function installSelfLaunchingExecutable() {
   // launcher at CFBundleExecutable. It points only at the source checkout; it
   // does not copy or start a brain service.
   if (!fs.existsSync(TARGET_ELECTRON_BINARY_PATH)) {
-    fs.renameSync(TARGET_EXECUTABLE_PATH, TARGET_ELECTRON_BINARY_PATH);
+    const copiedElectronPath = path.join(path.dirname(TARGET_EXECUTABLE_PATH), "Electron");
+    fs.renameSync(copiedElectronPath, TARGET_ELECTRON_BINARY_PATH);
   }
 
-  const sourcePath = shellSingleQuote(ROOT_DIR);
+  const appPath = shellSingleQuote(DEV_RUNTIME_APP_PATH);
   const binaryPath = shellSingleQuote(TARGET_ELECTRON_BINARY_PATH);
-  const launcher = `#!/bin/sh\ncd ${sourcePath} || exit 1\nexec ${binaryPath} ${sourcePath} "$@"\n`;
+  const launcher = [
+    "#!/bin/sh",
+    `cd ${shellSingleQuote(ROOT_DIR)} || exit 1`,
+    "export BIGBRAIN_DASHBOARD_DEV=1",
+    `export BIGBRAIN_LOCAL_PAGE_LINK_PORT=${DEV_PAGE_LINK_PORT}`,
+    `exec ${binaryPath} ${appPath} "$@"`,
+    "",
+  ].join("\n");
   fs.writeFileSync(TARGET_EXECUTABLE_PATH, launcher, { mode: 0o755 });
   fs.chmodSync(TARGET_EXECUTABLE_PATH, 0o755);
 }

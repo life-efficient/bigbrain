@@ -550,7 +550,7 @@ open dashboard after a successful rebuild. Dashboard UI changes appear without
 restarting the app. Changes to Electron or dashboard server code still require
 restarting the developer app.
 
-The developer launcher uses a separate bundle at `build/dev/BigBrain.app` with
+The developer launcher uses a separate bundle at `build/dev/BigBrain Dev.app` with
 the black-on-silver developer icon and the Dock label `BigBrain Dev`. The
 installed release app keeps the silver-on-black icon and the Dock label
 `BigBrain`. On the developer Mac, the local login agent runs
