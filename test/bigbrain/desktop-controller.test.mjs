@@ -338,6 +338,9 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   const preloadSource = await fs.readFile(new URL('../../electron/preload.cjs', import.meta.url), 'utf8');
   const dashboardPreloadSource = await fs.readFile(new URL('../../electron/dashboard-preload.cjs', import.meta.url), 'utf8');
   const mainSource = await fs.readFile(new URL('../../electron/main.cjs', import.meta.url), 'utf8');
+  const devLauncherSource = await fs.readFile(new URL('../../electron/dev-launcher.cjs', import.meta.url), 'utf8');
+  const devIcon = await fs.stat(new URL('../../electron/assets/desktop-dev-icon.png', import.meta.url));
+  const devIconSet = await fs.stat(new URL('../../electron/assets/desktop-dev-app-icon.icns', import.meta.url));
   assert.match(desktopSource, /How do you want to add this brain/);
   assert.match(desktopSource, /Create a new private local brain/);
   assert.match(desktopSource, /Use an existing brain folder on this Mac/);
@@ -402,6 +405,13 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(mainSource, /Choose or add brain/);
   assert.match(mainSource, /will-frame-navigate/);
   assert.match(mainSource, /desktop:api-key-options/);
+  assert.match(mainSource, /BIGBRAIN_DASHBOARD_DEV/);
+  assert.match(mainSource, /desktop-dev-icon\.png/);
+  assert.match(mainSource, /app\.setPath\("userData", path\.join\(app\.getPath\("appData"\), "BigBrain Dev"\)\)/);
+  assert.match(mainSource, /app\.isPackaged && !DEV_BUILD/);
+  assert.match(devLauncherSource, /desktop-dev-app-icon\.icns/);
+  assert.ok(devIcon.size > 0);
+  assert.ok(devIconSet.size > 0);
   assert.match(mainSource, /desktop:discover-brains/);
   assert.match(preloadSource, /desktop:choose-brain-home/);
   assert.match(mainSource, /private local BigBrain/);

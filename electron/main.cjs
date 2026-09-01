@@ -10,9 +10,16 @@ const APP_DISPLAY_NAME = "BigBrain";
 const LOCAL_HOST = "127.0.0.1";
 const DEFAULT_WINDOW_SIZE = { width: 1079, height: 945 };
 const DESKTOP_CHROME_HEIGHT = 0;
-const APP_ICON_PATH = path.join(__dirname, "assets", "desktop-icon.png");
+const DEV_BUILD = process.env.BIGBRAIN_DASHBOARD_DEV === "1";
+const APP_ICON_PATH = path.join(__dirname, "assets", DEV_BUILD ? "desktop-dev-icon.png" : "desktop-icon.png");
 const LOAD_FAILURE_PAGE_PATH = path.join(__dirname, "load-failure.html");
 const REMOTE_DASHBOARD_URL_ENV = "BIGBRAIN_DASHBOARD_URL";
+
+// Keep the live developer app independent from the installed release app so
+// both can hold a single-instance lock and run together on the developer Mac.
+if (DEV_BUILD) {
+  app.setPath("userData", path.join(app.getPath("appData"), "BigBrain Dev"));
+}
 
 let mainWindow = null;
 let dashboardView = null;
@@ -420,11 +427,12 @@ function sendLocalServiceUpdateState() {
 
 function initializeDesktopUpdater() {
   const { DesktopUpdater } = require("./lib/desktop-updater.cjs");
-  const adapter = app.isPackaged ? require("electron-updater").autoUpdater : {};
+  const updaterAvailable = app.isPackaged && !DEV_BUILD;
+  const adapter = updaterAvailable ? require("electron-updater").autoUpdater : {};
   desktopUpdater = new DesktopUpdater({
     adapter,
     version: app.getVersion(),
-    isPackaged: app.isPackaged,
+    isPackaged: updaterAvailable,
   });
   desktopUpdater.on("state", (state) => {
     createAppMenu();

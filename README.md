@@ -550,6 +550,12 @@ open dashboard after a successful rebuild. Dashboard UI changes appear without
 restarting the app. Changes to Electron or dashboard server code still require
 restarting the developer app.
 
+The developer launcher uses a separate bundle at `build/dev/BigBrain.app` with
+the black-on-silver developer icon. The installed release app keeps the
+silver-on-black icon. On the developer Mac, the local login agent runs
+`npm run desktop:dev`, so the development app and dashboard watcher start
+together and source dashboard changes are rebuilt live.
+
 To point the desktop shell at an existing BigBrain dashboard:
 
 ```bash

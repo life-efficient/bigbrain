@@ -16,10 +16,10 @@ const TARGET_PLIST_PATH = path.join(TARGET_APP_PATH, "Contents", "Info.plist");
 const TARGET_RESOURCES_DIR = path.join(TARGET_APP_PATH, "Contents", "Resources");
 const TARGET_EXECUTABLE_PATH = path.join(TARGET_APP_PATH, "Contents", "MacOS", "Electron");
 const TARGET_ELECTRON_BINARY_PATH = path.join(TARGET_APP_PATH, "Contents", "MacOS", "Electron-bin");
-const CUSTOM_ICON_SOURCE_PATH = path.join(ROOT_DIR, "electron", "assets", "desktop-app-icon.icns");
+const DEV_ICON_SOURCE_PATH = path.join(ROOT_DIR, "electron", "assets", "desktop-dev-app-icon.icns");
 const CUSTOM_ICON_TARGET_PATH = path.join(TARGET_RESOURCES_DIR, "app-icon.icns");
 const STAMP_PATH = path.join(BUILD_DIR, "launcher-stamp.json");
-const LAUNCHER_VERSION = 3;
+const LAUNCHER_VERSION = 4;
 
 main();
 
@@ -90,7 +90,7 @@ function prepareDevAppBundle() {
       launcherVersion: LAUNCHER_VERSION,
       electronPath: ELECTRON_EXECUTABLE_PATH,
       sourceAppPath: SOURCE_APP_PATH,
-      iconMtimeMs: safeStatMtime(CUSTOM_ICON_SOURCE_PATH),
+      iconMtimeMs: safeStatMtime(DEV_ICON_SOURCE_PATH),
     },
     null,
     2,
@@ -185,11 +185,11 @@ function setPlistValue(key, value) {
 }
 
 function syncDevAppIcon() {
-  if (!fs.existsSync(CUSTOM_ICON_SOURCE_PATH)) {
+  if (!fs.existsSync(DEV_ICON_SOURCE_PATH)) {
     return;
   }
 
-  fs.copyFileSync(CUSTOM_ICON_SOURCE_PATH, CUSTOM_ICON_TARGET_PATH);
+  fs.copyFileSync(DEV_ICON_SOURCE_PATH, CUSTOM_ICON_TARGET_PATH);
 }
 
 function safeStatMtime(filePath) {
