@@ -32,7 +32,11 @@ import {
   getVisNetworkLabelSlugs,
   seedVisNetworkNodePosition,
 } from '../../src/dashboard-client/graph/vis-network-data.js';
-import { deriveGraphMotion, graphPayloadsEqual } from '../../src/dashboard-client/graph/live-graph.js';
+import {
+  buildInitialGraphRevealStages,
+  deriveGraphMotion,
+  graphPayloadsEqual,
+} from '../../src/dashboard-client/graph/live-graph.js';
 import {
   GRAPH_NODE_SIZES,
   getGraphNodeScreenScale,
@@ -235,6 +239,29 @@ test('confirmed graph refreshes identify created and updated pages for live moti
   assert.deepEqual(linkedOnly.changes, []);
 });
 
+test('initial graph reveal stages are chronological and keep only connected links', () => {
+  const nodes = Array.from({ length: 100 }, (_, index) => ({
+    slug: `projects/node-${String(index).padStart(3, '0')}`,
+    created_at: `2026-01-${String((index % 28) + 1).padStart(2, '0')}T12:00:00Z`,
+  })).reverse();
+  const stages = buildInitialGraphRevealStages({
+    nodes,
+    edges: [
+      { source: 'projects/node-000', target: 'projects/node-098' },
+      { source: 'projects/node-000', target: 'projects/node-099' },
+    ],
+  }, { maxStages: 3, minNodes: 2 });
+
+  assert.equal(stages.length, 3);
+  assert.equal(stages[0].nodes[0].slug, 'projects/node-000');
+  assert.equal(stages.at(-1).nodes.length, 100);
+  assert.deepEqual(stages[0].edges, []);
+  assert.deepEqual(stages.at(-1).edges.map(({ source, target }) => [source, target]), [
+    ['projects/node-000', 'projects/node-098'],
+    ['projects/node-000', 'projects/node-099'],
+  ]);
+});
+
 test('force renderers focus eligible live page changes without remounting', async () => {
   const [main, force2d, force3d] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
@@ -260,6 +287,11 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(force3d, /SYSTEM_ACTIVITY_PREFOCUS_DURATION = 1200/);
   assert.match(force2d, /updateForceGraphActivity\(forceGraph, data, \[target\.slug\]/);
   assert.match(force3d, /updateForceGraphActivity\(forceGraph, data, \[target\.slug\]/);
+  assert.match(main, /const forceSourceNodes = timelineFilteredNodes/);
+  assert.match(force2d, /forceGraph\.d3ReheatSimulation\?\.\(\)/);
+  assert.match(force3d, /forceGraph\.d3ReheatSimulation\?\.\(\)/);
+  assert.match(force2d, /buildInitialGraphRevealStages/);
+  assert.match(force3d, /buildInitialGraphRevealStages/);
   assert.match(force2d, /focusNode\?\.id === node\.id/);
   assert.match(force3d, /syncForceGraphNodeState\(node, focusNode \? new Set\(\[focusNode\.id\]\)/);
   assert.match(force3d, /animatedLinks\.forEach\(\(link\) => forceGraph\.emitParticle/);
@@ -365,7 +397,7 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /\.cooldownTicks\(100\)/);
   assert.match(visualizer, /\.onEngineStop\(\(\) =>/);
   assert.match(visualizer, /if \(!forceGraph\.__bigBrainFitPending\) return;/);
-  assert.match(visualizer, /forceGraph\.__bigBrainFitPending = !forceGraph\.__bigBrainInitialized;/);
+  assert.match(visualizer, /forceGraph\.__bigBrainFitPending = options\.fitAfterUpdate \?\? !wasInitialized;/);
   assert.match(visualizer, /forceGraph\.__bigBrainInitialized = true;/);
   assert.match(visualizer, /nodeVisibility/);
   assert.match(visualizer, /linkVisibility/);
@@ -820,7 +852,7 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.match(forceGraph2d, /getForceGraphLinkCurvature/);
   assert.match(forceGraph2d, /startArcAnimation/);
   assert.match(forceGraph2d, /if \(!forceGraph\.__bigBrainFitPending\) return;/);
-  assert.match(forceGraph2d, /forceGraph\.__bigBrainFitPending = !forceGraph\.__bigBrainInitialized;/);
+  assert.match(forceGraph2d, /forceGraph\.__bigBrainFitPending = options\.fitAfterUpdate \?\? !wasInitialized;/);
   assert.match(forceGraph2d, /forceGraph\.__bigBrainInitialized = true;/);
   assert.match(forceGraph2d, /nodeVisibility/);
   assert.match(forceGraph2d, /linkVisibility/);

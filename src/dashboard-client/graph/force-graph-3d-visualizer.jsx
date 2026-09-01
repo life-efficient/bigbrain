@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { getGraphNodeColor } from './colors.js';
 import { arcAnimationProgress, blendArcColors, cancelArcAnimation, startArcAnimation } from './arc-animation.js';
 import { graphTypeIconSvg } from './graph-type-icon-data.js';
+import { buildInitialGraphRevealStages, INITIAL_GRAPH_REVEAL_STEP_MS } from './live-graph.js';
 import { getGraphNodeSizeScale } from './node-sizes.js';
 import { useGraphTheme } from './visualizer-core.jsx';
 
@@ -16,6 +17,8 @@ const FIT_TO_CANVAS_DURATION = 700;
 const FIT_TO_CANVAS_PADDING = 42;
 const SYSTEM_ACTIVITY_PREFOCUS_DURATION = 1200;
 const SYSTEM_FOCUS_HOLD_DURATION = 5000;
+const GRAPH_UPDATE_COOLDOWN_TICKS = 120;
+const GRAPH_UPDATE_COOLDOWN_TIME = 1400;
 const FORCE_GRAPH_ICON_TEXTURE_CACHE = new Map();
 let FORCE_GRAPH_GLOW_TEXTURE = null;
 
@@ -223,6 +226,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       hideFocusLabel();
+      cancelInitialGraphReveal(forceGraph);
       forceGraph._destructor?.();
       graphRef.current = null;
     };
@@ -383,7 +387,17 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   );
 });
 
-function syncForceGraphData(forceGraph, graph, settings, focusSlug = null) {
+function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, options = {}) {
+  const fromInitialReveal = options.fromInitialReveal === true;
+  if (!fromInitialReveal) cancelInitialGraphReveal(forceGraph);
+  if (!forceGraph.__bigBrainInitialized && !fromInitialReveal && !focusSlug) {
+    const stages = buildInitialGraphRevealStages(graph);
+    if (stages.length > 1) {
+      startInitialGraphReveal(forceGraph, stages, settings, focusSlug);
+      return;
+    }
+  }
+
   const previousData = getForceGraphData(forceGraph);
   const previousNodes = new Map((previousData.nodes || []).map((node) => [node.id, node]));
   const previousLinks = new Map((previousData.links || []).map((link) => [link.id, link]));
@@ -415,24 +429,66 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null) {
   const data = { nodes, links };
   const previousNodeIds = new Set(previousData.nodes?.map((node) => node.id) || []);
   const previousLinkIds = new Set(previousData.links?.map((link) => link.id) || []);
+  const wasInitialized = Boolean(forceGraph.__bigBrainInitialized);
   const membershipChanged = !forceGraph.__bigBrainInitialized
     || nodes.length !== previousNodeIds.size
     || links.length !== previousLinkIds.size
     || nodes.some((node) => !previousNodeIds.has(node.id))
     || links.some((link) => !previousLinkIds.has(link.id));
-  if (membershipChanged) {
+  const layoutChanged = nodes.some((node) => previousNodes.get(node.id)?.degree !== node.degree);
+  if (membershipChanged || layoutChanged) {
     links.forEach((link) => {
       link.source = typeof link.source === 'object' ? link.source.id : link.source;
       link.target = typeof link.target === 'object' ? link.target.id : link.target;
     });
-    forceGraph.__bigBrainFitPending = !forceGraph.__bigBrainInitialized;
+    if (wasInitialized) {
+      forceGraph.warmupTicks(0).cooldownTicks(GRAPH_UPDATE_COOLDOWN_TICKS).cooldownTime(GRAPH_UPDATE_COOLDOWN_TIME);
+    }
+    forceGraph.__bigBrainFitPending = options.fitAfterUpdate ?? !wasInitialized;
     forceGraph.graphData(data);
+    if (wasInitialized) forceGraph.d3ReheatSimulation?.();
   } else {
     updateForceGraphNodeObjects(forceGraph, settings);
   }
   forceGraph.__bigBrainInitialized = true;
   graphDataRefFor(forceGraph, data);
   updateForceGraphHighlight(forceGraph, data, focusSlug, settings.arcAnimation);
+}
+
+function startInitialGraphReveal(forceGraph, stages, settings, focusSlug) {
+  cancelInitialGraphReveal(forceGraph);
+  const reveal = { stages, nextIndex: 1, timer: 0 };
+  forceGraph.__bigBrainInitialReveal = reveal;
+  syncForceGraphData(forceGraph, stages[0], settings, focusSlug, {
+    fromInitialReveal: true,
+    fitAfterUpdate: false,
+  });
+
+  const advance = () => {
+    if (forceGraph.__bigBrainInitialReveal !== reveal) return;
+    const stage = stages[reveal.nextIndex];
+    if (!stage) {
+      forceGraph.__bigBrainInitialReveal = null;
+      return;
+    }
+    const isFinalStage = reveal.nextIndex === stages.length - 1;
+    reveal.nextIndex += 1;
+    syncForceGraphData(forceGraph, stage, settings, focusSlug, {
+      fromInitialReveal: true,
+      fitAfterUpdate: isFinalStage,
+    });
+    if (!isFinalStage) reveal.timer = window.setTimeout(advance, INITIAL_GRAPH_REVEAL_STEP_MS);
+    else forceGraph.__bigBrainInitialReveal = null;
+  };
+
+  reveal.timer = window.setTimeout(advance, INITIAL_GRAPH_REVEAL_STEP_MS);
+}
+
+function cancelInitialGraphReveal(forceGraph) {
+  const reveal = forceGraph?.__bigBrainInitialReveal;
+  if (!reveal) return;
+  window.clearTimeout(reveal.timer);
+  forceGraph.__bigBrainInitialReveal = null;
 }
 
 function graphDataRefFor(forceGraph, data) {

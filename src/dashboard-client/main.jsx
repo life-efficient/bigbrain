@@ -2435,7 +2435,7 @@ const GraphPanel = memo(function GraphPanel({
   }, [activeGraph, selectedPageTypes.length, selectedTypeSet, timelineFilteredNodes]);
   const forceGraph = useMemo(() => {
     const forceSourceGraph = focusSlug ? focusGraph : graph;
-    const forceSourceNodes = Array.isArray(forceSourceGraph?.nodes) ? forceSourceGraph.nodes : [];
+    const forceSourceNodes = timelineFilteredNodes;
     const nodes = selectedPageTypes.length
       ? forceSourceNodes.filter((node) => selectedTypeSet.has(node.type))
       : forceSourceNodes;
@@ -2453,7 +2453,7 @@ const GraphPanel = memo(function GraphPanel({
         edge_count: edges.length,
       },
     };
-  }, [focusGraph, focusSlug, graph, selectedPageTypes.length, selectedTypeSet]);
+  }, [focusGraph, focusSlug, graph, selectedPageTypes.length, selectedTypeSet, timelineFilteredNodes]);
   const recentNodes = useMemo(() => {
     const nodes = Array.isArray(filteredGraph?.nodes) ? filteredGraph.nodes : [];
     return [...nodes]
