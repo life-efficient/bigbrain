@@ -437,6 +437,8 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
   const targetData = { nodes, links };
   const transitioned = prepareGraphTransitionData(previousData, targetData);
   const data = transitioned.displayData;
+  resolveForceGraphLinkEndpoints(data);
+  resolveForceGraphLinkEndpoints(targetData);
   const previousNodeIds = new Set(previousData.nodes?.map((node) => node.id) || []);
   const previousLinkIds = new Set(previousData.links?.map((link) => link.id) || []);
   const targetNodeIds = new Set(nodes.map((node) => node.id));
@@ -453,10 +455,6 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
     || !sameIdSet(previousTargetLinkIds, targetLinkIds);
   const layoutChanged = nodes.some((node) => previousNodes.get(node.id)?.degree !== node.degree);
   if (membershipChanged || targetChanged || layoutChanged) {
-    data.links.forEach((link) => {
-      link.source = typeof link.source === 'object' ? link.source.id : link.source;
-      link.target = typeof link.target === 'object' ? link.target.id : link.target;
-    });
     if (wasInitialized) {
       forceGraph.warmupTicks(0).cooldownTicks(GRAPH_UPDATE_COOLDOWN_TICKS).cooldownTime(GRAPH_UPDATE_COOLDOWN_TIME);
     }
@@ -487,6 +485,20 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
   forceGraph.__bigBrainInitialized = true;
   graphDataRefFor(forceGraph, getForceGraphData(forceGraph));
   updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), focusSlug, settings.arcAnimation);
+}
+
+function resolveForceGraphLinkEndpoints(data) {
+  const nodes = new Map((data?.nodes || []).map((node) => [node.id || node.slug, node]));
+  for (const link of data?.links || []) {
+    const sourceId = typeof link.source === 'object' ? link.source?.id || link.source?.slug : link.source;
+    const targetId = typeof link.target === 'object' ? link.target?.id || link.target?.slug : link.target;
+    const source = nodes.get(sourceId);
+    const target = nodes.get(targetId);
+    if (source && target) {
+      link.source = source;
+      link.target = target;
+    }
+  }
 }
 
 function startInitialGraphReveal(forceGraph, stages, settings, focusSlug) {
