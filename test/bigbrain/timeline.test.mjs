@@ -108,6 +108,7 @@ test('timeline migration is dry-run by default, bounded, and skips unsafe sectio
     const applied = await migrateTimelinePages({ config, apply: true, limit: 1 });
     assert.equal(applied.migrated, 1);
     const migrated = await fs.readFile(path.join(root, 'people', 'alice.md'), 'utf8');
+    assert.match(migrated, /## Timeline\n\n- \*\*2026-05-01\*\*/);
     assert.match(migrated, /bigbrain:timeline/);
     const parsed = parseMarkdownPage(migrated, 'people/alice');
     assert.deepEqual(parsed.timeline_entries.map((entry) => entry.occurred_at), ['2026-05-01', '2026-04-01']);

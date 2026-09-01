@@ -171,7 +171,7 @@ export function renderTimelineEntries(entries, { includeMetadata = false } = {})
 }
 
 export function renderTimelineBlock(entries, options = {}) {
-  return ['## Timeline', '', renderTimelineEntries(entries, options)].filter((value, index) => value || index === 0).join('\n');
+  return ['## Timeline', '', renderTimelineEntries(entries, options)].join('\n');
 }
 
 export function appendTimelineEntries(timeline, input, {
