@@ -17,13 +17,14 @@ Reconcile source-attributed action evidence into specific task proposals, existi
 - New task proposals identify the next actor, concrete action, purpose, dependency, externally checkable completion condition, and approval boundary when relevant in natural prose.
 - Existing tasks are updated instead of duplicated, and broad umbrella work is split when actors, purposes, dependencies, channels, approval boundaries, or completion conditions differ.
 - The skill proposes dispositions only. The calling workflow owns filing-rule decisions, writes, read-back, sync, cursors, Calendar changes, replies, and external actions.
+- A standalone safety, authorization, or no-external-action constraint is handling guidance, not an action item. It is never rendered as its own action bullet.
 
 ## Workflow
 
 1. Confirm the evidence handoff is sufficient.
    - Require the destination Brain, source page or durable source reference, action-relevant excerpts, source-specific interpretation, relevant Brain context, related live tasks, and applicable mutation or approval limits.
    - Preserve distinctions supplied by the caller, including speaker versus grammatical actor, sender versus recipient, quoted or forwarded authorship, proposal versus agreement, and transcript versus generated-summary authority.
-   - If the responsible actor or commitment is genuinely unresolved after using nearby evidence, return a needs-review outcome instead of guessing.
+   - If the responsible actor or commitment is genuinely unresolved after using nearby evidence, do not guess or create a task. State the ambiguity directly in the current Codex chat and continue only with clearly supported items.
    - Anti-patterns: rereading a raw source without its source adapter, treating a summary label as stronger than primary evidence, collapsing speaker and actor, inventing acceptance
 2. Separate evidence from inference.
    - Treat a person's explicit self-commitment or explicit acceptance as evidence of ownership.
@@ -38,7 +39,7 @@ Reconcile source-attributed action evidence into specific task proposals, existi
    - Use a unique, well-supported match to resolve names, recipients, routes, purpose, dependencies, or completion evidence.
    - Allow context to sharpen an already supported action, such as identifying the appropriate person for a specific introduction.
    - Never use context alone to manufacture a commitment, reassign the responsible actor, or strengthen possibility into certainty.
-   - When context supports several materially different next steps, keep them separate or return needs review rather than producing a vague umbrella task.
+   - When context supports several materially different next steps, keep them separate or state the ambiguity directly in the current Codex chat rather than producing a vague umbrella task.
    - Anti-patterns: creating work from contextual possibility alone, overriding transcript ownership, choosing a person from a weak name match, replacing specific actions with broad themes
 4. Reconcile every supported action against live tasks.
    - Update an existing task when it already represents the same actor, action, purpose, and outcome.
@@ -47,16 +48,18 @@ Reconcile source-attributed action evidence into specific task proposals, existi
    - Record an external action on the source or owning entity page when another party owns it and no member owns follow-up.
    - Record an optional offer as context on the source or owning page so it remains discoverable without bloating the backlog.
    - Return an explicit non-task outcome for discussion, unsupported inference, superseded work, or a request that requires clarification.
+   - Keep each task-backed action associated with its create or update decision while the caller completes the write, read-back, and page rendering. This is temporary working context, not a persisted action schema.
    - Anti-patterns: creating duplicates, using waiting to assign someone else's obligation to a member, hiding non-task outcomes, losing optional offers because they are not tasks
 5. Test task quality without forcing a storage schema.
    - Express the next actor, concrete verb and object, purpose, named dependency or lack of one, completion evidence, and approval boundary naturally in the proposed title and body.
    - Use named people, organizations, deliverables, and outcomes when the evidence supports them.
    - Split work when the actor, purpose, dependency, communication channel, approval boundary, or completion test differs.
+   - Treat a pure safety, authorization, or approval constraint as non-task handling guidance. Fold it into a real action only when it materially changes that action's execution or completion.
    - Reject vague formulations such as `find partners`, `build the pipeline`, or `follow up` when the evidence or Brain context supports a more concrete next action.
    - Preserve action-time approval for outreach, messages, scheduling, sharing confidential material, publication, or other externally visible actions.
    - Anti-patterns: fixed field inventories, vague nouns without a next action, combining unrelated routes, treating execution mode as action-time approval
 6. Return proposals to the calling workflow.
-   - Return proposed task creates, existing-task updates, conditional follow-ups, contextual external actions, contextual optional offers, needs-review items, and non-task conclusions with concise evidence-backed reasons.
+   - Return proposed task creates, existing-task updates, conditional follow-ups, contextual external actions, contextual optional offers, unresolved issues, and non-task conclusions with concise evidence-backed reasons.
    - Include enough source and Brain references for the caller to file and verify the outcome.
    - Do not write Brain pages, mutate tasks, sync, update cursors, change Calendar state, draft or send replies, or perform external actions.
    - Anti-patterns: writing directly, omitting contextual outcomes, reporting a proposal as completed work, exposing private source content unnecessarily
@@ -71,6 +74,7 @@ The caller also owns where non-task outcomes are preserved. For a meeting, an ex
 
 - Reading every raw source directly and bypassing the source-specific ingestion skill.
 - Treating all action-shaped language as a task.
+- Rendering a standalone safety or approval constraint as an action item.
 - Creating a member-facing task for another party's obligation without a separate member-owned follow-up.
 - Losing an optional offer merely because it should not become a task.
 - Using Brain context to rewrite source ownership.
@@ -86,7 +90,7 @@ Return a concise evidence-backed review containing:
 - conditional member-owned follow-ups;
 - external actions to preserve as context;
 - optional offers to preserve as context;
-- needs-review and non-task conclusions;
+- unresolved issues and non-task conclusions;
 - the source and Brain references the caller should use when filing and verifying each outcome.
 
-Use natural prose or a compact working table when helpful. Do not require the caller to persist the review format as a schema.
+Use natural prose or a compact working table when helpful. Do not require the caller to persist the review format, action association, or failure state as a schema.

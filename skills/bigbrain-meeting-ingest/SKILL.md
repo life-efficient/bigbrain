@@ -19,6 +19,9 @@ Turn one meeting transcript, summary, or set of call notes into a verified canon
 - Speaker, responsible actor, and commitment strength remain distinct, with transcript evidence preferred over generated-summary attribution when they conflict.
 - Candidate task changes pass through `$bigbrain-action-review`; external actions and optional offers remain useful context without becoming backlog tasks unless a member owns a concrete follow-up.
 - Supported attendee, organization, deal, project, relationship, and task updates are applied and read back through the destination Brain.
+- Every action bullet backed by a created or updated task includes one concise inline link to that exact task page, using the verified path returned by the task write and a path relative to the page being rendered.
+- Broken or unreadable task links are recoverable consistency errors: repair the task or source page in the same run, read it back again, and do not leave a broken link behind.
+- Do not introduce a fixed action or failure schema. If a problem remains after repair attempts, explain it directly in the Codex chat where the skill was run, naming the affected pages and attempted repair.
 
 ## Invocation Modes
 
@@ -76,18 +79,22 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
    - Pass source-attributed action evidence, relevant Brain context, live tasks, and approval limits to `$bigbrain-action-review` before any task creation or update.
    - Use Brain context to sharpen a supported action, never to override source ownership or manufacture acceptance.
    - Create or update tasks only for concrete member-owned actions returned by Action Review. Preserve approval at action time for messages, introductions, scheduling, sharing, publication, or other externally visible work.
+   - Keep each member-owned action associated with its task create or update while the task write is read back and the meeting and sidecar text is rendered. This is temporary working context, not a persisted action schema.
    - Anti-patterns: entity proliferation, duplicate tasks, vague umbrella tasks, assigning another party's obligation to a member, treating execution mode as external-action approval
 6. Apply the smallest supported write set.
-   - Create or update the canonical meeting page, raw artifacts and indexed sidecars, supported canonical entities, and supported tasks through the destination Brain's live write tools.
+   - Create or update supported tasks through the destination Brain's live write tools before finalizing action sections. Capture the exact returned task path, read that task back, and use that verified path for the corresponding action.
+   - Render each task-backed action with one concise inline Markdown link to the verified task page. Compute the link relative to the page being rendered, such as `../tasks/example.md` from `meetings/example.md` or `../../tasks/example.md` from `meetings/.raw/example.md`; never invent or reuse a stale path.
    - Link meeting, sidecar, entity, deal, project, and task records where live filing rules expect reciprocal context.
+   - Keep standalone safety, authorization, or no-external-action statements out of `## Action Items` and out of the sidecar's action-review list. Attach a short boundary to a real action only when it materially affects execution or completion.
    - Keep source provenance and material uncertainty internally while avoiding private transcript content in user-facing or machine-routing state.
    - Do not perform external sends, invitations, publication, Calendar changes, or other externally visible actions.
    - Anti-patterns: direct file or database edits when an owning Brain service exists, duplicated facts across many pages, lost provenance, unauthorized external action
 7. Verify the per-meeting result.
    - Read back every changed meeting, sidecar, entity, deal, project, and task page through the same destination Brain.
    - Verify each raw transcript or attachment against the source content or available size and metadata evidence.
-   - Re-scan for duplicate meeting provenance and confirm canonical links and filing-rule compliance.
-   - Return `partial` or `failed` when a required page, raw artifact, read-back, or task reconciliation cannot be verified. Never describe partial work as complete.
+   - Re-scan for duplicate meeting provenance, confirm canonical links and filing-rule compliance, and check that every task-backed action bullet links exactly once to the verified task path.
+   - If a task is unreadable, a link is broken, or an action bullet is missing its task link, repair the affected task or source page in the same run, then read back both sides again. Repeat while a concrete repair is available; do not leave a known broken link or task-backed action unresolved.
+   - If an owning Brain or source remains unavailable after repair attempts, explain the concrete failure directly in the current Codex chat with the affected paths and what was tried. Do not add a new persisted failure state or opaque handoff result for this issue.
    - Anti-patterns: trusting write responses without read-back, treating a sidecar as proof of raw content, ignoring duplicate provenance, returning complete with an unverified required artifact
 8. Finalize according to invocation mode.
    - In standalone mode, sync the destination Brain after successful read-back, verify the sync result, and provide the standalone user-facing output.
