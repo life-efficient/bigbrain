@@ -367,6 +367,41 @@ test('desktop creates a local brain through the runner and records its MCP contr
   }
 });
 
+test('desktop restores the default brain pointer when local setup fails', async () => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-local-create-pointer-'));
+  const brainHome = path.join(root, 'new-brain');
+  const pointerPath = path.join(root, 'default-brain-home');
+  const previousHome = path.join(root, 'previous-brain');
+  await fs.writeFile(pointerPath, `${previousHome}\n`);
+  const registry = new BrainRegistry({ appSupport: path.join(root, 'support'), env: { HOME: root, BIGBRAIN_POINTER_PATH: pointerPath } });
+  const controller = new DesktopController({
+    registry,
+    keychain: { set: async () => {} },
+    appPath: path.resolve(import.meta.dirname, '..', '..'),
+    env: { HOME: root, BIGBRAIN_POINTER_PATH: pointerPath },
+    home: root,
+    localMcpRunner: { provision: async () => { throw new Error('service failed'); } },
+    fetchImpl: async () => new Response('{}', { status: 200 }),
+  });
+
+  try {
+    await assert.rejects(() => controller.createBrain({
+      name: 'Failed Brain',
+      description: 'A setup failure should not change the selected default brain.',
+      ownerName: 'Harry',
+      ownerEmail: 'harry@example.com',
+      mode: 'local',
+      newHome: brainHome,
+      gitBackup: false,
+      apiKey: 'sk-test-failed-create',
+      apiKeySource: 'manual',
+    }), /service failed/);
+    assert.equal((await fs.readFile(pointerPath, 'utf8')).trim(), previousHome);
+  } finally {
+    await fs.rm(root, { recursive: true, force: true });
+  }
+});
+
 test('desktop exposes Railway provisioning as an explicit WIP blocker', async () => {
   const controller = new DesktopController();
   await assert.rejects(() => controller.provisionRemoteBrain({ name: 'Remote Brain' }), new RegExp(REMOTE_PROVISIONING_WIP_MESSAGE));

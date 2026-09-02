@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import fs from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { execFile } from 'node:child_process';
 import net from 'node:net';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 
 import { formatServiceInstallError } from '../electron/lib/service-errors.mjs';
@@ -451,7 +452,7 @@ async function userId() {
   return stdout.trim();
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
+if (canonicalPath(fileURLToPath(import.meta.url)) === canonicalPath(process.argv[1] || '')) {
   main().catch((error) => {
     console.error(formatServiceInstallError(error, {
       brainName: argumentValue('--brain-home') ? path.basename(argumentValue('--brain-home')) : 'this brain',
@@ -459,6 +460,15 @@ if (import.meta.url === pathToFileURL(process.argv[1] || '').href) {
     }));
     process.exitCode = 1;
   });
+}
+
+function canonicalPath(value) {
+  if (!value) return '';
+  try {
+    return path.resolve(realpathSync(value));
+  } catch {
+    return path.resolve(value);
+  }
 }
 
 function argumentValue(name) {

@@ -179,6 +179,8 @@ export class DesktopController {
     if (existing && newHome) throw new Error('Choose either an existing brain folder or a new folder, not both.');
     const apiKey = await this.resolveApiKey(input);
     await this.validateApiKey(apiKey);
+    const defaultPointer = existing ? null : defaultBrainHomePointerPath(this.env, this.home);
+    const previousDefaultPointer = defaultPointer ? await readFileIfPresent(defaultPointer) : null;
     const draft = existing
       ? await this.registry.registerExisting({
         ...existing,
@@ -200,6 +202,7 @@ export class DesktopController {
         import(pathToModule(this.appPath, 'src/bigbrain/sync.js')),
       ]);
       if (!existing) await initializeBrainHome(draft.home, {
+        env: this.env,
         brainName: draft.name,
         brainDescription: draft.description,
       });
@@ -221,6 +224,7 @@ export class DesktopController {
         backupPreference: brain.backupPreference || 'github',
       };
     } catch (error) {
+      if (defaultPointer) await restoreFile(defaultPointer, previousDefaultPointer);
       await this.registry.update(draft.id, { status: 'error', onboarding: { step: 4, completed: false, error: redactSecrets(error.message) } });
       throw new Error(redactSecrets(error.message));
     }
@@ -340,11 +344,33 @@ export class DesktopController {
   }
   async setDefault(id) {
     const brain = await this.registry.activate(id);
-    const pointer = path.join(process.env.HOME, '.config', 'bigbrain', 'default-brain-home');
+    const pointer = defaultBrainHomePointerPath(this.env, this.home);
     await fs.mkdir(path.dirname(pointer), { recursive: true });
     await fs.writeFile(pointer, `${brain.home}\n`);
     return publicBrain(brain);
   }
+}
+
+function defaultBrainHomePointerPath(env, home) {
+  return env.BIGBRAIN_POINTER_PATH || path.join(home, '.config', 'bigbrain', 'default-brain-home');
+}
+
+async function readFileIfPresent(filePath) {
+  try {
+    return await fs.readFile(filePath);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+async function restoreFile(filePath, content) {
+  if (content === null) {
+    await fs.rm(filePath, { force: true });
+    return;
+  }
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, content);
 }
 
 function pathToModule(root, relative) { return new URL(`file://${path.join(root, relative)}`).href; }

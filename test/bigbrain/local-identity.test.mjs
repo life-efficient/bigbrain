@@ -193,6 +193,33 @@ test('local MCP installer dry-run reports local owner bootstrapping intent', asy
   }
 });
 
+test('local MCP installer runs when invoked through the symlinked desktop app path', async () => {
+  const fixture = await createFixture('bigbrain-local-owner-installer-symlink-');
+  try {
+    const appScriptsPath = path.join(fixture.rootDir, 'desktop-app', 'scripts');
+    await fs.mkdir(appScriptsPath, { recursive: true });
+    const installerPath = path.join(appScriptsPath, 'install-local-mcp-service.mjs');
+    await fs.symlink(path.resolve('scripts/install-local-mcp-service.mjs'), installerPath);
+
+    const { stdout } = await execFileAsync(process.execPath, [
+      installerPath,
+      '--repo-root', process.cwd(),
+      '--brain-home', fixture.brainHome,
+      '--port', '55591',
+      '--label', 'ai.diffusing.bigbrain.symlink-test',
+      '--service-manager', 'desktop',
+      '--service-source', 'desktop-bundle',
+      '--dry-run',
+    ], { env: fixture.env });
+    const result = JSON.parse(stdout);
+    assert.equal(result.brainHome, fixture.brainHome);
+    assert.equal(result.serviceManager, 'desktop');
+    assert.equal(result.serviceSource, 'desktop-bundle');
+  } finally {
+    await removeTempFixture(fixture.rootDir);
+  }
+});
+
 test('desktop and source service plists carry explicit ownership markers', () => {
   const base = {
     label: 'ai.diffusing.bigbrain.test',
