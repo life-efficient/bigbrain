@@ -514,6 +514,9 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /buildFocusedSubgraphGraph/);
   assert.match(main, /FOCUSED_VIEW_MODES = \['network', 'timeline', 'subgraph'\]/);
   assert.match(main, /focusedViewMode === 'subgraph'/);
+  const focusedSubgraphRender = main.match(/focusedViewMode === 'subgraph' \? \([\s\S]*?\/\>\s*\)\s*:\s*\(/)?.[0] || '';
+  assert.match(focusedSubgraphRender, /labelStyle="all"/);
+  assert.match(focusedSubgraphRender, /activeSlug=\{activeSlug\}/);
   assert.match(main, /nextFocusedViewMode/);
   assert.match(main, /graph-wrap-focused/);
   assert.match(main, /event\.key\.toLowerCase\(\) !== 't'/);
