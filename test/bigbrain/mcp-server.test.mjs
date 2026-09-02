@@ -295,6 +295,11 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.match(updatePageTool.inputSchema.properties.body.description, /compiled truth/);
     assert.equal(createPageTool.inputSchema.required.includes('significance'), true);
     assert.equal(updatePageTool.inputSchema.required.includes('significance'), true);
+    assert.deepEqual(createPageTool.inputSchema.properties.timeline.items.required, ['text', 'provenance']);
+    assert.deepEqual(
+      createPageTool.inputSchema.properties.timeline.items.properties.provenance.required,
+      ['event_id', 'source_type', 'source_label', 'source_message'],
+    );
 
     const created = await rpc(running.url, 'tools/call', {
       name: 'create_page',

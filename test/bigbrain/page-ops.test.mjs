@@ -25,6 +25,13 @@ import {
 } from '../../src/bigbrain/page-ops.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
+const TEST_TIMELINE_PROVENANCE = {
+  event_id: 'test:page-ops',
+  source_type: 'assistant_chat',
+  source_label: 'Page ops test',
+  source_message: 'Page ops test source message',
+};
+
 test('page ops create and update brain pages with frontmatter, body, and timeline', async () => {
   const fixture = await createFixture('bigbrain-page-ops-');
   try {
@@ -35,6 +42,7 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
       title: 'Jordan Lee',
       body: 'Jordan Lee is a example contact for Example Brain.',
       timelineEntry: 'Created from MCP contribution.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
       frontmatter: {
         tags: ['example-brain', 'person'],
         visibility: 'public',
@@ -61,13 +69,14 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
     assert.doesNotMatch(created.markdown, /^source_message:/m);
     assert.doesNotMatch(created.markdown, /^source_url:/m);
     assert.doesNotMatch(created.markdown, /^commit_message:/m);
-    assert.match(created.markdown, /\n---\n\n## Timeline\n\n- \*\*\d{4}-\d{2}-\d{2}\*\* \| Created from MCP contribution\.\n$/);
+    assert.match(created.markdown, /\n---\n\n## Timeline\n\n- \*\*\d{4}-\d{2}-\d{2}\*\* \| Created from MCP contribution\./);
 
     const updated = await updateBrainPage({
       config,
       pagePath: 'people/jordan-lee.md',
       body: 'Jordan Lee is the current Example Brain example contact.',
       timelineEntry: 'Updated current role from team contribution.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
     });
 
     assert.match(updated.body, /current Example Brain example contact/);
@@ -101,6 +110,23 @@ test('page ops reject writer-owned timeline content in the current body', async 
   }
 });
 
+test('page ops reject source-less timeline entries for new pages', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-provenance-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await assert.rejects(() => createBrainPage({
+      config,
+      pagePath: 'people/missing-source',
+      title: 'Missing source',
+      body: 'This page must not be written without timeline provenance.',
+      timelineEntry: 'Created without source.',
+    }), /Timeline entry provenance is required/);
+    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'people/missing-source.md')), /ENOENT/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('page ops normalizes legacy timeline separators before appending evidence', async () => {
   const fixture = await createFixture('bigbrain-page-ops-timeline-');
   try {
@@ -113,6 +139,7 @@ test('page ops normalizes legacy timeline separators before appending evidence',
       pagePath: 'organizations/example',
       body: '# Example\n\nCurrent context with a new fact.',
       timelineEntry: 'Appended evidence.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
     });
     assert.equal((updated.markdown.match(/## Timeline/g) || []).length, 1);
     assert.equal((updated.markdown.match(/\n---\n\n## Timeline/g) || []).length, 1);
@@ -147,6 +174,7 @@ test('quick page health catches duplicate timeline boundaries and accepts valid 
       title: 'Valid',
       body: '# Valid\n\nCurrent context.\n\n---\n\n## Additional context\n\nA useful current detail.',
       timelineEntry: 'Created valid page.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
     });
     const health = await quickPageHealthCheck({ config, pagePath: valid.path });
     assert.equal(health.ok, true);
@@ -173,6 +201,7 @@ test('page ops create raw files with associated brain pages', async () => {
       title: 'Example Brain Deck',
       body: 'Source deck for the Example Brain program.',
       timelineEntry: 'Uploaded source deck and created page.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
       frontmatter: { tags: ['example-brain', 'source'] },
     });
 
@@ -208,6 +237,7 @@ test('attachment creation derives sidecar paths and rejects placement ambiguity'
       title: 'Plan',
       body: 'Comprehensive extracted plan.',
       timelineEntry: 'Uploaded plan.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
     });
     assert.equal(created.page.path, 'deals/.raw/plan.md');
     await assert.rejects(() => createRawFileWithPage({
@@ -290,6 +320,7 @@ test('page ops rename raw files and rewrite page references', async () => {
       title: 'Company Name Blind Teaser',
       body: 'Current teaser.',
       timelineEntry: 'Uploaded teaser.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
       frontmatter: { public_raw_files: ['deals/.raw/company-name-blind-teaser.pdf'] },
     });
 
@@ -327,6 +358,7 @@ test('page ops rename pages and rewrite relative markdown links', async () => {
       title: 'Company Name Blind Teaser',
       body: 'Current teaser.',
       timelineEntry: 'Created teaser.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
     });
     await createBrainPage({
       config,
@@ -334,6 +366,7 @@ test('page ops rename pages and rewrite relative markdown links', async () => {
       title: 'Company Name',
       body: 'Related: [Company Name Blind Teaser](company-name-blind-teaser.md).',
       timelineEntry: 'Created deal.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
     });
 
     const renamed = await renameBrainPage({
@@ -342,6 +375,7 @@ test('page ops rename pages and rewrite relative markdown links', async () => {
       toPagePath: 'deals/regional-platform-blind-teaser',
       title: 'Regional Platform Blind Teaser',
       timelineEntry: 'Renamed teaser artifact to anonymized path.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
     });
 
     assert.equal(renamed.path, 'deals/regional-platform-blind-teaser.md');
@@ -498,6 +532,7 @@ Current body.
       pagePath: 'people/alice.md',
       body: 'Updated body.',
       timelineEntry: 'Updated from MCP.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
     });
 
     assert.match(updated.markdown, /tags:\n  - example-brain\n  - person\n---/);
@@ -540,6 +575,7 @@ Current body.
       pagePath: 'people/visibility.md',
       visibility: 'public',
       timelineEntry: 'Published intentionally.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
     });
     assert.equal(pageVisibility(updated.frontmatter), 'public');
     assert.match(updated.markdown, /visibility: public/);
@@ -552,6 +588,7 @@ Current body.
       pagePath: 'people/visibility.md',
       visibility: 'internal',
       timelineEntry: 'Made internal again.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
     });
     assert.equal(pageVisibility(internal.frontmatter), 'internal');
     assert.match(internal.markdown, /visibility: internal/);
@@ -702,6 +739,7 @@ Current body with [Linked PDF](.raw/linked.pdf).
       visibility: 'public',
       publicRawFiles: ['people/.raw/linked.pdf', 'people/.raw/attached.pdf'],
       timelineEntry: 'Published with validated raw files.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
     });
 
     assert.equal(pageVisibility(updated.frontmatter), 'public');

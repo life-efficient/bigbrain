@@ -1253,7 +1253,10 @@ async function toolKeepInTouchMutation(config, args, actor, action) {
   try {
     let result;
     if (action === 'enroll') result = await enrollKeepInTouchPerson(config, db, args, { actor });
-    if (action === 'log-contact') result = await logKeepInTouchContact(config, db, args, { actor });
+    if (action === 'log-contact') result = await logKeepInTouchContact(config, db, args, {
+      actor,
+      timelineProvenance: args.provenance ? { ...args.provenance, commit_message: args.commit_message } : null,
+    });
     if (action === 'set-priority') result = await setKeepInTouchPriority(config, db, args, { actor });
     if (action === 'snooze') result = await snoozeKeepInTouchPerson(config, db, args, { actor });
     await postWriteMaintenance(config, false, actor, args.commit_message);
@@ -2662,7 +2665,7 @@ function timelineEntrySchema() {
       text: { type: 'string' },
       provenance: {
         type: 'object',
-        description: 'Source provenance for this specific timeline entry, including the source type and source message that caused the page change.',
+        description: 'Required source provenance for this specific timeline entry. It records the event and source that caused the page change.',
         properties: {
           event_id: { type: 'string' },
           source_type: { type: 'string', enum: SOURCE_TYPE_VALUES },
@@ -2671,10 +2674,11 @@ function timelineEntrySchema() {
           source_icon: { type: 'string' },
           source_url: { type: 'string', format: 'uri' },
         },
+        required: ['event_id', 'source_type', 'source_label', 'source_message'],
       },
       significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES },
     },
-    required: ['text'],
+    required: ['text', 'provenance'],
   };
 }
 

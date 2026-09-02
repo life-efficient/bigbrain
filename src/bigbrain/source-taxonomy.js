@@ -79,6 +79,10 @@ export const provenanceSchema = z.object({
   significance: timelineSignificanceSchema.nullable().optional(),
 }).strict();
 
+export const timelineProvenanceSchema = provenanceSchema.extend({
+  commit_message: commitMessageSchema.optional(),
+});
+
 export const mutationMetadataSchema = z.object({
   commit_message: commitMessageSchema,
   provenance: provenanceSchema,

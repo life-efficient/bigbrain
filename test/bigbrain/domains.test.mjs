@@ -44,6 +44,12 @@ test('domain registry CRUD is authoritative and protects referenced domains', as
       title: 'AI infrastructure',
       body: 'A knowledge domain test page.',
       timelineEntry: 'Created for the domain test.',
+      timelineProvenance: {
+        event_id: 'test:domain-page',
+        source_type: 'assistant_chat',
+        source_label: 'Domain test',
+        source_message: 'Created for the domain registry test.',
+      },
       timelineSignificance: 'minor',
       domains: ['ai-infrastructure'],
     });

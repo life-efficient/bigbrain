@@ -50,6 +50,22 @@ const PROVENANCE_FRONTMATTER_KEYS = new Set([
   'provenance',
 ]);
 
+function withTimelineProvenance(input, provenance) {
+  if (provenance === null || provenance === undefined) return input;
+  if (Array.isArray(input)) return input.map((entry) => withTimelineProvenance(entry, provenance));
+  if (typeof input === 'string') return { text: input, provenance };
+  if (input && typeof input === 'object') {
+    return {
+      ...input,
+      provenance: {
+        ...provenance,
+        ...(input.provenance || {}),
+      },
+    };
+  }
+  return input;
+}
+
 export async function listBrainPath({
   config,
   relativePath = '',
@@ -124,6 +140,7 @@ export async function createBrainPage({
   body,
   timelineEntry,
   timelineEntries = null,
+  timelineProvenance = null,
   timelineSignificance = null,
   frontmatter = {},
   domains = undefined,
@@ -136,7 +153,7 @@ export async function createBrainPage({
   assertWritablePageBody(currentBody);
 
   const now = new Date().toISOString();
-  const timelineInput = timelineEntries ?? timelineEntry;
+  const timelineInput = withTimelineProvenance(timelineEntries ?? timelineEntry, timelineProvenance);
   const suppliedFrontmatter = frontmatter || {};
   if (domains !== undefined && suppliedFrontmatter.domains !== undefined && !sameDomainMembership(domains, suppliedFrontmatter.domains)) {
     throw new Error('Page domains must match frontmatter.domains when both are provided.');
@@ -155,7 +172,11 @@ export async function createBrainPage({
     frontmatterRaw: renderFrontmatter(metadata),
     title: metadata.title,
     body: currentBody,
-    timeline: formatTimelineEntries(timelineInput, { recordedAt: now, significance: timelineSignificance }),
+    timeline: formatTimelineEntries(timelineInput, {
+      recordedAt: now,
+      significance: timelineSignificance,
+      requireProvenance: true,
+    }),
   });
 
   await fs.mkdir(path.dirname(fullPath), { recursive: true });
@@ -173,6 +194,7 @@ export async function createRawFileWithPage({
   body,
   timelineEntry,
   timelineEntries = null,
+  timelineProvenance = null,
   timelineSignificance = null,
   frontmatter = {},
   domains = undefined,
@@ -206,6 +228,7 @@ export async function createRawFileWithPage({
       body: pageBody,
       timelineEntry,
       timelineEntries,
+      timelineProvenance,
       timelineSignificance,
       frontmatter: {
         ...frontmatter,
@@ -343,15 +366,19 @@ export async function listRawFiles({
   return normalizedLimit === null ? entries : entries.slice(0, normalizedLimit);
 }
 
-export async function updateBrainPage({ config, pagePath, body, timelineEntry, timelineEntries = null, timelineSignificance = null, frontmatterValues = {} }) {
+export async function updateBrainPage({ config, pagePath, body, timelineEntry, timelineEntries = null, timelineProvenance = null, timelineSignificance = null, frontmatterValues = {} }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
   const currentBody = requireNonEmpty(body, 'body');
   assertWritablePageBody(currentBody);
   const existing = await readBrainPage({ config, pagePath: relative });
   const now = new Date().toISOString();
-  const timelineInput = timelineEntries ?? timelineEntry;
-  const nextTimeline = appendTimelineEntries(existing.timeline, timelineInput, { recordedAt: now, significance: timelineSignificance });
+  const timelineInput = withTimelineProvenance(timelineEntries ?? timelineEntry, timelineProvenance);
+  const nextTimeline = appendTimelineEntries(existing.timeline, timelineInput, {
+    recordedAt: now,
+    significance: timelineSignificance,
+    requireProvenance: true,
+  });
   const nextFrontmatterValues = { ...(frontmatterValues || {}) };
   if (Object.prototype.hasOwnProperty.call(nextFrontmatterValues, 'domains')) {
     nextFrontmatterValues.domains = await assertRegisteredPageDomains(config, nextFrontmatterValues.domains);
@@ -377,6 +404,7 @@ export async function renameBrainPage({
   title = null,
   timelineEntry,
   timelineEntries = null,
+  timelineProvenance = null,
   timelineSignificance = null,
   frontmatterValues = {},
 }) {
@@ -393,7 +421,7 @@ export async function renameBrainPage({
 
   const existing = await readBrainPage({ config, pagePath: fromRelative });
   const now = new Date().toISOString();
-  const timelineInput = timelineEntries ?? timelineEntry;
+  const timelineInput = withTimelineProvenance(timelineEntries ?? timelineEntry, timelineProvenance);
   const nextTitle = title ? requireNonEmpty(title, 'title') : existing.title;
   const nextBody = title ? replaceLeadingHeading(existing.body, existing.title, nextTitle) : existing.body;
   let frontmatterRaw = title
@@ -411,7 +439,11 @@ export async function renameBrainPage({
     frontmatterRaw,
     title: nextTitle,
     body: nextBody,
-    timeline: appendTimelineEntries(existing.timeline, timelineInput, { recordedAt: now, significance: timelineSignificance }),
+    timeline: appendTimelineEntries(existing.timeline, timelineInput, {
+      recordedAt: now,
+      significance: timelineSignificance,
+      requireProvenance: true,
+    }),
   });
 
   await fs.mkdir(path.dirname(toFullPath), { recursive: true });
@@ -431,7 +463,7 @@ export async function renameBrainPage({
   };
 }
 
-export async function updatePageVisibility({ config, pagePath, visibility, timelineEntry, timelineEntries = null, timelineSignificance = null, publicRawFiles, frontmatterValues = {} }) {
+export async function updatePageVisibility({ config, pagePath, visibility, timelineEntry, timelineEntries = null, timelineProvenance = null, timelineSignificance = null, publicRawFiles, frontmatterValues = {} }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
   const nextVisibility = normalizePageVisibility(visibility);
@@ -445,7 +477,10 @@ export async function updatePageVisibility({ config, pagePath, visibility, timel
     }
   }
   const now = new Date().toISOString();
-  const timelineInput = timelineEntries ?? timelineEntry ?? `Visibility set to ${nextVisibility}.`;
+  const timelineInput = withTimelineProvenance(
+    timelineEntries ?? timelineEntry ?? `Visibility set to ${nextVisibility}.`,
+    timelineProvenance,
+  );
   let frontmatterRaw = setFrontmatterValue(existing.frontmatter_raw, 'visibility', nextVisibility);
   if (publicRawFiles !== undefined) {
     frontmatterRaw = setFrontmatterValue(
@@ -461,7 +496,11 @@ export async function updatePageVisibility({ config, pagePath, visibility, timel
     frontmatterRaw,
     title: existing.title,
     body: existing.body,
-    timeline: appendTimelineEntries(existing.timeline, timelineInput, { recordedAt: now, significance: timelineSignificance }),
+    timeline: appendTimelineEntries(existing.timeline, timelineInput, {
+      recordedAt: now,
+      significance: timelineSignificance,
+      requireProvenance: true,
+    }),
   });
   await fs.writeFile(safeBrainPath(config.brainDir, relative), markdown, 'utf8');
   return readBrainPage({ config, pagePath: relative });

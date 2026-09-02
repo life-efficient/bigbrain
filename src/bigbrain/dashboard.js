@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -2412,12 +2413,19 @@ export async function updateDashboardPageVisibility(config, db, req, actor = nul
   const slug = normalizePublicSlug(input.slug || input.path);
   if (!slug) throw new Error('Page visibility update requires slug.');
   const visibility = normalizePageVisibility(input.visibility);
+  const timelineText = `Visibility set to ${visibility} from dashboard${actor?.email ? ` by ${actor.email}` : ''}.`;
   await updatePageVisibility({
     config,
     pagePath: slug,
     visibility,
     publicRawFiles: input.public_raw_files,
-    timelineEntry: `Visibility set to ${visibility} from dashboard${actor?.email ? ` by ${actor.email}` : ''}.`,
+    timelineEntry: timelineText,
+    timelineProvenance: {
+      event_id: `dashboard:page-visibility:${slug}:${randomUUID()}`,
+      source_type: 'direct_edit',
+      source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard',
+      source_message: timelineText,
+    },
   });
   return buildPagePayloadForSlug(config, db, slug);
 }

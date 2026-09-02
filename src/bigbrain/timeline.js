@@ -1,6 +1,6 @@
 import crypto from 'node:crypto';
 
-import { TIMELINE_SIGNIFICANCE_VALUES } from './source-taxonomy.js';
+import { timelineProvenanceSchema, TIMELINE_SIGNIFICANCE_VALUES } from './source-taxonomy.js';
 
 export const TIMELINE_SCHEMA_VERSION = 1;
 
@@ -92,6 +92,7 @@ export function normalizeTimelineEntry(input, {
   index = 0,
   significance = null,
   includeMetadata = typeof input === 'object' && input !== null,
+  requireProvenance = false,
 } = {}) {
   const value = typeof input === 'string'
     ? parseVisibleTimelineLine(input) || { text: input }
@@ -114,6 +115,7 @@ export function normalizeTimelineEntry(input, {
   if (occurredAt === null && !occurredLabel) throw new Error('Timeline occurred_at or occurred_label is required.');
   const rawRecordedAt = Object.prototype.hasOwnProperty.call(value, 'recorded_at') ? value.recorded_at : recordedAt;
   const normalizedRecordedAt = rawRecordedAt === null ? null : normalizeTimestamp(rawRecordedAt, 'recorded_at');
+  if (requireProvenance) validateRequiredTimelineProvenance(value.provenance);
   const provenance = normalizeTimelineProvenance(value.provenance);
   const entrySignificance = value.significance ?? provenance?.significance ?? significance ?? null;
   if (entrySignificance !== null && !TIMELINE_SIGNIFICANCE_VALUES.includes(entrySignificance)) {
@@ -155,6 +157,7 @@ export function formatTimelineEntries(input, {
   recordedAt = new Date().toISOString(),
   significance = null,
   includeMetadata = false,
+  requireProvenance = false,
 } = {}) {
   const values = Array.isArray(input) ? input : [input];
   const entries = values.map((value, index) => normalizeTimelineEntry(value, {
@@ -162,6 +165,7 @@ export function formatTimelineEntries(input, {
     significance,
     index,
     includeMetadata: includeMetadata || typeof value === 'object',
+    requireProvenance,
   }));
   return renderTimelineEntries(sortTimelineEntries(entries), { includeMetadata });
 }
@@ -188,6 +192,7 @@ export function renderTimelineBlock(entries, options = {}) {
 export function appendTimelineEntries(timeline, input, {
   recordedAt = new Date().toISOString(),
   significance = null,
+  requireProvenance = false,
 } = {}) {
   const parsed = parseTimeline(timeline);
   const values = Array.isArray(input) ? input : [input];
@@ -196,6 +201,7 @@ export function appendTimelineEntries(timeline, input, {
     significance,
     index: parsed.entries.length + index,
     includeMetadata: typeof value === 'object' || Boolean(normalizeTimelineProvenance(value?.provenance)),
+    requireProvenance,
   }));
 
   if (!parsed.clean) {
@@ -260,6 +266,15 @@ function applyTimelineMetadata(entry, metadata) {
     entry.significance = metadata.significance;
   }
   entry._includeMetadata = true;
+}
+
+function validateRequiredTimelineProvenance(value) {
+  if (value === null || value === undefined) throw new Error('Timeline entry provenance is required.');
+  try {
+    timelineProvenanceSchema.parse(value);
+  } catch (error) {
+    throw new Error(`Timeline entry provenance is invalid: ${error.message}`);
+  }
 }
 
 function timelineMetadata(entry) {

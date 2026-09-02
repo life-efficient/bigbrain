@@ -44,6 +44,32 @@ test('structured timeline entries sort by occurred_at and retain per-entry prove
   assert.equal(latestTimelineEntry(parsed.entries).display, '2026-06-15 | Newer event.');
 });
 
+test('new timeline entries require complete source provenance at the write boundary', () => {
+  assert.throws(
+    () => formatTimelineEntries({ date: '2026-09-03', text: 'Anonymous update.' }, { requireProvenance: true }),
+    /Timeline entry provenance is required/,
+  );
+  assert.throws(
+    () => formatTimelineEntries({
+      date: '2026-09-03',
+      text: 'Incomplete update.',
+      provenance: { event_id: 'evt-incomplete', source_type: 'assistant_chat', source_label: 'Test' },
+    }, { requireProvenance: true }),
+    /source_message/,
+  );
+  const formatted = formatTimelineEntries({
+    date: '2026-09-03',
+    text: 'Attributed update.',
+    provenance: {
+      event_id: 'evt-complete',
+      source_type: 'assistant_chat',
+      source_label: 'Test chat',
+      source_message: 'The test chat caused this update.',
+    },
+  }, { requireProvenance: true });
+  assert.match(formatted, /bigbrain:timeline/);
+});
+
 test('legacy timeline bullets remain readable while new historical entries are inserted in order', () => {
   const legacy = [
     '## Timeline',

@@ -475,6 +475,7 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(focusedViews, /NETWORK_NODES_PER_ROW = 4/);
   assert.match(focusedViews, /focused-network-branches/);
   assert.match(focusedViews, /showLabel = focused \|\| Number\(node\.focus_hop\) <= 1/);
+  assert.doesNotMatch(focusedViews, /className="focused-network-meta">\s*\{node\.type \|\| 'page'\} · hop/);
   assert.doesNotMatch(main, /graph-timeline-slider/);
   assert.doesNotMatch(main, /graph-activity-meta/);
 });

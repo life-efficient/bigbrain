@@ -12,6 +12,22 @@ const TASK_READINESS = ['underspecified', 'ready'];
 const TASK_EXECUTION_MODES = ['agent', 'user', 'interactive'];
 const COMPLETION_HANDOFF_ERROR = 'Completing a task requires a completion handoff: either Next task: tasks/<slug> or No successor task needed: <reason>.';
 
+function withTimelineProvenance(input, provenance) {
+  if (provenance === null || provenance === undefined) return input;
+  if (Array.isArray(input)) return input.map((entry) => withTimelineProvenance(entry, provenance));
+  if (typeof input === 'string') return { text: input, provenance };
+  if (input && typeof input === 'object') {
+    return {
+      ...input,
+      provenance: {
+        ...provenance,
+        ...(input.provenance || {}),
+      },
+    };
+  }
+  return input;
+}
+
 export async function listTaskPages({ config, db, assignee = null, status = null, priority = null, readiness = null, executionMode = null, actor = null, memberResolution = {} } = {}) {
   const members = await listActiveMembers(db);
   const memberMap = memberMapByPersonSlug(members);
@@ -126,6 +142,7 @@ export async function createTaskPage({
   path: taskPath = null,
   timelineEntry = null,
   timelineEntries = null,
+  timelineProvenance = null,
   timelineSignificance = null,
   frontmatterValues = {},
   actor = null,
@@ -152,6 +169,7 @@ export async function createTaskPage({
     body: normalizedBody,
     timelineEntry: timelineEntry || 'Task created.',
     timelineEntries,
+    timelineProvenance,
     timelineSignificance,
     frontmatter: {
       type: 'task',
@@ -180,6 +198,7 @@ export async function updateTaskPage({
   source = null,
   timelineEntry = null,
   timelineEntries = null,
+  timelineProvenance = null,
   timelineSignificance = null,
   frontmatterValues = {},
   actor = null,
@@ -219,8 +238,12 @@ export async function updateTaskPage({
 
   const nextBody = body === null || body === undefined ? parsed.compiledTruth : requireNonEmpty(body, 'body');
   const now = new Date().toISOString();
-  const timelineInput = timelineEntries ?? timelineEntry ?? 'Task updated.';
-  const nextTimeline = appendTimelineEntries(parsed.timeline, timelineInput, { recordedAt: now, significance: timelineSignificance });
+  const timelineInput = withTimelineProvenance(timelineEntries ?? timelineEntry ?? 'Task updated.', timelineProvenance);
+  const nextTimeline = appendTimelineEntries(parsed.timeline, timelineInput, {
+    recordedAt: now,
+    significance: timelineSignificance,
+    requireProvenance: true,
+  });
   const markdown = renderTaskMarkdown({
     frontmatter: {
       ...nextFrontmatter,

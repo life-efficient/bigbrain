@@ -115,7 +115,7 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
                     onNodeOpen?.(node.slug);
                   }}
                 >
-                  <title>{`${title} · ${node.type || 'page'} · hop ${node.focus_hop || 0}`}</title>
+                  <title>{`${title} · ${node.type || 'page'}`}</title>
                   <circle r={focused ? 14 : 11} fill={theme.graphBase} stroke={focused ? theme.graphLabel : theme.graphEdgeStrong} strokeWidth={focused ? 2 : 1} />
                   <circle r={focused ? 8 : 6} fill={nodeColor} fillOpacity="0.9" />
                   {showLabel ? (
@@ -124,7 +124,7 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
                         {compactNodeTitle(title, focused ? 44 : 22)}
                       </text>
                       <text x="19" y="14" fill={theme.graphMutedLabel} className="focused-network-meta">
-                        {node.type || 'page'} · hop {node.focus_hop || 0}
+                        {node.type || 'page'}
                       </text>
                     </>
                   ) : null}
