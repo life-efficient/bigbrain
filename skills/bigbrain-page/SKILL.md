@@ -3,23 +3,22 @@ name: bigbrain-page
 description: Create or update one ordinary BigBrain page from durable evidence.
 ---
 
-Create or update one ordinary BigBrain page using the shared one-pager standard.
+Create or update one ordinary BigBrain page from durable evidence.
 
 ## Contract Checklist
 
-- Resolve the active Brain, read live filing rules, and search and read plausible canonical owners.
+- Resolve the destination, read its filing rules, and search and read plausible canonical owners.
 - Existing owner -> update; no owner with sufficient evidence -> create; ambiguity or weak evidence -> stop; no material change -> no-op.
-- Read `../_shared/canonical-page-one-pager-standard.md` before drafting.
 - Treat `compiled_truth` as the complete current content above `---`, including the opening summary and any current-context sections. The writer manages Markdown framing and `## Timeline`.
 - Use the selected Brain's `create_page` or `update_page` MCP tool with required provenance and significance, then read the result back.
 - Preserve specialized task, meeting, and source-sidecar shapes in their own workflows.
 
 ## Workflow
 
-1. Resolve the subject, Brain, filing rules, owner, and canonical path. Read the chosen page before updating it.
+1. Resolve the subject, destination, filing rules, owner, and canonical path. Read the chosen page before updating it.
    - Anti-patterns: memory-only routing, fuzzy-first ownership, duplicate pages.
 
-2. Compile the current one-pager from verified evidence. Keep the subject in control, link related pages inline, and separate durable understanding from timeline evidence.
+2. Rewrite the compiled truth when necessary. Make the page complete enough to explain its subject on its own: what it is, why it matters, its current state, important context, boundaries, material relationships, and uncertainty. Keep every paragraph about the subject, use inline links when another subject is relevant, and separate durable understanding from timeline evidence. For regulated or fast-changing subjects, identify the authority, jurisdiction, effective date or rule version, and distinguish confirmed source text, interpretation, and unknowns. Use headings or other structure only when they improve clarity.
    - Anti-patterns: source dumps, note piles, invented links, taxonomy commentary, copying a linked subject's full account.
 
 3. Create or update with `compiled_truth` above the separator and a separate evidence-backed timeline entry. Skip the write for a verified no-op, then read back the page, links, timeline, provenance, and health.

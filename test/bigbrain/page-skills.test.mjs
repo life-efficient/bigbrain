@@ -4,10 +4,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 const repoRoot = path.resolve(new URL('../..', import.meta.url).pathname);
-const sharedReference = path.join(repoRoot, 'skills', '_shared', 'canonical-page-one-pager-standard.md');
 
-test('the page skill uses the canonical one-pager standard', async () => {
-  const reference = await fs.readFile(sharedReference, 'utf8');
+test('the page skill contains the page writing standard', async () => {
   const skillName = 'bigbrain-page';
   const skill = await fs.readFile(path.join(repoRoot, 'skills', skillName, 'SKILL.md'), 'utf8');
   const metadata = await fs.readFile(path.join(repoRoot, 'skills', skillName, 'agents', 'openai.yaml'), 'utf8');
@@ -18,26 +16,21 @@ test('the page skill uses the canonical one-pager standard', async () => {
   assert.match(skill, /## Workflow/);
   assert.match(skill, /## Anti-Patterns/);
   assert.match(skill, /## Output/);
-  assert.match(skill, /_shared\/canonical-page-one-pager-standard\.md/);
   assert.match(skill, /create_page/);
   assert.match(skill, /update_page/);
   assert.match(skill, /compiled_truth/);
   assert.match(skill, /## Timeline/);
+  assert.match(skill, /Rewrite the compiled truth when necessary/);
+  for (const phrase of ['what it is', 'why it matters', 'current state', 'boundaries', 'material relationships', 'uncertainty', 'inline links']) {
+    assert.match(skill, new RegExp(phrase));
+  }
   assert.ok(skill.split('\n').length <= 50, `${skillName} should remain lightweight`);
   assert.match(metadata, /\$bigbrain-page/);
   assert.match(cases, /## Should trigger/);
   assert.doesNotMatch(skill, /—/);
+  assert.doesNotMatch(skill, /active Brain|one-pager|canonical-page-one-pager-standard/);
   assert.doesNotMatch(metadata, /—/);
   assert.doesNotMatch(cases, /—/);
-
-  assert.match(reference, /standalone briefing about the subject named in its title/);
-  assert.match(reference, /compiled-truth zone/);
-  assert.match(reference, /Links belong inline/);
-  assert.match(reference, /verified canonical targets/);
-  assert.match(reference, /authority, jurisdiction, effective date or rule version/);
-  assert.match(reference, /Do not include Brain taxonomy/);
-  assert.match(reference, /task pages retain task metadata/);
-  assert.doesNotMatch(reference, /—/);
 });
 
 test('page resolver and core workflows route page writes through the page skill', async () => {
