@@ -25,7 +25,7 @@ test('the page skill contains the page writing standard', async () => {
   assert.match(skill, /Find which Brain owns the page/);
   assert.match(skill, /Use the selected Brain's relevant MCP/);
   assert.match(skill, /Read the page back and verify the result/);
-  for (const phrase of ['current[- ]context', 'authority', 'jurisdiction', 'effective date or rule version', 'inline links']) {
+  for (const phrase of ['current[- ]context', 'what the subject is', 'why it matters', 'boundaries', 'material relationships', 'inline links']) {
     assert.match(skill, new RegExp(phrase));
   }
   assert.ok(skill.split('\n').length <= 50, `${skillName} should remain lightweight`);
@@ -33,6 +33,7 @@ test('the page skill contains the page writing standard', async () => {
   assert.match(cases, /## Should trigger/);
   assert.doesNotMatch(skill, /—/);
   assert.doesNotMatch(skill, /active Brain|one-pager|canonical-page-one-pager-standard/);
+  assert.doesNotMatch(skill, /For regulated or fast-changing subjects/);
   assert.doesNotMatch(metadata, /—/);
   assert.doesNotMatch(cases, /—/);
 });

@@ -9,6 +9,7 @@ Create or update one ordinary BigBrain page from durable evidence.
 
 - Standard ordinary pages use YAML frontmatter, a title, current content, one writer-managed `---` followed by `## Timeline`, and an append-only evidence timeline.
 - Keep one canonical page for one primary subject. Use the filing rules and canonical folder for placement, frontmatter for mutable state and provenance, and inline links for relevant related subjects.
+- Make the page readable on its own: explain what the subject is, why it matters, its current state, important context, boundaries, material relationships, and meaningful uncertainty.
 - The compiled-truth paragraph is the core understanding of the page: if the reader had only one paragraph, this is what they should read. It may be longer than a one-liner when needed. Additional current-context sections may follow it before the separator.
 - Existing owner -> update; no owner with sufficient evidence -> create; ambiguity or weak evidence -> stop; no material change -> no-op.
 - Use the selected Brain's relevant MCP endpoint with the endpoint schema as the authority for inputs, required provenance, and significance. The writer manages Markdown framing and `## Timeline`.
@@ -23,7 +24,6 @@ Create or update one ordinary BigBrain page from durable evidence.
    - Use the `create_page` or `update_page` endpoint that matches the ownership decision, and follow its input schema.
    - Update the compiled-truth paragraph if necessary. Keep it as the one-paragraph core understanding of the subject, then update any current-context content that the evidence requires.
    - Keep the page subject-focused, explain important context and relationships in natural prose, use inline links where relevant, and separate current understanding from timeline evidence.
-   - For regulated or fast-changing subjects, preserve the authority, jurisdiction, effective date or rule version, and distinction between confirmed text, interpretation, and unknowns.
    - Record the evidence-backed timeline entry using the endpoint's required provenance and significance fields.
    - Anti-patterns: source dumps, invented links, taxonomy commentary, direct filesystem writes, sending `---` or `## Timeline`, copying a linked subject's full account.
 
