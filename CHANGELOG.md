@@ -5,6 +5,59 @@ actions` section for agents maintaining device and server installations.
 
 ## [Unreleased]
 
+## [0.26.0] - 2026-09-02
+
+### Added
+
+- Added optional Brain knowledge domains, with stable IDs, human-friendly names,
+  and authoritative usage guidance stored in a Brain-specific `domains.yaml`
+  registry.
+- Added explicit MCP domain registry CRUD through `domains/list`,
+  `domains/get`, `domains/create`, `domains/update`, and `domains/delete`.
+- Added domain membership to page create, raw-file-with-page, and page update
+  operations, while rejecting unregistered IDs and never auto-creating domains.
+- Added dashboard graph domain filtering and domain-aware page previews.
+
+### Changed
+
+- Made page tool schemas dynamically project the current domain registry through
+  Zod, including each domain's guidance in the field description.
+- Added health validation for invalid registries, unregistered memberships, and
+  duplicate memberships.
+- Made domain-scoped previews redact links to pages outside the selected domain
+  at render time while preserving canonical Markdown unchanged.
+
+### Agent update actions
+
+- Source installs: update to the `v0.26.0` tag, run `npm install`, `npm link`,
+  and `npm run build:dashboard`, then restart the BigBrain desktop, dashboard,
+  and source-managed MCP services. Verify `bigbrain sync --json`,
+  `bigbrain health --json`, MCP initialization, and `npm test`.
+- No migration is required for existing pages, tasks, databases, or services.
+  The `domains` page field is optional, and pages without it remain valid.
+  Preserve and back up any existing Brain `domains.yaml` file with the Brain.
+- If pages already contain `domains` memberships, ensure each ID is explicitly
+  present in that Brain's registry or remove the membership, then run
+  `bigbrain sync --json` and `bigbrain health --json` until the domain findings
+  are clear. Do not invent registry entries during routine ingestion.
+- Use `domains/create`, `domains/update`, and `domains/delete` only when the
+  user explicitly curates the domain taxonomy. Use page tools only to assign
+  already-registered IDs; the dynamic `tools/list` schema is the current source
+  of available memberships and their guidance.
+- Packaged desktop and standalone MCP installs should update together when
+  practical, preserve Brain and database volumes, and verify the dashboard
+  domain filter plus `/health` and `/ready` after restart.
+
+### Verification
+
+- Serialized full test suite passed: 497 tests passed, 6 skipped because
+  `TEST_DATABASE_URL` is not configured, and 0 failed.
+- Dashboard production build passed.
+- Local dashboard development smoke test passed with synthetic infrastructure,
+  startup, and multi-domain meeting pages. Domain filtering returned the
+  expected memberships, and scoped previews preserved in-domain links while
+  rendering out-of-domain links as labels.
+
 ## [0.25.2] - 2026-09-02
 
 ### Fixed

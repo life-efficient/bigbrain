@@ -135,6 +135,7 @@ test('RSS collector polls feeds, honors bootstrap, and deduplicates later polls'
     const collector = new RssCollector({
       registryStore: registry,
       inboxStore: inbox,
+      now: () => new Date('2026-08-27T12:00:00.000Z'),
       fetchImpl: async () => {
         fetches += 1;
         return { status: 200, ok: true, headers: { get: () => null }, text: async () => xml };
