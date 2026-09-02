@@ -3,10 +3,13 @@ import React, { memo, useId, useMemo } from 'react';
 import { getGraphNodeColor } from './colors.js';
 import { useGraphTheme } from './visualizer-core.jsx';
 
-const NETWORK_COLUMN_GAP = 190;
+const NETWORK_DATE_COLUMN_GAP = 560;
+const NETWORK_NODE_X_GAP = 132;
+const NETWORK_NODES_PER_ROW = 4;
 const NETWORK_COLUMN_START = 118;
-const NETWORK_TOP = 72;
-const NETWORK_ROW_GAP = 92;
+const NETWORK_TOP = 86;
+const NETWORK_ROW_GAP = 74;
+const NETWORK_BRANCH_GAP = 46;
 const NETWORK_MIN_HEIGHT = 420;
 
 export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
@@ -18,7 +21,7 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
 }) {
   const theme = useGraphTheme();
   const markerId = useId().replace(/:/g, '-');
-  const layout = useMemo(() => buildFocusedNetworkLayout(graph), [graph]);
+  const layout = useMemo(() => buildFocusedNetworkLayout(graph, focusSlug), [focusSlug, graph]);
 
   if (!layout.nodes.length) {
     return (
@@ -35,7 +38,7 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
           <span className="focused-view-kicker">Network</span>
           <strong>Related pages by update order</strong>
         </div>
-        <span className="focused-view-hint">Older updates → newer updates</span>
+        <span className="focused-view-hint">Older dates → newer dates</span>
       </div>
       <div className="focused-network-scroll">
         <svg
@@ -51,12 +54,22 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
           </defs>
           {layout.columns.map((column) => (
             <g key={column.key} className="focused-network-column">
-              <line x1={column.x} y1="42" x2={column.x} y2={layout.height - 24} stroke={theme.graphGrid} strokeDasharray="3 8" />
-              <text x={column.x} y="24" textAnchor="middle" fill={theme.graphLabel} className="focused-network-date">
+              <line x1={column.centerX} y1="42" x2={column.centerX} y2={layout.height - 24} stroke={theme.graphGrid} strokeDasharray="3 8" />
+              <text x={column.centerX} y="24" textAnchor="middle" fill={theme.graphLabel} className="focused-network-date">
                 {column.label}
               </text>
             </g>
           ))}
+          <g className="focused-network-branches" aria-hidden="true">
+            {layout.branches.map((branch) => (
+              <g key={branch.key}>
+                <line x1="18" y1={branch.y - 28} x2={layout.width - 24} y2={branch.y - 28} stroke={theme.graphGrid} strokeDasharray="1 9" />
+                <text x="18" y={branch.y - 36} fill={theme.graphMutedLabel} className="focused-network-branch">
+                  {branch.label}
+                </text>
+              </g>
+            ))}
+          </g>
           <g className="focused-network-edges" aria-hidden="true">
             {layout.edges.map((edge) => (
               <path
@@ -71,6 +84,8 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
             {layout.nodes.map((node) => {
               const nodeColor = getGraphNodeColor(node, colorMode, typeColors) || theme.graphNode;
               const focused = node.slug === focusSlug;
+              const title = node.title || node.slug;
+              const showLabel = focused || Number(node.focus_hop) <= 1;
               return (
                 <g
                   key={node.slug}
@@ -90,14 +105,19 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
                     onNodeOpen?.(node.slug);
                   }}
                 >
+                  <title>{`${title} · ${node.type || 'page'} · hop ${node.focus_hop || 0}`}</title>
                   <circle r={focused ? 14 : 11} fill={theme.graphBase} stroke={focused ? theme.graphLabel : theme.graphEdgeStrong} strokeWidth={focused ? 2 : 1} />
                   <circle r={focused ? 8 : 6} fill={nodeColor} fillOpacity="0.9" />
-                  <text x="19" y="-2" fill={theme.graphLabel} className="focused-network-title">
-                    {node.title || node.slug}
-                  </text>
-                  <text x="19" y="14" fill={theme.graphMutedLabel} className="focused-network-meta">
-                    {node.type || 'page'} · hop {node.focus_hop || 0}
-                  </text>
+                  {showLabel ? (
+                    <>
+                      <text x="19" y="-2" fill={theme.graphLabel} className="focused-network-title">
+                        {compactNodeTitle(title, focused ? 44 : 30)}
+                      </text>
+                      <text x="19" y="14" fill={theme.graphMutedLabel} className="focused-network-meta">
+                        {node.type || 'page'} · hop {node.focus_hop || 0}
+                      </text>
+                    </>
+                  ) : null}
                 </g>
               );
             })}
@@ -168,36 +188,78 @@ export const FocusedTimelineView = memo(function FocusedTimelineView({ lineage, 
   );
 });
 
-function buildFocusedNetworkLayout(graph) {
+function buildFocusedNetworkLayout(graph, focusSlug) {
   const sourceNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const sourceEdges = Array.isArray(graph?.edges) ? graph.edges : [];
-  const dateKeys = [...new Set(sourceNodes.map((node) => dayKey(node.network_at || node.updated_at || node.created_at)).filter(Boolean))].sort();
+  const nodes = sourceNodes.filter((node) => node?.slug);
+  const dateKeys = [...new Set(nodes.map((node) => dayKey(node.network_at || node.created_at || node.updated_at)).filter(Boolean))].sort();
   if (!dateKeys.length) dateKeys.push('undated');
-  const columnByDate = new Map(dateKeys.map((key, index) => [key, index]));
-  const columns = dateKeys.map((key, index) => ({
-    key,
-    x: NETWORK_COLUMN_START + index * NETWORK_COLUMN_GAP,
-    label: key === 'undated' ? 'Undated' : key,
-  }));
-  const nodes = [...sourceNodes]
-    .filter((node) => node?.slug)
-    .sort((left, right) => (
-      (Number(left.focus_hop) || 0) - (Number(right.focus_hop) || 0)
-      || String(left.network_at || '').localeCompare(String(right.network_at || ''))
-      || String(left.title || left.slug).localeCompare(String(right.title || right.slug))
-    ));
-  const rowsByColumn = new Map();
-  const laidOutNodes = nodes.map((node) => {
-    const date = dayKey(node.network_at || node.updated_at || node.created_at) || 'undated';
-    const column = columnByDate.get(date) ?? 0;
-    const row = rowsByColumn.get(column) || 0;
-    rowsByColumn.set(column, row + 1);
+  const columns = dateKeys.map((key, index) => {
+    const startX = NETWORK_COLUMN_START + index * NETWORK_DATE_COLUMN_GAP;
     return {
-      ...node,
-      x: columns[column].x,
-      y: NETWORK_TOP + row * NETWORK_ROW_GAP,
+      key,
+      startX,
+      centerX: startX + ((NETWORK_NODES_PER_ROW - 1) * NETWORK_NODE_X_GAP) / 2,
+      label: key === 'undated' ? 'Undated' : key,
     };
   });
+  const columnByDate = new Map(columns.map((column) => [column.key, column]));
+  const branchKeys = [...new Set(nodes.map((node) => node.focus_branch || node.slug))].sort((left, right) => {
+    if (left === focusSlug) return -1;
+    if (right === focusSlug) return 1;
+    return left.localeCompare(right);
+  });
+  const groups = new Map();
+  for (const node of nodes) {
+    const date = dayKey(node.network_at || node.created_at || node.updated_at) || 'undated';
+    const branch = node.focus_branch || node.slug;
+    const key = `${branch}\0${date}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(node);
+  }
+  const branchBaseY = new Map();
+  const branches = [];
+  let nextBranchY = NETWORK_TOP;
+  for (const branch of branchKeys) {
+    const branchGroups = [...groups.entries()].filter(([key]) => key.startsWith(`${branch}\0`));
+    const maxRows = Math.max(...branchGroups.map(([, group]) => Math.ceil(group.length / NETWORK_NODES_PER_ROW)), 1);
+    const branchNode = nodes.find((node) => node.slug === branch);
+    branchBaseY.set(branch, nextBranchY);
+    branches.push({
+      key: branch,
+      y: nextBranchY,
+      label: branch === focusSlug ? 'Focused page' : compactNodeTitle(branchNode?.title || branch, 34),
+    });
+    nextBranchY += maxRows * NETWORK_ROW_GAP + NETWORK_BRANCH_GAP;
+  }
+  const slotBySlug = new Map();
+  for (const group of groups.values()) {
+    group.sort((left, right) => (
+      (Number(left.focus_hop) || 0) - (Number(right.focus_hop) || 0)
+      || String(left.focus_parent || '').localeCompare(String(right.focus_parent || ''))
+      || String(left.title || left.slug).localeCompare(String(right.title || right.slug))
+      || left.slug.localeCompare(right.slug)
+    ));
+    group.forEach((node, index) => slotBySlug.set(node.slug, index));
+  }
+  const laidOutNodes = [...nodes]
+    .sort((left, right) => (
+      String(left.network_at || left.created_at || left.updated_at || '').localeCompare(String(right.network_at || right.created_at || right.updated_at || ''))
+      || String(left.focus_branch || left.slug).localeCompare(String(right.focus_branch || right.slug))
+      || (Number(left.focus_hop) || 0) - (Number(right.focus_hop) || 0)
+      || left.slug.localeCompare(right.slug)
+    ))
+    .map((node) => {
+      const date = dayKey(node.network_at || node.created_at || node.updated_at) || 'undated';
+      const column = columnByDate.get(date) || columns[0];
+      const branch = node.focus_branch || node.slug;
+      const slot = slotBySlug.get(node.slug) || 0;
+      return {
+        ...node,
+        x: column.startX + (slot % NETWORK_NODES_PER_ROW) * NETWORK_NODE_X_GAP,
+        y: (branchBaseY.get(branch) || NETWORK_TOP) + Math.floor(slot / NETWORK_NODES_PER_ROW) * NETWORK_ROW_GAP,
+      };
+    });
   const nodeBySlug = new Map(laidOutNodes.map((node) => [node.slug, node]));
   const edges = sourceEdges.flatMap((edge, index) => {
     const source = nodeBySlug.get(edge?.source);
@@ -210,19 +272,26 @@ function buildFocusedNetworkLayout(graph) {
       target,
     }];
   });
-  const maxRows = Math.max(...rowsByColumn.values(), 1);
   return {
     nodes: laidOutNodes,
     edges,
     columns,
-    width: Math.max(920, columns.at(-1).x + 280),
-    height: Math.max(NETWORK_MIN_HEIGHT, NETWORK_TOP + maxRows * NETWORK_ROW_GAP + 96),
+    branches,
+    width: Math.max(920, columns.at(-1).startX + (NETWORK_NODES_PER_ROW - 1) * NETWORK_NODE_X_GAP + 280),
+    height: Math.max(NETWORK_MIN_HEIGHT, nextBranchY + 38),
   };
 }
 
+function compactNodeTitle(value, maxLength) {
+  const title = String(value || '').trim();
+  if (title.length <= maxLength) return title;
+  return `${title.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`;
+}
+
 function networkEdgePath(source, target) {
+  const direction = target.x >= source.x ? 1 : -1;
   const distance = Math.max(56, Math.abs(target.x - source.x) * 0.36);
-  return `M ${source.x} ${source.y} C ${source.x + distance} ${source.y}, ${target.x - distance} ${target.y}, ${target.x} ${target.y}`;
+  return `M ${source.x} ${source.y} C ${source.x + direction * distance} ${source.y}, ${target.x - direction * distance} ${target.y}, ${target.x} ${target.y}`;
 }
 
 function dayKey(value) {

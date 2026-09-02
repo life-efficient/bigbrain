@@ -408,7 +408,10 @@ test('vis network focus emphasizes one-hop relationships and mutes the rest', ()
 });
 
 test('graph label and node controls remain available in the graph style menu', async () => {
-  const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
+  const [main, focusedViews] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/focused-views.jsx', import.meta.url), 'utf8'),
+  ]);
   const labelsGroup = main.match(/<GraphStyleOptionGroup\s+label="Labels"[\s\S]*?\/>/)?.[0] || '';
   const nodeShapeGroup = main.match(/<GraphStyleOptionGroup\s+label="Node shape"[\s\S]*?\/>/)?.[0] || '';
   const nodeFillGroup = main.match(/<GraphStyleOptionGroup\s+label="Node fill"[\s\S]*?\/>/)?.[0] || '';
@@ -453,7 +456,14 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /FocusedTimelineView/);
   assert.match(main, /event\.key\.toLowerCase\(\) !== 't'/);
   assert.match(main, /timeline_updates/);
+  assert.match(main, /focusedNetworkStats\.direct/);
+  assert.match(main, /focus_branch/);
+  assert.match(main, /network_at: lineageAt \|\| sourceNode\?\.created_at/);
   assert.match(main, /closest\('\.sidecar-panel, \.graph-wrap'\)/);
+  assert.match(focusedViews, /Older dates → newer dates/);
+  assert.match(focusedViews, /NETWORK_NODES_PER_ROW = 4/);
+  assert.match(focusedViews, /focused-network-branches/);
+  assert.match(focusedViews, /showLabel = focused \|\| Number\(node\.focus_hop\) <= 1/);
   assert.doesNotMatch(main, /graph-timeline-slider/);
   assert.doesNotMatch(main, /graph-activity-meta/);
 });

@@ -2390,7 +2390,9 @@ function buildFocusedNetworkGraph(graph, lineage, focusSlug, maxHops = FOCUSED_N
     adjacency.get(edge.source).push(edge.target);
     adjacency.get(edge.target).push(edge.source);
   }
+  for (const neighbors of adjacency.values()) neighbors.sort((left, right) => left.localeCompare(right));
   const hops = new Map([[focusSlug, 0]]);
+  const parentBySlug = new Map();
   const queue = [focusSlug];
   while (queue.length) {
     const current = queue.shift();
@@ -2399,10 +2401,22 @@ function buildFocusedNetworkGraph(graph, lineage, focusSlug, maxHops = FOCUSED_N
     for (const neighbor of adjacency.get(current) || []) {
       if (hops.has(neighbor)) continue;
       hops.set(neighbor, currentHop + 1);
+      parentBySlug.set(neighbor, current);
       queue.push(neighbor);
     }
   }
   const focusSlugs = new Set(hops.keys());
+  const branchBySlug = new Map([[focusSlug, focusSlug]]);
+  for (const slug of focusSlugs) {
+    if (slug === focusSlug) continue;
+    let branch = slug;
+    let parent = parentBySlug.get(slug);
+    while (parent && parent !== focusSlug) {
+      branch = parent;
+      parent = parentBySlug.get(parent);
+    }
+    branchBySlug.set(slug, branch);
+  }
   const sourceNodeBySlug = new Map(sourceNodes.map((node) => [node.slug, node]));
   const lineageDates = new Map();
   for (const event of historicalEdges) {
@@ -2426,7 +2440,9 @@ function buildFocusedNetworkGraph(graph, lineage, focusSlug, maxHops = FOCUSED_N
       type: sourceNode?.type || summary?.type || slug.split('/')[0] || 'unknown',
       degree: sourceNode?.degree || 1,
       focus_hop: hops.get(slug) || 0,
-      network_at: lineageAt || sourceNode?.updated_at || sourceNode?.created_at || null,
+      focus_parent: parentBySlug.get(slug) || null,
+      focus_branch: branchBySlug.get(slug) || focusSlug,
+      network_at: lineageAt || sourceNode?.created_at || sourceNode?.updated_at || null,
       lineage_at: lineageAt || sourceNode?.created_at || sourceNode?.updated_at || null,
       created_at: sourceNode?.created_at || lineageAt || sourceNode?.updated_at || null,
       updated_at: sourceNode?.updated_at || lineageAt || null,
@@ -2566,6 +2582,13 @@ const GraphPanel = memo(function GraphPanel({
   const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const focusSlug = lineage?.slug || null;
   const focusGraph = useMemo(() => buildFocusedNetworkGraph(graph, lineage, focusSlug), [focusSlug, graph, lineage]);
+  const focusedNetworkStats = useMemo(() => {
+    const nodes = Array.isArray(focusGraph?.nodes) ? focusGraph.nodes : [];
+    return {
+      direct: nodes.filter((node) => Number(node.focus_hop) === 1).length,
+      extended: nodes.filter((node) => Number(node.focus_hop) > 1).length,
+    };
+  }, [focusGraph]);
   const activeGraph = focusSlug ? focusGraph : graph;
   const activeGraphNodes = Array.isArray(activeGraph?.nodes) ? activeGraph.nodes : [];
   const activityBuckets = useMemo(() => (
@@ -2868,7 +2891,7 @@ const GraphPanel = memo(function GraphPanel({
                   ? 'Reconstructing related pages…'
                   : lineage?.status === 'error'
                     ? (lineage.message || 'History unavailable')
-                    : `${Math.max(0, (focusGraph?.nodes?.length || 1) - 1)} related pages · ${FOCUSED_NETWORK_MAX_HOPS} hops`}
+                    : `${focusedNetworkStats.direct} direct · ${focusedNetworkStats.extended} second-hop · ${FOCUSED_NETWORK_MAX_HOPS} hops`}
               </small>
             </div>
             <div className="graph-focus-mode-toggle" role="group" aria-label="Focused view">
