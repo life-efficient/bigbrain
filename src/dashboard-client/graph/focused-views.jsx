@@ -3,7 +3,7 @@ import React, { memo, useId, useLayoutEffect, useMemo, useRef } from 'react';
 import { getGraphNodeColor } from './colors.js';
 import { useGraphTheme } from './visualizer-core.jsx';
 
-const NETWORK_HOP_COLUMN_GAP = 560;
+const NETWORK_HOP_COLUMN_GAP = 320;
 const NETWORK_NODE_X_GAP = 142;
 const NETWORK_NODES_PER_ROW = 4;
 const NETWORK_COLUMN_START = 118;
@@ -77,9 +77,11 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
             {layout.branches.map((branch) => (
               <g key={branch.key}>
                 <line x1="18" y1={branch.y - 28} x2={layout.width - 24} y2={branch.y - 28} stroke={theme.graphGrid} strokeDasharray="1 9" />
-                <text x="18" y={branch.y - 36} fill={theme.graphMutedLabel} className="focused-network-branch">
-                  {branch.label}
-                </text>
+                {branch.label ? (
+                  <text x="18" y={branch.y - 36} fill={theme.graphMutedLabel} className="focused-network-branch">
+                    {branch.label}
+                  </text>
+                ) : null}
               </g>
             ))}
           </g>
@@ -98,7 +100,7 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
               const nodeColor = getGraphNodeColor(node, colorMode, typeColors) || theme.graphNode;
               const focused = node.slug === focusSlug;
               const title = node.title || node.slug;
-              const showLabel = focused || Number(node.focus_hop) <= 1;
+              const showLabel = true;
               const titleLines = networkNodeTitleLines(title, focused);
               const metaY = -2 + titleLines.length * NETWORK_LABEL_LINE_HEIGHT + 5;
               return (
@@ -254,7 +256,6 @@ function buildFocusedNetworkLayout(graph, focusSlug) {
       const maxRows = Math.max(...branchGroups.map(([, group]) => group.length), 1);
       const labelHeight = Math.max(...branchGroups
         .flatMap(([, group]) => group)
-        .filter((node) => node.slug === focusSlug || Number(node.focus_hop) <= 1)
         .map((node) => networkNodeLabelHeight(node, focusSlug)), 0);
       return [branch, { gap: Math.max(NETWORK_ROW_GAP, labelHeight), maxRows }];
     }));
@@ -273,7 +274,7 @@ function buildFocusedNetworkLayout(graph, focusSlug) {
   if (focusSlug) {
     branchBaseY.set(focusSlug, NETWORK_TOP + Math.max(0, (contentHeight - NETWORK_ROW_GAP) / 2));
     branchSlotByKey.set(focusSlug, Math.floor(NETWORK_NODES_PER_ROW / 2));
-    branches.unshift({ key: 'focused-branch', y: branchBaseY.get(focusSlug), label: 'Focused page' });
+    branches.unshift({ key: 'focused-branch', y: branchBaseY.get(focusSlug), label: null });
   }
   const slotBySlug = new Map();
   for (const group of groups.values()) {

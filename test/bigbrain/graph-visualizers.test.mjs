@@ -464,10 +464,11 @@ test('vis network focus emphasizes one-hop relationships and mutes the rest', ()
 });
 
 test('graph label and node controls remain available in the graph style menu', async () => {
-  const [main, focusedViews, focusedData] = await Promise.all([
+  const [main, focusedViews, focusedData, dashboard] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/dashboard-client/graph/focused-views.jsx', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/dashboard-client/graph/focused-network-data.js', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
   ]);
   const labelsGroup = main.match(/<GraphStyleOptionGroup\s+label="Labels"[\s\S]*?\/>/)?.[0] || '';
   const nodeShapeGroup = main.match(/<GraphStyleOptionGroup\s+label="Node shape"[\s\S]*?\/>/)?.[0] || '';
@@ -528,19 +529,24 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(focusedData, /sourceHop >= targetHop/);
   assert.match(main, /closest\('\.sidecar-panel, \.graph-wrap'\)/);
   assert.doesNotMatch(focusedViews, /Related pages by update order/);
-  assert.match(focusedViews, /NETWORK_HOP_COLUMN_GAP/);
+  assert.match(focusedViews, /NETWORK_HOP_COLUMN_GAP = 320/);
   assert.match(focusedViews, /scroll\.scrollLeft = Math\.max/);
   assert.doesNotMatch(focusedViews, /columnByDate/);
   assert.match(focusedViews, /width=\{layout\.width\}/);
   assert.match(focusedViews, /height=\{layout\.height\}/);
   assert.match(focusedViews, /NETWORK_NODES_PER_ROW = 4/);
   assert.match(focusedViews, /focused-network-branches/);
-  assert.match(focusedViews, /showLabel = focused \|\| Number\(node\.focus_hop\) <= 1/);
+  assert.match(focusedViews, /const showLabel = true/);
+  assert.match(focusedViews, /key: 'focused-branch',[\s\S]*label: null/);
   assert.match(focusedViews, /networkNodeTitleLines/);
   assert.doesNotMatch(focusedViews, /compactNodeTitle/);
   assert.doesNotMatch(focusedViews, /className="focused-network-meta">\s*\{node\.type \|\| 'page'\} · hop/);
   assert.doesNotMatch(main, /graph-timeline-slider/);
   assert.doesNotMatch(main, /graph-activity-meta/);
+  assert.match(main, /if \(!preview \|\| lineage \|\| healthOpen\) return undefined/);
+  assert.match(main, /if \(!lineage\) return undefined/);
+  assert.match(dashboard, /\.graph-focus-banner \{[\s\S]*align-self: stretch; flex: 0 0 auto;/);
+  assert.match(dashboard, /\.graph-wrap-focused \.focused-view-stage \{[\s\S]*width: 100%; min-height: 0; overflow: hidden;/);
 });
 
 test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async () => {

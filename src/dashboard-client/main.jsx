@@ -425,7 +425,7 @@ function DashboardApp() {
   }, [healthOpen, playbooksOpen, settingsOpen]);
 
   useEffect(() => {
-    if (!preview || healthOpen) return undefined;
+    if (!preview || lineage || healthOpen) return undefined;
 
     function handleEscape(event) {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
@@ -445,7 +445,7 @@ function DashboardApp() {
     return () => {
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [clearGraphFocus, preview, healthOpen]);
+  }, [clearGraphFocus, healthOpen, lineage, preview]);
 
   useEffect(() => {
     if (!preview) return undefined;
@@ -463,7 +463,7 @@ function DashboardApp() {
   }, [clearGraphFocus, preview]);
 
   useEffect(() => {
-    if (!lineage || preview) return undefined;
+    if (!lineage) return undefined;
 
     function handleEscape(event) {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) return;
@@ -474,7 +474,7 @@ function DashboardApp() {
 
     window.addEventListener('keydown', handleEscape);
     return () => window.removeEventListener('keydown', handleEscape);
-  }, [clearGraphFocus, lineage, preview]);
+  }, [clearGraphFocus, lineage]);
 
   useEffect(() => {
     function handleKeydown(event) {
