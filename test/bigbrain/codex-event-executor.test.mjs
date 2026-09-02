@@ -58,11 +58,13 @@ test('RSS article prompt makes filing optional and gates writes on relevance', (
       },
     },
     allowed_brain_ids: ['personal'],
-  }, { type: 'rss', display_name: 'OpenAI News' }, { allowedDestinations: [{ id: 'personal', name: 'Personal' }] });
+  }, { type: 'rss', display_name: 'OpenAI News', guidance: 'Prioritize substantive model and policy updates; ignore routine promotion.' }, { allowedDestinations: [{ id: 'personal', name: 'Personal' }] });
   assert.match(prompt, /Run the BigBrain source-article workflow for this article/);
   assert.match(prompt, /Use the \$bigbrain-source-article-ingest skill as the primary workflow/);
   assert.match(prompt, /Filing is optional/);
   assert.match(prompt, /Do not create a raw artifact or Brain page unless it clears the gate/);
+  assert.match(prompt, /Feed-specific guidance:/);
+  assert.match(prompt, /Prioritize substantive model and policy updates; ignore routine promotion/);
   assert.doesNotMatch(prompt, /put it in the right Brain pages/);
   assert.match(prompt, /Title: Article/);
   assert.match(prompt, /URL: https:\/\/example\.test\/article/);

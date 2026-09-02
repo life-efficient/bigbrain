@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Source Article Ingest"
   short_description: "Review article relevance before optional BigBrain filing"
-  default_prompt: "Run $bigbrain-source-article-ingest for this article. First decide whether it clears the digest-value gate; filing is optional, and do not create a source artifact or Brain page unless it does."
+  default_prompt: "Run $bigbrain-source-article-ingest for this article. First read any registered source guidance, then decide whether it clears the digest-value gate; filing is optional, and do not create a source artifact or Brain page unless it does."

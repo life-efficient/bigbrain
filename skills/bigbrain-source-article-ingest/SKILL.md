@@ -1,18 +1,18 @@
 ---
 name: bigbrain-source-article-ingest
-description: Ingest a web article or RSS item when it has a direct, user-specific connection to an active Brain objective, question, or tracked subject, preserving the source and updating linked Brain entities when warranted.
+description: Ingest a web article or RSS item by applying its registered source guidance and current user context, preserving the source and updating linked Brain entities when warranted.
 ---
 
-Review one web article through the BigBrain source-article workflow and file it only when it clears the digest-value gate.
+Review one web article through the BigBrain source-article workflow, applying registered source guidance before deciding whether to file it.
 
 ## Contract Checklist
 
 - Decide relevance for the user's digest before creating any Brain page or raw artifact.
 - Filing is optional: the valid outcomes are `ignored`, `source_only`, `source_and_update`, or `needs_review`.
-- Ignore routine, administrative, promotional, or otherwise low-value updates even when they mention a tracked entity.
-- Treat first-party promotional material as `ignored` by default unless a concrete, durable implication is clearly material to the user's existing knowledge or work.
-- Require a named, current user anchor for relevance: an active project, task, question, learning topic, tracked entity with live significance, or explicitly requested enrichment topic. Generic sector awareness or possible future usefulness does not qualify.
-- Do not file an unfamiliar company or person merely because the item is interesting, resembles a work topic, or might help with generic deal or sector analysis later.
+- When an RSS listener provides source guidance, treat it as the source-specific inclusion and exclusion policy. It expresses why the feed is subscribed to and what should be prioritized or ignored.
+- Do not apply one global content taxonomy across different RSS feeds. Feed guidance may legitimately differ by source, including how it treats company news, regulation, startup ideas, research, or promotion.
+- Require either a clear match to the registered source guidance or a named, current user anchor: an active project, task, question, learning topic, tracked entity with live significance, or explicitly requested enrichment topic.
+- First-party or promotional status is not a universal verdict. Apply the registered source guidance and current user context to decide whether the item has durable value.
 - Require a short user-specific relevance rationale before any raw-file or Brain-page write.
 - If relevance is ambiguous, stop before writing and either return `ignored` or ask for clarification when the intended scope cannot be inferred safely.
 - Fetch and preserve the canonical source for every relevant article when the source is available and the filing rules permit it.
@@ -28,6 +28,7 @@ Review one web article through the BigBrain source-article workflow and file it 
 
 1. Establish the source and retrieve the article:
    - Use the canonical article URL from the RSS item, not only the feed description.
+   - Read the registered source guidance from the RSS listener or event before applying the relevance test. If no guidance is present, use the conservative generic test and say that source-specific guidance was unavailable.
    - Visit the supplied article URL and confirm that the page title and publisher identify the requested article.
    - If the page is blocked or cannot be accessed, return `needs_review` and report that the source could not be retrieved. Do not substitute another page or invent content.
    - Preserve the fetched source bytes through the runtime's `raw_content_source: event.source_document.raw_body` placeholder when filing.
@@ -36,17 +37,17 @@ Review one web article through the BigBrain source-article workflow and file it 
    - Anti-patterns: treating the RSS description as the article, stopping after one blocked transport, trusting a search snippet as source text, inventing missing article text, filing an incomplete source as full capture.
 
 2. Apply the digest-value test before filing:
-   - Ask whether the item will help the user master an idea, stay current in a sector they have explicitly identified as current, bring something useful up in conversation, or read for an explicitly intended enrichment topic.
-   - Name the direct user anchor before writing: the active Brain page, project, task, question, learning topic, tracked entity with live significance, or explicit conversation or enrichment intent that the article serves. If no such anchor can be named, choose `ignored`.
+   - Ask whether the item matches the registered source guidance and fulfills the feed's stated purpose, or whether it serves a named current user anchor: an active Brain page, project, task, question, learning topic, tracked entity with live significance, or explicit conversation or enrichment intent.
+   - State which source-guidance clause or user anchor the item satisfies before writing. If neither can be named, choose `ignored`.
    - Ignore privacy-policy changes, routine collaborations, generic announcements, awards, hiring notices, and promotional updates unless they have a concrete durable implication for the user's existing knowledge or work.
-   - Entity mention, topical similarity, regional relevance, a plausible connection to a project, or a generic company or sector lesson are not enough on their own. The article must change durable understanding, provide reusable learning for the named anchor, or record a material event for the user.
-   - A reusable analogue, case study, or interesting operating model is not a sufficient rationale unless the user is actively working on that domain or question.
-   - For first-party promotional material, identify the promotional status and name the concrete durable implication for the named anchor that outweighs it. Generic product, strategy, platform, or company-profile claims do not qualify. If the implication cannot be stated briefly and specifically, choose `ignored`.
+   - Entity mention, topical similarity, regional relevance, or a generic company or sector lesson are not enough when the item does not match the registered source guidance or a named user anchor. The article must change durable understanding, provide reusable learning for the stated purpose, or record a material event for the user.
+   - Do not let a generic default override an explicit source rule. For example, a feed may prioritize broad policy analysis while excluding routine company profiles, or it may explicitly collect a particular company's updates.
+   - For first-party promotional material, apply the registered source guidance and name the concrete durable value or exclusion that determines the outcome. Do not infer a verdict from first-party status alone.
    - Write the relevance rationale before proceeding to any source-artifact or Brain-page write. This is a decision gate, not a post-hoc justification.
    - Anti-patterns: filing everything from a trusted feed, treating entity relevance or topical similarity as automatic user relevance, using a project link to justify filing, storing raw material for a no-op, justifying a write after it has begun.
 
 3. Choose the filing outcome:
-   - `ignored`: no Brain page or raw source; retain only the event audit record. This is the required outcome when no named user anchor survives the digest-value test, even if the user asked to ingest the item.
+   - `ignored`: no Brain page or raw source; retain only the event audit record. This is the required outcome when the item does not match the registered source guidance or a named user anchor, even if the user asked to ingest the item.
    - `source_only`: preserve the source and create its indexed sidecar when it is useful for learning, enrichment, or awareness but does not change a canonical entity page.
    - `source_and_update`: preserve the source, create the indexed sidecar, and update existing canonical pages when the article changes durable understanding or records a meaningful event.
    - Create a new canonical entity page only when the article establishes a distinct durable person, organization, company, project, concept, deal, or other Brain subject that does not already exist.
@@ -115,7 +116,8 @@ What this establishes for the Brain, with uncertainty and attribution preserved.
 
 - Treating “ingest this article” or “put it in the right Brain pages” as permission or instruction to file without independently applying the relevance gate.
 - Filing every RSS item merely because the feed is trusted.
-- Treating a generic company profile, sector analogue, or possible future deal usefulness as user-specific relevance.
+- Applying a universal promotional or company-news taxonomy instead of reading the registered source guidance.
+- Treating a feed's source guidance as decoration and making the filing decision without it.
 - Using a company or entity mention to manufacture a named user anchor after retrieval.
 - Treating a short RSS description as sufficient source content.
 - Rewriting a strong author's prose into an AI-authored substitute.

@@ -113,6 +113,10 @@ export function normalizeListener(value) {
   const executionLocation = normalizeRuntimeLocation(value.codex_execution_location || value.execution_location || (listenerLocation === 'host' ? 'host' : 'client'));
   const executionMode = requireEnum(value.codex_execution_mode || value.execution_mode || 'app_thread', EXECUTION_MODES, 'listener.codex_execution_mode');
   const provider = optionalString(value.provider || value.source_provider);
+  const explicitDescription = optionalString(value.description);
+  const description = explicitDescription || `Inbound ${type} source ${id}`;
+  const guidance = optionalString(value.guidance || value.source_guidance || value.ingest_guidance)
+    || (type === 'rss' ? explicitDescription : null);
   const status = value.removed ? 'removed' : value.paused ? 'paused' : value.enabled === false ? 'disabled' : 'active';
   return {
     id,
@@ -121,7 +125,8 @@ export function normalizeListener(value) {
     endpoint: normalizeEndpoint(endpoint, url),
     url: url || null,
     credential_ref: optionalString(value.credential_ref || value.secret_ref),
-    description: optionalString(value.description) || `Inbound ${type} source ${id}`,
+    description,
+    guidance,
     display_name: optionalString(value.display_name) || id,
     icon: optionalString(value.icon) || defaultSourceIcon(type),
     filter: normalizeFilter(value.filter || value.filters),
@@ -245,6 +250,7 @@ export function normalizeEventEnvelope(value, { now = new Date(), registry = nul
     raw_payload_sha256: rawPayload ? sha256(rawPayload) : null,
     source: {
       description: optionalString(value.source_description || source.description || sourceListener?.description),
+      guidance: optionalString(value.source_guidance || source.guidance || sourceListener?.guidance),
       display_name: optionalString(value.source_display_name || source.display_name || sourceListener?.display_name) || listenerId,
       icon: optionalString(value.source_icon || source.icon || sourceListener?.icon) || defaultSourceIcon(sourceListener?.type),
       endpoint: optionalString(value.source_endpoint || source.endpoint || sourceListener?.url),

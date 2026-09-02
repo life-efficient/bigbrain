@@ -2452,7 +2452,7 @@ function listenerWriteSchema() {
     properties: {
       listener: {
         type: 'object',
-        description: 'Listener definition. Stable id, type, endpoint, scope, policies, placement, execution mode, and optional registered Brain IDs.',
+        description: 'Listener definition. Stable id, type, endpoint, scope, feed-specific guidance, policies, placement, execution mode, and optional registered Brain IDs.',
       },
       id: { type: 'string' },
       type: { type: 'string', enum: ['rss', 'webhook'] },
@@ -2460,6 +2460,7 @@ function listenerWriteSchema() {
       url: { type: 'string' },
       credential_ref: { type: 'string' },
       description: { type: 'string' },
+      guidance: { type: 'string', description: 'Feed-specific instructions for what this RSS source is for, what to prioritize, and what to ignore. Applied to each article event from this listener.' },
       display_name: { type: 'string' },
       icon: { type: 'string' },
       filter: { type: 'object' },

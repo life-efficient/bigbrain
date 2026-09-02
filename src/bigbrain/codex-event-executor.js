@@ -27,8 +27,10 @@ function cleanThreadTitle(value) {
 }
 
 export function buildEventPrompt(event, listener, { allowedDestinations = [] } = {}) {
-  const sourceDescription = listener?.description || event?.source?.description || 'No source-specific guidance was provided.';
   const isRssArticle = listener?.type === 'rss' || event?.type === 'rss.item';
+  const sourceDescription = isRssArticle
+    ? listener?.guidance || event?.source?.guidance || event?.source?.description || listener?.description || 'No source-specific guidance was provided.'
+    : listener?.description || event?.source?.description || 'No source-specific guidance was provided.';
   const isGranolaMeeting = listener?.provider === 'granola' || event?.type === 'granola.meeting.completed';
   const skill = listener?.skill || defaultSkillForEvent(event, listener);
   const payload = selectPromptPayload(event?.payload, listener, event);
@@ -40,6 +42,9 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
       'Run the BigBrain source-article workflow for this article.',
       `Use the $${skill.replace(/^\$/, '')} skill as the primary workflow.`,
       'First decide whether the article clears the digest-value gate. Filing is optional: choose ignored, source_only, source_and_update, or needs_review as appropriate. Do not create a raw artifact or Brain page unless it clears the gate, and briefly tell me what you decided and did when finished.',
+      '',
+      'Feed-specific guidance:',
+      sourceDescription,
       '',
       `Title: ${payload?.title || 'Untitled article'}`,
       `URL: ${payload?.link || payload?.url || 'No URL supplied'}`,

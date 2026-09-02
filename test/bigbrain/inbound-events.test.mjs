@@ -66,6 +66,9 @@ test('event registry validates independent collection and Codex placement contro
 });
 
 test('listeners normalize upstream event filters and prompt field selection', () => {
+  const rss = normalizeListener({ id: 'rss', type: 'rss', url: 'https://example.test/rss.xml', description: 'Legacy feed guidance.' });
+  assert.equal(rss.guidance, 'Legacy feed guidance.');
+  assert.equal(normalizeEventEnvelope({ event_id: 'rss-guidance-1', listener_id: 'rss', type: 'rss.item', payload: {}, source_info: rss }, { listener: rss }).source.guidance, 'Legacy feed guidance.');
   const listener = normalizeListener({
     id: 'granola',
     provider: 'granola',
