@@ -331,6 +331,10 @@ because an output may become a future input.
 
 - File by primary subject, not by source or format.
 - Use cross-links instead of duplicate pages.
+- Each page should be locally comprehensible as a useful 80-20 briefing of its primary subject, without trying to be exhaustive.
+- Links may lead to deeper detail, adjacent subjects, or related records; use them to connect context without copying another page's overall understanding.
+- Keep the overall understanding of each subject in its canonical page. Other pages may mention that subject in context, but should not become a competing full account.
+- Raw source pages and attachment sidecars may preserve the detailed account of the source; canonical subject pages should capture the durable 80-20 understanding and link to the source when useful.
 - Use `tasks/` for actionable work by default; use canonical subject pages and owning collection `.raw/` folders for durable knowledge and evidence.
 - Historical `inbox/`, `sources/`, and `ops/` pages may remain in existing brains or domain overlays, but new generic material should use `tasks/`, a canonical subject page, or `protocol/`.
 - Do not store attached files directly in entity directories; place them under

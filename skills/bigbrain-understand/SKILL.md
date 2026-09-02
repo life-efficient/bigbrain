@@ -28,6 +28,7 @@ to use.
 This skill guarantees:
 - Explain the BigBrain brain-home model before giving advice
 - Ground filing and page-shape advice in the live BigBrain schema
+- Explain that each page is a locally comprehensible 80-20 briefing, not an exhaustive account
 - Distinguish subject pages, indexed attachment sidecars, and raw binaries
 - Distinguish meetings from generic entity pages
 - Route the user to a more specific BigBrain skill when one clearly applies
@@ -43,6 +44,8 @@ This skill guarantees:
   - `inbox/`, `sources/`, and `ops/` as legacy or domain overlays, not generic default destinations
   - per-collection `.raw/` folders containing raw files and their same-basename indexed Markdown sidecars
    - `filing_rules` as the operational source of truth for the active brain
+   - pages as locally comprehensible 80-20 briefings, with links to deeper detail, adjacent subjects, or related records
+   - canonical subject pages as the place for the overall understanding of that subject, while meetings and source pages preserve their own context and detail
 3. If the question is about a specific item, classify it by primary subject:
    - person -> `people/`
    - organization, company, institution, vendor, fund, or partner -> `organizations/`
@@ -71,6 +74,9 @@ This skill guarantees:
 
 - File by primary subject, not by source or format
 - Prefer cross-links over duplicate pages
+- Keep each page locally comprehensible without trying to make it exhaustive
+- Use links for deeper detail, adjacent subjects, and related records without copying another page's overall understanding
+- Keep the overall understanding of a subject in its canonical page; let meetings and source pages describe that subject in their own context
 - Use the same meeting page across prep and post-meeting updates
 - Keep raw transcripts, decks, PDFs, and other attached files plus their indexed same-basename sidecars under the `.raw/` path specified by `filing_rules`
 - When in doubt, recommend `tasks/` for actionable work, `ideas/` for unbuilt possibilities, `protocol/` for repeatable processes, and the owning collection `.raw/` folder for evidence files

@@ -10,6 +10,7 @@ Route new information into the narrowest BigBrain ingest workflow and verify the
 This skill guarantees:
 - Choose the narrowest fitting ingest subroute instead of using one generic path for everything.
 - File new knowledge by primary subject, not by source or format.
+- Keep canonical subject pages locally comprehensible as useful 80-20 briefings without copying the full detail of linked pages or sources.
 - Read and follow the target Brain's filing rules before writing.
 - Preserve raw supporting material according to those filing rules.
 - Update an existing canonical page when one already exists.
@@ -29,6 +30,7 @@ This skill guarantees:
 2. Apply shared filing controls:
    - Before any MCP or service-backed write, call `filing_rules` and use the paths and tools it specifies.
    - Check whether the target page already exists before creating a new one.
+   - Keep the durable overall understanding on the canonical subject page; keep source-specific detail on the meeting, source, or attachment page and link to it.
    - Apply the digest-value test before preserving a source or creating a page.
    - Use `.raw/` and raw-file tools when the filing rules require raw source preservation there.
    - Use `.artifacts/` only when the target Brain's filing rules or directly accessed folder structure explicitly call for artifacts.

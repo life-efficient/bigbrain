@@ -26,6 +26,7 @@ Enrichment should make the page better, not noisier.
 This skill guarantees:
 - Prefer updating existing canonical pages over creating duplicates
 - Rewrite compiled truth when the understanding changed materially
+- Keep each canonical page locally comprehensible as a useful 80-20 briefing without turning it into a competing full account of linked subjects or sources
 - Keep the page grounded in actual retrieved or provided source material
 - Keep enrichment proportional to the value of the entity or topic
 - Treat indexed `.raw/*.md` attachment sidecars as document-specific brain pages: enrich them with comprehensive extraction and source-specific synthesis while keeping cross-document compiled belief on subject pages
