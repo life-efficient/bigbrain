@@ -5,6 +5,24 @@ actions` section for agents maintaining device and server installations.
 
 ## [Unreleased]
 
+## [0.25.2] - 2026-09-02
+
+### Fixed
+
+- Fixed the MCP release workflow to initialize Docker Buildx before exporting
+  its multi-architecture image cache and publishing the server image.
+
+### Agent update actions
+
+- Update to the `v0.25.2` tag and repeat the `0.25.1` verification actions.
+  No additional Brain data or runtime migration is required.
+
+### Verification
+
+- Local tests, dashboard build, MCP bundle build, package dry run, and
+  universal macOS packaging checks pass. The release workflows must complete
+  successfully from `v0.25.2` before this release is reported as published.
+
 ## [0.25.1] - 2026-09-02
 
 ### Fixed

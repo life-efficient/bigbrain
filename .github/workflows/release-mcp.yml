@@ -40,6 +40,9 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build MCP runtime bundle
         env:
           BIGBRAIN_MCP_VERSION: ${{ github.ref_name }}

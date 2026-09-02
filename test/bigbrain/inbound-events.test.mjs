@@ -614,8 +614,7 @@ test('RSS failures are isolated from webhook serving and webhook failures do not
     const address = runtime.webhookServer.server.address();
     const first = await fetch(`http://127.0.0.1:${address.port}/events/calendar`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id: 'calendar-1', title: 'Meeting' }) });
     assert.equal(first.status, 202);
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    assert.equal((await inbox.list({ listenerId: 'calendar' }))[0].state, 'failed');
+    await waitForInboxState(inbox, 'calendar', 'failed');
     const secondReport = await runtime.runRssCycle();
     assert.equal(secondReport.errors.length, 0);
     assert.equal(secondReport.ingested, 1);
@@ -626,6 +625,18 @@ test('RSS failures are isolated from webhook serving and webhook failures do not
     await fs.rm(paths.root, { recursive: true, force: true });
   }
 });
+
+async function waitForInboxState(inbox, listenerId, expectedState, timeoutMs = 1000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    const event = (await inbox.list({ listenerId }))[0];
+    if (event?.state === expectedState) return event;
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  const event = (await inbox.list({ listenerId }))[0];
+  assert.equal(event?.state, expectedState);
+  return event;
+}
 
 test('webhook startup failure degrades only the webhook plane and still runs RSS', async () => {
   const paths = await fixture();
