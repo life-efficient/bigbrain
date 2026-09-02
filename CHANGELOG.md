@@ -5,6 +5,79 @@ actions` section for agents maintaining device and server installations.
 
 ## [Unreleased]
 
+## [0.25.0] - 2026-09-02
+
+### Added
+
+- Added a desktop-owned local Brain setup runner that creates or adopts a
+  local Brain, installs its MCP service, verifies readiness, and records the
+  connected runtime contract.
+- Added a standalone MCP runtime bundle and release workflow so the MCP
+  server can be installed and restarted independently of the desktop app.
+- Added a visible remote-Brain setup entry point with an explicit WIP boundary
+  while Railway provisioning remains deferred.
+- Added structured timeline provenance repair and idempotent migration support
+  for legacy timeline entries, preserving null provenance where the original
+  source cannot be recovered.
+
+### Changed
+
+- Made desktop setup resolve local MCP installation through the selected
+  packaged or source runtime, with separate compatibility metadata for the
+  desktop client and connected MCP server.
+- Made timeline entries the source of update provenance while keeping legacy
+  Markdown timeline entries readable and migration-safe.
+- Improved force-graph startup, initial fitting, live updates, and independent
+  canvas transitions so graph rendering remains stable while data arrives.
+- Added a supported retry operation for held Granola ledger routes and kept
+  developer dashboard assets out of MCP service bundles.
+
+### Fixed
+
+- Fixed local Brain creation from a symlinked developer desktop bundle, where
+  the installer could exit successfully without installing the service.
+- Restored the previous default Brain pointer when local setup fails, avoiding
+  a broken selection after a partial setup.
+- Fixed force-graph color parsing, startup update races, dark page navigation,
+  and developer page links resolving to the wrong dashboard.
+
+### Agent update actions
+
+- Source installs: update to the `v0.25.0` tag, run `npm install`, `npm link`,
+  and `npm run build:dashboard`, then restart the BigBrain desktop, dashboard,
+  and source-managed MCP services. Verify `bigbrain --version`,
+  `bigbrain sync --json`, `bigbrain health --json`, and `npm test`.
+- Existing Brain data requires no task, page, filing-rule, database, member,
+  or API-key migration. Timeline migration is additive and backward-compatible:
+  run `bigbrain migrate timeline --dry-run --limit 1000`, then apply it in
+  bounded batches only if candidates remain, and repeat until the report is
+  clean. Keep unrecognized timeline content for review rather than inventing
+  source provenance.
+- Packaged desktop installs: install the matching `0.25.0` desktop and MCP
+  artifacts, restart the app, and confirm each desktop-owned local MCP reports
+  a compatible runtime. Do not take ownership of source-managed, remote, newer,
+  or unknown-owner services.
+- Standalone MCP installs: install the matching MCP bundle, preserve Brain and
+  database volumes, restart the service, and verify `/health`, `/ready`, MCP
+  initialization, and authenticated tool listing. Railway provisioning is not
+  part of this release.
+
+### Verification
+
+- Personal Brain sync indexed 1,316 pages and 3,905 links. Embedding generation
+  was intentionally guarded because 1,314 pages exceeded the configured
+  1,000-page per-sync cap; no embedding failures occurred.
+- Personal Brain timeline migration dry run scanned 1,329 files and found zero
+  remaining candidates.
+- Personal Brain service `/health` and `/ready` passed; MCP initialization and
+  `tools/list` passed with 72 tools, including page search and update tools.
+- Full test suite passed: 491 tests passed, 6 skipped, and 0 failed.
+- Dashboard production build, standalone MCP bundle build, package dry run, and
+  unsigned universal macOS DMG and ZIP packaging checks passed. The local
+  package check found no Apple signing identity, so the CI release will use the
+  explicitly labelled unsigned manual-download path if repository credentials
+  are also unavailable.
+
 ## [0.24.0] - 2026-09-01
 
 ### Added
