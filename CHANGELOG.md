@@ -5,6 +5,51 @@ actions` section for agents maintaining device and server installations.
 
 ## [Unreleased]
 
+## [0.27.0] - 2026-09-02
+
+### Added
+
+- Added canonical `components`, `products`, and `processes` page collections,
+  filing rules, and folder recommendations for infrastructure knowledge.
+- Added focused graph network and timeline views with provenance-aware timeline
+  updates.
+
+### Changed
+
+- Added optional per-feed RSS guidance so each registered feed can define what
+  to prioritize, what to ignore, and how its article events should be handled.
+- Tightened the source-article relevance gate so low-value articles can be
+  ignored before creating a raw artifact or Brain page.
+- Preserved the RSS listener description as source identity while using the
+  dedicated guidance field for ingestion scope, with legacy descriptions kept
+  as a compatibility fallback.
+
+### Agent update actions
+
+- Source installs: update to the `v0.27.0` tag, run `npm install`, `npm link`,
+  and `npm run build:dashboard`, then restart the BigBrain desktop, dashboard,
+  and source-managed MCP services. Verify `bigbrain sync --json`,
+  `bigbrain health --json`, MCP initialization, and `npm test`.
+- Review registered RSS listeners and move any ingestion instructions that are
+  currently in `description` into the new `guidance` field. Keep `description`
+  for the feed's identity and purpose. Existing feeds remain compatible because
+  RSS descriptions are used as a fallback when guidance is absent.
+- No Brain page, timeline, or database migration is required. The new
+  `components`, `products`, and `processes` collections are created by the
+  normal Brain layout setup when needed.
+- Active Codex skill copies remain machine-local. Refresh the packaged source
+  article-ingestion skill from the release and restart event-ingestor services
+  so the relevance gate and per-feed guidance are active.
+
+### Verification
+
+- Full test suite passed.
+- Dashboard production build passed.
+- Standalone MCP bundle build passed, including its release manifest and
+  checksum.
+- Package dry-run and source version, lockfile, tag, and artifact metadata
+  checks passed.
+
 ## [0.26.0] - 2026-09-02
 
 ### Added
