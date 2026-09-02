@@ -9,6 +9,15 @@ import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
 import { persistState } from './config.js';
 import { BRAIN_PROFILE_JSON_SCHEMA, authenticatedBrainAbout, loadBrainProfile, saveBrainProfileRevision } from './brain-profile.js';
 import {
+  createBrainDomain,
+  deleteBrainDomain,
+  domainMembershipFieldSchema,
+  getBrainDomain,
+  listBrainDomains,
+  loadDomainRegistrySync,
+  updateBrainDomain,
+} from './domains.js';
+import {
   createDashboardRequestHandler,
   dashboardSessionCookie,
 } from './dashboard.js';
@@ -117,7 +126,7 @@ export async function startMcpServer({
   gitBackupEnabled = process.env.BIGBRAIN_MCP_GIT_BACKUP === '1',
   gitBackupIntervalMs = Number(process.env.BIGBRAIN_MCP_GIT_BACKUP_INTERVAL_MS || 300000),
 } = {}) {
-  assertToolPolicyComplete();
+  assertToolPolicyComplete(config);
   if (!authConfig.tokenStore) authConfig.tokenStore = await createMcpAuthStore(config, authConfig);
   let memberDb = null;
   if (authRoutesEnabled(authConfig) && !authConfig.memberLookup) {
@@ -358,7 +367,7 @@ async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor, 
       case 'ping':
         return jsonRpcResult(message.id, {});
       case 'tools/list':
-        return jsonRpcResult(message.id, { tools: toolDefinitions().filter((tool) => canCallTool(tool.name, actor)) });
+        return jsonRpcResult(message.id, { tools: toolDefinitions(config).filter((tool) => canCallTool(tool.name, actor)) });
       case 'tools/call':
         return jsonRpcResult(message.id, await callTool({ config, params: message.params || {}, gitBackupEnabled, actor, authConfig, requestId }));
       default:
@@ -420,6 +429,38 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'roles/upsert':
     case 'roles_upsert':
       return toolJson(await toolRolesUpsert(config, args), { arrayKey: 'roles' });
+    case 'domains/list':
+    case 'domains_list':
+      return toolJson(await listBrainDomains(config), { arrayKey: 'domains' });
+    case 'domains/get':
+    case 'domains_get':
+      return toolJson(await getBrainDomain(config, requireString(args.id, 'id')));
+    case 'domains/create':
+    case 'domains_create': {
+      const domain = await createBrainDomain(config, {
+        id: args.id,
+        name: args.name,
+        guidance: args.guidance,
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      return toolJson({ domain, registry: await listBrainDomains(config) });
+    }
+    case 'domains/update':
+    case 'domains_update': {
+      const domain = await updateBrainDomain(config, {
+        id: args.id,
+        name: args.name,
+        guidance: args.guidance,
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      return toolJson({ domain, registry: await listBrainDomains(config) });
+    }
+    case 'domains/delete':
+    case 'domains_delete': {
+      const deleted = await deleteBrainDomain(config, { id: args.id });
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      return toolJson({ ...deleted, registry: await listBrainDomains(config) });
+    }
     case 'tasks/list':
       return toolJson(await toolTasksList(config, args, actor, authConfig), { arrayKey: 'tasks' });
     case 'tasks/summary':
@@ -606,7 +647,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       return toolMarkdown(await filingRulesForBrain({ config }));
     case 'about': {
       const loaded = await loadBrainProfile(config);
-      const availableOperations = toolDefinitions()
+      const availableOperations = toolDefinitions(config)
         .map((tool) => tool.name)
         .filter((toolName) => canCallTool(toolName, actor));
       return toolJson(authenticatedBrainAbout(config, loaded, {
@@ -623,7 +664,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       return toolJson(authenticatedBrainAbout(config, written, {
         authState: actor ? 'authenticated' : 'local_trusted',
         writable: true,
-        availableOperations: toolDefinitions().map((tool) => tool.name).filter((toolName) => canCallTool(toolName, actor)),
+        availableOperations: toolDefinitions(config).map((tool) => tool.name).filter((toolName) => canCallTool(toolName, actor)),
       }));
     }
     case 'list_raw_files':
@@ -656,6 +697,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         timelineEntry: timelineForMutation(args, actor),
         timelineSignificance: args.significance,
         frontmatter: args.frontmatter || {},
+        domains: args.domains,
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       await recordWriteProvenance(config, args.path, { ...args.provenance, significance: args.significance }, args.commit_message);
@@ -672,6 +714,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         title: args.title,
         body: args.body,
         timelineEntry: timelineForMutation(args, actor),
+        domains: args.domains,
         frontmatter: args.frontmatter || {},
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
@@ -721,6 +764,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         body: args.body,
         timelineEntry: timelineForMutation(args, actor),
         timelineSignificance: args.significance,
+        frontmatterValues: args.domains === undefined ? {} : { domains: args.domains },
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       await recordWriteProvenance(config, args.path, { ...args.provenance, significance: args.significance }, args.commit_message);
@@ -849,7 +893,7 @@ const GRAPH_PAGE_READ_TOOLS = new Set(['read', 'get_page_visibility']);
 function isAuditedTool(name) {
   const layer = toolPolicy(name)?.layer;
   return GRAPH_PAGE_READ_TOOLS.has(name)
-    || ['create', 'publish', 'raw_destructive', 'git_backup', 'maintenance', 'admin', 'events_manage'].includes(layer);
+    || ['create', 'publish', 'raw_destructive', 'git_backup', 'maintenance', 'admin', 'domains_manage', 'events_manage'].includes(layer);
 }
 
 function sanitizeAuditArguments(value) {
@@ -1314,7 +1358,9 @@ async function git(cwd, args) {
   });
 }
 
-function toolDefinitions() {
+function toolDefinitions(config = null) {
+  const domainRegistry = config ? loadDomainRegistrySync(config) : null;
+  const domainField = domainMembershipFieldSchema(domainRegistry);
   return [
     {
       name: 'me',
@@ -1363,6 +1409,56 @@ function toolDefinitions() {
       name: 'roles_upsert',
       description: 'Alias for roles/upsert for clients that do not support slash tool names.',
       inputSchema: roleUpsertSchema(),
+    },
+    {
+      name: 'domains/list',
+      description: 'List the explicitly curated knowledge domains registered for this Brain. This is read-only; domain creation is a separate user-directed operation.',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'domains_list',
+      description: 'Alias for domains/list for clients that do not support slash tool names.',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'domains/get',
+      description: 'Read one explicitly registered Brain domain and its classification guidance.',
+      inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Stable registered domain ID, such as ai-infrastructure.' } }, required: ['id'] },
+    },
+    {
+      name: 'domains_get',
+      description: 'Alias for domains/get for clients that do not support slash tool names.',
+      inputSchema: { type: 'object', properties: { id: { type: 'string', description: 'Stable registered domain ID, such as ai-infrastructure.' } }, required: ['id'] },
+    },
+    {
+      name: 'domains/create',
+      description: 'Create one durable Brain knowledge domain. Call only when the user explicitly asks to curate the domain registry; never call this during routine page creation, ingestion, or enrichment.',
+      inputSchema: domainWriteSchema({ requireId: true }),
+    },
+    {
+      name: 'domains_create',
+      description: 'Alias for domains/create for clients that do not support slash tool names.',
+      inputSchema: domainWriteSchema({ requireId: true }),
+    },
+    {
+      name: 'domains/update',
+      description: 'Update one existing Brain knowledge domain without changing its stable ID. Call only when the user explicitly asks to curate the domain registry.',
+      inputSchema: domainWriteSchema({ requireId: true, update: true }),
+    },
+    {
+      name: 'domains_update',
+      description: 'Alias for domains/update for clients that do not support slash tool names.',
+      inputSchema: domainWriteSchema({ requireId: true, update: true }),
+    },
+    {
+      name: 'domains/delete',
+      description: 'Delete one registered Brain knowledge domain. Call only when the user explicitly asks to curate the domain registry; deletion is refused while pages still use the domain.',
+      inputSchema: domainDeleteSchema(),
+    },
+    {
+      name: 'domains_delete',
+      description: 'Alias for domains/delete for clients that do not support slash tool names.',
+      inputSchema: domainDeleteSchema(),
     },
     {
       name: 'tasks/list',
@@ -1700,6 +1796,7 @@ function toolDefinitions() {
           body: { type: 'string', description: 'Current page content, including compiled truth and any current-context sections. Do not include the separator or ## Timeline; the writer owns them.' },
           ...timelineInputProperties(),
           significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this timeline update on the owning page: patch, minor, or major.' },
+          domains: domainField,
           frontmatter: { type: 'object' },
         },
         required: ['path', 'title', 'body', 'significance', ...mutationRequired()],
@@ -1721,6 +1818,7 @@ function toolDefinitions() {
           title: { type: 'string' },
           body: { type: 'string', description: 'Current page content, including compiled truth and any current-context sections. Do not include the separator or ## Timeline; the writer owns them.' },
           ...timelineInputProperties(),
+          domains: domainField,
           frontmatter: { type: 'object' },
         },
         required: ['raw_path', 'title', 'body', ...mutationRequired()],
@@ -1794,6 +1892,7 @@ function toolDefinitions() {
           body: { type: 'string', description: 'Replacement current page content, including compiled truth and any current-context sections. Do not include the separator or ## Timeline; the writer owns them.' },
           ...timelineInputProperties(),
           significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this timeline update on the owning page: patch, minor, or major.' },
+          domains: domainField,
         },
         required: ['path', 'body', 'significance', ...mutationRequired()],
         anyOf: timelineInputRequirements(),
@@ -1943,6 +2042,16 @@ const TOOL_POLICIES = {
   roles_list: { layer: 'read', scopes: ['brain:read'] },
   'roles/upsert': { layer: 'roles_manage', scopes: ['brain:admin'] },
   roles_upsert: { layer: 'roles_manage', scopes: ['brain:admin'] },
+  'domains/list': { layer: 'read', scopes: ['brain:read'] },
+  domains_list: { layer: 'read', scopes: ['brain:read'] },
+  'domains/get': { layer: 'read', scopes: ['brain:read'] },
+  domains_get: { layer: 'read', scopes: ['brain:read'] },
+  'domains/create': { layer: 'domains_manage', scopes: ['brain:admin'] },
+  domains_create: { layer: 'domains_manage', scopes: ['brain:admin'] },
+  'domains/update': { layer: 'domains_manage', scopes: ['brain:admin'] },
+  domains_update: { layer: 'domains_manage', scopes: ['brain:admin'] },
+  'domains/delete': { layer: 'domains_manage', scopes: ['brain:admin'] },
+  domains_delete: { layer: 'domains_manage', scopes: ['brain:admin'] },
   'tasks/list': { layer: 'read', scopes: ['brain:read'] },
   'tasks/summary': { layer: 'read', scopes: ['brain:read'] },
   'tasks/get': { layer: 'read', scopes: ['brain:read'] },
@@ -2015,6 +2124,12 @@ const TOOL_POLICIES = {
 const GIT_SYNC_MUTATION_TOOLS = new Set([
   'tasks/create',
   'tasks/update',
+  'domains/create',
+  'domains_create',
+  'domains/update',
+  'domains_update',
+  'domains/delete',
+  'domains_delete',
   'create_raw_file',
   'create_page',
   'create_raw_file_with_page',
@@ -2154,6 +2269,7 @@ function rolePermissionForTool(name) {
   if (policy.layer === 'admin') return ['about/update'].includes(name) ? 'about_update' : 'audit';
   if (policy.layer === 'members_manage') return 'members_manage';
   if (policy.layer === 'roles_manage') return 'roles_manage';
+  if (policy.layer === 'domains_manage') return 'domains_manage';
   if (policy.layer === 'events_manage') return 'members_manage';
   return null;
 }
@@ -2184,8 +2300,8 @@ function pageEditPathsForTool(name, args) {
   }
 }
 
-function assertToolPolicyComplete() {
-  const advertised = new Set(toolDefinitions().map((tool) => tool.name));
+function assertToolPolicyComplete(config = null) {
+  const advertised = new Set(toolDefinitions(config).map((tool) => tool.name));
   const missing = Array.from(advertised).filter((name) => !TOOL_POLICIES[name]);
   if (missing.length) throw new Error(`MCP tools missing hosted authorization policy: ${missing.join(', ')}`);
 }
@@ -2203,6 +2319,30 @@ function membersListSchema() {
     properties: {
       status: { type: 'string', enum: ['active', 'inactive', 'invited'] },
     },
+  };
+}
+
+function domainWriteSchema() {
+  return {
+    type: 'object',
+    properties: {
+      ...mutationProperties(),
+      id: { type: 'string', description: 'Stable lowercase hyphenated domain ID, such as ai-infrastructure. IDs cannot be changed by update.' },
+      name: { type: 'string', description: 'Human-friendly domain name.' },
+      guidance: { type: 'string', description: 'Authoritative guidance for what belongs in this knowledge domain, what does not, and when the domain should be left empty.' },
+    },
+    required: ['id', 'name', 'guidance', ...mutationRequired()],
+  };
+}
+
+function domainDeleteSchema() {
+  return {
+    type: 'object',
+    properties: {
+      ...mutationProperties(),
+      id: { type: 'string', description: 'Stable registered domain ID to delete.' },
+    },
+    required: ['id', ...mutationRequired()],
   };
 }
 

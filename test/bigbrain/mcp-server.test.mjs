@@ -2385,11 +2385,101 @@ test('MCP member roles manage custom roles and scope page edits by path', async 
   }
 });
 
+test('MCP domain registry and page membership stay separate while schemas follow the registry', async () => {
+  const fixture = await createFixture('bigbrain-mcp-domains-');
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'secret',
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const createdDomain = await rpc(running.url, 'tools/call', {
+      name: 'domains/create',
+      arguments: {
+        id: 'ai-infrastructure',
+        name: 'AI infrastructure',
+        guidance: 'Use for end-to-end AI infrastructure knowledge, including companies, concepts, and meetings.',
+      },
+    }, 'secret');
+    assert.equal(createdDomain.error, undefined, createdDomain.error?.message);
+    assert.equal(createdDomain.result.structuredContent.domain.id, 'ai-infrastructure');
+
+    const listed = await rpc(running.url, 'tools/list', {}, 'secret');
+    const createPageTool = listed.result.tools.find((tool) => tool.name === 'create_page');
+    assert.deepEqual(createPageTool.inputSchema.properties.domains.items.enum, ['ai-infrastructure']);
+    assert.match(createPageTool.inputSchema.properties.domains.description, /end-to-end AI infrastructure knowledge/);
+
+    const createdPage = await rpc(running.url, 'tools/call', {
+      name: 'create_page',
+      arguments: {
+        path: 'concepts/domain-example',
+        title: 'Domain Example',
+        body: 'A page with explicit domain membership.',
+        domains: ['ai-infrastructure'],
+        timeline_entry: 'Created with domain membership.',
+      },
+    }, 'secret');
+    assert.equal(createdPage.error, undefined, createdPage.error?.message);
+    assert.deepEqual(createdPage.result.structuredContent.frontmatter.domains, ['ai-infrastructure']);
+
+    const clearedPage = await rpc(running.url, 'tools/call', {
+      name: 'update_page',
+      arguments: {
+        path: 'concepts/domain-example',
+        body: 'The domain membership can be cleared explicitly.',
+        domains: [],
+        timeline_entry: 'Cleared domain membership.',
+      },
+    }, 'secret');
+    assert.equal(clearedPage.error, undefined, clearedPage.error?.message);
+    assert.deepEqual(clearedPage.result.structuredContent.frontmatter.domains, []);
+
+    const unknownDomainPage = await rpc(running.url, 'tools/call', {
+      name: 'create_page',
+      arguments: {
+        path: 'concepts/unknown-domain',
+        title: 'Unknown Domain',
+        body: 'This must not be created.',
+        domains: ['startups'],
+        timeline_entry: 'Should fail validation.',
+      },
+    }, 'secret');
+    assert.equal(unknownDomainPage.error.code, -32603);
+    assert.match(unknownDomainPage.error.message, /Unknown Brain domain/);
+    await assert.rejects(() => fs.access(path.join(fixture.brainHome, 'concepts', 'unknown-domain.md')));
+
+    const updatedDomain = await rpc(running.url, 'tools/call', {
+      name: 'domains/update',
+      arguments: {
+        id: 'ai-infrastructure',
+        name: 'AI infrastructure',
+        guidance: 'Updated guidance from the authoritative registry.',
+      },
+    }, 'secret');
+    assert.equal(updatedDomain.error, undefined, updatedDomain.error?.message);
+    const refreshed = await rpc(running.url, 'tools/list', {}, 'secret');
+    assert.match(
+      refreshed.result.tools.find((tool) => tool.name === 'update_page').inputSchema.properties.domains.description,
+      /Updated guidance from the authoritative registry/,
+    );
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function rpc(url, method, params, token) {
   const requestParams = { ...(params || {}) };
   const callName = method === 'tools/call' ? requestParams.name : null;
   const mutationNames = new Set([
     'tasks/create', 'tasks/update', 'create_raw_file', 'create_page', 'create_raw_file_with_page',
+    'domains/create', 'domains_create', 'domains/update', 'domains_update', 'domains/delete', 'domains_delete',
     'update_raw_file', 'delete_raw_file', 'rename_raw_file', 'rename_page', 'update_page',
     'set_page_visibility', 'maintenance/git_backup', 'maintenance_git_backup',
     'playbooks/keep-in-touch/enroll', 'playbooks_keep_in_touch_enroll',

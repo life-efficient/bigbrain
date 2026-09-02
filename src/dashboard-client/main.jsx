@@ -225,6 +225,7 @@ function DashboardApp() {
   const [themeMode, setThemeMode] = useState('auto');
   const [prefersDark, setPrefersDark] = useState(false);
   const [preview, setPreview] = useState(null);
+  const [activeDomainScope, setActiveDomainScope] = useState([]);
   const [activeGraphSlug, setActiveGraphSlug] = useState(null);
   const [lineage, setLineage] = useState(null);
   const [graphMotion, setGraphMotion] = useState(null);
@@ -555,6 +556,7 @@ function DashboardApp() {
     setPreview({ status: 'loading', slug });
     try {
       const params = new URLSearchParams({ slug });
+      if (activeDomainScope.length) params.set('domains', activeDomainScope.join(','));
       const data = await fetchJson(`/api/page?${params.toString()}`);
       if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setPreview({ status: 'ready', ...data });
@@ -716,6 +718,7 @@ function DashboardApp() {
     setPreview({ status: 'loading', href, sourceSlug });
     try {
       const params = new URLSearchParams({ from: sourceSlug, target: href });
+      if (activeDomainScope.length) params.set('domains', activeDomainScope.join(','));
       const data = await fetchJson(`/api/preview?${params.toString()}`);
       if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setActiveGraphSlug(data.slug || null);
@@ -943,6 +946,7 @@ function DashboardApp() {
                 flowTasks={graphFlowTasks}
                 visualizerRef={visualizerRef}
                 activeSlug={activeGraphSlug}
+                onDomainScopeChange={setActiveDomainScope}
                 onActiveSlugChange={setActiveGraphSlug}
                 onNodeOpen={handleGraphNodeOpen}
                 onGraphNodeFocus={handleGraphNodeFocus}
@@ -2506,6 +2510,7 @@ const GraphPanel = memo(function GraphPanel({
   flowTasks,
   visualizerRef,
   activeSlug,
+  onDomainScopeChange,
   onActiveSlugChange,
   onNodeOpen,
   onGraphNodeFocus,
@@ -2565,8 +2570,17 @@ const GraphPanel = memo(function GraphPanel({
   ];
   const presentDomains = new Set(activeGraphNodes.flatMap((node) => graphNodeDomains(node)));
   const domains = [...presentDomains].sort((left, right) => left.localeCompare(right));
+  const domainLabels = useMemo(() => new Map(
+    (Array.isArray(graph?.meta?.domain_definitions) ? graph.meta.domain_definitions : [])
+      .filter((domain) => domain?.id)
+      .map((domain) => [domain.id, domain.name || domain.id]),
+  ), [graph?.meta?.domain_definitions]);
   const selectedTypeSet = useMemo(() => new Set(selectedPageTypes), [selectedPageTypes]);
   const selectedDomainSet = useMemo(() => new Set(selectedDomains), [selectedDomains]);
+
+  useEffect(() => {
+    onDomainScopeChange?.(selectedDomains);
+  }, [onDomainScopeChange, selectedDomains]);
   const filteredGraph = useMemo(() => {
     const nodes = selectedPageTypes.length || selectedDomains.length
       ? timelineFilteredNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet))
@@ -2929,7 +2943,7 @@ const GraphPanel = memo(function GraphPanel({
                       role="menuitemcheckbox"
                       aria-checked={selectedDomainSet.has(domain)}
                     >
-                      <span>{domain}</span>
+                      <span>{domainLabels.get(domain) || domain}</span>
                       <span className="menu-item-check" aria-hidden="true">{selectedDomainSet.has(domain) ? '✓' : ''}</span>
                     </button>
                   ))}

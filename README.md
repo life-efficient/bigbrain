@@ -320,6 +320,17 @@ Meeting pages use one canonical file across preparation and follow-up, with
 sections such as `Prep`, `Summary`, `Key Decisions`, `Action Items`, and
 `Discussion Notes`.
 
+### Knowledge domains
+
+Pages may optionally belong to one or more knowledge domains with frontmatter
+such as `domains: [ai-infrastructure, startups]`. The Brain-specific
+`domains.yaml` registry is authoritative for the stable IDs, human names, and
+classification guidance. Page create and update operations may assign only
+already-registered domains; domain registry CRUD is a separate, explicitly
+user-directed operation. The dashboard can filter the graph by domain, and
+domain-scoped previews redact links to pages outside the selected domain at
+render time without modifying canonical Markdown.
+
 Task pages are individual files under `tasks/`:
 
 ```yaml

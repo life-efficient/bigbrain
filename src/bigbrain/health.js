@@ -6,6 +6,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import { openDatabase, clearHealthFindings, getBacklinks, getOutgoingLinks, insertHealthFinding, listHealthFindings, listPages, upsertHostedBrainGitState } from './db.js';
+import { loadDomainRegistry, pageDomainIssues } from './domains.js';
 import { fullPathFromSlug, parseMarkdownPage, replaceTimelineSection } from './markdown.js';
 import { safeBrainPath } from './page-ops.js';
 import { isAttachmentSidecarSlug, validatePageShape } from './schema.js';
@@ -32,8 +33,20 @@ export async function runHealthCheck(config, {
   const db = await openDatabase(config);
   await clearHealthFindings(db);
   const pages = await listPages(db, { includeTimeline: true });
+  const domainRegistry = await loadDomainRegistry(config);
   const pageAttributions = new Map();
   const provenanceStatus = createProvenanceStatus(pages.length);
+
+  if (!domainRegistry.valid) {
+    await insertHealthFinding(db, {
+      findingType: 'invalid_domain_registry',
+      severity: 'high',
+      details: {
+        path: domainRegistry.path,
+        errors: domainRegistry.errors,
+      },
+    });
+  }
 
   for (const page of pages) {
     const fullPath = fullPathFromSlug(config.brainDir, page.slug);
@@ -81,6 +94,20 @@ export async function runHealthCheck(config, {
         pageSlug: page.slug,
         details: finding.details ?? {},
       });
+    }
+
+    if (domainRegistry.valid) {
+      for (const issue of pageDomainIssues(parsed.frontmatter.domains, domainRegistry.registry)) {
+        await insertHealthFinding(db, {
+          findingType: issue.type,
+          severity: severityForFinding(issue.type),
+          pageSlug: page.slug,
+          details: {
+            ...issue.details,
+            registry_path: domainRegistry.path,
+          },
+        });
+      }
     }
 
     for (const issue of await validateAttachmentSidecarBinding(config, parsed)) {
@@ -277,6 +304,13 @@ export async function runHealthCheck(config, {
     automation_conflict_status: automationConflictStatus,
     skill_template_status: skillTemplateStatus,
     event_status: eventStatus,
+    domain_registry: {
+      path: domainRegistry.path,
+      status: domainRegistry.status,
+      valid: domainRegistry.valid,
+      errors: domainRegistry.errors,
+      domain_count: Object.keys(domainRegistry.registry.domains).length,
+    },
     provenance_status: provenanceStatus,
   };
 }
@@ -316,7 +350,9 @@ async function readEventRuntimeHealth(config) {
 }
 
 function severityForFinding(findingType) {
-  if (findingType === 'missing_frontmatter' || findingType === 'missing_separator' || findingType === 'invalid_timeline' || findingType === 'duplicate_timeline') return 'medium';
+  if (findingType === 'invalid_domain_registry') return 'high';
+  if (findingType === 'missing_frontmatter' || findingType === 'missing_separator' || findingType === 'invalid_timeline' || findingType === 'duplicate_timeline' || findingType === 'unregistered_domain' || findingType === 'invalid_domain_membership') return 'medium';
+  if (findingType === 'duplicate_domain_membership') return 'low';
   if (findingType === 'missing_meeting_heading' || findingType === 'invalid_meeting_prep_heading' || findingType === 'invalid_meeting_prep_structure') return 'medium';
   if (findingType === 'attachment_sidecar_missing_raw_file' || findingType === 'attachment_sidecar_mismatched_raw_file' || findingType === 'attachment_sidecar_missing_raw_artifact') return 'medium';
   if (findingType === 'nested_raw_file_path') return 'medium';

@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
+import { assertRegisteredPageDomains } from './domains.js';
 import { parseMarkdownPage } from './markdown.js';
 import { assertSafePublicRawPath, isSafePublicRawPath } from './public-raw-policy.js';
 import { appendTimelineEntries, formatTimelineEntries } from './timeline.js';
@@ -122,6 +123,7 @@ export async function createBrainPage({
   timelineEntries = null,
   timelineSignificance = null,
   frontmatter = {},
+  domains = undefined,
 }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
@@ -132,11 +134,20 @@ export async function createBrainPage({
 
   const now = new Date().toISOString();
   const timelineInput = timelineEntries ?? timelineEntry;
+  const suppliedFrontmatter = frontmatter || {};
+  if (domains !== undefined && suppliedFrontmatter.domains !== undefined && !sameDomainMembership(domains, suppliedFrontmatter.domains)) {
+    throw new Error('Page domains must match frontmatter.domains when both are provided.');
+  }
+  const suppliedDomains = domains !== undefined ? domains : suppliedFrontmatter.domains;
+  const normalizedDomains = suppliedDomains === undefined
+    ? undefined
+    : await assertRegisteredPageDomains(config, suppliedDomains);
   const metadata = {
     title: requireNonEmpty(title, 'title'),
     created: now.slice(0, 10),
-    ...omitReservedFrontmatter(frontmatter),
+    ...omitReservedFrontmatter(suppliedFrontmatter),
   };
+  if (normalizedDomains !== undefined) metadata.domains = normalizedDomains;
   const markdown = renderPageMarkdown({
     frontmatterRaw: renderFrontmatter(metadata),
     title: metadata.title,
@@ -161,6 +172,7 @@ export async function createRawFileWithPage({
   timelineEntries = null,
   timelineSignificance = null,
   frontmatter = {},
+  domains = undefined,
   mimeType = null,
 }) {
   const rawRelative = normalizeRawPath(rawPath);
@@ -197,6 +209,7 @@ export async function createRawFileWithPage({
         raw_file: rawRelative,
         ...(mimeType ? { raw_mime_type: mimeType } : {}),
       },
+      domains,
     });
     return {
       page,
@@ -336,8 +349,12 @@ export async function updateBrainPage({ config, pagePath, body, timelineEntry, t
   const now = new Date().toISOString();
   const timelineInput = timelineEntries ?? timelineEntry;
   const nextTimeline = appendTimelineEntries(existing.timeline, timelineInput, { recordedAt: now, significance: timelineSignificance });
+  const nextFrontmatterValues = { ...(frontmatterValues || {}) };
+  if (Object.prototype.hasOwnProperty.call(nextFrontmatterValues, 'domains')) {
+    nextFrontmatterValues.domains = await assertRegisteredPageDomains(config, nextFrontmatterValues.domains);
+  }
   let frontmatterRaw = existing.frontmatter_raw;
-  for (const [key, value] of Object.entries(frontmatterValues || {})) {
+  for (const [key, value] of Object.entries(nextFrontmatterValues)) {
     if (!PROVENANCE_FRONTMATTER_KEYS.has(key)) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
   }
   const markdown = renderPageMarkdown({
@@ -639,6 +656,12 @@ function setFrontmatterValue(frontmatterRaw, key, value) {
 function appendUniqueFrontmatterList(existing, value) {
   const values = Array.isArray(existing) ? existing : [existing];
   return [...new Set([...values, value].map((item) => String(item || '').trim()).filter(Boolean))];
+}
+
+function sameDomainMembership(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right)) return false;
+  return [...new Set(left.map((value) => String(value).trim()))].sort().join('\n')
+    === [...new Set(right.map((value) => String(value).trim()))].sort().join('\n');
 }
 
 function formatYamlValue(value) {

@@ -18,6 +18,7 @@ import {
   listPages,
   openDatabase,
 } from './db.js';
+import { loadDomainRegistry, normalizeDomainId } from './domains.js';
 import { runHealthCheck } from './health.js';
 import { authenticatedBrainAbout, isBrainProfileDocument, loadBrainProfile } from './brain-profile.js';
 import { fullPathFromSlug, parseMarkdownPage, resolveMarkdownLink, slugFromPath } from './markdown.js';
@@ -2125,7 +2126,8 @@ export async function buildPreviewPayload(config, db, requestUrl) {
   if (!sourceSlug || !target) throw new Error('Preview requires both from and target.');
   const slug = resolveMarkdownLink(sourceSlug, target);
   if (!slug) throw new Error(`Unsupported preview target: ${target}`);
-  return buildPagePayloadForSlug(config, db, slug);
+  const domainScope = await resolveDomainScope(config, requestUrl);
+  return buildPagePayloadForSlug(config, db, slug, { domainScope });
 }
 
 export async function buildExplorerTreePayload(config) {
@@ -2184,7 +2186,8 @@ export async function buildExplorerFilePayload(config, requestUrl) {
 export async function buildPagePayload(config, db, requestUrl) {
   const slug = requestUrl.searchParams.get('slug')?.trim();
   if (!slug) throw new Error('Page lookup requires slug.');
-  return buildPagePayloadForSlug(config, db, slug);
+  const domainScope = await resolveDomainScope(config, requestUrl);
+  return buildPagePayloadForSlug(config, db, slug, { domainScope });
 }
 
 async function canonicalPageExists(config, slug) {
@@ -2231,9 +2234,11 @@ export async function buildSharedGroupPayload(config, db, requestUrl) {
 export async function buildPublicPagePayload(config, requestUrl) {
   const slug = normalizePublicSlug(requestUrl.searchParams.get('slug')?.trim());
   if (!slug) return null;
+  const domainScope = await resolveDomainScope(config, requestUrl);
   const resolved = await resolvePublicMarkdownPage(config, slug);
   const page = resolved?.page || null;
   if (!page || !isPublicPage(page.parsed)) return null;
+  if (domainScope.length && !pageMatchesDomainScope(page.parsed.frontmatter, domainScope)) return null;
   const canonicalSlug = resolved.slug;
   const attachmentRawPath = attachmentRawPathForPage(canonicalSlug, page.parsed);
   if (attachmentRawPath) {
@@ -2252,6 +2257,7 @@ export async function buildPublicPagePayload(config, requestUrl) {
       attachment_url: publicRawHref(canonicalSlug, attachmentRawPath),
       raw_files: [{ filename: path.posix.basename(attachmentRawPath), url: publicRawHref(canonicalSlug, attachmentRawPath) }],
       updated_at: page.stat.mtime.toISOString(),
+      domain_scope: domainScope.length ? domainScope : null,
     };
   }
   const rawFiles = publicRawFiles(page.parsed.frontmatter);
@@ -2260,6 +2266,7 @@ export async function buildPublicPagePayload(config, requestUrl) {
     markdown: page.parsed.compiledTruth,
     sourceSlug: canonicalSlug,
     allowedRawFiles: rawFiles,
+    domainScope,
   }), page.parsed.title);
   const linkedRawFiles = publicRawFilesReferencedByMarkdown(markdown, canonicalSlug, rawFiles);
   return {
@@ -2273,6 +2280,7 @@ export async function buildPublicPagePayload(config, requestUrl) {
       url: publicRawHref(canonicalSlug, rawPath),
     })),
     updated_at: page.stat.mtime.toISOString(),
+    domain_scope: domainScope.length ? domainScope : null,
   };
 }
 
@@ -2370,7 +2378,7 @@ export async function updateDashboardPageVisibility(config, db, req, actor = nul
   return buildPagePayloadForSlug(config, db, slug);
 }
 
-async function buildPagePayloadForSlug(config, db, slug) {
+async function buildPagePayloadForSlug(config, db, slug, { domainScope = [] } = {}) {
   const pageSlug = normalizeDashboardPageSlug(slug);
   const fullPath = resolveBrainMarkdownPath(config.brainDir, pageSlug);
   const raw = await fs.readFile(fullPath, 'utf8');
@@ -2378,6 +2386,17 @@ async function buildPagePayloadForSlug(config, db, slug) {
   const stat = await fs.stat(fullPath);
   const outgoing = db ? await getOutgoingLinks(db, pageSlug) : [];
   const backlinks = db ? await getBacklinks(db, pageSlug) : [];
+  const outgoingMarkdown = outgoing.filter((link) => link.link_kind === 'markdown' && link.is_resolved);
+  const backlinksMarkdown = backlinks.filter((link) => link.link_kind === 'markdown');
+  const [scopedOutgoing, scopedBacklinks] = domainScope.length
+    ? await Promise.all([
+      filterLinksByDomain(config, outgoingMarkdown, 'to_slug', domainScope),
+      filterLinksByDomain(config, backlinksMarkdown, 'from_slug', domainScope),
+    ])
+    : [outgoingMarkdown, backlinksMarkdown];
+  const markdown = domainScope.length
+    ? await sanitizeDomainMarkdown({ config, markdown: parsed.bodyContentMarkdown, sourceSlug: pageSlug, domainScope })
+    : parsed.bodyContentMarkdown;
   const relativePath = path.relative(config.brainDir, fullPath);
   let pageUrlPath = null;
   try {
@@ -2396,15 +2415,14 @@ async function buildPagePayloadForSlug(config, db, slug) {
     public_url: pageVisibility(parsed.frontmatter) === 'public' ? `/public/${slug}` : null,
     summary: extractPageReaderSummary(parsed),
     frontmatter: parsed.frontmatter,
-    markdown: parsed.bodyContentMarkdown,
+    markdown,
     updated_at: stat.mtime.toISOString(),
+    domain_scope: domainScope.length ? domainScope : null,
     links: {
-      outgoing: outgoing
-        .filter((link) => link.link_kind === 'markdown' && link.is_resolved)
+      outgoing: scopedOutgoing
         .slice(0, 12)
         .map((link) => ({ slug: link.to_slug, label: link.link_text || link.to_slug })),
-      backlinks: backlinks
-        .filter((link) => link.link_kind === 'markdown')
+      backlinks: scopedBacklinks
         .slice(0, 12)
         .map((link) => ({ slug: link.from_slug, label: link.link_text || link.from_slug })),
     },
@@ -2436,6 +2454,45 @@ async function readPublicMarkdownPage(config, slug) {
     if (error && typeof error === 'object' && 'code' in error && error.code === 'ENOENT') return null;
     return null;
   }
+}
+
+async function readDomainMarkdownPage(config, slug) {
+  try {
+    const pageSlug = normalizeDashboardPageSlug(slug);
+    const fullPath = resolveBrainMarkdownPath(config.brainDir, pageSlug);
+    const stat = await fs.stat(fullPath);
+    if (!stat.isFile()) return null;
+    const raw = await fs.readFile(fullPath, 'utf8');
+    return { slug: pageSlug, stat, parsed: parseMarkdownPage(raw, pageSlug) };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveDomainScope(config, requestUrl) {
+  const rawValues = [
+    ...requestUrl.searchParams.getAll('domain'),
+    ...requestUrl.searchParams.getAll('domains'),
+  ];
+  const ids = [...new Set(rawValues.flatMap((value) => String(value || '').split(',').map((item) => item.trim()).filter(Boolean)))];
+  if (!ids.length) return [];
+  const loaded = await loadDomainRegistry(config);
+  if (!loaded.valid) throw new Error(`Domain registry is invalid: ${loaded.errors.join('; ')}`);
+  const normalized = ids.map(normalizeDomainId);
+  const unknown = normalized.filter((id) => !loaded.registry.domains[id]);
+  if (unknown.length) throw new Error(`Unknown Brain domain(s): ${unknown.join(', ')}.`);
+  return normalized;
+}
+
+function pageMatchesDomainScope(frontmatter, domainScope) {
+  const domains = normalizeGraphDomains(frontmatter);
+  return domainScope.some((domain) => domains.includes(domain));
+}
+
+function stripMarkdownLinkAnchor(target) {
+  const value = String(target || '');
+  const anchorIndex = value.indexOf('#');
+  return anchorIndex >= 0 ? value.slice(0, anchorIndex) : value;
 }
 
 async function resolvePublicMarkdownPage(config, slug) {
@@ -2606,22 +2663,53 @@ function isPublicPage(parsed) {
   return pageVisibility(parsed?.frontmatter) === 'public';
 }
 
-async function sanitizePublicMarkdown({ config, markdown, sourceSlug, allowedRawFiles = [] }) {
+async function sanitizePublicMarkdown({ config, markdown, sourceSlug, allowedRawFiles = [], domainScope = [] }) {
   let next = String(markdown || '');
   next = await replaceMarkdownLinks(next, /!?\[([^\]]*)\]\(([^)]+)\)/g, async (full, label, target) => {
     if (/^!/.test(full)) return label || '';
     const publicRawHref = publicRawHrefForTarget(sourceSlug, target, allowedRawFiles);
     if (publicRawHref) return `[${label}](${publicRawHref})`;
-    const publicHref = await publicHrefForTarget(config, sourceSlug, target);
+    const publicHref = await publicHrefForTarget(config, sourceSlug, target, domainScope);
     return publicHref ? `[${label}](${publicHref})` : label;
   });
   next = await replaceMarkdownLinks(next, /\[\[([^[\]]+)\]\]/g, async (_full, rawTarget) => {
     const [target, label] = String(rawTarget || '').split('|').map((part) => part.trim());
-    const publicHref = await publicHrefForTarget(config, sourceSlug, target);
+    const publicHref = await publicHrefForTarget(config, sourceSlug, target, domainScope);
     const publicLabel = label || target;
     return publicHref ? `[${publicLabel}](${publicHref})` : publicLabel;
   });
   return next;
+}
+
+async function sanitizeDomainMarkdown({ config, markdown, sourceSlug, domainScope }) {
+  let next = String(markdown || '');
+  next = await replaceMarkdownLinks(next, /!?\[([^\]]*)\]\(([^)]+)\)/g, async (full, label, target) => {
+    if (/^!/.test(full)) return full;
+    const targetSlug = resolveMarkdownLink(sourceSlug, stripMarkdownLinkAnchor(target));
+    if (!targetSlug) return full;
+    const targetPage = await readDomainMarkdownPage(config, targetSlug);
+    if (targetPage && pageMatchesDomainScope(targetPage.parsed.frontmatter, domainScope)) return full;
+    return label || targetSlug;
+  });
+  next = await replaceMarkdownLinks(next, /\[\[([^\[\]]+)\]\]/g, async (full, rawTarget) => {
+    const [target, label] = String(rawTarget || '').split('|').map((part) => part.trim());
+    const targetSlug = resolveMarkdownLink(sourceSlug, target);
+    if (!targetSlug) return full;
+    const targetPage = await readDomainMarkdownPage(config, targetSlug);
+    if (targetPage && pageMatchesDomainScope(targetPage.parsed.frontmatter, domainScope)) return full;
+    return label || target || targetSlug;
+  });
+  return next;
+}
+
+async function filterLinksByDomain(config, links, slugKey, domainScope) {
+  const filtered = [];
+  for (const link of links) {
+    const slug = link[slugKey];
+    const page = await readDomainMarkdownPage(config, slug);
+    if (page && pageMatchesDomainScope(page.parsed.frontmatter, domainScope)) filtered.push(link);
+  }
+  return filtered;
 }
 
 function publicRawHrefForTarget(sourceSlug, target, allowedRawFiles) {
@@ -2707,7 +2795,7 @@ async function replaceMarkdownLinks(markdown, pattern, replacer) {
   return output;
 }
 
-async function publicHrefForTarget(config, sourceSlug, target) {
+async function publicHrefForTarget(config, sourceSlug, target, domainScope = []) {
   const trimmed = String(target || '').trim();
   if (!trimmed) return null;
   if (/^(https?:|mailto:|#)/i.test(trimmed)) return trimmed;
@@ -2718,6 +2806,7 @@ async function publicHrefForTarget(config, sourceSlug, target) {
   if (!slug) return null;
   const page = await readPublicMarkdownPage(config, slug);
   if (!page || !isPublicPage(page.parsed)) return null;
+  if (domainScope.length && !pageMatchesDomainScope(page.parsed.frontmatter, domainScope)) return null;
   return `/public/${slug}${anchor}`;
 }
 
@@ -2921,6 +3010,12 @@ export async function buildGraphPayload(db, config = null) {
   const graphPages = pages.filter(isDirectoryBackedGraphPage);
   const indexedPages = await getPagesBySlugs(db, graphPages.map((page) => page.slug));
   const indexedPageBySlug = new Map(indexedPages.map((page) => [page.slug, page]));
+  const loadedDomainRegistry = config ? await loadDomainRegistry(config) : null;
+  const domainDefinitions = loadedDomainRegistry?.valid
+    ? Object.entries(loadedDomainRegistry.registry.domains)
+      .map(([id, definition]) => ({ id, name: definition.name }))
+      .sort((left, right) => left.id.localeCompare(right.id))
+    : [];
   const candidateNodes = (await Promise.all(graphPages.map(async (page) => {
     const outgoing = await getOutgoingLinks(db, page.slug);
     const backlinks = await getBacklinks(db, page.slug);
@@ -2963,6 +3058,7 @@ export async function buildGraphPayload(db, config = null) {
       node_count: candidateNodes.length,
       edge_count: edges.length,
       input_count: inputs.length,
+      domain_definitions: domainDefinitions,
     },
     activity: history.activity,
     inputs,

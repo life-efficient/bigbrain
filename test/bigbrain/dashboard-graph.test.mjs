@@ -6,6 +6,7 @@ import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { openDatabase, upsertPageProvenance, upsertSharedGroup } from '../../src/bigbrain/db.js';
+import { createBrainDomain } from '../../src/bigbrain/domains.js';
 import {
   buildExplorerFilePayload,
   buildExplorerRecentPayload,
@@ -150,6 +151,17 @@ test('dashboard graph excludes root infrastructure files from nodes and types', 
 test('dashboard graph nodes expose normalized domains from indexed frontmatter', async () => {
   const fixture = await createFixture('bigbrain-dashboard-graph-domains-');
   try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await createBrainDomain(config, {
+      id: 'ai-infrastructure',
+      name: 'AI infrastructure',
+      guidance: 'Use for AI infrastructure knowledge.',
+    });
+    await createBrainDomain(config, {
+      id: 'startups',
+      name: 'Startups',
+      guidance: 'Use for startup knowledge.',
+    });
     await writeMarkdown(fixture.brainHome, 'companies/acme.md', '# Acme\n');
     await writeMarkdown(fixture.brainHome, 'people/alice.md', [
       '---',
@@ -164,7 +176,6 @@ test('dashboard graph nodes expose normalized domains from indexed frontmatter',
       '# Relay',
     ].join('\n'));
 
-    const config = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({ config, apiKey: null });
     const db = await openDatabase(config);
 
@@ -183,6 +194,10 @@ test('dashboard graph nodes expose normalized domains from indexed frontmatter',
       'people/alice': ['ai-infrastructure', 'startups'],
       'projects/relay': ['ai-infrastructure'],
     });
+    assert.deepEqual(graph.meta.domain_definitions, [
+      { id: 'ai-infrastructure', name: 'AI infrastructure' },
+      { id: 'startups', name: 'Startups' },
+    ]);
     await db.close?.();
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
@@ -532,6 +547,69 @@ test('dashboard explorer recents lists files by latest edit time', async () => {
   }
 });
 
+test('domain-scoped page payload redacts links outside the selected knowledge domain at render time', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-domain-redaction-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await createBrainDomain(config, {
+      id: 'ai-infrastructure',
+      name: 'AI infrastructure',
+      guidance: 'Use for end-to-end AI infrastructure supply chain knowledge.',
+    });
+    await createBrainDomain(config, {
+      id: 'startups',
+      name: 'Startups',
+      guidance: 'Use for startup knowledge from articles, writing, and meetings.',
+    });
+    await writeMarkdown(fixture.brainHome, 'concepts/source.md', [
+      '---',
+      'domains: [ai-infrastructure]',
+      '---',
+      '# Source',
+      '',
+      'See [In scope](in-scope.md), [Out of scope](out-of-scope.md), and [[out-of-scope|Out of scope wiki]].',
+    ].join('\n'));
+    await writeMarkdown(fixture.brainHome, 'concepts/in-scope.md', [
+      '---',
+      'domains: [ai-infrastructure]',
+      '---',
+      '# In scope',
+    ].join('\n'));
+    await writeMarkdown(fixture.brainHome, 'concepts/out-of-scope.md', [
+      '---',
+      'domains: [startups]',
+      '---',
+      '# Out of scope',
+    ].join('\n'));
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+
+    const scoped = await buildPagePayload(
+      config,
+      db,
+      new URL('/api/page?slug=concepts/source&domains=ai-infrastructure', 'http://127.0.0.1'),
+    );
+    assert.match(scoped.markdown, /\[In scope\]\(in-scope\.md\)/);
+    assert.match(scoped.markdown, /Out of scope/);
+    assert.doesNotMatch(scoped.markdown, /\[Out of scope\]\(out-of-scope\.md\)/);
+    assert.doesNotMatch(scoped.markdown, /\[Out of scope wiki\]\(.*out-of-scope/);
+    assert.deepEqual(scoped.links.outgoing.map((link) => link.slug), ['concepts/in-scope']);
+    assert.deepEqual(scoped.domain_scope, ['ai-infrastructure']);
+
+    const canonical = await buildPagePayload(
+      config,
+      db,
+      new URL('/api/page?slug=concepts/source', 'http://127.0.0.1'),
+    );
+    assert.match(canonical.markdown, /\[Out of scope\]\(out-of-scope\.md\)/);
+    assert.match(canonical.markdown, /\[\[out-of-scope\|Out of scope wiki\]\]/);
+    assert.equal(canonical.domain_scope, null);
+    await db.close?.();
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('public page payload exposes only approved body content and safe links', async () => {
   const fixture = await createFixture('bigbrain-dashboard-public-page-');
   try {
@@ -605,6 +683,64 @@ test('public page payload exposes only approved body content and safe links', as
       new URL('/api/public/page?slug=projects/secret', 'http://127.0.0.1'),
     );
     assert.equal(privatePayload, null);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('public domain-scoped payload keeps canonical links unchanged while hiding out-of-domain targets', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-public-domain-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await createBrainDomain(config, {
+      id: 'ai-infrastructure',
+      name: 'AI infrastructure',
+      guidance: 'Use for AI infrastructure knowledge.',
+    });
+    await createBrainDomain(config, {
+      id: 'startups',
+      name: 'Startups',
+      guidance: 'Use for startup knowledge.',
+    });
+    await writeMarkdown(fixture.brainHome, 'concepts/public-source.md', [
+      '---',
+      'visibility: public',
+      'domains: [ai-infrastructure]',
+      '---',
+      '# Public source',
+      '',
+      'See [Infrastructure](infrastructure.md) and [Startups](startups.md).',
+    ].join('\n'));
+    await writeMarkdown(fixture.brainHome, 'concepts/infrastructure.md', [
+      '---',
+      'visibility: public',
+      'domains: [ai-infrastructure]',
+      '---',
+      '# Infrastructure',
+    ].join('\n'));
+    await writeMarkdown(fixture.brainHome, 'concepts/startups.md', [
+      '---',
+      'visibility: public',
+      'domains: [startups]',
+      '---',
+      '# Startups',
+    ].join('\n'));
+
+    const scoped = await buildPublicPagePayload(
+      config,
+      new URL('/api/public/page?slug=concepts/public-source&domain=ai-infrastructure', 'http://127.0.0.1'),
+    );
+    assert.match(scoped.markdown, /\[Infrastructure\]\(\/public\/concepts\/infrastructure\)/);
+    assert.match(scoped.markdown, /Startups/);
+    assert.doesNotMatch(scoped.markdown, /\[Startups\]\(\/public\/concepts\/startups\)/);
+    assert.deepEqual(scoped.domain_scope, ['ai-infrastructure']);
+
+    const canonical = await buildPublicPagePayload(
+      config,
+      new URL('/api/public/page?slug=concepts/public-source', 'http://127.0.0.1'),
+    );
+    assert.match(canonical.markdown, /\[Startups\]\(\/public\/concepts\/startups\)/);
+    assert.equal(canonical.domain_scope, null);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
