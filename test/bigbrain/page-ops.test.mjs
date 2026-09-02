@@ -21,6 +21,7 @@ import {
   renameRawFile,
   updateRawFile,
   updateBrainPage,
+  updateBrainPageImages,
   updatePageVisibility,
 } from '../../src/bigbrain/page-ops.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
@@ -88,6 +89,68 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
     const record = await getPageRecord(db, 'people/jordan-lee');
     assert.equal(record.title, 'Jordan Lee');
     assert.match(record.compiled_truth, /current Example Brain example contact/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page ops store multiple image attachments and support append or replace', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-images-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await fs.mkdir(path.join(fixture.brainHome, 'meetings', '.raw'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'meetings', '.raw', 'first.jpg'), Buffer.from([0xff, 0xd8, 0xff]));
+    await fs.writeFile(path.join(fixture.brainHome, 'meetings', '.raw', 'second.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    await fs.writeFile(path.join(fixture.brainHome, 'meetings', '.raw', 'third.webp'), Buffer.from('webp'));
+
+    const created = await createBrainPage({
+      config,
+      pagePath: 'products/image-enabled',
+      title: 'Image Enabled',
+      body: 'A page with image evidence.',
+      images: [{ path: 'meetings/.raw/first.jpg', caption: 'First frame', kind: 'product', timestamp: '01:30' }],
+      timelineEntry: 'Created with one image.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
+    });
+    assert.deepEqual(created.frontmatter.images, [{
+      path: 'meetings/.raw/first.jpg',
+      caption: 'First frame',
+      kind: 'product',
+      timestamp: '01:30',
+    }]);
+    assert.match(created.markdown, /images:/);
+    assert.match(created.markdown, /meetings\/.raw\/first\.jpg/);
+
+    const appended = await updateBrainPageImages({
+      config,
+      pagePath: 'products/image-enabled',
+      images: [{ path: 'meetings/.raw/second.png', alt_text: 'Second frame', confidence: 'high' }],
+      timelineEntry: 'Appended a second image.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
+    });
+    assert.deepEqual(appended.frontmatter.images, [
+      { path: 'meetings/.raw/first.jpg', caption: 'First frame', kind: 'product', timestamp: '01:30' },
+      { path: 'meetings/.raw/second.png', alt_text: 'Second frame', confidence: 'high' },
+    ]);
+
+    const replaced = await updateBrainPageImages({
+      config,
+      pagePath: 'products/image-enabled',
+      images: [{ path: 'meetings/.raw/third.webp', caption: 'Replacement frame' }],
+      mode: 'replace',
+      timelineEntry: 'Replaced the image set.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
+    });
+    assert.deepEqual(replaced.frontmatter.images, [{ path: 'meetings/.raw/third.webp', caption: 'Replacement frame' }]);
+    assert.match(replaced.timeline, /Appended a second image/);
+    assert.match(replaced.timeline, /Replaced the image set/);
+    await assert.rejects(() => updateBrainPageImages({
+      config,
+      pagePath: 'products/image-enabled',
+      images: [{ path: 'meetings/.raw/missing.png' }],
+      timelineEntry: 'Should fail.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
+    }), /does not exist under the brain/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

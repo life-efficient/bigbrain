@@ -138,7 +138,21 @@ function parseYamlValue(value) {
   if (value === 'true') return true;
   if (value === 'false') return false;
   if (value.startsWith('[') && value.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed;
+    } catch {
+      // Preserve the existing compact YAML-like list syntax for values such as
+      // [people, active], which are not valid JSON without quoted strings.
+    }
     return value.slice(1, -1).split(',').map((item) => item.trim()).filter(Boolean);
+  }
+  if (value.startsWith('{') && value.endsWith('}')) {
+    try {
+      return JSON.parse(value);
+    } catch {
+      return value;
+    }
   }
   return value;
 }

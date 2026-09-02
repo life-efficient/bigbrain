@@ -590,6 +590,57 @@ test('dashboard explorer recents lists files by latest edit time', async () => {
   }
 });
 
+test('page payloads expose ordered image attachments and public pages require an allowlist', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-page-images-');
+  let db;
+  try {
+    await fs.mkdir(path.join(fixture.brainHome, 'meetings', '.raw'), { recursive: true });
+    await fs.writeFile(path.join(fixture.brainHome, 'meetings', '.raw', 'frame.jpg'), Buffer.from([0xff, 0xd8, 0xff]));
+    await writeMarkdown(fixture.brainHome, 'products/image-page.md', `---
+title: Image Page
+visibility: public
+public_raw_files: [meetings/.raw/frame.jpg]
+images: [{"path":"meetings/.raw/frame.jpg","caption":"Cooling frame","timestamp":"14:20"}]
+---
+# Image Page
+
+Current page content.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    db = await openDatabase(config);
+
+    const privatePayload = await buildPagePayload(config, db, new URL('/api/page?slug=products/image-page', 'http://127.0.0.1'));
+    assert.deepEqual(privatePayload.images.map(({ path: imagePath, caption, timestamp }) => ({ path: imagePath, caption, timestamp })), [{
+      path: 'meetings/.raw/frame.jpg',
+      caption: 'Cooling frame',
+      timestamp: '14:20',
+    }]);
+    assert.match(privatePayload.images[0].url, /api\/explorer\/blob/);
+
+    const publicPayload = await buildPublicPagePayload(config, new URL('/api/public/page?slug=products/image-page', 'http://127.0.0.1'));
+    assert.deepEqual(publicPayload.images.map(({ path: imagePath, caption }) => ({ path: imagePath, caption })), [{
+      path: 'meetings/.raw/frame.jpg',
+      caption: 'Cooling frame',
+    }]);
+    assert.match(publicPayload.images[0].url, /api\/public\/raw/);
+
+    await writeMarkdown(fixture.brainHome, 'products/private-image-page.md', `---
+title: Private Image Page
+visibility: public
+images: [{"path":"meetings/.raw/frame.jpg","caption":"Private frame"}]
+---
+# Private Image Page
+
+Current page content.
+`);
+    const privateImageNotPublished = await buildPublicPagePayload(config, new URL('/api/public/page?slug=products/private-image-page', 'http://127.0.0.1'));
+    assert.deepEqual(privateImageNotPublished.images, []);
+  } finally {
+    await db?.close?.();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('domain-scoped page payload redacts links outside the selected knowledge domain at render time', async () => {
   const fixture = await createFixture('bigbrain-dashboard-domain-redaction-');
   try {

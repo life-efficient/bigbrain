@@ -50,6 +50,7 @@ import {
   renameRawFile,
   updateRawFile,
   updateBrainPage,
+  updateBrainPageImages,
   updatePageVisibility,
 } from './page-ops.js';
 import { canonicalPagePath, canonicalPageUrl, isLoopbackHost, localPageUrl } from './page-links.js';
@@ -698,6 +699,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         timelineSignificance: args.significance,
         frontmatter: args.frontmatter || {},
         domains: args.domains,
+        images: args.images,
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       await recordWriteProvenance(config, args.path, { ...args.provenance, significance: args.significance }, args.commit_message);
@@ -765,6 +767,19 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         timelineEntry: timelineForMutation(args, actor),
         timelineSignificance: args.significance,
         frontmatterValues: args.domains === undefined ? {} : { domains: args.domains },
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      await recordWriteProvenance(config, args.path, { ...args.provenance, significance: args.significance }, args.commit_message);
+      return toolJson({ ...page, page_health: await quickPageHealthCheck({ config, pagePath: page.path }) });
+    }
+    case 'attach_page_images': {
+      const page = await updateBrainPageImages({
+        config,
+        pagePath: args.path,
+        images: args.images,
+        mode: args.mode,
+        timelineEntry: timelineForMutation(args, actor),
+        timelineSignificance: args.significance,
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       await recordWriteProvenance(config, args.path, { ...args.provenance, significance: args.significance }, args.commit_message);
@@ -1801,6 +1816,7 @@ function toolDefinitions(config = null) {
           ...timelineInputProperties(),
           significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this timeline update on the owning page: patch, minor, or major.' },
           domains: domainField,
+          images: pageImagesField(),
           frontmatter: { type: 'object' },
         },
         required: ['path', 'title', 'significance', ...mutationRequired()],
@@ -1907,6 +1923,23 @@ function toolDefinitions(config = null) {
           { anyOf: pageContentInputRequirements() },
           { anyOf: timelineInputRequirements() },
         ],
+      },
+    },
+    {
+      name: 'attach_page_images',
+      description: 'Attach or replace an ordered set of image files on an existing markdown brain page. Images stay in raw Brain storage and are represented by structured page metadata with optional captions and source context.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          ...mutationProperties(),
+          path: { type: 'string', description: 'Markdown page path such as products/example or concepts/example.md.' },
+          images: pageImagesField(),
+          mode: { type: 'string', enum: ['append', 'replace'], default: 'append', description: 'append preserves existing image attachments; replace sets the page image list to exactly this array.' },
+          ...timelineInputProperties(),
+          significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this image attachment update on the owning page: patch, minor, or major.' },
+        },
+        required: ['path', 'images', 'significance', ...mutationRequired()],
+        anyOf: timelineInputRequirements(),
       },
     },
     {
@@ -2116,6 +2149,7 @@ const TOOL_POLICIES = {
   create_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   create_raw_file_with_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   update_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  attach_page_images: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   rename_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   groups_upsert: { layer: 'publish', scopes: ['brain:publish'] },
   set_page_visibility: { layer: 'publish', scopes: ['brain:publish'] },
@@ -2144,6 +2178,7 @@ const GIT_SYNC_MUTATION_TOOLS = new Set([
   'create_raw_file',
   'create_page',
   'create_raw_file_with_page',
+  'attach_page_images',
   'update_raw_file',
   'delete_raw_file',
   'rename_raw_file',
@@ -2175,7 +2210,7 @@ function requireMutationMetadata(name, args) {
 }
 
 function requirePageTimelineSignificance(name, args) {
-  if (!['create_page', 'update_page'].includes(name)) return null;
+  if (!['create_page', 'update_page', 'attach_page_images'].includes(name)) return null;
   try {
     return timelineSignificanceSchema.parse(args?.significance);
   } catch (error) {
@@ -2289,6 +2324,7 @@ function pageEditPathsForTool(name, args) {
   switch (name) {
     case 'create_page':
     case 'update_page':
+    case 'attach_page_images':
       return [args.path].filter(Boolean);
     case 'rename_page':
       return [args.from_path, args.to_path].filter(Boolean);
@@ -2613,6 +2649,29 @@ function pageVisibilitySchema({ requireVisibility }) {
       ...timelineInputProperties(),
     },
     required: [...(requireVisibility ? ['path', 'visibility'] : ['path']), ...mutationRequired()],
+  };
+}
+
+function pageImagesField() {
+  return {
+    type: 'array',
+    maxItems: 100,
+    description: 'Ordered image attachments. Each path must point to an existing image under <collection>/.raw/.',
+    items: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['path'],
+      properties: {
+        path: { type: 'string', description: 'Raw image path such as meetings/.raw/cooling-tower.jpg.' },
+        caption: { type: 'string' },
+        alt_text: { type: 'string' },
+        kind: { type: 'string', enum: ['product', 'component', 'system', 'installation', 'diagram', 'other'] },
+        source: { type: 'string', description: 'Source record, file, or exhibit identifier.' },
+        timestamp: { type: 'string', description: 'Optional source timestamp such as 14:20.' },
+        captured_at: { type: 'string', description: 'Optional image capture timestamp.' },
+        confidence: { type: 'string', enum: ['high', 'medium', 'low'] },
+      },
+    },
   };
 }
 

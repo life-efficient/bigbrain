@@ -141,6 +141,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'active.svg'), '<svg><script>alert(1)</script></svg>');
     await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'unlinked.pdf'), 'unlinked public pdf bytes');
     await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'private.pdf'), 'private pdf bytes');
+    await fs.writeFile(path.join(fixture.brainHome, 'people', '.raw', 'attached.jpg'), Buffer.from([0xff, 0xd8, 0xff]));
     await fs.writeFile(path.join(fixture.brainHome, 'people', 'public.md'), [
       '---',
       'title: Public MCP Page',
@@ -230,6 +231,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
 
     const listed = await rpc(running.url, 'tools/list', {}, 'secret');
     assert.equal(listed.result.tools.some((tool) => tool.name === 'create_page'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'attach_page_images'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'filing_rules'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'about'), true);
     const aboutUpdateTool = listed.result.tools.find((tool) => tool.name === 'about/update');
@@ -346,6 +348,22 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(updated.error, undefined, updated.error?.message);
     assert.equal(updated.result.structuredContent.page_health.ok, true);
     assert.equal(updated.result.structuredContent.page_health.assertions.single_timeline, true);
+
+    const attached = await rpc(running.url, 'tools/call', {
+      name: 'attach_page_images',
+      arguments: {
+        path: 'people/mcp-test',
+        images: [{ path: 'people/.raw/attached.jpg', caption: 'Attached test image', timestamp: '00:10' }],
+        timeline_entry: 'Attached one image through MCP.',
+      },
+    }, 'secret');
+    assert.equal(attached.error, undefined, attached.error?.message);
+    assert.deepEqual(attached.result.structuredContent.frontmatter.images, [{
+      path: 'people/.raw/attached.jpg',
+      caption: 'Attached test image',
+      timestamp: '00:10',
+    }]);
+    assert.equal(attached.result.structuredContent.page_health.ok, true);
 
     const provenance = await rpc(running.url, 'tools/call', {
       name: 'events/provenance_list',
@@ -2489,6 +2507,7 @@ async function rpc(url, method, params, token) {
     'tasks/create', 'tasks/update', 'create_raw_file', 'create_page', 'create_raw_file_with_page',
     'domains/create', 'domains_create', 'domains/update', 'domains_update', 'domains/delete', 'domains_delete',
     'update_raw_file', 'delete_raw_file', 'rename_raw_file', 'rename_page', 'update_page',
+    'attach_page_images',
     'set_page_visibility', 'maintenance/git_backup', 'maintenance_git_backup',
     'playbooks/keep-in-touch/enroll', 'playbooks_keep_in_touch_enroll',
     'playbooks/keep-in-touch/log_contact', 'playbooks_keep_in_touch_log_contact',
@@ -2511,7 +2530,7 @@ async function rpc(url, method, params, token) {
       },
     };
   }
-  if (['create_page', 'update_page'].includes(callName) && !skipTimelineSignificance) {
+  if (['create_page', 'update_page', 'attach_page_images'].includes(callName) && !skipTimelineSignificance) {
     requestParams.arguments = {
       ...(requestParams.arguments || {}),
       significance: requestParams.arguments?.significance || 'minor',

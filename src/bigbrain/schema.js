@@ -27,6 +27,7 @@ export function schemaDescription() {
       'Title',
       'One concise opening compiled-truth paragraph',
       'Additional current-context sections; assignable work belongs in tasks/',
+      'Optional ordered image attachments are stored as page metadata and point to existing image files under collection/.raw/',
       '--- followed by ## Timeline',
       'Append-only structured timeline / evidence log',
     ],

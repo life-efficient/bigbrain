@@ -1173,6 +1173,7 @@ function PrivatePageApp({ route }) {
           </div>
           <PrivatePageBackLink />
         </header>
+        <PageImageGallery images={state.page.images} />
         <MarkdownDocument
           markdown={state.page.markdown}
           sourceSlug={state.page.slug}
@@ -1182,6 +1183,37 @@ function PrivatePageApp({ route }) {
         />
       </article>
     </main>
+  );
+}
+
+function PageImageGallery({ images }) {
+  const items = Array.isArray(images) ? images.filter((image) => image?.url) : [];
+  if (!items.length) return null;
+  return (
+    <section className="page-images" aria-label="Attached images">
+      <div className="page-images-heading">
+        <h2>Attached images</h2>
+        <span className="meta">{items.length}</span>
+      </div>
+      <div className="page-images-grid">
+        {items.map((image, index) => {
+          const label = image.caption || image.alt_text || image.filename || `Attached image ${index + 1}`;
+          return (
+            <figure className="page-image-card" key={`${image.path}:${index}`}>
+              <a className="page-image-link" href={image.url} target="_blank" rel="noreferrer">
+                <img src={image.url} alt={image.alt_text || label} loading="lazy" />
+              </a>
+              <figcaption>
+                <span>{image.caption || label}</span>
+                {image.timestamp || image.source ? (
+                  <small>{[image.timestamp, image.source].filter(Boolean).join(' · ')}</small>
+                ) : null}
+              </figcaption>
+            </figure>
+          );
+        })}
+      </div>
+    </section>
   );
 }
 
@@ -1273,6 +1305,7 @@ function PublicPageApp() {
             </div>
           ) : null}
         </header>
+        <PageImageGallery images={state.page.images} />
         <MarkdownDocument
           markdown={state.page.markdown}
           sourceSlug={state.page.slug}

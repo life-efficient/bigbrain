@@ -673,6 +673,16 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .public-document .tailwind-prose th,
       .public-document .tailwind-prose td { border-color: var(--line); }
       .public-document .tailwind-prose th { background: var(--surface-muted); }
+      .page-images { display: grid; gap: 12px; }
+      .page-images-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+      .page-images-heading h2 { margin: 0; color: var(--ink); font-size: 18px; }
+      .page-images-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+      .page-image-card { min-width: 0; margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+      .page-image-link { display: block; background: var(--surface-muted); }
+      .page-image-link:focus-visible { outline: 3px solid rgba(138,180,255,0.42); outline-offset: -3px; }
+      .page-image-link img { display: block; width: 100%; aspect-ratio: 16 / 10; object-fit: cover; }
+      .page-image-card figcaption { display: grid; gap: 4px; padding: 10px 11px 11px; color: var(--ink); font-size: 13px; line-height: 1.4; }
+      .page-image-card figcaption small { color: var(--muted); font-size: 11px; overflow-wrap: anywhere; }
       h1 { font-size: 44px; margin: 0 0 6px; letter-spacing: -0.03em; }
       h2 { margin: 0 0 14px; font-size: 20px; }
       h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
@@ -2303,6 +2313,7 @@ export async function buildPublicPagePayload(config, requestUrl) {
       page_kind: 'attachment',
       attachment_url: publicRawHref(canonicalSlug, attachmentRawPath),
       raw_files: [{ filename: path.posix.basename(attachmentRawPath), url: publicRawHref(canonicalSlug, attachmentRawPath) }],
+      images: [],
       updated_at: page.stat.mtime.toISOString(),
       domain_scope: domainScope.length ? domainScope : null,
     };
@@ -2322,6 +2333,11 @@ export async function buildPublicPagePayload(config, requestUrl) {
     title: page.parsed.title,
     summary: extractPageReaderSummary(page.parsed, markdown),
     markdown,
+    images: await buildPageImagesPayload(config, page.parsed.frontmatter.images, {
+      sourceSlug: canonicalSlug,
+      allowedRawFiles: rawFiles,
+      publicOnly: true,
+    }),
     raw_files: linkedRawFiles.map((rawPath) => ({
       filename: path.posix.basename(rawPath),
       url: publicRawHref(canonicalSlug, rawPath),
@@ -2329,6 +2345,43 @@ export async function buildPublicPagePayload(config, requestUrl) {
     updated_at: page.stat.mtime.toISOString(),
     domain_scope: domainScope.length ? domainScope : null,
   };
+}
+
+async function buildPageImagesPayload(config, images, {
+  sourceSlug,
+  allowedRawFiles = [],
+  publicOnly = false,
+} = {}) {
+  if (!Array.isArray(images)) return [];
+  const allowed = new Set(allowedRawFiles);
+  const payload = [];
+  for (const image of images) {
+    if (!image || typeof image !== 'object' || Array.isArray(image)) continue;
+    let rawPath;
+    try {
+      rawPath = normalizeRawPath(image.path);
+    } catch {
+      continue;
+    }
+    if (publicOnly && !allowed.has(rawPath)) continue;
+    const mimeType = publicOnly ? publicRawMimeTypeForPath(rawPath) : mimeTypeForPath(rawPath);
+    if (!mimeType) continue;
+    const fullPath = safeBrainPath(config.brainDir, rawPath);
+    const stat = await fs.lstat(fullPath).catch(() => null);
+    if (!stat?.isFile() || stat.isSymbolicLink()) continue;
+    payload.push({
+      ...image,
+      path: rawPath,
+      filename: path.posix.basename(rawPath),
+      mime_type: mimeType,
+      size: stat.size,
+      updated_at: stat.mtime.toISOString(),
+      url: publicOnly
+        ? publicRawHref(sourceSlug, rawPath)
+        : `/api/explorer/blob?${new URLSearchParams({ path: rawPath }).toString()}`,
+    });
+  }
+  return payload;
 }
 
 export async function buildSharedRawFilePayload(config, db, requestUrl) {
@@ -2469,6 +2522,7 @@ async function buildPagePayloadForSlug(config, db, slug, { domainScope = [] } = 
     public_url: pageVisibility(parsed.frontmatter) === 'public' ? `/public/${slug}` : null,
     summary: extractPageReaderSummary(parsed),
     frontmatter: parsed.frontmatter,
+    images: await buildPageImagesPayload(config, parsed.frontmatter.images, { sourceSlug: pageSlug }),
     markdown,
     updated_at: stat.mtime.toISOString(),
     domain_scope: domainScope.length ? domainScope : null,

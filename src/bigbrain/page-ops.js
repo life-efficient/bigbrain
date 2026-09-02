@@ -25,6 +25,11 @@ export const DEFAULT_COLLECTIONS = [
   'writing',
 ];
 
+const PAGE_IMAGE_KINDS = new Set(['product', 'component', 'system', 'installation', 'diagram', 'other']);
+const PAGE_IMAGE_CONFIDENCES = new Set(['high', 'medium', 'low']);
+const PAGE_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.heic']);
+const MAX_PAGE_IMAGES = 100;
+
 const LIST_ORDER_BY = new Set(['updated_at', 'created_at', 'alphanumeric']);
 
 // Provenance describes a particular update event. It must live on the
@@ -146,6 +151,7 @@ export async function createBrainPage({
   timelineSignificance = null,
   frontmatter = {},
   domains = undefined,
+  images = undefined,
 }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
@@ -164,12 +170,17 @@ export async function createBrainPage({
   const normalizedDomains = suppliedDomains === undefined
     ? undefined
     : await assertRegisteredPageDomains(config, suppliedDomains);
+  const suppliedImages = images !== undefined ? images : suppliedFrontmatter.images;
+  const normalizedImages = suppliedImages === undefined
+    ? undefined
+    : await normalizePageImages({ config, images: suppliedImages });
   const metadata = {
     title: requireNonEmpty(title, 'title'),
     created: now.slice(0, 10),
     ...omitReservedFrontmatter(suppliedFrontmatter),
   };
   if (normalizedDomains !== undefined) metadata.domains = normalizedDomains;
+  if (normalizedImages !== undefined) metadata.images = normalizedImages;
   const markdown = renderPageMarkdown({
     frontmatterRaw: renderFrontmatter(metadata),
     title: metadata.title,
@@ -385,6 +396,9 @@ export async function updateBrainPage({ config, pagePath, compiledTruth = undefi
   if (Object.prototype.hasOwnProperty.call(nextFrontmatterValues, 'domains')) {
     nextFrontmatterValues.domains = await assertRegisteredPageDomains(config, nextFrontmatterValues.domains);
   }
+  if (Object.prototype.hasOwnProperty.call(nextFrontmatterValues, 'images')) {
+    nextFrontmatterValues.images = await normalizePageImages({ config, images: nextFrontmatterValues.images });
+  }
   let frontmatterRaw = existing.frontmatter_raw;
   for (const [key, value] of Object.entries(nextFrontmatterValues)) {
     if (!PROVENANCE_FRONTMATTER_KEYS.has(key)) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
@@ -397,6 +411,87 @@ export async function updateBrainPage({ config, pagePath, compiledTruth = undefi
   });
   await fs.writeFile(safeBrainPath(config.brainDir, relative), markdown, 'utf8');
   return readBrainPage({ config, pagePath: relative });
+}
+
+export async function updateBrainPageImages({
+  config,
+  pagePath,
+  images,
+  mode = 'append',
+  timelineEntry,
+  timelineEntries = null,
+  timelineProvenance = null,
+  timelineSignificance = null,
+}) {
+  const relative = normalizePagePath(pagePath);
+  assertAllowedPagePath(relative);
+  const existing = await readBrainPage({ config, pagePath: relative });
+  const normalizedMode = String(mode || 'append').trim().toLowerCase();
+  if (!['append', 'replace'].includes(normalizedMode)) throw new Error('Image attachment mode must be append or replace.');
+  const currentImages = existing.frontmatter.images === undefined ? [] : existing.frontmatter.images;
+  const candidate = normalizedMode === 'replace'
+    ? images
+    : [...(Array.isArray(currentImages) ? currentImages : []), ...(Array.isArray(images) ? images : [])];
+  const normalizedImages = await normalizePageImages({ config, images: candidate });
+  const now = new Date().toISOString();
+  const timelineInput = withTimelineProvenance(
+    timelineEntries ?? timelineEntry ?? `Attached ${normalizedImages.length} page image${normalizedImages.length === 1 ? '' : 's'}.`,
+    timelineProvenance,
+  );
+  let frontmatterRaw = setFrontmatterValue(existing.frontmatter_raw, 'images', normalizedImages);
+  const markdown = renderPageMarkdown({
+    frontmatterRaw,
+    title: existing.title,
+    body: existing.body,
+    timeline: appendTimelineEntries(existing.timeline, timelineInput, {
+      recordedAt: now,
+      significance: timelineSignificance,
+      requireProvenance: true,
+    }),
+  });
+  await fs.writeFile(safeBrainPath(config.brainDir, relative), markdown, 'utf8');
+  return readBrainPage({ config, pagePath: relative });
+}
+
+export async function normalizePageImages({ config, images }) {
+  if (!Array.isArray(images)) throw new Error('images must be an array.');
+  if (images.length > MAX_PAGE_IMAGES) throw new Error(`A page may have at most ${MAX_PAGE_IMAGES} images.`);
+  const normalized = [];
+  const seen = new Set();
+  for (const [index, image] of images.entries()) {
+    if (!image || typeof image !== 'object' || Array.isArray(image)) throw new Error(`images[${index}] must be an object.`);
+    const rawPath = normalizeRawPath(image.path);
+    const extension = path.posix.extname(rawPath).toLowerCase();
+    if (!PAGE_IMAGE_EXTENSIONS.has(extension)) throw new Error(`images[${index}].path must point to a supported image file.`);
+    if (seen.has(rawPath)) throw new Error(`Duplicate page image path: ${rawPath}`);
+    seen.add(rawPath);
+    const stats = await fs.lstat(safeBrainPath(config.brainDir, rawPath)).catch((error) => {
+      if (error?.code === 'ENOENT') throw new Error(`Page image does not exist under the brain: ${rawPath}`);
+      throw error;
+    });
+    if (stats.isSymbolicLink()) throw new Error(`Page image path may not be a symbolic link: ${rawPath}`);
+    if (!stats.isFile()) throw new Error(`Page image path is not a file: ${rawPath}`);
+    const item = { path: rawPath };
+    for (const key of ['caption', 'alt_text', 'source', 'timestamp', 'captured_at']) {
+      if (image[key] === undefined || image[key] === null) continue;
+      if (typeof image[key] !== 'string' || !image[key].trim()) throw new Error(`images[${index}].${key} must be a non-empty string.`);
+      item[key] = image[key].trim();
+    }
+    if (image.kind !== undefined) {
+      if (typeof image.kind !== 'string' || !PAGE_IMAGE_KINDS.has(image.kind.trim().toLowerCase())) {
+        throw new Error(`images[${index}].kind must be one of: ${[...PAGE_IMAGE_KINDS].join(', ')}.`);
+      }
+      item.kind = image.kind.trim().toLowerCase();
+    }
+    if (image.confidence !== undefined) {
+      if (typeof image.confidence !== 'string' || !PAGE_IMAGE_CONFIDENCES.has(image.confidence.trim().toLowerCase())) {
+        throw new Error(`images[${index}].confidence must be high, medium, or low.`);
+      }
+      item.confidence = image.confidence.trim().toLowerCase();
+    }
+    normalized.push(item);
+  }
+  return normalized;
 }
 
 export async function renameBrainPage({
@@ -709,7 +804,11 @@ function sameDomainMembership(left, right) {
 }
 
 function formatYamlValue(value) {
-  if (Array.isArray(value)) return `[${value.map((item) => String(item)).join(', ')}]`;
+  if (Array.isArray(value)) {
+    if (value.some((item) => item && typeof item === 'object')) return JSON.stringify(value);
+    return `[${value.map((item) => String(item)).join(', ')}]`;
+  }
+  if (value && typeof value === 'object') return JSON.stringify(value);
   if (typeof value === 'boolean') return value ? 'true' : 'false';
   const text = String(value);
   return /[:#\n]|^\s|\s$/.test(text) ? JSON.stringify(text) : text;
@@ -831,7 +930,7 @@ function rewriteMarkdownReferences({ markdown, currentPagePath, kind, fromPath, 
   let next = String(markdown || '');
   if (kind === 'raw') {
     next = next.replace(
-      /(^\s*(?:raw_file|public_raw_files)\s*:\s*)([^\n]+)/gm,
+      /(^\s*(?:raw_file|public_raw_files|images)\s*:\s*)([^\n]+)/gm,
       (match, prefix, value) => `${prefix}${rewriteRawFrontmatterValue(value, fromPath, toPath)}`,
     );
   }
@@ -947,6 +1046,13 @@ function rawFilesAttachedToPage(page) {
       attached.add(normalizeRawPath(value));
     } catch {
       // Ignore malformed legacy raw_file values. Publishing still requires a valid public_raw_files path.
+    }
+  }
+  for (const image of Array.isArray(page?.frontmatter?.images) ? page.frontmatter.images : []) {
+    try {
+      attached.add(normalizeRawPath(image?.path));
+    } catch {
+      // Ignore malformed image metadata. Publishing still requires a valid file path.
     }
   }
   return attached;
