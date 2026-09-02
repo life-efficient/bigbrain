@@ -122,7 +122,7 @@ they can add more information like this at any time.
 ## Writing Guidance
 
 - Prefer updating existing pages over creating duplicates.
-- Route new canonical pages through `$bigbrain-create-page` and existing-page changes through `$bigbrain-update-page`.
+- Route new and existing canonical pages through `$bigbrain-page`.
 - Use canonical collections such as `people/`, `organizations/`, `deals/`,
   `projects/`, `ideas/`, `meetings/`, `tasks/`, `concepts/`, `writing/`,
   `protocol/`, and `archive/` when they exist. Use legacy or domain overlays

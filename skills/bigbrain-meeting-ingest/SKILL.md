@@ -20,7 +20,7 @@ Turn one meeting transcript, summary, or set of call notes into a verified canon
 - Speaker, responsible actor, and commitment strength remain distinct, with transcript evidence preferred over generated-summary attribution when they conflict.
 - Candidate task changes pass through `$bigbrain-action-review`; external actions and optional offers remain useful context without becoming backlog tasks unless a member owns a concrete follow-up.
 - Supported attendee, organization, deal, project, relationship, and task updates are applied and read back through the destination Brain.
-- Route canonical attendee, organization, deal, project, and relationship page creation or updates through `$bigbrain-create-page` and `$bigbrain-update-page`; keep the canonical meeting record and task records on their specialized shapes.
+- Route canonical attendee, organization, deal, project, and relationship page creation or updates through `$bigbrain-page`; keep the canonical meeting record and task records on their specialized shapes.
 - Every action bullet backed by a created or updated task includes one concise inline link to that exact task page, using the verified path returned by the task write and a path relative to the page being rendered.
 - Broken or unreadable task links are recoverable consistency errors: repair the task or source page in the same run, read it back again, and do not leave a broken link behind.
 - Do not introduce a fixed action or failure schema. If a problem remains after repair attempts, explain it directly in the Codex chat where the skill was run, naming the affected pages and attempted repair.

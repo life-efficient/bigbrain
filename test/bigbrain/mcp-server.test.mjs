@@ -291,8 +291,10 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     const createPageTool = listedMutationTools.result.tools.find((tool) => tool.name === 'create_page');
     const updatePageTool = listedMutationTools.result.tools.find((tool) => tool.name === 'update_page');
     assert.deepEqual(createPageTool.inputSchema.properties.significance.enum, ['patch', 'minor', 'major']);
-    assert.match(createPageTool.inputSchema.properties.body.description, /compiled truth/);
-    assert.match(updatePageTool.inputSchema.properties.body.description, /compiled truth/);
+    assert.match(createPageTool.inputSchema.properties.compiled_truth.description, /compiled-truth/);
+    assert.match(updatePageTool.inputSchema.properties.compiled_truth.description, /compiled-truth/);
+    assert.match(createPageTool.inputSchema.properties.body.description, /Legacy alias/);
+    assert.match(updatePageTool.inputSchema.properties.body.description, /Legacy alias/);
     assert.equal(createPageTool.inputSchema.required.includes('significance'), true);
     assert.equal(updatePageTool.inputSchema.required.includes('significance'), true);
     assert.deepEqual(createPageTool.inputSchema.properties.timeline.items.required, ['text', 'provenance']);
@@ -306,13 +308,14 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
       arguments: {
         path: 'people/mcp-test',
         title: 'MCP Test',
-        body: 'Created through the MCP server. [PDF](.raw/public.pdf)',
+        compiled_truth: 'Created through the MCP server. [PDF](.raw/public.pdf)',
         timeline_entry: 'Created through MCP endpoint test.',
       },
     }, 'secret');
 
     assert.equal(created.error, undefined, created.error?.message);
     assert.equal(created.result.structuredContent.slug, 'people/mcp-test');
+    assert.match(created.result.structuredContent.compiled_truth, /Created through the MCP server/);
     assert.match(created.result.structuredContent.markdown, /Created through MCP endpoint test/);
     assert.equal(created.result.structuredContent.page_health.ok, true);
     assert.equal(created.result.structuredContent.page_health.assertions.single_timeline, true);
@@ -336,7 +339,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
       name: 'update_page',
       arguments: {
         path: 'people/mcp-test',
-        body: 'Updated current content through MCP. [PDF](.raw/public.pdf)',
+        compiled_truth: 'Updated current content through MCP. [PDF](.raw/public.pdf)',
         timeline_entry: 'Updated through MCP endpoint test.',
       },
     }, 'secret');
@@ -461,7 +464,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal('status' in details, false);
     assert.equal('category' in details, false);
     assert.equal(details.arguments.path, 'people/mcp-test');
-    assert.deepEqual(details.arguments.body, { redacted: true, length: 'Created through the MCP server. [PDF](.raw/public.pdf)'.length });
+    assert.deepEqual(details.arguments.compiled_truth, { redacted: true, length: 'Created through the MCP server. [PDF](.raw/public.pdf)'.length });
     assert.equal(JSON.stringify(details.arguments).includes('Created through the MCP server'), false);
     await db.close?.();
   } finally {

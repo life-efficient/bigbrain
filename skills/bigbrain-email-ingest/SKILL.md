@@ -60,7 +60,7 @@ Classify a correction by its resulting impact, not by the fact that it is correc
 - Skip irrelevant attachments, signatures, logos, calendar files, boilerplate brochures, unsupported files, and exact or superseded duplicates that add no durable evidence. Record the skip reason without storing them.
 - Verify stored PDFs against the Gmail attachment using byte length and SHA-256 when raw read-back is available. A parsed preview or sidecar alone is not proof that the PDF was preserved.
 - Update an existing canonical page when possible. Create a page only when the evidence supports a useful standalone record and no canonical page exists.
-- Route canonical subject-page creation through `$bigbrain-create-page` and canonical subject-page updates through `$bigbrain-update-page`; keep email-specific artifact and task shapes intact.
+- Route canonical subject-page creation and updates through `$bigbrain-page`; keep email-specific artifact and task shapes intact.
 - Do not create a meeting page merely because an email thread was reviewed. A qualifying calendar acceptance notification may update, or when live filing rules support it create, the canonical upcoming-meeting record required by `Authorized Gmail Cleanup`.
 - Store concise durable context and channel provenance, not a transcript. Preserve exact wording only when it controls a material commitment, approval, commercial term, deadline, confidentiality boundary, dispute, or instruction.
 - Distinguish confirmed facts, sender claims, attached-document claims, proposals, estimates, and unknowns. Never upgrade email marketing or deal materials into verified facts.

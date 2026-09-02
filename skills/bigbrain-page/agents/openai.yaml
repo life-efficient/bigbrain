@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Create or Update Page"
+  short_description: "Create or update one grounded BigBrain page"
+  default_prompt: "Use $bigbrain-page to create or update one ordinary BigBrain page from durable evidence."

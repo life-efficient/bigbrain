@@ -25,7 +25,7 @@ Enrichment should make the page better, not noisier.
 
 This skill guarantees:
 - Prefer updating existing canonical pages over creating duplicates
-- Route canonical page creation through `$bigbrain-create-page` and canonical page updates through `$bigbrain-update-page`
+- Route canonical page creation and updates through `$bigbrain-page`
 - Rewrite compiled truth when the understanding changed materially
 - Keep each canonical page locally comprehensible as a useful 80-20 briefing without turning it into a competing full account of linked subjects or sources
 - Use links for deeper detail, adjacent subjects, and related records; links are relationships, not necessarily a hierarchy.
@@ -45,7 +45,7 @@ This skill guarantees:
    - clearer summary now possible
    - page is too thin for a notable entity
 3. Update the page in place when possible:
-   - Use `$bigbrain-update-page` for the canonical page-writing and verification path.
+   - Use `$bigbrain-page` for the canonical page-writing and verification path.
    - improve the executive summary or compiled truth
    - add or refine open threads when the signal supports them
    - keep timeline or evidence append-only where relevant
@@ -53,7 +53,7 @@ This skill guarantees:
    - the entity or concept is notable enough to track
    - no canonical page already exists
    - the available source material is enough to avoid a useless stub
-   - use `$bigbrain-create-page` for the canonical page-writing and verification path
+   - use `$bigbrain-page` for the canonical page-writing and verification path
 5. Re-index:
    - `bigbrain sync --json`
 

@@ -1,4 +1,0 @@
-interface:
-  display_name: "BigBrain: Update Page"
-  short_description: "Update one canonical BigBrain page coherently"
-  default_prompt: "Use $bigbrain-update-page to update one existing BigBrain page from new evidence while preserving its subject focus and history."

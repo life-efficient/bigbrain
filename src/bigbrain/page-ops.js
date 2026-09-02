@@ -103,6 +103,7 @@ export async function readBrainPage({ config, pagePath }) {
     frontmatter: parsed.frontmatter,
     frontmatter_raw: parts.frontmatterRaw,
     body: parsed.compiledTruth,
+    compiled_truth: parsed.compiledTruth,
     timeline: parsed.timeline,
     timeline_entries: parsed.timeline_entries,
     markdown,
@@ -137,7 +138,8 @@ export async function createBrainPage({
   config,
   pagePath,
   title,
-  body,
+  compiledTruth = undefined,
+  body = undefined,
   timelineEntry,
   timelineEntries = null,
   timelineProvenance = null,
@@ -149,7 +151,7 @@ export async function createBrainPage({
   assertAllowedPagePath(relative);
   const fullPath = safeBrainPath(config.brainDir, relative);
   if (await exists(fullPath)) throw new Error(`Page already exists: ${relative}`);
-  const currentBody = requireNonEmpty(body, 'body');
+  const currentBody = requireNonEmpty(compiledTruth ?? body, 'compiled_truth');
   assertWritablePageBody(currentBody);
 
   const now = new Date().toISOString();
@@ -225,7 +227,7 @@ export async function createRawFileWithPage({
       config,
       pagePath: pageRelative,
       title,
-      body: pageBody,
+      compiledTruth: pageBody,
       timelineEntry,
       timelineEntries,
       timelineProvenance,
@@ -366,10 +368,10 @@ export async function listRawFiles({
   return normalizedLimit === null ? entries : entries.slice(0, normalizedLimit);
 }
 
-export async function updateBrainPage({ config, pagePath, body, timelineEntry, timelineEntries = null, timelineProvenance = null, timelineSignificance = null, frontmatterValues = {} }) {
+export async function updateBrainPage({ config, pagePath, compiledTruth = undefined, body = undefined, timelineEntry, timelineEntries = null, timelineProvenance = null, timelineSignificance = null, frontmatterValues = {} }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
-  const currentBody = requireNonEmpty(body, 'body');
+  const currentBody = requireNonEmpty(compiledTruth ?? body, 'compiled_truth');
   assertWritablePageBody(currentBody);
   const existing = await readBrainPage({ config, pagePath: relative });
   const now = new Date().toISOString();

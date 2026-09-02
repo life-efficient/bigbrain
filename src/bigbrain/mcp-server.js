@@ -693,7 +693,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         config,
         pagePath: args.path,
         title: args.title,
-        body: args.body,
+        compiledTruth: args.compiled_truth ?? args.body,
         timelineEntry: timelineForMutation(args, actor),
         timelineSignificance: args.significance,
         frontmatter: args.frontmatter || {},
@@ -761,7 +761,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       const page = await updateBrainPage({
         config,
         pagePath: args.path,
-        body: args.body,
+        compiledTruth: args.compiled_truth ?? args.body,
         timelineEntry: timelineForMutation(args, actor),
         timelineSignificance: args.significance,
         frontmatterValues: args.domains === undefined ? {} : { domains: args.domains },
@@ -1789,21 +1789,25 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'create_page',
-      description: 'Create a markdown brain page. body is the current compiled-truth zone; the writer adds the single timeline boundary and timeline entry classified by significance, then returns a quick read-back page health check.',
+      description: 'Create a markdown brain page. compiled_truth is the current content rendered above the writer-managed separator; the writer adds the single timeline boundary and timeline entry classified by significance, then returns a quick read-back page health check.',
       inputSchema: {
         type: 'object',
         properties: {
           ...mutationProperties(),
           path: { type: 'string' },
           title: { type: 'string' },
-          body: { type: 'string', description: 'Current page content, including compiled truth and any current-context sections. Do not include the separator or ## Timeline; the writer owns them.' },
+          compiled_truth: { type: 'string', description: 'Current page content rendered above the separator, including the opening compiled-truth paragraph and any current-context sections. Do not include the separator or ## Timeline; the writer owns them.' },
+          body: { type: 'string', description: 'Legacy alias for compiled_truth. Use compiled_truth for new calls.' },
           ...timelineInputProperties(),
           significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this timeline update on the owning page: patch, minor, or major.' },
           domains: domainField,
           frontmatter: { type: 'object' },
         },
-        required: ['path', 'title', 'body', 'significance', ...mutationRequired()],
-        anyOf: timelineInputRequirements(),
+        required: ['path', 'title', 'significance', ...mutationRequired()],
+        allOf: [
+          { anyOf: pageContentInputRequirements() },
+          { anyOf: timelineInputRequirements() },
+        ],
       },
     },
     {
@@ -1886,19 +1890,23 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'update_page',
-      description: 'Replace the current compiled-truth/body zone of a markdown brain page and append one writer-managed timeline entry classified by significance. Returns a quick read-back page health check.',
+      description: 'Replace the current compiled_truth zone of a markdown brain page and append one writer-managed timeline entry classified by significance. Returns a quick read-back page health check.',
       inputSchema: {
         type: 'object',
         properties: {
           ...mutationProperties(),
           path: { type: 'string' },
-          body: { type: 'string', description: 'Replacement current page content, including compiled truth and any current-context sections. Do not include the separator or ## Timeline; the writer owns them.' },
+          compiled_truth: { type: 'string', description: 'Replacement current content rendered above the separator, including the opening compiled-truth paragraph and any current-context sections. Do not include the separator or ## Timeline; the writer owns them.' },
+          body: { type: 'string', description: 'Legacy alias for compiled_truth. Use compiled_truth for new calls.' },
           ...timelineInputProperties(),
           significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this timeline update on the owning page: patch, minor, or major.' },
           domains: domainField,
         },
-        required: ['path', 'body', 'significance', ...mutationRequired()],
-        anyOf: timelineInputRequirements(),
+        required: ['path', 'significance', ...mutationRequired()],
+        allOf: [
+          { anyOf: pageContentInputRequirements() },
+          { anyOf: timelineInputRequirements() },
+        ],
       },
     },
     {
@@ -2686,6 +2694,13 @@ function timelineInputRequirements() {
   return [
     { required: ['timeline_entry'] },
     { required: ['timeline'] },
+  ];
+}
+
+function pageContentInputRequirements() {
+  return [
+    { required: ['compiled_truth'] },
+    { required: ['body'] },
   ];
 }
 

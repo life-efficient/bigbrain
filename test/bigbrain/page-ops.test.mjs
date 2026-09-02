@@ -40,7 +40,7 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
       config,
       pagePath: 'people/jordan-lee',
       title: 'Jordan Lee',
-      body: 'Jordan Lee is a example contact for Example Brain.',
+      compiledTruth: 'Jordan Lee is a example contact for Example Brain.',
       timelineEntry: 'Created from MCP contribution.',
       timelineProvenance: TEST_TIMELINE_PROVENANCE,
       frontmatter: {
@@ -74,7 +74,7 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
     const updated = await updateBrainPage({
       config,
       pagePath: 'people/jordan-lee.md',
-      body: 'Jordan Lee is the current Example Brain example contact.',
+      compiledTruth: 'Jordan Lee is the current Example Brain example contact.',
       timelineEntry: 'Updated current role from team contribution.',
       timelineProvenance: TEST_TIMELINE_PROVENANCE,
     });

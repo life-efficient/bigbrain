@@ -20,7 +20,7 @@ Preserve time-based media and create a comprehensive, readable account of what t
 - Write as a third-person observer taking detailed, readable meeting minutes: preserve the source's sequence, substance, reported facts, definitions, examples, evidence, counterarguments, qualifications, and key short quotes without forcing them into a rigid schema.
 - Attribute claims to the source and distinguish what the source reports from independently verified facts. Do not add an unlabelled agent take.
 - Treat canonical concept enrichment as optional. Create or update a concept page only when the source materially improves a durable subject beyond the source itself.
-- Route optional canonical concept creation through `$bigbrain-create-page` and updates through `$bigbrain-update-page`; keep the source sidecar on its specialized shape.
+- Route optional canonical concept creation and updates through `$bigbrain-page`; keep the source sidecar on its specialized shape.
 - Run BigBrain sync after writes, then read back the sidecar and raw transcript through the owning Brain MCP. Read back any optional canonical update as well.
 
 ## YouTube Identity and Chapter Standard
