@@ -21,6 +21,14 @@ test('create and update page skills share the canonical one-pager standard', asy
     assert.match(skill, /## Output/);
     assert.match(skill, /_shared\/canonical-page-one-pager-standard\.md/);
     assert.match(skill, /\$bigbrain-(?:create|update)-page/);
+    assert.match(skill, /commit_message/);
+    assert.match(skill, /event_id/);
+    assert.match(skill, /source_type/);
+    assert.match(skill, /source_label/);
+    assert.match(skill, /source_message/);
+    assert.match(skill, /significance/);
+    assert.match(skill, /## Timeline/);
+    assert.ok(skill.split('\n').length <= 50, `${skillName} should remain lightweight`);
     assert.match(metadata, new RegExp(`\\$${skillName}`));
     assert.match(cases, /## Should trigger/);
     assert.doesNotMatch(skill, /—/);
@@ -30,6 +38,8 @@ test('create and update page skills share the canonical one-pager standard', asy
 
   assert.match(reference, /standalone briefing about the subject named in its title/);
   assert.match(reference, /Links belong inline/);
+  assert.match(reference, /verified canonical targets/);
+  assert.match(reference, /authority, jurisdiction, effective date or rule version/);
   assert.match(reference, /Do not include Brain taxonomy/);
   assert.match(reference, /task pages retain task metadata/);
   assert.doesNotMatch(reference, /—/);
