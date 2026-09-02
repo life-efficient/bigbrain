@@ -18,10 +18,14 @@ test('the page skill contains the page writing standard', async () => {
   assert.match(skill, /## Output/);
   assert.match(skill, /create_page/);
   assert.match(skill, /update_page/);
-  assert.match(skill, /compiled_truth/);
   assert.match(skill, /## Timeline/);
-  assert.match(skill, /Rewrite the compiled truth when necessary/);
-  for (const phrase of ['what it is', 'why it matters', 'current state', 'boundaries', 'material relationships', 'uncertainty', 'inline links']) {
+  assert.match(skill, /Standard ordinary pages use YAML frontmatter/);
+  assert.match(skill, /one canonical page for one primary subject/);
+  assert.match(skill, /if the reader had only one paragraph/);
+  assert.match(skill, /Find which Brain owns the page/);
+  assert.match(skill, /Use the selected Brain's relevant MCP/);
+  assert.match(skill, /Read the page back and verify the result/);
+  for (const phrase of ['current[- ]context', 'authority', 'jurisdiction', 'effective date or rule version', 'inline links']) {
     assert.match(skill, new RegExp(phrase));
   }
   assert.ok(skill.split('\n').length <= 50, `${skillName} should remain lightweight`);
