@@ -146,6 +146,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     graphRef.current = forceGraph;
     forceGraph.__bigBrainInitialFadeContainer = containerRef.current;
     forceGraph.__bigBrainInitialFadeElement = containerRef.current.querySelector('canvas');
+    prepareForceGraphInitialFade(forceGraph);
 
     const resize = () => {
       const width = Math.max(1, Math.floor(containerRef.current?.clientWidth || 1));
@@ -240,9 +241,11 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       cancelGraphTransitionLoop(forceGraph);
       cancelScheduledForceGraphFit(forceGraph);
       forceGraph.__bigBrainDisposed = true;
+      if (forceGraph.__bigBrainInitialFadeFrame) window.cancelAnimationFrame(forceGraph.__bigBrainInitialFadeFrame);
       forceGraph._destructor?.();
       forceGraph.__bigBrainInitialFadeContainer = null;
       forceGraph.__bigBrainInitialFadeElement = null;
+      forceGraph.__bigBrainInitialFadeFrame = 0;
       graphRef.current = null;
     };
   }, []);
@@ -500,6 +503,20 @@ function startForceGraphInitialFade(forceGraph) {
     || forceGraph.__bigBrainInitialFadeContainer?.querySelector('canvas');
   if (!element) return;
   forceGraph.__bigBrainInitialFadeStarted = true;
+  forceGraph.__bigBrainInitialFadeElement = element;
+  forceGraph.__bigBrainInitialFadeFrame = window.requestAnimationFrame(() => {
+    forceGraph.__bigBrainInitialFadeFrame = window.requestAnimationFrame(() => {
+      forceGraph.__bigBrainInitialFadeFrame = 0;
+      if (forceGraph.__bigBrainDisposed) return;
+      element.classList.add('force-graph-canvas-initial-fade-visible');
+    });
+  });
+}
+
+function prepareForceGraphInitialFade(forceGraph) {
+  const element = forceGraph.__bigBrainInitialFadeElement
+    || forceGraph.__bigBrainInitialFadeContainer?.querySelector('canvas');
+  if (!element) return;
   forceGraph.__bigBrainInitialFadeElement = element;
   element.classList.add('force-graph-canvas-initial-fade');
 }

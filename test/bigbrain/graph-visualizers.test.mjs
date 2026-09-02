@@ -334,8 +334,12 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(force3d, /__bigBrainInitialFadeElement/);
   assert.match(force2d, /__bigBrainInitialFadeContainer\?\.querySelector\('canvas'\)/);
   assert.match(force3d, /__bigBrainInitialFadeContainer\?\.querySelector\('canvas'\)/);
+  assert.match(force2d, /prepareForceGraphInitialFade\(forceGraph\)/);
+  assert.match(force3d, /prepareForceGraphInitialFade\(forceGraph\)/);
   assert.match(force2d, /startForceGraphInitialFade\(forceGraph\)/);
   assert.match(force3d, /startForceGraphInitialFade\(forceGraph\)/);
+  assert.match(force2d, /classList\.add\('force-graph-canvas-initial-fade-visible'\)/);
+  assert.match(force3d, /classList\.add\('force-graph-canvas-initial-fade-visible'\)/);
   assert.match(force2d, /\.backgroundColor\('rgba\(0,0,0,0\)'\)/);
   assert.match(force3d, /\.backgroundColor\('rgba\(0,0,0,0\)'\)/);
   assert.doesNotMatch(force2d, /\.backgroundColor\('transparent'\)/);
@@ -475,8 +479,9 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /startArcAnimation/);
   const dashboard = await fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8');
   assert.match(dashboard, /graph-arc-hover-grow/);
-  assert.match(dashboard, /\.force-graph-canvas-initial-fade \{ animation: force-graph-canvas-initial-fade 620ms ease-out both; \}/);
-  assert.match(dashboard, /@keyframes force-graph-canvas-initial-fade \{ from \{ opacity: 0; \} to \{ opacity: 1; \} \}/);
+  assert.match(dashboard, /\.force-graph-canvas-initial-fade \{ opacity: 0; transition: opacity 620ms ease-out; will-change: opacity; \}/);
+  assert.match(dashboard, /\.force-graph-canvas-initial-fade-visible \{ opacity: 1; \}/);
+  assert.match(dashboard, /@media \(prefers-reduced-motion: reduce\) \{ \.force-graph-canvas-initial-fade \{ opacity: 1; transition: none; \} \}/);
   assert.match(visualizer, /linkCurvature\(\(\) => getForceGraphLinkCurvature/);
   assert.match(visualizer, /renderedArcStyleRef/);
   assert.match(visualizer, /refreshForceGraphLinkCurves/);

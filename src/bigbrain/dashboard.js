@@ -1033,9 +1033,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       @keyframes graph-arc-hover-shoot { from { stroke-dashoffset: 1; opacity: .2; } to { stroke-dashoffset: -1; opacity: 1; } }
       @media (prefers-reduced-motion: reduce) { .graph-arc-hover-grow, .graph-arc-hover-shoot { animation: none !important; stroke-dasharray: none; stroke-dashoffset: 0; } }
       .graph-canvas-shell { position: relative; z-index: 2; height: 100%; width: 100%; }
-      .force-graph-canvas-initial-fade { animation: force-graph-canvas-initial-fade 620ms ease-out both; }
-      @keyframes force-graph-canvas-initial-fade { from { opacity: 0; } to { opacity: 1; } }
-      @media (prefers-reduced-motion: reduce) { .force-graph-canvas-initial-fade { animation: none; } }
+      .force-graph-canvas-initial-fade { opacity: 0; transition: opacity 620ms ease-out; will-change: opacity; }
+      .force-graph-canvas-initial-fade-visible { opacity: 1; }
+      @media (prefers-reduced-motion: reduce) { .force-graph-canvas-initial-fade { opacity: 1; transition: none; } }
       .graph-svg { display: block; width: 100%; height: 100%; cursor: grab; }
       .graph-svg:active { cursor: grabbing; }
       .graph-node-screen-scale { transform-box: fill-box; transform-origin: center; transform: scale(var(--graph-node-scale, 1)); }
