@@ -365,7 +365,32 @@ test('dashboard graph derives inputs from per-page timeline provenance', async (
 test('graph lineage combines current connections with source events', async () => {
   const fixture = await createFixture('bigbrain-dashboard-lineage-');
   try {
-    await writeMarkdown(fixture.brainHome, 'people/friend.md', '# Friend\n\nIntroduced [Mentor](../people/mentor.md).\n');
+    await writeMarkdown(fixture.brainHome, 'people/friend.md', [
+      '# Friend',
+      '',
+      'Introduced [Mentor](../people/mentor.md).',
+      '',
+      '---',
+      '',
+      '## Timeline',
+      '',
+      '- **2026-08-27** | Introduced Mentor.',
+      `  <!-- bigbrain:timeline ${JSON.stringify({
+        schema_version: 1,
+        entry_id: 'gmail:event-0',
+        occurred_at: '2026-08-27',
+        recorded_at: '2026-08-28T10:00:00.000Z',
+        text: 'Introduced Mentor.',
+        provenance: {
+          event_id: 'gmail:event-0',
+          source_type: 'gmail',
+          source_label: 'Friend thread',
+          source_message: 'The source context that led to the introduction.',
+          received_at: '2026-08-28T10:00:00.000Z',
+          outcome: 'filed',
+        },
+      })} -->`,
+    ].join('\n'));
     await writeMarkdown(fixture.brainHome, 'people/mentor.md', '# Mentor\n');
     await writeMarkdown(fixture.brainHome, 'projects/deal.md', '# Deal\n\nLinked to [[people/mentor]].\n');
     const config = await loadConfig({ configPath: fixture.configPath });
@@ -394,6 +419,24 @@ test('graph lineage combines current connections with source events', async () =
       commit_message: 'Record the mentor update',
       occurred_at: null,
       received_at: '2026-08-28T10:00:00.000Z',
+    }]);
+    assert.deepEqual(lineage.timeline_updates, [{
+      entry_id: 'gmail:event-0',
+      page: { slug: 'people/friend', title: 'Friend', type: 'people' },
+      occurred_at: '2026-08-27',
+      occurred_label: null,
+      recorded_at: '2026-08-28T10:00:00.000Z',
+      text: 'Introduced Mentor.',
+      significance: null,
+      provenance: {
+        event_id: 'gmail:event-0',
+        source_type: 'gmail',
+        source_label: 'Friend thread',
+        source_message: 'The source context that led to the introduction.',
+        source_icon: null,
+        source_url: null,
+        received_at: '2026-08-28T10:00:00.000Z',
+      },
     }]);
     assert.ok(Array.isArray(lineage.link_events));
     await db.close?.();

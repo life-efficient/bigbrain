@@ -1021,13 +1021,50 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-wrap { height: 520px; overflow: hidden; position: relative; border-radius: 18px; background: transparent; border: 1px solid rgba(148,163,184,0.18); }
       .graph-wrap-expanded { flex: 1; min-height: 0; height: auto; }
       .graph-canvas-stage { position: absolute; inset: 0; transition: opacity 260ms ease, transform 320ms cubic-bezier(.22,.61,.36,1), filter 260ms ease; }
-      .graph-focus-banner { position: absolute; left: 14px; top: 14px; z-index: 4; display: flex; align-items: center; gap: 14px; max-width: min(420px, calc(100% - 28px)); padding: 10px 12px; border: 1px solid rgba(148,163,184,0.22); border-radius: 12px; background: rgba(12,12,14,0.82); box-shadow: 0 18px 42px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(18px); }
+      .graph-focus-banner { position: absolute; left: 14px; top: 14px; z-index: 4; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; max-width: min(660px, calc(100% - 28px)); padding: 10px 12px; border: 1px solid rgba(148,163,184,0.22); border-radius: 12px; background: rgba(12,12,14,0.82); box-shadow: 0 18px 42px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(18px); }
       .graph-focus-copy { min-width: 0; display: grid; gap: 2px; }
       .graph-focus-copy span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
       .graph-focus-copy strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
       .graph-focus-copy small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
       .graph-focus-close { flex: 0 0 auto; border: 1px solid rgba(148,163,184,0.24); border-radius: 999px; padding: 6px 9px; background: rgba(255,255,255,0.05); color: var(--ink); cursor: pointer; font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
       .graph-focus-close:hover { border-color: var(--accent); color: var(--accent); }
+      .graph-focus-mode-toggle { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid rgba(148,163,184,0.22); border-radius: 999px; background: rgba(255,255,255,0.04); }
+      .graph-focus-mode-button { border: 0; border-radius: 999px; padding: 6px 8px; background: transparent; color: var(--muted); cursor: pointer; font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .graph-focus-mode-button:hover, .graph-focus-mode-button.active { background: rgba(255,255,255,0.12); color: var(--ink); }
+      .graph-focus-mode-button kbd { margin-left: 4px; color: var(--muted); font: inherit; }
+      .focused-view-stage { position: absolute; inset: 0; overflow: hidden; }
+      .focused-view { height: 100%; padding: 72px 18px 18px; overflow: hidden; background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.035), transparent 38%); }
+      .focused-view-heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin: 0 auto 12px; max-width: 1120px; color: var(--ink); }
+      .focused-view-heading > div { min-width: 0; display: grid; gap: 4px; }
+      .focused-view-kicker { color: var(--muted); font: 800 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.12em; text-transform: uppercase; }
+      .focused-view-heading strong { overflow: hidden; font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+      .focused-view-hint { flex: 0 0 auto; color: var(--muted); font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .focused-view-empty { display: grid; place-items: center; height: calc(100% - 42px); color: var(--muted); font-size: 13px; text-align: center; }
+      .focused-network-view { display: flex; flex-direction: column; }
+      .focused-network-scroll { flex: 1; min-height: 0; overflow: auto; border: 1px solid rgba(148,163,184,0.14); border-radius: 14px; background: rgba(0,0,0,0.08); }
+      .focused-network-svg { display: block; width: max(100%, 920px); height: auto; min-height: 100%; }
+      .focused-network-date { font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.04em; }
+      .focused-network-edge { fill: none; stroke: rgba(212,212,216,0.34); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
+      .focused-network-edge.historical { stroke: rgba(255,255,255,0.7); stroke-dasharray: 4 5; }
+      .focused-network-edge.removed { stroke: rgba(252,165,165,0.72); }
+      .focused-network-node { cursor: pointer; outline: none; }
+      .focused-network-node:hover circle:first-child, .focused-network-node:focus-visible circle:first-child { stroke: var(--accent); }
+      .focused-network-title { font: 650 11px/1 ui-sans-serif, -apple-system, BlinkMacSystemFont, sans-serif; pointer-events: none; }
+      .focused-network-meta { font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; pointer-events: none; }
+      .focused-timeline-view { display: flex; flex-direction: column; }
+      .focused-timeline-list { flex: 1; min-height: 0; width: min(920px, 100%); margin: 0 auto; padding: 4px 10px 18px 4px; overflow: auto; }
+      .focused-timeline-entry { position: relative; display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 14px; min-height: 92px; }
+      .focused-timeline-entry:not(:last-child)::before { content: ""; position: absolute; top: 14px; bottom: -14px; left: 7px; width: 1px; background: rgba(148,163,184,0.24); }
+      .focused-timeline-marker { position: relative; z-index: 1; width: 15px; height: 15px; margin-top: 3px; border: 3px solid var(--bg); border-radius: 999px; background: var(--ink); box-shadow: 0 0 0 1px rgba(148,163,184,0.48); }
+      .focused-timeline-entry-body { min-width: 0; padding: 0 0 22px; }
+      .focused-timeline-entry-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 7px; color: var(--muted); font: 10px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .focused-timeline-source { padding: 3px 7px; border: 1px solid rgba(148,163,184,0.2); border-radius: 999px; background: rgba(255,255,255,0.04); }
+      .focused-timeline-page { display: grid; gap: 3px; width: 100%; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; cursor: pointer; }
+      .focused-timeline-page:hover strong, .focused-timeline-page:focus-visible strong { color: var(--accent); }
+      .focused-timeline-page strong, .focused-timeline-page-label { font-size: 14px; font-weight: 700; }
+      .focused-timeline-page span { color: var(--muted); font: 10px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; overflow-wrap: anywhere; }
+      .focused-timeline-entry p { margin: 8px 0 0; color: var(--ink); font-size: 13px; line-height: 1.55; }
+      .focused-timeline-source-message { margin-top: 8px; padding: 8px 10px; border-left: 2px solid rgba(148,163,184,0.38); color: var(--muted); font-size: 12px; line-height: 1.45; }
       .graph-arc-hover-grow { stroke-dasharray: 1 1 !important; animation: graph-arc-hover-grow 620ms cubic-bezier(.22,.61,.36,1) both !important; }
       .graph-arc-hover-shoot { stroke-dasharray: .16 .84 !important; animation: graph-arc-hover-shoot 620ms cubic-bezier(.22,.61,.36,1) both !important; }
       @keyframes graph-arc-hover-grow { from { stroke-dashoffset: 1; opacity: .16; } to { stroke-dashoffset: 0; opacity: 1; } }
@@ -3180,6 +3217,7 @@ export async function buildGraphLineagePayload(db, config, slug) {
     page: pageSummary(normalizedSlug),
     outgoing: outgoing.map((link) => ({ ...link, page: pageSummary(link.to_slug) })),
     backlinks: backlinks.map((link) => ({ ...link, page: pageSummary(link.from_slug) })),
+    timeline_updates: buildFocusedTimelineUpdates(relatedPages, pageSummary),
     provenance: provenance
       .filter((row) => row.outcome === 'filed')
       .map((row) => ({
@@ -3199,6 +3237,31 @@ export async function buildGraphLineagePayload(db, config, slug) {
       to: pageSummary(event.to_page),
     })),
   };
+}
+
+function buildFocusedTimelineUpdates(relatedPages, pageSummary) {
+  return [...relatedPages.values()].flatMap((page) => parseTimeline(page.timeline).entries.map((entry) => ({
+    entry_id: entry.entry_id || null,
+    page: pageSummary(page.slug),
+    occurred_at: entry.occurred_at || null,
+    occurred_label: entry.occurred_label || null,
+    recorded_at: entry.recorded_at || null,
+    text: entry.text,
+    significance: entry.significance || null,
+    provenance: entry.provenance ? {
+      event_id: entry.provenance.event_id || null,
+      source_type: entry.provenance.source_type || null,
+      source_label: entry.provenance.source_label || null,
+      source_message: entry.provenance.source_message || null,
+      source_icon: entry.provenance.source_icon || null,
+      source_url: entry.provenance.source_url || null,
+      received_at: entry.provenance.received_at || null,
+    } : null,
+  }))).sort((left, right) => {
+    const leftTime = Date.parse(left.occurred_at || left.recorded_at || '') || 0;
+    const rightTime = Date.parse(right.occurred_at || right.recorded_at || '') || 0;
+    return leftTime - rightTime || String(left.page?.slug || '').localeCompare(String(right.page?.slug || ''));
+  });
 }
 
 const GRAPH_MUTATION_TOOLS = new Set([

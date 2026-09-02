@@ -45,6 +45,7 @@ import {
 import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
 import { GraphDesignLabApp } from './graph/graph-design-lab.jsx';
+import { FocusedNetworkVisualizer, FocusedTimelineView } from './graph/focused-views.jsx';
 import { deriveGraphMotion, graphPayloadsEqual } from './graph/live-graph.js';
 import { KeepInTouchPanel } from './playbooks/keep-in-touch.jsx';
 import { PLAYBOOKS } from './playbooks/registry.js';
@@ -251,6 +252,7 @@ function DashboardApp() {
   demoSeedRef.current = demoSeed;
 
   const clearGraphFocus = useEffectEvent(() => {
+    previewRequestRef.current += 1;
     lineageRequestRef.current += 1;
     setLineage(null);
     setActiveGraphSlug(null);
@@ -431,33 +433,29 @@ function DashboardApp() {
         return;
       }
       event.preventDefault();
-      setPreview(null);
-      setActiveGraphSlug(null);
-      setLineage(null);
+      clearGraphFocus();
     }
 
     window.addEventListener('keydown', handleEscape);
     return () => {
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [preview, healthOpen]);
+  }, [clearGraphFocus, preview, healthOpen]);
 
   useEffect(() => {
     if (!preview) return undefined;
 
     function handlePointerDown(event) {
       const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('.sidecar-panel')) return;
-      setPreview(null);
-      setActiveGraphSlug(null);
-      setLineage(null);
+      if (target?.closest('.sidecar-panel, .graph-wrap')) return;
+      clearGraphFocus();
     }
 
     window.addEventListener('pointerdown', handlePointerDown);
     return () => {
       window.removeEventListener('pointerdown', handlePointerDown);
     };
-  }, [preview]);
+  }, [clearGraphFocus, preview]);
 
   useEffect(() => {
     if (!lineage || preview) return undefined;
@@ -570,42 +568,57 @@ function DashboardApp() {
     }
   });
 
-  const handleGraphNodeFocus = useEffectEvent(async (slug) => {
+  const handleGraphNodeSelect = useEffectEvent(async (slug) => {
     if (!slug) return;
-    previewRequestRef.current += 1;
-    const requestId = lineageRequestRef.current + 1;
-    lineageRequestRef.current = requestId;
-    setPreview(null);
+    const previewRequestId = previewRequestRef.current + 1;
+    const focusRequestId = lineageRequestRef.current + 1;
+    previewRequestRef.current = previewRequestId;
+    lineageRequestRef.current = focusRequestId;
     setActiveGraphSlug(slug);
     const sourceNode = latestGraphRef.current?.nodes?.find((node) => node.slug === slug) || { slug };
+    const page = { slug, title: sourceNode.title || labelFromSlug(slug), type: sourceNode.type || slug.split('/')[0] || 'unknown' };
     if (demoModeRef.current) {
+      setPreview(buildDemoPagePreview(sourceNode, demoSeedRef.current));
       setLineage({
         status: 'ready',
         slug,
-        page: { slug, title: sourceNode.title || labelFromSlug(slug), type: sourceNode.type || slug.split('/')[0] || 'unknown' },
+        page,
         link_events: [],
         provenance: [],
         outgoing: [],
         backlinks: [],
+        timeline_updates: [],
       });
       return;
     }
-    setLineage({ status: 'loading', slug, page: { slug, title: sourceNode.title || labelFromSlug(slug), type: sourceNode.type || 'unknown' } });
-    try {
-      const params = new URLSearchParams({ slug });
-      const lineageData = await fetchJson(`/api/graph/lineage?${params.toString()}`);
-      if (requestId === lineageRequestRef.current && !demoModeRef.current) {
-        setLineage({ status: 'ready', slug, ...lineageData });
-      }
-    } catch (error) {
-      if (requestId === lineageRequestRef.current && !demoModeRef.current) {
-        setLineage({
-          status: 'error',
-          slug,
-          page: { slug, title: sourceNode.title || labelFromSlug(slug), type: sourceNode.type || 'unknown' },
-          message: error instanceof Error ? error.message : String(error),
-        });
-      }
+    setPreview({ status: 'loading', slug });
+    setLineage({ status: 'loading', slug, page });
+    const pageParams = new URLSearchParams({ slug });
+    if (activeDomainScope.length) pageParams.set('domains', activeDomainScope.join(','));
+    const lineageParams = new URLSearchParams({ slug });
+    const [pageResult, lineageResult] = await Promise.allSettled([
+      fetchJson(`/api/page?${pageParams.toString()}`),
+      fetchJson(`/api/graph/lineage?${lineageParams.toString()}`),
+    ]);
+    if (demoModeRef.current || previewRequestId !== previewRequestRef.current || focusRequestId !== lineageRequestRef.current) return;
+    if (pageResult.status === 'fulfilled') {
+      setPreview({ status: 'ready', ...pageResult.value });
+    } else {
+      setPreview({
+        status: 'error',
+        slug,
+        message: pageResult.reason instanceof Error ? pageResult.reason.message : String(pageResult.reason),
+      });
+    }
+    if (lineageResult.status === 'fulfilled') {
+      setLineage({ status: 'ready', slug, ...lineageResult.value });
+    } else {
+      setLineage({
+        status: 'error',
+        slug,
+        page,
+        message: lineageResult.reason instanceof Error ? lineageResult.reason.message : String(lineageResult.reason),
+      });
     }
   });
 
@@ -949,7 +962,7 @@ function DashboardApp() {
                 onDomainScopeChange={setActiveDomainScope}
                 onActiveSlugChange={setActiveGraphSlug}
                 onNodeOpen={handleGraphNodeOpen}
-                onGraphNodeFocus={handleGraphNodeFocus}
+                onGraphNodeSelect={handleGraphNodeSelect}
                 lineage={lineage}
                 onLineageClose={clearGraphFocus}
               />
@@ -974,11 +987,7 @@ function DashboardApp() {
 
         <PageSidecar
           preview={preview}
-          onClose={() => {
-            setPreview(null);
-            setActiveGraphSlug(null);
-            setLineage(null);
-          }}
+          onClose={clearGraphFocus}
           onRelativeLinkClick={openPreview}
           onPageOpen={openPageBySlug}
           onVisibilityChange={changePageVisibility}
@@ -2322,7 +2331,7 @@ function buildActivityBuckets(nodes, activity = []) {
     .sort((left, right) => left.day.localeCompare(right.day));
 }
 
-function resolveTimelineIndex(value, buckets) {
+function resolveActivityIndex(value, buckets) {
   if (!buckets.length) return -1;
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return buckets.length - 1;
@@ -2338,30 +2347,68 @@ function buildActivitySeries(buckets) {
   });
 }
 
-function buildLineageFocusGraph(graph, lineage, focusSlug) {
+const FOCUSED_NETWORK_MAX_HOPS = 2;
+
+function buildFocusedNetworkGraph(graph, lineage, focusSlug, maxHops = FOCUSED_NETWORK_MAX_HOPS) {
   if (!focusSlug) return graph;
   const sourceNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const sourceEdges = Array.isArray(graph?.edges) ? graph.edges : [];
   const events = Array.isArray(lineage?.link_events) ? lineage.link_events : [];
-  const incomingEvents = events.filter((event) => event?.to_page === focusSlug);
-  const incomingPages = Array.isArray(lineage?.backlinks) ? lineage.backlinks.map((item) => item?.from_slug).filter(Boolean) : [];
-  const graphIncomingPages = sourceEdges
-    .filter((edge) => edge?.target === focusSlug)
-    .map((edge) => edge?.source)
-    .filter(Boolean);
-  const focusSlugs = new Set([focusSlug, ...incomingPages, ...graphIncomingPages, ...incomingEvents.map((event) => event.from_page).filter(Boolean)]);
   const summaries = new Map();
   if (lineage?.page?.slug) summaries.set(lineage.page.slug, lineage.page);
   for (const event of events) {
     if (event?.from?.slug) summaries.set(event.from.slug, event.from);
     if (event?.to?.slug) summaries.set(event.to.slug, event.to);
   }
+  const historicalEdges = events
+    .filter((event) => event?.from_page && event?.to_page)
+    .map((event, index) => ({
+      id: `lineage:${event.commit_sha || index}:${event.from_page}:${event.to_page}`,
+      source: event.from_page,
+      target: event.to_page,
+      timestamp: event.timestamp || null,
+      created_at: event.timestamp || null,
+      updated_at: event.timestamp || null,
+      lineage_event: true,
+      type: event.type,
+    }));
+  const fallbackEdges = [
+    ...(Array.isArray(lineage?.backlinks) ? lineage.backlinks.map((link) => ({ source: link.from_slug, target: focusSlug })) : []),
+    ...(Array.isArray(lineage?.outgoing) ? lineage.outgoing.map((link) => ({ source: focusSlug, target: link.to_slug })) : []),
+  ].filter((edge) => edge.source && edge.target);
+  const edgeByDirection = new Map();
+  for (const edge of [...sourceEdges, ...fallbackEdges, ...historicalEdges]) {
+    if (!edge?.source || !edge?.target) continue;
+    const key = `${edge.source}:${edge.target}`;
+    if (!edgeByDirection.has(key) || edge.lineage_event) edgeByDirection.set(key, edge);
+  }
+  const allEdges = [...edgeByDirection.values()];
+  const adjacency = new Map();
+  for (const edge of allEdges) {
+    if (!adjacency.has(edge.source)) adjacency.set(edge.source, []);
+    if (!adjacency.has(edge.target)) adjacency.set(edge.target, []);
+    adjacency.get(edge.source).push(edge.target);
+    adjacency.get(edge.target).push(edge.source);
+  }
+  const hops = new Map([[focusSlug, 0]]);
+  const queue = [focusSlug];
+  while (queue.length) {
+    const current = queue.shift();
+    const currentHop = hops.get(current);
+    if (currentHop >= maxHops) continue;
+    for (const neighbor of adjacency.get(current) || []) {
+      if (hops.has(neighbor)) continue;
+      hops.set(neighbor, currentHop + 1);
+      queue.push(neighbor);
+    }
+  }
+  const focusSlugs = new Set(hops.keys());
   const sourceNodeBySlug = new Map(sourceNodes.map((node) => [node.slug, node]));
   const lineageDates = new Map();
-  for (const event of incomingEvents) {
+  for (const event of historicalEdges) {
     const timestamp = event?.timestamp;
     if (!timestamp || !Number.isFinite(Date.parse(timestamp))) continue;
-    for (const slug of [event.from_page, event.to_page]) {
+    for (const slug of [event.source, event.target]) {
       if (!slug) continue;
       const current = lineageDates.get(slug);
       if (!current || Date.parse(timestamp) < Date.parse(current)) lineageDates.set(slug, timestamp);
@@ -2378,28 +2425,15 @@ function buildLineageFocusGraph(graph, lineage, focusSlug) {
       title: sourceNode?.title || summary?.title || labelFromSlug(slug),
       type: sourceNode?.type || summary?.type || slug.split('/')[0] || 'unknown',
       degree: sourceNode?.degree || 1,
+      focus_hop: hops.get(slug) || 0,
+      network_at: lineageAt || sourceNode?.updated_at || sourceNode?.created_at || null,
       lineage_at: lineageAt || sourceNode?.created_at || sourceNode?.updated_at || null,
       created_at: sourceNode?.created_at || lineageAt || sourceNode?.updated_at || null,
       updated_at: sourceNode?.updated_at || lineageAt || null,
     };
   });
   const nodeIds = new Set(nodes.map((node) => node.slug));
-  const edges = sourceEdges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
-  const edgeKeys = new Set(edges.map((edge) => `${edge.source}:${edge.target}`));
-  incomingEvents.forEach((event, index) => {
-    if (!nodeIds.has(event.from_page) || !nodeIds.has(event.to_page)) return;
-    const key = `${event.from_page}:${event.to_page}`;
-    if (edgeKeys.has(key)) return;
-    edgeKeys.add(key);
-    edges.push({
-      id: `lineage:${event.commit_sha || index}:${event.from_page}:${event.to_page}`,
-      source: event.from_page,
-      target: event.to_page,
-      created_at: event.timestamp || null,
-      updated_at: event.timestamp || null,
-      lineage_event: true,
-    });
-  });
+  const edges = allEdges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
   return {
     ...graph,
     nodes,
@@ -2412,28 +2446,28 @@ function buildLineageFocusGraph(graph, lineage, focusSlug) {
       node_count: nodes.length,
       edge_count: edges.length,
       input_count: 0,
+      focused_hops: maxHops,
     },
   };
 }
 
-function buildLineageActivityBuckets(nodes, lineage) {
-  const counts = new Map();
-  const focusSlug = lineage?.slug;
-  const events = (Array.isArray(lineage?.link_events) ? lineage.link_events : [])
-    .filter((event) => !focusSlug || event?.to_page === focusSlug);
-  for (const event of events) {
-    const day = dayKeyFromTimestamp(event?.timestamp);
-    if (day) counts.set(day, (counts.get(day) || 0) + 1);
-  }
-  if (!counts.size) {
-    for (const node of nodes) {
-      const day = dayKeyFromTimestamp(node.lineage_at || node.created_at || node.updated_at);
-      if (day) counts.set(day, (counts.get(day) || 0) + 1);
-    }
-  }
-  return [...counts.entries()]
-    .map(([day, count]) => ({ day, count }))
-    .sort((left, right) => left.day.localeCompare(right.day));
+function buildFocusedTimelineUpdates(lineage, graph) {
+  const updates = Array.isArray(lineage?.timeline_updates) ? lineage.timeline_updates : [];
+  if (updates.length) return updates;
+  if (!lineage || lineage.status !== 'ready') return [];
+  return (Array.isArray(graph?.nodes) ? graph.nodes : [])
+    .filter((node) => node?.slug && node.latest_timeline_entry)
+    .map((node) => ({
+      entry_id: `latest:${node.slug}`,
+      page: { slug: node.slug, title: node.title, type: node.type },
+      occurred_at: node.updated_at || node.created_at || null,
+      occurred_label: null,
+      recorded_at: null,
+      text: node.latest_timeline_entry,
+      significance: null,
+      provenance: null,
+    }))
+    .sort((left, right) => String(left.occurred_at || '').localeCompare(String(right.occurred_at || '')));
 }
 
 function activityModeLabel(mode) {
@@ -2513,13 +2547,14 @@ const GraphPanel = memo(function GraphPanel({
   onDomainScopeChange,
   onActiveSlugChange,
   onNodeOpen,
-  onGraphNodeFocus,
+  onGraphNodeSelect,
   lineage,
   onLineageClose,
 }) {
   const [styleMenuOpen, setStyleMenuOpen] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [activityMode, setActivityMode] = useState('bars');
+  const [focusedViewMode, setFocusedViewMode] = useState('network');
   const [selectedPageTypes, setSelectedPageTypes] = useState([]);
   const [selectedDomains, setSelectedDomains] = useState([]);
   const styleMenuRef = useRef(null);
@@ -2530,39 +2565,37 @@ const GraphPanel = memo(function GraphPanel({
   const VisualizerComponent = visualizer.Component;
   const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const focusSlug = lineage?.slug || null;
-  const focusGraph = useMemo(() => buildLineageFocusGraph(graph, lineage, focusSlug), [focusSlug, graph, lineage]);
+  const focusGraph = useMemo(() => buildFocusedNetworkGraph(graph, lineage, focusSlug), [focusSlug, graph, lineage]);
   const activeGraph = focusSlug ? focusGraph : graph;
   const activeGraphNodes = Array.isArray(activeGraph?.nodes) ? activeGraph.nodes : [];
   const activityBuckets = useMemo(() => (
-    focusSlug
-      ? buildLineageActivityBuckets(activeGraphNodes, lineage)
-      : buildActivityBuckets(graphNodes, graph?.activity)
-  ), [activeGraphNodes, focusSlug, graph?.activity, graphNodes, lineage]);
-  const [timelineIndex, setTimelineIndex] = useState(-1);
+    focusSlug ? [] : buildActivityBuckets(graphNodes, graph?.activity)
+  ), [focusSlug, graph?.activity, graphNodes]);
+  const [activityIndex, setActivityIndex] = useState(-1);
   const [eligibleMotionEvent, setEligibleMotionEvent] = useState(null);
   const consumedMotionEventRef = useRef(null);
-  const latestTimelineIndex = activityBuckets.length - 1;
-  const resolvedTimelineIndex = resolveTimelineIndex(timelineIndex < 0 ? latestTimelineIndex : timelineIndex, activityBuckets);
-  const selectedActivityBucket = resolvedTimelineIndex >= 0 ? activityBuckets[resolvedTimelineIndex] : null;
-  const selectedTimelineDay = selectedActivityBucket?.day || null;
+  const latestActivityIndex = activityBuckets.length - 1;
+  const resolvedActivityIndex = resolveActivityIndex(activityIndex < 0 ? latestActivityIndex : activityIndex, activityBuckets);
+  const selectedActivityBucket = resolvedActivityIndex >= 0 ? activityBuckets[resolvedActivityIndex] : null;
+  const selectedActivityDay = selectedActivityBucket?.day || null;
 
   useEffect(() => {
     if (!motionEvent || consumedMotionEventRef.current === motionEvent) return;
-    if (timelineIndex >= 0 || focusSlug) return;
+    if (activityIndex >= 0 || focusSlug) return;
     consumedMotionEventRef.current = motionEvent;
     setEligibleMotionEvent(motionEvent);
-  }, [activeSlug, focusSlug, motionEvent, timelineIndex]);
+  }, [activeSlug, activityIndex, focusSlug, motionEvent]);
 
   useEffect(() => {
     setEligibleMotionEvent(null);
   }, [visualizerId]);
-  const timelineFilteredNodes = useMemo(() => {
-    if (!selectedTimelineDay) return activeGraphNodes;
+  const activityFilteredNodes = useMemo(() => {
+    if (!selectedActivityDay) return activeGraphNodes;
     return activeGraphNodes.filter((node) => {
       const day = dayKeyFromTimestamp(node.lineage_at || node.created_at || node.updated_at);
-      return !day || day <= selectedTimelineDay;
+      return !day || day <= selectedActivityDay;
     });
-  }, [activeGraphNodes, selectedTimelineDay]);
+  }, [activeGraphNodes, selectedActivityDay]);
   const presentTypes = new Set(activeGraphNodes.map((node) => node.type));
   const pageTypes = [
     ...TYPE_ORDER.filter((type) => presentTypes.has(type)),
@@ -2583,8 +2616,8 @@ const GraphPanel = memo(function GraphPanel({
   }, [onDomainScopeChange, selectedDomains]);
   const filteredGraph = useMemo(() => {
     const nodes = selectedPageTypes.length || selectedDomains.length
-      ? timelineFilteredNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet))
-      : timelineFilteredNodes;
+      ? activityFilteredNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet))
+      : activityFilteredNodes;
     const slugs = new Set(nodes.map((node) => node.slug));
     const edges = (Array.isArray(activeGraph?.edges) ? activeGraph.edges : []).filter((edge) => {
       return slugs.has(edge.source) && slugs.has(edge.target);
@@ -2600,10 +2633,10 @@ const GraphPanel = memo(function GraphPanel({
         edge_count: edges.length,
       },
     };
-  }, [activeGraph, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet, timelineFilteredNodes]);
+  }, [activeGraph, activityFilteredNodes, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet]);
   const forceGraph = useMemo(() => {
     const forceSourceGraph = focusSlug ? focusGraph : graph;
-    const forceSourceNodes = timelineFilteredNodes;
+    const forceSourceNodes = activityFilteredNodes;
     const nodes = selectedPageTypes.length || selectedDomains.length
       ? forceSourceNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet))
       : forceSourceNodes;
@@ -2621,7 +2654,7 @@ const GraphPanel = memo(function GraphPanel({
         edge_count: edges.length,
       },
     };
-  }, [focusGraph, focusSlug, graph, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet, timelineFilteredNodes]);
+  }, [activityFilteredNodes, focusGraph, focusSlug, graph, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet]);
   const recentNodes = useMemo(() => {
     const nodes = Array.isArray(filteredGraph?.nodes) ? filteredGraph.nodes : [];
     return [...nodes]
@@ -2646,6 +2679,7 @@ const GraphPanel = memo(function GraphPanel({
         .slice(0, GRAPH_FLOW_INPUT_LIMIT)
   ), [demoMode, demoSeed, filteredGraph, recentNodes, selectedDomainSet, selectedTypeSet]);
   const activitySeries = useMemo(() => buildActivitySeries(activityBuckets), [activityBuckets]);
+  const focusedTimelineUpdates = useMemo(() => buildFocusedTimelineUpdates(lineage, filteredGraph), [filteredGraph, lineage]);
   const activityValueKey = isCumulativeActivityMode(activityMode) ? 'cumulative' : 'count';
   const activityMaxValue = useMemo(() => Math.max(...activitySeries.map((item) => item[activityValueKey]), 1), [activitySeries, activityValueKey]);
   const isForceRenderer = visualizerId === 'force-graph-3d' || visualizerId === 'force-graph-2d';
@@ -2654,8 +2688,25 @@ const GraphPanel = memo(function GraphPanel({
     : [];
 
   useEffect(() => {
-    setTimelineIndex(-1);
+    setActivityIndex(-1);
   }, [focusSlug, graph]);
+
+  useEffect(() => {
+    setFocusedViewMode('network');
+  }, [focusSlug]);
+
+  useEffect(() => {
+    if (!focusSlug) return undefined;
+    function handleFocusedViewKeyDown(event) {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) return;
+      if (event.key.toLowerCase() !== 't') return;
+      event.preventDefault();
+      setFocusedViewMode((current) => (current === 'network' ? 'timeline' : 'network'));
+    }
+
+    window.addEventListener('keydown', handleFocusedViewKeyDown);
+    return () => window.removeEventListener('keydown', handleFocusedViewKeyDown);
+  }, [focusSlug]);
 
   useEffect(() => {
     if (!focusSlug || !isForceRenderer) return undefined;
@@ -2733,7 +2784,7 @@ const GraphPanel = memo(function GraphPanel({
     if (!plot || !activitySeries.length) return;
     const bounds = plot.getBoundingClientRect();
     const ratio = bounds.width ? clamp((event.clientX - bounds.left) / bounds.width, 0, 1) : 0;
-    setTimelineIndex(Math.round(ratio * Math.max(activitySeries.length - 1, 0)));
+    setActivityIndex(Math.round(ratio * Math.max(activitySeries.length - 1, 0)));
   }
 
   function handleActivityPointerDown(event) {
@@ -2756,51 +2807,87 @@ const GraphPanel = memo(function GraphPanel({
   function handleActivityKeyDown(event) {
     if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') {
       event.preventDefault();
-      setTimelineIndex((value) => resolveTimelineIndex(value - 1, activityBuckets));
+      setActivityIndex((value) => resolveActivityIndex(value - 1, activityBuckets));
     } else if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {
       event.preventDefault();
-      setTimelineIndex((value) => resolveTimelineIndex(value + 1, activityBuckets));
+      setActivityIndex((value) => resolveActivityIndex(value + 1, activityBuckets));
     }
   }
 
   return (
     <section className="card hero-card">
       <div className={`graph-wrap graph-wrap-expanded ${flowVisible ? 'graph-flow-enabled' : ''}`}>
-        <div className="graph-canvas-stage">
-          <VisualizerComponent
-            ref={visualizerRef}
-            graph={isForceRenderer ? forceGraph : filteredGraph}
-            timelineDay={isForceRenderer ? selectedTimelineDay : null}
-            motionEvent={eligibleMotionEvent}
-            onNodeOpen={onGraphNodeFocus}
-            nodeShape={nodeShape}
-            nodeFill={nodeFill}
-            nodeIcon={nodeIcon}
-            nodeSize={nodeSize}
-            arcStyle={arcStyle}
-            arcAnimation={arcAnimation}
-            layoutStyle={layoutStyle}
-            labelStyle={labelStyle}
-            colorMode={colorMode}
-            typeColors={typeColors}
-            autoRotate={autoRotate}
-            activeSlug={activeSlug}
-            onActiveSlugChange={onActiveSlugChange}
-            onBackgroundClick={onLineageClose}
-          />
+        <div className={focusSlug ? 'focused-view-stage' : 'graph-canvas-stage'}>
+          {focusSlug ? (
+            focusedViewMode === 'timeline' ? (
+              <FocusedTimelineView
+                lineage={lineage}
+                updates={focusedTimelineUpdates}
+                onNodeOpen={onGraphNodeSelect}
+              />
+            ) : (
+              <FocusedNetworkVisualizer
+                graph={filteredGraph}
+                focusSlug={focusSlug}
+                onNodeOpen={onGraphNodeSelect}
+                colorMode={colorMode}
+                typeColors={typeColors}
+              />
+            )
+          ) : (
+            <VisualizerComponent
+              ref={visualizerRef}
+              graph={isForceRenderer ? forceGraph : filteredGraph}
+              activityDay={isForceRenderer ? selectedActivityDay : null}
+              motionEvent={eligibleMotionEvent}
+              onNodeOpen={onGraphNodeSelect}
+              nodeShape={nodeShape}
+              nodeFill={nodeFill}
+              nodeIcon={nodeIcon}
+              nodeSize={nodeSize}
+              arcStyle={arcStyle}
+              arcAnimation={arcAnimation}
+              layoutStyle={layoutStyle}
+              labelStyle={labelStyle}
+              colorMode={colorMode}
+              typeColors={typeColors}
+              autoRotate={autoRotate}
+              activeSlug={activeSlug}
+              onActiveSlugChange={onActiveSlugChange}
+              onBackgroundClick={onLineageClose}
+            />
+          )}
         </div>
         {focusSlug ? (
           <div className="graph-focus-banner" aria-live="polite">
             <div className="graph-focus-copy">
-              <span>History focus</span>
+              <span>{focusedViewMode === 'network' ? 'Focused network' : 'Focused timeline'}</span>
               <strong>{focusGraph?.nodes?.find((node) => node.slug === focusSlug)?.title || labelFromSlug(focusSlug)}</strong>
               <small>
                 {lineage?.status === 'loading'
-                  ? 'Reconstructing contributors…'
+                  ? 'Reconstructing related pages…'
                   : lineage?.status === 'error'
                     ? (lineage.message || 'History unavailable')
-                    : `${Math.max(0, (focusGraph?.nodes?.length || 1) - 1)} contributing pages`}
+                    : `${Math.max(0, (focusGraph?.nodes?.length || 1) - 1)} related pages · ${FOCUSED_NETWORK_MAX_HOPS} hops`}
               </small>
+            </div>
+            <div className="graph-focus-mode-toggle" role="group" aria-label="Focused view">
+              <button
+                type="button"
+                className={`graph-focus-mode-button ${focusedViewMode === 'network' ? 'active' : ''}`}
+                aria-pressed={focusedViewMode === 'network'}
+                onClick={() => setFocusedViewMode('network')}
+              >
+                Network
+              </button>
+              <button
+                type="button"
+                className={`graph-focus-mode-button ${focusedViewMode === 'timeline' ? 'active' : ''}`}
+                aria-pressed={focusedViewMode === 'timeline'}
+                onClick={() => setFocusedViewMode('timeline')}
+              >
+                Timeline <kbd>T</kbd>
+              </button>
             </div>
             <button type="button" className="graph-focus-close" onClick={onLineageClose}>
               Full graph
@@ -2814,11 +2901,11 @@ const GraphPanel = memo(function GraphPanel({
             onNodeOpen={onNodeOpen}
           />
         ) : null}
-        {activityBuckets.length ? (
+        {activityBuckets.length > 0 && !focusSlug ? (
           <div className={`graph-activity-panel ${flowVisible ? 'graph-flow-sibling-hidden' : ''}`}>
             <div className="graph-activity-head">
               <span>Activity</span>
-              <strong>{formatActivityDate(selectedTimelineDay)}</strong>
+              <strong>{formatActivityDate(selectedActivityDay)}</strong>
               <button
                 type="button"
                 className="graph-activity-mode"
@@ -2839,8 +2926,8 @@ const GraphPanel = memo(function GraphPanel({
               aria-label="Graph date"
               aria-valuemin="0"
               aria-valuemax={Math.max(activityBuckets.length - 1, 0)}
-              aria-valuenow={Math.max(resolvedTimelineIndex, 0)}
-              aria-valuetext={formatActivityDate(selectedTimelineDay)}
+              aria-valuenow={Math.max(resolvedActivityIndex, 0)}
+              aria-valuetext={formatActivityDate(selectedActivityDay)}
               onKeyDown={handleActivityKeyDown}
               onPointerDown={handleActivityPointerDown}
               onPointerMove={handleActivityPointerMove}
@@ -2857,7 +2944,7 @@ const GraphPanel = memo(function GraphPanel({
                   return (
                     <rect
                       key={item.day}
-                      className={`graph-activity-bar ${index <= resolvedTimelineIndex ? 'active' : ''}`}
+                      className={`graph-activity-bar ${index <= resolvedActivityIndex ? 'active' : ''}`}
                       x={index * width + width * 0.18}
                       y={92 - height}
                       width={Math.max(width * 0.64, 0.35)}
@@ -2866,8 +2953,8 @@ const GraphPanel = memo(function GraphPanel({
                     />
                   );
                 })}
-                <line className="graph-activity-cursor" x1={activityPointX(resolvedTimelineIndex, activitySeries.length)} x2={activityPointX(resolvedTimelineIndex, activitySeries.length)} y1="4" y2="96" />
-                <circle className="graph-activity-point" cx={activityPointX(resolvedTimelineIndex, activitySeries.length)} cy={activityPointY(activitySeries[resolvedTimelineIndex]?.[activityValueKey] || 0, activityMaxValue)} r="1.6" />
+                <line className="graph-activity-cursor" x1={activityPointX(resolvedActivityIndex, activitySeries.length)} x2={activityPointX(resolvedActivityIndex, activitySeries.length)} y1="4" y2="96" />
+                <circle className="graph-activity-point" cx={activityPointX(resolvedActivityIndex, activitySeries.length)} cy={activityPointY(activitySeries[resolvedActivityIndex]?.[activityValueKey] || 0, activityMaxValue)} r="1.6" />
               </svg>
             </div>
           </div>

@@ -304,7 +304,7 @@ test('force renderers focus eligible live page changes without remounting', asyn
   ]);
 
   assert.match(main, /graphMotionEligibleRef\.current = view === 'graph' && !preview && !lineage/);
-  assert.match(main, /if \(timelineIndex >= 0 \|\| focusSlug\) return;\s*consumedMotionEventRef\.current = motionEvent;/);
+  assert.match(main, /if \(activityIndex >= 0 \|\| focusSlug\) return;\s*consumedMotionEventRef\.current = motionEvent;/);
   assert.match(main, /motionEvent=\{eligibleMotionEvent\}/);
   assert.match(main, /onBackgroundClick=\{onLineageClose\}/);
   assert.match(main, /visualizerRef\.current\?\.focusNode\?\.\(focusSlug\)/);
@@ -321,7 +321,7 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(force3d, /SYSTEM_ACTIVITY_PREFOCUS_DURATION = 1200/);
   assert.match(force2d, /updateForceGraphActivity\(forceGraph, data, \[target\.slug\]/);
   assert.match(force3d, /updateForceGraphActivity\(forceGraph, data, \[target\.slug\]/);
-  assert.match(main, /const forceSourceNodes = timelineFilteredNodes/);
+  assert.match(main, /const forceSourceNodes = activityFilteredNodes/);
   assert.doesNotMatch(force2d, /scheduleForceGraphReheat|forceGraph\.d3ReheatSimulation\?\.\(\)/);
   assert.doesNotMatch(force3d, /scheduleForceGraphReheat|forceGraph\.d3ReheatSimulation\?\.\(\)/);
   assert.match(force2d, /startGraphTransitionLoop/);
@@ -447,6 +447,13 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /setAutoRotate\(\(value\) => !value\)/);
   assert.match(main, /GRAPH_ACTIVITY_MODES/);
   assert.match(main, /onPointerMove=\{handleActivityPointerMove\}/);
+  assert.match(main, /const handleGraphNodeSelect = useEffectEvent/);
+  assert.match(main, /Promise\.allSettled/);
+  assert.match(main, /FocusedNetworkVisualizer/);
+  assert.match(main, /FocusedTimelineView/);
+  assert.match(main, /event\.key\.toLowerCase\(\) !== 't'/);
+  assert.match(main, /timeline_updates/);
+  assert.match(main, /closest\('\.sidecar-panel, \.graph-wrap'\)/);
   assert.doesNotMatch(main, /graph-timeline-slider/);
   assert.doesNotMatch(main, /graph-activity-meta/);
 });
@@ -961,7 +968,7 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.match(forceGraph2d, /forceGraph\.__bigBrainInitialized = true;/);
   assert.match(forceGraph2d, /nodeVisibility/);
   assert.match(forceGraph2d, /linkVisibility/);
-  assert.match(forceGraph2d, /timelineDay = null/);
+  assert.match(forceGraph2d, /activityDay = null/);
   assert.match(forceGraph2d, /aria-label="2D force-directed brain graph"/);
   assert.doesNotMatch(forceGraph2d, /source\?\.color/);
   assert.doesNotMatch(forceGraph2d, /autoRotate/);

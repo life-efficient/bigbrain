@@ -840,14 +840,14 @@ export async function getPagesBySlugs(db, slugs) {
   if (slugs.length === 0) return [];
   if (db.backend === 'postgres') {
     return (await db.query(`
-      SELECT slug, title, type, page_kind, summary, compiled_truth, frontmatter_json, updated_at
+      SELECT slug, title, type, page_kind, summary, compiled_truth, frontmatter_json, updated_at, timeline
       FROM pages
       WHERE slug = ANY($1::text[])
     `, [slugs])).rows;
   }
   const placeholders = slugs.map(() => '?').join(', ');
   return unwrapSqlite(db).prepare(`
-    SELECT slug, title, type, page_kind, summary, compiled_truth, frontmatter_json, updated_at
+    SELECT slug, title, type, page_kind, summary, compiled_truth, frontmatter_json, updated_at, timeline
     FROM pages
     WHERE slug IN (${placeholders})
   `).all(...slugs);

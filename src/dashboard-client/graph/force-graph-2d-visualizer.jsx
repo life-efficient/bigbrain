@@ -37,7 +37,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   labelStyle = 'selected',
   colorMode = 'updated',
   typeColors,
-  timelineDay = null,
+  activityDay = null,
   motionEvent = null,
   activeSlug = null,
   onActiveSlugChange,
@@ -63,7 +63,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   });
   const activeSlugRef = useRef(activeSlug);
   const hoveredSlugRef = useRef(null);
-  const timelineDayRef = useRef(timelineDay);
+  const activityDayRef = useRef(activityDay);
   const labelSlugs = useMemo(() => getForceGraphLabelSlugs(graph?.nodes, labelStyle), [graph?.nodes, labelStyle]);
 
   settingsRef.current = {
@@ -83,7 +83,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   onActiveSlugChangeRef.current = onActiveSlugChange;
   onBackgroundClickRef.current = onBackgroundClick;
   activeSlugRef.current = activeSlug;
-  timelineDayRef.current = timelineDay;
+  activityDayRef.current = activityDay;
 
   useImperativeHandle(ref, () => ({
     zoomIn() {
@@ -133,11 +133,11 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       .nodeCanvasObject((node, context, globalScale) => {
         drawForceGraphNode(node, context, globalScale, settingsRef.current, forceGraph);
       })
-      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDayRef.current) || graphTransitionActive(node))
+      .nodeVisibility((node) => isForceGraphNodeVisibleAtActivityDay(node, activityDayRef.current) || graphTransitionActive(node))
       .nodeLabel((node) => buildNodeTooltip(node))
       .linkSource('source')
       .linkTarget('target')
-      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDayRef.current) || graphTransitionActive(link))
+      .linkVisibility((link) => isForceGraphLinkVisibleAtActivityDay(link, activityDayRef.current) || graphTransitionActive(link))
       .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkWidth((link) => getForceGraphLinkWidth(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkCurvature((link) => getForceGraphLinkCurvature(settingsRef.current.arcStyle, link))
@@ -196,9 +196,9 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
     forceGraph
-      .nodeVisibility((node) => isForceGraphNodeVisibleAtTimeline(node, timelineDay) || graphTransitionActive(node))
-      .linkVisibility((link) => isForceGraphLinkVisibleAtTimeline(link, timelineDay) || graphTransitionActive(link));
-  }, [timelineDay]);
+      .nodeVisibility((node) => isForceGraphNodeVisibleAtActivityDay(node, activityDay) || graphTransitionActive(node))
+      .linkVisibility((link) => isForceGraphLinkVisibleAtActivityDay(link, activityDay) || graphTransitionActive(link));
+  }, [activityDay]);
 
   useEffect(() => {
     const forceGraph = graphRef.current;
@@ -445,17 +445,17 @@ function focusForceGraphNode(forceGraph, slug) {
   forceGraph.centerAt(node.x, node.y, 850).zoom(Math.max(forceGraph.zoom(), 2.4), 850);
 }
 
-function isForceGraphNodeVisibleAtTimeline(node, timelineDay) {
-  if (!timelineDay || !node || typeof node !== 'object') return true;
+function isForceGraphNodeVisibleAtActivityDay(node, activityDay) {
+  if (!activityDay || !node || typeof node !== 'object') return true;
   const timestamp = Date.parse(node.lineage_at || node.created_at || node.updated_at);
   if (!Number.isFinite(timestamp)) return true;
-  return new Date(timestamp).toISOString().slice(0, 10) <= timelineDay;
+  return new Date(timestamp).toISOString().slice(0, 10) <= activityDay;
 }
 
-function isForceGraphLinkVisibleAtTimeline(link, timelineDay) {
-  if (!timelineDay) return true;
-  return isForceGraphNodeVisibleAtTimeline(link?.source, timelineDay)
-    && isForceGraphNodeVisibleAtTimeline(link?.target, timelineDay);
+function isForceGraphLinkVisibleAtActivityDay(link, activityDay) {
+  if (!activityDay) return true;
+  return isForceGraphNodeVisibleAtActivityDay(link?.source, activityDay)
+    && isForceGraphNodeVisibleAtActivityDay(link?.target, activityDay);
 }
 
 function updateForceGraphHighlight(forceGraph, focusSlug, arcAnimation = 'instant') {
