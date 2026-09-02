@@ -26,7 +26,7 @@ test('headless updater prefers a stable Node executable path', async () => {
   await fs.rm(root, { recursive: true, force: true });
 });
 
-test('headless updater installer restores the previous launch agent when activation fails', async () => {
+test('headless updater installer restores the previous launch agent when activation fails', { skip: process.platform !== 'darwin' }, async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-updater-rollback-'));
   const plistPath = path.join(root, 'updater.plist');
   const previous = '<plist>previous</plist>';

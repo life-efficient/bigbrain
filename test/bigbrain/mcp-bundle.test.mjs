@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { promisify } from 'node:util';
 
 import {
   MCP_BUNDLE_RUNTIME_PATHS,
@@ -9,6 +11,7 @@ import {
 } from '../../scripts/build-mcp-bundle.mjs';
 
 const repoRoot = path.resolve(import.meta.dirname, '..', '..');
+const execFileAsync = promisify(execFile);
 
 test('MCP bundle manifest identifies an independently versioned runtime', async () => {
   const packageJson = JSON.parse(await fs.readFile(path.join(repoRoot, 'package.json'), 'utf8'));
@@ -23,6 +26,7 @@ test('MCP bundle manifest identifies an independently versioned runtime', async 
 });
 
 test('MCP bundle runtime paths exist in the source checkout', async () => {
+  await execFileAsync(process.execPath, [path.join(repoRoot, 'scripts', 'build-dashboard-client.mjs')], { cwd: repoRoot });
   for (const relativePath of MCP_BUNDLE_RUNTIME_PATHS) {
     await assert.doesNotReject(() => fs.stat(path.join(repoRoot, relativePath)), relativePath);
   }

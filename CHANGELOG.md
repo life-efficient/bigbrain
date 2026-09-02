@@ -5,6 +5,28 @@ actions` section for agents maintaining device and server installations.
 
 ## [Unreleased]
 
+## [0.25.1] - 2026-09-02
+
+### Fixed
+
+- Fixed the cross-platform release test gate so the macOS launchd updater test
+  is skipped on unsupported CI platforms.
+- Fixed the MCP bundle path test to materialize the generated dashboard client
+  before checking the runtime bundle contents.
+
+### Agent update actions
+
+- Update to the `v0.25.1` tag and repeat the `0.25.0` source, packaged desktop,
+  standalone MCP, and backward-compatible timeline verification actions.
+- No additional Brain data, task, page, database, or service migration is
+  required for this corrective release.
+
+### Verification
+
+- Local test and packaging checks remain green; the release workflows must
+  complete successfully from the `v0.25.1` tag before this release is reported
+  as published.
+
 ## [0.25.0] - 2026-09-02
 
 ### Added
