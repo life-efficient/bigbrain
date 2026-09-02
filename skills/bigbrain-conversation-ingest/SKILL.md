@@ -26,6 +26,7 @@ signal, not for every operational message.
 This skill guarantees:
 - Capture only durable knowledge worth preserving
 - Prefer updating an existing canonical page over creating a new one
+- Route canonical page creation through `$bigbrain-create-page` and canonical page updates through `$bigbrain-update-page`
 - Use `tasks/` for actionable work, and use `protocol/`, `projects/`, `ideas/`, `concepts/`, `writing/`, entity pages, or owning collection `.raw/` files based on the substance of durable non-task material
 - Avoid polluting the brain with purely procedural chatter
 - Re-sync the index after a meaningful write
@@ -49,7 +50,9 @@ This skill guarantees:
    - `tasks/` when the message is actionable work or a follow-up
    - owning collection `.raw/` folders for evidence files
    - `inbox/`, `sources/`, or `ops/` only when the active brain's filing rules define them as legacy or domain overlays
-3. Update or create the canonical page
+3. Route the canonical page write:
+   - Use `$bigbrain-update-page` when a canonical owner exists.
+   - Use `$bigbrain-create-page` only when no canonical owner exists and the conversation supports a useful durable page.
 4. Keep the update compact and source-aware
 5. Re-index:
    - `bigbrain sync --json`

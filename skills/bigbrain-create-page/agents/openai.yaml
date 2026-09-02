@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Create Page"
+  short_description: "Create one grounded, standalone BigBrain page"
+  default_prompt: "Use $bigbrain-create-page to create one new BigBrain page after resolving its subject, evidence, and canonical ownership."

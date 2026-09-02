@@ -28,6 +28,7 @@ This skill guarantees:
 - Preserve the raw input and its same-basename indexed sidecar under the `.raw/` path specified by `filing_rules`
 - Keep document-specific comprehensive extraction on the sidecar and compiled cross-document belief on subject pages
 - Prefer updating an existing page when the document adds to an established topic
+- Route canonical subject-page creation and updates through `$bigbrain-create-page` and `$bigbrain-update-page`
 - Re-sync the index after the write path completes
 
 ## Workflow
@@ -46,7 +47,10 @@ This skill guarantees:
    - create `<collection>/.raw/<basename>.md` with comprehensive extraction, summary, provenance, and links
    - call `filing_rules` first when using an MCP or BigBrain service connector
    - link relevant subject pages to the sidecar and raw attachment
-5. Update or create subject pages only when the document changes durable compiled understanding
+5. Update or create subject pages only when the document changes durable compiled understanding:
+   - Use `$bigbrain-update-page` for an existing canonical subject page.
+   - Use `$bigbrain-create-page` only when the document establishes a distinct subject without an existing canonical owner.
+   - Keep the document-specific sidecar on its own specialized source shape.
 6. Re-index:
    - `bigbrain sync --json`
 

@@ -20,6 +20,7 @@ Review one web article through the BigBrain source-article workflow, applying re
 - Keep the source text faithful to the publisher; never replace it with an AI rewrite.
 - Create an indexed Markdown source sidecar with standard Brain page structure, provenance, and links to the author, publisher, primary subject, and materially mentioned entities.
 - Update existing canonical pages only when the article changes durable understanding or records a meaningful event.
+- Route canonical page creation through `$bigbrain-create-page` and canonical updates through `$bigbrain-update-page`; keep the article sidecar source-specific.
 - Use stable RSS IDs and canonical URLs for deduplication and provenance.
 - Treat an unavailable source as `needs_review`, not as a complete filing.
 - Read back every write and confirm the owning Brain reflects the expected changes.

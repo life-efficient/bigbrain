@@ -58,6 +58,8 @@ This skill guarantees:
    - unclear evidence-first material -> the owning collection `.raw/` folder once ownership is clear; otherwise `writing/` or a brain-specific source overlay if filing rules define one
    - non-actionable unresolved legacy material -> avoid by default; use `inbox/` only when the active brain's filing rules explicitly preserve it
 4. If the question is about workflow, route to the best skill:
+   - create a new canonical page -> `BigBrain: Create Page`
+   - update an existing canonical page -> `BigBrain: Update Page`
    - lookup or context -> `BigBrain: Query`
    - setup or migration -> `BigBrain: Setup`
    - ingesting new material -> `BigBrain: Ingest`

@@ -2,6 +2,8 @@
 
 | Intent | Skill |
 | --- | --- |
+| Create one new BigBrain page for a distinct, evidence-backed subject | `skills/bigbrain-create-page/SKILL.md` |
+| Update one existing BigBrain page coherently when new evidence changes its durable understanding | `skills/bigbrain-update-page/SKILL.md` |
 | Explain the BigBrain model, filing rules, page shapes, artifact handling, or which skill to use next | `skills/bigbrain-understand/SKILL.md` |
 | Set up BigBrain, initialize a brain home, migrate an existing corpus, and prove the runtime works | `skills/bigbrain-setup/SKILL.md` |
 | Open the BigBrain desktop dashboard app and verify the local dashboard is running | `skills/bigbrain-dashboard/SKILL.md` |
