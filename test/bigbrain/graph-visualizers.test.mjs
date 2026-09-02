@@ -20,7 +20,7 @@ import {
 } from '../../src/dashboard-client/graph/colors.js';
 import { resolveThemeMode } from '../../src/dashboard-client/graph/theme.js';
 import { graphTypeIconSvg } from '../../src/dashboard-client/graph/graph-type-icon-data.js';
-import { blendArcColors, GRAPH_ARC_ANIMATIONS } from '../../src/dashboard-client/graph/arc-animation.js';
+import { blendArcColors, GRAPH_ARC_ANIMATIONS, startArcAnimation } from '../../src/dashboard-client/graph/arc-animation.js';
 import {
   GRAPH_FALLBACK_ICON_NAMES,
   GRAPH_TYPE_ICON_NAMES,
@@ -146,6 +146,13 @@ test('arc hover animation modes expose the shared four-state contract', () => {
     ['shoot', 'Shoot'],
   ]);
   assert.equal(blendArcColors('#000000', '#FFFFFF', 0.5), '#808080');
+});
+
+test('arc animation can settle without replaying during renderer synchronization', () => {
+  const state = startArcAnimation({}, 'shoot', new Set(['link']), null, { play: false });
+
+  assert.equal(state.progress, 1);
+  assert.equal(state.frame, 0);
 });
 
 test('updated node colors use acid green on a five-day eased scale', () => {
@@ -405,8 +412,8 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.match(force2d, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
   assert.match(force3d, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
   assert.match(force3d, /rotationPauseUntilRef\.current/);
-  assert.match(force2d, /updateForceGraphHighlight\(forceGraph, target\.slug, settingsRef\.current\.arcAnimation\)/);
-  assert.match(force3d, /updateForceGraphHighlight\(forceGraph, latestData, target\.slug, settingsRef\.current\.arcAnimation\)/);
+  assert.match(force2d, /updateForceGraphHighlight\(forceGraph, target\.slug, 'instant', false\)/);
+  assert.match(force3d, /updateForceGraphHighlight\(forceGraph, latestData, target\.slug, 'instant', true, false\)/);
 });
 
 test('force graph arc modes keep grow line-only and shoot beam-driven', async () => {
@@ -416,8 +423,9 @@ test('force graph arc modes keep grow line-only and shoot beam-driven', async ()
   ]);
 
   for (const source of [force2d, force3d]) {
-    assert.match(source, /if \(highlightedLinks\.has\(link\)\) \{\s*return forceGraph\?\.__bigBrainArcAnimation\?\.mode === 'shoot' \? 4 : 0;/);
+    assert.match(source, /function shouldShowParticles\(\) \{[\s\S]*?Directional particles are continuous\.[\s\S]*?return 0;/);
     assert.match(source, /arcAnimation === 'shoot'/);
+    assert.match(source, /if \(playAnimation && arcAnimation === 'shoot'\)/);
     assert.match(source, /emitParticle/);
     assert.match(source, /applyForceGraphArcAccessors\(forceGraph\)/);
   }
@@ -589,7 +597,7 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /sprite\.scale\.set\(label \? canvas\.width \/ scale/);
   assert.match(visualizer, /\.nodeLabel\(\(node\) => buildNodeTooltip\(node\)\)/);
   assert.match(visualizer, /function buildNodeTooltip\(node\)/);
-  assert.match(visualizer, /settingsRef\.current\.arcAnimation, false\)/);
+  assert.match(visualizer, /settingsRef\.current\.arcAnimation,[\s\S]*Boolean\(hoveredSlugRef\.current\)/);
   assert.doesNotMatch(visualizer, /TYPE_GLYPHS/);
   assert.match(visualizer, /scene\.rotation\.z \+=/);
   assert.match(visualizer, /!hoveredSlugRef\.current && time >= rotationPauseUntilRef\.current/);

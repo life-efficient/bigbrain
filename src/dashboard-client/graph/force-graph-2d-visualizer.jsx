@@ -163,8 +163,15 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       })
       .onBackgroundClick(() => onBackgroundClickRef.current?.())
       .onNodeHover((node) => {
-        hoveredSlugRef.current = node?.id || null;
-        updateForceGraphHighlight(forceGraph, hoveredSlugRef.current || activeSlugRef.current, settingsRef.current.arcAnimation);
+        const nextHoveredSlug = node?.id || null;
+        if (nextHoveredSlug === hoveredSlugRef.current) return;
+        hoveredSlugRef.current = nextHoveredSlug;
+        updateForceGraphHighlight(
+          forceGraph,
+          hoveredSlugRef.current || activeSlugRef.current,
+          settingsRef.current.arcAnimation,
+          Boolean(hoveredSlugRef.current),
+        );
       });
 
     syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
@@ -214,13 +221,13 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkDirectionalParticleSpeed((link) => getForceGraphParticleSpeed(link, forceGraph))
       .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph));
-    updateForceGraphHighlight(forceGraph, hoveredSlugRef.current || activeSlugRef.current, settingsRef.current.arcAnimation);
+    updateForceGraphHighlight(forceGraph, hoveredSlugRef.current || activeSlugRef.current, settingsRef.current.arcAnimation, false);
   }, [arcAnimation, arcStyle, colorMode, labelStyle, nodeFill, nodeIcon, nodeShape, nodeSize, theme, typeColors]);
 
   useEffect(() => {
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
-    updateForceGraphHighlight(forceGraph, hoveredSlugRef.current || activeSlug, settingsRef.current.arcAnimation);
+    updateForceGraphHighlight(forceGraph, hoveredSlugRef.current || activeSlug, settingsRef.current.arcAnimation, true);
   }, [activeSlug]);
 
   useEffect(() => {
@@ -258,11 +265,11 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
           const latestData = getForceGraphData(forceGraph);
           const latestNode = latestData.nodes?.find((item) => item.id === target.slug || item.slug === target.slug);
           if (!latestNode || !Number.isFinite(latestNode.x) || !Number.isFinite(latestNode.y)) return;
-          updateForceGraphHighlight(forceGraph, target.slug, settingsRef.current.arcAnimation);
+          updateForceGraphHighlight(forceGraph, target.slug, 'instant', false);
           forceGraph.centerAt(latestNode.x, latestNode.y, 850).zoom(Math.max(forceGraph.zoom(), 2.4), 850);
           returnTimer = window.setTimeout(() => {
             returnTimer = 0;
-            updateForceGraphHighlight(forceGraph, null, 'instant');
+            updateForceGraphHighlight(forceGraph, null, 'instant', false);
             forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
           }, SYSTEM_FOCUS_HOLD_DURATION);
         }, SYSTEM_ACTIVITY_PREFOCUS_DURATION);
@@ -370,7 +377,7 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
     });
   }
   forceGraph.__bigBrainInitialized = true;
-  updateForceGraphHighlight(forceGraph, focusSlug, settings.arcAnimation);
+  updateForceGraphHighlight(forceGraph, focusSlug, settings.arcAnimation, false);
 }
 
 function startForceGraphInitialFade(forceGraph) {
@@ -458,7 +465,7 @@ function isForceGraphLinkVisibleAtActivityDay(link, activityDay) {
     && isForceGraphNodeVisibleAtActivityDay(link?.target, activityDay);
 }
 
-function updateForceGraphHighlight(forceGraph, focusSlug, arcAnimation = 'instant') {
+function updateForceGraphHighlight(forceGraph, focusSlug, arcAnimation = 'instant', playAnimation = true) {
   const data = getForceGraphData(forceGraph);
   const nodes = Array.isArray(data.nodes) ? data.nodes : [];
   const links = Array.isArray(data.links) ? data.links : [];
@@ -486,14 +493,14 @@ function updateForceGraphHighlight(forceGraph, focusSlug, arcAnimation = 'instan
       // engine is settled, so re-assigning the accessor marks the canvas
       // dirty for this frame.
       requestForceGraphRedraw(forceGraph);
-    });
+    }, { play: playAnimation });
   } else {
     // Instant and None still need a completed state so their accessors resolve
     // to the intended visual result, but they do not schedule any work.
     startArcAnimation(forceGraph, arcAnimation, animatedLinks);
   }
   applyForceGraphArcAccessors(forceGraph);
-  if (arcAnimation === 'shoot') emitShootParticles(forceGraph, animatedLinks);
+  if (playAnimation && arcAnimation === 'shoot') emitShootParticles(forceGraph, animatedLinks);
   for (const node of nodes) node.__bigBrainEmphasized = focusNode?.id === node.id;
 }
 
@@ -688,11 +695,10 @@ function getForceGraphLinkCurvature(arcStyle, link) {
   return link.id ? 0.22 : 0;
 }
 
-function shouldShowParticles(link, nodeCount, highlightedLinks, forceGraph) {
-  if (highlightedLinks.has(link)) {
-    return forceGraph?.__bigBrainArcAnimation?.mode === 'shoot' ? 4 : 0;
-  }
-  return nodeCount <= 900 ? 1 : 0;
+function shouldShowParticles() {
+  // Directional particles are continuous. Shoot mode uses one explicit
+  // emitParticle call per highlighted link instead of an ongoing stream.
+  return 0;
 }
 
 function getForceGraphParticleSpeed(link, forceGraph) {

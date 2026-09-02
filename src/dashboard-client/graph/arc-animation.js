@@ -7,19 +7,20 @@ export const GRAPH_ARC_ANIMATIONS = [
 
 const ARC_ANIMATION_DURATION = 620;
 
-export function startArcAnimation(target, mode, links, onFrame) {
+export function startArcAnimation(target, mode, links, onFrame, { play = true } = {}) {
   cancelArcAnimation(target);
   const normalizedMode = mode === 'grow' || mode === 'shoot' ? mode : mode === 'none' ? 'none' : 'instant';
+  const canPlay = play && (normalizedMode === 'grow' || normalizedMode === 'shoot') && Boolean(links?.size);
   const state = {
     mode: normalizedMode,
     links,
-    progress: normalizedMode === 'grow' || normalizedMode === 'shoot' ? 0 : normalizedMode === 'instant' ? 1 : 0,
+    progress: canPlay ? 0 : normalizedMode === 'grow' || normalizedMode === 'shoot' ? 1 : normalizedMode === 'instant' ? 1 : 0,
     frame: 0,
     startedAt: typeof performance !== 'undefined' ? performance.now() : 0,
   };
   target.__bigBrainArcAnimation = state;
   onFrame?.(state.progress, state);
-  if ((state.mode !== 'grow' && state.mode !== 'shoot') || !links?.size) return state;
+  if (!canPlay) return state;
 
   const tick = (time) => {
     state.progress = Math.min(1, Math.max(0, (time - state.startedAt) / ARC_ANIMATION_DURATION));

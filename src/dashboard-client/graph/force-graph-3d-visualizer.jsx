@@ -215,8 +215,17 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
         onBackgroundClickRef.current?.();
       })
       .onNodeHover((node) => {
-        hoveredSlugRef.current = node?.id || null;
-        updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlugRef.current, settingsRef.current.arcAnimation, false);
+        const nextHoveredSlug = node?.id || null;
+        if (nextHoveredSlug === hoveredSlugRef.current) return;
+        hoveredSlugRef.current = nextHoveredSlug;
+        updateForceGraphHighlight(
+          forceGraph,
+          getForceGraphData(forceGraph),
+          hoveredSlugRef.current || activeSlugRef.current,
+          settingsRef.current.arcAnimation,
+          false,
+          Boolean(hoveredSlugRef.current),
+        );
       });
 
     syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
@@ -238,6 +247,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       hideFocusLabel();
+      cancelArcAnimation(forceGraph);
       cancelGraphTransitionLoop(forceGraph);
       cancelScheduledForceGraphFit(forceGraph);
       forceGraph.__bigBrainDisposed = true;
@@ -301,7 +311,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     updateForceGraphNodeObjects(forceGraph, settingsRef.current);
     if (arcStyleChanged) refreshForceGraphLinkCurves(forceGraph, arcStyle);
     if (forceGraph.__bigBrainArcAnimation?.mode !== arcAnimation) {
-      updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlugRef.current, arcAnimation, !hoveredSlugRef.current);
+      updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlugRef.current, arcAnimation, !hoveredSlugRef.current, false);
     }
   }, [arcAnimation, arcStyle, colorMode, labelStyle, nodeFill, nodeIcon, nodeShape, nodeSize, theme, typeColors]);
 
@@ -312,7 +322,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       rotationPauseUntilRef.current = 0;
       hideFocusLabel();
     }
-    updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlug, settingsRef.current.arcAnimation, !hoveredSlugRef.current);
+    updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlug, settingsRef.current.arcAnimation, !hoveredSlugRef.current, true);
   }, [activeSlug]);
 
   useEffect(() => {
@@ -351,14 +361,14 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
           const latestData = getForceGraphData(forceGraph);
           const latestNode = latestData.nodes?.find((item) => item.id === target.slug || item.slug === target.slug);
           if (!latestNode || !Number.isFinite(latestNode.x) || !Number.isFinite(latestNode.y) || !Number.isFinite(latestNode.z)) return;
-          updateForceGraphHighlight(forceGraph, latestData, target.slug, settingsRef.current.arcAnimation);
+          updateForceGraphHighlight(forceGraph, latestData, target.slug, 'instant', true, false);
           focusForceGraphNode(forceGraph, latestNode);
           showFocusLabel(forceGraph, latestNode);
           rotationPauseUntilRef.current = performance.now() + SYSTEM_FOCUS_HOLD_DURATION + FIT_TO_CANVAS_DURATION;
           window.clearTimeout(focusReturnTimerRef.current);
           focusReturnTimerRef.current = window.setTimeout(() => {
             focusReturnTimerRef.current = 0;
-            updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), null, 'instant');
+            updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), null, 'instant', true, false);
             hideFocusLabel();
             forceGraph.zoomToFit(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING);
           }, SYSTEM_FOCUS_HOLD_DURATION);
@@ -494,7 +504,7 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
   }
   forceGraph.__bigBrainInitialized = true;
   graphDataRefFor(forceGraph, getForceGraphData(forceGraph));
-  updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), focusSlug, settings.arcAnimation);
+  updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), focusSlug, settings.arcAnimation, true, false);
 }
 
 function startForceGraphInitialFade(forceGraph) {
@@ -582,7 +592,7 @@ function isForceGraphLinkVisibleAtActivityDay(link, activityDay) {
     && isForceGraphNodeVisibleAtActivityDay(link?.target, activityDay);
 }
 
-function updateForceGraphHighlight(forceGraph, data, focusSlug, arcAnimation = 'instant', showFocusLabel = true) {
+function updateForceGraphHighlight(forceGraph, data, focusSlug, arcAnimation = 'instant', showFocusLabel = true, playAnimation = true) {
   const resolvedData = forceGraph.graphData?.() || data || { nodes: [], links: [] };
   graphDataRefFor(forceGraph, resolvedData);
   const nodes = Array.isArray(resolvedData.nodes) ? resolvedData.nodes : [];
@@ -610,14 +620,14 @@ function updateForceGraphHighlight(forceGraph, data, focusSlug, arcAnimation = '
     const affectedLinks = new Set([...previousLinks, ...animatedLinks]);
     startArcAnimation(forceGraph, arcAnimation, animatedLinks, () => {
       updateForceGraphAnimatedLinks(forceGraph, affectedLinks);
-    });
+    }, { play: playAnimation });
   } else {
     // Set the completed state before the library evaluates its accessors. This
     // keeps Instant identical to the original immediate highlight path.
     startArcAnimation(forceGraph, arcAnimation, animatedLinks);
   }
   applyForceGraphArcAccessors(forceGraph);
-  if (arcAnimation === 'shoot') {
+  if (playAnimation && arcAnimation === 'shoot') {
     animatedLinks.forEach((link) => forceGraph.emitParticle?.(link));
   }
 }
@@ -976,11 +986,10 @@ function updateForceGraphMaterial(lineObject, color, opacity) {
   material.needsUpdate = true;
 }
 
-function shouldShowParticles(link, nodeCount, highlightedLinks, forceGraph) {
-  if (highlightedLinks.has(link)) {
-    return forceGraph?.__bigBrainArcAnimation?.mode === 'shoot' ? 4 : 0;
-  }
-  return nodeCount <= 900 ? 1 : 0;
+function shouldShowParticles() {
+  // Directional particles are continuous. Shoot mode uses one explicit
+  // emitParticle call per highlighted link instead of an ongoing stream.
+  return 0;
 }
 
 function getForceGraphParticleSpeed(link, forceGraph) {
