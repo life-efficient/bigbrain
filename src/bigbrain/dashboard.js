@@ -1636,7 +1636,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-controls-inline { position: static; }
       .graph-style-menu-shell, .graph-filter-menu-shell { position: relative; }
       .graph-style-menu { position: absolute; right: 0; bottom: calc(100% + 10px); min-width: 300px; max-height: min(640px, calc(100vh - 32px)); overflow-y: auto; display: grid; gap: 14px; padding: 14px; border-radius: 16px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 8; }
-      .graph-filter-menu { position: absolute; right: 0; bottom: calc(100% + 10px); min-width: 220px; display: grid; gap: 4px; padding: 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 9; }
+      .graph-filter-menu { position: absolute; right: 0; bottom: calc(100% + 10px); min-width: 220px; max-height: min(70vh, 560px); overflow-y: auto; display: grid; gap: 4px; padding: 6px; border-radius: 14px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); z-index: 9; }
+      .graph-filter-group { display: grid; gap: 4px; }
+      .graph-filter-group + .graph-filter-group { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line); }
+      .graph-filter-group-label { padding: 4px 10px 2px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; }
       .menu-item { width: 100%; border: 0; background: transparent; color: var(--muted); border-radius: 10px; padding: 9px 10px; display: flex; align-items: center; justify-content: space-between; gap: 16px; font-size: 13px; text-align: left; cursor: pointer; }
       .menu-item:hover, .menu-item.selected { background: rgba(255,255,255,0.07); color: var(--ink); }
       .menu-item-check { width: 16px; text-align: center; color: var(--ink); }
@@ -2568,6 +2571,14 @@ function parseFrontmatterJson(value) {
   }
 }
 
+function normalizeGraphDomains(frontmatterJson) {
+  const frontmatter = parseFrontmatterJson(frontmatterJson);
+  return [...new Set(arrayOfStrings(frontmatter.domains)
+    .map((value) => value.trim())
+    .filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right));
+}
+
 function arrayOfStrings(value) {
   if (Array.isArray(value)) return value.map(String);
   if (typeof value === 'string' && value.trim()) return [value.trim()];
@@ -2908,6 +2919,8 @@ async function buildHealthPayload(config) {
 export async function buildGraphPayload(db, config = null) {
   const pages = await listPages(db, { includeTimeline: true });
   const graphPages = pages.filter(isDirectoryBackedGraphPage);
+  const indexedPages = await getPagesBySlugs(db, graphPages.map((page) => page.slug));
+  const indexedPageBySlug = new Map(indexedPages.map((page) => [page.slug, page]));
   const candidateNodes = (await Promise.all(graphPages.map(async (page) => {
     const outgoing = await getOutgoingLinks(db, page.slug);
     const backlinks = await getBacklinks(db, page.slug);
@@ -2916,6 +2929,7 @@ export async function buildGraphPayload(db, config = null) {
       slug: page.slug,
       title: page.title,
       type: page.type,
+      domains: normalizeGraphDomains(indexedPageBySlug.get(page.slug)?.frontmatter_json),
       updated_at: updatedAt,
       latest_timeline_entry: latestTimelineEntry(page.timeline),
       degree: outgoing.length + backlinks.length,
@@ -2956,6 +2970,7 @@ export async function buildGraphPayload(db, config = null) {
       slug: node.slug,
       title: node.title,
       type: node.type,
+      domains: node.domains,
       updated_at: node.updated_at,
       created_at: history.createdDays.get(`${node.slug}.md`) || node.updated_at,
       latest_timeline_entry: node.latest_timeline_entry,

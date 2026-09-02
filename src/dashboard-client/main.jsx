@@ -2444,6 +2444,17 @@ function isLineActivityMode(mode) {
   return mode.endsWith('-line') || mode === 'line';
 }
 
+function graphNodeDomains(node) {
+  return Array.isArray(node?.domains) ? node.domains : [];
+}
+
+function graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet) {
+  if (!node) return false;
+  const matchesType = selectedTypeSet.size === 0 || selectedTypeSet.has(node.type);
+  const matchesDomain = selectedDomainSet.size === 0 || graphNodeDomains(node).some((domain) => selectedDomainSet.has(domain));
+  return matchesType && matchesDomain;
+}
+
 function activityPointX(index, length) {
   if (length <= 1) return 50;
   return (index / (length - 1)) * 100;
@@ -2505,6 +2516,7 @@ const GraphPanel = memo(function GraphPanel({
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [activityMode, setActivityMode] = useState('bars');
   const [selectedPageTypes, setSelectedPageTypes] = useState([]);
+  const [selectedDomains, setSelectedDomains] = useState([]);
   const styleMenuRef = useRef(null);
   const filterMenuRef = useRef(null);
   const activityPlotRef = useRef(null);
@@ -2551,10 +2563,13 @@ const GraphPanel = memo(function GraphPanel({
     ...TYPE_ORDER.filter((type) => presentTypes.has(type)),
     ...[...presentTypes].filter((type) => !TYPE_ORDER.includes(type)).sort(),
   ];
+  const presentDomains = new Set(activeGraphNodes.flatMap((node) => graphNodeDomains(node)));
+  const domains = [...presentDomains].sort((left, right) => left.localeCompare(right));
   const selectedTypeSet = useMemo(() => new Set(selectedPageTypes), [selectedPageTypes]);
+  const selectedDomainSet = useMemo(() => new Set(selectedDomains), [selectedDomains]);
   const filteredGraph = useMemo(() => {
-    const nodes = selectedPageTypes.length
-      ? timelineFilteredNodes.filter((node) => selectedTypeSet.has(node.type))
+    const nodes = selectedPageTypes.length || selectedDomains.length
+      ? timelineFilteredNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet))
       : timelineFilteredNodes;
     const slugs = new Set(nodes.map((node) => node.slug));
     const edges = (Array.isArray(activeGraph?.edges) ? activeGraph.edges : []).filter((edge) => {
@@ -2571,12 +2586,12 @@ const GraphPanel = memo(function GraphPanel({
         edge_count: edges.length,
       },
     };
-  }, [activeGraph, selectedPageTypes.length, selectedTypeSet, timelineFilteredNodes]);
+  }, [activeGraph, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet, timelineFilteredNodes]);
   const forceGraph = useMemo(() => {
     const forceSourceGraph = focusSlug ? focusGraph : graph;
     const forceSourceNodes = timelineFilteredNodes;
-    const nodes = selectedPageTypes.length
-      ? forceSourceNodes.filter((node) => selectedTypeSet.has(node.type))
+    const nodes = selectedPageTypes.length || selectedDomains.length
+      ? forceSourceNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet))
       : forceSourceNodes;
     const slugs = new Set(nodes.map((node) => node.slug));
     const edges = (Array.isArray(forceSourceGraph?.edges) ? forceSourceGraph.edges : []).filter((edge) => {
@@ -2592,7 +2607,7 @@ const GraphPanel = memo(function GraphPanel({
         edge_count: edges.length,
       },
     };
-  }, [focusGraph, focusSlug, graph, selectedPageTypes.length, selectedTypeSet, timelineFilteredNodes]);
+  }, [focusGraph, focusSlug, graph, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet, timelineFilteredNodes]);
   const recentNodes = useMemo(() => {
     const nodes = Array.isArray(filteredGraph?.nodes) ? filteredGraph.nodes : [];
     return [...nodes]
@@ -2605,9 +2620,17 @@ const GraphPanel = memo(function GraphPanel({
       ? buildDemoGraphFlowInputs(recentNodes, demoSeed)
       : (Array.isArray(filteredGraph?.inputs) ? filteredGraph.inputs : [])
         .map((item) => ({ ...item, target_pages: graphFlowInputTargets(item) }))
-        .filter((item) => selectedTypeSet.size === 0 || item.target_pages.some((target) => selectedTypeSet.has(filteredGraph.nodes?.find((node) => node.slug === target.slug)?.type)))
+        .filter((item) => (
+          selectedTypeSet.size === 0 && selectedDomainSet.size === 0
+            ? true
+            : item.target_pages.some((target) => graphNodeMatchesFilters(
+              filteredGraph.nodes?.find((node) => node.slug === target.slug),
+              selectedTypeSet,
+              selectedDomainSet,
+            ))
+        ))
         .slice(0, GRAPH_FLOW_INPUT_LIMIT)
-  ), [demoMode, demoSeed, filteredGraph, recentNodes, selectedTypeSet]);
+  ), [demoMode, demoSeed, filteredGraph, recentNodes, selectedDomainSet, selectedTypeSet]);
   const activitySeries = useMemo(() => buildActivitySeries(activityBuckets), [activityBuckets]);
   const activityValueKey = isCumulativeActivityMode(activityMode) ? 'cumulative' : 'count';
   const activityMaxValue = useMemo(() => Math.max(...activitySeries.map((item) => item[activityValueKey]), 1), [activitySeries, activityValueKey]);
@@ -2667,6 +2690,14 @@ const GraphPanel = memo(function GraphPanel({
       current.includes(type)
         ? current.filter((item) => item !== type)
         : [...current, type]
+    ));
+  }
+
+  function toggleDomain(domain) {
+    setSelectedDomains((current) => (
+      current.includes(domain)
+        ? current.filter((item) => item !== domain)
+        : [...current, domain]
     ));
   }
 
@@ -2840,7 +2871,7 @@ const GraphPanel = memo(function GraphPanel({
             <button
               type="button"
               className={`icon-button graph-icon-button ${filterMenuOpen ? 'graph-button-active' : ''}`}
-              aria-label="Filter page types"
+              aria-label="Filter graph"
               aria-expanded={filterMenuOpen}
               onClick={() => {
                 setStyleMenuOpen(false);
@@ -2851,29 +2882,58 @@ const GraphPanel = memo(function GraphPanel({
             </button>
             {filterMenuOpen ? (
               <div className="graph-filter-menu" role="menu">
-                <button
-                  type="button"
-                  className={`menu-item ${selectedPageTypes.length === 0 ? 'selected' : ''}`}
-                  onClick={() => setSelectedPageTypes([])}
-                  role="menuitemcheckbox"
-                  aria-checked={selectedPageTypes.length === 0}
-                >
-                  <span>All page types</span>
-                  <span className="menu-item-check" aria-hidden="true">{selectedPageTypes.length === 0 ? '✓' : ''}</span>
-                </button>
-                {pageTypes.map((type) => (
+                <div className="graph-filter-group">
+                  <span className="graph-filter-group-label">Page types</span>
                   <button
-                    key={type}
                     type="button"
-                    className={`menu-item ${selectedTypeSet.has(type) ? 'selected' : ''}`}
-                    onClick={() => togglePageType(type)}
+                    className={`menu-item ${selectedPageTypes.length === 0 ? 'selected' : ''}`}
+                    onClick={() => setSelectedPageTypes([])}
                     role="menuitemcheckbox"
-                    aria-checked={selectedTypeSet.has(type)}
+                    aria-checked={selectedPageTypes.length === 0}
                   >
-                    <span>{type}</span>
-                    <span className="menu-item-check" aria-hidden="true">{selectedTypeSet.has(type) ? '✓' : ''}</span>
+                    <span>All page types</span>
+                    <span className="menu-item-check" aria-hidden="true">{selectedPageTypes.length === 0 ? '✓' : ''}</span>
                   </button>
-                ))}
+                  {pageTypes.map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      className={`menu-item ${selectedTypeSet.has(type) ? 'selected' : ''}`}
+                      onClick={() => togglePageType(type)}
+                      role="menuitemcheckbox"
+                      aria-checked={selectedTypeSet.has(type)}
+                    >
+                      <span>{type}</span>
+                      <span className="menu-item-check" aria-hidden="true">{selectedTypeSet.has(type) ? '✓' : ''}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="graph-filter-group">
+                  <span className="graph-filter-group-label">Domains</span>
+                  <button
+                    type="button"
+                    className={`menu-item ${selectedDomains.length === 0 ? 'selected' : ''}`}
+                    onClick={() => setSelectedDomains([])}
+                    role="menuitemcheckbox"
+                    aria-checked={selectedDomains.length === 0}
+                  >
+                    <span>All domains</span>
+                    <span className="menu-item-check" aria-hidden="true">{selectedDomains.length === 0 ? '✓' : ''}</span>
+                  </button>
+                  {domains.map((domain) => (
+                    <button
+                      key={domain}
+                      type="button"
+                      className={`menu-item ${selectedDomainSet.has(domain) ? 'selected' : ''}`}
+                      onClick={() => toggleDomain(domain)}
+                      role="menuitemcheckbox"
+                      aria-checked={selectedDomainSet.has(domain)}
+                    >
+                      <span>{domain}</span>
+                      <span className="menu-item-check" aria-hidden="true">{selectedDomainSet.has(domain) ? '✓' : ''}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : null}
           </div>

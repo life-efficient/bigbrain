@@ -147,6 +147,48 @@ test('dashboard graph excludes root infrastructure files from nodes and types', 
   }
 });
 
+test('dashboard graph nodes expose normalized domains from indexed frontmatter', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-graph-domains-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'companies/acme.md', '# Acme\n');
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', [
+      '---',
+      'domains: [ startups, ai-infrastructure, startups, ]',
+      '---',
+      '# Alice',
+    ].join('\n'));
+    await writeMarkdown(fixture.brainHome, 'projects/relay.md', [
+      '---',
+      'domains: ai-infrastructure',
+      '---',
+      '# Relay',
+    ].join('\n'));
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', [
+      '---',
+      'domains: [not-indexed-yet]',
+      '---',
+      '# Alice',
+    ].join('\n'));
+
+    const graph = await buildGraphPayload(db, config);
+    const domainsBySlug = Object.fromEntries(graph.nodes.map((node) => [node.slug, node.domains]));
+
+    assert.deepEqual(domainsBySlug, {
+      'companies/acme': [],
+      'people/alice': ['ai-infrastructure', 'startups'],
+      'projects/relay': ['ai-infrastructure'],
+    });
+    await db.close?.();
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('dashboard graph recent timestamps reflect current markdown file edits', async () => {
   const fixture = await createFixture('bigbrain-dashboard-graph-mtime-');
   try {
