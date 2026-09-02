@@ -8,7 +8,10 @@ const NETWORK_NODE_X_GAP = 142;
 const NETWORK_NODES_PER_ROW = 4;
 const NETWORK_COLUMN_START = 118;
 const NETWORK_TOP = 66;
-const NETWORK_ROW_GAP = 48;
+const NETWORK_ROW_GAP = 56;
+const NETWORK_LABEL_LINE_HEIGHT = 13;
+const NETWORK_LABEL_CHARS_PER_LINE = 20;
+const NETWORK_FOCUSED_LABEL_CHARS_PER_LINE = 40;
 const NETWORK_BRANCH_GAP = 10;
 const NETWORK_MIN_HEIGHT = 360;
 
@@ -96,6 +99,8 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
               const focused = node.slug === focusSlug;
               const title = node.title || node.slug;
               const showLabel = focused || Number(node.focus_hop) <= 1;
+              const titleLines = networkNodeTitleLines(title, focused);
+              const metaY = -2 + titleLines.length * NETWORK_LABEL_LINE_HEIGHT + 5;
               return (
                 <g
                   key={node.slug}
@@ -121,9 +126,13 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
                   {showLabel ? (
                     <>
                       <text x="19" y="-2" fill={theme.graphLabel} className="focused-network-title">
-                        {compactNodeTitle(title, focused ? 44 : 22)}
+                        {titleLines.map((line, index) => (
+                          <tspan key={`${line}:${index}`} x="19" dy={index === 0 ? 0 : NETWORK_LABEL_LINE_HEIGHT}>
+                            {line}
+                          </tspan>
+                        ))}
                       </text>
-                      <text x="19" y="14" fill={theme.graphMutedLabel} className="focused-network-meta">
+                      <text x="19" y={metaY} fill={theme.graphMutedLabel} className="focused-network-meta">
                         {node.type || 'page'}
                       </text>
                     </>
@@ -234,22 +243,31 @@ function buildFocusedNetworkLayout(graph, focusSlug) {
   }
   const branchBaseY = new Map();
   const branchSlotByKey = new Map();
+  const branchRowGapByKey = new Map();
   const branches = [];
   let nextBranchY = NETWORK_TOP;
   const nonFocusBranches = branchKeys.filter((branch) => branch !== focusSlug);
   for (let index = 0; index < nonFocusBranches.length; index += NETWORK_NODES_PER_ROW) {
     const pack = nonFocusBranches.slice(index, index + NETWORK_NODES_PER_ROW);
-    const maxRows = Math.max(...pack.map((branch) => {
+    const rowGapByBranch = new Map(pack.map((branch) => {
       const branchGroups = [...groups.entries()].filter(([key]) => key.startsWith(`${branch}\0`));
-      return Math.max(...branchGroups.map(([, group]) => group.length), 1);
-    }), 1);
+      const maxRows = Math.max(...branchGroups.map(([, group]) => group.length), 1);
+      const labelHeight = Math.max(...branchGroups
+        .flatMap(([, group]) => group)
+        .filter((node) => node.slug === focusSlug || Number(node.focus_hop) <= 1)
+        .map((node) => networkNodeLabelHeight(node, focusSlug)), 0);
+      return [branch, { gap: Math.max(NETWORK_ROW_GAP, labelHeight), maxRows }];
+    }));
+    const rowGap = Math.max(...rowGapByBranch.values().map(({ gap }) => gap), NETWORK_ROW_GAP);
+    const maxRows = Math.max(...rowGapByBranch.values().map(({ maxRows: rows }) => rows), 1);
     const packKey = `branch-pack-${index / NETWORK_NODES_PER_ROW}`;
     pack.forEach((branch, slot) => {
       branchBaseY.set(branch, nextBranchY);
       branchSlotByKey.set(branch, slot);
+      branchRowGapByKey.set(branch, rowGap);
     });
     branches.push({ key: packKey, y: nextBranchY, label: null });
-    nextBranchY += maxRows * NETWORK_ROW_GAP + NETWORK_BRANCH_GAP;
+    nextBranchY += maxRows * rowGap + NETWORK_BRANCH_GAP;
   }
   const contentHeight = Math.max(NETWORK_ROW_GAP, nextBranchY - NETWORK_BRANCH_GAP - NETWORK_TOP);
   if (focusSlug) {
@@ -281,7 +299,7 @@ function buildFocusedNetworkLayout(graph, focusSlug) {
       return {
         ...node,
         x: column.startX + branchSlot * NETWORK_NODE_X_GAP,
-        y: (branchBaseY.get(branch) || NETWORK_TOP) + slot * NETWORK_ROW_GAP,
+        y: (branchBaseY.get(branch) || NETWORK_TOP) + slot * (branchRowGapByKey.get(branch) || NETWORK_ROW_GAP),
       };
     });
   const nodeBySlug = new Map(laidOutNodes.map((node) => [node.slug, node]));
@@ -306,10 +324,39 @@ function buildFocusedNetworkLayout(graph, focusSlug) {
   };
 }
 
-function compactNodeTitle(value, maxLength) {
-  const title = String(value || '').trim();
-  if (title.length <= maxLength) return title;
-  return `${title.slice(0, Math.max(1, maxLength - 1)).trimEnd()}…`;
+function networkNodeTitleLines(value, focused = false) {
+  const title = String(value || '').trim() || 'Untitled page';
+  const maxCharsPerLine = focused ? NETWORK_FOCUSED_LABEL_CHARS_PER_LINE : NETWORK_LABEL_CHARS_PER_LINE;
+  const lines = [];
+  let current = '';
+  for (const word of title.split(/\s+/)) {
+    if (!word) continue;
+    if (word.length > maxCharsPerLine) {
+      if (current) {
+        lines.push(current);
+        current = '';
+      }
+      for (let index = 0; index < word.length; index += maxCharsPerLine) {
+        lines.push(word.slice(index, index + maxCharsPerLine));
+      }
+      continue;
+    }
+    const candidate = current ? `${current} ${word}` : word;
+    if (current && candidate.length > maxCharsPerLine) {
+      lines.push(current);
+      current = word;
+    } else {
+      current = candidate;
+    }
+  }
+  if (current) lines.push(current);
+  return lines.length ? lines : ['Untitled page'];
+}
+
+function networkNodeLabelHeight(node, focusSlug) {
+  const focused = node.slug === focusSlug;
+  const titleLines = networkNodeTitleLines(node.title || node.slug, focused);
+  return titleLines.length * NETWORK_LABEL_LINE_HEIGHT + 18;
 }
 
 function networkEdgePath(source, target) {

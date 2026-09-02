@@ -46,6 +46,11 @@ import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
 import { GraphDesignLabApp } from './graph/graph-design-lab.jsx';
 import { FocusedNetworkVisualizer, FocusedTimelineView } from './graph/focused-views.jsx';
+import {
+  buildFocusedNetworkGraph,
+  FOCUSED_NETWORK_MAX_HOPS,
+  normalizeFocusedGraphSlug,
+} from './graph/focused-network-data.js';
 import { deriveGraphMotion, graphPayloadsEqual } from './graph/live-graph.js';
 import { KeepInTouchPanel } from './playbooks/keep-in-touch.jsx';
 import { PLAYBOOKS } from './playbooks/registry.js';
@@ -2347,7 +2352,6 @@ function buildActivitySeries(buckets) {
   });
 }
 
-const FOCUSED_NETWORK_MAX_HOPS = 2;
 const FOCUSED_VIEW_MODES = ['network', 'timeline', 'subgraph'];
 const FOCUSED_VIEW_LABELS = {
   network: 'Focused network',
@@ -2358,122 +2362,6 @@ const FOCUSED_VIEW_LABELS = {
 function nextFocusedViewMode(mode) {
   const index = FOCUSED_VIEW_MODES.indexOf(mode);
   return FOCUSED_VIEW_MODES[(index + 1) % FOCUSED_VIEW_MODES.length];
-}
-
-function buildFocusedNetworkGraph(graph, lineage, focusSlug, maxHops = FOCUSED_NETWORK_MAX_HOPS) {
-  if (!focusSlug) return graph;
-  const sourceNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-  const sourceEdges = Array.isArray(graph?.edges) ? graph.edges : [];
-  const events = Array.isArray(lineage?.link_events) ? lineage.link_events : [];
-  const summaries = new Map();
-  if (lineage?.page?.slug) summaries.set(lineage.page.slug, lineage.page);
-  for (const event of events) {
-    if (event?.from?.slug) summaries.set(event.from.slug, event.from);
-    if (event?.to?.slug) summaries.set(event.to.slug, event.to);
-  }
-  const historicalEdges = events
-    .filter((event) => event?.from_page && event?.to_page)
-    .map((event, index) => ({
-      id: `lineage:${event.commit_sha || index}:${event.from_page}:${event.to_page}`,
-      source: event.from_page,
-      target: event.to_page,
-      timestamp: event.timestamp || null,
-      created_at: event.timestamp || null,
-      updated_at: event.timestamp || null,
-      lineage_event: true,
-      type: event.type,
-    }));
-  const fallbackEdges = [
-    ...(Array.isArray(lineage?.backlinks) ? lineage.backlinks.map((link) => ({ source: link.from_slug, target: focusSlug })) : []),
-    ...(Array.isArray(lineage?.outgoing) ? lineage.outgoing.map((link) => ({ source: focusSlug, target: link.to_slug })) : []),
-  ].filter((edge) => edge.source && edge.target);
-  const edgeByDirection = new Map();
-  for (const edge of [...sourceEdges, ...fallbackEdges, ...historicalEdges]) {
-    if (!edge?.source || !edge?.target) continue;
-    const key = `${edge.source}:${edge.target}`;
-    if (!edgeByDirection.has(key) || edge.lineage_event) edgeByDirection.set(key, edge);
-  }
-  const allEdges = [...edgeByDirection.values()];
-  const incomingByTarget = new Map();
-  for (const edge of allEdges) {
-    if (!incomingByTarget.has(edge.target)) incomingByTarget.set(edge.target, []);
-    incomingByTarget.get(edge.target).push(edge.source);
-  }
-  for (const neighbors of incomingByTarget.values()) neighbors.sort((left, right) => left.localeCompare(right));
-  const hops = new Map([[focusSlug, 0]]);
-  const parentBySlug = new Map();
-  const queue = [focusSlug];
-  while (queue.length) {
-    const current = queue.shift();
-    const currentHop = hops.get(current);
-    if (currentHop >= maxHops) continue;
-    for (const neighbor of incomingByTarget.get(current) || []) {
-      if (hops.has(neighbor)) continue;
-      hops.set(neighbor, currentHop + 1);
-      parentBySlug.set(neighbor, current);
-      queue.push(neighbor);
-    }
-  }
-  const focusSlugs = new Set(hops.keys());
-  const branchBySlug = new Map([[focusSlug, focusSlug]]);
-  for (const slug of focusSlugs) {
-    if (slug === focusSlug) continue;
-    let branch = slug;
-    let parent = parentBySlug.get(slug);
-    while (parent && parent !== focusSlug) {
-      branch = parent;
-      parent = parentBySlug.get(parent);
-    }
-    branchBySlug.set(slug, branch);
-  }
-  const sourceNodeBySlug = new Map(sourceNodes.map((node) => [node.slug, node]));
-  const lineageDates = new Map();
-  for (const event of historicalEdges) {
-    const timestamp = event?.timestamp;
-    if (!timestamp || !Number.isFinite(Date.parse(timestamp))) continue;
-    for (const slug of [event.source, event.target]) {
-      if (!slug) continue;
-      const current = lineageDates.get(slug);
-      if (!current || Date.parse(timestamp) < Date.parse(current)) lineageDates.set(slug, timestamp);
-    }
-  }
-
-  const nodes = [...focusSlugs].map((slug) => {
-    const sourceNode = sourceNodeBySlug.get(slug);
-    const summary = summaries.get(slug);
-    const lineageAt = lineageDates.get(slug);
-    return {
-      ...(sourceNode || {}),
-      slug,
-      title: sourceNode?.title || summary?.title || labelFromSlug(slug),
-      type: sourceNode?.type || summary?.type || slug.split('/')[0] || 'unknown',
-      degree: sourceNode?.degree || 1,
-      focus_hop: hops.get(slug) || 0,
-      focus_parent: parentBySlug.get(slug) || null,
-      focus_branch: branchBySlug.get(slug) || focusSlug,
-      network_at: lineageAt || sourceNode?.created_at || sourceNode?.updated_at || null,
-      lineage_at: lineageAt || sourceNode?.created_at || sourceNode?.updated_at || null,
-      created_at: sourceNode?.created_at || lineageAt || sourceNode?.updated_at || null,
-      updated_at: sourceNode?.updated_at || lineageAt || null,
-    };
-  });
-  const nodeIds = new Set(nodes.map((node) => node.slug));
-  const edges = allEdges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
-  return {
-    ...graph,
-    nodes,
-    edges,
-    inputs: [],
-    activity: [],
-    meta: {
-      ...graph?.meta,
-      page_count: nodes.length,
-      node_count: nodes.length,
-      edge_count: edges.length,
-      input_count: 0,
-      focused_hops: maxHops,
-    },
-  };
 }
 
 function buildFocusedSubgraphGraph(graph, lineage, focusSlug) {
@@ -2674,7 +2562,7 @@ const GraphPanel = memo(function GraphPanel({
   const visualizer = graphVisualizers.find((item) => item.id === visualizerId) || graphVisualizers[0];
   const VisualizerComponent = visualizer.Component;
   const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
-  const focusSlug = lineage?.slug || null;
+  const focusSlug = normalizeFocusedGraphSlug(lineage?.slug);
   const focusGraph = useMemo(() => buildFocusedNetworkGraph(graph, lineage, focusSlug), [focusSlug, graph, lineage]);
   const focusedSubgraph = useMemo(() => buildFocusedSubgraphGraph(graph, lineage, focusSlug), [focusSlug, graph, lineage]);
   const focusedNetworkStats = useMemo(() => {

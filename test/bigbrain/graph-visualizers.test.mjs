@@ -50,6 +50,10 @@ import {
   getGraphNodeTransformScale,
   getGraphNodeZoomMultiplier,
 } from '../../src/dashboard-client/graph/node-sizes.js';
+import {
+  buildFocusedNetworkGraph,
+  normalizeFocusedGraphSlug,
+} from '../../src/dashboard-client/graph/focused-network-data.js';
 
 test('responsive graph visualizers do not paint letterboxed viewBox backdrops', async () => {
   const sources = await Promise.all([
@@ -62,6 +66,50 @@ test('responsive graph visualizers do not paint letterboxed viewBox backdrops', 
   for (const source of sources) {
     assert.doesNotMatch(source, /<rect width=\{laidOut\.width\} height=\{laidOut\.height\}/);
   }
+});
+
+test('focused network canonicalizes cyclical lineage and keeps only upstream edges', () => {
+  const graph = {
+    nodes: [
+      { slug: 'people/focus', title: 'Focus' },
+      { slug: 'projects/gpu', title: 'GPU' },
+      { slug: 'projects/cpu', title: 'CPU' },
+      { slug: 'concepts/shared', title: 'Shared' },
+    ],
+    edges: [
+      { source: 'people/focus', target: 'projects/gpu' },
+      { source: 'projects/gpu', target: 'people/focus.md' },
+      { source: 'projects/cpu', target: 'people/focus' },
+      { source: 'concepts/shared', target: 'projects/gpu' },
+      { source: 'concepts/shared', target: 'projects/cpu' },
+    ],
+  };
+  const network = buildFocusedNetworkGraph(graph, {
+    page: { slug: 'people/focus.md', title: 'Focus' },
+    backlinks: [{ from_slug: 'projects/cpu.md' }],
+    link_events: [{
+      from_page: 'people/focus.md',
+      to_page: 'projects/gpu.md',
+      timestamp: '2026-09-01T10:00:00Z',
+    }],
+  }, 'people/focus.md');
+
+  assert.equal(normalizeFocusedGraphSlug('/people/focus.md'), 'people/focus');
+  assert.equal(network.nodes.filter((node) => node.slug === 'people/focus').length, 1);
+  assert.deepEqual(network.nodes.map((node) => node.slug).sort(), [
+    'concepts/shared',
+    'people/focus',
+    'projects/cpu',
+    'projects/gpu',
+  ]);
+  assert.equal(network.edges.some((edge) => edge.source === 'people/focus'), false);
+  assert.deepEqual(network.edges.map((edge) => `${edge.source}:${edge.target}`).sort(), [
+    'concepts/shared:projects/cpu',
+    'concepts/shared:projects/gpu',
+    'projects/cpu:people/focus',
+    'projects/gpu:people/focus',
+  ]);
+  assert.equal(network.meta.focused_slug, 'people/focus');
 });
 
 test('spacious and signal bloom use larger node and cluster labels without changing the custom baseline', async () => {
@@ -408,9 +456,10 @@ test('vis network focus emphasizes one-hop relationships and mutes the rest', ()
 });
 
 test('graph label and node controls remain available in the graph style menu', async () => {
-  const [main, focusedViews] = await Promise.all([
+  const [main, focusedViews, focusedData] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/dashboard-client/graph/focused-views.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/focused-network-data.js', import.meta.url), 'utf8'),
   ]);
   const labelsGroup = main.match(/<GraphStyleOptionGroup\s+label="Labels"[\s\S]*?\/>/)?.[0] || '';
   const nodeShapeGroup = main.match(/<GraphStyleOptionGroup\s+label="Node shape"[\s\S]*?\/>/)?.[0] || '';
@@ -462,9 +511,10 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /event\.key\.toLowerCase\(\) !== 't'/);
   assert.match(main, /timeline_updates/);
   assert.match(main, /focusedNetworkStats\.direct/);
-  assert.match(main, /focus_branch/);
-  assert.match(main, /incomingByTarget/);
-  assert.match(main, /network_at: lineageAt \|\| sourceNode\?\.created_at/);
+  assert.match(focusedData, /focus_branch/);
+  assert.match(focusedData, /incomingByTarget/);
+  assert.match(focusedData, /network_at: lineageAt \|\| sourceNode\?\.created_at/);
+  assert.match(focusedData, /sourceHop >= targetHop/);
   assert.match(main, /closest\('\.sidecar-panel, \.graph-wrap'\)/);
   assert.doesNotMatch(focusedViews, /Related pages by update order/);
   assert.match(focusedViews, /NETWORK_HOP_COLUMN_GAP/);
@@ -475,6 +525,8 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(focusedViews, /NETWORK_NODES_PER_ROW = 4/);
   assert.match(focusedViews, /focused-network-branches/);
   assert.match(focusedViews, /showLabel = focused \|\| Number\(node\.focus_hop\) <= 1/);
+  assert.match(focusedViews, /networkNodeTitleLines/);
+  assert.doesNotMatch(focusedViews, /compactNodeTitle/);
   assert.doesNotMatch(focusedViews, /className="focused-network-meta">\s*\{node\.type \|\| 'page'\} · hop/);
   assert.doesNotMatch(main, /graph-timeline-slider/);
   assert.doesNotMatch(main, /graph-activity-meta/);
