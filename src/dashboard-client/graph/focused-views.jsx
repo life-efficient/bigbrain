@@ -1,16 +1,16 @@
-import React, { memo, useId, useMemo } from 'react';
+import React, { memo, useId, useLayoutEffect, useMemo, useRef } from 'react';
 
 import { getGraphNodeColor } from './colors.js';
 import { useGraphTheme } from './visualizer-core.jsx';
 
-const NETWORK_DATE_COLUMN_GAP = 560;
-const NETWORK_NODE_X_GAP = 132;
+const NETWORK_HOP_COLUMN_GAP = 560;
+const NETWORK_NODE_X_GAP = 142;
 const NETWORK_NODES_PER_ROW = 4;
 const NETWORK_COLUMN_START = 118;
-const NETWORK_TOP = 86;
-const NETWORK_ROW_GAP = 74;
-const NETWORK_BRANCH_GAP = 46;
-const NETWORK_MIN_HEIGHT = 420;
+const NETWORK_TOP = 66;
+const NETWORK_ROW_GAP = 48;
+const NETWORK_BRANCH_GAP = 10;
+const NETWORK_MIN_HEIGHT = 360;
 
 export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
   graph,
@@ -21,7 +21,21 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
 }) {
   const theme = useGraphTheme();
   const markerId = useId().replace(/:/g, '-');
+  const scrollRef = useRef(null);
   const layout = useMemo(() => buildFocusedNetworkLayout(graph, focusSlug), [focusSlug, graph]);
+
+  useLayoutEffect(() => {
+    const scroll = scrollRef.current;
+    if (!scroll) return undefined;
+    const scrollToRight = () => {
+      scroll.scrollLeft = Math.max(0, scroll.scrollWidth - scroll.clientWidth);
+    };
+    scrollToRight();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const observer = new ResizeObserver(scrollToRight);
+    observer.observe(scroll);
+    return () => observer.disconnect();
+  }, [focusSlug, graph, layout.height, layout.width]);
 
   if (!layout.nodes.length) {
     return (
@@ -33,7 +47,7 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
 
   return (
     <div className="focused-view focused-network-view" aria-label="Focused page network">
-      <div className="focused-network-scroll">
+      <div ref={scrollRef} className="focused-network-scroll">
         <svg
           className="focused-network-svg"
           width={layout.width}
@@ -41,7 +55,7 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
           style={{ width: `${layout.width}px`, height: `${layout.height}px` }}
           viewBox={`0 0 ${layout.width} ${layout.height}`}
           role="img"
-          aria-label="Pages connected to the focused page, ordered by update date"
+          aria-label="Pages leading into the focused page, arranged by graph distance"
         >
           <defs>
             <marker id={markerId} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth">
@@ -51,7 +65,7 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
           {layout.columns.map((column) => (
             <g key={column.key} className="focused-network-column">
               <line x1={column.centerX} y1="42" x2={column.centerX} y2={layout.height - 24} stroke={theme.graphGrid} strokeDasharray="3 8" />
-              <text x={column.centerX} y="24" textAnchor="middle" fill={theme.graphLabel} className="focused-network-date">
+              <text x={column.centerX} y="24" textAnchor="middle" fill={theme.graphLabel} className="focused-network-hop">
                 {column.label}
               </text>
             </g>
@@ -107,7 +121,7 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
                   {showLabel ? (
                     <>
                       <text x="19" y="-2" fill={theme.graphLabel} className="focused-network-title">
-                        {compactNodeTitle(title, focused ? 44 : 30)}
+                        {compactNodeTitle(title, focused ? 44 : 22)}
                       </text>
                       <text x="19" y="14" fill={theme.graphMutedLabel} className="focused-network-meta">
                         {node.type || 'page'} · hop {node.focus_hop || 0}
@@ -188,51 +202,65 @@ function buildFocusedNetworkLayout(graph, focusSlug) {
   const sourceNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const sourceEdges = Array.isArray(graph?.edges) ? graph.edges : [];
   const nodes = sourceNodes.filter((node) => node?.slug);
-  const dateKeys = [...new Set(nodes.map((node) => dayKey(node.network_at || node.created_at || node.updated_at)).filter(Boolean))].sort();
-  if (!dateKeys.length) dateKeys.push('undated');
-  const columns = dateKeys.map((key, index) => {
-    const startX = NETWORK_COLUMN_START + index * NETWORK_DATE_COLUMN_GAP;
+  const hopKeys = [...new Set(nodes.map((node) => {
+    const hop = Number(node.focus_hop);
+    return Number.isFinite(hop) ? Math.max(0, hop) : 0;
+  }))].sort((left, right) => right - left);
+  if (!hopKeys.length) hopKeys.push(0);
+  const columns = hopKeys.map((hop, index) => {
+    const startX = NETWORK_COLUMN_START + index * NETWORK_HOP_COLUMN_GAP;
     return {
-      key,
+      key: `hop-${hop}`,
+      hop,
       startX,
       centerX: startX + ((NETWORK_NODES_PER_ROW - 1) * NETWORK_NODE_X_GAP) / 2,
-      label: key === 'undated' ? 'Undated' : key,
+      label: hop === 0 ? 'Focused page' : `${hop} hop${hop === 1 ? '' : 's'} back`,
     };
   });
-  const columnByDate = new Map(columns.map((column) => [column.key, column]));
-  const branchKeys = [...new Set(nodes.map((node) => node.focus_branch || node.slug))].sort((left, right) => {
+  const columnByHop = new Map(columns.map((column) => [column.hop, column]));
+  const branchKeys = [...new Set(nodes.map((node) => node.slug === focusSlug ? focusSlug : (node.focus_branch || node.slug)))].filter(Boolean);
+  branchKeys.sort((left, right) => {
     if (left === focusSlug) return -1;
     if (right === focusSlug) return 1;
     return left.localeCompare(right);
   });
   const groups = new Map();
   for (const node of nodes) {
-    const date = dayKey(node.network_at || node.created_at || node.updated_at) || 'undated';
-    const branch = node.focus_branch || node.slug;
-    const key = `${branch}\0${date}`;
+    const hop = Number.isFinite(Number(node.focus_hop)) ? Math.max(0, Number(node.focus_hop)) : 0;
+    const branch = node.slug === focusSlug ? focusSlug : (node.focus_branch || node.slug);
+    const key = `${branch}\0${hop}`;
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(node);
   }
   const branchBaseY = new Map();
+  const branchSlotByKey = new Map();
   const branches = [];
   let nextBranchY = NETWORK_TOP;
-  for (const branch of branchKeys) {
-    const branchGroups = [...groups.entries()].filter(([key]) => key.startsWith(`${branch}\0`));
-    const maxRows = Math.max(...branchGroups.map(([, group]) => Math.ceil(group.length / NETWORK_NODES_PER_ROW)), 1);
-    const branchNode = nodes.find((node) => node.slug === branch);
-    branchBaseY.set(branch, nextBranchY);
-    branches.push({
-      key: branch,
-      y: nextBranchY,
-      label: branch === focusSlug ? 'Focused page' : compactNodeTitle(branchNode?.title || branch, 34),
+  const nonFocusBranches = branchKeys.filter((branch) => branch !== focusSlug);
+  for (let index = 0; index < nonFocusBranches.length; index += NETWORK_NODES_PER_ROW) {
+    const pack = nonFocusBranches.slice(index, index + NETWORK_NODES_PER_ROW);
+    const maxRows = Math.max(...pack.map((branch) => {
+      const branchGroups = [...groups.entries()].filter(([key]) => key.startsWith(`${branch}\0`));
+      return Math.max(...branchGroups.map(([, group]) => group.length), 1);
+    }), 1);
+    const packKey = `branch-pack-${index / NETWORK_NODES_PER_ROW}`;
+    pack.forEach((branch, slot) => {
+      branchBaseY.set(branch, nextBranchY);
+      branchSlotByKey.set(branch, slot);
     });
+    branches.push({ key: packKey, y: nextBranchY, label: null });
     nextBranchY += maxRows * NETWORK_ROW_GAP + NETWORK_BRANCH_GAP;
+  }
+  const contentHeight = Math.max(NETWORK_ROW_GAP, nextBranchY - NETWORK_BRANCH_GAP - NETWORK_TOP);
+  if (focusSlug) {
+    branchBaseY.set(focusSlug, NETWORK_TOP + Math.max(0, (contentHeight - NETWORK_ROW_GAP) / 2));
+    branchSlotByKey.set(focusSlug, Math.floor(NETWORK_NODES_PER_ROW / 2));
+    branches.unshift({ key: 'focused-branch', y: branchBaseY.get(focusSlug), label: 'Focused page' });
   }
   const slotBySlug = new Map();
   for (const group of groups.values()) {
     group.sort((left, right) => (
-      (Number(left.focus_hop) || 0) - (Number(right.focus_hop) || 0)
-      || String(left.focus_parent || '').localeCompare(String(right.focus_parent || ''))
+      String(left.focus_parent || '').localeCompare(String(right.focus_parent || ''))
       || String(left.title || left.slug).localeCompare(String(right.title || right.slug))
       || left.slug.localeCompare(right.slug)
     ));
@@ -240,20 +268,20 @@ function buildFocusedNetworkLayout(graph, focusSlug) {
   }
   const laidOutNodes = [...nodes]
     .sort((left, right) => (
-      String(left.network_at || left.created_at || left.updated_at || '').localeCompare(String(right.network_at || right.created_at || right.updated_at || ''))
+      (Number(right.focus_hop) || 0) - (Number(left.focus_hop) || 0)
       || String(left.focus_branch || left.slug).localeCompare(String(right.focus_branch || right.slug))
-      || (Number(left.focus_hop) || 0) - (Number(right.focus_hop) || 0)
       || left.slug.localeCompare(right.slug)
     ))
     .map((node) => {
-      const date = dayKey(node.network_at || node.created_at || node.updated_at) || 'undated';
-      const column = columnByDate.get(date) || columns[0];
-      const branch = node.focus_branch || node.slug;
+      const hop = Number.isFinite(Number(node.focus_hop)) ? Math.max(0, Number(node.focus_hop)) : 0;
+      const column = columnByHop.get(hop) || columns.at(-1);
+      const branch = node.slug === focusSlug ? focusSlug : (node.focus_branch || node.slug);
+      const branchSlot = branchSlotByKey.get(branch) || 0;
       const slot = slotBySlug.get(node.slug) || 0;
       return {
         ...node,
-        x: column.startX + (slot % NETWORK_NODES_PER_ROW) * NETWORK_NODE_X_GAP,
-        y: (branchBaseY.get(branch) || NETWORK_TOP) + Math.floor(slot / NETWORK_NODES_PER_ROW) * NETWORK_ROW_GAP,
+        x: column.startX + branchSlot * NETWORK_NODE_X_GAP,
+        y: (branchBaseY.get(branch) || NETWORK_TOP) + slot * NETWORK_ROW_GAP,
       };
     });
   const nodeBySlug = new Map(laidOutNodes.map((node) => [node.slug, node]));

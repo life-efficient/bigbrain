@@ -463,9 +463,13 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /timeline_updates/);
   assert.match(main, /focusedNetworkStats\.direct/);
   assert.match(main, /focus_branch/);
+  assert.match(main, /incomingByTarget/);
   assert.match(main, /network_at: lineageAt \|\| sourceNode\?\.created_at/);
   assert.match(main, /closest\('\.sidecar-panel, \.graph-wrap'\)/);
   assert.doesNotMatch(focusedViews, /Related pages by update order/);
+  assert.match(focusedViews, /NETWORK_HOP_COLUMN_GAP/);
+  assert.match(focusedViews, /scroll\.scrollLeft = Math\.max/);
+  assert.doesNotMatch(focusedViews, /columnByDate/);
   assert.match(focusedViews, /width=\{layout\.width\}/);
   assert.match(focusedViews, /height=\{layout\.height\}/);
   assert.match(focusedViews, /NETWORK_NODES_PER_ROW = 4/);

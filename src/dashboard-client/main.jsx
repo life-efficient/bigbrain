@@ -2394,14 +2394,12 @@ function buildFocusedNetworkGraph(graph, lineage, focusSlug, maxHops = FOCUSED_N
     if (!edgeByDirection.has(key) || edge.lineage_event) edgeByDirection.set(key, edge);
   }
   const allEdges = [...edgeByDirection.values()];
-  const adjacency = new Map();
+  const incomingByTarget = new Map();
   for (const edge of allEdges) {
-    if (!adjacency.has(edge.source)) adjacency.set(edge.source, []);
-    if (!adjacency.has(edge.target)) adjacency.set(edge.target, []);
-    adjacency.get(edge.source).push(edge.target);
-    adjacency.get(edge.target).push(edge.source);
+    if (!incomingByTarget.has(edge.target)) incomingByTarget.set(edge.target, []);
+    incomingByTarget.get(edge.target).push(edge.source);
   }
-  for (const neighbors of adjacency.values()) neighbors.sort((left, right) => left.localeCompare(right));
+  for (const neighbors of incomingByTarget.values()) neighbors.sort((left, right) => left.localeCompare(right));
   const hops = new Map([[focusSlug, 0]]);
   const parentBySlug = new Map();
   const queue = [focusSlug];
@@ -2409,7 +2407,7 @@ function buildFocusedNetworkGraph(graph, lineage, focusSlug, maxHops = FOCUSED_N
     const current = queue.shift();
     const currentHop = hops.get(current);
     if (currentHop >= maxHops) continue;
-    for (const neighbor of adjacency.get(current) || []) {
+    for (const neighbor of incomingByTarget.get(current) || []) {
       if (hops.has(neighbor)) continue;
       hops.set(neighbor, currentHop + 1);
       parentBySlug.set(neighbor, current);

@@ -1045,7 +1045,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .focused-network-view { display: flex; flex-direction: column; }
       .focused-network-scroll { flex: 1; min-height: 0; overflow: auto; border: 1px solid rgba(148,163,184,0.14); border-radius: 14px; background: rgba(0,0,0,0.08); }
       .focused-network-svg { display: block; max-width: none; }
-      .focused-network-date { font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.04em; }
+      .focused-network-hop { font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.04em; }
       .focused-network-branch { font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
       .focused-network-edge { fill: none; stroke: rgba(212,212,216,0.34); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
       .focused-network-edge.historical { stroke: rgba(255,255,255,0.7); stroke-dasharray: 4 5; }
