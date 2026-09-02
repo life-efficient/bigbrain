@@ -1052,6 +1052,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .focused-network-edge.historical { stroke: rgba(255,255,255,0.7); stroke-dasharray: 4 5; }
       .focused-network-edge.removed { stroke: rgba(252,165,165,0.72); }
       .focused-network-node { cursor: pointer; outline: none; }
+      .focused-network-node.collapsed circle:first-child { stroke-dasharray: 3 3; }
+      .focused-network-node.collapsed .focused-network-title { fill: var(--muted); }
       .focused-network-node:hover circle:first-child, .focused-network-node:focus-visible circle:first-child { stroke: var(--accent); }
       .focused-network-title { font: 650 11px/1 ui-sans-serif, -apple-system, BlinkMacSystemFont, sans-serif; pointer-events: none; }
       .focused-network-meta { font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; pointer-events: none; }

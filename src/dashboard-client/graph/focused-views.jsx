@@ -1,4 +1,4 @@
-import React, { memo, useId, useLayoutEffect, useMemo, useRef } from 'react';
+import React, { memo, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { getGraphNodeColor } from './colors.js';
 import { useGraphTheme } from './visualizer-core.jsx';
@@ -14,6 +14,8 @@ const NETWORK_LABEL_CHARS_PER_LINE = 20;
 const NETWORK_FOCUSED_LABEL_CHARS_PER_LINE = 40;
 const NETWORK_BRANCH_GAP = 10;
 const NETWORK_MIN_HEIGHT = 360;
+const NETWORK_VISIBLE_CONTRIBUTORS = 5;
+const COLLAPSED_NODE_PREFIX = '__bigbrain_focused_collapsed__';
 
 export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
   graph,
@@ -25,20 +27,43 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
   const theme = useGraphTheme();
   const markerId = useId().replace(/:/g, '-');
   const scrollRef = useRef(null);
-  const layout = useMemo(() => buildFocusedNetworkLayout(graph, focusSlug), [focusSlug, graph]);
+  const [expandedContributorGroups, setExpandedContributorGroups] = useState(() => new Set());
+  const layout = useMemo(
+    () => buildFocusedNetworkLayout(graph, focusSlug, expandedContributorGroups),
+    [expandedContributorGroups, focusSlug, graph],
+  );
+
+  useEffect(() => {
+    setExpandedContributorGroups(new Set());
+  }, [focusSlug, graph]);
 
   useLayoutEffect(() => {
     const scroll = scrollRef.current;
     if (!scroll) return undefined;
-    const scrollToRight = () => {
+    const scrollToFocusedNode = () => {
       scroll.scrollLeft = Math.max(0, scroll.scrollWidth - scroll.clientWidth);
+      const focusedNode = layout.nodes.find((node) => node.slug === focusSlug);
+      const maxScrollTop = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
+      scroll.scrollTop = focusedNode
+        ? Math.min(maxScrollTop, Math.max(0, focusedNode.y - scroll.clientHeight / 2))
+        : 0;
     };
-    scrollToRight();
-    if (typeof ResizeObserver === 'undefined') return undefined;
-    const observer = new ResizeObserver(scrollToRight);
+    scrollToFocusedNode();
+    const frame = typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+      ? window.requestAnimationFrame(scrollToFocusedNode)
+      : null;
+    if (typeof ResizeObserver === 'undefined') {
+      return () => {
+        if (frame !== null) window.cancelAnimationFrame(frame);
+      };
+    }
+    const observer = new ResizeObserver(scrollToFocusedNode);
     observer.observe(scroll);
-    return () => observer.disconnect();
-  }, [focusSlug, graph, layout.height, layout.width]);
+    return () => {
+      if (frame !== null) window.cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
+  }, [focusSlug, graph, layout.height, layout.nodes, layout.width]);
 
   if (!layout.nodes.length) {
     return (
@@ -97,48 +122,68 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
           </g>
           <g className="focused-network-nodes">
             {layout.nodes.map((node) => {
-              const nodeColor = getGraphNodeColor(node, colorMode, typeColors) || theme.graphNode;
-              const focused = node.slug === focusSlug;
-              const title = node.title || node.slug;
-              const showLabel = true;
+              const collapsed = Boolean(node.collapsed);
+              const nodeColor = collapsed
+                ? theme.graphMutedLabel
+                : (getGraphNodeColor(node, colorMode, typeColors) || theme.graphNode);
+              const focused = !collapsed && node.slug === focusSlug;
+              const title = collapsed
+                ? (node.collapsed_expanded ? '… show fewer contributors' : `… +${node.collapsed_count} more nodes`)
+                : (node.title || node.slug);
               const titleLines = networkNodeTitleLines(title, focused);
               const metaY = -2 + titleLines.length * NETWORK_LABEL_LINE_HEIGHT + 5;
               return (
                 <g
                   key={node.slug}
-                  className={`focused-network-node ${focused ? 'focused' : ''}`}
+                  className={`focused-network-node ${focused ? 'focused' : ''} ${collapsed ? 'collapsed' : ''}`}
                   transform={`translate(${node.x} ${node.y})`}
                   role="button"
                   tabIndex="0"
-                  aria-label={`Open ${node.title || node.slug}`}
+                  aria-label={collapsed
+                    ? (node.collapsed_expanded ? 'Collapse contributors' : `Expand ${node.collapsed_count} hidden contributors`)
+                    : `Open ${node.title || node.slug}`}
                   onClick={(event) => {
                     event.stopPropagation();
+                    if (collapsed) {
+                      setExpandedContributorGroups((current) => {
+                        const next = new Set(current);
+                        if (next.has(node.collapsed_group_key)) next.delete(node.collapsed_group_key);
+                        else next.add(node.collapsed_group_key);
+                        return next;
+                      });
+                      return;
+                    }
                     onNodeOpen?.(node.slug);
                   }}
                   onKeyDown={(event) => {
                     if (event.key !== 'Enter' && event.key !== ' ') return;
                     event.preventDefault();
                     event.stopPropagation();
+                    if (collapsed) {
+                      setExpandedContributorGroups((current) => {
+                        const next = new Set(current);
+                        if (next.has(node.collapsed_group_key)) next.delete(node.collapsed_group_key);
+                        else next.add(node.collapsed_group_key);
+                        return next;
+                      });
+                      return;
+                    }
                     onNodeOpen?.(node.slug);
                   }}
                 >
-                  <title>{`${title} · ${node.type || 'page'}`}</title>
+                  <title>{`${title} · ${collapsed ? 'contributors' : (node.type || 'page')}`}</title>
                   <circle r={focused ? 14 : 11} fill={theme.graphBase} stroke={focused ? theme.graphLabel : theme.graphEdgeStrong} strokeWidth={focused ? 2 : 1} />
-                  <circle r={focused ? 8 : 6} fill={nodeColor} fillOpacity="0.9" />
-                  {showLabel ? (
-                    <>
-                      <text x="19" y="-2" fill={theme.graphLabel} className="focused-network-title">
-                        {titleLines.map((line, index) => (
-                          <tspan key={`${line}:${index}`} x="19" dy={index === 0 ? 0 : NETWORK_LABEL_LINE_HEIGHT}>
-                            {line}
-                          </tspan>
-                        ))}
-                      </text>
-                      <text x="19" y={metaY} fill={theme.graphMutedLabel} className="focused-network-meta">
-                        {node.type || 'page'}
-                      </text>
-                    </>
-                  ) : null}
+                  <circle r={focused ? 8 : collapsed ? 5 : 6} fill={nodeColor} fillOpacity="0.9" />
+                  <text x="19" y="-2" fill={theme.graphLabel} className="focused-network-title">
+                    {titleLines.map((line, index) => (
+                      <tspan key={`${line}:${index}`} x="19" dy={index === 0 ? 0 : NETWORK_LABEL_LINE_HEIGHT}>
+                        {line}
+                      </tspan>
+                    ))}
+                  </text>
+                  <text x="19" y={metaY} fill={theme.graphMutedLabel} className="focused-network-meta">
+                    {collapsed ? 'contributors' : (node.type || 'page')}
+                  </text>
                 </g>
               );
             })}
@@ -209,10 +254,52 @@ export const FocusedTimelineView = memo(function FocusedTimelineView({ lineage, 
   );
 });
 
-function buildFocusedNetworkLayout(graph, focusSlug) {
+function buildFocusedNetworkLayout(graph, focusSlug, expandedContributorGroups = new Set()) {
   const sourceNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const sourceEdges = Array.isArray(graph?.edges) ? graph.edges : [];
-  const nodes = sourceNodes.filter((node) => node?.slug);
+  const rawNodes = sourceNodes.filter((node) => node?.slug);
+  const sourceNodeBySlug = new Map(rawNodes.map((node) => [node.slug, node]));
+  const contributorsByParent = new Map();
+  for (const node of rawNodes) {
+    const parentSlug = node.focus_parent;
+    if (!parentSlug || node.slug === focusSlug || !sourceNodeBySlug.has(parentSlug)) continue;
+    if (!contributorsByParent.has(parentSlug)) contributorsByParent.set(parentSlug, []);
+    contributorsByParent.get(parentSlug).push(node);
+  }
+
+  const hiddenNodeSlugs = new Set();
+  const collapsedSlugByHiddenSlug = new Map();
+  const collapsedNodes = [];
+  const contributorGroups = [...contributorsByParent.entries()].sort(([, left], [, right]) => (
+    (Number(left[0]?.focus_hop) || 0) - (Number(right[0]?.focus_hop) || 0)
+  ));
+  for (const [parentSlug, contributors] of contributorGroups) {
+    if (hiddenNodeSlugs.has(parentSlug)) continue;
+    const orderedContributors = [...contributors].sort(sortFocusedNetworkNodes);
+    if (orderedContributors.length <= NETWORK_VISIBLE_CONTRIBUTORS) continue;
+    const parent = sourceNodeBySlug.get(parentSlug);
+    const expanded = expandedContributorGroups.has(parentSlug);
+    const hiddenContributors = expanded ? [] : orderedContributors.slice(NETWORK_VISIBLE_CONTRIBUTORS);
+    const collapsedSlug = `${COLLAPSED_NODE_PREFIX}${parentSlug}`;
+    hiddenContributors.forEach((node) => {
+      hiddenNodeSlugs.add(node.slug);
+      collapsedSlugByHiddenSlug.set(node.slug, collapsedSlug);
+    });
+    collapsedNodes.push({
+      slug: collapsedSlug,
+      title: expanded ? '… show fewer contributors' : `… +${hiddenContributors.length} more nodes`,
+      type: 'contributors',
+      focus_hop: orderedContributors[0]?.focus_hop ?? 1,
+      focus_parent: parentSlug,
+      focus_branch: parent?.focus_branch || parentSlug,
+      collapsed: true,
+      collapsed_expanded: expanded,
+      collapsed_group_key: parentSlug,
+      collapsed_count: orderedContributors.length - NETWORK_VISIBLE_CONTRIBUTORS,
+    });
+  }
+
+  const nodes = rawNodes.filter((node) => !hiddenNodeSlugs.has(node.slug)).concat(collapsedNodes);
   const hopKeys = [...new Set(nodes.map((node) => {
     const hop = Number(node.focus_hop);
     return Number.isFinite(hop) ? Math.max(0, hop) : 0;
@@ -244,7 +331,6 @@ function buildFocusedNetworkLayout(graph, focusSlug) {
     groups.get(key).push(node);
   }
   const branchBaseY = new Map();
-  const branchSlotByKey = new Map();
   const branchRowGapByKey = new Map();
   const branches = [];
   let nextBranchY = NETWORK_TOP;
@@ -262,9 +348,8 @@ function buildFocusedNetworkLayout(graph, focusSlug) {
     const rowGap = Math.max(...rowGapByBranch.values().map(({ gap }) => gap), NETWORK_ROW_GAP);
     const maxRows = Math.max(...rowGapByBranch.values().map(({ maxRows: rows }) => rows), 1);
     const packKey = `branch-pack-${index / NETWORK_NODES_PER_ROW}`;
-    pack.forEach((branch, slot) => {
+    pack.forEach((branch) => {
       branchBaseY.set(branch, nextBranchY);
-      branchSlotByKey.set(branch, slot);
       branchRowGapByKey.set(branch, rowGap);
     });
     branches.push({ key: packKey, y: nextBranchY, label: null });
@@ -273,16 +358,11 @@ function buildFocusedNetworkLayout(graph, focusSlug) {
   const contentHeight = Math.max(NETWORK_ROW_GAP, nextBranchY - NETWORK_BRANCH_GAP - NETWORK_TOP);
   if (focusSlug) {
     branchBaseY.set(focusSlug, NETWORK_TOP + Math.max(0, (contentHeight - NETWORK_ROW_GAP) / 2));
-    branchSlotByKey.set(focusSlug, Math.floor(NETWORK_NODES_PER_ROW / 2));
     branches.unshift({ key: 'focused-branch', y: branchBaseY.get(focusSlug), label: null });
   }
   const slotBySlug = new Map();
   for (const group of groups.values()) {
-    group.sort((left, right) => (
-      String(left.focus_parent || '').localeCompare(String(right.focus_parent || ''))
-      || String(left.title || left.slug).localeCompare(String(right.title || right.slug))
-      || left.slug.localeCompare(right.slug)
-    ));
+    group.sort(sortFocusedNetworkNodes);
     group.forEach((node, index) => slotBySlug.set(node.slug, index));
   }
   const laidOutNodes = [...nodes]
@@ -295,22 +375,27 @@ function buildFocusedNetworkLayout(graph, focusSlug) {
       const hop = Number.isFinite(Number(node.focus_hop)) ? Math.max(0, Number(node.focus_hop)) : 0;
       const column = columnByHop.get(hop) || columns.at(-1);
       const branch = node.slug === focusSlug ? focusSlug : (node.focus_branch || node.slug);
-      const branchSlot = branchSlotByKey.get(branch) || 0;
       const slot = slotBySlug.get(node.slug) || 0;
       return {
         ...node,
-        x: column.startX + branchSlot * NETWORK_NODE_X_GAP,
+        x: column.centerX,
         y: (branchBaseY.get(branch) || NETWORK_TOP) + slot * (branchRowGapByKey.get(branch) || NETWORK_ROW_GAP),
       };
     });
   const nodeBySlug = new Map(laidOutNodes.map((node) => [node.slug, node]));
+  const edgeKeys = new Set();
   const edges = sourceEdges.flatMap((edge, index) => {
-    const source = nodeBySlug.get(edge?.source);
-    const target = nodeBySlug.get(edge?.target);
+    const sourceSlug = collapsedSlugByHiddenSlug.get(edge?.source) || edge?.source;
+    const targetSlug = collapsedSlugByHiddenSlug.get(edge?.target) || edge?.target;
+    const source = nodeBySlug.get(sourceSlug);
+    const target = nodeBySlug.get(targetSlug);
     if (!source || !target || source.slug === target.slug) return [];
+    const edgeKey = `${source.slug}:${target.slug}`;
+    if (edgeKeys.has(edgeKey)) return [];
+    edgeKeys.add(edgeKey);
     return [{
       ...edge,
-      key: `${edge.source}:${edge.target}:${edge.id || index}`,
+      key: `${edgeKey}:${edge.id || index}`,
       source,
       target,
     }];
@@ -323,6 +408,15 @@ function buildFocusedNetworkLayout(graph, focusSlug) {
     width: Math.max(920, columns.at(-1).startX + (NETWORK_NODES_PER_ROW - 1) * NETWORK_NODE_X_GAP + 280),
     height: Math.max(NETWORK_MIN_HEIGHT, nextBranchY + 38),
   };
+}
+
+function sortFocusedNetworkNodes(left, right) {
+  return (
+    (left.collapsed_expanded ? 1 : 0) - (right.collapsed_expanded ? 1 : 0)
+    || String(left.focus_parent || '').localeCompare(String(right.focus_parent || ''))
+    || String(left.title || left.slug).localeCompare(String(right.title || right.slug))
+    || left.slug.localeCompare(right.slug)
+  );
 }
 
 function networkNodeTitleLines(value, focused = false) {

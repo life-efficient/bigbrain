@@ -531,12 +531,19 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.doesNotMatch(focusedViews, /Related pages by update order/);
   assert.match(focusedViews, /NETWORK_HOP_COLUMN_GAP = 320/);
   assert.match(focusedViews, /scroll\.scrollLeft = Math\.max/);
+  assert.match(focusedViews, /scroll\.scrollTop = focusedNode/);
   assert.doesNotMatch(focusedViews, /columnByDate/);
   assert.match(focusedViews, /width=\{layout\.width\}/);
   assert.match(focusedViews, /height=\{layout\.height\}/);
   assert.match(focusedViews, /NETWORK_NODES_PER_ROW = 4/);
+  assert.match(focusedViews, /NETWORK_VISIBLE_CONTRIBUTORS = 5/);
+  assert.match(focusedViews, /expandedContributorGroups/);
+  assert.match(focusedViews, /collapsed_group_key/);
+  assert.match(focusedViews, /collapsed_count/);
+  assert.match(focusedViews, /collapsed_expanded/);
+  assert.match(focusedViews, /setExpandedContributorGroups/);
+  assert.match(focusedViews, /x: column\.centerX/);
   assert.match(focusedViews, /focused-network-branches/);
-  assert.match(focusedViews, /const showLabel = true/);
   assert.match(focusedViews, /key: 'focused-branch',[\s\S]*label: null/);
   assert.match(focusedViews, /networkNodeTitleLines/);
   assert.doesNotMatch(focusedViews, /compactNodeTitle/);
@@ -547,6 +554,7 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /if \(!lineage\) return undefined/);
   assert.match(dashboard, /\.graph-focus-banner \{[\s\S]*align-self: stretch; flex: 0 0 auto;/);
   assert.match(dashboard, /\.graph-wrap-focused \.focused-view-stage \{[\s\S]*width: 100%; min-height: 0; overflow: hidden;/);
+  assert.match(dashboard, /\.focused-network-node\.collapsed circle:first-child/);
 });
 
 test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async () => {
