@@ -14,6 +14,10 @@ This skill guarantees:
 - Read and follow the target Brain's filing rules before writing.
 - Preserve raw supporting material according to those filing rules.
 - Update an existing canonical page when one already exists.
+- Route canonical page creation and updates through `$bigbrain-create-page` and `$bigbrain-update-page`.
+- Make a new or updated canonical page locally comprehensible as a useful 80-20 briefing of its primary subject, without making it exhaustive.
+- Use links for deeper detail, adjacent subjects, and related records; links are relationships, not necessarily a hierarchy.
+- Keep the overall understanding of each subject on its canonical page. Mention linked subjects in context without creating a competing full account, and leave source-specific detail on meeting, source, or attachment pages.
 - Re-sync the index after meaningful Brain changes.
 
 ## Workflow
@@ -31,6 +35,7 @@ This skill guarantees:
    - Before any MCP or service-backed write, call `filing_rules` and use the paths and tools it specifies.
    - Check whether the target page already exists before creating a new one.
    - Keep the durable overall understanding on the canonical subject page; keep source-specific detail on the meeting, source, or attachment page and link to it.
+   - Use `$bigbrain-create-page` for a new canonical subject and `$bigbrain-update-page` for an existing canonical subject. Specialized meeting, task, and attachment workflows retain their own page shapes.
    - Apply the digest-value test before preserving a source or creating a page.
    - Use `.raw/` and raw-file tools when the filing rules require raw source preservation there.
    - Use `.artifacts/` only when the target Brain's filing rules or directly accessed folder structure explicitly call for artifacts.
