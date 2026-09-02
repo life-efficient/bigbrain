@@ -33,16 +33,12 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
 
   return (
     <div className="focused-view focused-network-view" aria-label="Focused page network">
-      <div className="focused-view-heading">
-        <div>
-          <span className="focused-view-kicker">Network</span>
-          <strong>Related pages by update order</strong>
-        </div>
-        <span className="focused-view-hint">Older dates → newer dates</span>
-      </div>
       <div className="focused-network-scroll">
         <svg
           className="focused-network-svg"
+          width={layout.width}
+          height={layout.height}
+          style={{ width: `${layout.width}px`, height: `${layout.height}px` }}
           viewBox={`0 0 ${layout.width} ${layout.height}`}
           role="img"
           aria-label="Pages connected to the focused page, ordered by update date"

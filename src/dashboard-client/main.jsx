@@ -2348,6 +2348,17 @@ function buildActivitySeries(buckets) {
 }
 
 const FOCUSED_NETWORK_MAX_HOPS = 2;
+const FOCUSED_VIEW_MODES = ['network', 'timeline', 'subgraph'];
+const FOCUSED_VIEW_LABELS = {
+  network: 'Focused network',
+  timeline: 'Focused timeline',
+  subgraph: 'Focused subgraph',
+};
+
+function nextFocusedViewMode(mode) {
+  const index = FOCUSED_VIEW_MODES.indexOf(mode);
+  return FOCUSED_VIEW_MODES[(index + 1) % FOCUSED_VIEW_MODES.length];
+}
 
 function buildFocusedNetworkGraph(graph, lineage, focusSlug, maxHops = FOCUSED_NETWORK_MAX_HOPS) {
   if (!focusSlug) return graph;
@@ -2467,6 +2478,91 @@ function buildFocusedNetworkGraph(graph, lineage, focusSlug, maxHops = FOCUSED_N
   };
 }
 
+function buildFocusedSubgraphGraph(graph, lineage, focusSlug) {
+  if (!focusSlug) return graph;
+  const sourceNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  const sourceEdges = Array.isArray(graph?.edges) ? graph.edges : [];
+  const events = Array.isArray(lineage?.link_events) ? lineage.link_events : [];
+  const incomingEvents = events.filter((event) => event?.to_page === focusSlug);
+  const incomingPages = Array.isArray(lineage?.backlinks)
+    ? lineage.backlinks.map((item) => item?.from_slug).filter(Boolean)
+    : [];
+  const graphIncomingPages = sourceEdges
+    .filter((edge) => edge?.target === focusSlug)
+    .map((edge) => edge?.source)
+    .filter(Boolean);
+  const focusSlugs = new Set([
+    focusSlug,
+    ...incomingPages,
+    ...graphIncomingPages,
+    ...incomingEvents.map((event) => event.from_page).filter(Boolean),
+  ]);
+  const summaries = new Map();
+  if (lineage?.page?.slug) summaries.set(lineage.page.slug, lineage.page);
+  for (const event of events) {
+    if (event?.from?.slug) summaries.set(event.from.slug, event.from);
+    if (event?.to?.slug) summaries.set(event.to.slug, event.to);
+  }
+  const sourceNodeBySlug = new Map(sourceNodes.map((node) => [node.slug, node]));
+  const lineageDates = new Map();
+  for (const event of incomingEvents) {
+    const timestamp = event?.timestamp;
+    if (!timestamp || !Number.isFinite(Date.parse(timestamp))) continue;
+    for (const slug of [event.from_page, event.to_page]) {
+      if (!slug) continue;
+      const current = lineageDates.get(slug);
+      if (!current || Date.parse(timestamp) < Date.parse(current)) lineageDates.set(slug, timestamp);
+    }
+  }
+
+  const nodes = [...focusSlugs].map((slug) => {
+    const sourceNode = sourceNodeBySlug.get(slug);
+    const summary = summaries.get(slug);
+    const lineageAt = lineageDates.get(slug);
+    return {
+      ...(sourceNode || {}),
+      slug,
+      title: sourceNode?.title || summary?.title || labelFromSlug(slug),
+      type: sourceNode?.type || summary?.type || slug.split('/')[0] || 'unknown',
+      degree: sourceNode?.degree || 1,
+      lineage_at: lineageAt || sourceNode?.created_at || sourceNode?.updated_at || null,
+      created_at: sourceNode?.created_at || lineageAt || sourceNode?.updated_at || null,
+      updated_at: sourceNode?.updated_at || lineageAt || null,
+    };
+  });
+  const nodeIds = new Set(nodes.map((node) => node.slug));
+  const edges = sourceEdges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
+  const edgeKeys = new Set(edges.map((edge) => `${edge.source}:${edge.target}`));
+  incomingEvents.forEach((event, index) => {
+    if (!nodeIds.has(event.from_page) || !nodeIds.has(event.to_page)) return;
+    const key = `${event.from_page}:${event.to_page}`;
+    if (edgeKeys.has(key)) return;
+    edgeKeys.add(key);
+    edges.push({
+      id: `lineage:${event.commit_sha || index}:${event.from_page}:${event.to_page}`,
+      source: event.from_page,
+      target: event.to_page,
+      created_at: event.timestamp || null,
+      updated_at: event.timestamp || null,
+      lineage_event: true,
+    });
+  });
+  return {
+    ...graph,
+    nodes,
+    edges,
+    inputs: [],
+    activity: [],
+    meta: {
+      ...graph?.meta,
+      page_count: nodes.length,
+      node_count: nodes.length,
+      edge_count: edges.length,
+      input_count: 0,
+    },
+  };
+}
+
 function buildFocusedTimelineUpdates(lineage, graph) {
   const updates = Array.isArray(lineage?.timeline_updates) ? lineage.timeline_updates : [];
   if (updates.length) return updates;
@@ -2582,6 +2678,7 @@ const GraphPanel = memo(function GraphPanel({
   const graphNodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
   const focusSlug = lineage?.slug || null;
   const focusGraph = useMemo(() => buildFocusedNetworkGraph(graph, lineage, focusSlug), [focusSlug, graph, lineage]);
+  const focusedSubgraph = useMemo(() => buildFocusedSubgraphGraph(graph, lineage, focusSlug), [focusSlug, graph, lineage]);
   const focusedNetworkStats = useMemo(() => {
     const nodes = Array.isArray(focusGraph?.nodes) ? focusGraph.nodes : [];
     return {
@@ -2657,6 +2754,27 @@ const GraphPanel = memo(function GraphPanel({
       },
     };
   }, [activeGraph, activityFilteredNodes, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet]);
+  const filteredSubgraph = useMemo(() => {
+    if (!focusSlug) return focusedSubgraph;
+    const sourceNodes = Array.isArray(focusedSubgraph?.nodes) ? focusedSubgraph.nodes : [];
+    const nodes = selectedPageTypes.length || selectedDomains.length
+      ? sourceNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet))
+      : sourceNodes;
+    const slugs = new Set(nodes.map((node) => node.slug));
+    const edges = (Array.isArray(focusedSubgraph?.edges) ? focusedSubgraph.edges : []).filter((edge) => {
+      return slugs.has(edge.source) && slugs.has(edge.target);
+    });
+    return {
+      ...focusedSubgraph,
+      nodes,
+      edges,
+      meta: {
+        ...graph?.meta,
+        page_count: nodes.length,
+        edge_count: edges.length,
+      },
+    };
+  }, [focusSlug, focusedSubgraph, graph?.meta, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet]);
   const forceGraph = useMemo(() => {
     const forceSourceGraph = focusSlug ? focusGraph : graph;
     const forceSourceNodes = activityFilteredNodes;
@@ -2724,7 +2842,7 @@ const GraphPanel = memo(function GraphPanel({
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || isTypingTarget(event.target)) return;
       if (event.key.toLowerCase() !== 't') return;
       event.preventDefault();
-      setFocusedViewMode((current) => (current === 'network' ? 'timeline' : 'network'));
+      setFocusedViewMode((current) => nextFocusedViewMode(current));
     }
 
     window.addEventListener('keydown', handleFocusedViewKeyDown);
@@ -2839,7 +2957,51 @@ const GraphPanel = memo(function GraphPanel({
 
   return (
     <section className="card hero-card">
-      <div className={`graph-wrap graph-wrap-expanded ${flowVisible ? 'graph-flow-enabled' : ''}`}>
+      <div className={`graph-wrap graph-wrap-expanded ${flowVisible ? 'graph-flow-enabled' : ''} ${focusSlug ? 'graph-wrap-focused' : ''}`}>
+        {focusSlug ? (
+          <div className="graph-focus-banner" aria-live="polite">
+            <div className="graph-focus-copy">
+              <span>{FOCUSED_VIEW_LABELS[focusedViewMode]}</span>
+              <strong>{focusGraph?.nodes?.find((node) => node.slug === focusSlug)?.title || labelFromSlug(focusSlug)}</strong>
+              <small>
+                {lineage?.status === 'loading'
+                  ? 'Reconstructing related pages…'
+                  : lineage?.status === 'error'
+                    ? (lineage.message || 'History unavailable')
+                    : `${focusedNetworkStats.direct} direct · ${focusedNetworkStats.extended} second-hop · ${FOCUSED_NETWORK_MAX_HOPS} hops`}
+              </small>
+            </div>
+            <div className="graph-focus-mode-toggle" role="group" aria-label="Focused view">
+              <button
+                type="button"
+                className={`graph-focus-mode-button ${focusedViewMode === 'network' ? 'active' : ''}`}
+                aria-pressed={focusedViewMode === 'network'}
+                onClick={() => setFocusedViewMode('network')}
+              >
+                Network
+              </button>
+              <button
+                type="button"
+                className={`graph-focus-mode-button ${focusedViewMode === 'timeline' ? 'active' : ''}`}
+                aria-pressed={focusedViewMode === 'timeline'}
+                onClick={() => setFocusedViewMode('timeline')}
+              >
+                Timeline
+              </button>
+              <button
+                type="button"
+                className={`graph-focus-mode-button ${focusedViewMode === 'subgraph' ? 'active' : ''}`}
+                aria-pressed={focusedViewMode === 'subgraph'}
+                onClick={() => setFocusedViewMode('subgraph')}
+              >
+                Subgraph <kbd>T</kbd>
+              </button>
+            </div>
+            <button type="button" className="graph-focus-close" onClick={onLineageClose}>
+              Full graph
+            </button>
+          </div>
+        ) : null}
         <div className={focusSlug ? 'focused-view-stage' : 'graph-canvas-stage'}>
           {focusSlug ? (
             focusedViewMode === 'timeline' ? (
@@ -2847,6 +3009,28 @@ const GraphPanel = memo(function GraphPanel({
                 lineage={lineage}
                 updates={focusedTimelineUpdates}
                 onNodeOpen={onGraphNodeSelect}
+              />
+            ) : focusedViewMode === 'subgraph' ? (
+              <VisualizerComponent
+                ref={visualizerRef}
+                graph={filteredSubgraph}
+                activityDay={null}
+                motionEvent={null}
+                onNodeOpen={onGraphNodeSelect}
+                nodeShape={nodeShape}
+                nodeFill={nodeFill}
+                nodeIcon={nodeIcon}
+                nodeSize={nodeSize}
+                arcStyle={arcStyle}
+                arcAnimation={arcAnimation}
+                layoutStyle={layoutStyle}
+                labelStyle={labelStyle}
+                colorMode={colorMode}
+                typeColors={typeColors}
+                autoRotate={autoRotate}
+                activeSlug={activeSlug}
+                onActiveSlugChange={onActiveSlugChange}
+                onBackgroundClick={onLineageClose}
               />
             ) : (
               <FocusedNetworkVisualizer
@@ -2881,42 +3065,6 @@ const GraphPanel = memo(function GraphPanel({
             />
           )}
         </div>
-        {focusSlug ? (
-          <div className="graph-focus-banner" aria-live="polite">
-            <div className="graph-focus-copy">
-              <span>{focusedViewMode === 'network' ? 'Focused network' : 'Focused timeline'}</span>
-              <strong>{focusGraph?.nodes?.find((node) => node.slug === focusSlug)?.title || labelFromSlug(focusSlug)}</strong>
-              <small>
-                {lineage?.status === 'loading'
-                  ? 'Reconstructing related pages…'
-                  : lineage?.status === 'error'
-                    ? (lineage.message || 'History unavailable')
-                    : `${focusedNetworkStats.direct} direct · ${focusedNetworkStats.extended} second-hop · ${FOCUSED_NETWORK_MAX_HOPS} hops`}
-              </small>
-            </div>
-            <div className="graph-focus-mode-toggle" role="group" aria-label="Focused view">
-              <button
-                type="button"
-                className={`graph-focus-mode-button ${focusedViewMode === 'network' ? 'active' : ''}`}
-                aria-pressed={focusedViewMode === 'network'}
-                onClick={() => setFocusedViewMode('network')}
-              >
-                Network
-              </button>
-              <button
-                type="button"
-                className={`graph-focus-mode-button ${focusedViewMode === 'timeline' ? 'active' : ''}`}
-                aria-pressed={focusedViewMode === 'timeline'}
-                onClick={() => setFocusedViewMode('timeline')}
-              >
-                Timeline <kbd>T</kbd>
-              </button>
-            </div>
-            <button type="button" className="graph-focus-close" onClick={onLineageClose}>
-              Full graph
-            </button>
-          </div>
-        ) : null}
         {flowVisible && !focusSlug ? (
           <GraphFlowOverlay
             inputs={flowInputs}

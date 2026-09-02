@@ -1021,7 +1021,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-wrap { height: 520px; overflow: hidden; position: relative; border-radius: 18px; background: transparent; border: 1px solid rgba(148,163,184,0.18); }
       .graph-wrap-expanded { flex: 1; min-height: 0; height: auto; }
       .graph-canvas-stage { position: absolute; inset: 0; transition: opacity 260ms ease, transform 320ms cubic-bezier(.22,.61,.36,1), filter 260ms ease; }
-      .graph-focus-banner { position: absolute; left: 14px; top: 14px; z-index: 4; display: flex; align-items: center; flex-wrap: wrap; gap: 10px 14px; max-width: min(660px, calc(100% - 28px)); padding: 10px 12px; border: 1px solid rgba(148,163,184,0.22); border-radius: 12px; background: rgba(12,12,14,0.82); box-shadow: 0 18px 42px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(18px); }
+      .graph-wrap-focused { display: flex; flex-direction: column; }
+      .graph-focus-banner { position: relative; z-index: 4; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px 14px; width: 100%; max-width: none; box-sizing: border-box; padding: 10px 12px; border-bottom: 1px solid rgba(148,163,184,0.22); background: rgba(12,12,14,0.82); box-shadow: 0 18px 42px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(18px); }
       .graph-focus-copy { min-width: 0; display: grid; gap: 2px; }
       .graph-focus-copy span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
       .graph-focus-copy strong { overflow: hidden; color: var(--ink); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
@@ -1033,7 +1034,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-focus-mode-button:hover, .graph-focus-mode-button.active { background: rgba(255,255,255,0.12); color: var(--ink); }
       .graph-focus-mode-button kbd { margin-left: 4px; color: var(--muted); font: inherit; }
       .focused-view-stage { position: absolute; inset: 0; overflow: hidden; }
-      .focused-view { height: 100%; padding: 72px 18px 18px; overflow: hidden; background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.035), transparent 38%); }
+      .graph-wrap-focused .focused-view-stage { position: relative; inset: auto; flex: 1; min-height: 0; }
+      .focused-view { height: 100%; padding: 18px; overflow: hidden; background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.035), transparent 38%); }
       .focused-view-heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin: 0 auto 12px; max-width: 1120px; color: var(--ink); }
       .focused-view-heading > div { min-width: 0; display: grid; gap: 4px; }
       .focused-view-kicker { color: var(--muted); font: 800 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.12em; text-transform: uppercase; }
@@ -1042,7 +1044,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .focused-view-empty { display: grid; place-items: center; height: calc(100% - 42px); color: var(--muted); font-size: 13px; text-align: center; }
       .focused-network-view { display: flex; flex-direction: column; }
       .focused-network-scroll { flex: 1; min-height: 0; overflow: auto; border: 1px solid rgba(148,163,184,0.14); border-radius: 14px; background: rgba(0,0,0,0.08); }
-      .focused-network-svg { display: block; width: max(100%, 920px); height: auto; min-height: 100%; }
+      .focused-network-svg { display: block; max-width: none; }
       .focused-network-date { font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.04em; }
       .focused-network-branch { font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
       .focused-network-edge { fill: none; stroke: rgba(212,212,216,0.34); stroke-width: 1.4; vector-effect: non-scaling-stroke; }
@@ -1915,6 +1917,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .sidecar-panel { border-left: 1px solid var(--line); border-top: 0; border-radius: 0; }
         .sidecar-link-grid { grid-template-columns: 1fr; }
         .analytics-grid { grid-template-columns: 1fr; }
+      }
+      @media (max-width: 760px) {
+        .graph-focus-banner { grid-template-columns: minmax(0, 1fr) auto; }
+        .graph-focus-mode-toggle { grid-column: 1 / -1; justify-self: start; }
       }
       @media (max-width: 640px) {
         .sidecar-shell { left: 0; width: 100vw; }
