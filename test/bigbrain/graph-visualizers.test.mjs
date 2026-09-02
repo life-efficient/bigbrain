@@ -16,6 +16,7 @@ import {
   GRAPH_DEFAULT_PALETTE_ID,
   GRAPH_COLOR_PALETTE_OPTIONS,
   sanitizeGraphTypeColors,
+  TYPE_ORDER,
 } from '../../src/dashboard-client/graph/colors.js';
 import { resolveThemeMode } from '../../src/dashboard-client/graph/theme.js';
 import { graphTypeIconSvg } from '../../src/dashboard-client/graph/graph-type-icon-data.js';
@@ -125,39 +126,42 @@ test('graph palettes provide technical presets and editable type colors', () => 
   assert.equal(getGraphColorPalette('jarvis').people, '#00E5FF');
   assert.equal(getGraphColorPalette('crimson-loom').people, '#1769B0');
   assert.equal(getGraphColorPalette('crimson-loom').deals, '#D68724');
-  assert.equal(Object.keys(getGraphColorPalette('crimson-loom')).length, 16);
+  assert.equal(Object.keys(getGraphColorPalette('crimson-loom')).length, TYPE_ORDER.length);
   assert.equal(getGraphColorPalette('neural-lumen').people, '#58D7FF');
   assert.equal(getGraphColorPalette('neural-lumen').deals, '#F6D365');
-  assert.equal(Object.keys(getGraphColorPalette('neural-lumen')).length, 16);
+  assert.equal(Object.keys(getGraphColorPalette('neural-lumen')).length, TYPE_ORDER.length);
   assert.equal(getGraphColorPalette('thermal').people, '#00B8FF');
   assert.equal(getGraphColorPalette('thermal').deals, '#FFEA00');
-  assert.equal(Object.keys(getGraphColorPalette('thermal')).length, 16);
+  assert.equal(Object.keys(getGraphColorPalette('thermal')).length, TYPE_ORDER.length);
   assert.equal(getGraphColorPalette('irezumi').people, '#47BFC0');
   assert.equal(getGraphColorPalette('irezumi').deals, '#D9952F');
-  assert.equal(Object.keys(getGraphColorPalette('irezumi')).length, 16);
+  assert.equal(Object.keys(getGraphColorPalette('irezumi')).length, TYPE_ORDER.length);
   for (const paletteId of ['desert', 'arctic', 'woodland', 'digital', 'urban', 'blue-tiger', 'red-tiger', 'fall']) {
-    assert.equal(Object.keys(getGraphColorPalette(paletteId)).length, 16);
+    assert.equal(Object.keys(getGraphColorPalette(paletteId)).length, TYPE_ORDER.length);
   }
   assert.equal(getGraphColorPalette('blue-tiger').people, '#839CC5');
   assert.equal(getGraphColorPalette('red-tiger').people, '#D65A54');
   assert.equal(getGraphColorPalette('spectral').people, '#B9DDE1');
   assert.equal(getGraphColorPalette('spectral').deals, '#A48C6A');
-  assert.equal(Object.keys(getGraphColorPalette('spectral')).length, 16);
+  assert.equal(Object.keys(getGraphColorPalette('spectral')).length, TYPE_ORDER.length);
   assert.equal(getGraphColorPalette('aegis').people, '#D9E0E4');
   assert.equal(getGraphColorPalette('aegis').deals, '#C6A45B');
-  assert.equal(Object.keys(getGraphColorPalette('aegis')).length, 16);
+  assert.equal(Object.keys(getGraphColorPalette('aegis')).length, TYPE_ORDER.length);
   assert.equal(getGraphColorPalette('inferno').people, '#FF6A2A');
   assert.equal(getGraphColorPalette('inferno').deals, '#FFB12B');
-  assert.equal(Object.keys(getGraphColorPalette('inferno')).length, 16);
+  assert.equal(Object.keys(getGraphColorPalette('inferno')).length, TYPE_ORDER.length);
   assert.equal(getGraphColorPalette('frostveil').people, '#B8E2F2');
   assert.equal(getGraphColorPalette('frostveil').deals, '#B7A277');
-  assert.equal(Object.keys(getGraphColorPalette('frostveil')).length, 16);
+  assert.equal(Object.keys(getGraphColorPalette('frostveil')).length, TYPE_ORDER.length);
   assert.equal(getGraphColorPalette('cherry-blossom').people, '#8FBCE8');
   assert.equal(getGraphColorPalette('cherry-blossom').deals, '#D8A84E');
-  assert.equal(Object.keys(getGraphColorPalette('cherry-blossom')).length, 16);
+  assert.equal(Object.keys(getGraphColorPalette('cherry-blossom')).length, TYPE_ORDER.length);
   assert.equal(getGraphColorPalette('kusama').people, '#13BDEB');
   assert.equal(getGraphColorPalette('kusama').deals, '#FFD21F');
-  assert.equal(Object.keys(getGraphColorPalette('kusama')).length, 16);
+  assert.equal(Object.keys(getGraphColorPalette('kusama')).length, TYPE_ORDER.length);
+  assert.equal(typeof getGraphColorPalette('crimson-loom').components, 'string');
+  assert.equal(typeof getGraphColorPalette('crimson-loom').products, 'string');
+  assert.equal(typeof getGraphColorPalette('crimson-loom').processes, 'string');
   assert.equal(getGraphNodeColor({ type: 'people' }, 'type', { people: '#123456' }), '#123456');
 
   const colors = sanitizeGraphTypeColors({ people: '#abc123', deals: 'invalid' }, getGraphColorPalette('jarvis'));
@@ -573,7 +577,7 @@ test('graph node base sizes interpolate smoothly with semantic zoom', () => {
 test('icon nodes cover built-in schema types and use stable custom fallbacks', async () => {
   const canonicalTypes = [
     'people', 'organizations', 'deals', 'projects', 'ideas', 'meetings',
-    'tasks', 'concepts', 'writing', 'protocol', 'archive',
+    'tasks', 'concepts', 'components', 'products', 'processes', 'writing', 'protocol', 'archive',
   ];
   for (const type of canonicalTypes) {
     assert.equal(typeof GRAPH_TYPE_ICON_NAMES[type], 'string');

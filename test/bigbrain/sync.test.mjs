@@ -74,6 +74,13 @@ title: Stale Type
 
 This page keeps legacy frontmatter metadata.
 `);
+    await writeMarkdown(fixture.brainHome, 'components/transformer.md', `---
+title: Transformer
+---
+# Transformer
+
+An electrical component test page.
+`);
 
     const config = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({ config, apiKey: null });
@@ -82,6 +89,8 @@ This page keeps legacy frontmatter metadata.
     const row = await getPageRecord(db, 'people/stale-type');
     assert.equal(row.type, 'people');
     assert.equal(JSON.parse(row.frontmatter_json).type, 'note');
+    const component = await getPageRecord(db, 'components/transformer');
+    assert.equal(component.type, 'components');
     await db.close?.();
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

@@ -10,12 +10,15 @@ import { validatePageShape } from './schema.js';
 
 export const DEFAULT_COLLECTIONS = [
   'archive',
+  'components',
   'concepts',
   'deals',
   'ideas',
   'meetings',
   'organizations',
   'people',
+  'processes',
+  'products',
   'protocol',
   'projects',
   'tasks',

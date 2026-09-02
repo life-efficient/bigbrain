@@ -1,4 +1,4 @@
-export const TYPE_ORDER = ['people', 'organizations', 'deals', 'projects', 'ideas', 'meetings', 'tasks', 'concepts', 'writing', 'protocol', 'archive', 'companies', 'personal-protocol', 'sources', 'ops', 'inbox'];
+export const TYPE_ORDER = ['people', 'organizations', 'deals', 'projects', 'ideas', 'meetings', 'tasks', 'concepts', 'components', 'products', 'processes', 'writing', 'protocol', 'archive', 'companies', 'personal-protocol', 'sources', 'ops', 'inbox'];
 
 const SOFT_PALETTE = {
   people: '#8ECAE6',
@@ -10,6 +10,9 @@ const SOFT_PALETTE = {
   meetings: '#D4B8FF',
   tasks: '#F6C85F',
   concepts: '#BFE7C6',
+  components: '#A7D8F0',
+  products: '#D4B8FF',
+  processes: '#CDECCF',
   writing: '#F6D7A7',
   protocol: '#CDECCF',
   archive: '#C4C4C4',
@@ -344,9 +347,10 @@ export const GRAPH_UPDATED_OLD_COLOR = '#FFFFFF';
 export const GRAPH_UPDATED_SCALE_DAYS = 5;
 
 export function getGraphColorPalette(paletteId) {
-  return GRAPH_COLOR_PALETTES.find((palette) => palette.id === paletteId)?.colors
+  const colors = GRAPH_COLOR_PALETTES.find((palette) => palette.id === paletteId)?.colors
     || GRAPH_COLOR_PALETTES.find((palette) => palette.id === GRAPH_DEFAULT_PALETTE_ID)?.colors
     || TYPE_COLORS_FALLBACK;
+  return { ...SOFT_PALETTE, ...colors };
 }
 
 export function sanitizeGraphTypeColors(colors, fallback = TYPE_COLORS_FALLBACK) {

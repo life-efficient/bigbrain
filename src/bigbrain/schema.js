@@ -11,6 +11,9 @@ const FOLDER_RULES = [
   ['meetings', 'Specific meetings, calls, prep, transcripts, decisions, and action-item context.'],
   ['tasks', 'One page per assignable task, with member-backed assignees and task metadata.'],
   ['concepts', 'Reusable mental models, frameworks, and general strategy.'],
+  ['components', 'One page per physical or technical system component that participates in a larger architecture.'],
+  ['products', 'One page per named commercial product, platform, or service offering.'],
+  ['processes', 'One page per repeatable development, delivery, commissioning, or operating process.'],
   ['writing', 'Prose artifacts, drafts, and essay-style outputs.'],
   ['protocol', 'Repeatable operating rules, preferences, processes, playbooks, and how-things-should-work guidance.'],
   ['archive', 'Historical or dead pages that should not stay active.'],
@@ -168,7 +171,10 @@ export function recommendFolderForInput(input) {
   if (/meeting|call|transcript|sync|prep/.test(lower)) return recommendation('meetings', text, 'the primary subject is a specific meeting or call');
   if (/deal|acquisition|investor|fundraise|teaser|valuation/.test(lower)) return recommendation('deals', text, 'the primary subject is a transaction or financing item');
   if (/draft|essay|writeup|proposal|memo|article/.test(lower)) return recommendation('writing', text, 'the primary subject is a prose artifact');
-  if (/protocol|preference|operating instruction|how to|how-to|playbook for me|calendar organization|personal rule|process|operating rule/.test(lower)) return recommendation('protocol', text, 'the item reads like an operating preference, repeatable process, or protocol');
+  if (/\bprocess\b|commissioning|engineering procurement construction|\bepc\b|grid interconnection process/.test(lower)) return recommendation('processes', text, 'the primary subject is a repeatable infrastructure development or operating process');
+  if (/\bcomponent\b|transformer|switchgear|substation|generator|chiller|liquid cooling|accelerator|hbm|fiber optic|network fabric/.test(lower)) return recommendation('components', text, 'the primary subject is one physical or technical infrastructure component');
+  if (/\bproduct\b|\bplatform\b|gb200|nvl72/.test(lower)) return recommendation('products', text, 'the primary subject is a named commercial product, platform, or service offering');
+  if (/protocol|preference|operating instruction|how to|how-to|playbook for me|calendar organization|personal rule|operating rule/.test(lower)) return recommendation('protocol', text, 'the item reads like an operating preference, repeatable process, or protocol');
   if (/framework|mental model|thesis|playbook|strategy|concept/.test(lower)) return recommendation('concepts', text, 'the primary subject is a reusable concept or framework');
   if (/idea|possibility|someday|explore/.test(lower)) return recommendation('ideas', text, 'the item sounds like an unbuilt possibility');
   if (/task|todo|to-do|follow[- ]?up|next action|action item|blocked|waiting/.test(lower)) return recommendation('tasks', text, 'the item reads like assignable work');

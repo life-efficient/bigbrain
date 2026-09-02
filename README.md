@@ -91,7 +91,8 @@ The default page collections are:
 ```text
 people/          organizations/   deals/
 projects/        ideas/           meetings/
-tasks/           concepts/        writing/
+tasks/           concepts/        components/
+products/        processes/       writing/
 protocol/        archive/
 ```
 

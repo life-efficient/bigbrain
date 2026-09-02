@@ -23,6 +23,9 @@ export const CANONICAL_SCHEMA_DIRS = [
   'meetings',
   'tasks',
   'concepts',
+  'components',
+  'products',
+  'processes',
   'writing',
   'protocol',
   'archive',
@@ -48,4 +51,7 @@ export const PAGE_REQUIRED_TIMELINE_TYPES = new Set([
   'deals',
   'projects',
   'protocol',
+  'components',
+  'products',
+  'processes',
 ]);

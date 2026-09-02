@@ -185,6 +185,9 @@ The top-level structure should stay intentionally small:
 - `meetings/`
 - `tasks/`
 - `concepts/`
+- `components/`
+- `products/`
+- `processes/`
 - `writing/`
 - `protocol/`
 - `archive/`
