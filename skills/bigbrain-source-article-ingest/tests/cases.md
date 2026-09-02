@@ -12,6 +12,10 @@ Before any raw-file or Brain-page write, the workflow must record a concise,
 user-specific digest-value rationale and identify whether the source is
 first-party promotional material. A project link, entity mention, topical
 similarity, or regional connection alone is not sufficient.
+The workflow must name a current user anchor before filing: an active project,
+task, question, learning topic, tracked entity with live significance, or
+explicit conversation or enrichment intent. Generic sector awareness or
+possible future usefulness is not a current anchor.
 
 ## Should trigger
 
@@ -42,6 +46,14 @@ Expected behavior: return `ignored` and create no raw artifact or Brain page.
 The same no-write behavior applies when the user says “ingest this article” if
 the article fails the digest-value test.
 
+An accessible first-party company profile, such as “Apex: The Spacecraft
+Platform Company,” describes an unfamiliar company and offers only generic
+company, platform, industrial, or sector lessons. The user has not named an
+active aerospace or space objective, Apex relationship, or question that the
+article would answer.
+
+Expected behavior: return `ignored` and create no raw artifact or Brain page.
+
 ## Should not write when relevance is ambiguous
 
 An article appears plausibly related to an existing entity or project, but the
@@ -56,8 +68,8 @@ is unresolved.
 ## Should file despite promotional status
 
 An article is first-party promotional material but contains a concrete,
-durable implication that materially changes a tracked project, concept, or
-sector understanding.
+durable implication that materially changes a named active project, concept,
+tracked entity, or explicitly identified sector thesis.
 
 Expected behavior: `source_only` or `source_and_update` is allowed only after
 the workflow states the promotional status and the specific durable implication
