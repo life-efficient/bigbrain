@@ -293,6 +293,8 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     const createPageTool = listedMutationTools.result.tools.find((tool) => tool.name === 'create_page');
     const updatePageTool = listedMutationTools.result.tools.find((tool) => tool.name === 'update_page');
     assert.deepEqual(createPageTool.inputSchema.properties.significance.enum, ['patch', 'minor', 'major']);
+    assert.match(createPageTool.inputSchema.properties.timeline_entry.description, /subject-first/);
+    assert.match(createPageTool.inputSchema.properties.timeline.items.properties.text.description, /current user's name/);
     assert.match(createPageTool.inputSchema.properties.compiled_truth.description, /compiled-truth/);
     assert.match(updatePageTool.inputSchema.properties.compiled_truth.description, /compiled-truth/);
     assert.match(createPageTool.inputSchema.properties.body.description, /Legacy alias/);

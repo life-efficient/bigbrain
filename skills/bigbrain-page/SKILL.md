@@ -13,6 +13,8 @@ Create or update one ordinary BigBrain page from durable evidence.
 - The compiled-truth paragraph is the core understanding of the page: if the reader had only one paragraph, this is what they should read. It may be longer than a one-liner when needed. Additional current-context sections may follow it before the separator.
 - Existing owner -> update; no owner with sufficient evidence -> create; ambiguity or weak evidence -> stop; no material change -> no-op.
 - Use the selected Brain's relevant MCP endpoint with the endpoint schema as the authority for inputs, required provenance, and significance. The writer manages Markdown framing and `## Timeline`.
+- Write each timeline entry as a concise, subject-first summary of the durable page change. Page updates are already authored and attributable through the page operation and provenance, so do not lead with the current user's name or repeat an implicit approval such as `Harry approved ...`.
+- Keep source wording and approval context in `provenance.source_message`; retain a person's name in the visible timeline only when the actor's identity materially changes the meaning.
 - Preserve specialized task, meeting, and source-sidecar shapes in their own workflows.
 
 ## Workflow
@@ -24,7 +26,7 @@ Create or update one ordinary BigBrain page from durable evidence.
    - Use the `create_page` or `update_page` endpoint that matches the ownership decision, and follow its input schema.
    - Update the compiled-truth paragraph if necessary. Keep it as the one-paragraph core understanding of the subject, then update any current-context content that the evidence requires.
    - Keep the page subject-focused, explain important context and relationships in natural prose, use inline links where relevant, and separate current understanding from timeline evidence.
-   - Record the evidence-backed timeline entry using the endpoint's required provenance and significance fields.
+   - Record the evidence-backed timeline entry using the endpoint's required provenance and significance fields. Prefer `Added X after approval` or `Updated Y with Z` over `Harry approved adding X` or `Harry updated Y`.
    - Anti-patterns: source dumps, invented links, taxonomy commentary, direct filesystem writes, sending `---` or `## Timeline`, copying a linked subject's full account.
 
 3. Read the page back and verify the result.

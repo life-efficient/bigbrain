@@ -24,6 +24,13 @@ const DEFAULT_RULES = {
   archive: 'Historical or superseded material that should not stay active.',
 };
 
+const TIMELINE_WRITING_GUIDANCE = [
+  'Write each timeline entry as a concise, subject-first summary of the durable page change.',
+  'Page updates are already authored and attributable through the page operation and provenance; do not lead with the current user\'s name or repeat an implicit approval such as `Harry approved ...`.',
+  'Keep source wording and approval context in provenance.source_message; retain a person\'s name in visible timeline text only when the actor\'s identity materially changes the meaning.',
+  'Prefer `Added X after approval` or `Updated Y with Z` over `Harry approved adding X` or `Harry updated Y`.',
+];
+
 export async function filingRulesForBrain({ config }) {
   const sharedGuidance = await readSharedGuidance(config.brainDir);
   const collections = await readCollections(config.brainDir);
@@ -64,6 +71,7 @@ export async function filingRulesForBrain({ config }) {
     brain_dir: config.brainDir,
     markdown: renderFilingRulesMarkdown({ config, sharedGuidance, collections, rawFileRules }),
     shared_guidance: sharedGuidance,
+    timeline_guidance: TIMELINE_WRITING_GUIDANCE,
     collections,
     page_shape: sharedGuidance.pageShape.length > 0 ? sharedGuidance.pageShape : [
       'YAML frontmatter with title, created, and optional tags/source fields.',
@@ -149,6 +157,13 @@ function renderFilingRulesMarkdown({ config, sharedGuidance, collections, rawFil
       '',
     );
   }
+
+  sections.push(
+    '## Timeline Writing',
+    '',
+    ...TIMELINE_WRITING_GUIDANCE.map((item) => `- ${item}`),
+    '',
+  );
 
   sections.push(
     '## Collections',

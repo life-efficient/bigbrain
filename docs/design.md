@@ -297,6 +297,12 @@ provenance containing `source_type`, `source_label`, and `source_message`. One
 source event may therefore update multiple pages while remaining one input in the
 flow context.
 
+The visible timeline description is an authored, concise, subject-first summary
+of the durable page change. Do not lead with the current user's name or repeat an
+implicit approval such as `Harry approved ...`; keep source wording and approval
+context in `provenance.source_message`. Retain a person's name only when the
+actor's identity materially changes the meaning.
+
 Suggested frontmatter for a canonical page that discusses an attachment:
 
 ```yaml

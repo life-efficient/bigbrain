@@ -1765,6 +1765,7 @@ test('schema and filing guidance stay inspectable', async () => {
   try {
     assert.match(markdown, /Directory Structure/);
     assert.match(markdown, /One concise opening compiled-truth paragraph/);
+    assert.match(markdown, /Write timeline text as a concise, subject-first summary/);
     assert.doesNotMatch(markdown, /Meeting Page Shape/);
     assert.match(markdown, /Task Page Shape/);
     assert.match(markdown, /status.*open.*in_progress.*waiting.*done.*archived/s);
@@ -1784,6 +1785,9 @@ test('schema and filing guidance stay inspectable', async () => {
     const config = await loadConfig({ configPath: fixture.configPath });
     const filingRules = await filingRulesForBrain({ config });
     assert.match(filingRules.markdown, /Task Page Schema/);
+    assert.match(filingRules.markdown, /## Timeline Writing/);
+    assert.match(filingRules.timeline_guidance.join('\n'), /concise, subject-first summary/);
+    assert.match(filingRules.timeline_guidance.join('\n'), /do not lead with the current user's name/);
     assert.match(filingRules.markdown, /Pattern: `tasks\/<task-slug>\.md`/);
     assert.match(filingRules.markdown, /does not need to match or mirror the full task title/);
     assert.deepEqual(filingRules.task_schema.frontmatter.status, ['open', 'in_progress', 'waiting', 'done', 'archived']);

@@ -19,6 +19,9 @@ test('Codex prompt gives a direct ingest instruction and names the workflow skil
   assert.match(prompt, /Use the available BigBrain tools/);
   assert.match(prompt, /personal: Personal/);
   assert.match(prompt, /Do not invent credentials/);
+  assert.match(prompt, /Keep timeline text concise and subject-first/);
+  assert.match(prompt, /not the current user by name/);
+  assert.match(prompt, /Keep source wording in provenance\.source_message/);
   assert.doesNotMatch(prompt, /Return JSON only/);
   assert.match(prompt, /"title": "Planning meeting"/);
   assert.doesNotMatch(prompt, /event-1/);

@@ -2709,7 +2709,7 @@ function timelineInputProperties() {
   return {
     timeline_entry: {
       type: 'string',
-      description: 'Backward-compatible shorthand for one timeline entry. New callers may use timeline for structured entries.',
+      description: 'Backward-compatible shorthand for one concise, subject-first timeline entry. Omit the current user\'s name when authorship is implicit; keep source wording in provenance.source_message. New callers may use timeline for structured entries.',
     },
     timeline: {
       type: 'array',
@@ -2729,7 +2729,7 @@ function timelineEntrySchema() {
       timestamp: { type: 'string', format: 'date-time', description: 'Compatibility alias for occurred_at.' },
       date: { type: 'string', format: 'date', description: 'Compatibility alias for a date-only occurred_at value.' },
       recorded_at: { type: 'string', format: 'date-time', description: 'When BigBrain recorded the entry. Defaults to the actual write time.' },
-      text: { type: 'string' },
+      text: { type: 'string', description: 'Concise, subject-first summary of the durable page change. Omit the current user\'s name when authorship is implicit; keep source wording and approval context in provenance.source_message.' },
       provenance: {
         type: 'object',
         description: 'Required source provenance for this specific timeline entry. It records the event and source that caused the page change.',

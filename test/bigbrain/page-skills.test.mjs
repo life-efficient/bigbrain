@@ -25,6 +25,10 @@ test('the page skill contains the page writing standard', async () => {
   assert.match(skill, /Find which Brain owns the page/);
   assert.match(skill, /Use the selected Brain's relevant MCP/);
   assert.match(skill, /Read the page back and verify the result/);
+  assert.match(skill, /concise, subject-first summary of the durable page change/);
+  assert.match(skill, /do not lead with the current user's name/);
+  assert.match(skill, /provenance\.source_message/);
+  assert.match(skill, /Prefer `Added X after approval`/);
   for (const phrase of ['current[- ]context', 'what the subject is', 'why it matters', 'boundaries', 'material relationships', 'inline links']) {
     assert.match(skill, new RegExp(phrase));
   }

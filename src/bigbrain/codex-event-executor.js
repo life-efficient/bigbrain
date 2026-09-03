@@ -74,6 +74,7 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
     '- Decide whether this event contains useful knowledge before any write. Filing is optional; ignore it when it does not clear the digest-value gate.',
     destinations ? `- Use the normal Brain environment; the event scope is ${destinations}.` : null,
     '- Do not invent credentials, paths, facts, or source provenance.',
+    '- Keep timeline text concise and subject-first: describe the durable page change, not the current user by name or as a lead-in. Prefer "Added X after approval" over "Harry approved adding X"; retain an actor name only when identity is materially relevant. Keep source wording in provenance.source_message.',
     '- Every Git-backed BigBrain MCP write must include a short, single-line commit_message describing what changed and why, plus provenance metadata with the correct source_type, source_label, and source_message. source_message is the source event content; the timeline text is the human-readable description of the page change.',
     '- Use assistant_chat only for a user message sent through this assistant harness; use direct_edit for file or Git-provider changes made outside MCP; use unknown only when the source truly cannot be established.',
     '- Do not send messages or reply externally. Only perform source-side cleanup when the selected skill explicitly authorizes that exact cleanup.',
