@@ -188,6 +188,11 @@ export async function createDashboardRequestHandler(config, {
         }
         actor = authorization.actor || null;
       }
+      if (resolvedDashboardSurface === 'remote' && isExplorerPath(requestUrl.pathname)) {
+        res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ error: 'Filesystem Explorer is available only on a local dashboard.' }));
+        return;
+      }
       const canonicalRouteBasePath = canonicalPageRouteBasePath(requestUrl.pathname, normalizedBasePath);
       if (canonicalRouteBasePath !== null) {
         if (req.method !== 'GET') {
@@ -289,7 +294,7 @@ export async function createDashboardRequestHandler(config, {
           dashboard_surface: resolvedDashboardSurface,
           capabilities: {
             ...about.capabilities,
-            filesystem_explorer: true,
+            filesystem_explorer: resolvedDashboardSurface === 'local',
             local_file_registry: resolvedDashboardSurface === 'local',
           },
         }, { noStore: true });
@@ -2642,7 +2647,7 @@ async function buildPagePayloadForSlug(config, db, slug, { domainScope = [], das
     public_url: pageVisibility(parsed.frontmatter) === 'public' ? `/public/${slug}` : null,
     summary: extractPageReaderSummary(parsed),
     ...(remoteDashboard ? {} : { frontmatter: parsed.frontmatter }),
-    images: await buildPageImagesPayload(config, parsed.frontmatter.images, { sourceSlug: pageSlug }),
+    images: remoteDashboard ? [] : await buildPageImagesPayload(config, parsed.frontmatter.images, { sourceSlug: pageSlug }),
     markdown,
     updated_at: stat.mtime.toISOString(),
     domain_scope: domainScope.length ? domainScope : null,
