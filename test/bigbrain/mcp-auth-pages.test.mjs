@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   renderAuthErrorPage,
   renderConnectPage,
+  renderOAuthCompletePage,
 } from '../../src/bigbrain/mcp-auth.js';
 
 const authConfig = {
@@ -35,4 +36,14 @@ test('OAuth error page offers a browser retry for the original dashboard route',
   );
   assert.match(html, /Try another Google account/);
   assert.doesNotMatch(html, /bigbrain connect codex/);
+});
+
+test('OAuth completion page is Brain-agnostic and tells the user when to close it', () => {
+  const html = renderOAuthCompletePage();
+
+  assert.match(html, /<title>Authorization complete<\/title>/);
+  assert.match(html, /Authorization complete/);
+  assert.match(html, /You can close this page/);
+  assert.match(html, /Sign-in completed successfully/);
+  assert.doesNotMatch(html, /Example Brain|ICAIRE|BigBrain/);
 });

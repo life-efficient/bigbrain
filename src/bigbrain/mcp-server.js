@@ -207,7 +207,7 @@ export async function startMcpServer({
             response.end();
             return;
           }
-          return sendHtml(response, 200, renderOAuthCompletePage(authConfig));
+          return sendHtml(response, 200, renderOAuthCompletePage());
         } catch (error) {
           return sendHtml(response, 403, renderAuthErrorPage(authConfig, error));
         }

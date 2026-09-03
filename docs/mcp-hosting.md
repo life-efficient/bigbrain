@@ -402,6 +402,14 @@ MCP client should discover the endpoints, open Google sign-in, and complete the
 OAuth flow automatically. The BigBrain CLI is not required. Opening `/connect`
 in a browser also provides a direct Google sign-in link for the dashboard.
 
+For MCP OAuth, the hosted service exchanges Google's callback and then hands the
+short-lived authorization code to the MCP client's registered callback URL.
+That URL is commonly a loopback address on the user's machine. The receiving
+client should render a neutral completion page saying that authorization is
+complete and the page can be closed. A browser dashboard login follows the
+hosted service's dashboard redirect instead and should not use a loopback
+callback.
+
 Codex owns the per-user OAuth credential; BigBrain does not copy it into a
 repository, shell profile, environment file, command line, or generated
 configuration. Each connection has its own MCP name and credential, so one

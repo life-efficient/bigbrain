@@ -393,13 +393,13 @@ export function renderConnectPage(authConfig, { error = '', retryPath = '/dashbo
   `);
 }
 
-export function renderOAuthCompletePage(authConfig) {
-  return htmlPage('Connected', `
+export function renderOAuthCompletePage() {
+  return htmlPage('Authorization complete', `
     <main class="shell">
       <section class="hero compact">
-        <div class="badge">Connected</div>
-        <h1>${escapeHtml(authConfig.serviceName)}</h1>
-        <p>The OAuth approval is complete. You can close this tab and return to your harness.</p>
+        <div class="badge">Authorization complete</div>
+        <h1>You can close this page</h1>
+        <p>Sign-in completed successfully. Return to the app to continue.</p>
       </section>
     </main>
   `);
