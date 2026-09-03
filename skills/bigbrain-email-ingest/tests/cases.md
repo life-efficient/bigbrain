@@ -62,7 +62,7 @@ Expected:
 
 Evidence:
 
-- A verified Substack notification from a publication Harry follows announces one new post.
+- A verified Substack notification from a publication Harry follows announces one new post and includes matching `List-Id` and `List-Post` headers.
 - The email contains a canonical article link plus tracking and unsubscribe links.
 - The post page opens successfully and confirms the title, publication, author, and publication date.
 - No existing Brain provenance matches the canonical post URL.

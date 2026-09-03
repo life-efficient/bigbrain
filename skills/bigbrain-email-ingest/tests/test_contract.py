@@ -63,6 +63,7 @@ assert "small overlap" in SKILL
 assert "Advance a thread cursor only after" in SKILL
 assert "## Substack Post Ingest Contract" in SKILL
 assert "verified followed-Substack new-post notification" in SKILL
+assert "verified publication headers such as `List-Id` and `List-Post`" in SKILL
 assert "normalized `publication_key`" in SKILL
 assert "normalized `post_key`" in SKILL
 assert "`high_watermark`" in SKILL
