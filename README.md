@@ -238,7 +238,9 @@ Docker is the canonical server package. A client connects to a remote or
 server-managed brain without taking responsibility for its process, database,
 backups, or upgrades.
 
-Connect Codex to an existing service with:
+Browser dashboards and protected page links start OAuth directly. Standards-aware
+MCP clients discover the same OAuth endpoints and start the flow automatically.
+The CLI remains an optional connection method:
 
 ```sh
 bigbrain connect codex https://your-service.example.com/mcp \

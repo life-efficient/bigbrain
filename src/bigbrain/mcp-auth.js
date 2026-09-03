@@ -70,11 +70,15 @@ export async function authorizeMcpRequest(request, authConfig) {
     const record = store.tokens.find((entry) => entry.token_hash === tokenHash && !entry.revoked_at);
     if (!record) return { ok: false, status: 401, message: 'Unauthorized' };
     await touchTokenStore(authConfig, tokenHash, new Date().toISOString(), store);
+    const member = await authConfig.memberLookup?.(record.email);
+    const owner = String(member?.role || '').toLowerCase() === 'owner';
     return {
       ok: true,
       actor: {
         email: record.email,
         name: record.name || record.email,
+        role: member?.role || null,
+        superuser: owner,
         scopes: normalizeIssuedScopes(record.scope),
       },
       authMode: authConfig.mode,
@@ -264,7 +268,13 @@ export async function completeOAuthCallback(authConfig, { code, state }) {
   const profile = await fetchGoogleProfile(authConfig, code);
   const email = String(profile.email || '').toLowerCase();
   if (!email || profile.email_verified === false) throw new Error('Google account email is not verified.');
-  if (!await isEmailAllowed(authConfig, email)) throw new Error(`${email} is not allowed to access this brain.`);
+  if (!await isEmailAllowed(authConfig, email)) {
+    const error = new Error(`${email} is not allowed to access this brain.`);
+    error.retryPath = stateRecord.flow === 'dashboard_oauth'
+      ? normalizeRedirectPath(stateRecord.redirect_path || '/dashboard')
+      : '/dashboard';
+    throw error;
+  }
 
   if (stateRecord.flow === 'agent_oauth') {
     const authCode = `${CODE_PREFIX}${randomToken(24)}`;
@@ -358,29 +368,26 @@ export async function exchangeAgentOAuthCode(authConfig, params) {
   };
 }
 
-export function renderConnectPage(authConfig, { error = '' } = {}) {
+export function renderConnectPage(authConfig, { error = '', retryPath = '/dashboard' } = {}) {
   const appName = authConfig.appName || authConfig.serviceName;
   const title = escapeHtml(appName);
-  const serverName = slugName(authConfig.serviceName);
-  const endpoint = `${authConfig.publicUrl}/mcp`;
-  const configSnippet = `Connect Codex to this BigBrain service with OAuth, then verify the authenticated connection:\n\nbigbrain connect codex ${endpoint} --name ${serverName} --auth oauth\n\nOAuth is the default for BigBrain services. Codex stores the resulting per-user credential; this page never exposes a bearer token.\n\nAfter that, update your system prompt to include "Anything related to ${appName} should be stored in, and searched for from ${appName} via MCP. If an expected MCP tool is missing or only part of a server's tool surface appears, use the Find Missing Tools skill before concluding the tool is unavailable."`;
+  const safeRetryPath = normalizeRedirectPath(retryPath || '/dashboard');
+  const signInHref = `/auth/start?redirect=${encodeURIComponent(safeRetryPath)}`;
   const errorHtml = error ? `<div class="notice error">${escapeHtml(error)}</div>` : '';
   return htmlPage(title, `
     <main class="shell">
       <section class="hero">
         <h1>${title}</h1>
-        <p>Give the instructions below to your agent to connect Codex securely, verify access, and then query and update the brain.</p>
+        <p>Sign in with Google to open the browser dashboard and view the pages you are allowed to access.</p>
       </section>
       ${errorHtml}
-      <pre id="config" class="copy-box" tabindex="0">${escapeHtml(configSnippet)}</pre>
-      <div class="copy-actions">
-        <button class="copy-button" type="button" data-copy-target="config" aria-label="Copy instructions">
-          <svg class="copy-icon" aria-hidden="true" viewBox="0 0 24 24">
-            <rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect>
-            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>
-          </svg>
-          <span>Copy instructions</span>
-        </button>
+      <a class="button" href="${escapeHtml(signInHref)}">
+        <span class="google-mark" aria-hidden="true">G</span>
+        <span>${error ? 'Try another Google account' : 'Sign in with Google'}</span>
+      </a>
+      <div class="notice">
+        <strong>Connecting an MCP client</strong>
+        <p class="muted">MCP clients use the standard OAuth discovery endpoints exposed by this service and should open Google sign-in automatically. The BigBrain CLI is not required.</p>
       </div>
     </main>
   `);
@@ -399,7 +406,10 @@ export function renderOAuthCompletePage(authConfig) {
 }
 
 export function renderAuthErrorPage(authConfig, error) {
-  return renderConnectPage(authConfig, { error });
+  return renderConnectPage(authConfig, {
+    error: error instanceof Error ? error.message : String(error || ''),
+    retryPath: error?.retryPath || '/dashboard',
+  });
 }
 
 function callbackUrl(authConfig) {
@@ -562,10 +572,6 @@ function defaultOAuthScopes(allowedScopes) {
 
 function defaultIssuedOAuthScope(authConfig) {
   return defaultOAuthScopes(oauthAllowedScopes(authConfig)).join(' ');
-}
-
-function slugName(name) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'bigbrain';
 }
 
 function htmlPage(title, body) {

@@ -1122,17 +1122,11 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
     assert.equal(connect.status, 200);
     const connectHtml = await connect.text();
     assert.match(connectHtml, /<h1>Example Brain<\/h1>/);
-    assert.match(connectHtml, /Give the instructions below to your agent to connect Codex securely, verify access, and then query and update the brain/);
-    assert.match(connectHtml, /Connect Codex to this BigBrain service with OAuth, then verify the authenticated connection/);
-    assert.match(connectHtml, /bigbrain connect codex https:\/\/brain\.example\.test\/mcp --name example-brain --auth oauth/);
-    assert.match(connectHtml, /OAuth is the default for BigBrain services/);
-    assert.match(connectHtml, /this page never exposes a bearer token/);
-    assert.match(connectHtml, /After that, update your system prompt to include/);
-    assert.match(connectHtml, /Anything related to Example Brain should be stored in, and searched for from Example Brain via MCP/);
-    assert.match(connectHtml, /If an expected MCP tool is missing or only part of a server&#39;s tool surface appears, use the Find Missing Tools skill before concluding the tool is unavailable/);
-    assert.doesNotMatch(connectHtml, /\[mcp_servers\.example-brain\]/);
-    assert.match(connectHtml, /aria-label="Copy instructions"/);
-    assert.match(connectHtml, /viewBox="0 0 24 24"/);
+    assert.match(connectHtml, /Sign in with Google to open the browser dashboard/);
+    assert.match(connectHtml, /href="\/auth\/start\?redirect=%2Fdashboard"/);
+    assert.match(connectHtml, /standard OAuth discovery endpoints/);
+    assert.doesNotMatch(connectHtml, /bigbrain connect codex/);
+    assert.match(connectHtml, /The BigBrain CLI is not required/);
     assert.doesNotMatch(connectHtml, /MCP config/);
     assert.doesNotMatch(connectHtml, /Copy endpoint/);
     assert.doesNotMatch(connectHtml, /No bearer token is shown here/);
@@ -1140,8 +1134,9 @@ test('MCP OAuth allowlist mode accepts per-user tokens and attributes writes', a
     assert.doesNotMatch(connectHtml, /Continue with Google/);
     assert.doesNotMatch(connectHtml, /bbmcp_/);
 
-    const manualStart = await fetch(running.url.replace('/mcp', '/auth/start'));
-    assert.equal(manualStart.status, 404);
+    const manualStart = await fetch(running.url.replace('/mcp', '/auth/start'), { redirect: 'manual' });
+    assert.equal(manualStart.status, 302);
+    assert.match(manualStart.headers.get('location'), /^https:\/\/accounts\.google\.com\//);
 
     const dashboard = await fetch(running.url.replace('/mcp', '/dashboard'), { redirect: 'manual' });
     assert.equal(dashboard.status, 302);
@@ -2271,6 +2266,48 @@ test('MCP OAuth allowlist mode exposes Codex-native OAuth endpoints', async () =
   }
 });
 
+test('hosted MCP service exposes a browser OAuth start route', async () => {
+  const fixture = await createFixture('bigbrain-mcp-browser-oauth-');
+  const tokenStorePath = path.join(fixture.rootDir, 'tokens.json');
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: {
+        mode: 'oauth_allowlist',
+        authToken: null,
+        publicUrl: 'https://brain.example.test',
+        provider: 'google',
+        googleClientId: 'client-id',
+        googleClientSecret: 'client-secret',
+        allowedEmails: ['teammate@example.com'],
+        allowedDomains: [],
+        tokenStorePath,
+        allowSharedToken: false,
+        serviceName: 'Example Brain',
+        appName: 'Example Brain',
+      },
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const response = await fetch(`${running.url.replace('/mcp', '')}/auth/start?redirect=%2Fdashboard%2Fpage%2Ftarget`, { redirect: 'manual' });
+    assert.equal(response.status, 302);
+    assert.match(response.headers.get('location'), /^https:\/\/accounts\.google\.com\//);
+
+    const store = JSON.parse(await fs.readFile(tokenStorePath, 'utf8'));
+    assert.deepEqual(store.states.map((entry) => ({ flow: entry.flow, redirect_path: entry.redirect_path })), [
+      { flow: 'dashboard_oauth', redirect_path: '/dashboard/page/target' },
+    ]);
+  } finally {
+    await running?.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('MCP member roles manage custom roles and scope page edits by path', async () => {
   const fixture = await createFixture('bigbrain-mcp-rbac-');
   const adminToken = 'bbmcp_rbac-admin';
@@ -2379,6 +2416,80 @@ test('MCP member roles manage custom roles and scope page edits by path', async 
     }, adminToken);
     assert.equal(aboutDenied.error.code, -32003);
     assert.match(aboutDenied.error.message, /not allowed for role admin/);
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('MCP owner role is a superuser above hosted OAuth scopes', async () => {
+  const fixture = await createFixture('bigbrain-mcp-owner-superuser-');
+  const ownerToken = 'bbmcp_owner-superuser';
+  const tokenStorePath = path.join(fixture.rootDir, 'tokens.json');
+  await fs.writeFile(tokenStorePath, `${JSON.stringify({
+    tokens: [scopedToken(ownerToken, 'owner@example.com', 'brain:read brain:create')],
+    states: [],
+    clients: [],
+    codes: [],
+  }, null, 2)}\n`);
+
+  let running;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const db = await openDatabase(config);
+    await upsertMember(db, {
+      email: 'owner@example.com',
+      name: 'Owner',
+      person_slug: 'people/owner',
+      role: 'owner',
+      status: 'active',
+    });
+    await db.close?.();
+
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: {
+        mode: 'oauth_allowlist',
+        authToken: null,
+        publicUrl: 'https://brain.example.test',
+        provider: 'google',
+        googleClientId: 'client-id',
+        googleClientSecret: 'client-secret',
+        allowedEmails: ['owner@example.com'],
+        allowedDomains: [],
+        tokenStorePath,
+        allowSharedToken: false,
+        serviceName: 'Example Brain',
+        appName: 'Example Brain',
+      },
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const me = await rpc(running.url, 'tools/call', { name: 'me', arguments: {} }, ownerToken);
+    assert.equal(me.error, undefined, me.error?.message);
+    assert.equal(me.result.structuredContent.actor.role, 'owner');
+    assert.equal(me.result.structuredContent.actor.superuser, true);
+
+    const tools = toolNames(await rpc(running.url, 'tools/list', {}, ownerToken));
+    assert.equal(tools.includes('members/upsert'), true);
+    assert.equal(tools.includes('roles/upsert'), true);
+    assert.equal(tools.includes('about/update'), true);
+    assert.equal(tools.includes('audit/list'), true);
+
+    const member = await rpc(running.url, 'tools/call', {
+      name: 'members/upsert',
+      arguments: {
+        email: 'admin@example.com',
+        name: 'Admin',
+        person_slug: 'people/admin',
+        role: 'admin',
+      },
+    }, ownerToken);
+    assert.equal(member.error, undefined, member.error?.message);
+    assert.equal(member.result.structuredContent.role, 'admin');
   } finally {
     if (running) await running.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

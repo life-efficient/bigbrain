@@ -136,7 +136,7 @@ export async function createDashboardRequestHandler(config, {
           return;
         } catch (error) {
           res.writeHead(403, { 'Content-Type': 'text/html; charset=utf-8' });
-          res.end(renderAuthErrorPage(authConfig, error instanceof Error ? error.message : String(error)));
+          res.end(renderAuthErrorPage(authConfig, error));
           return;
         }
       }

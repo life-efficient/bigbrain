@@ -91,6 +91,7 @@ import {
   buildAuthConfig,
   completeOAuthCallback,
   createAgentOAuthStart,
+  createDashboardOAuthStart,
   exchangeAgentOAuthCode,
   protectedResourceMetadata,
   registerOAuthClient,
@@ -175,6 +176,11 @@ export async function startMcpServer({
         response.end();
         return;
       }
+      if (request.method === 'GET' && route.pathname === '/auth/start' && authRoutesEnabled(authConfig)) {
+        response.writeHead(302, { location: await createDashboardOAuthStart(authConfig, request.url || '/auth/start') });
+        response.end();
+        return;
+      }
       if (request.method === 'POST' && route.pathname === '/oauth/token' && authRoutesEnabled(authConfig)) {
         const body = await readRequestBody(request);
         return sendJson(response, 200, await exchangeAgentOAuthCode(authConfig, new URLSearchParams(body)), { cacheControl: 'no-store' });
@@ -203,7 +209,7 @@ export async function startMcpServer({
           }
           return sendHtml(response, 200, renderOAuthCompletePage(authConfig));
         } catch (error) {
-          return sendHtml(response, 403, renderAuthErrorPage(authConfig, error instanceof Error ? error.message : String(error)));
+          return sendHtml(response, 403, renderAuthErrorPage(authConfig, error));
         }
       }
       if (request.method === 'GET' && route.pathname === '/live') {
@@ -1968,6 +1974,7 @@ function assertToolAllowed(name, actor) {
 function canCallTool(name, actor) {
   const scopes = actorScopes(actor);
   if (scopes === null) return true;
+  if (actor?.superuser === true) return true;
   const policy = toolPolicy(name);
   if (!policy) return false;
   if (scopes.has('brain:admin')) return true;

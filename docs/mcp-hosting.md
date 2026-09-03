@@ -311,6 +311,11 @@ The older `brain:write` scope is still accepted for append/create tools so
 existing tokens can continue contributing pages and tasks, but it does not grant
 destructive raw-file, git-backup, or maintenance/admin capabilities.
 
+The active Brain `owner` role is a server-side superuser. An authenticated owner
+is elevated above OAuth scope filtering and can use every MCP tool, including
+member and custom-role administration. The `admin` role remains below `owner`
+and still requires an OAuth token with `brain:admin` for hosted MCP access.
+
 New dynamic OAuth clients receive `brain:read brain:create` by default. The
 server will issue only scopes listed in `BIGBRAIN_MCP_OAUTH_ALLOWED_SCOPES`
 (space- or comma-separated); the default ceiling is also
@@ -391,16 +396,12 @@ For dashboard deployments, send teammates to the service root. They sign in
 with Google and receive a secure dashboard session cookie if their email is
 allowlisted.
 
-For MCP deployments, `/connect` shows the first-class Codex connection command:
+For MCP deployments, the service exposes standard OAuth discovery metadata at
+the protected resource and authorization-server endpoints. A standards-aware
+MCP client should discover the endpoints, open Google sign-in, and complete the
+OAuth flow automatically. The BigBrain CLI is not required. Opening `/connect`
+in a browser also provides a direct Google sign-in link for the dashboard.
 
-```sh
-bigbrain connect codex https://your-service.example.com/mcp \
-  --name example-brain \
-  --auth oauth
-```
-
-OAuth is the default when connecting to a shared or internet-reachable
-BigBrain. The command registers the MCP endpoint and starts Codex's OAuth login.
 Codex owns the per-user OAuth credential; BigBrain does not copy it into a
 repository, shell profile, environment file, command line, or generated
 configuration. Each connection has its own MCP name and credential, so one
