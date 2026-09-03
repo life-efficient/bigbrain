@@ -1,6 +1,6 @@
 ---
 name: bigbrain-email-ingest
-description: Scan recently unchecked email, reconcile user-reported outbound sends, apply narrowly authorized notification cleanup, preserve relevant PDF evidence, and ingest durable context into the correct BigBrain brain.
+description: Scan recently unchecked email, ingest verified new-post notifications from followed Substack publications, reconcile user-reported outbound sends, apply narrowly authorized notification cleanup, preserve relevant PDF evidence, and ingest durable context into the correct BigBrain brain.
 ---
 
 # BigBrain Email Ingest
