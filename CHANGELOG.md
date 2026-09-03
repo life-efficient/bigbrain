@@ -5,6 +5,53 @@ actions` section for agents maintaining device and server installations.
 
 ## [Unreleased]
 
+## [0.28.0] - 2026-09-03
+
+### Added
+
+- Added browser-first OAuth entry and retry routes so `/connect`, dashboard
+  redirects, and protected page links can start Google sign-in without the
+  BigBrain CLI.
+- Added hosted OAuth owner recognition. An active `owner` member is a
+  server-side superuser above `admin` and can use all MCP tools, including
+  member and custom-role administration.
+
+### Changed
+
+- OAuth error pages now preserve the requested dashboard or page route and
+  offer a browser retry with another Google account.
+- Hosted MCP clients continue to use standard OAuth discovery and scoped
+  tokens. Ordinary members remain least-privilege; `admin` still requires
+  `brain:admin`, while an active `owner` is elevated by the Brain role.
+
+### Agent update actions
+
+- Source and standalone MCP installs: update to the `v0.28.0` tag, run
+  `npm install`, `npm link`, and `npm run build:dashboard`, then restart the
+  BigBrain desktop, dashboard, and source-managed MCP services. Verify
+  `/connect` offers browser Google sign-in, protected page links redirect to
+  OAuth, MCP protected-resource metadata advertises the service, and
+  `bigbrain health --json` plus `npm test` pass.
+- Hosted deployments: deploy the `v0.28.0` BigBrain runtime while preserving
+  the Brain directory, database, OAuth token store, and configured email
+  allowlist. Verify `/live`, `/ready`, browser dashboard sign-in, and
+  authenticated MCP `tools/list`. Confirm the intended owner is an active
+  `owner` member before relying on owner superuser access.
+- No Brain page, task, member, database, or token migration is required.
+  Existing OAuth tokens remain valid. The owner elevation is determined from
+  the active member role on each MCP request, so no token regeneration is
+  needed for existing owners.
+
+### Verification
+
+- Local-data compatibility audit passed. The release adds only additive OAuth
+  routes, error-page behavior, and role-aware authorization; it does not alter
+  persisted page, task, member, or database schemas or narrow existing values.
+- Full test suite passed: 501 tests passed, 7 skipped because
+  `TEST_DATABASE_URL` is not configured, and 0 failed.
+- Dashboard production build and standalone MCP bundle verification passed as
+  release gates before tagging.
+
 ## [0.27.1] - 2026-09-03
 
 ### Fixed
