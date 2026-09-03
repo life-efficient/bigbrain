@@ -2348,6 +2348,11 @@ function graphFlowSourceType(value) {
   return GRAPH_FLOW_SOURCE_ICONS[normalized] ? normalized : 'unknown';
 }
 
+function graphFlowInputSourceType(item) {
+  const source = item?.demo_input ? item.input_source : item?.source;
+  return graphFlowSourceType(source?.type);
+}
+
 function graphFlowSourceLabel(value) {
   const normalized = graphFlowSourceType(value);
   return GRAPH_FLOW_SOURCE_LABELS[normalized] || GRAPH_FLOW_SOURCE_LABELS.unknown;
@@ -2751,7 +2756,6 @@ const GraphPanel = memo(function GraphPanel({
           const rightTime = graphFlowInputTimestamp(right);
           return rightTime - leftTime || String(right.event_id || '').localeCompare(String(left.event_id || ''));
         })
-        .slice(0, GRAPH_FLOW_INPUT_LIMIT)
   ), [demoMode, demoSeed, filteredGraph, recentNodes, selectedDomainSet, selectedTypeSet]);
   const activitySeries = useMemo(() => buildActivitySeries(activityBuckets), [activityBuckets]);
   const focusedTimelineUpdates = useMemo(() => buildFocusedTimelineUpdates(lineage, filteredGraph), [filteredGraph, lineage]);
@@ -3258,7 +3262,57 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
   const stageRef = useRef(null);
   const inputRefs = useRef(new Map());
   const taskRefs = useRef(new Map());
+  const sourceFilterRef = useRef(null);
   const [layout, setLayout] = useState(null);
+  const [sourceFilterOpen, setSourceFilterOpen] = useState(false);
+  const [selectedSourceTypes, setSelectedSourceTypes] = useState([]);
+  const sourceTypeOptions = useMemo(() => {
+    const counts = new Map();
+    inputs.forEach((item) => {
+      const type = graphFlowInputSourceType(item);
+      counts.set(type, (counts.get(type) || 0) + 1);
+    });
+    return [...counts.entries()].sort((left, right) => (
+      graphFlowSourceLabel(left[0]).localeCompare(graphFlowSourceLabel(right[0]))
+    ));
+  }, [inputs]);
+  const sourceTypeSet = useMemo(() => new Set(selectedSourceTypes), [selectedSourceTypes]);
+  const visibleInputs = useMemo(() => {
+    const matchingInputs = selectedSourceTypes.length
+      ? inputs.filter((item) => sourceTypeSet.has(graphFlowInputSourceType(item)))
+      : inputs;
+    return matchingInputs.slice(0, GRAPH_FLOW_INPUT_LIMIT);
+  }, [inputs, selectedSourceTypes.length, sourceTypeSet]);
+
+  useEffect(() => {
+    const availableTypes = new Set(sourceTypeOptions.map(([type]) => type));
+    setSelectedSourceTypes((current) => {
+      const next = current.filter((type) => availableTypes.has(type));
+      return next.length === current.length ? current : next;
+    });
+  }, [sourceTypeOptions]);
+
+  useEffect(() => {
+    if (!sourceFilterOpen) return undefined;
+    function handlePointerDown(event) {
+      if (!sourceFilterRef.current?.contains(event.target)) setSourceFilterOpen(false);
+    }
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setSourceFilterOpen(false);
+    }
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [sourceFilterOpen]);
+
+  function toggleSourceType(type) {
+    setSelectedSourceTypes((current) => current.includes(type)
+      ? current.filter((value) => value !== type)
+      : [...current, type]);
+  }
 
   useLayoutEffect(() => {
     function measure() {
@@ -3284,7 +3338,7 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
       setLayout({
         width: stageRect.width,
         height: stageRect.height,
-        inputs: inputs.flatMap((item) => {
+        inputs: visibleInputs.flatMap((item) => {
           const source = pointFor(inputRefs.current.get(item.id || item.event_id || item.slug), 'right');
           return graphFlowInputTargets(item).map((target) => ({
             source,
@@ -3325,16 +3379,66 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
       mutationObserver?.disconnect();
       window.removeEventListener('resize', scheduleMeasure);
     };
-  }, [inputs, tasks]);
+  }, [tasks, visibleInputs]);
 
   return (
     <>
       <GraphFlowNetwork layout={layout} />
       <div ref={stageRef} className="graph-flow-overlay">
         <div className="graph-flow-column graph-flow-input-column">
-          <div className="graph-flow-column-head"><span>Inputs</span><small>{inputs.length}</small></div>
+          <div className="graph-flow-column-head">
+            <span>Inputs</span>
+            <div className="graph-flow-column-head-actions">
+              <div className="graph-flow-source-filter-shell" ref={sourceFilterRef}>
+                <button
+                  type="button"
+                  className={`icon-button graph-flow-source-filter-button ${sourceFilterOpen || selectedSourceTypes.length ? 'graph-button-active' : ''}`}
+                  aria-label="Filter inputs by source type"
+                  title="Filter inputs by source type"
+                  aria-expanded={sourceFilterOpen}
+                  onClick={() => setSourceFilterOpen((value) => !value)}
+                >
+                  <FilterIcon />
+                </button>
+                {sourceFilterOpen ? (
+                  <div className="graph-filter-menu graph-flow-source-filter-menu" role="menu">
+                    <div className="graph-filter-group">
+                      <span className="graph-filter-group-label">Source types</span>
+                      <button
+                        type="button"
+                        className={`menu-item ${selectedSourceTypes.length === 0 ? 'selected' : ''}`}
+                        onClick={() => setSelectedSourceTypes([])}
+                        role="menuitemcheckbox"
+                        aria-checked={selectedSourceTypes.length === 0}
+                      >
+                        <span>All source types</span>
+                        <span className="menu-item-check" aria-hidden="true">{selectedSourceTypes.length === 0 ? '✓' : ''}</span>
+                      </button>
+                      {sourceTypeOptions.map(([type, count]) => {
+                        const selected = sourceTypeSet.has(type);
+                        return (
+                          <button
+                            key={type}
+                            type="button"
+                            className={`menu-item ${selected ? 'selected' : ''}`}
+                            onClick={() => toggleSourceType(type)}
+                            role="menuitemcheckbox"
+                            aria-checked={selected}
+                          >
+                            <span>{graphFlowSourceLabel(type)} ({count})</span>
+                            <span className="menu-item-check" aria-hidden="true">{selected ? '✓' : ''}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+              <small>{visibleInputs.length}</small>
+            </div>
+          </div>
           <div className="graph-flow-card-list">
-            {inputs.map((item) => (
+            {visibleInputs.map((item) => (
               (() => {
                 const targets = graphFlowInputTargets(item);
                 const source = item.demo_input ? item.input_source : item.source;

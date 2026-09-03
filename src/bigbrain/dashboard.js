@@ -1101,6 +1101,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-flow-input-column { left: 16px; }
       .graph-flow-output-column { right: 16px; }
       .graph-flow-column-head { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 3px; color: rgba(244,244,245,0.68); font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.12em; text-transform: uppercase; }
+      .graph-flow-column-head-actions { display: flex; align-items: center; gap: 6px; }
+      .graph-flow-source-filter-shell { position: relative; }
+      .graph-flow-source-filter-button { width: 24px; height: 24px; border-radius: 7px; box-shadow: none; }
+      .graph-flow-source-filter-menu { top: calc(100% + 8px); right: 0; bottom: auto; left: auto; }
       .graph-flow-column-head small { color: rgba(161,161,170,0.8); font: inherit; letter-spacing: 0.05em; }
       .graph-flow-card-list { display: grid; gap: 7px; }
       .graph-flow-card { width: 100%; min-width: 0; display: grid; grid-template-columns: auto minmax(0,1fr) auto; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid rgba(244,244,245,0.16); border-radius: 10px; background: rgba(12,12,14,0.8); box-shadow: 0 12px 28px rgba(0,0,0,0.22), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(14px); color: rgba(244,244,245,0.9); font: inherit; text-align: left; cursor: pointer; transition: transform 160ms ease, border-color 160ms ease, background 160ms ease; }

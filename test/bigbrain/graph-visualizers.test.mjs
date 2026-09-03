@@ -788,7 +788,7 @@ test('graph flow arcs attach side cards to their matching graph nodes', async ()
   assert.match(main, /querySelectorAll\('\[data-graph-node-slug\]'\)/);
   assert.match(main, /graphFlowInputTargets\(item\)/);
   assert.match(main, /target: graphPointFor\(target\.slug\)/);
-  assert.match(main, /inputs\.flatMap\(\(item\) =>/);
+  assert.match(main, /visibleInputs\.flatMap\(\(item\) =>/);
   assert.match(main, /source: graphPointFor\(item\.slug\)/);
   assert.match(main, /function graphFlowDirectedPath\(source, target\)/);
   assert.match(main, /setTimeout\(scheduleMeasure, 1400\)/);
@@ -807,6 +807,16 @@ test('graph flow limits the displayed input cards to the newest six', async () =
   assert.match(main, /GraphFlowSourceIcon/);
   assert.match(main, /assistant_chat: MessagesSquare/);
   assert.doesNotMatch(main, /assistant_chat: Bot/);
+});
+
+test('graph flow exposes a source-type filter above the input cards', async () => {
+  const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
+
+  assert.match(main, /Filter inputs by source type/);
+  assert.match(main, /sourceTypeOptions/);
+  assert.match(main, /selectedSourceTypes/);
+  assert.match(main, /All source types/);
+  assert.match(main, /graph-flow-source-filter-button/);
 });
 
 test('flow arcs sit below graph nodes while cards stay above the graph', async () => {
