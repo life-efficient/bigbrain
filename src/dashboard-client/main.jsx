@@ -2895,51 +2895,51 @@ const GraphPanel = memo(function GraphPanel({
 
   return (
     <section className="card hero-card">
-      <div className={`graph-wrap graph-wrap-expanded ${flowVisible ? 'graph-flow-enabled' : ''} ${focusSlug ? 'graph-wrap-focused' : ''}`}>
-        {focusSlug ? (
-          <div className="graph-focus-banner" aria-live="polite">
-            <div className="graph-focus-copy">
-              <span>{FOCUSED_VIEW_LABELS[focusedViewMode]}</span>
-              <strong>{focusGraph?.nodes?.find((node) => node.slug === focusSlug)?.title || labelFromSlug(focusSlug)}</strong>
-              <small>
-                {lineage?.status === 'loading'
-                  ? 'Reconstructing related pages…'
-                  : lineage?.status === 'error'
-                    ? (lineage.message || 'History unavailable')
-                    : `${focusedNetworkStats.direct} direct · ${focusedNetworkStats.extended} second-hop · ${FOCUSED_NETWORK_MAX_HOPS} hops`}
-              </small>
-            </div>
-            <div className="graph-focus-mode-toggle" role="group" aria-label="Focused view">
-              <button
-                type="button"
-                className={`graph-focus-mode-button ${focusedViewMode === 'network' ? 'active' : ''}`}
-                aria-pressed={focusedViewMode === 'network'}
-                onClick={() => setFocusedViewMode('network')}
-              >
-                Network
-              </button>
-              <button
-                type="button"
-                className={`graph-focus-mode-button ${focusedViewMode === 'timeline' ? 'active' : ''}`}
-                aria-pressed={focusedViewMode === 'timeline'}
-                onClick={() => setFocusedViewMode('timeline')}
-              >
-                Timeline
-              </button>
-              <button
-                type="button"
-                className={`graph-focus-mode-button ${focusedViewMode === 'subgraph' ? 'active' : ''}`}
-                aria-pressed={focusedViewMode === 'subgraph'}
-                onClick={() => setFocusedViewMode('subgraph')}
-              >
-                Subgraph <kbd>T</kbd>
-              </button>
-            </div>
-            <button type="button" className="graph-focus-close" onClick={onLineageClose}>
-              Full graph
+      {focusSlug ? (
+        <div className="graph-focus-banner" aria-live="polite">
+          <div className="graph-focus-copy">
+            <span>{FOCUSED_VIEW_LABELS[focusedViewMode]}</span>
+            <strong>{focusGraph?.nodes?.find((node) => node.slug === focusSlug)?.title || labelFromSlug(focusSlug)}</strong>
+            <small>
+              {lineage?.status === 'loading'
+                ? 'Reconstructing related pages…'
+                : lineage?.status === 'error'
+                  ? (lineage.message || 'History unavailable')
+                  : `${focusedNetworkStats.direct} direct · ${focusedNetworkStats.extended} second-hop · ${FOCUSED_NETWORK_MAX_HOPS} hops`}
+            </small>
+          </div>
+          <div className="graph-focus-mode-toggle" role="group" aria-label="Focused view">
+            <button
+              type="button"
+              className={`graph-focus-mode-button ${focusedViewMode === 'network' ? 'active' : ''}`}
+              aria-pressed={focusedViewMode === 'network'}
+              onClick={() => setFocusedViewMode('network')}
+            >
+              Network
+            </button>
+            <button
+              type="button"
+              className={`graph-focus-mode-button ${focusedViewMode === 'timeline' ? 'active' : ''}`}
+              aria-pressed={focusedViewMode === 'timeline'}
+              onClick={() => setFocusedViewMode('timeline')}
+            >
+              Timeline
+            </button>
+            <button
+              type="button"
+              className={`graph-focus-mode-button ${focusedViewMode === 'subgraph' ? 'active' : ''}`}
+              aria-pressed={focusedViewMode === 'subgraph'}
+              onClick={() => setFocusedViewMode('subgraph')}
+            >
+              Subgraph <kbd>T</kbd>
             </button>
           </div>
-        ) : null}
+          <button type="button" className="graph-focus-close" onClick={onLineageClose}>
+            Full graph
+          </button>
+        </div>
+      ) : null}
+      <div className={`graph-wrap graph-wrap-expanded ${flowVisible ? 'graph-flow-enabled' : ''} ${focusSlug ? 'graph-wrap-focused' : ''}`}>
         <div className={focusSlug ? 'focused-view-stage' : 'graph-canvas-stage'}>
           {focusSlug ? (
             focusedViewMode === 'timeline' ? (

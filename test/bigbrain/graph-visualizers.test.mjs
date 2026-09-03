@@ -552,8 +552,8 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.doesNotMatch(main, /graph-activity-meta/);
   assert.match(main, /if \(!preview \|\| lineage \|\| healthOpen\) return undefined/);
   assert.match(main, /if \(!lineage\) return undefined/);
-  assert.match(dashboard, /\.graph-focus-banner \{[\s\S]*align-self: stretch; flex: 0 0 auto;/);
-  assert.match(dashboard, /\.graph-wrap-focused \.focused-view-stage \{[\s\S]*width: 100%; min-height: 0; overflow: hidden;/);
+  assert.match(dashboard, /\.graph-focus-banner \{[\s\S]*flex: 0 0 auto;[\s\S]*width: 100%; max-width: none;[\s\S]*margin: 0 0 10px;/);
+  assert.match(dashboard, /\.graph-wrap-focused \.focused-view-stage \{[\s\S]*position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; overflow: hidden;/);
   assert.match(dashboard, /\.focused-network-node\.collapsed circle:first-child/);
 });
 
