@@ -16,6 +16,7 @@ test('source taxonomy has semantic descriptions for every source type', () => {
     'assistant_chat',
     'whatsapp',
     'gmail',
+    'substack',
     'google_calendar',
     'granola',
     'rss',

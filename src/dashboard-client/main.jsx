@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import {
   AudioLines,
+  BookOpen,
   Bot,
   CalendarDays,
   CircleHelp,
@@ -2315,6 +2316,7 @@ const GRAPH_FLOW_SOURCE_ICONS = {
   assistant_chat: Bot,
   whatsapp: MessageCircle,
   gmail: Mail,
+  substack: BookOpen,
   google_calendar: CalendarDays,
   calendar: CalendarDays,
   granola: AudioLines,
@@ -2330,6 +2332,7 @@ const GRAPH_FLOW_SOURCE_LABELS = {
   assistant_chat: 'Assistant chat',
   whatsapp: 'WhatsApp',
   gmail: 'Gmail',
+  substack: 'Substack',
   google_calendar: 'Google Calendar',
   calendar: 'Calendar',
   granola: 'Granola',
