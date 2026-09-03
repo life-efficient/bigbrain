@@ -224,7 +224,7 @@ test('dashboard graph recent timestamps reflect current markdown file edits', as
   }
 });
 
-test('dashboard graph exposes only filed provenance inputs with source snapshots', async () => {
+test('dashboard graph exposes successful provenance inputs with source snapshots', async () => {
   const fixture = await createFixture('bigbrain-dashboard-provenance-');
   try {
     await writeMarkdown(fixture.brainHome, 'organizations/openai.md', '# OpenAI\n\nNews.\n');
@@ -355,6 +355,68 @@ test('dashboard graph derives inputs from per-page timeline provenance', async (
     assert.deepEqual(graph.inputs[0].target_pages, [
       { slug: 'people/alice', title: 'Alice' },
       { slug: 'projects/relay', title: 'Relay' },
+    ]);
+    await db.close?.();
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('dashboard graph includes successful outcomes and orders timeline inputs newest first for the visible flow context', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-timeline-order-');
+  try {
+    const timeline = (title, eventId, timestamp, outcome) => [
+      `# ${title}`,
+      '',
+      'Current context.',
+      '',
+      '---',
+      '',
+      '## Timeline',
+      '',
+      `- **2026-09-03** | ${eventId}.`,
+      `  <!-- bigbrain:timeline ${JSON.stringify({
+        schema_version: 1,
+        entry_id: eventId,
+        occurred_at: timestamp,
+        recorded_at: timestamp,
+        text: `${eventId}.`,
+        provenance: {
+          event_id: eventId,
+          source_type: 'assistant_chat',
+          source_label: 'Assistant chat',
+          source_message: `${eventId}.`,
+          received_at: timestamp,
+          outcome,
+        },
+        significance: 'minor',
+      })} -->`,
+    ].join('\n');
+    await writeMarkdown(
+      fixture.brainHome,
+      'people/alpha.md',
+      timeline('Alpha', 'assistant_chat:old', '2026-09-03T01:00:00.000Z', 'updated'),
+    );
+    await writeMarkdown(
+      fixture.brainHome,
+      'people/zulu.md',
+      timeline('Zulu', 'assistant_chat:new', '2026-09-03T07:00:00.000Z', 'created'),
+    );
+    await writeMarkdown(
+      fixture.brainHome,
+      'people/ignored.md',
+      timeline('Ignored', 'assistant_chat:ignored', '2026-09-03T08:00:00.000Z', 'ignored'),
+    );
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+
+    const graph = await buildGraphPayload(db, config);
+
+    assert.deepEqual(graph.inputs.map((input) => input.event_id), [
+      'assistant_chat:new',
+      'assistant_chat:old',
     ]);
     await db.close?.();
   } finally {

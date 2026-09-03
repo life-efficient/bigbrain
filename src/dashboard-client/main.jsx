@@ -4,13 +4,12 @@ import * as SelectPrimitive from '@radix-ui/react-select';
 import {
   AudioLines,
   BookOpen,
-  Bot,
   CalendarDays,
   CircleHelp,
   FilePenLine,
   Mail,
   MessageCircle,
-  MessageSquare,
+  MessagesSquare,
   Rss,
   Slack,
   Terminal,
@@ -2313,7 +2312,7 @@ function graphFlowInputTargets(item) {
 }
 
 const GRAPH_FLOW_SOURCE_ICONS = {
-  assistant_chat: Bot,
+  assistant_chat: MessagesSquare,
   whatsapp: MessageCircle,
   gmail: Mail,
   substack: BookOpen,
@@ -2352,6 +2351,14 @@ function graphFlowSourceType(value) {
 function graphFlowSourceLabel(value) {
   const normalized = graphFlowSourceType(value);
   return GRAPH_FLOW_SOURCE_LABELS[normalized] || GRAPH_FLOW_SOURCE_LABELS.unknown;
+}
+
+function graphFlowInputTimestamp(input) {
+  for (const value of [input?.received_at, input?.occurred_at]) {
+    const timestamp = Date.parse(value || '');
+    if (Number.isFinite(timestamp)) return timestamp;
+  }
+  return Number.NEGATIVE_INFINITY;
 }
 
 function formatGraphFlowTargetCount(item) {
@@ -2739,6 +2746,11 @@ const GraphPanel = memo(function GraphPanel({
               selectedDomainSet,
             ))
         ))
+        .sort((left, right) => {
+          const leftTime = graphFlowInputTimestamp(left);
+          const rightTime = graphFlowInputTimestamp(right);
+          return rightTime - leftTime || String(right.event_id || '').localeCompare(String(left.event_id || ''));
+        })
         .slice(0, GRAPH_FLOW_INPUT_LIMIT)
   ), [demoMode, demoSeed, filteredGraph, recentNodes, selectedDomainSet, selectedTypeSet]);
   const activitySeries = useMemo(() => buildActivitySeries(activityBuckets), [activityBuckets]);

@@ -3213,7 +3213,7 @@ function timelineProvenanceRows(pages) {
 function buildGraphInputEvents(provenanceRows, { allowed, titles }) {
   const inputsByEvent = new Map();
   for (const row of provenanceRows) {
-    if (row.outcome !== 'filed' || !allowed.has(row.page_slug)) continue;
+    if (!isGraphInputOutcome(row.outcome) || !allowed.has(row.page_slug)) continue;
     const eventId = String(row.event_id || '').trim();
     if (!eventId) continue;
     let input = inputsByEvent.get(eventId);
@@ -3249,11 +3249,43 @@ function buildGraphInputEvents(provenanceRows, { allowed, titles }) {
       });
     }
   }
-  return [...inputsByEvent.values()].map((input) => ({
-    ...input,
-    target_pages: [...input.target_pages].sort((left, right) => left.slug.localeCompare(right.slug)),
-    target_count: input.target_pages.length,
-  }));
+  return [...inputsByEvent.values()]
+    .map((input) => ({
+      ...input,
+      target_pages: [...input.target_pages].sort((left, right) => left.slug.localeCompare(right.slug)),
+      target_count: input.target_pages.length,
+    }))
+    .sort((left, right) => {
+      const leftTime = graphInputTimestamp(left);
+      const rightTime = graphInputTimestamp(right);
+      return rightTime - leftTime || String(right.event_id).localeCompare(String(left.event_id));
+    });
+}
+
+const NON_FILED_GRAPH_OUTCOMES = new Set([
+  'denied',
+  'dry_run',
+  'error',
+  'failed',
+  'ignored',
+  'needs_review',
+  'no_op',
+  'noop',
+  'quarantined',
+  'verified_noop',
+]);
+
+function isGraphInputOutcome(outcome) {
+  const normalized = String(outcome || 'filed').trim().toLowerCase();
+  return Boolean(normalized) && !NON_FILED_GRAPH_OUTCOMES.has(normalized);
+}
+
+function graphInputTimestamp(input) {
+  for (const value of [input?.received_at, input?.occurred_at]) {
+    const timestamp = Date.parse(value || '');
+    if (Number.isFinite(timestamp)) return timestamp;
+  }
+  return Number.NEGATIVE_INFINITY;
 }
 
 export async function buildGraphLineagePayload(db, config, slug) {
@@ -3290,7 +3322,7 @@ export async function buildGraphLineagePayload(db, config, slug) {
     backlinks: backlinks.map((link) => ({ ...link, page: pageSummary(link.from_slug) })),
     timeline_updates: buildFocusedTimelineUpdates(relatedPages, pageSummary),
     provenance: provenance
-      .filter((row) => row.outcome === 'filed')
+      .filter((row) => isGraphInputOutcome(row.outcome))
       .map((row) => ({
         event_id: row.event_id,
         source_type: row.source_type,

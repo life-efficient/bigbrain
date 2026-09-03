@@ -802,8 +802,11 @@ test('graph flow limits the displayed input cards to the newest six', async () =
 
   assert.match(main, /const GRAPH_FLOW_INPUT_LIMIT = 6;/);
   assert.match(main, /\.map\(\(item\) => \(\{ \.\.\.item, target_pages: graphFlowInputTargets\(item\) \}\)\)\s*\.filter/);
+  assert.match(main, /\.sort\(\(left, right\) => \{[\s\S]*graphFlowInputTimestamp\(left\)[\s\S]*graphFlowInputTimestamp\(right\)/);
   assert.match(main, /source_message/);
   assert.match(main, /GraphFlowSourceIcon/);
+  assert.match(main, /assistant_chat: MessagesSquare/);
+  assert.doesNotMatch(main, /assistant_chat: Bot/);
 });
 
 test('flow arcs sit below graph nodes while cards stay above the graph', async () => {
