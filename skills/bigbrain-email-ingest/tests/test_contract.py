@@ -60,6 +60,21 @@ assert "separate verified cursor for each Gmail thread" in SKILL
 assert "prior 24 hours" in SKILL
 assert "small overlap" in SKILL
 assert "Advance a thread cursor only after" in SKILL
+assert "## Substack Post Ingest Contract" in SKILL
+assert "verified followed-Substack new-post notification" in SKILL
+assert "normalized `publication_key`" in SKILL
+assert "normalized `post_key`" in SKILL
+assert "`high_watermark`" in SKILL
+assert "`low_watermark`" in SKILL
+assert "optional bounded-backfill state" in SKILL
+assert "`backfill_page_cursor`" in SKILL
+assert "$bigbrain-source-article-ingest" in SKILL
+assert "The publication cursor is separate from the ordinary Gmail thread cursor." in SKILL
+assert "one `substack_publications` entry per normalized publication key" in SKILL
+assert "one cursor for all Substack publications" in SKILL
+assert "Followed Substack new-post notification" in CASES
+assert "Substack backfill and out-of-order delivery" in CASES
+assert "Substack digest or recommendation notification" in CASES
 assert "Perform every Brain mutation through the selected destination Brain's MCP tools" in SKILL
 assert "Never edit a Brain checkout, database, index, or local mirror directly" in SKILL
 assert "MCP mutations are propagated and backed up automatically" in SKILL
@@ -94,6 +109,9 @@ assert "  - Artifacts:" in SKILL
 assert "raw PDF verified" in SKILL
 assert "$bigbrain-email-ingest" in AGENT
 assert "$bigbrain-action-review" in AGENT
+assert "$bigbrain-source-article-ingest" in AGENT
+assert "per-publication Substack content cursor" in AGENT
+assert "monotonic high and low watermarks" in AGENT
 assert "reconcile user-reported outbound sends through Gmail without resending" in AGENT
 assert "draft_prepared" in AGENT
 assert "sent_and_logged" in AGENT

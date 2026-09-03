@@ -58,6 +58,50 @@ Expected:
 - Do not pass notification wording to action review as a human commitment or request.
 - Do not create a task from automated action language.
 
+## Followed Substack new-post notification
+
+Evidence:
+
+- A verified Substack notification from a publication Harry follows announces one new post.
+- The email contains a canonical article link plus tracking and unsubscribe links.
+- The post page opens successfully and confirms the title, publication, author, and publication date.
+- No existing Brain provenance matches the canonical post URL.
+
+Expected:
+
+- Treat the notification as the narrow eligible exception to the automated/newsletter exclusion.
+- Open and file the canonical post through `$bigbrain-source-article-ingest`; do not file the email body or MIME.
+- Use a normalized publication key and canonical post key for deduplication.
+- Advance that publication's high and low watermarks only after the source artifact or page and all affected canonical pages read back successfully.
+- Keep the Gmail thread cursor and Substack publication cursor as separate state.
+
+## Substack backfill and out-of-order delivery
+
+Evidence:
+
+- The publication has a verified high watermark for a recent post and a low watermark for the oldest post already filed.
+- A later notification points to a post older than the high watermark but absent from Brain provenance.
+- Harry explicitly requests a bounded backfill of one archive page.
+
+Expected:
+
+- File the missing post if its page is accessible and relevant, without regressing the high watermark.
+- Move the low watermark only if the older post is verified; keep the prior low watermark on any failure.
+- Use the archive's opaque pagination cursor when available and do not claim backfill completeness from watermarks alone.
+- Do not backfill merely because a new notification arrived.
+
+## Substack digest or recommendation notification
+
+Evidence:
+
+- An automated Substack email contains several recommended posts, a digest, or a subscriber promotion.
+- No individual new-post notification for a publication Harry follows is identified.
+
+Expected:
+
+- Keep the message excluded from the followed-post ingest path.
+- Create no article source artifact, canonical page, or publication cursor advancement.
+
 ## User-reported outbound send
 
 Evidence:
