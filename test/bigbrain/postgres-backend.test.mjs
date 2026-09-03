@@ -5,11 +5,31 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { allEmbeddings, dbDoctor, getHostedBrainGitState, getPageRecord, insertMcpAuditLog, listMcpAuditLog, listPageSlugs, openDatabase, semanticSearch, upsertHostedBrainGitState } from '../../src/bigbrain/db.js';
+import { allEmbeddings, closePostgresPools, dbDoctor, getHostedBrainGitState, getPageRecord, insertMcpAuditLog, listMcpAuditLog, listPageSlugs, openDatabase, semanticSearch, upsertHostedBrainGitState } from '../../src/bigbrain/db.js';
 import { createMcpAuthStore, PostgresMcpAuthStore } from '../../src/bigbrain/mcp-auth-store.js';
 import { migrateSqliteToPostgres } from '../../src/bigbrain/postgres-migrate.js';
 import { searchBrain } from '../../src/bigbrain/search.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
+
+test.after(async () => {
+  await closePostgresPools();
+});
+
+test('postgres backend reuses one process pool across database handles', async (t) => {
+  const fixture = await createFixture('bigbrain-postgres-pool-', t);
+  if (!fixture) return;
+  try {
+    const config = await postgresConfig(fixture);
+    const first = await openDatabase(config);
+    const second = await openDatabase(config);
+    assert.equal(first.raw, second.raw);
+    assert.deepEqual((await second.query('SELECT 1 AS ok')).rows, [{ ok: 1 }]);
+    await first.close?.();
+    await second.close?.();
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
 
 test('postgres backend syncs, searches, and preserves embeddings', async (t) => {
   const fixture = await createFixture('bigbrain-postgres-sync-', t);

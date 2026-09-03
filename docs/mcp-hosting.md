@@ -427,7 +427,6 @@ client should render a neutral completion page saying that authorization is
 complete and the page can be closed. A browser dashboard login follows the
 hosted service's dashboard redirect instead and should not use a loopback
 callback.
-
 Codex owns the per-user OAuth credential; BigBrain does not copy it into a
 repository, shell profile, environment file, command line, or generated
 configuration. Each connection has its own MCP name and credential, so one
