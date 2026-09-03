@@ -1101,9 +1101,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-flow-input-column { left: 16px; }
       .graph-flow-output-column { right: 16px; }
       .graph-flow-column-head { display: flex; align-items: center; justify-content: space-between; padding: 0 2px 3px; color: rgba(244,244,245,0.68); font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.12em; text-transform: uppercase; }
-      .graph-flow-column-head-actions { display: flex; align-items: center; gap: 6px; }
+      .graph-flow-column-head-actions { display: flex; align-items: center; gap: 4px; }
       .graph-flow-source-filter-shell { position: relative; }
-      .graph-flow-source-filter-button { width: 24px; height: 24px; border-radius: 7px; box-shadow: none; }
       .graph-flow-source-filter-menu { top: calc(100% + 8px); right: 0; bottom: auto; left: auto; }
       .graph-flow-column-head small { color: rgba(161,161,170,0.8); font: inherit; letter-spacing: 0.05em; }
       .graph-flow-card-list { display: grid; gap: 7px; }
@@ -1690,6 +1689,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-button-active { background: rgba(255,255,255,0.08); border-color: var(--line-strong); }
       .icon-button { width: 38px; height: 38px; padding: 0; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-strong); color: var(--ink); cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); display: inline-flex; align-items: center; justify-content: center; }
       .icon-button:hover { background: var(--surface); }
+      .graph-flow-column-head .graph-flow-source-filter-button { width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: rgba(161,161,170,0.8); box-shadow: none; }
+      .graph-flow-column-head .graph-flow-source-filter-button:hover, .graph-flow-column-head .graph-flow-source-filter-button:focus-visible, .graph-flow-column-head .graph-flow-source-filter-button.graph-button-active { border: 0; background: rgba(244,244,245,0.08); color: rgba(244,244,245,0.92); }
+      .graph-flow-column-head .graph-flow-source-filter-button:focus-visible { outline: 2px solid rgba(244,244,245,0.32); outline-offset: 2px; }
+      .graph-flow-column-head .graph-flow-source-filter-button .settings-icon { width: 14px; height: 14px; }
       .graph-note { position: absolute; left: 14px; bottom: 14px; z-index: 2; font-size: 12px; color: var(--muted); padding: 8px 10px; border-radius: 999px; background: var(--surface-strong); border: 1px solid var(--line); }
       .graph-controls-inline { position: static; }
       .graph-style-menu-shell, .graph-filter-menu-shell { position: relative; }

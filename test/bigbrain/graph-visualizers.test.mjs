@@ -810,13 +810,17 @@ test('graph flow limits the displayed input cards to the newest six', async () =
 });
 
 test('graph flow exposes a source-type filter above the input cards', async () => {
-  const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
+  const [main, dashboard] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
+  ]);
 
   assert.match(main, /Filter inputs by source type/);
   assert.match(main, /sourceTypeOptions/);
   assert.match(main, /selectedSourceTypes/);
   assert.match(main, /All source types/);
   assert.match(main, /graph-flow-source-filter-button/);
+  assert.match(dashboard, /\.graph-flow-column-head \.graph-flow-source-filter-button \{[^}]*border: 0[^}]*background: transparent/);
 });
 
 test('flow arcs sit below graph nodes while cards stay above the graph', async () => {

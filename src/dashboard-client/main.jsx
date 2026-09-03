@@ -3389,6 +3389,7 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
           <div className="graph-flow-column-head">
             <span>Inputs</span>
             <div className="graph-flow-column-head-actions">
+              <small>{visibleInputs.length}</small>
               <div className="graph-flow-source-filter-shell" ref={sourceFilterRef}>
                 <button
                   type="button"
@@ -3434,7 +3435,6 @@ function GraphFlowOverlay({ inputs, tasks, onNodeOpen }) {
                   </div>
                 ) : null}
               </div>
-              <small>{visibleInputs.length}</small>
             </div>
           </div>
           <div className="graph-flow-card-list">
