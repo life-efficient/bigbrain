@@ -5,6 +5,28 @@ actions` section for agents maintaining device and server installations.
 
 ## [Unreleased]
 
+## [0.27.1] - 2026-09-03
+
+### Fixed
+
+- Reused the hosted Postgres connection pool and single-flight schema
+  initialization so each MCP authorization, tool, and audit step no longer
+  opens a separate pool or concurrently reruns the schema DDL.
+
+### Agent update actions
+
+- Update hosted MCP services to the `v0.27.1` tag and restart them. Preserve
+  the existing Brain repository, runtime config, and Postgres database.
+- Verify `/ready` and run one authenticated MCP `initialize`, `tools/list`, and
+  `members/list` request. Confirm the service log no longer shows repeated
+  schema initialization or five-minute MCP request hangs.
+- No Brain content or database migration is required.
+
+### Verification
+
+- Full test suite passed: 497 tests passed and 7 skipped because
+  `TEST_DATABASE_URL` is not configured.
+
 ## [0.27.0] - 2026-09-02
 
 ### Added

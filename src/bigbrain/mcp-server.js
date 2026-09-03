@@ -27,6 +27,7 @@ import {
   listMcpAuditLog,
   listPageProvenance,
   listSharedGroups,
+  closePostgresPools,
   openDatabase,
   pruneMcpAuditLog,
   upsertSharedGroup,
@@ -298,6 +299,7 @@ export async function startMcpServer({
         }
         try {
           await memberDb?.close?.();
+          await closePostgresPools();
           resolve();
         } catch (closeError) {
           reject(closeError);

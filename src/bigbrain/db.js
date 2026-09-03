@@ -8,12 +8,26 @@ import { latestTimelineDate } from './timeline.js';
 
 export const BIGBRAIN_STORAGE_SCHEMA_VERSION = 1;
 
+// Hosted MCP requests open the database in several authorization, tool, and
+// audit paths. Reusing the pool prevents each request from opening a new set
+// of connections and rerunning the schema DDL concurrently.
+const postgresPoolEntries = new Map();
+
 export async function openDatabase(config) {
   if (config.storageBackend === 'postgres') return openPostgresDatabase(config);
   await fs.mkdir(path.dirname(config.sqlitePath), { recursive: true });
   const db = new DatabaseSync(config.sqlitePath, { timeout: 15_000 });
   initializeSqliteSchema(db);
   return { backend: 'sqlite', raw: db };
+}
+
+export async function closePostgresPools() {
+  const entries = [...postgresPoolEntries.values()];
+  postgresPoolEntries.clear();
+  await Promise.all(entries.map(async ({ pool, schemaPromise }) => {
+    await Promise.allSettled([schemaPromise]);
+    await pool.end();
+  }));
 }
 
 export function initializeSqliteSchema(db) {
@@ -1479,18 +1493,38 @@ async function openPostgresDatabase(config) {
   const connectionString = process.env[envName];
   if (!connectionString) throw new Error(`Postgres storage requires ${envName} to be set.`);
   const { Pool } = await import('pg');
-  const pool = new Pool({
-    connectionString,
-    max: Number(process.env.BIGBRAIN_PG_POOL_MAX || 8),
-  });
-  const db = {
-    backend: 'postgres',
-    raw: pool,
-    query: (text, params) => pool.query(text, params),
-    close: () => pool.end(),
-  };
-  await initializePostgresSchema(db);
-  return db;
+  const key = postgresPoolKey(envName, connectionString);
+  let entry = postgresPoolEntries.get(key);
+  if (!entry) {
+    const pool = new Pool({
+      connectionString,
+      max: Number(process.env.BIGBRAIN_PG_POOL_MAX || 8),
+      allowExitOnIdle: true,
+    });
+    const db = {
+      backend: 'postgres',
+      raw: pool,
+      query: (text, params) => pool.query(text, params),
+      // Pool ownership belongs to the process, not an individual request.
+      close: async () => {},
+    };
+    entry = { pool, db, schemaPromise: null };
+    entry.schemaPromise = initializePostgresSchema(db).catch(async (error) => {
+      if (postgresPoolEntries.get(key) === entry) postgresPoolEntries.delete(key);
+      await pool.end().catch(() => {});
+      throw error;
+    });
+    postgresPoolEntries.set(key, entry);
+  }
+  await entry.schemaPromise;
+  return entry.db;
+}
+
+function postgresPoolKey(envName, connectionString) {
+  const digest = crypto.createHash('sha256')
+    .update(`${envName}\0${connectionString}`)
+    .digest('hex');
+  return `${envName}:${digest}`;
 }
 
 function unwrapSqlite(db) {
