@@ -1173,7 +1173,7 @@ function PrivatePageApp({ route }) {
           </div>
           <PrivatePageBackLink />
         </header>
-        <PageImageGallery images={state.page.images} />
+        <PageImageCarousel images={state.page.images} />
         <MarkdownDocument
           markdown={state.page.markdown}
           sourceSlug={state.page.slug}
@@ -1186,32 +1186,104 @@ function PrivatePageApp({ route }) {
   );
 }
 
-function PageImageGallery({ images }) {
+function PageImageCarousel({ images }) {
   const items = Array.isArray(images) ? images.filter((image) => image?.url) : [];
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    setActiveIndex((current) => Math.min(current, Math.max(items.length - 1, 0)));
+  }, [items.length]);
+
   if (!items.length) return null;
+
+  const safeActiveIndex = Math.min(activeIndex, items.length - 1);
+  const activeItem = items[safeActiveIndex];
+  const activeLabel = activeItem.caption || activeItem.alt_text || activeItem.filename || `Attached image ${safeActiveIndex + 1}`;
+
+  function moveTo(index) {
+    setActiveIndex((index + items.length) % items.length);
+  }
+
+  function handleKeyDown(event) {
+    if (items.length < 2) return;
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      moveTo(safeActiveIndex - 1);
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      moveTo(safeActiveIndex + 1);
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      moveTo(0);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      moveTo(items.length - 1);
+    }
+  }
+
   return (
     <section className="page-images" aria-label="Attached images">
       <div className="page-images-heading">
-        <h2>Attached images</h2>
-        <span className="meta">{items.length}</span>
+        <h2>Images</h2>
+        <span className="meta" aria-live="polite">{safeActiveIndex + 1} of {items.length}</span>
       </div>
-      <div className="page-images-grid">
-        {items.map((image, index) => {
-          const label = image.caption || image.alt_text || image.filename || `Attached image ${index + 1}`;
-          return (
-            <figure className="page-image-card" key={`${image.path}:${index}`}>
-              <a className="page-image-link" href={image.url} target="_blank" rel="noreferrer">
-                <img src={image.url} alt={image.alt_text || label} loading="lazy" />
-              </a>
-              <figcaption>
-                <span>{image.caption || label}</span>
-                {image.timestamp || image.source ? (
-                  <small>{[image.timestamp, image.source].filter(Boolean).join(' · ')}</small>
-                ) : null}
-              </figcaption>
-            </figure>
-          );
-        })}
+      <div
+        className="page-image-carousel"
+        role="region"
+        aria-roledescription="carousel"
+        aria-label="Attached images carousel"
+        tabIndex={items.length > 1 ? 0 : undefined}
+        onKeyDown={handleKeyDown}
+      >
+        <div className="page-image-stage">
+          {items.length > 1 ? (
+            <button
+              className="page-image-control page-image-control-previous"
+              type="button"
+              aria-label="Previous attached image"
+              onClick={() => moveTo(safeActiveIndex - 1)}
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
+          ) : null}
+          <a className="page-image-link" href={activeItem.url} target="_blank" rel="noreferrer">
+            <img src={activeItem.url} alt={activeItem.alt_text || activeLabel} loading="eager" />
+          </a>
+          {items.length > 1 ? (
+            <button
+              className="page-image-control page-image-control-next"
+              type="button"
+              aria-label="Next attached image"
+              onClick={() => moveTo(safeActiveIndex + 1)}
+            >
+              <span aria-hidden="true">›</span>
+            </button>
+          ) : null}
+        </div>
+        <div className="page-image-caption" aria-live="polite">
+          <span>{activeItem.caption || activeLabel}</span>
+          {activeItem.timestamp || activeItem.source ? (
+            <small>{[activeItem.timestamp, activeItem.source].filter(Boolean).join(' · ')}</small>
+          ) : null}
+        </div>
+        {items.length > 1 ? (
+          <div className="page-image-dots" role="tablist" aria-label="Choose attached image">
+            {items.map((image, index) => {
+              const label = image.caption || image.alt_text || image.filename || `Attached image ${index + 1}`;
+              return (
+                <button
+                  className={`page-image-dot ${index === safeActiveIndex ? 'active' : ''}`}
+                  key={`${image.path}:${index}`}
+                  type="button"
+                  role="tab"
+                  aria-label={`Show attached image ${index + 1}: ${label}`}
+                  aria-selected={index === safeActiveIndex}
+                  onClick={() => moveTo(index)}
+                />
+              );
+            })}
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -1305,7 +1377,7 @@ function PublicPageApp() {
             </div>
           ) : null}
         </header>
-        <PageImageGallery images={state.page.images} />
+        <PageImageCarousel images={state.page.images} />
         <MarkdownDocument
           markdown={state.page.markdown}
           sourceSlug={state.page.slug}
