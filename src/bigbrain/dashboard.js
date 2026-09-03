@@ -42,6 +42,10 @@ import {
   setKeepInTouchPriority,
   snoozeKeepInTouchPerson,
 } from './playbooks/keep-in-touch.js';
+import {
+  buildComprehensionPayload,
+  updateComprehensionSetup,
+} from './playbooks/comprehension.js';
 import { getRelatedLinkHistory } from './link-history.js';
 import {
   normalizePageVisibility,
@@ -303,6 +307,9 @@ export async function createDashboardRequestHandler(config, {
       if (requestUrl.pathname.startsWith('/api/playbooks/keep-in-touch/')) {
         return json(res, await handleKeepInTouchMutation(config, db, req, requestUrl, actor), { noStore: true });
       }
+      if (requestUrl.pathname === '/api/playbooks/comprehension') {
+        return json(res, await handleComprehensionRequest(config, db, req, actor), { noStore: true });
+      }
       if (requestUrl.pathname === '/api/page') return json(res, await buildPagePayload(config, db, requestUrl));
       if (requestUrl.pathname === '/api/page/visibility') return json(res, await updateDashboardPageVisibility(config, db, req, actor));
       if (requestUrl.pathname === '/api/preview') return json(res, await buildPreviewPayload(config, db, requestUrl));
@@ -381,6 +388,21 @@ async function handleKeepInTouchMutation(config, db, req, requestUrl, actor = nu
       throw error;
     }
   }
+}
+
+async function handleComprehensionRequest(config, db, req, actor = null) {
+  if (req.method === 'GET') return buildComprehensionPayload(config, db, { actor });
+  if (req.method !== 'POST') {
+    const error = new Error('Comprehension actions require GET or POST.');
+    error.statusCode = 405;
+    throw error;
+  }
+  const input = await readJsonRequest(req);
+  const guidance = await updateComprehensionSetup(db, input, { actor });
+  return {
+    ...(await buildComprehensionPayload(config, db, { actor })),
+    setup: guidance,
+  };
 }
 
 async function ensureDashboardAssets(config) {
@@ -800,6 +822,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .playbook-section-head h2, .playbook-queue-head h2 { margin: 5px 0 0; font-size: 19px; letter-spacing: -0.02em; }
       .playbook-search { width: 100%; min-height: 40px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; }
       .playbook-search:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+      .playbook-guidance { width: 100%; resize: vertical; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; line-height: 1.5; }
+      .playbook-guidance:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+      .playbook-form-actions { display: flex; align-items: center; gap: 12px; }
+      .playbook-inline-error { color: #fca5a5; font-size: 12px; }
       .playbook-candidate-list { display: grid; gap: 6px; max-height: 260px; overflow: auto; }
       .playbook-candidate { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 10px; border: 1px solid rgba(148,163,184,0.12); border-radius: 10px; background: rgba(255,255,255,0.025); }
       .playbook-candidate-copy { min-width: 0; display: grid; gap: 3px; }
@@ -824,6 +850,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .playbook-due.due { color: #f2cf8a; font-weight: 700; }
       .playbook-due.overdue { color: #fca5a5; font-weight: 700; }
       .playbook-record-summary { max-width: 740px; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+      .comprehension-page .playbook-record-summary { max-width: 920px; overflow: visible; text-overflow: clip; white-space: pre-wrap; }
       .playbook-record-actions { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
       .playbook-action-primary { color: var(--bg); border-color: var(--ink); background: var(--ink); font-weight: 700; }
       .playbook-action-primary:hover { background: #d4d4d8; }

@@ -21,6 +21,7 @@ import { resolveWindow } from './time.js';
 import { applyUpdate, checkForUpdate, renderUpdateText, updateExitCode } from './update.js';
 import { EventInboxStore, EventRegistryStore, RssCollector, normalizeListener, normalizeSubscription, defaultEventInboxPath, defaultEventRegistryPath } from './inbound-events.js';
 import { BIGBRAIN_MCP_RELEASE_VERSION, BIGBRAIN_RELEASE_MANIFEST } from './release-manifest.js';
+import { buildComprehensionPayload, getComprehensionPage, updateComprehensionSetup } from './playbooks/comprehension.js';
 
 export async function runCli(argv) {
   await loadUserEnv();
@@ -49,6 +50,7 @@ export async function runCli(argv) {
     case 'schema': return handleSchema(global);
     case 'file': return handleFile(args, global);
     case 'tasks': return handleTasks(args, global);
+    case 'comprehension': return handleComprehension(args, global);
     case 'members': return handleMembers(args, global);
     case 'events': return handleEvents(args, global);
     case 'eval': return handleEval(args, global);
@@ -637,6 +639,47 @@ async function handleTasks(args, global) {
     : 'No open tasks.');
 }
 
+async function handleComprehension(args, global) {
+  const action = args[0] || 'recent';
+  const config = await loadRuntimeConfig(global);
+  const db = await openDatabase(config);
+  try {
+    if (action === 'setup') {
+      const payload = await buildComprehensionPayload(config, db);
+      output(global, payload.setup, payload.setup.guidance || 'No Comprehension guidance configured.');
+      return;
+    }
+    if (action === 'set-guidance') {
+      const guidance = argValue(args, '--guidance') || args.slice(1).filter((arg) => !arg.startsWith('--')).join(' ');
+      const setup = await updateComprehensionSetup(db, { guidance });
+      output(global, setup, setup.guidance ? 'Saved Comprehension guidance.' : 'Cleared Comprehension guidance.');
+      return;
+    }
+    if (action === 'recent') {
+      const payload = await buildComprehensionPayload(config, db, { limit: Number(argValue(args, '--limit') || 50) });
+      output(global, payload, payload.pages.length
+        ? payload.pages.map((page) => `${page.title || page.page_slug}  ${page.updated_at}\n${page.summary}`).join('\n\n')
+        : 'No Comprehension sessions yet.');
+      return;
+    }
+    if (action === 'show') {
+      const pageSlug = requireFirstArg(args.slice(1), 'Usage: bigbrain comprehension show <page-slug>');
+      const page = await getComprehensionPage(db, pageSlug, { limit: Number(argValue(args, '--limit') || 50) });
+      output(global, page, renderComprehensionPageText(page));
+      return;
+    }
+    throw new Error('comprehension requires "setup", "set-guidance", "recent", or "show".');
+  } finally {
+    await db.close?.();
+  }
+}
+
+function renderComprehensionPageText(page) {
+  const title = page.page?.title || page.page?.slug || 'Page unavailable';
+  if (!page.sessions.length) return `${title}\nNo Comprehension sessions yet.`;
+  return `${title}\n\n${page.sessions.map((session) => `${session.updated_at}\n${session.summary}`).join('\n\n')}`;
+}
+
 async function handleMembers(args, global) {
   const config = await loadRuntimeConfig(global);
   const db = await openDatabase(config);
@@ -995,6 +1038,10 @@ Commands:
   schema
   file <path-or-description>
   tasks [--assignee people/name]
+  comprehension setup
+  comprehension set-guidance <text>
+  comprehension recent [--limit N]
+  comprehension show <page-slug> [--limit N]
   members [--status active|inactive|invited]
   members ensure-local-owner <people/slug> [--name NAME] [--email EMAIL]
   members add <email> <people/slug> [--name NAME] [--role owner|admin|editor|read-only|custom-role] [--status active|inactive|invited]
