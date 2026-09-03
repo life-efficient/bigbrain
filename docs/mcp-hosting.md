@@ -334,6 +334,23 @@ deployments should bind explicitly and rely on the Google allowlist session:
 bigbrain --config /path/to/config.json dashboard --host 0.0.0.0 --port "$PORT"
 ```
 
+Dashboard surfaces are explicit. A local dashboard may expose the trusted
+filesystem Explorer, while a shared or hosted dashboard must use the remote
+surface:
+
+```text
+BIGBRAIN_DASHBOARD_SURFACE=remote
+```
+
+OAuth-authenticated dashboards default to the remote surface when this variable
+is omitted. Remote dashboards do not request or expose the filesystem Explorer,
+brain root paths, local file URLs, or raw local file-registry metadata. The
+server rejects `/api/explorer/*` requests in this mode, and the browser hides
+the Explorer navigation entirely. Remote page payloads keep the canonical page
+slug and readable body, but omit local frontmatter and filesystem-backed image
+links. Raw-file access remains an explicit MCP or approved public/shared
+operation.
+
 The current file-backed token store is acceptable for local development or
 small persistent-volume deployments. The target server model should store token
 hashes, OAuth grants, sessions, and client metadata in the persistent database
@@ -346,6 +363,7 @@ Required environment:
 ```text
 BIGBRAIN_MCP_AUTH_MODE=oauth_allowlist
 BIGBRAIN_MCP_PUBLIC_URL=https://your-service.example.com
+BIGBRAIN_DASHBOARD_SURFACE=remote
 BIGBRAIN_MCP_SERVICE_NAME=Example Brain
 DATABASE_URL=postgres://...
 BIGBRAIN_MCP_ALLOWED_EMAILS=alice@example.com,bob@example.com

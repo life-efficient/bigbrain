@@ -73,8 +73,9 @@ export async function startDashboard(config, {
   host = '127.0.0.1',
   port = config.dashboardPort,
   authConfig = buildAuthConfig(),
+  dashboardSurface = null,
 } = {}) {
-  const handler = await createDashboardRequestHandler(config, { authConfig });
+  const handler = await createDashboardRequestHandler(config, { authConfig, dashboardSurface });
   const server = http.createServer((req, res) => {
     handler(req, res).catch((error) => {
       res.writeHead(500, { 'Content-Type': 'application/json' });
@@ -94,10 +95,12 @@ export async function startDashboard(config, {
 export async function createDashboardRequestHandler(config, {
   authConfig = buildAuthConfig(),
   basePath = '',
+  dashboardSurface = null,
 } = {}) {
   const db = await openDatabase(config);
   const clientAssetPath = await ensureDashboardAssets(config);
   const authEnabled = authRoutesEnabled(authConfig);
+  const resolvedDashboardSurface = resolveDashboardSurface(authConfig, dashboardSurface);
   const normalizedBasePath = normalizeDashboardBasePath(basePath);
   const dashboardDevVersionPath = `${normalizedBasePath}/__bigbrain/dev-version`.replace(/^\/\//, '/');
   const authStartPath = `${normalizedBasePath}/auth/start`.replace(/^\/\//, '/');
@@ -272,11 +275,20 @@ export async function createDashboardRequestHandler(config, {
           return;
         }
         const loaded = await loadBrainProfile(config);
-        return json(res, authenticatedBrainAbout(config, loaded, {
+        const about = authenticatedBrainAbout(config, loaded, {
           authState: actor ? 'authenticated' : 'local_trusted',
           writable: false,
           availableOperations: ['read'],
-        }), { noStore: true });
+        });
+        return json(res, {
+          ...about,
+          dashboard_surface: resolvedDashboardSurface,
+          capabilities: {
+            ...about.capabilities,
+            filesystem_explorer: true,
+            local_file_registry: resolvedDashboardSurface === 'local',
+          },
+        }, { noStore: true });
       }
       if (requestUrl.pathname === '/api/tasks') return json(res, await buildTasksPayload(config, db, requestUrl, { actor }));
       if (requestUrl.pathname === '/api/recent') return json(res, await buildRecentPayload(db));
@@ -291,7 +303,9 @@ export async function createDashboardRequestHandler(config, {
         }
         return json(res, lineage, { noStore: true });
       }
-      if (requestUrl.pathname === '/api/health') return json(res, await buildHealthPayload(config));
+      if (requestUrl.pathname === '/api/health') {
+        return json(res, await buildHealthPayload(config, { dashboardSurface: resolvedDashboardSurface }));
+      }
       if (requestUrl.pathname === '/api/analytics') return json(res, await buildAnalyticsPayload(config, db));
       if (requestUrl.pathname === '/api/playbooks/keep-in-touch') {
         if (req.method !== 'GET') {
@@ -304,9 +318,15 @@ export async function createDashboardRequestHandler(config, {
       if (requestUrl.pathname.startsWith('/api/playbooks/keep-in-touch/')) {
         return json(res, await handleKeepInTouchMutation(config, db, req, requestUrl, actor), { noStore: true });
       }
-      if (requestUrl.pathname === '/api/page') return json(res, await buildPagePayload(config, db, requestUrl));
-      if (requestUrl.pathname === '/api/page/visibility') return json(res, await updateDashboardPageVisibility(config, db, req, actor));
-      if (requestUrl.pathname === '/api/preview') return json(res, await buildPreviewPayload(config, db, requestUrl));
+      if (requestUrl.pathname === '/api/page') {
+        return json(res, await buildPagePayload(config, db, requestUrl, { dashboardSurface: resolvedDashboardSurface }));
+      }
+      if (requestUrl.pathname === '/api/page/visibility') {
+        return json(res, await updateDashboardPageVisibility(config, db, req, actor, { dashboardSurface: resolvedDashboardSurface }));
+      }
+      if (requestUrl.pathname === '/api/preview') {
+        return json(res, await buildPreviewPayload(config, db, requestUrl, { dashboardSurface: resolvedDashboardSurface }));
+      }
       if (requestUrl.pathname === '/api/public/page') {
         if (req.method !== 'GET') {
           res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -337,9 +357,15 @@ export async function createDashboardRequestHandler(config, {
         return json(res, groupPayload);
       }
       if (requestUrl.pathname === '/api/shared/raw') return serveSharedRawFile(config, db, res, requestUrl, req.method);
-      if (requestUrl.pathname === '/api/explorer/tree') return json(res, await buildExplorerTreePayload(config));
-      if (requestUrl.pathname === '/api/explorer/recent') return json(res, await buildExplorerRecentPayload(config, requestUrl));
-      if (requestUrl.pathname === '/api/explorer/file') return json(res, await buildExplorerFilePayload(config, requestUrl));
+      if (requestUrl.pathname === '/api/explorer/tree') {
+        return json(res, await buildExplorerTreePayload(config, { dashboardSurface: resolvedDashboardSurface }));
+      }
+      if (requestUrl.pathname === '/api/explorer/recent') {
+        return json(res, await buildExplorerRecentPayload(config, requestUrl, { dashboardSurface: resolvedDashboardSurface }));
+      }
+      if (requestUrl.pathname === '/api/explorer/file') {
+        return json(res, await buildExplorerFilePayload(config, requestUrl, { dashboardSurface: resolvedDashboardSurface }));
+      }
       if (requestUrl.pathname === '/api/explorer/blob') return serveExplorerBlob(config, res, requestUrl);
       res.writeHead(404);
       res.end('Not found');
@@ -545,6 +571,16 @@ export function clearDashboardSessionCookie() {
   return 'bigbrain_dashboard_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0';
 }
 
+export function resolveDashboardSurface(authConfig = {}, configuredSurface = null, env = process.env) {
+  const requestedSurface = configuredSurface || authConfig.dashboardSurface || env.BIGBRAIN_DASHBOARD_SURFACE || '';
+  const normalizedSurface = String(requestedSurface).trim().toLowerCase();
+  if (normalizedSurface && normalizedSurface !== 'local' && normalizedSurface !== 'remote') {
+    throw new Error('Dashboard surface must be either local or remote.');
+  }
+  if (normalizedSurface) return normalizedSurface;
+  return authConfig.mode === 'oauth_allowlist' ? 'remote' : 'local';
+}
+
 function normalizeDashboardBasePath(basePath) {
   const normalized = String(basePath || '').trim().replace(/\/+$/, '');
   if (!normalized || normalized === '/') return '';
@@ -570,6 +606,13 @@ function isPublicAppPath(pathname) {
 
 function isSharedAppPath(pathname) {
   return pathname === '/shared' || pathname.startsWith('/shared/');
+}
+
+function isExplorerPath(pathname) {
+  return pathname === '/api/explorer/tree'
+    || pathname === '/api/explorer/recent'
+    || pathname === '/api/explorer/file'
+    || pathname === '/api/explorer/blob';
 }
 
 function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBasePath = '' } = {}) {
@@ -712,12 +755,13 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .demo-mode-badge { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px solid rgba(0,255,102,0.28); border-radius: 999px; background: rgba(0,255,102,0.08); color: var(--ink); font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
       .view-nav { display: flex; gap: 10px; flex-wrap: wrap; }
       .view-nav-header { justify-content: center; justify-self: center; }
-      .view-nav, .view-chip, .topline-actions, .topline-actions > *, .settings-button, .health-button, .settings-dropdown, .health-dropdown { -webkit-app-region: no-drag; }
+      .view-nav, .view-chip, .dashboard-search, .dashboard-search-form, .dashboard-search-results, .topline-actions, .topline-actions > *, .settings-button, .health-button, .settings-dropdown, .health-dropdown { -webkit-app-region: no-drag; }
       html.bigbrain-desktop .desktop-drag-strip { display: block; position: absolute; z-index: 20; top: 0; left: 74px; right: 14px; height: 14px; -webkit-app-region: drag; }
       html.bigbrain-desktop .topline { grid-template-columns: minmax(190px, 1fr) auto minmax(190px, 1fr); padding-left: 60px; }
       @media (max-width: 820px) {
         html.bigbrain-desktop .topline { grid-template-columns: minmax(150px, 1fr) auto minmax(150px, 1fr); gap: 8px; padding-left: 58px; }
         html.bigbrain-desktop .view-nav, html.bigbrain-desktop .topline-actions { gap: 8px; }
+        .dashboard-search { width: min(220px, 30vw); }
       }
       @media (max-width: 740px) {
         html.bigbrain-desktop .view-chip-kbd { display: none; }
@@ -2218,27 +2262,32 @@ function dueSortValue(due) {
   return due ? Date.parse(`${due}T00:00:00Z`) : Number.MAX_SAFE_INTEGER;
 }
 
-export async function buildPreviewPayload(config, db, requestUrl) {
+export async function buildPreviewPayload(config, db, requestUrl, { dashboardSurface = 'local' } = {}) {
   const sourceSlug = requestUrl.searchParams.get('from')?.trim();
   const target = requestUrl.searchParams.get('target')?.trim();
   if (!sourceSlug || !target) throw new Error('Preview requires both from and target.');
   const slug = resolveMarkdownLink(sourceSlug, target);
   if (!slug) throw new Error(`Unsupported preview target: ${target}`);
   const domainScope = await resolveDomainScope(config, requestUrl);
-  return buildPagePayloadForSlug(config, db, slug, { domainScope });
+  return buildPagePayloadForSlug(config, db, slug, { domainScope, dashboardSurface });
 }
 
-export async function buildExplorerTreePayload(config) {
+export async function buildExplorerTreePayload(config, { dashboardSurface = 'local' } = {}) {
   const root = await explorerEntryForPath(config.brainDir, config.brainDir, true);
   return {
     root,
     meta: {
-      root_path: config.brainDir,
+      surface: dashboardSurface,
+      ...(dashboardSurface === 'local' ? { root_path: config.brainDir } : {}),
     },
   };
 }
 
-export async function buildExplorerRecentPayload(config, requestUrl = new URL('http://127.0.0.1')) {
+export async function buildExplorerRecentPayload(
+  config,
+  requestUrl = new URL('http://127.0.0.1'),
+  { dashboardSurface = 'local' } = {},
+) {
   const requestedLimit = Number.parseInt(requestUrl.searchParams?.get('limit') || '80', 10);
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(250, requestedLimit)) : 80;
   const files = await explorerRecentFiles(config.brainDir, config.brainDir);
@@ -2249,14 +2298,15 @@ export async function buildExplorerRecentPayload(config, requestUrl = new URL('h
   return {
     files: files.slice(0, limit),
     meta: {
-      root_path: config.brainDir,
+      surface: dashboardSurface,
+      ...(dashboardSurface === 'local' ? { root_path: config.brainDir } : {}),
       limit,
       total_file_count: files.length,
     },
   };
 }
 
-export async function buildExplorerFilePayload(config, requestUrl) {
+export async function buildExplorerFilePayload(config, requestUrl, { dashboardSurface = 'local' } = {}) {
   const relativePath = normalizeExplorerPath(requestUrl.searchParams.get('path') || '');
   const fullPath = safeExplorerPath(config.brainDir, relativePath);
   const stats = await fs.stat(fullPath);
@@ -2270,6 +2320,7 @@ export async function buildExplorerFilePayload(config, requestUrl) {
     mime_type: mimeType,
     size: stats.size,
     updated_at: stats.mtime.toISOString(),
+    surface: dashboardSurface,
     blob_url: `/api/explorer/blob?${new URLSearchParams({ path: relativePath }).toString()}`,
   };
   if (kind === 'markdown' || kind === 'text') {
@@ -2281,11 +2332,11 @@ export async function buildExplorerFilePayload(config, requestUrl) {
   return payload;
 }
 
-export async function buildPagePayload(config, db, requestUrl) {
+export async function buildPagePayload(config, db, requestUrl, { dashboardSurface = 'local' } = {}) {
   const slug = requestUrl.searchParams.get('slug')?.trim();
   if (!slug) throw new Error('Page lookup requires slug.');
   const domainScope = await resolveDomainScope(config, requestUrl);
-  return buildPagePayloadForSlug(config, db, slug, { domainScope });
+  return buildPagePayloadForSlug(config, db, slug, { domainScope, dashboardSurface });
 }
 
 async function canonicalPageExists(config, slug) {
@@ -2499,7 +2550,7 @@ export async function buildPublicRawFilePayload(config, requestUrl) {
   };
 }
 
-export async function updateDashboardPageVisibility(config, db, req, actor = null) {
+export async function updateDashboardPageVisibility(config, db, req, actor = null, { dashboardSurface = 'local' } = {}) {
   if (req.method !== 'POST') {
     const error = new Error('Page visibility updates require POST.');
     error.statusCode = 405;
@@ -2523,10 +2574,10 @@ export async function updateDashboardPageVisibility(config, db, req, actor = nul
       source_message: timelineText,
     },
   });
-  return buildPagePayloadForSlug(config, db, slug);
+  return buildPagePayloadForSlug(config, db, slug, { dashboardSurface });
 }
 
-async function buildPagePayloadForSlug(config, db, slug, { domainScope = [] } = {}) {
+async function buildPagePayloadForSlug(config, db, slug, { domainScope = [], dashboardSurface = 'local' } = {}) {
   const pageSlug = normalizeDashboardPageSlug(slug);
   const fullPath = resolveBrainMarkdownPath(config.brainDir, pageSlug);
   const raw = await fs.readFile(fullPath, 'utf8');
@@ -2545,6 +2596,7 @@ async function buildPagePayloadForSlug(config, db, slug, { domainScope = [] } = 
   const markdown = domainScope.length
     ? await sanitizeDomainMarkdown({ config, markdown: parsed.bodyContentMarkdown, sourceSlug: pageSlug, domainScope })
     : parsed.bodyContentMarkdown;
+  const remoteDashboard = dashboardSurface === 'remote';
   const relativePath = path.relative(config.brainDir, fullPath);
   let pageUrlPath = null;
   try {
@@ -2558,11 +2610,11 @@ async function buildPagePayloadForSlug(config, db, slug, { domainScope = [] } = 
     page_url_path: pageUrlPath,
     title: parsed.title,
     type: parsed.type,
-    path: relativePath,
+    path: remoteDashboard ? pageSlug : relativePath,
     visibility: pageVisibility(parsed.frontmatter),
     public_url: pageVisibility(parsed.frontmatter) === 'public' ? `/public/${slug}` : null,
     summary: extractPageReaderSummary(parsed),
-    frontmatter: parsed.frontmatter,
+    ...(remoteDashboard ? {} : { frontmatter: parsed.frontmatter }),
     images: await buildPageImagesPayload(config, parsed.frontmatter.images, { sourceSlug: pageSlug }),
     markdown,
     updated_at: stat.mtime.toISOString(),
@@ -3136,10 +3188,13 @@ async function buildRecentPayload(db) {
   return { pages };
 }
 
-async function buildHealthPayload(config) {
+async function buildHealthPayload(config, { dashboardSurface = 'local' } = {}) {
   const report = await runHealthCheck(config);
+  const dashboardReport = dashboardSurface === 'remote'
+    ? sanitizeRemoteHealthPayload(report)
+    : report;
   const grouped = new Map();
-  for (const finding of report.findings) {
+  for (const finding of dashboardReport.findings) {
     grouped.set(finding.finding_type, (grouped.get(finding.finding_type) || 0) + 1);
   }
   const summary = [...grouped.entries()]
@@ -3147,11 +3202,28 @@ async function buildHealthPayload(config) {
     .sort((a, b) => b.count - a.count)
     .slice(0, 8);
   return {
-    ...report,
-    runtime: report.runtime || runtimeMetadata(),
+    ...dashboardReport,
+    runtime: dashboardReport.runtime || runtimeMetadata(),
     summary,
-    top_findings: report.findings.slice(0, 16),
+    top_findings: dashboardReport.findings.slice(0, 16),
   };
+}
+
+function sanitizeRemoteHealthPayload(value, depth = 0) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => sanitizeRemoteHealthPayload(entry, depth + 1));
+  }
+  if (!value || typeof value !== 'object') return value;
+  const sanitized = {};
+  for (const [key, nestedValue] of Object.entries(value)) {
+    if (isRemoteLocalMetadataKey(key) || (key === 'summary' && depth > 0)) continue;
+    sanitized[key] = sanitizeRemoteHealthPayload(nestedValue, depth + 1);
+  }
+  return sanitized;
+}
+
+function isRemoteLocalMetadataKey(key) {
+  return /(?:^|_)(?:path|root|file|registry|cwd|checkout|remediation)(?:_|$)/i.test(String(key || ''));
 }
 
 export async function buildGraphPayload(db, config = null) {

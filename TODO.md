@@ -34,6 +34,33 @@
   SQLite, bundled Postgres, and managed Postgres; markdown import and sqlite-to-postgres
   migration already exist.
 
+## Cross-Brain Federation (Deferred)
+
+- Revisit an optional federated client layer when a concrete workflow justifies
+  it. Preserve the current one-MCP-server-per-Brain model as the baseline and
+  keep direct connections available to Codex and other MCP clients.
+- Define a portable, non-secret Brain connection descriptor containing the
+  immutable Brain ID, stable handle, display name, transport, endpoint,
+  credential reference, and verified capabilities. Keep the cross-Brain
+  registry in the client/control plane, not inside an individual Brain MCP.
+- Add shared live verification that performs an `about` handshake and rejects
+  endpoint, Brain ID, handle, or capability mismatches before use. Conversational
+  labels such as a supposed “Batic Brain” must never identify a connection.
+- Consider a stateless, optional read-only federated MCP/client for listing,
+  status, search, and later query across registered readable Brains. Preserve
+  Brain attribution and per-Brain failures in every aggregated result.
+- Keep writes explicit to one verified Brain ID and canonical path, followed by
+  read-back through that same Brain. Do not introduce implicit cross-Brain
+  writes or generic hub-level ownership heuristics.
+- Support stateless devices through direct remote MCP connections or an
+  ephemeral hub supplied with runtime descriptors and credentials. A local-only
+  Brain remains available only from a device that can reach it, unless it is
+  explicitly exposed through a supported remote transport.
+- Add regression coverage for direct operation without the hub, identity
+  mismatch rejection, result attribution, partial failures, runtime-only hub
+  configuration, and the Batic case where Personal Brain is selected despite
+  there being no Batic Brain.
+
 ## Raw File Storage
 
 - Change the raw-file convention to flat files directly under each collection

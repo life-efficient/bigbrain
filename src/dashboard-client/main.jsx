@@ -255,6 +255,7 @@ function DashboardApp() {
   graphMotionEligibleRef.current = view === 'graph' && !preview && !lineage;
   demoModeRef.current = demoMode;
   demoSeedRef.current = demoSeed;
+  const filesystemExplorerEnabled = state.data?.about?.capabilities?.filesystem_explorer === true;
 
   const clearGraphFocus = useEffectEvent(() => {
     previewRequestRef.current += 1;
@@ -286,15 +287,19 @@ function DashboardApp() {
       setAssigneeLoading(true);
       try {
         const assigneeQuery = assigneeFilter ? `?${new URLSearchParams({ assignee: assigneeFilter }).toString()}` : '';
-        const [about, schema, tasks, recent, health, graph, explorer, explorerRecent] = await Promise.all([
-          fetchJson('/api/about'),
+        const about = await fetchJson('/api/about');
+        const [schema, tasks, recent, health, graph, explorer, explorerRecent] = await Promise.all([
           fetchJson('/api/schema'),
           fetchJson(`/api/tasks${assigneeQuery}`),
           fetchJson('/api/recent'),
           fetchJson('/api/health'),
           fetchJson('/api/graph'),
-          fetchJson('/api/explorer/tree'),
-          fetchJson('/api/explorer/recent'),
+          about?.capabilities?.filesystem_explorer === true
+            ? fetchJson('/api/explorer/tree')
+            : Promise.resolve(null),
+          about?.capabilities?.filesystem_explorer === true
+            ? fetchJson('/api/explorer/recent')
+            : Promise.resolve(null),
         ]);
         if (cancelled) return;
         const currentMemberSlug = tasks?.filters?.current_member?.person_slug || '';
@@ -308,7 +313,15 @@ function DashboardApp() {
         setState({
           status: 'ready',
           error: null,
-          data: { about, schema, tasks, recent, health, graph, explorer: { ...explorer, recent: explorerRecent } },
+          data: {
+            about,
+            schema,
+            tasks,
+            recent,
+            health,
+            graph,
+            explorer: explorer ? { ...explorer, recent: explorerRecent } : null,
+          },
         });
         setEnabledPlaybooks(loadEnabledPlaybooks(about?.brain_id));
       } catch (error) {
@@ -489,7 +502,7 @@ function DashboardApp() {
       if (key === 'g') {
         event.preventDefault();
         setView('graph');
-      } else if (key === 'e') {
+      } else if (key === 'e' && filesystemExplorerEnabled) {
         event.preventDefault();
         setView('explorer');
       } else if (key === 'k' && enabledPlaybooks.includes('keep-in-touch')) {
@@ -508,7 +521,7 @@ function DashboardApp() {
     return () => {
       window.removeEventListener('keydown', handleKeydown);
     };
-  }, [enabledPlaybooks, visualizerId]);
+  }, [enabledPlaybooks, filesystemExplorerEnabled, visualizerId]);
 
   const taskSections = Array.isArray(state.data?.tasks?.sections) ? state.data.tasks.sections : [];
   const displayTaskSections = useMemo(() => (
@@ -715,7 +728,7 @@ function DashboardApp() {
 
   const views = [
     { id: 'graph', label: 'Graph', shortcut: 'G' },
-    { id: 'explorer', label: 'Explorer', shortcut: 'E' },
+    ...(filesystemExplorerEnabled ? [{ id: 'explorer', label: 'Explorer', shortcut: 'E' }] : []),
     ...PLAYBOOKS
       .filter((playbook) => enabledPlaybooks.includes(playbook.id))
       .map((playbook) => ({ id: playbook.id, label: playbook.label, shortcut: playbook.shortcut })),
@@ -975,7 +988,7 @@ function DashboardApp() {
               />
             ) : null}
 
-            {view === 'explorer' ? (
+            {view === 'explorer' && filesystemExplorerEnabled ? (
               <ExplorerPanel
                 explorer={displayExplorer}
                 demoMode={demoMode}

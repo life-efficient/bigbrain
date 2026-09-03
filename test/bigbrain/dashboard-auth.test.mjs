@@ -137,6 +137,24 @@ test('hosted dashboard uses OAuth allowlist sessions', async () => {
     assert.equal(aboutJson.manifest.reviewed, true);
     assert.equal(aboutJson.meeting_ingestion_approval_required, true);
     assert.equal(typeof aboutJson.descriptor.identity.description, 'string');
+    assert.equal(aboutJson.dashboard_surface, 'remote');
+    assert.equal(aboutJson.capabilities.filesystem_explorer, false);
+
+    const explorer = await fetch(`${url}/api/explorer/tree`, {
+      headers: { cookie: `bigbrain_dashboard_session=${sessionToken}` },
+    });
+    assert.equal(explorer.status, 404);
+    assert.match(await explorer.text(), /available only on a local dashboard/);
+
+    const remotePage = await fetch(`${url}/api/page?slug=people/public`, {
+      headers: { cookie: `bigbrain_dashboard_session=${sessionToken}` },
+    });
+    assert.equal(remotePage.status, 200);
+    const remotePageJson = await remotePage.json();
+    assert.equal(remotePageJson.path, 'people/public');
+    assert.equal('frontmatter' in remotePageJson, false);
+    assert.deepEqual(remotePageJson.images, []);
+    assert.doesNotMatch(JSON.stringify(remotePageJson), /\/api\/explorer\/blob/);
 
     const authenticatedVisibility = await fetch(`${url}/api/page/visibility`, {
       method: 'POST',
@@ -204,6 +222,34 @@ test('hosted dashboard can use active members as the OAuth allowlist', async () 
   } finally {
     if (server) await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     await db?.close?.();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('local dashboard keeps the filesystem explorer surface', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-local-');
+  let server;
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    server = await startDashboard(config, {
+      host: '127.0.0.1',
+      port: 0,
+      authConfig: { mode: 'none' },
+      dashboardSurface: 'local',
+    });
+    const url = serverUrl(server);
+
+    const about = await fetch(`${url}/api/about`);
+    assert.equal(about.status, 200);
+    const aboutJson = await about.json();
+    assert.equal(aboutJson.dashboard_surface, 'local');
+    assert.equal(aboutJson.capabilities.filesystem_explorer, true);
+
+    const explorer = await fetch(`${url}/api/explorer/tree`);
+    assert.equal(explorer.status, 200);
+    assert.equal((await explorer.json()).root.type, 'directory');
+  } finally {
+    if (server) await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
 });
