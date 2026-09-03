@@ -9,7 +9,7 @@ Create or update one ordinary BigBrain page from durable evidence.
 
 - Standard ordinary pages use YAML frontmatter, a title, current content, one writer-managed `---` followed by `## Timeline`, and an append-only evidence timeline.
 - Keep one canonical page for one primary subject. Use the filing rules and canonical folder for placement, frontmatter for mutable state and provenance, and inline links for relevant related subjects.
-- Make the page readable on its own: explain what the subject is, why it matters, its current state, important context, boundaries, material relationships, and meaningful uncertainty.
+- Make the page the best standalone 80/20 rundown of its subject: if the reader could read only this page about the subject, they should understand what the subject is, why it matters, its current state, important context, boundaries, material relationships, and meaningful uncertainty.
 - The compiled-truth paragraph is the core understanding of the page: if the reader had only one paragraph, this is what they should read. It may be longer than a one-liner when needed. Additional current-context sections may follow it before the separator.
 - Existing owner -> update; no owner with sufficient evidence -> create; ambiguity or weak evidence -> stop; no material change -> no-op.
 - Use the selected Brain's relevant MCP endpoint with the endpoint schema as the authority for inputs, required provenance, and significance. The writer manages Markdown framing and `## Timeline`.

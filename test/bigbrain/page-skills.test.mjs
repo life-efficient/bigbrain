@@ -21,6 +21,8 @@ test('the page skill contains the page writing standard', async () => {
   assert.match(skill, /## Timeline/);
   assert.match(skill, /Standard ordinary pages use YAML frontmatter/);
   assert.match(skill, /one canonical page for one primary subject/);
+  assert.match(skill, /best standalone 80\/20 rundown/);
+  assert.match(skill, /could read only this page about the subject/);
   assert.match(skill, /if the reader had only one paragraph/);
   assert.match(skill, /Find which Brain owns the page/);
   assert.match(skill, /Use the selected Brain's relevant MCP/);
