@@ -92,6 +92,19 @@ test('connection instructions are brain-specific and contain no credentials', ()
   assert.doesNotMatch(JSON.stringify(result), /api.?key|sk-/i);
 });
 
+test('connection instructions distinguish an existing server-managed brain', () => {
+  const result = connectionInstructions({
+    name: 'Company Memory',
+    connectionType: 'service',
+    serviceUrl: 'https://brain.example.test',
+    mcpUrl: 'https://brain.example.test/mcp',
+  });
+
+  assert.match(result.handoff, /existing BigBrain service named "Company Memory"/);
+  assert.match(result.handoff, /standard OAuth flow/);
+  assert.doesNotMatch(result.handoff, /private local BigBrain/);
+});
+
 test('desktop connects to and persists an existing BigBrain service', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-service-registry-'));
   const registry = new BrainRegistry({ appSupport: root });
@@ -121,6 +134,7 @@ test('desktop connects to and persists an existing BigBrain service', async () =
   assert.equal(brain.name, 'Company Memory');
   assert.equal(brain.connectionType, 'service');
   assert.equal(brain.serviceOwnership, 'remote');
+  assert.equal(brain.hosting, 'server-managed');
   assert.equal(brain.dashboardUrl, 'https://brain.example.test/dashboard');
   assert.equal(brain.mcpUrl, 'https://brain.example.test/mcp');
   assert.deepEqual(brain.mcpCompatibility, {
@@ -183,6 +197,7 @@ test('desktop reads the canonical machine catalog and archives the legacy regist
     assert.deepEqual(loaded.brains.map((brain) => brain.id), [icaireId, dealmakingId]);
     assert.equal(loaded.activeBrainId, dealmakingId);
     assert.equal(loaded.brains[1].serviceUrl, 'https://dealmaking.example.test');
+    assert.equal(loaded.brains[1].hosting, 'server-managed');
     await fs.stat(path.join(root, 'registry.json.legacy'));
     await assert.rejects(() => fs.stat(path.join(root, 'registry.json')), { code: 'ENOENT' });
   } finally {
@@ -552,10 +567,10 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   const readmeSource = await fs.readFile(new URL('../../README.md', import.meta.url), 'utf8');
   const devIcon = await fs.stat(new URL('../../electron/assets/desktop-dev-icon.png', import.meta.url));
   const devIconSet = await fs.stat(new URL('../../electron/assets/desktop-dev-app-icon.icns', import.meta.url));
-  assert.match(desktopSource, /How do you want to add this brain/);
-  assert.match(desktopSource, /Create a new private local brain/);
-  assert.match(desktopSource, /Use an existing brain folder on this Mac/);
-  assert.match(desktopSource, /Connect to an existing remote brain/);
+  assert.match(desktopSource, /How do you want to set up BigBrain/);
+  assert.match(desktopSource, /Run BigBrain on this device/);
+  assert.match(desktopSource, /Connect to an existing BigBrain/);
+  assert.doesNotMatch(desktopSource, /data-mode="remote"/);
   assert.match(desktopSource, /data-cancel/);
   assert.match(desktopSource, /cancelOnboarding/);
   assert.match(desktopSource, /void showActiveBrain\(\);/);
@@ -565,8 +580,6 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(desktopSource, /Privacy and backup/);
   assert.match(desktopSource, /Back up to a private GitHub repository/);
   assert.match(desktopSource, /document\.querySelector\('#app'\)\.classList\.add\('hidden'\)/);
-  assert.match(desktopSource, /Connect to an existing BigBrain/);
-  assert.match(desktopSource, /Create a remote brain on Railway/);
   assert.match(desktopSource, /provisionRemoteBrain/);
   assert.match(desktopSource, /Remote provisioning is coming next/);
   assert.match(desktopSource, /api\.connectService/);

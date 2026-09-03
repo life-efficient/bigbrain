@@ -1,5 +1,7 @@
 import crypto from 'node:crypto';
 
+export { renderOAuthCallbackErrorPage, renderOAuthCompletePage } from './oauth-pages.js';
+
 const DEFAULT_PROVIDER = 'google';
 const CLIENT_ID_PREFIX = 'bbmcp_client_';
 const CODE_PREFIX = 'bbmcp_code_';
@@ -389,18 +391,6 @@ export function renderConnectPage(authConfig, { error = '', retryPath = '/dashbo
         <strong>Connecting an MCP client</strong>
         <p class="muted">MCP clients use the standard OAuth discovery endpoints exposed by this service and should open Google sign-in automatically. The BigBrain CLI is not required.</p>
       </div>
-    </main>
-  `);
-}
-
-export function renderOAuthCompletePage() {
-  return htmlPage('Authorization complete', `
-    <main class="shell">
-      <section class="hero compact">
-        <div class="badge">Authorization complete</div>
-        <h1>You can close this page</h1>
-        <p>Sign-in completed successfully. Return to the app to continue.</p>
-      </section>
     </main>
   `);
 }

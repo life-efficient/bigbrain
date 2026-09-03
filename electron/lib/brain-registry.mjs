@@ -120,6 +120,7 @@ export class BrainRegistry {
       connectionHandle: `remote:${new URL(serviceUrl).hostname}`,
       serviceOwnership: SERVICE_OWNERSHIPS.REMOTE,
       serviceOwnershipReason: 'remote_connection',
+      hosting: 'server-managed',
       status: 'connected',
       mcpCompatibility,
       onboarding: { step: 5, completed: true, error: null },
@@ -404,6 +405,7 @@ function normalizeBrainServiceOwnership(brain) {
       ...brain,
       serviceOwnership: SERVICE_OWNERSHIPS.REMOTE,
       serviceOwnershipReason: brain.serviceOwnershipReason || 'remote_connection',
+      hosting: 'server-managed',
     };
   }
   const allowed = new Set([

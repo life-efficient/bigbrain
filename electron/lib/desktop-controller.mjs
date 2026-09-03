@@ -62,12 +62,13 @@ export class DesktopController {
     let changed = false;
     const brains = await Promise.all(registry.brains.map(async (brain) => {
       if (brain.connectionType === 'service') {
-        if (brain.serviceOwnership === SERVICE_OWNERSHIPS.REMOTE) return brain;
+        if (brain.serviceOwnership === SERVICE_OWNERSHIPS.REMOTE && brain.hosting === 'server-managed') return brain;
         changed = true;
         return {
           ...brain,
           serviceOwnership: SERVICE_OWNERSHIPS.REMOTE,
           serviceOwnershipReason: 'remote_connection',
+          hosting: 'server-managed',
         };
       }
       if (!brain.home) return brain;

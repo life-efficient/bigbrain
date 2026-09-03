@@ -14,20 +14,61 @@ test('normalizes service URLs and derives stable collision-safe names', () => {
   assert.notEqual(tokenEnvironmentName('my-brain'), tokenEnvironmentName('my_brain'));
 });
 
-test('OAuth registers and logs in without resolving a local brain', async () => {
+test('OAuth owns the local callback and installs an isolated Codex bridge', async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-connect-oauth-'));
   const calls = [];
+  let oauthInput;
   const execFile = async (command, args) => {
     calls.push([command, args]);
     if (args[1] === 'get') throw new Error('missing');
     return { stdout: '' };
   };
-  const result = await connectCodex({ serviceUrl: 'https://brain.example/connect', name: 'example' }, { execFile });
-  assert.equal(result.auth, 'oauth');
-  assert.deepEqual(calls.map((call) => call[1]), [
-    ['mcp', 'get', 'example', '--json'],
-    ['mcp', 'add', 'example', '--url', 'https://brain.example/mcp'],
-    ['mcp', 'login', 'example'],
-  ]);
+  try {
+    const result = await connectCodex({ serviceUrl: 'https://brain.example/connect', name: 'example' }, {
+      execFile,
+      home,
+      platform: 'linux',
+      nodePath: '/node',
+      bridgePath: '/bridge.mjs',
+      oauthClient: async (input) => {
+        oauthInput = input;
+        return { accessToken: 'oauth-secret', scope: 'brain:read brain:create' };
+      },
+    });
+    const tokenPath = path.join(home, '.config', 'bigbrain', 'connections', 'example', 'token');
+    assert.equal(result.auth, 'oauth');
+    assert.equal(result.transport, 'stdio_bridge');
+    assert.equal(result.oauth_scope, 'brain:read brain:create');
+    assert.equal(result.new_task_required, true);
+    assert.equal(await fs.readFile(tokenPath, 'utf8'), 'oauth-secret\n');
+    assert.equal(oauthInput.endpoint, 'https://brain.example/mcp');
+    assert.equal(oauthInput.clientName, 'example');
+    assert.ok(calls.some(([, args]) => args.join(' ') === 'mcp add example -- /node /bridge.mjs https://brain.example/mcp ' + tokenPath));
+    assert.equal(calls.some(([, args]) => args.includes('login')), false);
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+  }
+});
+
+test('OAuth refuses an incomplete token result before changing Codex registration', async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-connect-oauth-invalid-'));
+  const calls = [];
+  const execFile = async (_command, args) => {
+    calls.push(args);
+    if (args[1] === 'get') throw new Error('missing');
+    return { stdout: '' };
+  };
+  try {
+    await assert.rejects(() => connectCodex({ serviceUrl: 'https://brain.example', name: 'example' }, {
+      execFile,
+      home,
+      oauthClient: async () => ({}),
+    }), /did not return an access token/);
+    assert.deepEqual(calls, [['mcp', 'get', 'example', '--json']]);
+    await assert.rejects(() => fs.access(path.join(home, '.config', 'bigbrain', 'connections', 'example', 'token')));
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+  }
 });
 
 test('token fallback stores a secret privately and registers a stdio bridge without exposing it', async () => {
@@ -76,16 +117,28 @@ test('existing mismatched Codex registration is refused', async () => {
   await assert.rejects(() => connectCodex({ serviceUrl: 'https://brain.example', name: 'brain' }, { execFile }), /different connection settings/);
 });
 
-test('existing matching Codex registration is reused', async () => {
+test('existing matching Codex HTTP registration can be converted to the owned bridge', async () => {
+  const home = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-connect-existing-oauth-'));
   const calls = [];
   const execFile = async (_command, args) => {
     calls.push(args);
     if (args[1] === 'get') return { stdout: JSON.stringify({ transport: { type: 'streamable_http', url: 'https://brain.example/mcp', bearer_token_env_var: null } }) };
     return { stdout: '' };
   };
-  await connectCodex({ serviceUrl: 'https://brain.example', name: 'brain' }, { execFile });
-  assert.equal(calls.some((args) => args[1] === 'add'), false);
-  assert.equal(calls.some((args) => args[1] === 'login'), true);
+  try {
+    await connectCodex({ serviceUrl: 'https://brain.example', name: 'brain' }, {
+      execFile,
+      home,
+      platform: 'linux',
+      nodePath: '/node',
+      bridgePath: '/bridge.mjs',
+      oauthClient: async () => ({ accessToken: 'oauth-secret' }),
+    });
+    assert.equal(calls.some((args) => args.join(' ') === 'mcp remove brain'), true);
+    assert.equal(calls.some((args) => args.slice(0, 5).join(' ') === 'mcp add brain -- /node'), true);
+  } finally {
+    await fs.rm(home, { recursive: true, force: true });
+  }
 });
 
 test('existing matching token bridge registration is reused', async () => {

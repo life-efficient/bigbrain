@@ -36,15 +36,15 @@ function render() {
     5: `<h1>Connect AI</h1><p>Choose a detected OpenAI API key or enter a different one. It is validated once and stored securely in macOS Keychain, not in your brain or logs.</p>${credentialPicker()}<div id="error"></div>${actions(true, 'Add existing brain')}`,
   };
   const servicePages = {
-    2: `<h1>Connect to an existing BigBrain</h1><p>Enter the address of BigBrain already running on this machine, your organization’s network, or online.</p>${field('serviceUrl', 'BigBrain service address', 'https://brain.example.com', 'url')}${actions(true)}`,
-    3: `<h1>Check the connection</h1><p>The desktop app will verify the BigBrain service and save this connection on this Mac.</p><div class="existing-box"><strong>BigBrain service</strong><small>${escapeHtml(form.serviceUrl || 'Enter a service address in the previous step.')}</small></div>${actions(true)}`,
-    4: `<h1>Ready to connect</h1><p>If this BigBrain requires sign-in, you’ll be asked to sign in when its dashboard opens.</p><div id="error"></div>${actions(true, 'Connect BigBrain')}`,
+    2: `<h1>Connect to an existing BigBrain</h1><p>Enter the address of a BigBrain already running on this Mac, your organization’s network, or online. This app connects to it but does not manage its service.</p>${field('serviceUrl', 'BigBrain service address', 'https://brain.example.com', 'url')}${actions(true)}`,
+    3: `<h1>Check the connection</h1><p>The desktop app will verify the service identity and save this connection on this Mac. The service stays managed where it is running.</p><div class="existing-box"><strong>BigBrain service</strong><small>${escapeHtml(form.serviceUrl || 'Enter a service address in the previous step.')}</small></div>${actions(true)}`,
+    4: `<h1>Ready to connect</h1><p>Open the dashboard to continue. If the service requires sign-in, its browser or MCP client OAuth flow will open automatically. The BigBrain CLI is optional.</p><div id="error"></div>${actions(true, 'Connect BigBrain')}`,
   };
   const remotePages = {
     2: `<h1>Create a remote brain</h1><p>This will eventually provision an isolated BigBrain service on Railway and return its MCP connection to this desktop.</p>${field('name', 'Brain name', 'AI Infrastructure Atlas')}${textarea('description', 'Description', 'What should this remote brain contain?')}<div class="credential-note"><strong>Railway provisioning</strong><br>Private deployment, service credentials, and billing setup will be handled in the next version.</div>${stepError()}${actions(true, 'Provision on Railway')}`,
   };
   const pages = {
-    1: `<h1>How do you want to add this brain?</h1><p>Choose whether to create a new private local brain, use a brain folder already on this Mac, connect to a brain that is already running elsewhere, or start a hosted Brain setup.</p>${discoveredBrainPicker()}<button class="choice choice-option" data-mode="local" data-setup-kind="new-local"><strong>Create a new private local brain</strong><p>Start with a name, description, folder, privacy, backup, and AI connection.</p></button><button class="choice choice-option" data-mode="local" data-setup-kind="existing-local"><strong>Use an existing brain folder on this Mac</strong><p>Adopt an existing BigBrain repository without moving its files.</p></button><button class="choice choice-option" data-mode="service"><strong>Connect to an existing remote brain</strong><p>Enter the address of a BigBrain service already running elsewhere.</p></button><button class="choice choice-option" data-mode="remote" data-setup-kind="railway-provision"><strong>Create a remote brain on Railway</strong><p>Start the hosted provisioning flow. Railway setup is currently a work in progress.</p></button><div class="setup-exit"><button class="secondary" type="button" data-cancel>Cancel setup</button></div>`,
+    1: `<h1>How do you want to set up BigBrain?</h1><p>Choose one clear path. Run BigBrain on this device when you want this Mac to manage the files and service. Connect to an existing BigBrain when the service is already running somewhere else or is managed independently.</p>${discoveredBrainPicker()}<button class="choice choice-option" data-mode="local" data-setup-kind="new-local"><strong>Run BigBrain on this device</strong><p>Create a private brain here, or use an existing brain folder on this Mac.</p></button><button class="choice choice-option" data-mode="service"><strong>Connect to an existing BigBrain</strong><p>Use a service already running on this Mac, your organization’s network, or online. This app will not manage its lifecycle.</p></button><div class="setup-exit"><button class="secondary" type="button" data-cancel>Cancel setup</button></div>`,
     ...(form.mode === 'service' ? servicePages : form.mode === 'remote' ? remotePages : form.setupKind === 'existing-local' ? existingLocalPages : localPages),
   };
 
@@ -70,7 +70,7 @@ function render() {
   content.querySelectorAll('[data-mode]').forEach((element) => element.addEventListener('click', () => {
     form.mode = element.dataset.mode;
     form.setupKind = element.dataset.setupKind || (form.mode === 'service' ? 'remote-service' : 'new-local');
-    form.hosting = form.mode === 'remote' ? 'remote' : 'local';
+    form.hosting = form.mode === 'service' || form.mode === 'remote' ? 'server-managed' : 'local';
     step = 2;
     render();
   }));

@@ -6,6 +6,8 @@ import { execFile as execFileCallback } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 
+import { connectMcpOAuth, openOAuthBrowser } from './mcp-oauth-client.js';
+
 const execFileDefault = promisify(execFileCallback);
 
 export function normalizeMcpEndpoint(input) {
@@ -46,7 +48,14 @@ export async function connectCodex(options, dependencies = {}) {
   const auth = options.auth || 'oauth';
   if (!['oauth', 'token'].includes(auth)) throw new Error('--auth must be oauth or token.');
 
+  const connectionDir = path.join(home, '.config', 'bigbrain', 'connections', name);
+  const tokenPath = path.join(connectionDir, 'token');
+  if (auth === 'oauth') {
+    await assertCodexBridgeCompatibility({ execFile, name, endpoint, nodePath, bridgePath, tokenPath });
+  }
+
   let token = '';
+  let oauthScope = null;
   if (auth === 'token') {
     if (!options.tokenStdin) throw new Error('Token authentication requires --token-stdin.');
     token = String(options.token || '').trim();
@@ -54,13 +63,18 @@ export async function connectCodex(options, dependencies = {}) {
   }
 
   if (auth === 'oauth') {
-    await ensureOAuthRegistration({ execFile, name, endpoint });
-    await execFile('codex', ['mcp', 'login', name]);
-    return { ok: true, name, endpoint, auth, restart_codex_required: false };
+    const oauth = await (dependencies.oauthClient || connectMcpOAuth)({
+      endpoint,
+      clientName: name,
+      fetchImpl: dependencies.fetchImpl || fetch,
+      openBrowser: dependencies.openBrowser || ((url) => openOAuthBrowser(url, { execFile, platform })),
+      timeoutMs: dependencies.oauthTimeoutMs,
+    });
+    token = oauth.accessToken;
+    if (!token) throw new Error('OAuth sign-in did not return an access token.');
+    oauthScope = oauth.scope || null;
   }
 
-  const connectionDir = path.join(home, '.config', 'bigbrain', 'connections', name);
-  const tokenPath = path.join(connectionDir, 'token');
   const previousToken = await readOptionalFile(fileSystem, tokenPath);
   await writePrivateTokenFile({ fileSystem, connectionDir, tokenPath, token });
   let registration;
@@ -83,21 +97,12 @@ export async function connectCodex(options, dependencies = {}) {
     name,
     endpoint,
     auth,
+    oauth_scope: oauthScope,
     transport: 'stdio_bridge',
     migrated_legacy_registration: registration.migrated,
     restart_codex_required: false,
     new_task_required: true,
   };
-}
-
-async function ensureOAuthRegistration({ execFile, name, endpoint }) {
-  const existing = await getCodexRegistration(execFile, name);
-  if (existing) {
-    const existingUrl = httpRegistration(existing).url;
-    if (existingUrl === endpoint && !httpRegistration(existing).bearerTokenEnv) return;
-    throw new Error(`Codex MCP server "${name}" already exists with different connection settings.`);
-  }
-  await execFile('codex', ['mcp', 'add', name, '--url', endpoint]);
 }
 
 async function ensureTokenBridgeRegistration({ execFile, name, endpoint, nodePath, bridgePath, tokenPath }) {
@@ -110,19 +115,34 @@ async function ensureTokenBridgeRegistration({ execFile, name, endpoint, nodePat
   const stdio = stdioRegistration(existing);
   if (stdio.command === nodePath && arraysEqual(stdio.args, desiredArgs)) return { migrated: false };
   const legacy = httpRegistration(existing);
-  if (legacy.url !== endpoint || !legacy.bearerTokenEnv) {
+  if (legacy.url !== endpoint) {
     throw new Error(`Codex MCP server "${name}" already exists with different connection settings.`);
   }
   await execFile('codex', ['mcp', 'remove', name]);
   try {
     await addTokenBridgeRegistration({ execFile, name, nodePath, desiredArgs });
   } catch (error) {
-    await execFile('codex', [
-      'mcp', 'add', name, '--url', legacy.url, '--bearer-token-env-var', legacy.bearerTokenEnv,
-    ]).catch(() => null);
+    if (legacy.bearerTokenEnv) {
+      await execFile('codex', [
+        'mcp', 'add', name, '--url', legacy.url, '--bearer-token-env-var', legacy.bearerTokenEnv,
+      ]).catch(() => null);
+    } else {
+      await execFile('codex', ['mcp', 'add', name, '--url', legacy.url]).catch(() => null);
+    }
     throw error;
   }
   return { migrated: true };
+}
+
+async function assertCodexBridgeCompatibility({ execFile, name, endpoint, nodePath, bridgePath, tokenPath }) {
+  const existing = await getCodexRegistration(execFile, name);
+  if (!existing) return;
+  const desiredArgs = [bridgePath, endpoint, tokenPath];
+  const stdio = stdioRegistration(existing);
+  if (stdio.command === nodePath && arraysEqual(stdio.args, desiredArgs)) return;
+  const legacy = httpRegistration(existing);
+  if (legacy.url === endpoint) return;
+  throw new Error(`Codex MCP server "${name}" already exists with different connection settings.`);
 }
 
 async function getCodexRegistration(execFile, name) {
