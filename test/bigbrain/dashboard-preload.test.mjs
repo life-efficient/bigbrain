@@ -84,7 +84,7 @@ test('macOS traffic-light clearance applies only to the desktop dashboard toplin
   assert.doesNotMatch(source, /html\.bigbrain-desktop main \{[^}]*padding-left:/);
   assert.match(clientSource, /className="desktop-drag-strip" aria-hidden="true"/);
   assert.match(source, /\.topline \{[^}]*-webkit-app-region: no-drag;/);
-  assert.match(source, /\.view-nav, \.view-chip, \.topline-actions, \.topline-actions > \*, \.settings-button, \.health-button,[^{]*\{ -webkit-app-region: no-drag; \}/);
+  assert.match(source, /\.view-nav, \.view-chip, \.dashboard-search, \.dashboard-search-form, \.dashboard-search-results, \.topline-actions, \.topline-actions > \*, \.settings-button, \.health-button,[^{]*\{ -webkit-app-region: no-drag; \}/);
   assert.match(source, /html\.bigbrain-desktop \.desktop-drag-strip \{[^}]*height: 14px;[^}]*-webkit-app-region: drag;/);
   assert.doesNotMatch(source, /\.topline \{[^}]*-webkit-app-region: drag;/);
 });
@@ -98,4 +98,15 @@ test('private pages share the dashboard dark theme and return home on Escape', a
   assert.match(dashboardSource, /\.private-page-back-link \{[^}]*background: var\(--surface\);[^}]*color: var\(--ink\);/);
   assert.match(clientSource, /function handleKeyDown\(event\) \{[\s\S]*event\.key !== 'Escape'[\s\S]*window\.location\.assign\(dashboardRootHrefFromBasePath/);
   assert.match(clientSource, /event\.defaultPrevented/);
+});
+
+test('dashboard header exposes local page search beside the view controls', async () => {
+  const [dashboardSource, clientSource] = await Promise.all([
+    fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
+  ]);
+  assert.match(clientSource, /<DashboardSearch nodes=\{searchableNodes\} onOpenPage=\{openPageBySlug\} \/>/);
+  assert.match(clientSource, /function searchGraphNodes\(nodes, query, limit = 8\)/);
+  assert.match(clientSource, /placeholder="Search pages"/);
+  assert.match(dashboardSource, /\.dashboard-search-form \{[^}]*border-radius: 999px/);
 });

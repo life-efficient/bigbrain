@@ -765,6 +765,7 @@ function DashboardApp() {
   }
 
   const resolvedTheme = resolveThemeMode(themeMode, prefersDark);
+  const searchableNodes = Array.isArray(displayGraph?.nodes) ? displayGraph.nodes : [];
 
   return (
     <GraphThemeProvider resolvedTheme={resolvedTheme}>
@@ -786,6 +787,7 @@ function DashboardApp() {
                   <kbd className="view-chip-kbd">{item.shortcut}</kbd>
                 </button>
               ))}
+              <DashboardSearch nodes={searchableNodes} onOpenPage={openPageBySlug} />
             </div>
             <div className="topline-actions">
               {demoMode ? <span className="demo-mode-badge">Demo mode</span> : null}
@@ -1000,6 +1002,117 @@ function DashboardApp() {
       </div>
     </GraphThemeProvider>
   );
+}
+
+function DashboardSearch({ nodes, onOpenPage }) {
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const shellRef = useRef(null);
+  const inputRef = useRef(null);
+  const results = useMemo(() => searchGraphNodes(nodes, query), [nodes, query]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function handlePointerDown(event) {
+      if (!shellRef.current?.contains(event.target)) setOpen(false);
+    }
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setOpen(false);
+    }
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
+  function selectResult(node) {
+    if (!node?.slug) return;
+    setOpen(false);
+    setQuery('');
+    onOpenPage(node.slug);
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault();
+    selectResult(results[0]);
+  }
+
+  return (
+    <div className="dashboard-search" ref={shellRef}>
+      <form className="dashboard-search-form" role="search" onSubmit={handleSubmit}>
+        <SearchIcon />
+        <input
+          ref={inputRef}
+          className="dashboard-search-input"
+          type="search"
+          value={query}
+          placeholder="Search pages"
+          aria-label="Search pages"
+          aria-controls="dashboard-search-results"
+          aria-expanded={open && Boolean(query.trim())}
+          onFocus={() => setOpen(true)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setOpen(true);
+          }}
+        />
+        {query ? (
+          <button
+            type="button"
+            className="dashboard-search-clear"
+            aria-label="Clear search"
+            onClick={() => {
+              setQuery('');
+              inputRef.current?.focus();
+            }}
+          >
+            ×
+          </button>
+        ) : null}
+      </form>
+      {open && query.trim() ? (
+        <div id="dashboard-search-results" className="dashboard-search-results" role="listbox" aria-label="Search results">
+          {results.length ? results.map((node) => (
+            <button
+              key={node.slug}
+              type="button"
+              className="dashboard-search-result"
+              role="option"
+              onClick={() => selectResult(node)}
+            >
+              <strong className="dashboard-search-result-title">{node.title || labelFromSlug(node.slug)}</strong>
+              <span className="dashboard-search-result-meta">{node.type || 'page'} · {node.slug}</span>
+            </button>
+          )) : (
+            <div className="dashboard-search-empty">No matching pages</div>
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function searchGraphNodes(nodes, query, limit = 8) {
+  const normalizedQuery = String(query || '').trim().toLocaleLowerCase();
+  if (!normalizedQuery) return [];
+  const terms = normalizedQuery.split(/\s+/).filter(Boolean);
+  return (Array.isArray(nodes) ? nodes : [])
+    .map((node) => {
+      const title = String(node?.title || '').toLocaleLowerCase();
+      const slug = String(node?.slug || '').toLocaleLowerCase();
+      const type = String(node?.type || '').toLocaleLowerCase();
+      const haystack = `${title} ${slug} ${type}`;
+      if (!node?.slug || !terms.every((term) => haystack.includes(term))) return null;
+      const exactMatch = title === normalizedQuery || slug === normalizedQuery;
+      const startsMatch = title.startsWith(normalizedQuery) || slug.startsWith(normalizedQuery);
+      return { node, score: exactMatch ? 0 : startsMatch ? 1 : 2 };
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.score - right.score || String(left.node.title || left.node.slug).localeCompare(String(right.node.title || right.node.slug)))
+    .slice(0, limit)
+    .map(({ node }) => node);
 }
 
 function AnalyticsPanel({ analytics }) {
@@ -3777,6 +3890,15 @@ function FilterIcon() {
         strokeWidth="2"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="dashboard-search-icon">
+      <circle cx="10.8" cy="10.8" r="6.4" fill="none" stroke="currentColor" strokeWidth="1.8" />
+      <path d="m16 16 4.5 4.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   );
 }

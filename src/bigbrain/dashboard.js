@@ -729,6 +729,21 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .view-chip.active .view-chip-count { background: rgba(255,255,255,0.1); }
       .view-chip-kbd { font: inherit; font-size: 11px; line-height: 1; color: var(--muted); border: 1px solid var(--line); border-bottom-color: var(--line-strong); background: var(--surface-strong); border-radius: 7px; padding: 4px 6px; min-width: 20px; text-align: center; box-shadow: inset 0 -1px 0 rgba(148,163,184,0.12); }
       .view-chip.active .view-chip-kbd { color: var(--ink); background: var(--surface); border-color: var(--line-strong); }
+      .dashboard-search { position: relative; width: min(240px, 28vw); min-width: 160px; }
+      .dashboard-search-form { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); box-shadow: 0 6px 18px rgba(15,23,42,0.04); }
+      .dashboard-search-form:focus-within { border-color: var(--line-strong); background: var(--surface-muted); }
+      .dashboard-search-icon { width: 15px; height: 15px; flex: 0 0 auto; color: var(--muted); }
+      .dashboard-search-input { min-width: 0; width: 100%; padding: 8px 0; border: 0; outline: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12px; }
+      .dashboard-search-input::placeholder { color: var(--muted); opacity: 0.86; }
+      .dashboard-search-input::-webkit-search-cancel-button { display: none; }
+      .dashboard-search-clear { flex: 0 0 auto; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; font-size: 17px; line-height: 1; }
+      .dashboard-search-clear:hover { background: var(--surface-muted); color: var(--ink); }
+      .dashboard-search-results { position: absolute; z-index: 16; top: calc(100% + 8px); left: 0; width: max(100%, 280px); max-height: min(420px, calc(100vh - 100px)); overflow: auto; display: grid; gap: 3px; padding: 6px; border: 1px solid var(--line); border-radius: 14px; background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); }
+      .dashboard-search-result { display: grid; gap: 3px; width: 100%; padding: 9px 10px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--ink); cursor: pointer; text-align: left; }
+      .dashboard-search-result:hover, .dashboard-search-result:focus-visible { border-color: var(--line); background: var(--surface-muted); outline: none; }
+      .dashboard-search-result-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 650; }
+      .dashboard-search-result-meta { overflow: hidden; color: var(--muted); font: 10px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis; white-space: nowrap; }
+      .dashboard-search-empty { padding: 10px; color: var(--muted); font-size: 12px; }
       .settings-menu, .health-menu { position: relative; }
       .settings-button, .health-button {
         position: relative;
@@ -1957,6 +1972,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .analytics-grid { grid-template-columns: 1fr; }
       }
       @media (max-width: 760px) {
+        .dashboard-search { width: min(100%, 280px); min-width: 0; }
         .graph-focus-banner { grid-template-columns: minmax(0, 1fr) auto; }
         .graph-focus-mode-toggle { grid-column: 1 / -1; justify-self: start; }
       }
