@@ -23,7 +23,8 @@ This skill guarantees:
 ## Workflow
 
 1. Select the narrowest ingest route:
-   - RSS item, web article, blog post, essay, or canonical web source: use `bigbrain-source-article-ingest`.
+   - Verified Substack post or explicitly requested bounded Substack archive item: use `bigbrain-substack-ingest`.
+   - RSS item, web article, blog post, essay, or other canonical web source: use `bigbrain-source-article-ingest`.
    - Specific meeting transcript, call notes, or post-meeting summary: use `BigBrain: Meeting Ingest`.
    - PDF, deck, memo, screenshot, or exported notes: use `BigBrain: Document Ingest`.
    - Audio, video, podcast, or mixed-media input: use `BigBrain: Media Ingest`.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Substack Ingest"
+  short_description: "Ingest verified Substack posts into BigBrain"
+  default_prompt: "Run $bigbrain-substack-ingest for this verified Substack post or explicit bounded archive request. Validate the publication and canonical URL, distinguish a new-post alert from digests and recommendations, apply $bigbrain-source-article-ingest for the relevance gate and faithful source filing, use source_type: substack with any Gmail delivery identity bound as origin metadata, update canonical Brain pages only for durable value through $bigbrain-page, maintain one per-publication high and low watermark with bounded backfill state, read back every write, and return a handoff-safe outcome without changing Gmail."

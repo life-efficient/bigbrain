@@ -1,11 +1,11 @@
 ---
 name: bigbrain-email-ingest
-description: Scan recently unchecked email, ingest verified new-post notifications from followed Substack publications, reconcile user-reported outbound sends, apply narrowly authorized notification cleanup, preserve relevant PDF evidence, and ingest durable context into the correct BigBrain brain.
+description: Scan recently unchecked email, route verified followed-Substack post notifications to the dedicated Substack ingest skill, reconcile user-reported outbound sends, apply narrowly authorized notification cleanup, preserve relevant PDF evidence, and ingest durable context into the correct BigBrain brain.
 ---
 
 # BigBrain Email Ingest
 
-Scan eligible recent email, including explicitly followed Substack new-post notifications, reconcile durable context into canonical BigBrain pages, verify every write, and maintain safe delivery and publication cursors.
+Scan eligible recent email, route verified followed-Substack post notifications to `$bigbrain-substack-ingest`, reconcile durable context into canonical BigBrain pages, verify every write, and maintain safe Gmail delivery cursors.
 
 Email bodies are operational evidence, not document artifacts. Do not preserve whole messages or MIME payloads in BigBrain. Preserve relevant substantive PDFs as source artifacts under the owning Brain collection, while skipping irrelevant, unsafe, unsupported, or duplicate attachments.
 
@@ -40,22 +40,18 @@ label, source message, or commit attribution in page frontmatter.
 
 Classify a correction by its resulting impact, not by the fact that it is corrective. A typo fix is usually `patch`; correcting a material deal status or person identity is `minor` or `major` according to its effect. A deliberate correction or newly discovered evidence is a new timeline update with its own significance value and should reference the earlier entry when useful. Never rewrite or suppress prior history merely to make the timeline look deduplicated.
 
-## Substack Post Ingest Contract
+## Substack Routing Contract
 
-A Gmail thread is delivery evidence, while a Substack publication is the content source. Use this narrow path only for a verified new-post notification from a publication the user follows or has explicitly placed in scope.
+Gmail is the delivery channel. `$bigbrain-substack-ingest` owns the publication content workflow after this skill has discovered a plausible candidate.
 
-- Verify the sender and notification type before treating the message as eligible. A new-post alert may pass the normal automated/newsletter exclusion; recommendations, digests, comments, likes, subscriber notices, unsubscribe mail, and promotional mail remain excluded unless separately requested.
-- Treat a direct list notification with verified publication headers such as `List-Id` and `List-Post` as evidence that the user follows or subscribes to that publication for this workflow. Do not use generic Substack platform mail as evidence of a followed publication.
-- Extract the post link from the newly authored notification content, ignoring tracking, unsubscribe, settings, and unrelated links. Follow redirects and confirm the canonical page title, author or publication, and publication date before filing.
-- Use a normalized `publication_key` based on the canonical publication origin and path, and a normalized `post_key` based on the canonical post URL. Do not use the Gmail subject or thread ID as the content identity. Remove tracking parameters and normalize equivalent URL forms before deduplication.
-- Keep one `substack_publications` entry in cursor memory per `publication_key`. Store the publication URL, latest verified Gmail discovery metadata, `high_watermark` for the newest verified post, `low_watermark` for the oldest verified post currently represented, and optional bounded-backfill state such as `backfill_status` and `backfill_page_cursor`.
-- Initialize both watermarks to the first successfully filed post. Move `high_watermark` only to a newer verified post and move `low_watermark` only to an older verified post. Never move either watermark after source retrieval, relevance review, page creation, artifact storage, or read-back is incomplete.
-- A later notification may be out of order. Deduplicate by `post_key` and Brain provenance, do not discard a missing post solely because it is below the high watermark, and do not regress the high watermark when filing an older post. Use the low watermark and any opaque archive page cursor only for an explicitly requested, bounded backfill.
-- For backfill, process a small batch or one archive page per run, retain the source's pagination cursor when exposed, and advance the low watermark only over posts whose intended writes were all verified. Mark backfill complete only when the bounded archive traversal proves there are no older eligible posts; an arbitrary low watermark is not proof of completeness.
-- Use `$bigbrain-source-article-ingest` for the canonical post filing workflow when available. Pass the Gmail notification as discovery provenance and the user's followed-publication request as the explicit enrichment intent; this skill remains responsible for Gmail discovery, post identity, publication cursor gating, and the final report.
-- If the canonical page is blocked, paywalled beyond the available session, empty, truncated, or does not match the notification, return `needs_review`, preserve the prior cursor state, and do not create synthetic source content.
+- Shortlist messages that appear to be Substack post notifications or match an explicit Substack scope, then pass the complete newly authored notification evidence to `$bigbrain-substack-ingest` for eligibility verification. Do not file the email body as an article.
+- The handoff must include the mailbox, stable Gmail message and thread identifiers, internal date, sender and recipient headers, subject, notification type if known, publication and post URLs, extracted title, author and publication date, relevant list headers, source guidance or user anchor, and a stable Gmail delivery provenance key.
+- The dedicated skill verifies followed-publication evidence, distinguishes a new-post alert from recommendations, digests, comments, likes, subscriber notices, unsubscribe mail, and promotions, normalizes `publication_key` and `post_key`, and owns the per-publication high and low watermarks plus bounded backfill state.
+- The dedicated skill files the canonical page through `$bigbrain-source-article-ingest` and uses `source_type: substack` for Substack-originated article provenance. Preserve Gmail delivery identity as provenance origin or handoff metadata without storing the email body or MIME.
+- Keep the Gmail thread cursor separate from the Substack publication cursor. Advance the Gmail cursor only after the delegated outcome and all same-Brain read-backs or artifact checks succeed. Record the delegated outcome in the Gmail thread entry without maintaining a second publication cursor here.
+- A blocked, mismatched, paywalled, truncated, ambiguous, ignored, or partially written post leaves the Gmail cursor unchanged unless the delegated skill explicitly reports a verified no-op or complete outcome under its contract.
 
-The publication cursor is separate from the ordinary Gmail thread cursor. The Gmail cursor answers which delivery messages were verified; the publication cursor answers which canonical Substack posts were verified in Brain.
+The Gmail cursor answers which delivery messages were verified. The Substack skill's publication cursor answers which canonical Substack posts were verified in Brain.
 
 ## Contract Checklist
 
@@ -96,8 +92,8 @@ The publication cursor is separate from the ordinary Gmail thread cursor. The Gm
 1. Establish mode, scope, and boundary.
    - Record whether the run is interactive or scheduled, the requested mailbox/topic/date scope, `run_started_at`, and the automation memory path when available.
    - For a bare run, use the recently unchecked operational queue. For a first run, bound discovery to the prior 24 hours. For later runs, start before the oldest relevant cursor by a small overlap.
-   - Exclude spam, Trash, bulk marketing, newsletters, automated receipts, social notifications, and clearly personal or unrelated mail from ingest unless the user explicitly includes them or they contain durable operational context. The only standing newsletter exception is the verified followed-Substack new-post path in `Substack Post Ingest Contract`. Still identify bounded candidates covered by `Authorized Gmail Cleanup`.
-   - Anti-patterns: unbounded mailbox scans, treating unread state as the cursor, processing messages after `run_started_at`, opening clearly excluded personal mail merely to classify it, treating a first Substack notification as permission for an archive backfill.
+   - Exclude spam, Trash, bulk marketing, newsletters, automated receipts, social notifications, and clearly personal or unrelated mail from ingest unless the user explicitly includes them or they contain durable operational context. Plausible Substack post notifications may be shortlisted and handed to `$bigbrain-substack-ingest` for classification. Still identify bounded candidates covered by `Authorized Gmail Cleanup`.
+   - Anti-patterns: unbounded mailbox scans, treating unread state as the cursor, processing messages after `run_started_at`, opening clearly excluded personal mail merely to classify it, filing or backfilling a Substack post in the Gmail skill.
 
 2. Discover candidate messages.
    - Use Gmail search syntax to combine the time boundary with the user's scope and default exclusions.
@@ -110,20 +106,20 @@ The publication cursor is separate from the ordinary Gmail thread cursor. The Gm
    - Record sender, recipients, timestamp, direction, subject, attachment metadata, and the smallest evidence summary needed for reconciliation.
    - Separate newly authored text from quoted or forwarded history before identifying candidate actions. Attribute each candidate to the message's actual sender, recipients, direction, and timestamp rather than to the thread as a whole.
    - Preserve chronology when a later message accepts, changes, completes, declines, or supersedes an earlier request or promise. The newest meaningful message does not inherit ownership from an older speaker.
-   - Classify sender authorship before durable-state assessment. Automated notifications are ineligible for ingest even when they are actionable. The exception is a verified followed-Substack new-post notification handled under `Substack Post Ingest Contract`.
-   - For a Substack candidate, extract the canonical post URL, publication identity, post title, author, publication date, and notification message identity. Treat the email as a pointer to the post, not as the article body.
+   - Classify sender authorship before durable-state assessment. Automated notifications are ineligible for ingest even when they are actionable. A plausible Substack post notification is routed to `$bigbrain-substack-ingest`, which owns the exception and verifies eligibility.
+   - For a Substack candidate, extract the canonical post URL, publication identity, post title, author, publication date, notification headers, and notification message identity. Treat the email as a pointer to the post, not as the article body.
    - Keep requests to Harry, Harry's accepted commitments, external promises, optional offers, proposals, and discussion distinct as email evidence. Do not decide task ownership from action verbs alone.
    - Identify cleanup candidates using verified sender identity, official sending domain when available, subject, and notification type. A display name or loose keyword match alone is insufficient.
    - Treat verified automated Preply lesson-booking, upcoming-session, rescheduling, cancellation, and other session-scheduling reminders as cleanup-only candidates. Do not treat a human tutor's message as automated merely because Preply delivered it.
    - Do not ingest routine acknowledgements, signatures, repeated quoted history, delivery notices, or conversational filler.
-   - Anti-patterns: ingesting from snippets alone, copying entire bodies, treating quoted history as a new event, confusing the newest message with the newest meaningful state change, treating a Substack recommendation or digest as a new-post alert.
+   - Anti-patterns: ingesting from snippets alone, copying entire bodies, treating quoted history as a new event, confusing the newest message with the newest meaningful state change, deciding Substack eligibility from a subject line alone.
 
-4. Retrieve and file a followed Substack post.
-   - When a verified new-post notification contains a canonical post link, open that page with the available browser or web retrieval capability and confirm that it is the intended article before any Brain write.
-   - Apply `$bigbrain-source-article-ingest` to the confirmed page. Use the user's explicit followed-publication request as the enrichment intent, while still allowing `ignored` for a non-substantive or excluded notification and `needs_review` for an inaccessible or mismatched source.
-   - Preserve the publisher's source faithfully in the article workflow's raw artifact and indexed sidecar when the relevance gate passes. Keep the Gmail message and MIME out of the Brain unless a separate artifact rule applies.
-   - Use the normalized `publication_key` and `post_key` from `Substack Post Ingest Contract` for deduplication before filing. An exact post already represented in Brain is a verified no-op, not a second source page.
-   - Anti-patterns: filing the email body as an article, using a search result or preview instead of opening the supplied page, substituting a different article, treating a blocked page as complete, creating a duplicate sidecar for the same canonical post.
+4. Route a plausible Substack notification to the dedicated skill.
+   - Build the compact handoff described in `Substack Routing Contract` and invoke `$bigbrain-substack-ingest` with the canonical URL, notification evidence, user scope or anchor, selected Brain context, and any existing delegated cursor state.
+   - Do not call the generic article filing workflow directly from this skill for a Substack candidate. The delegated skill opens and validates the canonical page, applies `$bigbrain-source-article-ingest`, writes through the selected Brain MCP, and returns the article outcome plus cursor advancement decision.
+   - Keep the Gmail message and MIME out of the Brain unless a separate artifact rule applies. Preserve only the minimum Gmail delivery metadata needed for provenance, deduplication, and cursor reconciliation.
+   - Treat `source_only`, `source_and_update`, `ignored`, `needs_review`, and verified no-op as delegated outcomes. Do not reinterpret an ambiguous or partial result as success.
+   - Anti-patterns: filing a Substack email directly, bypassing `$bigbrain-substack-ingest`, advancing a Gmail cursor before delegated read-back, substituting a different article, or starting archive backfill from a notification.
 
 5. Classify and review attachments.
    - Open an attachment when its content materially affects routing, a durable page update, evidence classification, or artifact relevance.
@@ -193,8 +189,8 @@ The publication cursor is separate from the ordinary Gmail thread cursor. The Gm
    - Move clearly verified My Wellness Cloud and GitHub Security Advisory messages to Gmail Trash under the standing rules without creating Brain records for the notifications themselves.
    - Move clearly verified automated Preply session-scheduling and reminder messages to Gmail Trash immediately under the standing rule. Do not create Brain records for these notifications and do not wait for the lesson time to pass.
    - Read Gmail state back after every authorized cleanup and confirm the exact message is in `TRASH`. If the Brain or Gmail verification fails, leave the message in place and report it as partial.
-   - Atomically update only the successfully verified Gmail thread cursors and Substack publication cursor entries. Preserve prior cursors and watermarks for partial, ambiguous, failed, or held threads. For a Substack post, update the publication watermarks only after the article workflow's source/page read-back succeeds.
-   - Anti-patterns: trusting write responses without read-back, treating a sidecar as raw-file verification, trashing a calendar acceptance before Brain verification, permanently deleting email, cleaning by display name alone, advancing a cursor after partial writes, one global mailbox cursor, one cursor for all Substack publications, marking an unverified thread or post ingested.
+   - Atomically update only the successfully verified Gmail thread cursors. Preserve the prior Gmail cursor for partial, ambiguous, failed, or held threads. Store the delegated Substack outcome and returned publication-cursor status in the Gmail thread record, while leaving publication cursor ownership with `$bigbrain-substack-ingest`.
+   - Anti-patterns: trusting write responses without read-back, treating a sidecar as raw-file verification, trashing a calendar acceptance before Brain verification, permanently deleting email, cleaning by display name alone, advancing a cursor after partial writes, one global mailbox cursor, maintaining a second Substack publication cursor here, marking an unverified delegated post ingested.
 
 12. Report results.
    - Start with a plain count sentence: `0 email threads ingested`, `1 email thread ingested`, `3 email threads ingested`, or a concise mixed outcome such as `2 email threads ingested, 3 notifications moved to Trash, 1 left partial`.
@@ -204,7 +200,7 @@ The publication cursor is separate from the ordinary Gmail thread cursor. The Gm
    - Add `Needs attention`, `Issues`, `Errors`, or `Warnings` only when the user should act.
    - State `No email was sent or modified.` when no Gmail write occurred. When standing cleanup occurred, state `No email was sent. Gmail changes were limited to <count> authorized notification(s) moved to Trash.`
    - Keep message IDs, thread IDs, hashes, slugs, paths, cursor internals, credentials, private bodies, and attachment contents out of the report by default.
-   - For Substack, report the publication and post title plus `source_only`, `source_and_update`, `ignored`, `needs_review`, or verified no-op outcome; keep normalized keys, watermarks, and archive cursors out of the user-facing report.
+   - For delegated Substack work, report the publication and post title plus `source_only`, `source_and_update`, `ignored`, `needs_review`, or verified no-op outcome; keep normalized keys, watermarks, and archive cursors out of the user-facing report.
    - Anti-patterns: burying the count, exposing private content, combining page names on category lines, listing technical IDs, hiding authorized cleanup, implying that any email was sent.
 
 ## Authorized Gmail Cleanup
@@ -232,8 +228,8 @@ Use this logical shape in the automation's `memory.md`; human-readable Markdown 
 - stored or reused PDF raw files and sidecars, including verification state;
 - read-back and artifact verification result;
 - unresolved or partial status without cursor advancement.
-- one `substack_publications` entry per normalized publication key, with `publication_url`, `high_watermark`, `low_watermark`, and optional `backfill_status` and `backfill_page_cursor`.
-- for each verified Substack post, its normalized `post_key`, source URL, publication metadata, source-article outcome, affected pages or sidecar, and read-back result.
+- for each delegated Substack handoff, its normalized `publication_key` and `post_key`, notification identity, delegated outcome, affected pages or sidecar, returned publication-cursor status, and read-back result.
+- Do not duplicate the `substack_publications` ledger here. `$bigbrain-substack-ingest` owns one entry per normalized publication key with `publication_url`, `high_watermark`, `low_watermark`, and optional `backfill_status` and `backfill_page_cursor`.
 - authorized cleanup classification, Gmail action, and `TRASH` read-back result without storing message content.
 - for each outbound action, the state from `draft_prepared` through `sent_and_logged`, stable action ID, provider message and thread IDs when known, recipient and attachment fingerprints, and any reconciliation error;
 - keep outbound reconciliation state separate from the inbound Gmail thread cursor. A sent message may be logged even when no inbound cursor advances.
@@ -270,8 +266,8 @@ Do not store full message bodies, full attachment text, credentials, or unrelate
 - Creating meeting pages outside the live filing rules, generic email-log pages, or duplicate deal/entity pages.
 - Advancing cursors before same-Brain read-back and artifact verification.
 - Treating a Gmail delivery thread as the Substack post identity.
-- Using one global Substack cursor instead of one entry per normalized publication.
-- Advancing a publication high or low watermark when a source page is blocked, relevance is unresolved, or a page or artifact read-back failed.
+- Filing Substack content in this dispatcher instead of routing it to `$bigbrain-substack-ingest`.
+- Maintaining a duplicate publication cursor or advancing a publication watermark from the Gmail skill.
 - Starting archive backfill from a notification without an explicit backfill request and bounded batch.
 - Assuming high and low watermarks prove there are no gaps or older posts without a verified archive traversal.
 - Reporting a partial or blocked thread as successfully ingested.
@@ -290,7 +286,7 @@ Use this template:
   - <Page category>:
     - Created: <page title> (<patch | minor | major>)
     - Updated: <page title> (<patch | minor | major>)
-  - Substack cursor: <publication high/low watermark advanced | verified no-op | unchanged>
+  - Substack handoff: <publication high/low watermark advanced | verified no-op | unchanged>
   - Artifacts:
     - Created: <PDF artifact sidecar title>, raw PDF verified
 

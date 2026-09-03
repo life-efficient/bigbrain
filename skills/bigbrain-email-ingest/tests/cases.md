@@ -69,11 +69,10 @@ Evidence:
 
 Expected:
 
-- Treat the notification as the narrow eligible exception to the automated/newsletter exclusion.
-- Open and file the canonical post through `$bigbrain-source-article-ingest`; do not file the email body or MIME.
-- Use a normalized publication key and canonical post key for deduplication.
-- Advance that publication's high and low watermarks only after the source artifact or page and all affected canonical pages read back successfully.
-- Keep the Gmail thread cursor and Substack publication cursor as separate state.
+- Route the complete notification evidence to `$bigbrain-substack-ingest` for eligibility verification and canonical page retrieval.
+- Do not file the email body or MIME from the Gmail skill.
+- Advance the Gmail thread cursor only after the delegated source artifact or page and all affected canonical pages read back successfully.
+- Keep the Gmail delivery cursor separate from the Substack skill's publication cursor.
 
 ## Substack backfill and out-of-order delivery
 
@@ -85,9 +84,9 @@ Evidence:
 
 Expected:
 
-- File the missing post if its page is accessible and relevant, without regressing the high watermark.
-- Move the low watermark only if the older post is verified; keep the prior low watermark on any failure.
-- Use the archive's opaque pagination cursor when available and do not claim backfill completeness from watermarks alone.
+- Route the explicit bounded-backfill request to `$bigbrain-substack-ingest`.
+- Let the Substack skill file the missing post if its page is accessible and relevant, without regressing the high watermark.
+- Let the Substack skill move the low watermark only if the older post is verified; keep the prior low watermark on any failure.
 - Do not backfill merely because a new notification arrived.
 
 ## Substack digest or recommendation notification

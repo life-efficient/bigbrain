@@ -54,6 +54,47 @@ test('source article ingest keeps filing optional and gates writes on relevance'
   assert.match(agent, /do not create a source artifact or Brain page unless it does/);
 });
 
+test('Substack ingest skill owns canonical posts and routes Gmail handoffs safely', async () => {
+  const skillPath = new URL('../../skills/bigbrain-substack-ingest/SKILL.md', import.meta.url);
+  const skill = await fs.readFile(skillPath, 'utf8');
+  const agentPath = new URL('../../skills/bigbrain-substack-ingest/agents/openai.yaml', import.meta.url);
+  const agent = await fs.readFile(agentPath, 'utf8');
+  const casesPath = new URL('../../skills/bigbrain-substack-ingest/tests/cases.md', import.meta.url);
+  const cases = await fs.readFile(casesPath, 'utf8');
+  const resolver = await fs.readFile(new URL('../../skills/RESOLVER.md', import.meta.url), 'utf8');
+
+  assert.match(skill, /^---\nname: bigbrain-substack-ingest\ndescription: .+\n---/);
+  for (const heading of ['Contract Checklist', 'Workflow', 'Anti-Patterns', 'Output']) {
+    assert.match(skill, new RegExp(`^## ${heading}$`, 'm'));
+  }
+  const steps = [...skill.matchAll(/^\d+\. [^\n]+:\n([\s\S]*?)(?=^\d+\. |^## )/gm)];
+  assert.equal(steps.length, 5);
+  for (const [, body] of steps) assert.match(body, /Anti-patterns:/);
+  for (const phrase of [
+    'does not search Gmail, change Gmail state, send email',
+    'List-Id',
+    'List-Post',
+    'publication_key',
+    'post_key',
+    'source_type: substack',
+    '$bigbrain-source-article-ingest',
+    '$bigbrain-page',
+    'high_watermark',
+    'low_watermark',
+    'backfill_page_cursor',
+    'same-Brain read-back',
+  ]) assert.match(skill, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  assert.match(agent, /\$bigbrain-substack-ingest/);
+  assert.match(agent, /without changing Gmail/);
+  assert.match(cases, /Gmail handoff for a followed new-post alert/);
+  assert.match(cases, /Explicit bounded archive backfill/);
+  assert.match(cases, /Adjacent prompt that should not trigger/);
+  assert.match(resolver, /bigbrain-substack-ingest\/SKILL\.md/);
+  assert.doesNotMatch(skill, /—/);
+  assert.doesNotMatch(agent, /—/);
+  assert.doesNotMatch(cases, /—/);
+});
+
 test('health accepts active skill symlinks that match repo skills', async () => {
   const fixture = await createFixture('bigbrain-skill-template-health-');
   try {
