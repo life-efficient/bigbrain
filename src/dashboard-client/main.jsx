@@ -53,6 +53,7 @@ import {
 } from './graph/focused-network-data.js';
 import { deriveGraphMotion, graphPayloadsEqual } from './graph/live-graph.js';
 import { KeepInTouchPanel } from './playbooks/keep-in-touch.jsx';
+import { ComprehensionPanel } from './playbooks/comprehension.jsx';
 import { PLAYBOOKS } from './playbooks/registry.js';
 import {
   buildDemoExplorer,
@@ -702,6 +703,7 @@ function DashboardApp() {
   const { about, schema, tasks, recent, health, graph, explorer } = state.data;
   const brainId = about?.brain_id || 'current';
   const keepInTouchEnabled = enabledPlaybooks.includes('keep-in-touch');
+  const comprehensionEnabled = enabledPlaybooks.includes('comprehension');
   const members = Array.isArray(tasks?.members) ? tasks.members : [];
   const healthFindingCount = Number.isFinite(health?.finding_count) ? health.finding_count : 0;
   const healthFindings = Array.isArray(health?.findings)
@@ -816,7 +818,7 @@ function DashboardApp() {
                   }}
                 >
                   Playbooks
-                  {keepInTouchEnabled ? <span className="playbooks-live-dot" aria-label="Keep in Touch enabled" /> : null}
+                  {(keepInTouchEnabled || comprehensionEnabled) ? <span className="playbooks-live-dot" aria-label="Playbook enabled" /> : null}
                 </button>
                 {playbooksOpen ? (
                   <PlaybookLauncher
@@ -825,6 +827,10 @@ function DashboardApp() {
                     onEnable={() => setPlaybookEnabled('keep-in-touch', true)}
                     onDisable={() => setPlaybookEnabled('keep-in-touch', false)}
                     onOpen={() => openPlaybook('keep-in-touch')}
+                    comprehensionEnabled={comprehensionEnabled}
+                    onEnableComprehension={() => setPlaybookEnabled('comprehension', true)}
+                    onDisableComprehension={() => setPlaybookEnabled('comprehension', false)}
+                    onOpenComprehension={() => openPlaybook('comprehension')}
                   />
                 ) : null}
               </div>
@@ -1000,6 +1006,10 @@ function DashboardApp() {
               <KeepInTouchPanel onOpenPerson={openPageBySlug} />
             ) : null}
 
+            {view === 'comprehension' && comprehensionEnabled ? (
+              <ComprehensionPanel onOpenPage={openPageBySlug} />
+            ) : null}
+
             {view === 'analytics' ? <AnalyticsPanel analytics={analytics} /> : null}
           </div>
 
@@ -1172,7 +1182,17 @@ function AnalyticsPanel({ analytics }) {
   );
 }
 
-function PlaybookLauncher({ brainName, keepInTouchEnabled, onEnable, onDisable, onOpen }) {
+function PlaybookLauncher({
+  brainName,
+  keepInTouchEnabled,
+  onEnable,
+  onDisable,
+  onOpen,
+  comprehensionEnabled,
+  onEnableComprehension,
+  onDisableComprehension,
+  onOpenComprehension,
+}) {
   return (
     <div className="playbooks-dropdown" role="menu">
       <div className="playbooks-dropdown-head">
@@ -1191,6 +1211,20 @@ function PlaybookLauncher({ brainName, keepInTouchEnabled, onEnable, onDisable, 
           </div>
         ) : (
           <button type="button" className="settings-link" onClick={onEnable}>Enable</button>
+        )}
+      </div>
+      <div className="playbook-launcher-item">
+        <div className="playbook-launcher-copy">
+          <strong>Comprehension</strong>
+          <span>Build durable understanding from important Brain pages.</span>
+        </div>
+        {comprehensionEnabled ? (
+          <div className="playbook-launcher-actions">
+            <button type="button" className="settings-link selected" onClick={onOpenComprehension}>Open <span className="meta">C</span></button>
+            <button type="button" className="playbook-text-button" onClick={onDisableComprehension}>Disable</button>
+          </div>
+        ) : (
+          <button type="button" className="settings-link" onClick={onEnableComprehension}>Enable</button>
         )}
       </div>
       <div className="playbooks-dropdown-foot">Playbooks are enabled separately for each Brain.</div>

@@ -5,6 +5,12 @@ export const PLAYBOOKS = [
     description: 'Track deliberate follow-ups without changing person pages.',
     shortcut: 'K',
   },
+  {
+    id: 'comprehension',
+    label: 'Comprehension',
+    description: 'Build durable understanding from important Brain pages.',
+    shortcut: 'C',
+  },
 ];
 
 export function playbookById(playbookId) {

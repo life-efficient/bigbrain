@@ -62,6 +62,12 @@ import {
   setKeepInTouchPriority,
   snoozeKeepInTouchPerson,
 } from './playbooks/keep-in-touch.js';
+import {
+  buildComprehensionPayload,
+  getComprehensionPage,
+  saveComprehensionSession,
+  updateComprehensionSetup,
+} from './playbooks/comprehension.js';
 import { queryBrain, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
 import {
@@ -622,6 +628,15 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'playbooks/keep-in-touch/snooze':
     case 'playbooks_keep_in_touch_snooze':
       return toolJson(await toolKeepInTouchMutation(config, args, actor, 'snooze'));
+    case 'playbooks/comprehension':
+    case 'playbooks_comprehension':
+      return toolJson(await toolComprehensionGet(config, args, actor, authConfig));
+    case 'playbooks/comprehension/setup':
+    case 'playbooks_comprehension_setup':
+      return toolJson(await toolComprehensionSetup(config, args, actor, authConfig));
+    case 'playbooks/comprehension/session':
+    case 'playbooks_comprehension_session':
+      return toolJson(await toolComprehensionSession(config, args, actor, authConfig));
     case 'list':
       return toolJson(await listBrainPath({
         config,
@@ -1287,6 +1302,48 @@ async function toolKeepInTouchMutation(config, args, actor, action) {
   }
 }
 
+async function toolComprehensionGet(config, args, actor, authConfig) {
+  const db = await openDatabase(config);
+  try {
+    const payload = await buildComprehensionPayload(config, db, {
+      actor,
+      limit: args.limit,
+    });
+    if (!args.page_slug) return payload;
+    return {
+      ...payload,
+      page: await getComprehensionPage(db, args.page_slug, {
+        actor,
+        limit: args.history_limit,
+      }),
+    };
+  } finally {
+    await db.close?.();
+  }
+}
+
+async function toolComprehensionSetup(config, args, actor, authConfig) {
+  const db = await openDatabase(config);
+  try {
+    const guidance = await updateComprehensionSetup(db, args, { actor });
+    return {
+      playbook: { id: 'comprehension', name: 'Comprehension', schema_version: 1 },
+      guidance: guidance.guidance,
+    };
+  } finally {
+    await db.close?.();
+  }
+}
+
+async function toolComprehensionSession(config, args, actor, authConfig) {
+  const db = await openDatabase(config);
+  try {
+    return await saveComprehensionSession(db, args, { actor });
+  } finally {
+    await db.close?.();
+  }
+}
+
 async function syncAndPersist(config) {
   const result = await syncBrain({ config });
   await persistState(config.statePath, {
@@ -1693,6 +1750,36 @@ function toolDefinitions(config = null) {
       name: 'playbooks_keep_in_touch_snooze',
       description: 'Alias for playbooks/keep-in-touch/snooze for clients that do not support slash tool names.',
       inputSchema: keepInTouchSnoozeSchema(),
+    },
+    {
+      name: 'playbooks/comprehension',
+      description: 'Read the authenticated user\'s Comprehension guidance and recent page session reports. State lives in a user-scoped playbook overlay, not Brain pages or task pages.',
+      inputSchema: comprehensionReadSchema(),
+    },
+    {
+      name: 'playbooks_comprehension',
+      description: 'Alias for playbooks/comprehension for clients that do not support slash tool names.',
+      inputSchema: comprehensionReadSchema(),
+    },
+    {
+      name: 'playbooks/comprehension/setup',
+      description: 'Update the authenticated user\'s natural-language Comprehension guidance. This changes only the playbook overlay.',
+      inputSchema: comprehensionSetupSchema(),
+    },
+    {
+      name: 'playbooks_comprehension_setup',
+      description: 'Alias for playbooks/comprehension/setup for clients that do not support slash tool names.',
+      inputSchema: comprehensionSetupSchema(),
+    },
+    {
+      name: 'playbooks/comprehension/session',
+      description: 'Create or update one Comprehension session report for a Brain page. The summary is the complete durable report card and may be updated repeatedly while learning continues.',
+      inputSchema: comprehensionSessionSchema(),
+    },
+    {
+      name: 'playbooks_comprehension_session',
+      description: 'Alias for playbooks/comprehension/session for clients that do not support slash tool names.',
+      inputSchema: comprehensionSessionSchema(),
     },
     {
       name: 'list',
@@ -2121,6 +2208,12 @@ const TOOL_POLICIES = {
   playbooks_keep_in_touch_set_priority: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   'playbooks/keep-in-touch/snooze': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   playbooks_keep_in_touch_snooze: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'playbooks/comprehension': { layer: 'read', scopes: ['brain:read'] },
+  playbooks_comprehension: { layer: 'read', scopes: ['brain:read'] },
+  'playbooks/comprehension/setup': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  playbooks_comprehension_setup: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'playbooks/comprehension/session': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  playbooks_comprehension_session: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   list: { layer: 'read', scopes: ['brain:read'] },
   read: { layer: 'read', scopes: ['brain:read'] },
   get_page_visibility: { layer: 'read', scopes: ['brain:read'] },
@@ -2497,6 +2590,39 @@ function keepInTouchSnoozeSchema() {
       days: { type: 'integer', minimum: 1, maximum: 3650, default: 7 },
     },
     required: ['page_slug'],
+  };
+}
+
+function comprehensionReadSchema() {
+  return {
+    type: 'object',
+    properties: {
+      page_slug: { type: 'string', description: 'Optional page slug whose full Comprehension session history should be returned.' },
+      limit: { type: 'integer', minimum: 1, maximum: 500, default: 50 },
+      history_limit: { type: 'integer', minimum: 1, maximum: 500, default: 50 },
+    },
+  };
+}
+
+function comprehensionSetupSchema() {
+  return {
+    type: 'object',
+    properties: {
+      guidance: { type: 'string', description: 'Natural-language description of what the user wants to understand and retain.' },
+    },
+    required: ['guidance'],
+  };
+}
+
+function comprehensionSessionSchema() {
+  return {
+    type: 'object',
+    properties: {
+      page_slug: { type: 'string', description: 'Brain page being understood.' },
+      session_id: { type: 'string', description: 'Optional stable identifier used to continue one session.' },
+      summary: { type: 'string', description: 'Complete current written report card, including strengths, gaps, tutor notes, and the next point to resume.' },
+    },
+    required: ['page_slug', 'summary'],
   };
 }
 

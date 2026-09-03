@@ -27,3 +27,4 @@
 | Suggest and create roadmap-derived task pages from BigBrain progress and blockers | `skills/bigbrain-roadmap-tasks/SKILL.md` |
 | Refresh existing BigBrain task pages from current brain evidence | `skills/bigbrain-refresh-tasks/SKILL.md` |
 | Run a bounded health-and-remediation pass for a configured BigBrain brain home | `skills/bigbrain-maintain/SKILL.md` |
+| Run an evidence-based learning session over important Brain pages and maintain resumable report cards | `skills/bigbrain-comprehension/SKILL.md` |
