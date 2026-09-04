@@ -15,12 +15,13 @@ import {
   updateComprehensionSetup,
 } from '../../src/bigbrain/playbooks/comprehension.js';
 
-test('Comprehension stores user guidance and minimal page session report cards in the overlay', async () => {
+test('Comprehension stores user guidance and minimal page session summaries in the overlay', async () => {
   const fixture = await createFixture('bigbrain-comprehension-');
   let db;
   try {
     const source = `---\ntitle: Systems Thinking\n---\n# Systems Thinking\n\nA page about systems.\n`;
     await writeMarkdown(fixture.brainHome, 'concepts/systems-thinking.md', source);
+    await writeMarkdown(fixture.brainHome, 'concepts/decision-making.md', '# Decision Making\n\nA page about decisions.\n');
     const config = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({ config, apiKey: null });
     db = await openDatabase(config);
@@ -35,13 +36,18 @@ test('Comprehension stores user guidance and minimal page session report cards i
     const first = await saveComprehensionSession(db, {
       page_slug: 'concepts/systems-thinking',
       session_id: 'systems-1',
-      summary: 'Report card\nStrengths: distinguishes stocks from flows.\nGaps: needs transfer practice.\nTutor notes: use a concrete product example.\nNext resume step: test a causal loop.',
+      summary: 'Current summary\nStrengths: distinguishes stocks from flows.\nGaps: needs transfer practice.\nTutor notes: use a concrete product example.\nNext resume step: test a causal loop.',
     }, { actor, now: '2026-09-01T10:01:00Z' });
     const second = await saveComprehensionSession(db, {
       page_slug: 'concepts/systems-thinking',
       session_id: 'systems-1',
-      summary: 'Report card\nStrengths: explains stocks, flows, and causal loops.\nGaps: analogy is still tentative.\nTutor notes: ask for a product transfer example.\nNext resume step: closed-book transfer question.',
+      summary: 'Current summary\nStrengths: explains stocks, flows, and causal loops.\nGaps: analogy is still tentative.\nTutor notes: ask for a product transfer example.\nNext resume step: closed-book transfer question.',
     }, { actor, now: '2026-09-01T10:05:00Z' });
+    await saveComprehensionSession(db, {
+      page_slug: 'concepts/decision-making',
+      session_id: 'decision-1',
+      summary: 'Current summary\nStrengths: identifies the decision boundary.\nGaps: needs a transfer example.\nTutor notes: compare reversible and irreversible choices.\nNext resume step: ask for a concrete case.',
+    }, { actor, now: '2026-09-01T10:04:00Z' });
 
     assert.equal(first.created_at, second.created_at);
     assert.deepEqual(Object.keys((await getPlaybookRecord(db, {
@@ -53,10 +59,12 @@ test('Comprehension stores user guidance and minimal page session report cards i
 
     const payload = await buildComprehensionPayload(config, db, { actor });
     assert.equal(payload.setup.guidance, 'Understand the ideas most useful for building better products.');
-    assert.equal(payload.summary.pages_with_sessions, 1);
+    assert.equal(payload.summary.pages_with_sessions, 2);
     assert.equal(payload.pages[0].page_slug, 'concepts/systems-thinking');
     assert.equal(payload.pages[0].summary, second.summary);
     assert.equal(payload.pages[0].page_exists, true);
+    assert.equal(payload.summary.session_history, 2);
+    assert.deepEqual(payload.session_history.map((entry) => entry.session_id), ['systems-1', 'decision-1']);
 
     const history = await getComprehensionPage(db, 'concepts/systems-thinking', { actor });
     assert.equal(history.sessions.length, 1);
@@ -72,7 +80,7 @@ test('Comprehension stores user guidance and minimal page session report cards i
   }
 });
 
-test('Comprehension rejects task pages and blank report cards', async () => {
+test('Comprehension rejects task pages and blank summaries', async () => {
   const fixture = await createFixture('bigbrain-comprehension-validation-');
   let db;
   try {

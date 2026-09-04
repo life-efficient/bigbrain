@@ -1310,6 +1310,7 @@ async function toolComprehensionGet(config, args, actor, authConfig) {
     const payload = await buildComprehensionPayload(config, db, {
       actor,
       limit: args.limit,
+      historyLimit: args.history_limit,
     });
     if (!args.page_slug) return payload;
     return {
@@ -1755,7 +1756,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'playbooks/comprehension',
-      description: 'Read the authenticated user\'s Comprehension guidance and recent page session reports. State lives in a user-scoped playbook overlay, not Brain pages or task pages.',
+      description: 'Read the authenticated user\'s Comprehension guidance, recent page summaries, and prior session history. State lives in a user-scoped playbook overlay, not Brain pages or task pages.',
       inputSchema: comprehensionReadSchema(),
     },
     {
@@ -1775,7 +1776,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'playbooks/comprehension/session',
-      description: 'Create or update one Comprehension session report for a Brain page. The summary is the complete durable report card and may be updated repeatedly while learning continues.',
+      description: 'Create or update one Comprehension session summary for a Brain page. The summary is the complete durable learning state and may be updated repeatedly while learning continues.',
       inputSchema: comprehensionSessionSchema(),
     },
     {
@@ -2622,7 +2623,7 @@ function comprehensionSessionSchema() {
     properties: {
       page_slug: { type: 'string', description: 'Brain page being understood.' },
       session_id: { type: 'string', description: 'Optional stable identifier used to continue one session.' },
-      summary: { type: 'string', description: 'Complete current written report card, including strengths, gaps, tutor notes, and the next point to resume.' },
+      summary: { type: 'string', description: 'Complete current written summary, including strengths, gaps, tutor notes, and the next point to resume.' },
     },
     required: ['page_slug', 'summary'],
   };

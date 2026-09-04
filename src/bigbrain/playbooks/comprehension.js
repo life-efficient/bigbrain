@@ -41,7 +41,7 @@ export async function updateComprehensionSetup(db, input, { actor = null, now = 
   return record.data;
 }
 
-export async function buildComprehensionPayload(config, db, { actor = null, limit = 50 } = {}) {
+export async function buildComprehensionPayload(config, db, { actor = null, limit = 50, historyLimit = 50 } = {}) {
   const [setup, sessions, pages] = await Promise.all([
     getComprehensionSetup(db, { actor }),
     listPlaybookRecords(db, {
@@ -53,7 +53,11 @@ export async function buildComprehensionPayload(config, db, { actor = null, limi
     listPages(db),
   ]);
   const pageMap = new Map(pages.map((page) => [page.slug, page]));
-  const latest = latestSessionsByPage(sessions);
+  const orderedSessions = sessions.sort(compareRecentSessions);
+  const latest = latestSessionsByPage(orderedSessions);
+  const history = orderedSessions
+    .slice(0, normalizeLimit(historyLimit))
+    .map((record) => sessionResponse(record));
   const recent = [...latest.values()]
     .map((record) => hydrateSession(record, pageMap.get(pageSlugFromScope(record.scope_key))))
     .sort(compareRecentSessions)
@@ -72,8 +76,10 @@ export async function buildComprehensionPayload(config, db, { actor = null, limi
     summary: {
       pages_with_sessions: latest.size,
       recent_pages: recent.length,
+      session_history: history.length,
     },
     pages: recent,
+    session_history: history,
   };
 }
 
@@ -157,7 +163,11 @@ function sessionResponse(record) {
 
 function compareRecentSessions(left, right) {
   return (Date.parse(right.updated_at) || 0) - (Date.parse(left.updated_at) || 0)
-    || left.page_slug.localeCompare(right.page_slug);
+    || sessionPageSlug(left).localeCompare(sessionPageSlug(right));
+}
+
+function sessionPageSlug(value) {
+  return value.page_slug || pageSlugFromScope(value.scope_key) || '';
 }
 
 function scopeKeyForPage(pageSlug) {

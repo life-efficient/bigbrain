@@ -8,7 +8,7 @@ import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { startMcpServer } from '../../src/bigbrain/mcp-server.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
-test('MCP exposes Comprehension setup and iterative session report tools without mutation metadata', async () => {
+test('MCP exposes Comprehension setup and iterative session summary tools without mutation metadata', async () => {
   const fixture = await createFixture('bigbrain-mcp-comprehension-');
   let server;
   try {

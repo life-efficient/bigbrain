@@ -95,7 +95,7 @@ test('Substack ingest skill owns canonical posts and routes Gmail handoffs safel
   assert.doesNotMatch(cases, /—/);
 });
 
-test('Comprehension skill preserves iterative evidence-based report-card behavior', async () => {
+test('Comprehension skill preserves iterative evidence-based summary behavior', async () => {
   const skillPath = new URL('../../skills/bigbrain-comprehension/SKILL.md', import.meta.url);
   const skill = await fs.readFile(skillPath, 'utf8');
   const agentPath = new URL('../../skills/bigbrain-comprehension/agents/openai.yaml', import.meta.url);
@@ -108,11 +108,15 @@ test('Comprehension skill preserves iterative evidence-based report-card behavio
   assert.match(skill, /## Output/);
   assert.match(skill, /playbooks\/comprehension\/session/);
   assert.match(skill, /after every meaningful interaction/);
+  assert.match(skill, /especially during voice or realtime sessions/);
+  assert.match(skill, /prior session summaries across pages/);
+  assert.match(skill, /After each meaningful answer, correction, teaching milestone, misunderstanding, conflict, strong question, or clear evidence of understanding/);
+  assert.match(skill, /Do not defer it until the conversation ends/);
   assert.match(skill, /five dimensions/);
   assert.match(skill, /Do not create or edit task pages/);
   assert.doesNotMatch(skill, /tasks\/create/);
   assert.match(agent, /\$bigbrain-comprehension/);
-  assert.match(agent, /persist the evolving report card/);
+  assert.match(agent, /persist the evolving summary/);
 });
 
 test('health accepts active skill symlinks that match repo skills', async () => {

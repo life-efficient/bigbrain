@@ -66,7 +66,7 @@ export function ComprehensionPanel({ onOpenPage }) {
         <div>
           <span className="eyebrow">Playbook · Learning</span>
           <h1>Comprehension</h1>
-          <p>Tell the tutor what matters to you. It will choose evidence, teach, test, remediate, and keep a current report card.</p>
+          <p>Tell the tutor what matters to you. It will choose evidence, teach, test, remediate, and keep a current summary.</p>
         </div>
       </div>
 
@@ -115,7 +115,7 @@ export function ComprehensionPanel({ onOpenPage }) {
                 </div>
                 <div className="playbook-record-meta">
                   <span>{page.page_slug}</span>
-                  <span>Updated report {formatDate(page.updated_at)}</span>
+                  <span>Updated summary {formatDate(page.updated_at)}</span>
                   {page.page_updated_at ? <span>Page updated {formatDate(page.page_updated_at)}</span> : null}
                 </div>
                 <p className="playbook-record-summary">{page.summary}</p>
@@ -128,7 +128,7 @@ export function ComprehensionPanel({ onOpenPage }) {
           <div className="playbook-empty-mark" aria-hidden="true">◎</div>
           <div>
             <h2>Start with a question</h2>
-            <p>Run the Comprehension skill from Codex or an automation. Your evolving report cards will appear here without creating task pages.</p>
+            <p>Run the Comprehension skill from Codex or an automation. Your evolving summaries will appear here without creating task pages.</p>
           </div>
         </div>
       )}

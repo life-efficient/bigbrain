@@ -10,7 +10,7 @@ import { startDashboard } from '../../src/bigbrain/dashboard.js';
 import { saveComprehensionSession } from '../../src/bigbrain/playbooks/comprehension.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
-test('dashboard Comprehension view configures guidance and shows overlay reports without changing pages', async () => {
+test('dashboard Comprehension view configures guidance and shows overlay summaries without changing pages', async () => {
   const fixture = await createFixture('bigbrain-dashboard-comprehension-');
   let server;
   let db;

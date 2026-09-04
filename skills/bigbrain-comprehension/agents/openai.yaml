@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Comprehension"
   short_description: "Build durable understanding from important Brain pages"
-  default_prompt: "Use $bigbrain-comprehension to run an evidence-based Comprehension session, test understanding, remediate gaps, and persist the evolving report card in the playbook overlay."
+  default_prompt: "Use $bigbrain-comprehension to run an evidence-based Comprehension session, test understanding, remediate gaps, and persist the evolving summary in the playbook overlay."
