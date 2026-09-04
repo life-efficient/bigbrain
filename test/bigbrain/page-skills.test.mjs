@@ -31,6 +31,8 @@ test('the page skill contains the page writing standard', async () => {
   assert.match(skill, /do not lead with the current user's name/);
   assert.match(skill, /provenance\.source_message/);
   assert.match(skill, /Prefer `Added X after approval`/);
+  assert.match(skill, /evidence and scope boundaries as contextual prose and links by default/);
+  assert.match(skill, /do not add generic `## Evidence` or `## Boundaries` headings/);
   for (const phrase of ['current[- ]context', 'what the subject is', 'why it matters', 'boundaries', 'material relationships', 'inline links']) {
     assert.match(skill, new RegExp(phrase));
   }

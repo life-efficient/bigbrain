@@ -25,7 +25,7 @@ Create or update one ordinary BigBrain page from durable evidence.
 2. Use the selected Brain's relevant MCP to create or update the page.
    - Use the `create_page` or `update_page` endpoint that matches the ownership decision, and follow its input schema.
    - Update the compiled-truth paragraph if necessary. Keep it as the one-paragraph core understanding of the subject, then update any current-context content that the evidence requires.
-   - Keep the page subject-focused, explain important context and relationships in natural prose, use inline links where relevant, and separate current understanding from timeline evidence.
+   - Keep the page subject-focused, explain important context and relationships in natural prose, use inline links where relevant, and separate current understanding from timeline evidence. Treat evidence and scope boundaries as contextual prose and links by default; do not add generic `## Evidence` or `## Boundaries` headings unless the subject genuinely requires one.
    - Record the evidence-backed timeline entry using the endpoint's required provenance and significance fields. Prefer `Added X after approval` or `Updated Y with Z` over `Harry approved adding X` or `Harry updated Y`.
    - Anti-patterns: source dumps, invented links, taxonomy commentary, direct filesystem writes, sending `---` or `## Timeline`, copying a linked subject's full account.
 
