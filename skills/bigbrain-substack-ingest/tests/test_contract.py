@@ -25,6 +25,10 @@ assert "publication_key" in SKILL
 assert "post_key" in SKILL
 assert "source_type: substack" in SKILL
 assert "$bigbrain-source-article-ingest" in SKILL
+assert "$bigbrain-manage-email" in SKILL
+assert "single shared gate also used by RSS" in SKILL
+assert "Followed status proves delivery eligibility only" in SKILL
+assert "verified `ignored` is terminal" in SKILL
 assert "$bigbrain-page" in SKILL
 assert "source_only" in SKILL
 assert "source_and_update" in SKILL
@@ -41,6 +45,7 @@ assert "display_name: \"BigBrain: Substack Ingest\"" in AGENT
 assert "$bigbrain-substack-ingest" in AGENT
 assert "$bigbrain-source-article-ingest" in AGENT
 assert "$bigbrain-page" in AGENT
+assert "$bigbrain-manage-email" in AGENT
 assert "Gmail handoff for a followed new-post alert" in CASES
 assert "Explicit bounded archive backfill" in CASES
 assert "Digest or recommendation email" in CASES

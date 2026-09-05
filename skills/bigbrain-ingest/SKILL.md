@@ -18,7 +18,7 @@ This skill guarantees:
 - Make a new or updated canonical page locally comprehensible as a useful 80-20 briefing of its primary subject, without making it exhaustive.
 - Use links for deeper detail, adjacent subjects, and related records; links are relationships, not necessarily a hierarchy.
 - Keep the overall understanding of each subject on its canonical page. Mention linked subjects in context without creating a competing full account, and leave source-specific detail on meeting, source, or attachment pages.
-- Re-sync the index after meaningful Brain changes.
+- Rely on successful owning-Brain MCP writes and same-Brain read-back; MCP mutations propagate and back up automatically.
 
 ## Workflow
 
@@ -41,7 +41,7 @@ This skill guarantees:
    - Use `.raw/` and raw-file tools when the filing rules require raw source preservation there.
    - Use `.artifacts/` only when the target Brain's filing rules or directly accessed folder structure explicitly call for artifacts.
    - Prefer updating compiled truth above the separator and appending evidence below it.
-   - Run `bigbrain sync --json` after the write path completes.
+   - Do not run manual sync, maintenance, propagation, or backup after MCP writes.
    - Report no-op, hold, draft, and completed outcomes distinctly.
    - Anti-patterns: writing before reading filing rules, duplicating an existing page, hiding a meaningful change in an unindexed artifact, declaring completion before sync.
 
@@ -62,4 +62,4 @@ This skill guarantees:
 
 ## Output
 
-Report the chosen ingest route, relevance decision, canonical pages updated or created, raw files or artifacts preserved, linked entities, read-back status, sync status, and any follow-on enrichment recommendation.
+Report the chosen ingest route, relevance decision, canonical pages updated or created, raw files or artifacts preserved, linked entities, read-back status, and any follow-on enrichment recommendation.

@@ -9,22 +9,23 @@ Ingest one verified Substack post into the correct BigBrain while preserving sou
 
 ## Contract Checklist
 
-- Use this skill for a canonical Substack post received from `$bigbrain-email-ingest`, a direct user request to ingest a Substack URL, or an explicitly requested bounded archive backfill.
+- Use this skill for a canonical Substack post received from `$bigbrain-manage-email`, a direct user request to ingest a Substack URL, or an explicitly requested bounded archive backfill.
 - This skill does not search Gmail, change Gmail state, send email, or own the Gmail delivery cursor. The email skill routes candidate notifications here with a compact evidence packet.
 - For a Gmail handoff, require the post URL, sender and recipient evidence, notification type when known, `List-Id` and `List-Post` when present, publication identity, and stable Gmail delivery identity. A direct user URL may omit email evidence.
 - A Gmail notification is eligible only when it is a new-post alert from a publication the user follows or has explicitly placed in scope. Recommendations, digests, comments, likes, subscriber notices, unsubscribe mail, and promotions are not new-post alerts.
 - Use a normalized `publication_key` from the canonical publication origin and path and a normalized `post_key` from the canonical post URL. Do not use a Gmail subject or thread ID as article identity.
 - Use `source_type: substack` for Substack-originated article provenance. Preserve a Gmail delivery identity in `origin_id` or the delegated cursor metadata when one exists; do not store the full notification body or MIME.
+- Delivery eligibility and article relevance are separate decisions. Automated Substack delivery is allowed here, but it never proves that the post should be retained.
 - Valid article outcomes are `source_only`, `source_and_update`, `ignored`, `needs_review`, and verified no-op. State the relevance rationale before any source or page write.
 - Keep one `substack_publications` cursor entry per normalized publication. Store `publication_url`, `high_watermark`, `low_watermark`, and optional `backfill_status` and `backfill_page_cursor`.
 - Advance a watermark only after the canonical source, every intended Brain write, every required raw artifact, and same-Brain read-back are verified. Never regress `high_watermark` for an older out-of-order post.
 - Backfill is opt-in, bounded to a small batch or one archive page per run, and independent of the Gmail cursor. Preserve opaque pagination state and do not claim completeness from watermarks alone.
-- Route article relevance and source filing through `$bigbrain-source-article-ingest`, and route canonical entity page mutations through `$bigbrain-page`.
+- Route all article relevance and source filing through `$bigbrain-source-article-ingest`, the single shared gate also used by RSS. Route canonical entity page mutations through `$bigbrain-page`.
 - Read the selected Brain's live identity, filing rules, and canonical pages before writing. Perform all Brain mutations through that Brain's MCP and read them back through the same MCP.
 
 ## Handoff Packet
 
-`$bigbrain-email-ingest` should pass the smallest packet that allows this skill to verify the notification and preserve provenance:
+`$bigbrain-manage-email` should pass the smallest packet that allows this skill to verify the notification and preserve provenance:
 
 ```json
 {
@@ -92,12 +93,15 @@ For each verified post, retain its normalized `post_key`, canonical URL, publica
    - If the page is blocked, paywalled beyond the available session, empty, truncated, or mismatched, return `needs_review` without creating content or moving a cursor.
    - Anti-patterns: trusting a search result or email preview, treating a digest as one post, using a Gmail thread as article identity, filing a substituted URL, inventing missing article text.
 
-3. Preflight deduplication, relevance, and cursor state:
+3. Resolve guidance, then preflight deduplication, relevance, and cursor state:
    - Search existing Brain provenance and source sidecars for the normalized `post_key` and canonical URL before writing. An exact existing post is a verified no-op when no new evidence exists.
    - Read the publication's cursor entry. A new post may advance `high_watermark`; an older out-of-order post must not regress it. Only explicit backfill may use archive pagination or move the low watermark.
-   - Apply `$bigbrain-source-article-ingest` and state the concrete source guidance, named user anchor, or followed-publication enrichment intent that gives the article durable value. If no durable value remains, choose `ignored` and create no raw artifact or Brain page.
+   - Read live registered source listeners when available. If the canonical Substack publication exactly matches an RSS listener or registered source, reuse its guidance verbatim.
+   - Otherwise use explicit publication guidance or a named current user anchor. Followed status proves delivery eligibility only and is not a relevance anchor.
+   - Apply `$bigbrain-source-article-ingest` and its `references/relevance-gate.md` contract. If no durable value remains, choose `ignored` and create no raw artifact or Brain page.
    - For explicit backfill, process only the requested bounded batch or archive page, retain the opaque page cursor, and leave normal notification state independent.
-   - Anti-patterns: writing before the relevance decision, filing every followed post without a value rationale, treating topical similarity as enough, advancing a cursor for `ignored`, silently starting backfill, treating a low watermark as proof of completeness.
+   - Record the per-post reviewed outcome in automation memory. A verified `ignored` is terminal for that post and may let the caller advance its Gmail delivery cursor, but it does not move the publication high or low watermark.
+   - Anti-patterns: writing before the relevance decision, filing every followed post without a value rationale, treating topical similarity as enough, moving publication watermarks for `ignored`, silently starting backfill, treating a low watermark as proof of completeness.
 
 4. File the canonical source and update durable Brain context:
    - For a relevant post, use `$bigbrain-source-article-ingest` to preserve the publisher source faithfully in the owning collection's `.raw/` location with its indexed Markdown sidecar.
@@ -111,7 +115,7 @@ For each verified post, retain its normalized `post_key`, canonical URL, publica
    - Read back every source sidecar, raw artifact, and affected canonical page through the same Brain MCP. Confirm links, provenance, and expected content.
    - Advance `high_watermark` only for a newer fully verified post. Advance `low_watermark` only for a fully verified older post or bounded backfill result. Preserve both on any failure or ambiguity.
    - Update `backfill_page_cursor` only after the bounded page result is verified. Mark backfill complete only after the archive traversal itself proves completion.
-   - Return the outcome, publication and post titles, affected pages or sidecar, verification result, and cursor advancement status to `$bigbrain-email-ingest`. The caller decides whether its Gmail cursor may advance.
+   - Return the outcome, publication and post titles, affected pages or sidecar, verification result, and cursor advancement status to `$bigbrain-manage-email`. The caller decides whether its Gmail cursor may advance.
    - Anti-patterns: advancing after a successful write response without read-back, moving the high watermark backwards, updating cursor state after `needs_review` or partial writes, claiming archive completeness without traversal, changing Gmail here.
 
 ## Anti-Patterns
@@ -119,6 +123,9 @@ For each verified post, retain its normalized `post_key`, canonical URL, publica
 - Treating the Gmail notification as the article or storing its body or MIME in Brain.
 - Using Gmail subject, thread ID, or notification timestamp as the canonical post identity.
 - Assuming every Substack email is a followed new-post alert.
+- Treating automated delivery as a reason to block canonical article review.
+- Treating followed status as sufficient article relevance.
+- Applying a different relevance gate from RSS.
 - Filing a blocked, truncated, mismatched, or unresolved page as if it were complete.
 - Creating raw artifacts or canonical pages before the relevance decision.
 - Maintaining a global cursor instead of one publication entry per normalized publication.

@@ -12,9 +12,10 @@
 | Route new material into the right BigBrain ingest path | `skills/bigbrain-ingest/SKILL.md` |
 | Ingest a verified Substack post or explicitly requested bounded archive item while preserving publication cursors | `skills/bigbrain-substack-ingest/SKILL.md` |
 | Ingest a relevant web article or RSS item while preserving the source and linking affected Brain pages | `skills/bigbrain-source-article-ingest/SKILL.md` |
+| Scan and manage Gmail by delegating human correspondence and article notifications | `skills/bigbrain-manage-email/SKILL.md` |
 | Ingest a meeting or call into the canonical meeting page shape | `skills/bigbrain-meeting-ingest/SKILL.md` |
 | Ingest recent Granola meetings into the selected BigBrain brain | `skills/bigbrain-granola-ingest/SKILL.md` |
-| Scan recent email and ingest durable email context into the correct BigBrain brain | `skills/bigbrain-email-ingest/SKILL.md` |
+| Ingest one dispatcher-classified human email thread into the correct BigBrain brain | `skills/bigbrain-email-ingest/SKILL.md` |
 | Reconcile concrete action evidence prepared by a source-ingestion workflow before it writes BigBrain tasks | `skills/bigbrain-action-review/SKILL.md` |
 | Ingest document-like material such as PDFs, decks, screenshots, or memos | `skills/bigbrain-document-ingest/SKILL.md` |
 | Ingest time-based or mixed media such as audio, video, or podcasts | `skills/bigbrain-media-ingest/SKILL.md` |

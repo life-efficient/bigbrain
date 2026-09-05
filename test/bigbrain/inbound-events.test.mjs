@@ -613,6 +613,7 @@ test('RSS failures are isolated from webhook serving and webhook failures do not
         return { execution_id: 'rss-exec', thread_id: 'rss-thread', outcome: { status: 'filed', capture_mode: 'summary', reason: 'rss', destinations: [{ brain_id: 'brain_personal', writes: [] }] } };
       } }),
       filingBroker: { file: async () => ({ status: 'filed', destinations: [] }) },
+      now: () => new Date('2026-08-29T12:00:00.000Z'),
     });
     await runtime.start();
     const address = runtime.webhookServer.server.address();
@@ -659,6 +660,7 @@ test('webhook startup failure degrades only the webhook plane and still runs RSS
       fetchImpl: async () => ({ status: 200, ok: true, headers: { get: () => null }, text: async () => '<rss><channel><title>Example</title><item><guid>rss-1</guid><title>RSS item</title><link>https://example.test/rss-1</link><pubDate>Thu, 28 Aug 2026 10:00:00 GMT</pubDate></item></channel></rss>' }),
       executorFactory: async () => ({ execute: async () => ({ execution_id: 'rss-exec', thread_id: 'rss-thread', outcome: { status: 'filed', capture_mode: 'summary', reason: 'rss', destinations: [{ brain_id: 'brain_personal', writes: [] }] } }) }),
       filingBroker: { file: async () => ({ status: 'filed', destinations: [] }) },
+      now: () => new Date('2026-08-29T12:00:00.000Z'),
     });
     const started = await runtime.start();
     assert.match(runtime.webhookError, /EADDRINUSE|address already in use/i);

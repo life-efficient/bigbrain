@@ -1,316 +1,144 @@
 ---
 name: bigbrain-email-ingest
-description: Scan recently unchecked email, route verified followed-Substack post notifications to the dedicated Substack ingest skill, reconcile user-reported outbound sends, apply narrowly authorized notification cleanup, preserve relevant PDF evidence, and ingest durable context into the correct BigBrain brain.
+description: Ingest one human-authored email thread into the correct BigBrain brain after a mailbox dispatcher has classified and handed it off.
 ---
 
 # BigBrain Email Ingest
 
-Scan eligible recent email, route verified followed-Substack post notifications to `$bigbrain-substack-ingest`, reconcile durable context into canonical BigBrain pages, verify every write, and maintain safe Gmail delivery cursors.
-
-Email bodies are operational evidence, not document artifacts. Do not preserve whole messages or MIME payloads in BigBrain. Preserve relevant substantive PDFs as source artifacts under the owning Brain collection, while skipping irrelevant, unsafe, unsupported, or duplicate attachments.
-
-## Outbound Email State Contract
-
-Use these states for every outbound email action. Keep outbound state separate from the task's ordinary `open`, `in_progress`, `waiting`, or `done` status.
-
-- `draft_prepared`: a Gmail draft was created and read back with its current recipients, subject, body fingerprint, thread context, and attachment manifest. This does not mean approved or sent.
-- `approved`: the user explicitly approved that exact draft revision, recipient set, and attachment set. This does not mean sent.
-- `sent`: Gmail's authoritative sent message was identified and read back, but the owning Brain update has not yet passed final verification.
-- `sent_and_logged`: the actual sent message was bound to the canonical Brain record, all required Brain writes completed, and the affected records were read back successfully.
-- `send_unverified`: the user reported sending, but Gmail did not yield one unique matching sent message.
-- `needs_review`: Gmail yielded more than one plausible match or materially conflicting identity evidence, so a human or narrower reconciliation is required.
-- `reconciliation_incomplete`: Gmail proves the message was sent, but a required Brain write or read-back failed.
-
-Never promote `draft_prepared` or `approved` to `sent`. Never promote `sent` to `sent_and_logged` from a Gmail send response alone. When a user reports that a message was already sent, reconcile Gmail and do not send it again.
-
-## Timeline Significance Contract
-
-Every `create_page` or `update_page` MCP call must provide the required `significance` field with one semantic impact label: `patch`, `minor`, or `major`. The existing `provenance` object continues to carry the source and event identity; the page mutation's significance is recorded alongside that provenance. Do not encode significance into the free-form `timeline_entry` text.
-
-Every page mutation must also provide `provenance.source_message`, containing
-the relevant source message or concise source content that caused the update.
-Keep this source message separate from the timeline entry text: the timeline
-entry describes the durable page change in human-readable Markdown, while the
-nested provenance describes the input event. Do not put source type, source
-label, source message, or commit attribution in page frontmatter.
-
-- `patch`: routine coordination, message sent or received without material state change, typo or formatting correction, source-link correction, or other low-impact repair.
-- `minor`: a material but non-transformative change such as a meaningful reply, completed meeting, accepted introduction, new diligence answer, agreed next step, or progress that changes what happens next.
-- `major`: a transformative change to the page's identity, control, outcome, or trajectory such as a deal closing or collapsing, a hostile buyer entering, a key contact being fired or changing jobs, an organization being acquired, a project launching or being cancelled, or a person's death.
-
-Classify a correction by its resulting impact, not by the fact that it is corrective. A typo fix is usually `patch`; correcting a material deal status or person identity is `minor` or `major` according to its effect. A deliberate correction or newly discovered evidence is a new timeline update with its own significance value and should reference the earlier entry when useful. Never rewrite or suppress prior history merely to make the timeline look deduplicated.
-
-## Substack Routing Contract
-
-Gmail is the delivery channel. `$bigbrain-substack-ingest` owns the publication content workflow after this skill has discovered a plausible candidate.
-
-- Shortlist messages that appear to be Substack post notifications or match an explicit Substack scope, then pass the complete newly authored notification evidence to `$bigbrain-substack-ingest` for eligibility verification. Do not file the email body as an article.
-- The handoff must include the mailbox, stable Gmail message and thread identifiers, internal date, sender and recipient headers, subject, notification type if known, publication and post URLs, extracted title, author and publication date, relevant list headers, source guidance or user anchor, and a stable Gmail delivery provenance key.
-- The dedicated skill verifies followed-publication evidence, distinguishes a new-post alert from recommendations, digests, comments, likes, subscriber notices, unsubscribe mail, and promotions, normalizes `publication_key` and `post_key`, and owns the per-publication high and low watermarks plus bounded backfill state.
-- The dedicated skill files the canonical page through `$bigbrain-source-article-ingest` and uses `source_type: substack` for Substack-originated article provenance. Preserve Gmail delivery identity as provenance origin or handoff metadata without storing the email body or MIME.
-- Keep the Gmail thread cursor separate from the Substack publication cursor. Advance the Gmail cursor only after the delegated outcome and all same-Brain read-backs or artifact checks succeed. Record the delegated outcome in the Gmail thread entry without maintaining a second publication cursor here.
-- A blocked, mismatched, paywalled, truncated, ambiguous, ignored, or partially written post leaves the Gmail cursor unchanged unless the delegated skill explicitly reports a verified no-op or complete outcome under its contract.
-
-The Gmail cursor answers which delivery messages were verified. The Substack skill's publication cursor answers which canonical Substack posts were verified in Brain.
+Reconcile one eligible human-authored email thread into durable canonical Brain state and return a verification-safe result to the mailbox dispatcher.
 
 ## Contract Checklist
 
-- A bare invocation scans the recently unchecked queue. A named sender, thread, topic, mailbox query, or date range limits the scan to that scope.
-- Gmail is read-only except for the standing Trash rules in `Authorized Gmail Cleanup`. Never send, draft, reply, forward, permanently delete, archive, mark read or unread, star, or label email unless the user separately requests that exact action.
-- Treat `delete` under the standing rules as a recoverable move to Gmail Trash, never permanent deletion.
-- Move clearly automated Preply session-scheduling and reminder messages to Trash immediately after verifying official Preply sending infrastructure and automated authorship. Preserve human tutor correspondence and unrelated Preply payment, account, or support mail.
-- Move a calendar acceptance notification to Trash only after the correct Brain reflects the attendee's accepted status and the upcoming meeting, and the same Brain reads that state back successfully.
-- Capture `run_started_at` before discovery and process no email newer than that boundary.
-- Scheduled runs use `/Users/hq/.codex/automations/<automation-id>/memory.md`; interactive runs use the named automation memory when supplied, otherwise they deduplicate against Brain provenance and the bounded scan only.
-- Keep a separate verified cursor for each Gmail thread, including the stable thread identifier, newest processed message identifier and timestamp, content fingerprint or equivalent deduplication evidence, selected destination Brain, affected pages, and verification state.
-- If no reliable cursor exists, initialize from the prior 24 hours. Future runs use the cursor with a small overlap and deduplicate by stable IDs and Brain provenance.
-- Advance a thread cursor only after every intended Brain write for that thread is read back successfully and every required artifact is verified.
-- Route each durable cluster to exactly one owning Brain by live registered Brain descriptions. Prefer a clearly matching specialized Brain and use Personal Brain only for otherwise processable personal context.
-- Perform every Brain mutation through the selected destination Brain's MCP tools, including page, task, raw-file, sidecar, and provenance changes. Never edit a Brain checkout, database, index, or local mirror directly.
-- Brain MCP mutations are propagated and backed up automatically. Never invoke maintenance, propagation, or backup operations after an ingest write.
-- Read the selected Brain's live filing rules and existing canonical pages before writing.
-- Preserve every relevant substantive PDF in the owning collection's `.raw/` folder with its deterministic same-basename indexed sidecar, unless an exact or equivalent canonical artifact already exists.
-- Skip irrelevant attachments, signatures, logos, calendar files, boilerplate brochures, unsupported files, and exact or superseded duplicates that add no durable evidence. Record the skip reason without storing them.
-- Verify stored PDFs against the Gmail attachment using byte length and SHA-256 when raw read-back is available. A parsed preview or sidecar alone is not proof that the PDF was preserved.
-- Update an existing canonical page when possible. Create a page only when the evidence supports a useful standalone record and no canonical page exists.
-- Route canonical subject-page creation and updates through `$bigbrain-page`; keep email-specific artifact and task shapes intact.
-- Do not create a meeting page merely because an email thread was reviewed. A qualifying calendar acceptance notification may update, or when live filing rules support it create, the canonical upcoming-meeting record required by `Authorized Gmail Cleanup`.
-- Store concise durable context and channel provenance, not a transcript. Preserve exact wording only when it controls a material commitment, approval, commercial term, deadline, confidentiality boundary, dispute, or instruction.
-- Distinguish confirmed facts, sender claims, attached-document claims, proposals, estimates, and unknowns. Never upgrade email marketing or deal materials into verified facts.
-- Resolve email-specific authorship before task judgment: preserve the sender, recipients, incoming or outgoing direction, chronology, quoted-history boundary, and automated-versus-human classification for every candidate action.
-- Treat a candidate action as evidence, not as a task. Invoke `$bigbrain-action-review` after reading relevant Brain context and existing tasks, and before every task create or update decision.
-- Keep email retrieval, source interpretation, Brain mutation authority, Gmail cleanup, verification, and cursor handling in this skill. `$bigbrain-action-review` returns a reconciliation plan and never broadens this skill's write authority.
-- Explicit invocation or an authorized scheduled run permits in-scope Brain writes, same-Brain read-back, artifact verification, verified cursor advancement, and only the Gmail Trash actions listed in `Authorized Gmail Cleanup`. It does not authorize any other Gmail write or outbound action.
-- Final output is count-first, grouped by destination Brain and email thread, with page-type categories and individual `Created:` or `Updated:` page bullets nested beneath each category.
-- For outbound actions, bind the actual Gmail message rather than the prepared draft: mailbox, message ID, thread ID, sender, To/Cc/Bcc, subject, sent timestamp, final-body fingerprint or concise summary, and attachment filenames plus size, MIME type, or hash when available.
-- Use a stable outbound action ID and the provider message ID as idempotency keys for external action state and provider reconciliation. Before any canonical update, search existing page/task timelines, outbound metadata, and provenance for those keys. If the exact action is already present and there is no new evidence, read it back and return a verified no-op. If a deliberate correction or new evidence exists, append a new event with a new action or event ID and a significance label, linked to the earlier event when useful.
-- A generic page or task update appends a timeline entry each time it is called. It is intentionally append-only and is not idempotent by itself. Do not use a retry to replay the exact same event, but do append a distinct, significance-labeled entry for an actual correction or newly discovered material fact.
-- If a Brain write times out or returns an error, assume it may have persisted. Read the canonical page, task, and provenance using the action and provider keys before retrying. If the exact event is present and no new evidence exists, do not replay it. If the persisted result needs correction, append a separate correction entry with its own significance label.
+- Accept one bounded thread handoff from `$bigbrain-manage-email`, or one explicitly named human-authored thread from the user.
+- Do not scan the mailbox, classify unrelated messages, process Substack or article notifications, or change Gmail state.
+- Require an identifiable real-person author for each message used as durable evidence. Automated and system-generated messages are not eligible for this worker.
+- Use email bodies only as source context. Do not preserve whole messages, MIME payloads, or generic email-log pages.
+- Preserve sender, recipients, direction, chronology, newly authored text boundaries, attachment metadata, and stable Gmail delivery provenance.
+- Route the durable cluster to exactly one owning Brain using live registered Brain descriptions, then read that Brain's live filing rules.
+- Update an existing canonical page when possible. Create a page only when the evidence supports a useful standalone subject and no canonical page exists.
+- Route ordinary subject-page creation and updates through `$bigbrain-page`.
+- Invoke `$bigbrain-action-review` before every task create or update decision.
+- Preserve every relevant substantive PDF under the owning collection's `.raw/` folder with a deterministic same-basename indexed sidecar.
+- Skip irrelevant attachments, signature assets, calendar files, brochures, unsupported files, and exact or superseded duplicates that add no durable evidence.
+- Verify stored PDFs against the Gmail attachment by byte length and SHA-256 when raw bytes are available.
+- Provide `significance: patch | minor | major` and `provenance.source_message` on every page mutation.
+- Perform all Brain reads, writes, raw-file operations, and read-back through the selected Brain's MCP. Never edit a Brain checkout, database, index, or local mirror directly.
+- Brain MCP writes propagate and back up automatically. Never run manual sync, maintenance, propagation, or backup operations.
+- Return a terminal handoff result only after every intended write and artifact reads back successfully.
+
+## Handoff Packet
+
+The dispatcher supplies the minimum evidence needed to process one thread:
+
+```json
+{
+  "mailbox": "account@example.com",
+  "gmail_thread_id": "provider-thread-id",
+  "messages": [
+    {
+      "gmail_message_id": "provider-message-id",
+      "internal_date": "2026-09-05T10:00:00Z",
+      "sender": "Person <person@example.com>",
+      "to": ["account@example.com"],
+      "cc": [],
+      "direction": "incoming",
+      "subject": "Thread subject",
+      "newly_authored_summary": "Concise source content",
+      "attachments": []
+    }
+  ],
+  "delivery_provenance": "gmail:account@example.com:provider-message-id"
+}
+```
+
+Do not expose provider identifiers or private message content in the user-facing report.
+
+## Outbound State
+
+Use a separate external-action state when the handoff contains an outbound message:
+
+- `sent`: Gmail read-back proves the exact final sent message, but Brain reconciliation is not complete.
+- `sent_and_logged`: the exact sent message is bound to canonical Brain state and all reads verify it.
+- `send_unverified`: no unique sent message can be identified.
+- `needs_review`: multiple plausible matches or conflicting identity evidence remain.
+- `reconciliation_incomplete`: Gmail proves the send but a required Brain write or read-back failed.
+
+Never send, resend, draft, reply, or forward from this skill. Bind the actual Gmail message, not a prepared draft, and use the provider message ID as an idempotency key.
+
+## Timeline Significance
+
+- `patch`: routine correspondence or coordination without material state change.
+- `minor`: meaningful progress, accepted introduction, new diligence answer, agreed next step, or another material but non-transformative change.
+- `major`: a transformative change to identity, control, outcome, or trajectory, such as a deal closing or collapsing, acquisition, launch, cancellation, or key role change.
+
+Classify corrections by resulting impact. Preserve append-only history and add a distinct correction entry instead of rewriting prior events.
 
 ## Workflow
 
-1. Establish mode, scope, and boundary.
-   - Record whether the run is interactive or scheduled, the requested mailbox/topic/date scope, `run_started_at`, and the automation memory path when available.
-   - For a bare run, use the recently unchecked operational queue. For a first run, bound discovery to the prior 24 hours. For later runs, start before the oldest relevant cursor by a small overlap.
-   - Exclude spam, Trash, bulk marketing, newsletters, automated receipts, social notifications, and clearly personal or unrelated mail from ingest unless the user explicitly includes them or they contain durable operational context. Plausible Substack post notifications may be shortlisted and handed to `$bigbrain-substack-ingest` for classification. Still identify bounded candidates covered by `Authorized Gmail Cleanup`.
-   - Anti-patterns: unbounded mailbox scans, treating unread state as the cursor, processing messages after `run_started_at`, opening clearly excluded personal mail merely to classify it, filing or backfilling a Substack post in the Gmail skill.
+1. Validate the handoff and authorship:
+   - Confirm that the thread boundary, message identities, sender, recipients, direction, timestamp, and newly authored content are present.
+   - Separate quoted and forwarded history from the current author's words.
+   - Reject automated wrappers, no-reply mail, platform notifications, and other system-authored content back to the dispatcher as `ineligible`.
+   - Anti-patterns: scanning the mailbox, trusting a snippet as full context, attributing quoted text to the newest sender, treating a display name as proof of human authorship.
 
-2. Discover candidate messages.
-   - Use Gmail search syntax to combine the time boundary with the user's scope and default exclusions.
-   - Treat search results as message-level summaries. Shortlist likely durable messages first and paginate when the bounded result set continues.
-   - Deduplicate candidates by stable message and thread identifiers before fetching content. Keep cleanup-only candidates distinct from ingest candidates.
-   - Anti-patterns: searching every historical message, treating subject keywords as proof of relevance, assuming Gmail search results are thread summaries, ignoring pagination in the bounded window.
+2. Decide whether the thread has durable value:
+   - Ignore routine acknowledgements, signatures, repeated history, and conversational filler.
+   - Preserve concise context when it changes a relationship, deal, project, commitment, decision, diligence state, meeting state, or another durable subject.
+   - Treat claims as sender or attachment claims unless independently verified.
+   - Select `ignored`, `source_only`, `source_and_update`, or `needs_review` before any Brain write.
+   - Anti-patterns: ingesting every human message, converting sales claims into facts, creating generic email logs, writing before the durable-value decision.
 
-3. Read enough thread context.
-   - Batch-read shortlisted threads when practical and inspect surrounding messages when direction, chronology, authority, or current state matters.
-   - Record sender, recipients, timestamp, direction, subject, attachment metadata, and the smallest evidence summary needed for reconciliation.
-   - Separate newly authored text from quoted or forwarded history before identifying candidate actions. Attribute each candidate to the message's actual sender, recipients, direction, and timestamp rather than to the thread as a whole.
-   - Preserve chronology when a later message accepts, changes, completes, declines, or supersedes an earlier request or promise. The newest meaningful message does not inherit ownership from an older speaker.
-   - Classify sender authorship before durable-state assessment. Automated notifications are ineligible for ingest even when they are actionable. A plausible Substack post notification is routed to `$bigbrain-substack-ingest`, which owns the exception and verifies eligibility.
-   - For a Substack candidate, extract the canonical post URL, publication identity, post title, author, publication date, notification headers, and notification message identity. Treat the email as a pointer to the post, not as the article body.
-   - Keep requests to Harry, Harry's accepted commitments, external promises, optional offers, proposals, and discussion distinct as email evidence. Do not decide task ownership from action verbs alone.
-   - Identify cleanup candidates using verified sender identity, official sending domain when available, subject, and notification type. A display name or loose keyword match alone is insufficient.
-   - Treat verified automated Preply lesson-booking, upcoming-session, rescheduling, cancellation, and other session-scheduling reminders as cleanup-only candidates. Do not treat a human tutor's message as automated merely because Preply delivered it.
-   - Do not ingest routine acknowledgements, signatures, repeated quoted history, delivery notices, or conversational filler.
-   - Anti-patterns: ingesting from snippets alone, copying entire bodies, treating quoted history as a new event, confusing the newest message with the newest meaningful state change, deciding Substack eligibility from a subject line alone.
+3. Route and reconcile canonical state:
+   - Read live registered Brain descriptions and choose exactly one destination.
+   - Read the selected Brain's filing rules, search for canonical pages, and inspect relevant tasks before proposing changes.
+   - Use stable provenance keys to prevent replay. If an exact event already exists, read it back and return `verified_noop`.
+   - Invoke `$bigbrain-action-review` before every task write. Do not turn another party's action or an unaccepted optional offer into Harry-facing work.
+   - Anti-patterns: routing from stale memory, writing to multiple Brains, creating duplicate entities, replaying a generic update after an ambiguous response.
 
-4. Route a plausible Substack notification to the dedicated skill.
-   - Build the compact handoff described in `Substack Routing Contract` and invoke `$bigbrain-substack-ingest` with the canonical URL, notification evidence, user scope or anchor, selected Brain context, and any existing delegated cursor state.
-   - Do not call the generic article filing workflow directly from this skill for a Substack candidate. The delegated skill opens and validates the canonical page, applies `$bigbrain-source-article-ingest`, writes through the selected Brain MCP, and returns the article outcome plus cursor advancement decision.
-   - Keep the Gmail message and MIME out of the Brain unless a separate artifact rule applies. Preserve only the minimum Gmail delivery metadata needed for provenance, deduplication, and cursor reconciliation.
-   - Treat `source_only`, `source_and_update`, `ignored`, `needs_review`, and verified no-op as delegated outcomes. Do not reinterpret an ambiguous or partial result as success.
-   - Anti-patterns: filing a Substack email directly, bypassing `$bigbrain-substack-ingest`, advancing a Gmail cursor before delegated read-back, substituting a different article, or starting archive backfill from a notification.
+4. Review and preserve qualifying attachments:
+   - Open an attachment only when its content affects routing, durable state, or evidence value.
+   - Preserve a substantive PDF when it contains relevant deal, company, project, diligence, legal, financial, technical, relationship, or decision evidence.
+   - Store the original bytes and deterministic same-basename Markdown sidecar in the owning collection's `.raw/` folder.
+   - Link the sidecar from the best owning canonical page when filing rules call for it.
+   - Anti-patterns: storing every attachment, relying on filenames or previews, preserving signature images, treating projections as verified facts.
 
-5. Classify and review attachments.
-   - Open an attachment when its content materially affects routing, a durable page update, evidence classification, or artifact relevance.
-   - Use the applicable PDF, document, image, spreadsheet, or presentation capability to review the actual content.
-   - Treat a PDF as relevant when it contains substantive deal, company, project, diligence, proposal, legal, financial, technical, relationship, or decision evidence that belongs in the selected Brain.
-   - Treat logos, signature images, calendar files, generic marketing collateral, irrelevant brochures, unsupported media, and attachments unrelated to the owning Brain as irrelevant by default.
-   - Treat all claims in a deck, memo, model, or teaser according to their source authority and stated caveats.
-   - Anti-patterns: ingesting every attachment, skipping a substantive PDF because the email body was enough, relying on filenames or previews as content, promoting projections to verified facts, treating an article URL as an attachment to preserve instead of using the source-article workflow.
+5. Apply the smallest canonical update:
+   - Update only pages whose durable state genuinely changes.
+   - Keep exact wording only when it controls a commitment, approval, commercial term, deadline, confidentiality boundary, dispute, or instruction.
+   - Provide `significance` and a concise `provenance.source_message` on each page mutation.
+   - Apply task changes only after action review and include next actor, concrete action, purpose, dependency, approval gate when relevant, and checkable completion.
+   - Anti-patterns: transcript dumps, updating every related page, inventing owners or dates, omitting mutation significance.
 
-6. Route to the owning Brain.
-   - List registered Brains and read each reachable candidate's live description, authentication state, and write capability.
-   - Compare the durable message cluster to Brain descriptions only for routing. Select one clear specialized Brain, or Personal Brain for otherwise processable personal context.
-   - Once selected, use that destination Brain's MCP for all reads, writes, raw-file operations, and read-back verification for the cluster.
-   - Hold materially ambiguous confidentiality, identity, or ownership boundaries for review instead of guessing or writing to several Brains.
-   - Use `$find-missing-tools` before concluding an expected Brain or Gmail tool is unavailable. Do not substitute a local mirror for a required hosted Brain.
-   - Anti-patterns: routing from stale memory, keyword-only routing, fan-out across Brains, selecting a destination from private filing hints, silently switching to a fallback system, writing directly to Brain files or databases, assuming every Substack publication belongs in Personal Brain.
-
-7. Reconcile canonical state and review candidate actions.
-   - Call the destination's live filing-rules tool before choosing paths or page types.
-   - Search and read the canonical deal, project, organization, person, concept, artifact, and task pages that could own the update.
-   - Compare email timestamps and direction with existing source provenance. Use the newest verified evidence while retaining uncertainty and source attribution.
-   - Prefer one concise timeline or state update on the best owning page. Update broader related pages only when their durable canonical state genuinely changed.
-   - Assign `significance` for every page create or update from `Timeline Significance Contract` based on the impact on that page. Keep routine correspondence as `patch`, material forward movement as `minor`, and transformative state changes as `major`.
-   - Build a concise action evidence packet from newly authored message content. Preserve source thread, sender, recipients, direction, timestamp, exact wording only when material, and email-specific interpretation such as request, accepted commitment, external promise, optional offer, proposal, or discussion.
-   - Invoke `$bigbrain-action-review` with that evidence packet, the most relevant canonical Brain context, live open, in-progress, and waiting tasks, and this skill's approval boundaries. Do this before every task write.
-   - Treat the review result as a task reconciliation plan. It may recommend updating an existing task, creating a concrete task, recording an external action only on its owning page, keeping a conditional follow-up, or holding ambiguity for review.
-   - Do not turn another party's action into Harry-facing work unless Harry or another active member separately owns a concrete next step such as tracking, chasing, confirming, approving, or unblocking it. Do not turn an optional offer into a commitment unless the offer was invoked or explicitly accepted.
-   - Use Brain context to sharpen an owned action into the most intuitive concrete next step, but never use context to override source ownership, manufacture acceptance, or convert a possibility into a commitment.
-   - For every task the review plan supports, state the next actor, concrete action, purpose, dependency or lack of one, approval gate when relevant, and externally checkable completion in the task body. These are prose quality requirements, not new task-schema fields.
-   - Apply page and supported task changes only through the selected destination Brain's MCP. This skill remains responsible for deduplication, mutation, read-back, and cursor gating.
-   - Anti-patterns: bypassing `$bigbrain-action-review`, passing quoted history as a new action, assigning an external promise to Harry, treating an optional offer as accepted, creating a vague follow-up task, duplicate entities or deals, changing several pages with the same fact, overwriting stronger evidence, inventing owners or dates, creating a meeting page, converting a sales claim into compiled truth, creating tasks merely because a Substack post contains advice or a call to action.
-
-8. Reconcile outbound email actions.
-   - For `draft_prepared`, read the Gmail draft back and retain concise metadata such as draft ID, underlying message ID, thread ID, recipient set, subject, body fingerprint, and attachment manifest. Do not record a sent action.
-   - For `approved`, record the explicit approval against the exact draft fingerprint, recipient set, and attachment set. Do not infer approval from preparation, readiness, or a populated draft unless the user explicitly approves sending.
-   - For a confirmed send, use the Gmail send response message and thread IDs when available, then read the exact Gmail message back and verify the `SENT` state. A send response without read-back is not sufficient.
-   - When the user reports that a prepared message was sent, perform Gmail-only reconciliation. Search the authenticated mailbox's sent messages using the exact message or thread ID when available, otherwise a bounded combination of recipient, subject, date window, and body or attachment fingerprint. Do not call a send tool during this recovery path.
-   - Read the surrounding Gmail thread when needed, but bind the newest actual sent message, not an older draft or quoted message. Capture the authenticated mailbox, message ID, thread ID, sender, To/Cc/Bcc, subject, internal sent timestamp, final body fingerprint or concise summary, and attachment filename, MIME, size, and hash data when exposed.
-   - If Gmail returns no unique match, retain `send_unverified`; if it returns multiple plausible matches or materially conflicting identity evidence, retain `needs_review`. Do not claim sent or sent-and-logged, update a sent timeline, advance a related cursor, or resend while unresolved.
-   - Before updating a canonical page or task, derive a stable action ID and provider idempotency key such as `gmail:outbound:<mailbox>:<message_id>`. Search the existing page/task read-back and provenance for that key. If present and no new evidence exists, do not call a generic update again; read the existing record and report a verified no-op. If a deliberate correction or new evidence exists, append a separate significance-labeled entry rather than treating it as a duplicate.
-   - Invoke `$bigbrain-action-review` before changing a task. Record an external send on the owning deal, project, relationship, or person page when no member-owned task state changed; update a related task only when its action or completion evidence genuinely changed.
-   - Set `sent_and_logged` only after every required canonical page/task and provenance read-back succeeds. If Gmail is verified but Brain reconciliation fails, retain `reconciliation_incomplete`, preserve the exact repair target and error, and never resend.
-   - Anti-patterns: treating a draft as sent, treating approval as sent, sending again after a user-reported send, trusting a send response without Gmail read-back, matching by thread alone, logging the prepared draft instead of the actual sent message, retrying a generic update before duplicate preflight, marking sent-and-logged before Brain read-back, confusing an outbound Gmail cursor with a Substack publication cursor.
-
-9. Preserve relevant PDF artifacts.
-   - Check existing canonical pages, raw-file listings, attachment sidecars, source filenames, dates, sizes, hashes when available, and document content before creating anything.
-   - If the relevant PDF is new or materially revised, use the destination Brain's MCP to store the original bytes under the owning collection's `.raw/` folder using a collision-safe descriptive filename.
-   - Create the deterministic same-basename Markdown sidecar under that same `.raw/` folder. Include an executive summary, comprehensive extraction, provenance from the email, source-authority and claim-status boundaries, canonical-page links, and the raw-file link.
-   - Link the artifact sidecar from the owning deal, project, company, organization, or other canonical page when the destination pattern expects it.
-   - If an exact duplicate already exists, reuse the existing artifact and add only genuinely new provenance or context. If a newer PDF supersedes an older artifact, preserve both when filing rules require traceability and identify the current source clearly.
-   - Anti-patterns: storing raw PDFs outside `.raw/`, sidecars with different basenames, replacing a distinct historical artifact silently, creating duplicate artifact pages, storing the email body as the sidecar, treating a Substack source sidecar as a PDF artifact.
-
-10. Apply the smallest durable canonical update.
-   - Write concise source-aware context such as `Alfredo shared an updated IQ197 information deck by email, presenting a Bloom-first accelerated power strategy and a parallel Hydro One/IESO pathway; timing and capacity remain subject to technical, commercial, permitting, utility, and end-user confirmation.`
-   - Provide the mandatory `significance` field on the `create_page` or `update_page` MCP call. Preserve the complete history; a corrective entry should identify what it corrects and why when that matters. Keep the free-form `timeline_entry` readable without embedding the significance label.
-   - Include exact wording only when the wording itself is material. Keep raw message identifiers and technical cursor details in automation memory, not user-facing page prose, unless the destination provenance schema requires them.
-   - Create a new standalone page only when no canonical owner exists and the thread provides enough durable evidence for a useful record.
-   - Anti-patterns: transcript dumps, generic email-log pages, speculative synthesis, verbose audit trails in stable page bodies, duplicating comprehensive attachment extraction on the canonical page, adding a generic "Substack post received" page with no source value.
-
-11. Verify and advance cursors.
-   - Read back every changed page and task through the same destination Brain used for the write.
-   - For outbound actions, read back the canonical state after the final write, confirm the actual provider message identity and evidence are present, and confirm that replaying the same event would be a no-op while a deliberate correction would create a distinct significance-labeled entry.
-   - Read back each stored PDF and its sidecar. Compare the stored raw bytes with the Gmail attachment by exact byte length and SHA-256 when the tools expose raw content; otherwise report the narrower verification achieved.
-   - Treat successful same-Brain read-back as complete verification for page and task writes. MCP mutations are propagated and backed up automatically; never invoke maintenance, propagation, or backup operations.
-   - Re-search or re-read affected canonical records when needed to confirm no duplicate page was created.
-   - For a qualifying calendar acceptance notification, confirm through same-Brain read-back that the canonical record shows the attendee's accepted status and the upcoming meeting. If already current, verified no-op reconciliation satisfies this gate. Only then move the notification to Gmail Trash.
-   - Move clearly verified My Wellness Cloud and GitHub Security Advisory messages to Gmail Trash under the standing rules without creating Brain records for the notifications themselves.
-   - Move clearly verified automated Preply session-scheduling and reminder messages to Gmail Trash immediately under the standing rule. Do not create Brain records for these notifications and do not wait for the lesson time to pass.
-   - Read Gmail state back after every authorized cleanup and confirm the exact message is in `TRASH`. If the Brain or Gmail verification fails, leave the message in place and report it as partial.
-   - Atomically update only the successfully verified Gmail thread cursors. Preserve the prior Gmail cursor for partial, ambiguous, failed, or held threads. Store the delegated Substack outcome and returned publication-cursor status in the Gmail thread record, while leaving publication cursor ownership with `$bigbrain-substack-ingest`.
-   - Anti-patterns: trusting write responses without read-back, treating a sidecar as raw-file verification, trashing a calendar acceptance before Brain verification, permanently deleting email, cleaning by display name alone, advancing a cursor after partial writes, one global mailbox cursor, maintaining a second Substack publication cursor here, marking an unverified delegated post ingested.
-
-12. Report results.
-   - Start with a plain count sentence: `0 email threads ingested`, `1 email thread ingested`, `3 email threads ingested`, or a concise mixed outcome such as `2 email threads ingested, 3 notifications moved to Trash, 1 left partial`.
-   - Add one heading for each destination Brain that received an update. Under it, list each thread by subject and outcome.
-   - Nest affected pages beneath category labels such as `Deals`, `Projects`, `Organizations`, `People`, `Concepts`, or `Tasks`. Put each page on its own bullet prefixed exactly `Created:` or `Updated:`.
-   - Add an `Artifacts` category for relevant PDFs. List each stored or reused PDF sidecar as `Created:` or `Updated:` and state skipped attachment counts only when nonzero or useful.
-   - Add `Needs attention`, `Issues`, `Errors`, or `Warnings` only when the user should act.
-   - State `No email was sent or modified.` when no Gmail write occurred. When standing cleanup occurred, state `No email was sent. Gmail changes were limited to <count> authorized notification(s) moved to Trash.`
-   - Keep message IDs, thread IDs, hashes, slugs, paths, cursor internals, credentials, private bodies, and attachment contents out of the report by default.
-   - For delegated Substack work, report the publication and post title plus `source_only`, `source_and_update`, `ignored`, `needs_review`, or verified no-op outcome; keep normalized keys, watermarks, and archive cursors out of the user-facing report.
-   - Anti-patterns: burying the count, exposing private content, combining page names on category lines, listing technical IDs, hiding authorized cleanup, implying that any email was sent.
-
-## Authorized Gmail Cleanup
-
-These standing rules authorize only a recoverable move to Gmail Trash during an in-scope run:
-
-- My Wellness Cloud: move every message clearly verified as originating from My Wellness Cloud to Trash. Do not create or update Brain records for these notifications unless the message contains independently durable context outside the routine notification.
-- GitHub Security Advisory: move every message clearly verified as a GitHub Security Advisory notification to Trash. Do not create or update Brain records for the notification itself.
-- Calendar acceptance: when a message is only a notification that an invitee accepted the user's calendar invitation, reconcile the attendee's accepted status and the upcoming meeting into the correct canonical Brain record. Read that state back through the same Brain, then move the notification to Trash. If the Brain cannot be updated or verified, leave the email in place.
-- Preply scheduling and reminders: move every clearly automated Preply message about lesson booking, upcoming-session reminders, rescheduling, cancellation, or other session scheduling to Trash immediately. Verify official Preply sending infrastructure and automated authorship first. Preserve human-authored tutor correspondence and Preply payment, account, or support messages unless separately authorized.
-
-These rules do not authorize cleanup of other wellness services, GitHub mail types, calendar changes, declines, tentative responses, invitations, cancellations, reschedules, non-Preply reminders, or human-authored correspondence. When identity or notification type is ambiguous, leave the message unchanged and report it for review.
-
-## Cursor Memory
-
-Use this logical shape in the automation's `memory.md`; human-readable Markdown or structured JSON blocks are both acceptable when updated atomically:
-
-- last successful run boundary and `run_started_at`;
-- one entry per Gmail thread;
-- stable thread ID and newest verified message ID;
-- newest verified source timestamp and direction;
-- content fingerprint or equivalent deduplication evidence;
-- selected destination Brain;
-- created or updated canonical pages;
-- stored or reused PDF raw files and sidecars, including verification state;
-- read-back and artifact verification result;
-- unresolved or partial status without cursor advancement.
-- for each delegated Substack handoff, its normalized `publication_key` and `post_key`, notification identity, delegated outcome, affected pages or sidecar, returned publication-cursor status, and read-back result.
-- Do not duplicate the `substack_publications` ledger here. `$bigbrain-substack-ingest` owns one entry per normalized publication key with `publication_url`, `high_watermark`, `low_watermark`, and optional `backfill_status` and `backfill_page_cursor`.
-- authorized cleanup classification, Gmail action, and `TRASH` read-back result without storing message content.
-- for each outbound action, the state from `draft_prepared` through `sent_and_logged`, stable action ID, provider message and thread IDs when known, recipient and attachment fingerprints, and any reconciliation error;
-- keep outbound reconciliation state separate from the inbound Gmail thread cursor. A sent message may be logged even when no inbound cursor advances.
-
-Do not store full message bodies, full attachment text, credentials, or unrelated personal content in cursor memory.
+6. Verify and return to the dispatcher:
+   - Read back every changed page and task through the same Brain.
+   - Read back each stored PDF and sidecar, comparing length and SHA-256 when possible.
+   - If a write errors or times out, assume it may have persisted and search for the exact provenance key before retrying.
+   - Return the terminal outcome, destination Brain, pages, tasks, artifacts, significance labels, and verification state. The dispatcher alone decides whether to advance the Gmail cursor.
+   - Anti-patterns: trusting mutation responses without read-back, advancing a Gmail cursor here, running maintenance or backup, reporting a partial thread as ingested.
 
 ## Anti-Patterns
 
-- Treating email bodies as document artifacts or creating `.raw/` email files.
-- Failing to preserve a relevant substantive PDF under the owning collection.
-- Storing irrelevant attachments, signature assets, or exact duplicates without durable value.
-- Modifying Gmail outside the exact standing Trash rules or a separate explicit user request.
-- Permanently deleting messages covered by a standing cleanup rule.
-- Trashing a calendar acceptance notification before the upcoming meeting and accepted status are verified in the owning Brain.
-- Trashing human tutor correspondence or unrelated Preply payment, account, or support mail under the Preply scheduling rule.
-- Ingesting every new message merely because it arrived.
-- Routing a single durable update to multiple Brains.
-- Editing Brain files, databases, indexes, or local mirrors outside the selected destination Brain's MCP.
-- Invoking maintenance, propagation, or backup operations after MCP writes.
-- Using stale memory instead of live Brain descriptions, filing rules, and canonical state.
-- Treating sender assertions, projections, deck claims, or proposed commercial terms as verified facts.
-- Treating a quoted request as newly made by the latest sender or ignoring message direction and chronology when assigning ownership.
-- Collapsing `draft_prepared`, `approved`, `sent`, and `sent_and_logged` into one status.
-- Treating a user-reported send as permission to send again.
-- Treating a Gmail draft, send response, cleared composer, or thread match as proof of final sent state without reading the actual sent message.
-- Matching an outbound action by thread, subject, or recipient alone when a stable provider message ID is available.
-- Calling generic page or task update repeatedly for the same event without checking the existing timeline, outbound metadata, and provenance first.
-- Treating every repeated timeline entry as a duplicate, suppressing a deliberate correction, or rewriting prior history to hide it.
-- Omitting the mandatory `significance` field on a `create_page` or `update_page` call, encoding significance only in `timeline_entry`, or assigning it from message length, emotional salience, or sender status instead of page impact.
-- Marking `sent_and_logged` when a canonical Brain write or its same-Brain read-back is incomplete.
-- Creating or updating a task without first reconciling the candidate through `$bigbrain-action-review`.
-- Turning an external party's action or Harry's uninvoked optional offer into a Harry-facing task.
-- Creating vague umbrella tasks when Brain context supports a named next actor, concrete action, purpose, dependency, approval gate, and completion test.
-- Creating meeting pages outside the live filing rules, generic email-log pages, or duplicate deal/entity pages.
-- Advancing cursors before same-Brain read-back and artifact verification.
-- Treating a Gmail delivery thread as the Substack post identity.
-- Filing Substack content in this dispatcher instead of routing it to `$bigbrain-substack-ingest`.
-- Maintaining a duplicate publication cursor or advancing a publication watermark from the Gmail skill.
-- Starting archive backfill from a notification without an explicit backfill request and bounded batch.
-- Assuming high and low watermarks prove there are no gaps or older posts without a verified archive traversal.
-- Reporting a partial or blocked thread as successfully ingested.
+- Scanning or modifying Gmail from this worker.
+- Processing Substack, RSS, newsletter, or article-notification content.
+- Preserving email bodies or MIME payloads as documents.
+- Creating a task without `$bigbrain-action-review`.
+- Writing outside the selected Brain MCP.
+- Reporting completion without same-Brain read-back.
 
 ## Output
 
-Use this template:
+Return a compact dispatcher-safe result:
 
 ```text
-<count and outcome summary>
+<ignored | source_only | source_and_update | verified_noop | needs_review | reconciliation_incomplete>
 
-<Destination Brain>
-- <Email subject> - <outcome>
-  - Outbound state: <draft_prepared | approved | sent | sent_and_logged | send_unverified | needs_review | reconciliation_incomplete>
-  - For a sent action, report the verified mailbox, recipients, sent timestamp, and actual attachment filenames when useful; mention any mismatch against the prepared draft.
-  - <Page category>:
-    - Created: <page title> (<patch | minor | major>)
-    - Updated: <page title> (<patch | minor | major>)
-  - Substack handoff: <publication high/low watermark advanced | verified no-op | unchanged>
-  - Artifacts:
-    - Created: <PDF artifact sidecar title>, raw PDF verified
-
-<Another Destination Brain>
-- <Email subject> - <outcome>
-  - <Page category>:
-    - Updated: <page title>, marked waiting on Harry
-
-Gmail cleanup
-- Moved to Trash: <count> My Wellness Cloud notification(s)
-- Moved to Trash: <count> GitHub Security Advisory notification(s)
-- Moved to Trash: <count> verified calendar acceptance notification(s)
-- Moved to Trash: <count> verified automated Preply scheduling or reminder notification(s)
-
-<Needs attention heading, only when applicable>
-- <Actionable issue>
-
-No email was sent. Gmail changes were limited to <count> authorized notification(s) moved to Trash.
-```
-
-If nothing changed:
-
-```text
-0 email threads ingested
-
-No email was sent or modified.
+Thread: <subject>
+Brain: <destination or none>
+Pages: <created or updated pages with significance>
+Tasks: <created or updated tasks, if any>
+Artifacts: <created, reused, skipped, and verification state>
+Outbound state: <sent_and_logged or other state, only when applicable>
+Read-back: <verified | partial | not verified>
+Gmail action: none
+Handoff: return to $bigbrain-manage-email for cursor handling
 ```

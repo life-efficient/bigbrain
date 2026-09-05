@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Manage Email"
+  short_description: "Classify Gmail and delegate durable sources"
+  default_prompt: "Run $bigbrain-manage-email for the bounded mailbox scope. Classify human correspondence separately from automated article delivery, delegate human threads to $bigbrain-email-ingest, delegate single-post Substack notifications to $bigbrain-substack-ingest and the shared $bigbrain-source-article-ingest relevance gate, apply only exact authorized Trash rules, advance only verified cursors, and never run manual Brain sync or backup."

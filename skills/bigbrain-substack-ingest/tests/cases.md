@@ -4,7 +4,7 @@
 
 Evidence:
 
-- `$bigbrain-email-ingest` passes a canonical post URL, sender and recipient evidence, matching `List-Id` and `List-Post`, publication metadata, and Gmail delivery provenance.
+- `$bigbrain-manage-email` passes a canonical post URL, sender and recipient evidence, matching `List-Id` and `List-Post`, publication metadata, and Gmail delivery provenance.
 - The canonical page opens and confirms the title, publication or author, and publication date.
 - The article has durable value for a named learning topic or followed-publication enrichment request.
 
@@ -14,6 +14,32 @@ Expected:
 - Apply `$bigbrain-source-article-ingest`, preserve the Substack source and indexed sidecar, and use `source_type: substack` for Substack-originated page provenance.
 - Bind Gmail delivery identity as origin metadata without storing the email body or MIME.
 - Read back the source and affected pages before advancing the publication high watermark and returning a complete handoff result.
+
+## Shared RSS guidance
+
+Evidence:
+
+- The canonical Substack publication exactly matches a registered RSS listener with explicit source guidance.
+- The post is a verified single-post delivery.
+
+Expected:
+
+- Reuse the RSS listener guidance verbatim.
+- Apply `$bigbrain-source-article-ingest` as the one shared relevance gate.
+- Do not treat followed status as an independently sufficient reason to file.
+
+## Relevant delivery with irrelevant content
+
+Evidence:
+
+- The email is a valid followed-publication new-post alert.
+- The canonical article opens but fails the shared relevance gate.
+
+Expected:
+
+- Return `ignored` and record the post as reviewed.
+- Create no raw source or Brain page.
+- Leave publication high and low watermarks unchanged while allowing the caller to advance the Gmail delivery cursor.
 
 ## Duplicate or out-of-order post
 

@@ -40,6 +40,8 @@ test('source article ingest keeps filing optional and gates writes on relevance'
 
   assert.match(skill, /Filing is optional/);
   assert.match(skill, /registered source guidance/);
+  assert.match(skill, /sole article relevance and filing owner/);
+  assert.match(skill, /references\/relevance-gate\.md/);
   assert.match(skill, /Do not apply one global content taxonomy/);
   assert.doesNotMatch(skill, /first-party promotional material as `ignored` by default/);
   assert.match(skill, /Require a short user-specific relevance rationale before any raw-file or Brain-page write/);
@@ -50,8 +52,23 @@ test('source article ingest keeps filing optional and gates writes on relevance'
   assert.doesNotMatch(skill, /after all fallbacks/);
   assert.match(skill, /“ingest this article” or “put it in the right Brain pages”/);
   assert.match(skill, /For `ignored`, explicitly state that no raw artifact or Brain page was created/);
-  assert.match(agent, /First read any registered source guidance, then decide whether it clears the digest-value gate; filing is optional/);
-  assert.match(agent, /do not create a source artifact or Brain page unless it does/);
+  assert.match(agent, /sole relevance and filing workflow/);
+  assert.match(agent, /shared relevance gate before any write/);
+});
+
+test('email manager separates human correspondence from automated article delivery', async () => {
+  const skill = await fs.readFile(new URL('../../skills/bigbrain-manage-email/SKILL.md', import.meta.url), 'utf8');
+  const agent = await fs.readFile(new URL('../../skills/bigbrain-manage-email/agents/openai.yaml', import.meta.url), 'utf8');
+  const resolver = await fs.readFile(new URL('../../skills/RESOLVER.md', import.meta.url), 'utf8');
+
+  assert.match(skill, /Human-authorship eligibility applies only/);
+  assert.match(skill, /automated single-post delivery as a transport exception/);
+  assert.match(skill, /\$bigbrain-email-ingest/);
+  assert.match(skill, /\$bigbrain-substack-ingest/);
+  assert.match(skill, /\$bigbrain-source-article-ingest/);
+  assert.match(skill, /ignored_verified/);
+  assert.match(agent, /\$bigbrain-manage-email/);
+  assert.match(resolver, /bigbrain-manage-email\/SKILL\.md/);
 });
 
 test('Substack ingest skill owns canonical posts and routes Gmail handoffs safely', async () => {

@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Source Article Ingest"
-  short_description: "Review article relevance before optional BigBrain filing"
-  default_prompt: "Run $bigbrain-source-article-ingest for this article. First read any registered source guidance, then decide whether it clears the digest-value gate; filing is optional, and do not create a source artifact or Brain page unless it does."
+  short_description: "Apply one shared article relevance gate"
+  default_prompt: "Run $bigbrain-source-article-ingest as the sole relevance and filing workflow for this RSS, Substack, email-delivered, or direct article. First read any registered source guidance or name a current user anchor, apply the shared relevance gate before any write, and choose ignored, source_only, source_and_update, needs_review, or verified_noop."
