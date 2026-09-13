@@ -22,6 +22,7 @@ import {
 import { loadDomainRegistry, normalizeDomainId } from './domains.js';
 import { runHealthCheck } from './health.js';
 import { authenticatedBrainAbout, isBrainProfileDocument, loadBrainProfile } from './brain-profile.js';
+import { PAGE_SCHEMA_REGISTRY_FILENAME } from './page-schema-registry.js';
 import { fullPathFromSlug, parseMarkdownPage, resolveMarkdownLink, slugFromPath } from './markdown.js';
 import { latestTimelineEntry as latestStructuredTimelineEntry, parseTimeline } from './timeline.js';
 import { findActiveMemberByEmail, findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug } from './members.js';
@@ -3139,6 +3140,7 @@ function shouldSkipExplorerPath(relativePath, dirent) {
 async function shouldSkipExplorerEntry(fullPath, relativePath, dirent) {
   if (shouldSkipExplorerPath(relativePath, dirent)) return true;
   const normalized = String(relativePath || '').replace(/\\/g, '/');
+  if (normalized === PAGE_SCHEMA_REGISTRY_FILENAME && dirent.isFile()) return true;
   if (normalized !== 'BRAIN.md' || !dirent.isFile()) return false;
   const raw = await fs.readFile(fullPath, 'utf8');
   return isBrainProfileDocument(raw);
