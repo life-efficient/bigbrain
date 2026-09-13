@@ -297,6 +297,7 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.match(createPageTool.inputSchema.properties.timeline.items.properties.text.description, /current user's name/);
     assert.match(createPageTool.inputSchema.properties.compiled_truth.description, /compiled-truth/);
     assert.match(updatePageTool.inputSchema.properties.compiled_truth.description, /compiled-truth/);
+    assert.match(updatePageTool.inputSchema.properties.frontmatter.description, /arbitrary page metadata/);
     assert.match(createPageTool.inputSchema.properties.body.description, /Legacy alias/);
     assert.match(updatePageTool.inputSchema.properties.body.description, /Legacy alias/);
     assert.equal(createPageTool.inputSchema.required.includes('significance'), true);
@@ -345,11 +346,25 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
         path: 'people/mcp-test',
         compiled_truth: 'Updated current content through MCP. [PDF](.raw/public.pdf)',
         timeline_entry: 'Updated through MCP endpoint test.',
+        frontmatter: { review_state: 'current' },
       },
     }, 'secret');
     assert.equal(updated.error, undefined, updated.error?.message);
     assert.equal(updated.result.structuredContent.page_health.ok, true);
     assert.equal(updated.result.structuredContent.page_health.assertions.single_timeline, true);
+    assert.equal(updated.result.structuredContent.frontmatter.review_state, 'current');
+
+    const prohibitedFrontmatter = await rpc(running.url, 'tools/call', {
+      name: 'update_page',
+      arguments: {
+        path: 'people/mcp-test',
+        compiled_truth: 'This protected metadata mutation must not write.',
+        timeline_entry: 'Attempted protected metadata mutation.',
+        frontmatter: { visibility: 'public' },
+      },
+    }, 'secret');
+    assert.equal(prohibitedFrontmatter.error.code, -32603);
+    assert.match(prohibitedFrontmatter.error.message, /dedicated visibility tool or field/);
 
     const attached = await rpc(running.url, 'tools/call', {
       name: 'attach_page_images',
@@ -745,6 +760,10 @@ Active person.
     assert.ok(setEnabled);
     assert.ok(enroll);
     assert.equal(enroll.inputSchema.properties.priority.maximum, 5);
+    assert.equal(review.inputSchema.properties.limit.default, 20);
+    assert.equal(review.inputSchema.properties.limit.maximum, 100);
+    assert.equal(recordReview.inputSchema.properties.limit.default, 20);
+    assert.equal(recordReview.inputSchema.required.includes('limit'), true);
     assert.deepEqual(recordReview.inputSchema.properties.decisions.items.properties.outcome.enum, ['added', 'frequency_changed', 'due', 'no_change', 'needs_review']);
 
     const enrolled = await rpc(running.url, 'tools/call', {

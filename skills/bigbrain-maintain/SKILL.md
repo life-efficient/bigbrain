@@ -94,7 +94,23 @@ Use only these built-in repair paths unless the user asks for deeper edits:
    - After link edits, always run `sync` before re-running `health`, because
      unresolved-link checks use the indexed outgoing-link table
 
-4. Post-remediation persistence:
+4. Page-schema compliance:
+   - For `page_schema_registry_missing`, bootstrap the registry only through
+     the owning Brain MCP `schemas/bootstrap` tool. Never replace an existing
+     registry. Read the result back before proceeding.
+   - For `schema_default_missing`, apply only the reported `default_value`, to
+     at most 25 pages per run. Read the page first, preserve its current
+     compiled truth, and record one precise timeline entry with provenance.
+     Use `tasks/update` for pages under `tasks/`; for every other page, use
+     `update_page` with a one-key `frontmatter` patch.
+   - Verify each change through the same owning MCP, then run `sync` and
+     health again. Stop if any verification fails.
+   - Do not infer or overwrite values for `schema_required_field_missing`,
+     `schema_field_type_mismatch`, `schema_field_invalid_enum`,
+     `unknown_page_schema`, or `invalid_page_schema_registry`. Report the
+     affected page, field, schema, and observed value for manual review.
+
+5. Post-remediation persistence:
    - After any content or brain-file edit, run `node ./bin/bigbrain.js sync
      --json` so embeddings/index state catches up with the files
    - Run `git status --short --branch` and inspect the changed files before
@@ -141,6 +157,10 @@ Do not keep digging once one of these is true:
      template when the intended state is clear, then re-run health
    - deterministic page-shape problem -> patch the affected page, then re-run
      health
+   - missing page-schema registry -> bootstrap through the owning MCP, then
+     re-run health
+   - missing page-schema default -> apply only the declared default through
+     the owning MCP, then re-run health
 3. After a successful remediation:
    - run `node ./bin/bigbrain.js sync --json`
    - commit the intentional fix

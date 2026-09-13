@@ -75,6 +75,8 @@ import {
   snoozeKeepInTouchPerson,
 } from './playbooks/keep-in-touch.js';
 import {
+  KEEP_IN_TOUCH_DEFAULT_REVIEW_LIMIT,
+  KEEP_IN_TOUCH_MAX_REVIEW_LIMIT,
   buildKeepInTouchReviewPayload,
   recordKeepInTouchReview,
 } from './playbooks/keep-in-touch-review.js';
@@ -857,7 +859,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         compiledTruth: args.compiled_truth ?? args.body,
         timelineEntry: timelineForMutation(args, actor),
         timelineSignificance: args.significance,
-        frontmatterValues: args.domains === undefined ? {} : { domains: args.domains },
+        frontmatterValues: updatePageFrontmatterValues(args),
       });
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       await recordWriteProvenance(config, args.path, { ...args.provenance, significance: args.significance }, args.commit_message);
@@ -992,6 +994,22 @@ async function toolAuditAccess(config, args, mode) {
   } finally {
     await db.close?.();
   }
+}
+
+function updatePageFrontmatterValues(args) {
+  const frontmatter = args.frontmatter ?? {};
+  if (!frontmatter || typeof frontmatter !== 'object' || Array.isArray(frontmatter)) {
+    throw new Error('update_page frontmatter must be an object.');
+  }
+  const reserved = ['domains', 'visibility', 'public_raw_files', 'images'];
+  const reservedKey = reserved.find((key) => Object.prototype.hasOwnProperty.call(frontmatter, key));
+  if (reservedKey) {
+    throw new Error(`Use the dedicated ${reservedKey === 'domains' ? 'domains field' : `${reservedKey} tool or field`} rather than update_page frontmatter.${reservedKey}.`);
+  }
+  return {
+    ...frontmatter,
+    ...(args.domains === undefined ? {} : { domains: args.domains }),
+  };
 }
 
 const GRAPH_PAGE_READ_TOOLS = new Set(['read', 'get_page_visibility']);
@@ -1360,6 +1378,7 @@ async function toolKeepInTouchReview(config, args, actor) {
     return await buildKeepInTouchReviewPayload(config, db, {
       actor,
       asOf: args.as_of ? new Date(args.as_of) : new Date(),
+      limit: args.limit,
     });
   } finally {
     await db.close?.();
@@ -2207,6 +2226,7 @@ function toolDefinitions(config = null) {
           ...timelineInputProperties(),
           significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this timeline update on the owning page: patch, minor, or major.' },
           domains: domainField,
+          frontmatter: { type: 'object', description: 'Optional patch to arbitrary page metadata, including fields declared by the page schema. Do not include domains, visibility, public_raw_files, or images; use their dedicated fields or tools.' },
         },
         required: ['path', 'significance', ...mutationRequired()],
         allOf: [
@@ -2836,6 +2856,13 @@ function keepInTouchReviewSchema() {
     type: 'object',
     properties: {
       as_of: { type: 'string', format: 'date-time', description: 'Optional RFC3339 timestamp that freezes the review window.' },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: KEEP_IN_TOUCH_MAX_REVIEW_LIMIT,
+        default: KEEP_IN_TOUCH_DEFAULT_REVIEW_LIMIT,
+        description: 'Maximum number of people pages to review in this run. Pages are returned oldest-first from the playbook cursor so repeated runs backfill over time.',
+      },
     },
   };
 }
@@ -2846,6 +2873,13 @@ function keepInTouchRecordReviewSchema() {
     properties: {
       review_id: { type: 'string', description: 'Review identifier returned by playbooks/keep-in-touch/review.' },
       as_of: { type: 'string', format: 'date-time', description: 'The exact as_of timestamp returned by the review.' },
+      limit: {
+        type: 'integer',
+        minimum: 1,
+        maximum: KEEP_IN_TOUCH_MAX_REVIEW_LIMIT,
+        default: KEEP_IN_TOUCH_DEFAULT_REVIEW_LIMIT,
+        description: 'The exact page limit used by the review. Pass through the value returned by playbooks/keep-in-touch/review.',
+      },
       cursor_before: {
         type: ['object', 'null'],
         properties: {
@@ -2872,7 +2906,7 @@ function keepInTouchRecordReviewSchema() {
       },
       ...mutationProperties(),
     },
-    required: ['review_id', 'as_of', 'cursor_before', 'decisions', ...mutationRequired()],
+    required: ['review_id', 'as_of', 'limit', 'cursor_before', 'decisions', ...mutationRequired()],
   };
 }
 
