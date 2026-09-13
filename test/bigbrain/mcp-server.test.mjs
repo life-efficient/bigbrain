@@ -776,7 +776,7 @@ Active person.
     assert.equal(contacted.result.structuredContent.records[0].next_due_at, '2026-08-30T12:00:00.000Z');
 
     const markdown = await fs.readFile(personPath, 'utf8');
-    assert.match(markdown, /Keep in Touch contact logged\./);
+    assert.doesNotMatch(markdown, /Keep in Touch contact logged\./);
     assert.doesNotMatch(markdown, /keep_in_touch_/);
 
     const disabled = await rpc(running.url, 'tools/call', {

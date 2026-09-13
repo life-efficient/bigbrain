@@ -5,7 +5,6 @@ import {
   upsertPlaybookRecord,
 } from '../playbook-store.js';
 import { normalizeCanonicalPageSlug } from '../page-links.js';
-import { readBrainPage, updateBrainPage } from '../page-ops.js';
 
 export const KEEP_IN_TOUCH_PLAYBOOK_ID = 'keep-in-touch';
 export const KEEP_IN_TOUCH_RECORD_TYPE = 'person';
@@ -109,7 +108,7 @@ export async function enrollKeepInTouchPerson(config, db, input, { actor = null,
   return buildKeepInTouchPayload(config, db, { actor, now });
 }
 
-export async function logKeepInTouchContact(config, db, input, { actor = null, now = new Date(), timelineProvenance = null } = {}) {
+export async function logKeepInTouchContact(config, db, input, { actor = null, now = new Date() } = {}) {
   const pageSlug = requirePersonSlug(input.page_slug);
   await requirePersonPage(db, pageSlug);
   const existing = await getRecord(db, actor, pageSlug);
@@ -117,7 +116,6 @@ export async function logKeepInTouchContact(config, db, input, { actor = null, n
   const contactedAt = normalizeTimestamp(input.contacted_at || now.toISOString(), 'contacted_at');
   const cadenceDays = normalizeCadence(input.cadence_days ?? input.frequency_days ?? existing.data.frequency_days ?? existing.data.cadence_days ?? KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS);
   const nextDue = new Date(Date.parse(contactedAt) + cadenceDays * 24 * 60 * 60 * 1000).toISOString();
-  const timelineText = `Keep in Touch contact logged${actor?.email ? ` by ${actor.email}` : ''}.`;
   await saveRecord(db, actor, pageSlug, {
     ...existing.data,
     status: 'active',
@@ -125,20 +123,6 @@ export async function logKeepInTouchContact(config, db, input, { actor = null, n
     last_contacted_at: contactedAt,
     next_due_at: nextDue,
   }, now);
-
-  const page = await readBrainPage({ config, pagePath: pageSlug });
-  await updateBrainPage({
-    config,
-    pagePath: pageSlug,
-    body: page.body,
-    timelineEntry: timelineText,
-    timelineProvenance: timelineProvenance || {
-      event_id: `playbook:keep-in-touch:contact:${pageSlug}:${now.toISOString()}`,
-      source_type: 'direct_edit',
-      source_label: actor?.email ? `Keep in Touch (${actor.email})` : 'Keep in Touch',
-      source_message: timelineText,
-    },
-  });
   return buildKeepInTouchPayload(config, db, { actor, now });
 }
 

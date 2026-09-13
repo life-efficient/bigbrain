@@ -8,7 +8,7 @@ import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { startDashboard } from '../../src/bigbrain/dashboard.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
-test('dashboard Keep in Touch playbook stores an overlay and logs contact on the person timeline', async () => {
+test('dashboard Keep in Touch playbook stores contact state in its overlay without changing the person page', async () => {
   const fixture = await createFixture('bigbrain-dashboard-playbook-');
   let server;
   try {
@@ -52,7 +52,7 @@ Relationship context.
     assert.equal(contacted.records[0].next_due_at, '2026-08-30T10:00:00.000Z');
 
     const markdown = await fs.readFile(path.join(fixture.brainHome, 'people/alice.md'), 'utf8');
-    assert.match(markdown, /Keep in Touch contact logged\./);
+    assert.doesNotMatch(markdown, /Keep in Touch contact logged\./);
     assert.doesNotMatch(markdown, /keep_in_touch_/);
   } finally {
     await server?.close();

@@ -1382,10 +1382,7 @@ async function toolKeepInTouchMutation(config, args, actor, action) {
   try {
     let result;
     if (action === 'enroll') result = await enrollKeepInTouchPerson(config, db, args, { actor });
-    if (action === 'log-contact') result = await logKeepInTouchContact(config, db, args, {
-      actor,
-      timelineProvenance: args.provenance ? { ...args.provenance, commit_message: args.commit_message } : null,
-    });
+    if (action === 'log-contact') result = await logKeepInTouchContact(config, db, args, { actor });
     if (action === 'set-priority') result = await setKeepInTouchPriority(config, db, args, { actor });
     if (action === 'set-frequency') result = await setKeepInTouchFrequency(config, db, args, { actor });
     if (action === 'set-enabled') result = await setKeepInTouchEnabled(config, db, args, { actor });
@@ -2666,15 +2663,6 @@ function pageEditPathsForTool(name, args) {
     case 'tasks/create':
     case 'tasks/update':
       return [args.path || args.slug || 'tasks'].filter(Boolean);
-    case 'playbooks/keep-in-touch/enroll':
-    case 'playbooks_keep_in_touch_enroll':
-    case 'playbooks/keep-in-touch/log_contact':
-    case 'playbooks_keep_in_touch_log_contact':
-    case 'playbooks/keep-in-touch/set_priority':
-    case 'playbooks_keep_in_touch_set_priority':
-    case 'playbooks/keep-in-touch/snooze':
-    case 'playbooks_keep_in_touch_snooze':
-      return [args.page_slug].filter(Boolean);
     case 'create_raw_file_with_page':
       return [args.page_path].filter(Boolean);
     default:
