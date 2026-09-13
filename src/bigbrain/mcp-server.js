@@ -18,6 +18,15 @@ import {
   updateBrainDomain,
 } from './domains.js';
 import {
+  bootstrapPageSchemaRegistry,
+  deletePageSchema,
+  getPageSchema,
+  listPageSchemas,
+  loadPageSchemaRegistry,
+  registerPageSchema,
+  updatePageSchema,
+} from './page-schema-registry.js';
+import {
   createDashboardRequestHandler,
   dashboardSessionCookie,
 } from './dashboard.js';
@@ -476,6 +485,43 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       return toolJson({ ...deleted, registry: await listBrainDomains(config) });
     }
+    case 'schemas/list':
+    case 'schemas_list':
+      return toolJson(await listPageSchemas(config), { arrayKey: 'schemas' });
+    case 'schemas/get':
+    case 'schemas_get':
+      return toolJson(await getPageSchema(config, requireString(args.id, 'id')));
+    case 'schemas/bootstrap':
+    case 'schemas_bootstrap': {
+      const before = await loadPageSchemaRegistry(config);
+      const loaded = await bootstrapPageSchemaRegistry(config);
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      return toolJson({ initialized: before.status === 'missing', ...loaded });
+    }
+    case 'schemas/register':
+    case 'schemas_register': {
+      const schema = await registerPageSchema(config, {
+        id: args.id,
+        definition: args.definition,
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      return toolJson({ schema, schemas: await listPageSchemas(config) });
+    }
+    case 'schemas/update':
+    case 'schemas_update': {
+      const schema = await updatePageSchema(config, {
+        id: args.id,
+        definition: args.definition,
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      return toolJson({ schema, schemas: await listPageSchemas(config) });
+    }
+    case 'schemas/delete':
+    case 'schemas_delete': {
+      const deleted = await deletePageSchema(config, { id: args.id });
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      return toolJson({ ...deleted, schemas: await listPageSchemas(config) });
+    }
     case 'tasks/list':
       return toolJson(await toolTasksList(config, args, actor, authConfig), { arrayKey: 'tasks' });
     case 'tasks/summary':
@@ -931,7 +977,7 @@ const GRAPH_PAGE_READ_TOOLS = new Set(['read', 'get_page_visibility']);
 function isAuditedTool(name) {
   const layer = toolPolicy(name)?.layer;
   return GRAPH_PAGE_READ_TOOLS.has(name)
-    || ['create', 'publish', 'raw_destructive', 'git_backup', 'maintenance', 'admin', 'domains_manage', 'events_manage'].includes(layer);
+    || ['create', 'publish', 'raw_destructive', 'git_backup', 'maintenance', 'admin', 'domains_manage', 'schemas_manage', 'events_manage'].includes(layer);
 }
 
 function sanitizeAuditArguments(value) {
@@ -1543,6 +1589,66 @@ function toolDefinitions(config = null) {
       name: 'domains_delete',
       description: 'Alias for domains/delete for clients that do not support slash tool names.',
       inputSchema: domainDeleteSchema(),
+    },
+    {
+      name: 'schemas/list',
+      description: 'List the page schemas registered for this Brain. Schemas are Brain-local and may differ between Brains.',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'schemas_list',
+      description: 'Alias for schemas/list for clients that do not support slash tool names.',
+      inputSchema: { type: 'object', properties: {} },
+    },
+    {
+      name: 'schemas/get',
+      description: 'Read one registered page schema by its stable ID.',
+      inputSchema: pageSchemaGetSchema(),
+    },
+    {
+      name: 'schemas_get',
+      description: 'Alias for schemas/get for clients that do not support slash tool names.',
+      inputSchema: pageSchemaGetSchema(),
+    },
+    {
+      name: 'schemas/bootstrap',
+      description: 'Initialize the missing page schema registry for this Brain with editable defaults. It never overwrites an existing registry.',
+      inputSchema: pageSchemaBootstrapSchema(),
+    },
+    {
+      name: 'schemas_bootstrap',
+      description: 'Alias for schemas/bootstrap for clients that do not support slash tool names.',
+      inputSchema: pageSchemaBootstrapSchema(),
+    },
+    {
+      name: 'schemas/register',
+      description: 'Register one new page schema for this Brain. Use only when the user explicitly asks to curate page schemas.',
+      inputSchema: pageSchemaWriteSchema(),
+    },
+    {
+      name: 'schemas_register',
+      description: 'Alias for schemas/register for clients that do not support slash tool names.',
+      inputSchema: pageSchemaWriteSchema(),
+    },
+    {
+      name: 'schemas/update',
+      description: 'Replace one existing page schema definition without changing its stable ID. Use only when the user explicitly asks to curate page schemas.',
+      inputSchema: pageSchemaWriteSchema(),
+    },
+    {
+      name: 'schemas_update',
+      description: 'Alias for schemas/update for clients that do not support slash tool names.',
+      inputSchema: pageSchemaWriteSchema(),
+    },
+    {
+      name: 'schemas/delete',
+      description: 'Delete one registered page schema. Deletion is refused while pages explicitly declare that schema.',
+      inputSchema: pageSchemaDeleteSchema(),
+    },
+    {
+      name: 'schemas_delete',
+      description: 'Alias for schemas/delete for clients that do not support slash tool names.',
+      inputSchema: pageSchemaDeleteSchema(),
     },
     {
       name: 'tasks/list',
@@ -2193,6 +2299,18 @@ const TOOL_POLICIES = {
   domains_update: { layer: 'domains_manage', scopes: ['brain:admin'] },
   'domains/delete': { layer: 'domains_manage', scopes: ['brain:admin'] },
   domains_delete: { layer: 'domains_manage', scopes: ['brain:admin'] },
+  'schemas/list': { layer: 'read', scopes: ['brain:read'] },
+  schemas_list: { layer: 'read', scopes: ['brain:read'] },
+  'schemas/get': { layer: 'read', scopes: ['brain:read'] },
+  schemas_get: { layer: 'read', scopes: ['brain:read'] },
+  'schemas/bootstrap': { layer: 'schemas_manage', scopes: ['brain:admin'] },
+  schemas_bootstrap: { layer: 'schemas_manage', scopes: ['brain:admin'] },
+  'schemas/register': { layer: 'schemas_manage', scopes: ['brain:admin'] },
+  schemas_register: { layer: 'schemas_manage', scopes: ['brain:admin'] },
+  'schemas/update': { layer: 'schemas_manage', scopes: ['brain:admin'] },
+  schemas_update: { layer: 'schemas_manage', scopes: ['brain:admin'] },
+  'schemas/delete': { layer: 'schemas_manage', scopes: ['brain:admin'] },
+  schemas_delete: { layer: 'schemas_manage', scopes: ['brain:admin'] },
   'tasks/list': { layer: 'read', scopes: ['brain:read'] },
   'tasks/summary': { layer: 'read', scopes: ['brain:read'] },
   'tasks/get': { layer: 'read', scopes: ['brain:read'] },
@@ -2278,6 +2396,14 @@ const GIT_SYNC_MUTATION_TOOLS = new Set([
   'domains_update',
   'domains/delete',
   'domains_delete',
+  'schemas/bootstrap',
+  'schemas_bootstrap',
+  'schemas/register',
+  'schemas_register',
+  'schemas/update',
+  'schemas_update',
+  'schemas/delete',
+  'schemas_delete',
   'create_raw_file',
   'create_page',
   'create_raw_file_with_page',
@@ -2419,6 +2545,7 @@ function rolePermissionForTool(name) {
   if (policy.layer === 'members_manage') return 'members_manage';
   if (policy.layer === 'roles_manage') return 'roles_manage';
   if (policy.layer === 'domains_manage') return 'domains_manage';
+  if (policy.layer === 'schemas_manage') return 'schemas_manage';
   if (policy.layer === 'events_manage') return 'members_manage';
   return null;
 }
@@ -2491,6 +2618,70 @@ function domainDeleteSchema() {
     properties: {
       ...mutationProperties(),
       id: { type: 'string', description: 'Stable registered domain ID to delete.' },
+    },
+    required: ['id', ...mutationRequired()],
+  };
+}
+
+function pageSchemaGetSchema() {
+  return {
+    type: 'object',
+    properties: {
+      id: { type: 'string', description: 'Stable lowercase hyphenated page schema ID.' },
+    },
+    required: ['id'],
+  };
+}
+
+function pageSchemaBootstrapSchema() {
+  return {
+    type: 'object',
+    properties: mutationProperties(),
+    required: mutationRequired(),
+  };
+}
+
+function pageSchemaWriteSchema() {
+  return {
+    type: 'object',
+    properties: {
+      ...mutationProperties(),
+      id: { type: 'string', description: 'Stable lowercase hyphenated page schema ID. IDs cannot be changed by update.' },
+      definition: {
+        type: 'object',
+        description: 'Brain-local schema definition. path_prefix maps a collection; fields describes optional frontmatter fields, their type, enum, default, required flag, and guidance.',
+        properties: {
+          path_prefix: { type: 'string', description: 'Optional relative collection path such as tasks or decisions.' },
+          description: { type: 'string', description: 'Human-readable purpose and usage guidance.' },
+          fields: {
+            type: 'object',
+            description: 'Map of frontmatter field names to field definitions.',
+            additionalProperties: {
+              type: 'object',
+              properties: {
+                type: { type: 'string', enum: ['string', 'number', 'boolean', 'array', 'object'] },
+                required: { type: 'boolean' },
+                enum: { type: 'array', items: { type: ['string', 'number', 'boolean'] } },
+                default: {},
+                description: { type: 'string' },
+              },
+              additionalProperties: true,
+            },
+          },
+        },
+        additionalProperties: true,
+      },
+    },
+    required: ['id', 'definition', ...mutationRequired()],
+  };
+}
+
+function pageSchemaDeleteSchema() {
+  return {
+    type: 'object',
+    properties: {
+      ...mutationProperties(),
+      id: { type: 'string', description: 'Stable registered page schema ID to delete.' },
     },
     required: ['id', ...mutationRequired()],
   };

@@ -2624,12 +2624,88 @@ test('MCP domain registry and page membership stay separate while schemas follow
   }
 });
 
+test('MCP page schema registry can be bootstrapped and curated per Brain', async () => {
+  const fixture = await createFixture('bigbrain-mcp-page-schemas-');
+  let running;
+  try {
+    await fs.rm(path.join(fixture.brainHome, 'page-schemas.yaml'));
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'secret',
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const missing = await rpc(running.url, 'tools/call', { name: 'schemas/list', arguments: {} }, 'secret');
+    assert.match(missing.error.message, /Initialize or register/);
+
+    const bootstrapped = await rpc(running.url, 'tools/call', { name: 'schemas/bootstrap', arguments: {} }, 'secret');
+    assert.equal(bootstrapped.error, undefined, bootstrapped.error?.message);
+    assert.equal(bootstrapped.result.structuredContent.initialized, true);
+    assert.ok(bootstrapped.result.structuredContent.registry.schemas.tasks);
+
+    const registered = await rpc(running.url, 'tools/call', {
+      name: 'schemas/register',
+      arguments: {
+        id: 'decision-log',
+        definition: {
+          path_prefix: 'decisions',
+          description: 'Decision records for this Brain.',
+          fields: { outcome: { type: 'string', required: true } },
+        },
+      },
+    }, 'secret');
+    assert.equal(registered.error, undefined, registered.error?.message);
+    assert.equal(registered.result.structuredContent.schema.id, 'decision-log');
+
+    const updated = await rpc(running.url, 'tools/call', {
+      name: 'schemas/update',
+      arguments: {
+        id: 'decision-log',
+        definition: {
+          path_prefix: 'decisions',
+          description: 'Decision records with an explicit state.',
+          fields: {
+            outcome: { type: 'string', required: true },
+            state: { type: 'string', enum: ['proposed', 'accepted'], default: 'proposed' },
+          },
+        },
+      },
+    }, 'secret');
+    assert.equal(updated.error, undefined, updated.error?.message);
+    assert.equal(updated.result.structuredContent.schema.fields.state.default, 'proposed');
+
+    const read = await rpc(running.url, 'tools/call', {
+      name: 'schemas/get',
+      arguments: { id: 'decision-log' },
+    }, 'secret');
+    assert.equal(read.result.structuredContent.description, 'Decision records with an explicit state.');
+
+    const deleted = await rpc(running.url, 'tools/call', {
+      name: 'schemas/delete',
+      arguments: { id: 'decision-log' },
+    }, 'secret');
+    assert.equal(deleted.error, undefined, deleted.error?.message);
+    assert.equal(deleted.result.structuredContent.deleted, true);
+
+    const listed = await rpc(running.url, 'tools/list', {}, 'secret');
+    assert.ok(listed.result.tools.some((tool) => tool.name === 'schemas/bootstrap'));
+  } finally {
+    if (running) await running.close();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function rpc(url, method, params, token) {
   const requestParams = { ...(params || {}) };
   const callName = method === 'tools/call' ? requestParams.name : null;
   const mutationNames = new Set([
     'tasks/create', 'tasks/update', 'create_raw_file', 'create_page', 'create_raw_file_with_page',
     'domains/create', 'domains_create', 'domains/update', 'domains_update', 'domains/delete', 'domains_delete',
+    'schemas/bootstrap', 'schemas_bootstrap', 'schemas/register', 'schemas_register', 'schemas/update', 'schemas_update', 'schemas/delete', 'schemas_delete',
     'update_raw_file', 'delete_raw_file', 'rename_raw_file', 'rename_page', 'update_page',
     'attach_page_images',
     'set_page_visibility', 'maintenance/git_backup', 'maintenance_git_backup',

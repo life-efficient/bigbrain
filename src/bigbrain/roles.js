@@ -11,6 +11,7 @@ export const DEFAULT_ROLES = [
       members_manage: true,
       roles_manage: true,
       domains_manage: true,
+      schemas_manage: true,
       about_update: true,
       publish: true,
       raw_destructive: true,
@@ -31,6 +32,7 @@ export const DEFAULT_ROLES = [
       members_manage: true,
       roles_manage: true,
       domains_manage: true,
+      schemas_manage: true,
       publish: true,
       raw_destructive: true,
       git_backup: true,
@@ -210,7 +212,7 @@ function normalizeRoleInput(role) {
 }
 
 function normalizePermissions(permissions = {}) {
-  const allowed = new Set(['read', 'page_edit', 'members_manage', 'roles_manage', 'domains_manage', 'about_update', 'publish', 'raw_destructive', 'git_backup', 'maintenance', 'audit', 'superuser']);
+  const allowed = new Set(['read', 'page_edit', 'members_manage', 'roles_manage', 'domains_manage', 'schemas_manage', 'about_update', 'publish', 'raw_destructive', 'git_backup', 'maintenance', 'audit', 'superuser']);
   const normalized = {};
   for (const [key, value] of Object.entries(permissions || {})) {
     if (allowed.has(key) && value === true) normalized[key] = true;
