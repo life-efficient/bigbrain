@@ -77,19 +77,25 @@ export async function listBrainPath({
   recursive = true,
   limit = null,
   orderBy = 'alphanumeric',
+  updatedSince = null,
+  updatedUntil = null,
+  createdSince = null,
+  createdUntil = null,
 } = {}) {
   const normalizedOrderBy = normalizeListOrderBy(orderBy);
   const normalizedLimit = normalizeListLimit(limit);
+  const timeFilters = normalizeListTimeFilters({ updatedSince, updatedUntil, createdSince, createdUntil });
   const root = config.brainDir;
   const fullPath = safeBrainPath(root, relativePath);
   const stats = await fs.stat(fullPath);
   if (stats.isFile()) {
-    return [await entryForPath(root, fullPath, stats)];
+    const entry = await entryForPath(root, fullPath, stats);
+    return !timeFilters || matchesListTimeFilters(entry, timeFilters) ? [entry] : [];
   }
   if (!stats.isDirectory()) throw new Error(`Path is neither a file nor a directory: ${relativePath}`);
 
   const entries = [];
-  await walkList(root, fullPath, entries, recursive);
+  await walkList(root, fullPath, entries, recursive, timeFilters);
   entries.sort(listEntrySorter(normalizedOrderBy));
   return normalizedLimit === null ? entries : entries.slice(0, normalizedLimit);
 }
@@ -852,14 +858,15 @@ function splitPageMarkdown(markdown) {
   return { frontmatterRaw: markdown.slice(4, end) };
 }
 
-async function walkList(root, current, entries, recursive) {
+async function walkList(root, current, entries, recursive, timeFilters = null) {
   const dirents = await fs.readdir(current, { withFileTypes: true });
   for (const dirent of dirents) {
     if (shouldHideEntry(dirent.name)) continue;
     const fullPath = path.join(current, dirent.name);
     const stats = await fs.stat(fullPath);
-    entries.push(await entryForPath(root, fullPath, stats));
-    if (recursive && stats.isDirectory()) await walkList(root, fullPath, entries, recursive);
+    const entry = await entryForPath(root, fullPath, stats);
+    if (!timeFilters || matchesListTimeFilters(entry, timeFilters)) entries.push(entry);
+    if (recursive && stats.isDirectory()) await walkList(root, fullPath, entries, recursive, timeFilters);
   }
 }
 
@@ -1121,6 +1128,33 @@ function normalizeListLimit(value) {
   const number = Number(value);
   if (!Number.isFinite(number) || number <= 0) throw new Error('limit must be a positive number.');
   return Math.floor(number);
+}
+
+function normalizeListTimeFilters({ updatedSince, updatedUntil, createdSince, createdUntil }) {
+  const filters = {};
+  for (const [key, value] of Object.entries({ updatedSince, updatedUntil, createdSince, createdUntil })) {
+    if (value === null || value === undefined || value === '') continue;
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) throw new Error(`${key} must be a valid timestamp.`);
+    filters[key] = date.getTime();
+  }
+  if (filters.updatedSince !== undefined && filters.updatedUntil !== undefined && filters.updatedSince > filters.updatedUntil) {
+    throw new Error('updatedSince cannot be after updatedUntil.');
+  }
+  if (filters.createdSince !== undefined && filters.createdUntil !== undefined && filters.createdSince > filters.createdUntil) {
+    throw new Error('createdSince cannot be after createdUntil.');
+  }
+  return filters;
+}
+
+function matchesListTimeFilters(entry, filters) {
+  const updated = Date.parse(entry.updated_at);
+  const created = Date.parse(entry.created_at);
+  if (filters.updatedSince !== undefined && updated < filters.updatedSince) return false;
+  if (filters.updatedUntil !== undefined && updated > filters.updatedUntil) return false;
+  if (filters.createdSince !== undefined && created < filters.createdSince) return false;
+  if (filters.createdUntil !== undefined && created > filters.createdUntil) return false;
+  return true;
 }
 
 function shouldHideEntry(name) {

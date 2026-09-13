@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Keep in Touch"
+  short_description: "Review changed people pages and surface the next useful relationship touches"
+  default_prompt: "Use $bigbrain-keep-in-touch to run the daily Keep in Touch review, update its private registry and cursor, and report every scanned person and outcome without sending messages."

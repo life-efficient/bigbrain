@@ -70,8 +70,14 @@ import {
   enrollKeepInTouchPerson,
   logKeepInTouchContact,
   setKeepInTouchPriority,
+  setKeepInTouchEnabled,
+  setKeepInTouchFrequency,
   snoozeKeepInTouchPerson,
 } from './playbooks/keep-in-touch.js';
+import {
+  buildKeepInTouchReviewPayload,
+  recordKeepInTouchReview,
+} from './playbooks/keep-in-touch-review.js';
 import {
   buildComprehensionPayload,
   getComprehensionPage,
@@ -664,6 +670,12 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'playbooks/keep-in-touch/list_due':
     case 'playbooks_keep_in_touch_list_due':
       return toolJson(await toolKeepInTouchListDue(config, args, actor));
+    case 'playbooks/keep-in-touch/review':
+    case 'playbooks_keep_in_touch_review':
+      return toolJson(await toolKeepInTouchReview(config, args, actor));
+    case 'playbooks/keep-in-touch/record_review':
+    case 'playbooks_keep_in_touch_record_review':
+      return toolJson(await toolKeepInTouchRecordReview(config, args, actor));
     case 'playbooks/keep-in-touch/enroll':
     case 'playbooks_keep_in_touch_enroll':
       return toolJson(await toolKeepInTouchMutation(config, args, actor, 'enroll'));
@@ -673,6 +685,12 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'playbooks/keep-in-touch/set_priority':
     case 'playbooks_keep_in_touch_set_priority':
       return toolJson(await toolKeepInTouchMutation(config, args, actor, 'set-priority'));
+    case 'playbooks/keep-in-touch/set_frequency':
+    case 'playbooks_keep_in_touch_set_frequency':
+      return toolJson(await toolKeepInTouchMutation(config, args, actor, 'set-frequency'));
+    case 'playbooks/keep-in-touch/set_enabled':
+    case 'playbooks_keep_in_touch_set_enabled':
+      return toolJson(await toolKeepInTouchMutation(config, args, actor, 'set-enabled'));
     case 'playbooks/keep-in-touch/snooze':
     case 'playbooks_keep_in_touch_snooze':
       return toolJson(await toolKeepInTouchMutation(config, args, actor, 'snooze'));
@@ -692,6 +710,10 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         recursive: args.recursive !== false,
         limit: args.limit,
         orderBy: args.order_by,
+        updatedSince: args.updated_since,
+        updatedUntil: args.updated_until,
+        createdSince: args.created_since,
+        createdUntil: args.created_until,
       }), { arrayKey: 'pages' });
     case 'read':
       return toolJson(pageWithCanonicalLink(
@@ -1332,6 +1354,29 @@ async function toolKeepInTouchListDue(config, args, actor) {
   }
 }
 
+async function toolKeepInTouchReview(config, args, actor) {
+  const db = await openDatabase(config);
+  try {
+    return await buildKeepInTouchReviewPayload(config, db, {
+      actor,
+      asOf: args.as_of ? new Date(args.as_of) : new Date(),
+    });
+  } finally {
+    await db.close?.();
+  }
+}
+
+async function toolKeepInTouchRecordReview(config, args, actor) {
+  const db = await openDatabase(config);
+  try {
+    const result = await recordKeepInTouchReview(config, db, args, { actor });
+    await postWriteMaintenance(config, false, actor, args.commit_message);
+    return result;
+  } finally {
+    await db.close?.();
+  }
+}
+
 async function toolKeepInTouchMutation(config, args, actor, action) {
   const db = await openDatabase(config);
   try {
@@ -1342,6 +1387,8 @@ async function toolKeepInTouchMutation(config, args, actor, action) {
       timelineProvenance: args.provenance ? { ...args.provenance, commit_message: args.commit_message } : null,
     });
     if (action === 'set-priority') result = await setKeepInTouchPriority(config, db, args, { actor });
+    if (action === 'set-frequency') result = await setKeepInTouchFrequency(config, db, args, { actor });
+    if (action === 'set-enabled') result = await setKeepInTouchEnabled(config, db, args, { actor });
     if (action === 'snooze') result = await snoozeKeepInTouchPerson(config, db, args, { actor });
     await postWriteMaintenance(config, false, actor, args.commit_message);
     return result;
@@ -1821,6 +1868,26 @@ function toolDefinitions(config = null) {
       inputSchema: keepInTouchListDueSchema(),
     },
     {
+      name: 'playbooks/keep-in-touch/review',
+      description: 'Start a deterministic Keep in Touch review of people pages updated since the playbook cursor. This reads only page metadata and private playbook state; the caller reads each returned people page before recording decisions.',
+      inputSchema: keepInTouchReviewSchema(),
+    },
+    {
+      name: 'playbooks_keep_in_touch_review',
+      description: 'Alias for playbooks/keep-in-touch/review for clients that do not support slash tool names.',
+      inputSchema: keepInTouchReviewSchema(),
+    },
+    {
+      name: 'playbooks/keep-in-touch/record_review',
+      description: 'Commit one complete Keep in Touch review. It stores every per-person outcome and rationale in the playbook overlay, applies additions or frequency changes, and advances the private cursor only after every candidate has a decision.',
+      inputSchema: keepInTouchRecordReviewSchema(),
+    },
+    {
+      name: 'playbooks_keep_in_touch_record_review',
+      description: 'Alias for playbooks/keep-in-touch/record_review for clients that do not support slash tool names.',
+      inputSchema: keepInTouchRecordReviewSchema(),
+    },
+    {
       name: 'playbooks/keep-in-touch/enroll',
       description: 'Enroll one people page in the Keep in Touch playbook. State is stored in a playbook overlay, not person frontmatter.',
       inputSchema: keepInTouchEnrollSchema(),
@@ -1849,6 +1916,26 @@ function toolDefinitions(config = null) {
       name: 'playbooks_keep_in_touch_set_priority',
       description: 'Alias for playbooks/keep-in-touch/set_priority for clients that do not support slash tool names.',
       inputSchema: keepInTouchSetPrioritySchema(),
+    },
+    {
+      name: 'playbooks/keep-in-touch/set_frequency',
+      description: 'Set the Keep in Touch frequency for one enrolled person using the playbook overlay. The daily review uses only 3, 7, 14, 30, or 60 days.',
+      inputSchema: keepInTouchSetFrequencySchema(),
+    },
+    {
+      name: 'playbooks_keep_in_touch_set_frequency',
+      description: 'Alias for playbooks/keep-in-touch/set_frequency for clients that do not support slash tool names.',
+      inputSchema: keepInTouchSetFrequencySchema(),
+    },
+    {
+      name: 'playbooks/keep-in-touch/set_enabled',
+      description: 'Enable or disable Keep in Touch for the current user and Brain. Disabling makes the daily review a no-op and preserves its cursor and registry.',
+      inputSchema: keepInTouchSetEnabledSchema(),
+    },
+    {
+      name: 'playbooks_keep_in_touch_set_enabled',
+      description: 'Alias for playbooks/keep-in-touch/set_enabled for clients that do not support slash tool names.',
+      inputSchema: keepInTouchSetEnabledSchema(),
     },
     {
       name: 'playbooks/keep-in-touch/snooze',
@@ -1892,7 +1979,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'list',
-      description: 'List files and folders under the selected brain root, optionally constrained by path prefix.',
+      description: 'List files and folders under the selected brain root, optionally constrained by path prefix and file timestamps. Timestamp filters are inclusive.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1900,6 +1987,10 @@ function toolDefinitions(config = null) {
           recursive: { type: 'boolean' },
           limit: { type: 'number' },
           order_by: { type: 'string', enum: ['updated_at', 'created_at', 'alphanumeric'] },
+          updated_since: { type: 'string', format: 'date-time', description: 'Include entries updated at or after this timestamp.' },
+          updated_until: { type: 'string', format: 'date-time', description: 'Include entries updated at or before this timestamp.' },
+          created_since: { type: 'string', format: 'date-time', description: 'Include entries created at or after this timestamp.' },
+          created_until: { type: 'string', format: 'date-time', description: 'Include entries created at or before this timestamp.' },
         },
       },
     },
@@ -2321,12 +2412,20 @@ const TOOL_POLICIES = {
   pages_query: { layer: 'read', scopes: ['brain:read'] },
   'playbooks/keep-in-touch/list_due': { layer: 'read', scopes: ['brain:read'] },
   playbooks_keep_in_touch_list_due: { layer: 'read', scopes: ['brain:read'] },
+  'playbooks/keep-in-touch/review': { layer: 'read', scopes: ['brain:read'] },
+  playbooks_keep_in_touch_review: { layer: 'read', scopes: ['brain:read'] },
+  'playbooks/keep-in-touch/record_review': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  playbooks_keep_in_touch_record_review: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   'playbooks/keep-in-touch/enroll': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   playbooks_keep_in_touch_enroll: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   'playbooks/keep-in-touch/log_contact': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   playbooks_keep_in_touch_log_contact: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   'playbooks/keep-in-touch/set_priority': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   playbooks_keep_in_touch_set_priority: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'playbooks/keep-in-touch/set_frequency': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  playbooks_keep_in_touch_set_frequency: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'playbooks/keep-in-touch/set_enabled': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  playbooks_keep_in_touch_set_enabled: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   'playbooks/keep-in-touch/snooze': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   playbooks_keep_in_touch_snooze: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   'playbooks/comprehension': { layer: 'read', scopes: ['brain:read'] },
@@ -2422,6 +2521,12 @@ const GIT_SYNC_MUTATION_TOOLS = new Set([
   'playbooks_keep_in_touch_log_contact',
   'playbooks/keep-in-touch/set_priority',
   'playbooks_keep_in_touch_set_priority',
+  'playbooks/keep-in-touch/set_frequency',
+  'playbooks_keep_in_touch_set_frequency',
+  'playbooks/keep-in-touch/set_enabled',
+  'playbooks_keep_in_touch_set_enabled',
+  'playbooks/keep-in-touch/record_review',
+  'playbooks_keep_in_touch_record_review',
   'playbooks/keep-in-touch/snooze',
   'playbooks_keep_in_touch_snooze',
 ]);
@@ -2738,6 +2843,72 @@ function keepInTouchListDueSchema() {
   };
 }
 
+function keepInTouchReviewSchema() {
+  return {
+    type: 'object',
+    properties: {
+      as_of: { type: 'string', format: 'date-time', description: 'Optional RFC3339 timestamp that freezes the review window.' },
+    },
+  };
+}
+
+function keepInTouchRecordReviewSchema() {
+  return {
+    type: 'object',
+    properties: {
+      review_id: { type: 'string', description: 'Review identifier returned by playbooks/keep-in-touch/review.' },
+      as_of: { type: 'string', format: 'date-time', description: 'The exact as_of timestamp returned by the review.' },
+      cursor_before: {
+        type: ['object', 'null'],
+        properties: {
+          updated_at: { type: 'string', format: 'date-time' },
+          page_slug: { type: 'string' },
+        },
+      },
+      decisions: {
+        type: 'array',
+        description: 'Exactly one evidence-backed decision for every candidate returned by the review.',
+        items: {
+          type: 'object',
+          properties: {
+            page_slug: { type: 'string' },
+            outcome: { type: 'string', enum: ['added', 'frequency_changed', 'due', 'no_change', 'needs_review'] },
+            reason: { type: 'string' },
+            evidence: { type: 'array', items: { type: 'string' }, minItems: 1 },
+            confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+            frequency_days: { type: 'integer', enum: [3, 7, 14, 30, 60] },
+            last_contacted_at: { type: 'string', format: 'date-time' },
+          },
+          required: ['page_slug', 'outcome', 'reason', 'evidence', 'confidence'],
+        },
+      },
+      ...mutationProperties(),
+    },
+    required: ['review_id', 'as_of', 'cursor_before', 'decisions', ...mutationRequired()],
+  };
+}
+
+function keepInTouchSetFrequencySchema() {
+  return {
+    type: 'object',
+    properties: {
+      page_slug: { type: 'string', description: 'Enrolled people page slug such as people/alice.' },
+      frequency_days: { type: 'integer', enum: [3, 7, 14, 30, 60] },
+    },
+    required: ['page_slug', 'frequency_days'],
+  };
+}
+
+function keepInTouchSetEnabledSchema() {
+  return {
+    type: 'object',
+    properties: {
+      enabled: { type: 'boolean', description: 'Whether the Keep in Touch daily review may scan and write its private overlay.' },
+    },
+    required: ['enabled'],
+  };
+}
+
 function keepInTouchEnrollSchema() {
   return {
     type: 'object',
@@ -2745,7 +2916,7 @@ function keepInTouchEnrollSchema() {
       page_slug: { type: 'string', description: 'People page slug such as people/alice.' },
       priority: { type: 'integer', minimum: 1, maximum: 5, default: 3 },
       stage: { type: 'string', enum: ['new', 'building', 'maintaining', 'paused'], default: 'building' },
-      cadence_days: { type: 'integer', minimum: 1, maximum: 3650, default: 14 },
+      cadence_days: { type: 'integer', minimum: 1, maximum: 3650, default: 7 },
       next_due_at: { type: 'string', format: 'date-time' },
       last_contacted_at: { type: 'string', format: 'date-time' },
     },

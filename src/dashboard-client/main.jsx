@@ -289,7 +289,7 @@ function DashboardApp() {
       try {
         const assigneeQuery = assigneeFilter ? `?${new URLSearchParams({ assignee: assigneeFilter }).toString()}` : '';
         const about = await fetchJson('/api/about');
-        const [schema, tasks, recent, health, graph, explorer, explorerRecent] = await Promise.all([
+        const [schema, tasks, recent, health, graph, explorer, explorerRecent, keepInTouch] = await Promise.all([
           fetchJson('/api/schema'),
           fetchJson(`/api/tasks${assigneeQuery}`),
           fetchJson('/api/recent'),
@@ -301,6 +301,7 @@ function DashboardApp() {
           about?.capabilities?.filesystem_explorer === true
             ? fetchJson('/api/explorer/recent')
             : Promise.resolve(null),
+          fetchJson('/api/playbooks/keep-in-touch'),
         ]);
         if (cancelled) return;
         const currentMemberSlug = tasks?.filters?.current_member?.person_slug || '';
@@ -324,7 +325,13 @@ function DashboardApp() {
             explorer: explorer ? { ...explorer, recent: explorerRecent } : null,
           },
         });
-        setEnabledPlaybooks(loadEnabledPlaybooks(about?.brain_id));
+        const savedPlaybooks = loadEnabledPlaybooks(about?.brain_id);
+        const enabled = keepInTouch?.playbook?.enabled;
+        const nextPlaybooks = typeof enabled === 'boolean'
+          ? (enabled ? [...new Set([...savedPlaybooks, 'keep-in-touch'])] : savedPlaybooks.filter((id) => id !== 'keep-in-touch'))
+          : savedPlaybooks;
+        setEnabledPlaybooks(nextPlaybooks);
+        saveEnabledPlaybooks(about?.brain_id, nextPlaybooks);
       } catch (error) {
         if (cancelled) return;
         setAssigneeLoading(false);
@@ -719,6 +726,18 @@ function DashboardApp() {
       : enabledPlaybooks.filter((id) => id !== playbookId);
     setEnabledPlaybooks(next);
     saveEnabledPlaybooks(brainId, next);
+    if (playbookId === 'keep-in-touch') {
+      void fetchJson('/api/playbooks/keep-in-touch/set-enabled', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ enabled }),
+      }).catch((error) => {
+        setState((current) => ({
+          ...current,
+          error: `Keep in Touch setting failed: ${error instanceof Error ? error.message : String(error)}`,
+        }));
+      });
+    }
     if (!enabled && view === playbookId) setView('graph');
   }
 

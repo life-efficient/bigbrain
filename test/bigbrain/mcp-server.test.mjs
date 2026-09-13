@@ -735,10 +735,17 @@ Active person.
 
     const listed = await rpc(running.url, 'tools/list', {}, 'secret');
     const listDue = listed.result.tools.find((tool) => tool.name === 'playbooks/keep-in-touch/list_due');
+    const review = listed.result.tools.find((tool) => tool.name === 'playbooks/keep-in-touch/review');
+    const recordReview = listed.result.tools.find((tool) => tool.name === 'playbooks/keep-in-touch/record_review');
+    const setEnabled = listed.result.tools.find((tool) => tool.name === 'playbooks/keep-in-touch/set_enabled');
     const enroll = listed.result.tools.find((tool) => tool.name === 'playbooks/keep-in-touch/enroll');
     assert.ok(listDue);
+    assert.ok(review);
+    assert.ok(recordReview);
+    assert.ok(setEnabled);
     assert.ok(enroll);
     assert.equal(enroll.inputSchema.properties.priority.maximum, 5);
+    assert.deepEqual(recordReview.inputSchema.properties.decisions.items.properties.outcome.enum, ['added', 'frequency_changed', 'due', 'no_change', 'needs_review']);
 
     const enrolled = await rpc(running.url, 'tools/call', {
       name: 'playbooks/keep-in-touch/enroll',
@@ -771,6 +778,19 @@ Active person.
     const markdown = await fs.readFile(personPath, 'utf8');
     assert.match(markdown, /Keep in Touch contact logged\./);
     assert.doesNotMatch(markdown, /keep_in_touch_/);
+
+    const disabled = await rpc(running.url, 'tools/call', {
+      name: 'playbooks/keep-in-touch/set_enabled',
+      arguments: { enabled: false },
+    }, 'secret');
+    assert.equal(disabled.error, undefined, disabled.error?.message);
+    assert.equal(disabled.result.structuredContent.playbook.enabled, false);
+    const paused = await rpc(running.url, 'tools/call', {
+      name: 'playbooks/keep-in-touch/review',
+      arguments: { as_of: '2026-08-27T12:00:00Z' },
+    }, 'secret');
+    assert.equal(paused.error, undefined, paused.error?.message);
+    assert.equal(paused.result.structuredContent.review.status, 'disabled');
   } finally {
     if (originalApiKey === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = originalApiKey;
@@ -1095,6 +1115,21 @@ test('MCP list tool supports limit and ordering params', async () => {
       arguments: { path: 'people', recursive: false, order_by: 'updated_at', limit: 2 },
     }, 'secret');
     assert.deepEqual(recent.result.structuredContent.pages.map((entry) => entry.path), [
+      'people/person-10.md',
+      'people/person-1.md',
+    ]);
+
+    const filtered = await rpc(running.url, 'tools/call', {
+      name: 'list',
+      arguments: {
+        path: 'people',
+        recursive: false,
+        order_by: 'updated_at',
+        updated_since: '2026-06-17T11:00:00Z',
+        updated_until: '2026-06-17T12:00:00Z',
+      },
+    }, 'secret');
+    assert.deepEqual(filtered.result.structuredContent.pages.map((entry) => entry.path), [
       'people/person-10.md',
       'people/person-1.md',
     ]);
@@ -2712,6 +2747,9 @@ async function rpc(url, method, params, token) {
     'playbooks/keep-in-touch/enroll', 'playbooks_keep_in_touch_enroll',
     'playbooks/keep-in-touch/log_contact', 'playbooks_keep_in_touch_log_contact',
     'playbooks/keep-in-touch/set_priority', 'playbooks_keep_in_touch_set_priority',
+    'playbooks/keep-in-touch/set_frequency', 'playbooks_keep_in_touch_set_frequency',
+    'playbooks/keep-in-touch/set_enabled', 'playbooks_keep_in_touch_set_enabled',
+    'playbooks/keep-in-touch/record_review', 'playbooks_keep_in_touch_record_review',
     'playbooks/keep-in-touch/snooze', 'playbooks_keep_in_touch_snooze',
   ]);
   const skipMutationMetadata = requestParams.__withoutMutationMetadata === true;

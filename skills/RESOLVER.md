@@ -29,3 +29,4 @@
 | Refresh existing BigBrain task pages from current brain evidence | `skills/bigbrain-refresh-tasks/SKILL.md` |
 | Run a bounded health-and-remediation pass for a configured BigBrain brain home | `skills/bigbrain-maintain/SKILL.md` |
 | Run an evidence-based learning session over important Brain pages and maintain resumable summaries | `skills/bigbrain-comprehension/SKILL.md` |
+| Review updated people pages and maintain the private Keep in Touch registry | `skills/bigbrain-keep-in-touch/SKILL.md` |

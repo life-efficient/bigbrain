@@ -41,6 +41,7 @@ import {
   buildKeepInTouchPayload,
   enrollKeepInTouchPerson,
   logKeepInTouchContact,
+  setKeepInTouchEnabled,
   setKeepInTouchPriority,
   snoozeKeepInTouchPerson,
 } from './playbooks/keep-in-touch.js';
@@ -415,6 +416,8 @@ async function handleKeepInTouchMutation(config, db, req, requestUrl, actor = nu
       return setKeepInTouchPriority(config, db, input, { actor });
     case 'snooze':
       return snoozeKeepInTouchPerson(config, db, input, { actor });
+    case 'set-enabled':
+      return setKeepInTouchEnabled(config, db, input, { actor });
     default: {
       const error = new Error(`Unknown Keep in Touch action: ${action}`);
       error.statusCode = 404;

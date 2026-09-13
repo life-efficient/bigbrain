@@ -104,6 +104,44 @@ export async function deletePlaybookRecord(db, input) {
   `).run(key.ownerKey, key.playbookId, key.recordType, key.scopeKey).changes > 0;
 }
 
+export async function withPlaybookTransaction(db, work) {
+  if (typeof work !== 'function') throw new Error('A playbook transaction callback is required.');
+  if (db.backend === 'sqlite') {
+    const raw = sqlite(db);
+    raw.exec('BEGIN IMMEDIATE');
+    try {
+      const result = await work(db);
+      raw.exec('COMMIT');
+      return result;
+    } catch (error) {
+      raw.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
+  if (db.backend === 'postgres') {
+    const client = await db.raw.connect();
+    const transactionDb = {
+      backend: 'postgres',
+      raw: client,
+      query: (text, params) => client.query(text, params),
+    };
+    try {
+      await client.query('BEGIN');
+      const result = await work(transactionDb);
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  throw new Error('Unsupported database backend for playbook transaction.');
+}
+
 function normalizeRecordKey(input) {
   if (!input || typeof input !== 'object') throw new Error('A playbook record key is required.');
   return {
@@ -201,4 +239,3 @@ function sqlite(db) {
   if (db?.backend === 'sqlite') return db.raw;
   return db;
 }
-

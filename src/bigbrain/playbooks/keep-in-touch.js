@@ -9,15 +9,47 @@ import { readBrainPage, updateBrainPage } from '../page-ops.js';
 
 export const KEEP_IN_TOUCH_PLAYBOOK_ID = 'keep-in-touch';
 export const KEEP_IN_TOUCH_RECORD_TYPE = 'person';
+export const KEEP_IN_TOUCH_SETTINGS_RECORD_TYPE = 'settings';
+export const KEEP_IN_TOUCH_CURSOR_RECORD_TYPE = 'cursor';
+export const KEEP_IN_TOUCH_REVIEW_RECORD_TYPE = 'review';
 export const KEEP_IN_TOUCH_SCHEMA_VERSION = 1;
+export const KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS = 7;
+export const KEEP_IN_TOUCH_FREQUENCIES_DAYS = Object.freeze([3, 7, 14, 30, 60]);
 
 export function keepInTouchOwnerKey(actor = null) {
   return actor?.email ? `member:${String(actor.email).trim().toLowerCase()}` : 'local';
 }
 
+export async function getKeepInTouchSettings(db, { actor = null } = {}) {
+  const record = await getPlaybookRecord(db, {
+    ownerKey: keepInTouchOwnerKey(actor),
+    playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
+    recordType: KEEP_IN_TOUCH_SETTINGS_RECORD_TYPE,
+    scopeKey: 'playbook',
+  });
+  return {
+    enabled: record?.data?.enabled !== false,
+    updated_at: record?.updated_at || null,
+  };
+}
+
+export async function setKeepInTouchEnabled(config, db, input, { actor = null, now = new Date() } = {}) {
+  if (typeof input?.enabled !== 'boolean') throw new Error('Keep in Touch enabled must be a boolean.');
+  await upsertPlaybookRecord(db, {
+    ownerKey: keepInTouchOwnerKey(actor),
+    playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
+    recordType: KEEP_IN_TOUCH_SETTINGS_RECORD_TYPE,
+    scopeKey: 'playbook',
+    schemaVersion: KEEP_IN_TOUCH_SCHEMA_VERSION,
+    data: { enabled: input.enabled },
+    now,
+  });
+  return buildKeepInTouchPayload(config, db, { actor, now });
+}
+
 export async function buildKeepInTouchPayload(config, db, { actor = null, now = new Date() } = {}) {
   const ownerKey = keepInTouchOwnerKey(actor);
-  const [records, people] = await Promise.all([
+  const [records, people, settings] = await Promise.all([
     listPlaybookRecords(db, {
       ownerKey,
       playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
@@ -25,6 +57,7 @@ export async function buildKeepInTouchPayload(config, db, { actor = null, now = 
       limit: 500,
     }),
     listPages(db, { type: 'people' }),
+    getKeepInTouchSettings(db, { actor }),
   ]);
   const pageMap = new Map(people.map((person) => [person.slug, person]));
   const nowMs = now.getTime();
@@ -38,6 +71,7 @@ export async function buildKeepInTouchPayload(config, db, { actor = null, now = 
       id: KEEP_IN_TOUCH_PLAYBOOK_ID,
       name: 'Keep in Touch',
       schema_version: KEEP_IN_TOUCH_SCHEMA_VERSION,
+      enabled: settings.enabled,
     },
     brain: {
       brain_id: config.brainId,
@@ -67,7 +101,7 @@ export async function enrollKeepInTouchPerson(config, db, input, { actor = null,
     status: existing?.data?.status || 'active',
     priority: normalizePriority(input.priority ?? existing?.data?.priority ?? 3),
     stage: normalizeStage(input.stage ?? existing?.data?.stage ?? 'building'),
-    cadence_days: normalizeCadence(input.cadence_days ?? existing?.data?.cadence_days ?? 14),
+    frequency_days: normalizeCadence(input.frequency_days ?? input.cadence_days ?? existing?.data?.frequency_days ?? existing?.data?.cadence_days ?? KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS),
     last_contacted_at: normalizeOptionalTimestamp(input.last_contacted_at ?? existing?.data?.last_contacted_at),
     next_due_at: normalizeOptionalTimestamp(input.next_due_at ?? existing?.data?.next_due_at) || now.toISOString(),
   };
@@ -81,13 +115,13 @@ export async function logKeepInTouchContact(config, db, input, { actor = null, n
   const existing = await getRecord(db, actor, pageSlug);
   if (!existing) throw new Error(`Keep in Touch person is not enrolled: ${pageSlug}`);
   const contactedAt = normalizeTimestamp(input.contacted_at || now.toISOString(), 'contacted_at');
-  const cadenceDays = normalizeCadence(input.cadence_days ?? existing.data.cadence_days ?? 14);
+  const cadenceDays = normalizeCadence(input.cadence_days ?? input.frequency_days ?? existing.data.frequency_days ?? existing.data.cadence_days ?? KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS);
   const nextDue = new Date(Date.parse(contactedAt) + cadenceDays * 24 * 60 * 60 * 1000).toISOString();
   const timelineText = `Keep in Touch contact logged${actor?.email ? ` by ${actor.email}` : ''}.`;
   await saveRecord(db, actor, pageSlug, {
     ...existing.data,
     status: 'active',
-    cadence_days: cadenceDays,
+    frequency_days: cadenceDays,
     last_contacted_at: contactedAt,
     next_due_at: nextDue,
   }, now);
@@ -115,6 +149,24 @@ export async function setKeepInTouchPriority(config, db, input, { actor = null, 
   await saveRecord(db, actor, pageSlug, {
     ...existing.data,
     priority: normalizePriority(input.priority),
+  }, now);
+  return buildKeepInTouchPayload(config, db, { actor, now });
+}
+
+export async function setKeepInTouchFrequency(config, db, input, { actor = null, now = new Date() } = {}) {
+  const pageSlug = requirePersonSlug(input.page_slug);
+  const existing = await getRecord(db, actor, pageSlug);
+  if (!existing) throw new Error(`Keep in Touch person is not enrolled: ${pageSlug}`);
+  const frequencyDays = normalizeFrequency(input.frequency_days);
+  const lastContactedAt = normalizeOptionalTimestamp(existing.data.last_contacted_at);
+  const nextDueAt = lastContactedAt
+    ? new Date(Date.parse(lastContactedAt) + frequencyDays * 24 * 60 * 60 * 1000).toISOString()
+    : now.toISOString();
+  await saveRecord(db, actor, pageSlug, {
+    ...existing.data,
+    frequency_days: frequencyDays,
+    last_contacted_at: lastContactedAt,
+    next_due_at: nextDueAt,
   }, now);
   return buildKeepInTouchPayload(config, db, { actor, now });
 }
@@ -167,7 +219,8 @@ function hydrateRecord(record, page, nowMs) {
   const data = record.data || {};
   const dueMs = data.next_due_at ? Date.parse(data.next_due_at) : Number.NaN;
   const isDue = Number.isFinite(dueMs) && dueMs <= nowMs;
-  const overdueDays = isDue ? Math.max(0, Math.ceil((nowMs - dueMs) / (24 * 60 * 60 * 1000))) : 0;
+  const isOverdue = Number.isFinite(dueMs) && dueMs < nowMs;
+  const overdueDays = isOverdue ? Math.max(1, Math.ceil((nowMs - dueMs) / (24 * 60 * 60 * 1000))) : 0;
   return {
     page_slug: pageSlug,
     title: page?.title || pageSlug,
@@ -175,11 +228,12 @@ function hydrateRecord(record, page, nowMs) {
     status: data.status || 'active',
     priority: normalizePriority(data.priority ?? 3),
     stage: normalizeStage(data.stage),
-    cadence_days: normalizeCadence(data.cadence_days ?? 14),
+    frequency_days: normalizeCadence(data.frequency_days ?? data.cadence_days ?? KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS),
+    cadence_days: normalizeCadence(data.frequency_days ?? data.cadence_days ?? KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS),
     last_contacted_at: normalizeOptionalTimestamp(data.last_contacted_at),
     next_due_at: normalizeOptionalTimestamp(data.next_due_at),
     is_due: isDue,
-    is_overdue: isDue,
+    is_overdue: isOverdue,
     overdue_days: overdueDays,
     updated_at: record.updated_at,
   };
@@ -215,6 +269,14 @@ function normalizePriority(value) {
 function normalizeCadence(value) {
   const number = Number(value);
   if (!Number.isInteger(number) || number < 1 || number > 3650) throw new Error('Keep in Touch cadence must be an integer from 1 to 3650 days.');
+  return number;
+}
+
+function normalizeFrequency(value) {
+  const number = Number(value);
+  if (!KEEP_IN_TOUCH_FREQUENCIES_DAYS.includes(number)) {
+    throw new Error(`Keep in Touch frequency must be one of: ${KEEP_IN_TOUCH_FREQUENCIES_DAYS.join(', ')} days.`);
+  }
   return number;
 }
 

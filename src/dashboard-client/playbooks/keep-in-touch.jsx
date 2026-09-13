@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
-const DEFAULT_CADENCE_DAYS = 14;
+const DEFAULT_CADENCE_DAYS = 7;
 const DEFAULT_PRIORITY = 3;
 const DEFAULT_STAGE = 'building';
 

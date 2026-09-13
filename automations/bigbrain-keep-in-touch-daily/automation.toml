@@ -1,0 +1,7 @@
+version = 1
+id = "bigbrain-keep-in-touch-daily"
+kind = "heartbeat"
+name = "Daily BigBrain Keep in Touch"
+prompt = "Use $bigbrain-keep-in-touch to run the daily Keep in Touch review for the selected BigBrain. Review every people page returned by the playbook-owned review window, read each page, record one evidence-backed outcome for every candidate, and report the complete result in ordinary prose. Include additions, frequency changes with justifications, no-change and needs-review outcomes, and the current due or overdue queue with optional unsent message suggestions. Do not send messages or write person-page markers. If the playbook is disabled, report that the review is paused and leave its cursor and registry unchanged."
+status = "ACTIVE"
+rrule = "FREQ=DAILY;BYHOUR=6;BYMINUTE=0;BYSECOND=0"
