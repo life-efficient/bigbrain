@@ -6,14 +6,37 @@ import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import {
+  bootstrapPageSchemaRegistry,
+  deletePageSchema,
+  getPageSchema,
   loadPageSchemaRegistry,
   PAGE_SCHEMA_REGISTRY_FILENAME,
+  registerPageSchema,
   resolvePageSchema,
+  updatePageSchema,
 } from '../../src/bigbrain/page-schema-registry.js';
 
-test('page schema registry is optional and defaults to no schemas', async () => {
+test('new Brains receive an editable default page schema registry', async () => {
   const fixture = await createFixture('bigbrain-page-schema-missing-');
   try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const loaded = await loadPageSchemaRegistry(config);
+
+    assert.equal(loaded.status, 'valid');
+    assert.equal(loaded.valid, true);
+    assert.equal(resolvePageSchema(loaded.registry, { pagePath: 'people/alice.md' }).id, 'people');
+    const task = resolvePageSchema(loaded.registry, { pagePath: 'tasks/follow-up.md' });
+    assert.equal(task.id, 'tasks');
+    assert.deepEqual(task.schema.fields.status.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page schema registry remains optional for existing Brains until explicitly bootstrapped', async () => {
+  const fixture = await createFixture('bigbrain-page-schema-missing-');
+  try {
+    await fs.rm(path.join(fixture.brainHome, PAGE_SCHEMA_REGISTRY_FILENAME));
     const config = await loadConfig({ configPath: fixture.configPath });
     const loaded = await loadPageSchemaRegistry(config);
 
@@ -21,6 +44,10 @@ test('page schema registry is optional and defaults to no schemas', async () => 
     assert.equal(loaded.valid, true);
     assert.deepEqual(loaded.registry.schemas, {});
     assert.equal(resolvePageSchema(loaded.registry, { pagePath: 'people/alice.md' }), null);
+
+    const bootstrapped = await bootstrapPageSchemaRegistry(config);
+    assert.equal(bootstrapped.status, 'valid');
+    assert.equal(resolvePageSchema(bootstrapped.registry, { pagePath: 'people/alice.md' }).id, 'people');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -83,6 +110,44 @@ schemas:
     assert.equal(loaded.valid, false);
     assert.match(loaded.errors.join('\n'), /already assigned/);
     assert.match(loaded.errors.join('\n'), /relative non-hidden path/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page schemas can be registered, updated, and safely deleted per Brain', async () => {
+  const fixture = await createFixture('bigbrain-page-schema-register-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const registered = await registerPageSchema(config, {
+      id: 'decision-log',
+      definition: {
+        path_prefix: 'decisions',
+        description: 'Decision records for this Brain.',
+        fields: {
+          outcome: { type: 'string', required: true },
+        },
+      },
+    });
+    assert.equal(registered.id, 'decision-log');
+
+    const updated = await updatePageSchema(config, {
+      id: 'decision-log',
+      definition: {
+        path_prefix: 'decisions',
+        description: 'Decision records with explicit state.',
+        fields: {
+          outcome: { type: 'string', required: true },
+          state: { type: 'string', enum: ['proposed', 'accepted'], default: 'proposed' },
+        },
+      },
+    });
+    assert.equal(updated.fields.state.default, 'proposed');
+    assert.equal((await getPageSchema(config, 'decision-log')).description, 'Decision records with explicit state.');
+
+    const deleted = await deletePageSchema(config, { id: 'decision-log' });
+    assert.deepEqual(deleted, { id: 'decision-log', deleted: true });
+    await assert.rejects(() => getPageSchema(config, 'decision-log'), /not found/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

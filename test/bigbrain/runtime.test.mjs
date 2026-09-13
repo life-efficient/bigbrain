@@ -34,6 +34,7 @@ test('init creates an external brain home with runtime state under the home-leve
     await fs.stat(path.join(brainHome, 'tasks'));
     await fs.stat(path.join(brainHome, 'organizations'));
     await fs.stat(path.join(brainHome, 'protocol'));
+    await fs.stat(path.join(brainHome, 'page-schemas.yaml'));
     await assert.rejects(fs.stat(path.join(brainHome, 'companies')));
     await assert.rejects(fs.stat(path.join(brainHome, 'sources')));
     await assert.rejects(fs.stat(path.join(brainHome, 'ops')));

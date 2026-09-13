@@ -4,11 +4,29 @@ import path from 'node:path';
 import yaml from 'js-yaml';
 import { z } from 'zod';
 
+import { CANONICAL_SCHEMA_DIRS } from './constants.js';
+
 export const PAGE_SCHEMA_REGISTRY_FILENAME = 'page-schemas.yaml';
 export const PAGE_SCHEMA_REGISTRY_VERSION = 1;
 
 const SCHEMA_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const FIELD_TYPES = ['string', 'number', 'boolean', 'array', 'object'];
+const DEFAULT_SCHEMA_DESCRIPTIONS = {
+  people: 'Canonical pages for people and relationship context.',
+  organizations: 'Canonical pages for organizations and institutions.',
+  deals: 'Canonical pages for transactions and deal work.',
+  projects: 'Canonical pages for active workstreams and execution.',
+  ideas: 'Canonical pages for unbuilt possibilities.',
+  meetings: 'Canonical pages for meetings, preparation, and decisions.',
+  tasks: 'Assignable work items with task-specific frontmatter.',
+  concepts: 'Canonical pages for reusable mental models and frameworks.',
+  components: 'Canonical pages for technical or physical components.',
+  products: 'Canonical pages for named commercial offerings.',
+  processes: 'Canonical pages for repeatable operating processes.',
+  writing: 'Canonical pages for authored prose artifacts.',
+  protocol: 'Canonical pages for operating rules and preferences.',
+  archive: 'Canonical pages for historical or superseded material.',
+};
 
 const fieldDefinitionSchema = z.object({
   type: z.enum(FIELD_TYPES).optional(),
@@ -63,6 +81,31 @@ export function pageSchemaRegistryPath(config) {
   return path.join(config.brainDir, PAGE_SCHEMA_REGISTRY_FILENAME);
 }
 
+export function defaultPageSchemaRegistry() {
+  return {
+    schema_version: PAGE_SCHEMA_REGISTRY_VERSION,
+    schemas: Object.fromEntries(CANONICAL_SCHEMA_DIRS.map((collection) => [collection, {
+      path_prefix: collection,
+      description: DEFAULT_SCHEMA_DESCRIPTIONS[collection] || `Canonical pages under ${collection}/.`,
+      fields: collection === 'tasks' ? defaultTaskFields() : {},
+    }])),
+  };
+}
+
+export async function ensurePageSchemaRegistry(config) {
+  return bootstrapPageSchemaRegistry(config);
+}
+
+export async function bootstrapPageSchemaRegistry(config, { overwrite = false } = {}) {
+  const loaded = await loadPageSchemaRegistry(config);
+  if (loaded.status === 'valid' && !overwrite) return loaded;
+  if (loaded.status === 'invalid' && !overwrite) {
+    throw new Error(`Page schema registry is invalid: ${loaded.errors.join('; ')}`);
+  }
+  await writePageSchemaRegistry(config, defaultPageSchemaRegistry());
+  return loadPageSchemaRegistry(config, { allowMissing: false });
+}
+
 export async function loadPageSchemaRegistry(config, { allowMissing = true } = {}) {
   const filePath = pageSchemaRegistryPath(config);
   let raw;
@@ -88,6 +131,63 @@ export async function loadPageSchemaRegistry(config, { allowMissing = true } = {
     valid: true,
     errors: [],
   };
+}
+
+export async function listPageSchemas(config) {
+  const loaded = await requireValidPageSchemaRegistry(config);
+  return Object.entries(loaded.registry.schemas)
+    .map(([id, definition]) => ({ id, ...definition }))
+    .sort((left, right) => left.id.localeCompare(right.id));
+}
+
+export async function getPageSchema(config, id) {
+  const normalizedId = normalizeSchemaId(id);
+  const loaded = await requireValidPageSchemaRegistry(config);
+  const definition = loaded.registry.schemas[normalizedId];
+  if (!definition) throw new Error(`Page schema not found: ${normalizedId}`);
+  return { id: normalizedId, ...definition };
+}
+
+export async function registerPageSchema(config, { id, definition } = {}) {
+  const normalizedId = normalizeSchemaId(id);
+  const loaded = await requireValidPageSchemaRegistry(config);
+  if (loaded.registry.schemas[normalizedId]) throw new Error(`Page schema already exists: ${normalizedId}`);
+  await writePageSchemaRegistry(config, {
+    ...loaded.registry,
+    schemas: {
+      ...loaded.registry.schemas,
+      [normalizedId]: definition,
+    },
+  });
+  return getPageSchema(config, normalizedId);
+}
+
+export async function updatePageSchema(config, { id, definition } = {}) {
+  const normalizedId = normalizeSchemaId(id);
+  const loaded = await requireValidPageSchemaRegistry(config);
+  if (!loaded.registry.schemas[normalizedId]) throw new Error(`Page schema not found: ${normalizedId}`);
+  await writePageSchemaRegistry(config, {
+    ...loaded.registry,
+    schemas: {
+      ...loaded.registry.schemas,
+      [normalizedId]: definition,
+    },
+  });
+  return getPageSchema(config, normalizedId);
+}
+
+export async function deletePageSchema(config, { id } = {}) {
+  const normalizedId = normalizeSchemaId(id);
+  const loaded = await requireValidPageSchemaRegistry(config);
+  if (!loaded.registry.schemas[normalizedId]) throw new Error(`Page schema not found: ${normalizedId}`);
+  const references = await explicitSchemaReferences(config, normalizedId);
+  if (references.length) {
+    throw new Error(`Page schema ${normalizedId} is still declared by page(s): ${references.slice(0, 8).join(', ')}.`);
+  }
+  const schemas = { ...loaded.registry.schemas };
+  delete schemas[normalizedId];
+  await writePageSchemaRegistry(config, { ...loaded.registry, schemas });
+  return { id: normalizedId, deleted: true };
 }
 
 export function resolvePageSchema(registry, { pagePath, frontmatter = {} } = {}) {
@@ -118,6 +218,47 @@ function missingRegistryResult(config) {
   };
 }
 
+async function requireValidPageSchemaRegistry(config) {
+  const loaded = await loadPageSchemaRegistry(config);
+  if (loaded.status === 'missing') {
+    throw new Error(`Page schema registry is missing: ${PAGE_SCHEMA_REGISTRY_FILENAME}. Initialize or register the Brain schema registry first.`);
+  }
+  if (!loaded.valid) throw new Error(`Page schema registry is invalid: ${loaded.errors.join('; ')}`);
+  return loaded;
+}
+
+async function writePageSchemaRegistry(config, registry) {
+  const parsed = pageSchemaRegistrySchema.parse(registry);
+  const filePath = pageSchemaRegistryPath(config);
+  const temporaryPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  try {
+    await fs.writeFile(temporaryPath, yaml.dump(parsed, { noRefs: true, lineWidth: 120, sortKeys: false }), { encoding: 'utf8', mode: 0o644 });
+    await fs.rename(temporaryPath, filePath);
+  } catch (error) {
+    await fs.rm(temporaryPath, { force: true }).catch(() => {});
+    throw error;
+  }
+}
+
+function defaultTaskFields() {
+  return {
+    status: { type: 'string', enum: ['open', 'in_progress', 'waiting', 'done', 'archived'], default: 'open' },
+    priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'], default: 'p3' },
+    readiness: { type: 'string', enum: ['underspecified', 'ready'], default: 'underspecified' },
+    execution_mode: { type: 'string', enum: ['agent', 'user', 'interactive'], default: 'agent' },
+    assignees: { type: 'array', default: [] },
+    source: { type: 'array', default: [] },
+    due: { type: 'string' },
+  };
+}
+
+function normalizeSchemaId(value) {
+  const normalized = String(value || '').trim();
+  if (!SCHEMA_ID_PATTERN.test(normalized)) throw new Error('Schema ID must be a lowercase hyphenated slug.');
+  return normalized;
+}
+
 function invalidRegistryResult(config, error) {
   return {
     path: pageSchemaRegistryPath(config),
@@ -146,4 +287,38 @@ function formatError(error) {
     return error.issues.map((issue) => `${issue.path.join('.') || 'registry'}: ${issue.message}`).join('; ');
   }
   return error instanceof Error ? error.message : String(error);
+}
+
+async function explicitSchemaReferences(config, schemaId) {
+  const files = [];
+  await collectMarkdownFiles(config.brainDir, files);
+  const references = [];
+  for (const filePath of files) {
+    const raw = await fs.readFile(filePath, 'utf8');
+    const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+    if (!match) continue;
+    let frontmatter;
+    try {
+      frontmatter = yaml.load(match[1]);
+    } catch {
+      continue;
+    }
+    if (frontmatter?.page_schema === schemaId) {
+      references.push(path.relative(config.brainDir, filePath).replace(/\\/g, '/').replace(/\.md$/i, ''));
+    }
+  }
+  return references.sort();
+}
+
+async function collectMarkdownFiles(current, files) {
+  const entries = await fs.readdir(current, { withFileTypes: true }).catch(() => []);
+  for (const entry of entries) {
+    if (entry.name === '.git' || entry.name === '.bigbrain-state' || entry.name === '.raw') continue;
+    const fullPath = path.join(current, entry.name);
+    if (entry.isDirectory()) {
+      await collectMarkdownFiles(fullPath, files);
+    } else if (entry.isFile() && entry.name.endsWith('.md')) {
+      files.push(fullPath);
+    }
+  }
 }

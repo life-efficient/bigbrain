@@ -28,6 +28,7 @@ import {
   renderBrainProfileMarkdown,
   writeBrainProfile,
 } from './brain-profile.js';
+import { ensurePageSchemaRegistry } from './page-schema-registry.js';
 
 export function legacyMetaDirForBrainHome(brainHome) {
   return path.join(path.resolve(brainHome), LEGACY_META_DIRNAME);
@@ -173,6 +174,7 @@ export async function initializeBrainHome(brainHome, { env = process.env, brainN
   for (const dir of config.schema_dirs) {
     await fs.mkdir(path.join(resolvedBrainHome, dir), { recursive: true });
   }
+  await ensurePageSchemaRegistry({ brainDir: resolvedBrainHome });
   await writeIfMissing(configPathForBrainHome(resolvedBrainHome, env), `${JSON.stringify(configFileDefaults(config), null, 2)}\n`);
   await writeIfMissing(statePathForBrainHome(resolvedBrainHome, env), `${JSON.stringify(defaultState(), null, 2)}\n`);
   await writeIfMissing(brainProfilePath({ brainDir: resolvedBrainHome }), renderBrainProfileMarkdown(conservativeBrainProfileDraft({
