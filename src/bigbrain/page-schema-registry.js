@@ -208,6 +208,86 @@ export function resolvePageSchema(registry, { pagePath, frontmatter = {} } = {})
   return { id, schema, source: 'path_prefix' };
 }
 
+export function pageSchemaComplianceIssues(registry, { pagePath, frontmatter = {} } = {}) {
+  const normalizedFrontmatter = frontmatter && typeof frontmatter === 'object' && !Array.isArray(frontmatter)
+    ? frontmatter
+    : {};
+  let resolved;
+  try {
+    resolved = resolvePageSchema(registry, { pagePath, frontmatter: normalizedFrontmatter });
+  } catch (error) {
+    const declaredSchema = typeof normalizedFrontmatter.page_schema === 'string'
+      ? normalizedFrontmatter.page_schema.trim()
+      : null;
+    return {
+      schema: null,
+      issues: [{
+        type: 'unknown_page_schema',
+        details: {
+          page_schema: declaredSchema,
+          message: error instanceof Error ? error.message : String(error),
+        },
+      }],
+    };
+  }
+  if (!resolved) return { schema: null, issues: [] };
+
+  const issues = [];
+  for (const [field, definition] of Object.entries(resolved.schema.fields || {})) {
+    const present = Object.prototype.hasOwnProperty.call(normalizedFrontmatter, field);
+    if (!present) {
+      if (Object.prototype.hasOwnProperty.call(definition, 'default')) {
+        issues.push({
+          type: 'schema_default_missing',
+          details: {
+            field,
+            default_value: definition.default,
+            remediation: 'apply_default',
+          },
+        });
+      } else if (definition.required) {
+        issues.push({
+          type: 'schema_required_field_missing',
+          details: { field },
+        });
+      }
+      continue;
+    }
+
+    const value = normalizedFrontmatter[field];
+    if (definition.type && !matchesSchemaFieldType(value, definition.type)) {
+      issues.push({
+        type: 'schema_field_type_mismatch',
+        details: {
+          field,
+          expected_type: definition.type,
+          actual_type: schemaValueType(value),
+        },
+      });
+      continue;
+    }
+    if (Array.isArray(definition.enum) && !definition.enum.some((candidate) => Object.is(candidate, value))) {
+      issues.push({
+        type: 'schema_field_invalid_enum',
+        details: {
+          field,
+          allowed_values: definition.enum,
+          actual_value: value,
+        },
+      });
+    }
+  }
+
+  return {
+    schema: {
+      id: resolved.id,
+      source: resolved.source,
+      path_prefix: resolved.schema.path_prefix || null,
+    },
+    issues,
+  };
+}
+
 function missingRegistryResult(config) {
   return {
     path: pageSchemaRegistryPath(config),
@@ -280,6 +360,18 @@ function normalizePagePath(value) {
   const normalized = String(value || '').trim().replace(/\\/g, '/').replace(/^\/+/, '').replace(/\.md$/i, '');
   if (!normalized) throw new Error('pagePath is required to resolve a page schema.');
   return normalized;
+}
+
+function matchesSchemaFieldType(value, type) {
+  if (type === 'array') return Array.isArray(value);
+  if (type === 'object') return value !== null && typeof value === 'object' && !Array.isArray(value);
+  return typeof value === type;
+}
+
+function schemaValueType(value) {
+  if (Array.isArray(value)) return 'array';
+  if (value === null) return 'null';
+  return typeof value;
 }
 
 function formatError(error) {

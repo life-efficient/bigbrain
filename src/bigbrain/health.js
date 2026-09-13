@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import { openDatabase, clearHealthFindings, getBacklinks, getOutgoingLinks, insertHealthFinding, listHealthFindings, listPages, upsertHostedBrainGitState } from './db.js';
 import { loadDomainRegistry, pageDomainIssues } from './domains.js';
 import { fullPathFromSlug, parseMarkdownPage, replaceTimelineSection } from './markdown.js';
+import { loadPageSchemaRegistry, pageSchemaComplianceIssues } from './page-schema-registry.js';
 import { safeBrainPath } from './page-ops.js';
 import { isAttachmentSidecarSlug, validatePageShape } from './schema.js';
 import { normalizeSourceType, parseMutationMetadata, SOURCE_TYPE_DEFINITIONS } from './source-taxonomy.js';
@@ -34,8 +35,10 @@ export async function runHealthCheck(config, {
   await clearHealthFindings(db);
   const pages = await listPages(db, { includeTimeline: true });
   const domainRegistry = await loadDomainRegistry(config);
+  const pageSchemaRegistry = await loadPageSchemaRegistry(config);
   const pageAttributions = new Map();
   const provenanceStatus = createProvenanceStatus(pages.length);
+  const pageSchemaStatus = createPageSchemaStatus(pageSchemaRegistry);
 
   if (!domainRegistry.valid) {
     await insertHealthFinding(db, {
@@ -44,6 +47,26 @@ export async function runHealthCheck(config, {
       details: {
         path: domainRegistry.path,
         errors: domainRegistry.errors,
+      },
+    });
+  }
+
+  if (pageSchemaRegistry.status === 'missing') {
+    await insertHealthFinding(db, {
+      findingType: 'page_schema_registry_missing',
+      severity: severityForFinding('page_schema_registry_missing'),
+      details: {
+        path: pageSchemaRegistry.path,
+        remediation: 'bootstrap_registry',
+      },
+    });
+  } else if (!pageSchemaRegistry.valid) {
+    await insertHealthFinding(db, {
+      findingType: 'invalid_page_schema_registry',
+      severity: severityForFinding('invalid_page_schema_registry'),
+      details: {
+        path: pageSchemaRegistry.path,
+        errors: pageSchemaRegistry.errors,
       },
     });
   }
@@ -94,6 +117,30 @@ export async function runHealthCheck(config, {
         pageSlug: page.slug,
         details: finding.details ?? {},
       });
+    }
+
+    if (pageSchemaRegistry.status === 'valid') {
+      pageSchemaStatus.pages_evaluated += 1;
+      const compliance = pageSchemaComplianceIssues(pageSchemaRegistry.registry, {
+        pagePath: page.slug,
+        frontmatter: parsed.frontmatter,
+      });
+      if (compliance.schema) pageSchemaStatus.pages_with_schema += 1;
+      for (const issue of compliance.issues) {
+        pageSchemaStatus.violation_count += 1;
+        await insertHealthFinding(db, {
+          findingType: issue.type,
+          severity: severityForFinding(issue.type),
+          pageSlug: page.slug,
+          details: {
+            registry_path: pageSchemaRegistry.path,
+            schema_id: compliance.schema?.id ?? null,
+            schema_source: compliance.schema?.source ?? null,
+            schema_path_prefix: compliance.schema?.path_prefix ?? null,
+            ...issue.details,
+          },
+        });
+      }
     }
 
     if (domainRegistry.valid) {
@@ -311,6 +358,7 @@ export async function runHealthCheck(config, {
       errors: domainRegistry.errors,
       domain_count: Object.keys(domainRegistry.registry.domains).length,
     },
+    page_schema_registry: pageSchemaStatus,
     provenance_status: provenanceStatus,
   };
 }
@@ -351,6 +399,10 @@ async function readEventRuntimeHealth(config) {
 
 function severityForFinding(findingType) {
   if (findingType === 'invalid_domain_registry') return 'high';
+  if (findingType === 'invalid_page_schema_registry') return 'high';
+  if (findingType === 'page_schema_registry_missing') return 'medium';
+  if (findingType === 'schema_required_field_missing' || findingType === 'schema_field_type_mismatch' || findingType === 'schema_field_invalid_enum' || findingType === 'unknown_page_schema') return 'medium';
+  if (findingType === 'schema_default_missing') return 'low';
   if (findingType === 'missing_frontmatter' || findingType === 'missing_separator' || findingType === 'invalid_timeline' || findingType === 'duplicate_timeline' || findingType === 'unregistered_domain' || findingType === 'invalid_domain_membership') return 'medium';
   if (findingType === 'duplicate_domain_membership') return 'low';
   if (findingType === 'missing_meeting_heading' || findingType === 'invalid_meeting_prep_heading' || findingType === 'invalid_meeting_prep_structure') return 'medium';
@@ -359,6 +411,19 @@ function severityForFinding(findingType) {
   if (findingType === 'missing_filing_rules') return 'medium';
   if (findingType === 'missing_source_attribution') return 'medium';
   return 'low';
+}
+
+function createPageSchemaStatus(loaded) {
+  return {
+    path: loaded.path,
+    status: loaded.status,
+    valid: loaded.valid,
+    errors: loaded.errors,
+    schema_count: Object.keys(loaded.registry?.schemas || {}).length,
+    pages_evaluated: 0,
+    pages_with_schema: 0,
+    violation_count: 0,
+  };
 }
 
 function createProvenanceStatus(pageCount) {
