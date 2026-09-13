@@ -2,31 +2,15 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { parseMarkdownPage, slugFromPath } from './markdown.js';
-import { assertAllowedPagePath, createBrainPage, normalizePagePath, readBrainPage, safeBrainPath } from './page-ops.js';
+import { assertAllowedPagePath, createBrainPage, normalizePagePath, readBrainPage, updateBrainPage } from './page-ops.js';
 import { findActiveMemberByPersonSlug, listActiveMembers, memberMapByPersonSlug, resolveActorMember } from './members.js';
-import { appendTimelineEntries, timelineText } from './timeline.js';
+import { timelineText } from './timeline.js';
 
 const TASK_STATUSES = ['open', 'in_progress', 'waiting', 'done', 'archived'];
 const TASK_PRIORITIES = ['p0', 'p1', 'p2', 'p3'];
 const TASK_READINESS = ['underspecified', 'ready'];
 const TASK_EXECUTION_MODES = ['agent', 'user', 'interactive'];
 const COMPLETION_HANDOFF_ERROR = 'Completing a task requires a completion handoff: either Next task: tasks/<slug> or No successor task needed: <reason>.';
-
-function withTimelineProvenance(input, provenance) {
-  if (provenance === null || provenance === undefined) return input;
-  if (Array.isArray(input)) return input.map((entry) => withTimelineProvenance(entry, provenance));
-  if (typeof input === 'string') return { text: input, provenance };
-  if (input && typeof input === 'object') {
-    return {
-      ...input,
-      provenance: {
-        ...provenance,
-        ...(input.provenance || {}),
-      },
-    };
-  }
-  return input;
-}
 
 export async function listTaskPages({ config, db, assignee = null, status = null, priority = null, readiness = null, executionMode = null, actor = null, memberResolution = {} } = {}) {
   const members = await listActiveMembers(db);
@@ -205,9 +189,8 @@ export async function updateTaskPage({
   memberResolution = {},
 } = {}) {
   const relative = normalizeTaskPagePath(taskPath);
-  const fullPath = safeBrainPath(config.brainDir, relative);
-  const raw = await fs.readFile(fullPath, 'utf8');
-  const parsed = parseMarkdownPage(raw, relative.replace(/\.md$/i, ''));
+  const existing = await readBrainPage({ config, pagePath: relative });
+  const parsed = parseMarkdownPage(existing.markdown, relative.replace(/\.md$/i, ''));
   const previousStatus = normalizeStatus(parsed.frontmatter.status || 'open');
   const statusProvided = status !== null && status !== undefined;
   const normalizedStatus = statusProvided ? normalizeStatus(status) : previousStatus;
@@ -217,45 +200,35 @@ export async function updateTaskPage({
     timelineEntry: timelineEntries ?? timelineEntry,
     isExplicitStatusChange: statusProvided,
   });
-  const nextFrontmatter = {
-    ...parsed.frontmatter,
+  const frontmatterPatch = {
     status: normalizedStatus,
     priority: priority === null || priority === undefined ? normalizePriority(parsed.frontmatter.priority || 'p3') : normalizePriority(priority),
     readiness: readiness === null || readiness === undefined ? normalizeReadiness(parsed.frontmatter.readiness || 'underspecified') : normalizeReadiness(readiness),
     execution_mode: executionMode === null || executionMode === undefined ? normalizeExecutionMode(parsed.frontmatter.execution_mode || 'agent') : normalizeExecutionMode(executionMode),
   };
   if (assignees !== null && assignees !== undefined) {
-    nextFrontmatter.assignees = await normalizeAndValidateAssignees(db, assignees, actor, memberResolution);
+    frontmatterPatch.assignees = await normalizeAndValidateAssignees(db, assignees, actor, memberResolution);
   } else {
-    nextFrontmatter.assignees = normalizeSlugList(parsed.frontmatter.assignees);
+    frontmatterPatch.assignees = normalizeSlugList(parsed.frontmatter.assignees);
   }
   if (source !== null && source !== undefined) {
-    nextFrontmatter.source = normalizeSlugList(source);
+    frontmatterPatch.source = normalizeSlugList(source);
   } else if (parsed.frontmatter.source !== undefined) {
-    nextFrontmatter.source = normalizeSlugList(parsed.frontmatter.source);
+    frontmatterPatch.source = normalizeSlugList(parsed.frontmatter.source);
   }
-  Object.assign(nextFrontmatter, frontmatterValues || {});
+  Object.assign(frontmatterPatch, frontmatterValues || {});
 
   const nextBody = body === null || body === undefined ? parsed.compiledTruth : requireNonEmpty(body, 'body');
-  const now = new Date().toISOString();
-  const timelineInput = withTimelineProvenance(timelineEntries ?? timelineEntry ?? 'Task updated.', timelineProvenance);
-  const nextTimeline = appendTimelineEntries(parsed.timeline, timelineInput, {
-    recordedAt: now,
-    significance: timelineSignificance,
-    requireProvenance: true,
+  const page = await updateBrainPage({
+    config,
+    pagePath: relative,
+    compiledTruth: nextBody,
+    timelineEntry: timelineEntries ?? timelineEntry ?? 'Task updated.',
+    timelineProvenance,
+    timelineSignificance,
+    frontmatterValues: frontmatterPatch,
   });
-  const markdown = renderTaskMarkdown({
-    frontmatter: {
-      ...nextFrontmatter,
-      title: parsed.title,
-      created: parsed.frontmatter.created || now.slice(0, 10),
-    },
-    title: parsed.title,
-    body: nextBody,
-    timeline: nextTimeline,
-  });
-  await fs.writeFile(fullPath, markdown, 'utf8');
-  return decorateTaskPage(await readBrainPage({ config, pagePath: relative }), memberMapByPersonSlug(await listActiveMembers(db)));
+  return decorateTaskPage(page, memberMapByPersonSlug(await listActiveMembers(db)));
 }
 
 export async function resolveAssigneeFilter({ db, assignee, actor, memberResolution = {} } = {}) {
@@ -549,43 +522,6 @@ function priorityRank(priority) {
 
 function dueSortValue(due) {
   return due ? Date.parse(`${due}T00:00:00Z`) : Number.MAX_SAFE_INTEGER;
-}
-
-function renderTaskMarkdown({ frontmatter, title, body, timeline }) {
-  return [
-    '---',
-    renderFrontmatter(frontmatter),
-    '---',
-    '',
-    normalizeCurrentBody(title, body),
-    '',
-    '---',
-    '',
-    '## Timeline',
-    '',
-    timeline.trim(),
-    '',
-  ].join('\n');
-}
-
-function renderFrontmatter(frontmatter) {
-  return Object.entries(frontmatter)
-    .filter(([, value]) => value !== undefined && value !== null && !(Array.isArray(value) && value.length === 0))
-    .map(([key, value]) => `${key}: ${formatYamlValue(value)}`)
-    .join('\n');
-}
-
-function formatYamlValue(value) {
-  if (Array.isArray(value)) return `[${value.map((item) => String(item)).join(', ')}]`;
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  const text = String(value);
-  return /[:#\n]|^\s|\s$/.test(text) ? JSON.stringify(text) : text;
-}
-
-function normalizeCurrentBody(title, body) {
-  const trimmed = body.trim();
-  if (/^#\s+/m.test(trimmed)) return trimmed;
-  return [`# ${title}`, '', trimmed].join('\n');
 }
 
 function slugify(value) {

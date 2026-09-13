@@ -1544,6 +1544,17 @@ None.`,
     assert.equal(inProgress.error, undefined, inProgress.error?.message);
     assert.equal(inProgress.result.structuredContent.status, 'in_progress');
 
+    const timelineBodyRejected = await rpc(running.url, 'tools/call', {
+      name: 'tasks/update',
+      arguments: {
+        path: 'tasks/draft-icaire-update',
+        body: '# Draft ICAIRE update\n\nCurrent context.\n\n## Timeline\n\n- This must remain writer-managed.',
+        timeline_entry: 'Attempted to supply a writer-managed timeline in task body.',
+      },
+    }, token);
+    assert.equal(timelineBodyRejected.result, undefined);
+    assert.match(timelineBodyRejected.error.message, /writer-managed/);
+
     const blockedRejected = await rpc(running.url, 'tools/call', {
       name: 'tasks/update',
       arguments: {
