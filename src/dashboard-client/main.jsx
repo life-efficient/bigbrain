@@ -3229,7 +3229,6 @@ const GraphPanel = memo(function GraphPanel({
                 autoRotate={autoRotate}
                 activeSlug={activeSlug}
                 onActiveSlugChange={onActiveSlugChange}
-                onBackgroundClick={onLineageClose}
               />
             ) : (
               <FocusedNetworkVisualizer
