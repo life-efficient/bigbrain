@@ -12,7 +12,15 @@ import { syncBrain } from '../../src/bigbrain/sync.js';
 
 test('opening a legacy SQLite index migrates embeddings to generic identities', async () => {
   const fixture = await createFixture('bigbrain-sync-legacy-embeddings-');
+  const originalFetch = globalThis.fetch;
   try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
+title: Alice
+---
+# Alice
+
+Current page body.
+`);
     const config = await loadConfig({ configPath: fixture.configPath });
     await fs.mkdir(path.dirname(config.sqlitePath), { recursive: true });
     const legacy = new DatabaseSync(config.sqlitePath);
@@ -52,7 +60,49 @@ test('opening a legacy SQLite index migrates embeddings to generic identities', 
       embedding_model: 'text-embedding-3-small',
       embedding_json: '[0.1,0.2]',
     }]);
+    await syncBrain({ config, apiKey: null });
+    const [legacyAfterSync] = await allEmbeddings(db);
+    assert.deepEqual({
+      source_type: legacyAfterSync.source_type,
+      embedding_kind: legacyAfterSync.embedding_kind,
+      payload_version: Number(legacyAfterSync.payload_version),
+      embedding_model: legacyAfterSync.embedding_model,
+    }, {
+      source_type: 'page',
+      embedding_kind: 'compiled_truth_chunk',
+      payload_version: 1,
+      embedding_model: 'text-embedding-3-small',
+    });
+    assert.equal(config.openaiEmbeddingModel, 'text-embedding-3-small');
+    globalThis.fetch = async (url) => {
+      assert.match(String(url), /\/embeddings$/);
+      return { ok: true, json: async () => ({ data: [{ embedding: [0.1, 0.2] }] }) };
+    };
+    const migrationSearch = await searchBrain({
+      db,
+      config,
+      query: 'legacy semantic target',
+      apiKey: 'test-key',
+      ablationArm: 'semantic-only',
+      strictRetrieval: true,
+      explain: true,
+    });
+    assert.equal(migrationSearch.semantic[0].slug, 'people/alice');
+
+    sqliteRawDatabase(db).prepare('UPDATE embeddings SET embedding_model = ?').run('incompatible-model');
+    const incompatibleSearch = await searchBrain({
+      db,
+      config,
+      query: 'legacy semantic target',
+      apiKey: 'test-key',
+      ablationArm: 'semantic-only',
+      explain: true,
+    });
+    assert.equal(incompatibleSearch.semantic.length, 0);
+    assert.match(incompatibleSearch.warnings.join('\n'), /index has no embeddings/);
+    await db.close?.();
   } finally {
+    globalThis.fetch = originalFetch;
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
 });
@@ -68,7 +118,11 @@ title: Alice
 Original note.
 `);
     const config = await loadConfig({ configPath: fixture.configPath });
-    const embedder = async (texts) => texts.map(() => [0.1, 0.2]);
+    let embeddingCalls = 0;
+    const embedder = async (texts) => {
+      embeddingCalls += texts.length;
+      return texts.map(() => [0.1, 0.2]);
+    };
     await syncBrain({ config, apiKey: 'test-key', embedder });
 
     const db = await openDatabase(config);
@@ -88,7 +142,49 @@ Original note.
       'text-embedding-3-small',
       '[0.3,0.4]',
     );
+    sqliteRawDatabase(db).prepare(`
+      INSERT INTO embeddings (
+        source_type, source_id, embedding_kind, embedding_key, input_text,
+        input_hash, payload_version, embedding_model, embedding_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'page',
+      'people/alice',
+      'full_document',
+      'stale-extra-key',
+      'Stale extra full document',
+      '1'.repeat(64),
+      1,
+      'text-embedding-3-small',
+      '[0.5,0.6]',
+    );
+    sqliteRawDatabase(db).prepare(`
+      INSERT INTO embeddings (
+        source_type, source_id, embedding_kind, embedding_key, input_text,
+        input_hash, payload_version, embedding_model, embedding_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'page',
+      'people/alice',
+      'compiled_truth_chunk',
+      'people/alice:compiled_truth:0',
+      'Legacy compiled truth',
+      '2'.repeat(64),
+      1,
+      'text-embedding-3-small',
+      '[0.7,0.8]',
+    );
     sqliteRawDatabase(db).close();
+
+    await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(embeddingCalls, 2);
+    const normalized = await allEmbeddings(await openDatabase(config));
+    assert.deepEqual(
+      normalized.filter((row) => row.embedding_kind === 'full_document').map((row) => row.embedding_key),
+      ['full'],
+    );
+    assert.equal(normalized.filter((row) => row.embedding_kind === 'compiled_truth_chunk').length, 0);
+    assert.equal(normalized.filter((row) => row.embedding_kind === 'summary').length, 1);
 
     await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
 title: Alice
@@ -98,9 +194,14 @@ title: Alice
 Changed note.
 `);
     await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(embeddingCalls, 3);
 
     const refreshed = await allEmbeddings(await openDatabase(config));
-    assert.equal(refreshed.filter((row) => row.embedding_kind === 'compiled_truth_chunk').length, 1);
+    assert.deepEqual(
+      refreshed.filter((row) => row.embedding_kind === 'full_document').map((row) => row.embedding_key),
+      ['full'],
+    );
+    assert.equal(refreshed.filter((row) => row.embedding_kind === 'compiled_truth_chunk').length, 0);
     assert.equal(refreshed.filter((row) => row.embedding_kind === 'summary').length, 1);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
@@ -485,12 +586,14 @@ Original company note.
     assert.deepEqual(firstSync.index_totals_after_sync, { pages: 2, links: 0 });
     assert.deepEqual(firstSync.outstanding_work, {
       pages_needing_embeddings: 0,
+      embeddings_pending: 0,
       embedding_chunks_pending: 0,
       pages_with_embedding_failures: 0,
       links_pending_indexing: 0,
     });
     assert.deepEqual(firstSync.run_work, {
       pages_embedded: 2,
+      embeddings_created: 2,
       embedding_chunks_created: 2,
       pages_embedding_failed: 0,
       pages_embedding_skipped_by_guard: 0,
@@ -501,7 +604,8 @@ Original company note.
 
     const stored = await allEmbeddings(await openDatabase(config));
     assert.equal(stored.every((row) => row.source_type === 'page'), true);
-    assert.equal(stored.every((row) => row.embedding_kind === 'compiled_truth_chunk'), true);
+    assert.equal(stored.every((row) => row.embedding_kind === 'full_document'), true);
+    assert.equal(stored.every((row) => row.embedding_key === 'full'), true);
     assert.equal(stored.every((row) => row.payload_version === 1), true);
     assert.equal(stored.every((row) => /^[a-f0-9]{64}$/.test(row.input_hash)), true);
 
@@ -551,6 +655,85 @@ Updated person note.
     assert.equal(calls.length, 3);
     assert.equal(calls[2].texts.length, 1);
     assert.match(calls[2].texts[0], /Updated person note/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('full-document embedding input includes aliases, page body, and timeline but excludes operational frontmatter', async () => {
+  const fixture = await createFixture('bigbrain-sync-full-document-input-');
+  try {
+    const pagePath = 'people/alice.md';
+    const pageBody = `# Alice
+
+Current relationship detail buried in the page body.
+
+---
+## Timeline
+
+- 2026-09-01: Discussed the observability project.
+  <!-- bigbrain:timeline {"entry_id":"event-one","recorded_at":"2026-09-01T00:00:00Z"} -->
+`;
+    await writeMarkdown(fixture.brainHome, pagePath, `---
+title: Alice Example
+aliases:
+  - Alice
+  - A. Example
+status: active
+priority: p1
+---
+${pageBody}`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const calls = [];
+    const embedder = async (texts) => {
+      calls.push(texts);
+      return [[0.1, 0.2]];
+    };
+
+    await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].length, 1);
+    assert.match(calls[0][0], /^Title: Alice Example/);
+    assert.match(calls[0][0], /Aliases: A\. Example, Alice/);
+    assert.match(calls[0][0], /Current relationship detail buried in the page body/);
+    assert.match(calls[0][0], /Discussed the observability project/);
+    assert.doesNotMatch(calls[0][0], /status: active|priority: p1/);
+    assert.doesNotMatch(calls[0][0], /bigbrain:timeline|event-one/);
+
+    await writeMarkdown(fixture.brainHome, pagePath, `---
+title: Alice Example
+aliases:
+  - A. Example
+  - Alice
+status: waiting
+priority: p3
+---
+${pageBody.replace('event-one', 'event-two')}`);
+    await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(calls.length, 1);
+
+    await writeMarkdown(fixture.brainHome, pagePath, `---
+title: Alice Example
+aliases: [Alice, A. Example, Ally]
+status: waiting
+priority: p3
+---
+${pageBody}`);
+    await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(calls.length, 2);
+    assert.match(calls[1][0], /Aliases: A\. Example, Alice, Ally/);
+
+    await writeMarkdown(fixture.brainHome, pagePath, `---
+title: Alice Example
+aliases: [Alice, A. Example, Ally]
+status: waiting
+priority: p3
+---
+${pageBody}- 2026-09-14: Added a later timeline update.\n`);
+    await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(calls.length, 3);
+    assert.match(calls[2][0], /Added a later timeline update/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -695,7 +878,7 @@ Company note.
   }
 });
 
-test('sync chunks oversized page content before embedding', async () => {
+test('sync sends an oversized page as one complete untruncated embedding input', async () => {
   const fixture = await createFixture('bigbrain-sync-embedding-chunks-');
   try {
     const longBody = Array.from({ length: 3300 }, (_, index) => `word${index}`).join(' ');
@@ -716,20 +899,19 @@ ${longBody}
 
     const result = await syncBrain({ config, apiKey: 'test-key', embedder });
     assert.equal(result.embeddings_generated, 1);
-    assert.equal(result.embedding_chunks_generated, 3);
+    assert.equal(result.embedding_chunks_generated, 1);
     assert.equal(result.embedding_pages_failed, 0);
     assert.equal(calls.length, 1);
-    assert.equal(calls[0].texts.length, 3);
-    assert.equal(calls[0].texts.every((text) => text.split(/\s+/).length <= 1500), true);
+    assert.equal(calls[0].texts.length, 1);
+    assert.match(calls[0].texts[0], /word0\b/);
+    assert.match(calls[0].texts[0], /word3299\b/);
 
     const db = await openDatabase(config);
     const embeddings = await allEmbeddings(db);
-    assert.equal(embeddings.length, 3);
-    assert.deepEqual(embeddings.map((row) => row.source_id), [
-      'concepts/long-note',
-      'concepts/long-note',
-      'concepts/long-note',
-    ]);
+    assert.equal(embeddings.length, 1);
+    assert.equal(embeddings[0].source_id, 'concepts/long-note');
+    assert.equal(embeddings[0].embedding_kind, 'full_document');
+    assert.equal(embeddings[0].embedding_key, 'full');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -769,12 +951,14 @@ Short company note.
     assert.deepEqual(result.index_totals_after_sync, { pages: 2, links: 0 });
     assert.deepEqual(result.outstanding_work, {
       pages_needing_embeddings: 1,
+      embeddings_pending: 1,
       embedding_chunks_pending: 1,
       pages_with_embedding_failures: 1,
       links_pending_indexing: 0,
     });
     assert.deepEqual(result.run_work, {
       pages_embedded: 1,
+      embeddings_created: 1,
       embedding_chunks_created: 1,
       pages_embedding_failed: 1,
       pages_embedding_skipped_by_guard: 0,

@@ -599,7 +599,7 @@ async function handleDb(args, global) {
     const config = await loadRuntimeConfig(global);
     const { migrateSqliteToPostgres } = await import('./postgres-migrate.js');
     const report = await migrateSqliteToPostgres(config);
-    output(global, report, `Migrated ${report.pages} page(s), ${report.links} link(s), and ${report.embeddings} embedding chunk(s) to Postgres.`);
+    output(global, report, `Migrated ${report.pages} page(s), ${report.links} link(s), and ${report.embeddings} embedding record(s) to Postgres.`);
     return;
   }
   throw new Error('db requires "doctor" or "migrate sqlite-to-postgres".');
@@ -1085,8 +1085,8 @@ function output(global, jsonValue, textValue) {
 function renderSyncText(result) {
   return [
     `Sync succeeded. Index now has ${result.index_totals_after_sync.pages} page(s) and ${result.index_totals_after_sync.links} link(s).`,
-    `Outstanding: ${result.outstanding_work.pages_needing_embeddings} page(s) need embeddings, ${result.outstanding_work.embedding_chunks_pending} embedding chunk(s) pending, ${result.outstanding_work.pages_with_embedding_failures} embedding failure(s).`,
-    `This run: ${result.run_work.pages_embedded} page(s) embedded, ${result.run_work.embedding_chunks_created} embedding chunk(s) created, ${result.run_work.pages_embedding_skipped_by_guard ?? 0} page(s) skipped by embedding guard.`,
+    `Outstanding: ${result.outstanding_work.pages_needing_embeddings} page(s) need embeddings, ${result.outstanding_work.embeddings_pending} embedding(s) pending, ${result.outstanding_work.pages_with_embedding_failures} embedding failure(s).`,
+    `This run: ${result.run_work.pages_embedded} page(s) embedded, ${result.run_work.embeddings_created} embedding(s) created, ${result.run_work.pages_embedding_skipped_by_guard ?? 0} page(s) skipped by embedding guard.`,
   ].join('\n');
 }
 

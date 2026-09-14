@@ -120,7 +120,7 @@ projection containing:
 - page metadata and searchable text
 - forward links and backlinks
 - lexical search indexes
-- embedding chunks and vectors
+- full-document embeddings and vectors
 - recent activity, health, and automation state
 - member, authentication, and audit state for server deployments
 

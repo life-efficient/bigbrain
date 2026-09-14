@@ -147,7 +147,7 @@ Server deployments should treat the app container filesystem as disposable. For
 redeploy-heavy services, all mutable runtime state must be stored on persistent
 storage:
 
-- embeddings and embedding chunks
+- full-document embeddings and future embedding representations
 - compact brain Git durability state
 - OAuth clients, grants, sessions, and issued MCP tokens
 - bounded MCP audit logs and contribution attribution

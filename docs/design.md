@@ -396,12 +396,15 @@ The database should stay narrow and derived from the markdown layer.
   - `source_note`
 
 - `embeddings`
-  - `page_slug`
-  - `chunk_id`
-  - `chunk_text`
+  - `source_type`
+  - `source_id`
+  - `embedding_kind`
+  - `embedding_key`
+  - `input_text`
+  - `input_hash`
+  - `payload_version`
   - `embedding_model`
   - `embedding_json`
-  - `content_hash`
 
 - `activity_log`
   - `id`
@@ -533,7 +536,7 @@ Automations should be narrow, explicit, idempotent, and inspectable.
   - update page rows
   - update links
   - refresh embeddings for changed content
-  - split oversized page content into compiled-truth chunks before embedding
+  - embed one complete full-document input per page without silent truncation
   - report per-page embedding failures without aborting page and link indexing
 
 - `git-backup`
@@ -669,25 +672,31 @@ Practical default:
 - `text-embedding-3-small` for embeddings first
 - a chat model for `query`
 
-`bigbrain sync` embeds page title plus compiled truth. Changed pages are split
-into bounded word chunks before calling the embeddings API, then stored as
-multiple rows in `embeddings` with stable `chunk_id` values. The sync report
+`bigbrain sync` embeds one full-document input per page containing the title,
+aliases, and complete body after frontmatter, including timeline. Operational
+frontmatter is excluded. Each vector is stored with embedding kind
+`full_document` and embedding key `full`. The sync report
 separates `index_totals_after_sync` from `outstanding_work` and `run_work` so
 automation can distinguish current index size, remaining embedding work, and
-work completed during the current run. Legacy top-level fields such as
+work completed during the current run. `embeddings_pending` and
+`embeddings_created` are the current counters. Legacy fields such as
 `indexed_pages`, `indexed_links`, `embeddings_generated`,
 `embedding_chunks_generated`, `embedding_pages_failed`, and
 `embedding_failures` remain for compatibility.
 
 Embedding generation is incremental and guarded. Each page is selected for
 embedding only when the stored embedding row is missing, the embedding model
-changed, or the page content hash changed. The `embedding_selection` report
+changed, the payload version changed, or the exact embedding input hash
+changed. The `embedding_selection` report
 breaks those reasons out explicitly. To avoid accidentally re-embedding a huge
 brain after a database reset or model mismatch, sync skips embedding generation
 when the selected page count is above `max_embedding_pages_per_sync` while still
 updating page and link indexes. Deliberate backfills should raise
 `max_embedding_pages_per_sync` or `BIGBRAIN_MAX_EMBEDDING_PAGES_PER_SYNC` for
-that run.
+that run. A provider rejection for an oversized full document is reported as a
+per-page embedding failure; BigBrain does not silently truncate the page.
+During migration, search prefers a page's current full-document embedding and
+falls back to its legacy compiled-truth rows only until that page is refreshed.
 
 ## Dashboard
 

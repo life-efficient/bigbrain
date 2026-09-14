@@ -9,8 +9,11 @@ import { latestTimelineDate } from './timeline.js';
 export const BIGBRAIN_STORAGE_SCHEMA_VERSION = 2;
 
 export const PAGE_EMBEDDING_SOURCE_TYPE = 'page';
-export const COMPILED_TRUTH_CHUNK_EMBEDDING_KIND = 'compiled_truth_chunk';
-export const COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION = 1;
+export const FULL_DOCUMENT_EMBEDDING_KIND = 'full_document';
+export const FULL_DOCUMENT_EMBEDDING_KEY = 'full';
+export const FULL_DOCUMENT_EMBEDDING_PAYLOAD_VERSION = 1;
+export const LEGACY_COMPILED_TRUTH_CHUNK_EMBEDDING_KIND = 'compiled_truth_chunk';
+export const LEGACY_COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION = 1;
 
 // Hosted MCP requests open the database in several authorization, tool, and
 // audit paths. Reusing the pool prevents each request from opening a new set
@@ -561,11 +564,11 @@ function ensureSqliteEmbeddingSchema(raw) {
         row.id,
         PAGE_EMBEDDING_SOURCE_TYPE,
         row.page_slug,
-        COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
+        LEGACY_COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
         row.chunk_id,
         row.chunk_text,
         sha256(row.chunk_text),
-        COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
+        LEGACY_COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
         row.embedding_model,
         row.embedding_json,
       );
@@ -614,8 +617,8 @@ async function ensurePostgresEmbeddingSchema(db) {
               payload_version = $3
         `, [
           PAGE_EMBEDDING_SOURCE_TYPE,
-          COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
-          COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
+          LEGACY_COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
+          LEGACY_COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
         ]);
         const rows = (await client.query('SELECT id, input_text FROM embeddings')).rows;
         for (const row of rows) {
@@ -790,59 +793,95 @@ export async function replaceLinksForPage(db, slug, links, knownSlugs) {
   }
 }
 
-export async function replaceEmbeddingsForPage(db, { pageSlug, chunks, model, vectors }) {
+export async function upsertFullDocumentEmbeddingForPage(db, { pageSlug, inputText, model, vector }) {
+  const inputHash = sha256(inputText);
   if (db.backend === 'postgres') {
-    await db.query(
-      'DELETE FROM embeddings WHERE source_type = $1 AND source_id = $2 AND embedding_kind = $3',
-      [PAGE_EMBEDDING_SOURCE_TYPE, pageSlug, COMPILED_TRUTH_CHUNK_EMBEDDING_KIND],
-    );
-    for (let index = 0; index < chunks.length; index += 1) {
-      if (!vectors[index]) continue;
-      await db.query(`
+    const client = await db.raw.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`
         INSERT INTO embeddings (
           source_type, source_id, embedding_kind, embedding_key, input_text,
           input_hash, payload_version, embedding_model, embedding, embedding_json
         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::vector,$10)
+        ON CONFLICT (source_type, source_id, embedding_kind, embedding_key)
+        DO UPDATE SET
+          input_text = EXCLUDED.input_text,
+          input_hash = EXCLUDED.input_hash,
+          payload_version = EXCLUDED.payload_version,
+          embedding_model = EXCLUDED.embedding_model,
+          embedding = EXCLUDED.embedding,
+          embedding_json = EXCLUDED.embedding_json
       `, [
         PAGE_EMBEDDING_SOURCE_TYPE,
         pageSlug,
-        COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
-        chunks[index].id,
-        chunks[index].text,
-        sha256(chunks[index].text),
-        COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
+        FULL_DOCUMENT_EMBEDDING_KIND,
+        FULL_DOCUMENT_EMBEDDING_KEY,
+        inputText,
+        inputHash,
+        FULL_DOCUMENT_EMBEDDING_PAYLOAD_VERSION,
         model,
-        vectorLiteral(vectors[index]),
-        JSON.stringify(vectors[index]),
+        vectorLiteral(vector),
+        JSON.stringify(vector),
       ]);
+      await client.query(
+        'DELETE FROM embeddings WHERE source_type = $1 AND source_id = $2 AND embedding_kind = $3 AND embedding_key <> $4',
+        [PAGE_EMBEDDING_SOURCE_TYPE, pageSlug, FULL_DOCUMENT_EMBEDDING_KIND, FULL_DOCUMENT_EMBEDDING_KEY],
+      );
+      await client.query(
+        'DELETE FROM embeddings WHERE source_type = $1 AND source_id = $2 AND embedding_kind = $3',
+        [PAGE_EMBEDDING_SOURCE_TYPE, pageSlug, LEGACY_COMPILED_TRUTH_CHUNK_EMBEDDING_KIND],
+      );
+      await client.query('COMMIT');
+      return;
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-    return;
   }
   const raw = unwrapSqlite(db);
-  raw.prepare('DELETE FROM embeddings WHERE source_type = ? AND source_id = ? AND embedding_kind = ?').run(
-    PAGE_EMBEDDING_SOURCE_TYPE,
-    pageSlug,
-    COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
-  );
-  const insert = raw.prepare(`
-    INSERT INTO embeddings (
-      source_type, source_id, embedding_kind, embedding_key, input_text,
-      input_hash, payload_version, embedding_model, embedding_json
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `);
-  for (let index = 0; index < chunks.length; index += 1) {
-    if (!vectors[index]) continue;
-    insert.run(
+  raw.exec('BEGIN IMMEDIATE');
+  try {
+    raw.prepare(`
+      INSERT INTO embeddings (
+        source_type, source_id, embedding_kind, embedding_key, input_text,
+        input_hash, payload_version, embedding_model, embedding_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(source_type, source_id, embedding_kind, embedding_key)
+      DO UPDATE SET
+        input_text = excluded.input_text,
+        input_hash = excluded.input_hash,
+        payload_version = excluded.payload_version,
+        embedding_model = excluded.embedding_model,
+        embedding_json = excluded.embedding_json
+    `).run(
       PAGE_EMBEDDING_SOURCE_TYPE,
       pageSlug,
-      COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
-      chunks[index].id,
-      chunks[index].text,
-      sha256(chunks[index].text),
-      COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
+      FULL_DOCUMENT_EMBEDDING_KIND,
+      FULL_DOCUMENT_EMBEDDING_KEY,
+      inputText,
+      inputHash,
+      FULL_DOCUMENT_EMBEDDING_PAYLOAD_VERSION,
       model,
-      JSON.stringify(vectors[index]),
+      JSON.stringify(vector),
     );
+    raw.prepare('DELETE FROM embeddings WHERE source_type = ? AND source_id = ? AND embedding_kind = ? AND embedding_key <> ?').run(
+      PAGE_EMBEDDING_SOURCE_TYPE,
+      pageSlug,
+      FULL_DOCUMENT_EMBEDDING_KIND,
+      FULL_DOCUMENT_EMBEDDING_KEY,
+    );
+    raw.prepare('DELETE FROM embeddings WHERE source_type = ? AND source_id = ? AND embedding_kind = ?').run(
+      PAGE_EMBEDDING_SOURCE_TYPE,
+      pageSlug,
+      LEGACY_COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
+    );
+    raw.exec('COMMIT');
+  } catch (error) {
+    raw.exec('ROLLBACK');
+    throw error;
   }
 }
 
@@ -1327,7 +1366,7 @@ export async function lexicalSearch(db, query, limit = 10) {
   `).all(query, limit);
 }
 
-export async function semanticSearch(db, queryVector, limit = 10) {
+export async function semanticSearch(db, queryVector, limit = 10, { model = null } = {}) {
   if (db.backend !== 'postgres') return null;
   const result = await db.query(`
     SELECT e.source_id,
@@ -1343,10 +1382,40 @@ export async function semanticSearch(db, queryVector, limit = 10) {
            1 - (e.embedding <=> $1::vector) AS semantic_score
     FROM embeddings e
     JOIN pages p ON p.slug = e.source_id
-    WHERE e.source_type = $3 AND e.embedding IS NOT NULL
+    WHERE e.source_type = $3
+      AND ($4::text IS NULL OR e.embedding_model = $4)
+      AND e.embedding IS NOT NULL
+      AND (
+        (e.embedding_kind = $5 AND e.embedding_key = $6 AND e.payload_version = $7)
+        OR (
+          e.embedding_kind = $8
+          AND e.payload_version = $9
+          AND NOT EXISTS (
+            SELECT 1
+            FROM embeddings replacement
+            WHERE replacement.source_type = e.source_type
+              AND replacement.source_id = e.source_id
+              AND replacement.embedding_kind = $5
+              AND replacement.embedding_key = $6
+              AND replacement.payload_version = $7
+              AND ($4::text IS NULL OR replacement.embedding_model = $4)
+              AND replacement.embedding IS NOT NULL
+          )
+        )
+      )
     ORDER BY e.embedding <=> $1::vector
     LIMIT $2
-  `, [vectorLiteral(queryVector), limit, PAGE_EMBEDDING_SOURCE_TYPE]);
+  `, [
+    vectorLiteral(queryVector),
+    limit,
+    PAGE_EMBEDDING_SOURCE_TYPE,
+    model,
+    FULL_DOCUMENT_EMBEDDING_KIND,
+    FULL_DOCUMENT_EMBEDDING_KEY,
+    FULL_DOCUMENT_EMBEDDING_PAYLOAD_VERSION,
+    LEGACY_COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
+    LEGACY_COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
+  ]);
   return result.rows.map((row) => ({
     slug: row.source_id,
     title: row.title ?? row.source_id,
@@ -1355,10 +1424,49 @@ export async function semanticSearch(db, queryVector, limit = 10) {
     summary: row.summary ?? '',
     updated_at: normalizeTimestampValue(row.updated_at),
     snippet: row.input_text.slice(0, 240),
-    chunk_id: row.embedding_key,
-    chunk_text: row.input_text,
+    embedding_key: row.embedding_key,
+    embedding_text: row.input_text,
     semantic_score: Number(row.semantic_score),
   }));
+}
+
+export async function hasSearchablePageEmbeddings(db, model) {
+  const params = [
+    PAGE_EMBEDDING_SOURCE_TYPE,
+    model,
+    FULL_DOCUMENT_EMBEDDING_KIND,
+    FULL_DOCUMENT_EMBEDDING_KEY,
+    FULL_DOCUMENT_EMBEDDING_PAYLOAD_VERSION,
+    LEGACY_COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
+    LEGACY_COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
+  ];
+  if (db.backend === 'postgres') {
+    const row = (await db.query(`
+      SELECT EXISTS (
+        SELECT 1
+        FROM embeddings
+        WHERE source_type = $1
+          AND embedding_model = $2
+          AND embedding IS NOT NULL
+          AND (
+            (embedding_kind = $3 AND embedding_key = $4 AND payload_version = $5)
+            OR (embedding_kind = $6 AND payload_version = $7)
+          )
+      ) AS present
+    `, params)).rows[0];
+    return Boolean(row?.present);
+  }
+  return Boolean(unwrapSqlite(db).prepare(`
+    SELECT 1
+    FROM embeddings
+    WHERE source_type = ?
+      AND embedding_model = ?
+      AND (
+        (embedding_kind = ? AND embedding_key = ? AND payload_version = ?)
+        OR (embedding_kind = ? AND payload_version = ?)
+      )
+    LIMIT 1
+  `).get(...params));
 }
 
 export async function allEmbeddings(db) {

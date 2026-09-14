@@ -15,6 +15,35 @@ test.after(async () => {
   await closePostgresPools();
 });
 
+test('Postgres semantic search uses the current model and prefers full documents over legacy rows', async () => {
+  const calls = [];
+  const db = {
+    backend: 'postgres',
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+      return { rows: [] };
+    },
+  };
+
+  assert.deepEqual(await semanticSearch(db, [0.1, 0.2], 5, { model: 'text-embedding-3-small' }), []);
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].sql, /e\.source_type = \$3/);
+  assert.match(calls[0].sql, /e\.embedding_model = \$4/);
+  assert.match(calls[0].sql, /e\.embedding_key = \$6/);
+  assert.match(calls[0].sql, /replacement\.embedding_kind = \$5/);
+  assert.deepEqual(calls[0].params, [
+    '[0.1,0.2]',
+    5,
+    'page',
+    'text-embedding-3-small',
+    'full_document',
+    'full',
+    1,
+    'compiled_truth_chunk',
+    1,
+  ]);
+});
+
 test('postgres backend reuses one process pool across database handles', async (t) => {
   const fixture = await createFixture('bigbrain-postgres-pool-', t);
   if (!fixture) return;

@@ -1,4 +1,18 @@
-import { allEmbeddings, getBacklinks, getOutgoingLinks, getPagesBySlugs, lexicalSearch, listPageSlugs, semanticSearch } from './db.js';
+import {
+  allEmbeddings,
+  FULL_DOCUMENT_EMBEDDING_KEY,
+  FULL_DOCUMENT_EMBEDDING_KIND,
+  FULL_DOCUMENT_EMBEDDING_PAYLOAD_VERSION,
+  getBacklinks,
+  hasSearchablePageEmbeddings,
+  getOutgoingLinks,
+  getPagesBySlugs,
+  lexicalSearch,
+  LEGACY_COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
+  LEGACY_COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
+  listPageSlugs,
+  semanticSearch,
+} from './db.js';
 import { answerQuestion, embedTexts, expandQueryVariants, rerankSearchResults } from './openai.js';
 
 const RRF_K = 60;
@@ -361,9 +375,36 @@ async function semanticSearchLists({ db, config, queries, limit, apiKey }) {
       skippedReason: 'missing_api_key',
     };
   }
-  const embeddings = await allEmbeddings(db);
-  const pageEmbeddings = embeddings.filter((row) => row.source_type === 'page');
-  if (pageEmbeddings.length === 0) {
+  let pageEmbeddings = [];
+  if (db.backend === 'postgres') {
+    if (!await hasSearchablePageEmbeddings(db, config.openaiEmbeddingModel)) {
+      return {
+        lists: [],
+        skippedReason: 'no_embeddings',
+      };
+    }
+  } else {
+    const embeddings = await allEmbeddings(db);
+    const compatibleEmbeddings = embeddings.filter((row) => (
+      row.source_type === 'page'
+      && row.embedding_model === config.openaiEmbeddingModel
+      && (
+        (row.embedding_kind === FULL_DOCUMENT_EMBEDDING_KIND
+          && row.embedding_key === FULL_DOCUMENT_EMBEDDING_KEY
+          && Number(row.payload_version) === FULL_DOCUMENT_EMBEDDING_PAYLOAD_VERSION)
+        || (row.embedding_kind === LEGACY_COMPILED_TRUTH_CHUNK_EMBEDDING_KIND
+          && Number(row.payload_version) === LEGACY_COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION)
+      )
+    ));
+    const pagesWithFullDocumentEmbeddings = new Set(compatibleEmbeddings
+      .filter((row) => row.embedding_kind === FULL_DOCUMENT_EMBEDDING_KIND)
+      .map((row) => row.source_id));
+    pageEmbeddings = compatibleEmbeddings.filter((row) => (
+      row.embedding_kind === FULL_DOCUMENT_EMBEDDING_KIND
+      || !pagesWithFullDocumentEmbeddings.has(row.source_id)
+    ));
+  }
+  if (db.backend !== 'postgres' && pageEmbeddings.length === 0) {
     return {
       lists: [],
       skippedReason: 'no_embeddings',
@@ -386,8 +427,13 @@ async function semanticSearchLists({ db, config, queries, limit, apiKey }) {
 
   if (db.backend === 'postgres') {
     return {
-      lists: (await Promise.all(queryVectors.map((queryVector) => semanticSearch(db, queryVector, Math.max(limit * 2, limit)))))
-        .map((rows) => poolBestChunkPerPage(rows).slice(0, limit)),
+      lists: (await Promise.all(queryVectors.map((queryVector) => semanticSearch(
+        db,
+        queryVector,
+        Math.max(limit * 2, limit),
+        { model: config.openaiEmbeddingModel },
+      ))))
+        .map((rows) => poolBestEmbeddingPerPage(rows).slice(0, limit)),
       skippedReason: null,
     };
   }
@@ -397,7 +443,7 @@ async function semanticSearchLists({ db, config, queries, limit, apiKey }) {
   );
 
   return {
-    lists: queryVectors.map((queryVector) => poolBestChunkPerPage(pageEmbeddings
+    lists: queryVectors.map((queryVector) => poolBestEmbeddingPerPage(pageEmbeddings
       .map((row) => {
         const metadata = metadataBySlug.get(row.source_id);
         return {
@@ -409,8 +455,8 @@ async function semanticSearchLists({ db, config, queries, limit, apiKey }) {
           frontmatter_json: metadata?.frontmatter_json,
           updated_at: metadata?.updated_at ?? null,
           snippet: row.input_text.slice(0, 240),
-          chunk_id: row.embedding_key,
-          chunk_text: row.input_text,
+          embedding_key: row.embedding_key,
+          embedding_text: row.input_text,
           semantic_score: cosineSimilarity(queryVector, JSON.parse(row.embedding_json)),
         };
       })
@@ -457,9 +503,9 @@ function fuseRankedLists(lists, limit) {
         if (!existing.page_kind && row.page_kind) existing.page_kind = row.page_kind;
         if (!existing.frontmatter_json && row.frontmatter_json) existing.frontmatter_json = row.frontmatter_json;
         if (!existing.updated_at && row.updated_at) existing.updated_at = row.updated_at;
-        if (source === 'semantic' && (!existing.chunk_id || Number(row.semantic_score ?? 0) > Number(existing.semantic_score ?? 0))) {
-          existing.chunk_id = row.chunk_id ?? existing.chunk_id ?? null;
-          existing.chunk_text = row.chunk_text ?? row.snippet ?? existing.chunk_text ?? '';
+        if (source === 'semantic' && (!existing.embedding_key || Number(row.semantic_score ?? 0) > Number(existing.semantic_score ?? 0))) {
+          existing.embedding_key = row.embedding_key ?? existing.embedding_key ?? null;
+          existing.embedding_text = row.embedding_text ?? row.snippet ?? existing.embedding_text ?? '';
           existing.semantic_score = Number(row.semantic_score ?? existing.semantic_score ?? 0);
           if (row.snippet) existing.snippet = row.snippet;
         }
@@ -476,8 +522,8 @@ function fuseRankedLists(lists, limit) {
           frontmatter_json: row.frontmatter_json,
           updated_at: row.updated_at ?? null,
           snippet: row.snippet ?? '',
-          chunk_id: row.chunk_id ?? null,
-          chunk_text: row.chunk_text ?? row.snippet ?? '',
+          embedding_key: row.embedding_key ?? null,
+          embedding_text: row.embedding_text ?? row.snippet ?? '',
           score: contribution,
           base_score: contribution,
           lexical_score: row.lexical_score ?? null,
@@ -512,7 +558,7 @@ function fuseRankedLists(lists, limit) {
     .slice(0, limit);
 }
 
-function poolBestChunkPerPage(rows) {
+function poolBestEmbeddingPerPage(rows) {
   const best = new Map();
   for (const row of rows) {
     const existing = best.get(row.slug);
@@ -665,8 +711,8 @@ export async function expandGraphCandidates(db, results, {
           frontmatter_json: page.frontmatter_json,
           updated_at: page.updated_at ?? null,
           snippet,
-          chunk_id: null,
-          chunk_text: snippet,
+          embedding_key: null,
+          embedding_text: snippet,
           score: proposal.contribution,
           base_score: proposal.contribution,
           lexical_score: null,
@@ -752,7 +798,7 @@ function compactResult(result) {
   const {
     frontmatter_json,
     rank_contributions,
-    chunk_text,
+    embedding_text,
     ...rest
   } = result;
   return rest;
@@ -929,8 +975,8 @@ async function addAliasCandidates({ db, results, query }) {
       frontmatter_json: page.frontmatter_json,
       updated_at: page.updated_at ?? null,
       snippet: page.summary || page.compiled_truth?.slice(0, 240) || '',
-      chunk_id: null,
-      chunk_text: '',
+      embedding_key: null,
+      embedding_text: '',
       score: aliasCandidateScore,
       base_score: aliasCandidateScore,
       lexical_score: null,

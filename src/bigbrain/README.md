@@ -19,7 +19,9 @@ engine.
      phrasings through `expandQueryVariants()`
 3. Each query variant runs:
    - lexical retrieval from SQLite FTS5 via `lexicalSearch()` in [db.js](./db.js)
-   - semantic retrieval from stored embedding chunks
+   - semantic retrieval from stored full-document embeddings
+   - temporary per-page fallback to legacy compiled-truth vectors only where a
+     full-document embedding has not been created yet
 4. The ranked lists are merged with reciprocal-rank fusion:
    - multiple ranked lists
    - weighted RRF
@@ -206,13 +208,14 @@ lexical retrieval. `--no-ai` can therefore only be combined with
 
 ### What is deliberately not ported yet
 
-`bigbrain` now stores multiple embedding chunks per page during sync, but it
-does not yet have all of the metadata and ranking machinery that would make
-retrieval richer. The following are still intentionally absent:
+`bigbrain` now stores one `full_document` embedding per page from the title,
+aliases, and complete body after frontmatter, including timeline. It does not
+yet have the hierarchy and ranking machinery needed for more granular
+retrieval. The following are still intentionally absent:
 
-- compiled-truth chunk boosting
-- chunk dedup pipeline
-- chunk source/type metadata
+- summary, section, and timeline-entry embeddings
+- parent-child embedding relationships
+- hierarchical candidate expansion and reranking
 - backlink boosts
 - recency and salience scoring
 - query cache

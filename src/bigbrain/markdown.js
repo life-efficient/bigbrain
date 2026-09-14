@@ -122,12 +122,23 @@ function splitMarkdownFrontmatter(markdown) {
 
 function parseSimpleYaml(raw) {
   const result = {};
+  let scalarListKey = null;
   for (const line of raw.split('\n')) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
+    const listItem = trimmed.match(/^-\s+(.+)$/)?.[1]?.trim();
+    if (scalarListKey && listItem && !/^[^'\"]+:\s*/.test(listItem)) {
+      if (!Array.isArray(result[scalarListKey])) result[scalarListKey] = [];
+      result[scalarListKey].push(parseYamlValue(listItem));
+      continue;
+    }
+    scalarListKey = null;
     const index = trimmed.indexOf(':');
     if (index <= 0) continue;
-    result[trimmed.slice(0, index).trim()] = parseYamlValue(trimmed.slice(index + 1).trim());
+    const key = trimmed.slice(0, index).trim();
+    const value = trimmed.slice(index + 1).trim();
+    result[key] = parseYamlValue(value);
+    if (!value) scalarListKey = key;
   }
   return result;
 }
