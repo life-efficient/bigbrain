@@ -1147,8 +1147,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-wrap { height: 520px; overflow: hidden; position: relative; border-radius: 18px; background: transparent; border: 1px solid rgba(148,163,184,0.18); }
       .graph-wrap-expanded { flex: 1; min-height: 0; height: auto; }
       .graph-canvas-stage { position: absolute; inset: 0; transition: opacity 260ms ease, transform 320ms cubic-bezier(.22,.61,.36,1), filter 260ms ease; }
-      .graph-wrap-focused { display: block; }
-      .graph-wrap-focused-network { border: 0; border-radius: 0; }
+      .graph-wrap-focused { display: block; border: 0; border-radius: 0; }
       .graph-focus-banner { position: relative; z-index: 4; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; flex: 0 0 auto; gap: 10px 14px; width: 100%; max-width: none; box-sizing: border-box; margin: 0 0 10px; padding: 10px 12px; border: 1px solid rgba(148,163,184,0.22); border-radius: 14px; background: rgba(12,12,14,0.92); box-shadow: 0 18px 42px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(18px); }
       .graph-focus-copy { min-width: 0; display: grid; gap: 2px; }
       .graph-focus-copy span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
