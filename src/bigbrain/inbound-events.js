@@ -16,6 +16,7 @@ export { InboundWebhookServer, configuredWebhookEventType } from './webhook-even
 
 export const INBOUND_EVENTS_VERSION = 2;
 export const DEFAULT_EVENT_RETENTION_DAYS = 90;
+export const DEFAULT_EVENT_POLL_INTERVAL_MS = 3_600_000;
 export const DEFAULT_EVENT_MAX_BODY_BYTES = 1_000_000;
 export const DEFAULT_RSS_INITIAL_CURSOR_DAYS = 7;
 export const DEFAULT_RSS_SOURCE_MAX_BYTES = 2_000_000;
@@ -54,7 +55,7 @@ export function createEmptyEventRegistry({ runtimeId = null, runtimeKind = 'clie
     revision: 0,
     runtime: { id: runtimeId || `${runtimeKind}-${crypto.randomUUID()}`, kind: normalizeRuntimeLocation(runtimeKind) },
     retention_days: DEFAULT_EVENT_RETENTION_DAYS,
-    poll_interval_ms: 300_000,
+    poll_interval_ms: DEFAULT_EVENT_POLL_INTERVAL_MS,
     brains: [],
     listeners: [],
     subscriptions: [],
@@ -80,7 +81,7 @@ export function normalizeEventRegistry(value, defaults = {}) {
       kind: normalizeRuntimeLocation(runtime.kind || base.runtime.kind),
     },
     retention_days: positiveInteger(input.retention_days, DEFAULT_EVENT_RETENTION_DAYS),
-    poll_interval_ms: positiveInteger(input.poll_interval_ms, 300_000),
+    poll_interval_ms: positiveInteger(input.poll_interval_ms, DEFAULT_EVENT_POLL_INTERVAL_MS),
     brains: Array.isArray(input.brains) ? input.brains.map(normalizeRegisteredBrain) : [],
     listeners: listeners.map(normalizeListener),
     subscriptions: subscriptions.map(normalizeSubscription),
@@ -861,7 +862,7 @@ export class InboundEventRuntime {
       const processed = report.processed;
       const firstReport = { ...report, processed: processed.map(summarizeEventOutcome) };
       if (once) return { firstReport, close: () => this.close() };
-      const intervalMs = Math.max(10_000, Number((await this.registryStore.get()).poll_interval_ms || 300_000));
+      const intervalMs = Math.max(10_000, Number((await this.registryStore.get()).poll_interval_ms || DEFAULT_EVENT_POLL_INTERVAL_MS));
       this.rssTimer = setInterval(() => this.runRssCycle().catch((error) => this.logger.error?.(`BigBrain RSS cycle failed: ${error.message}`)), intervalMs);
       this.rssTimer.unref?.();
       return { firstReport, close: () => this.close() };

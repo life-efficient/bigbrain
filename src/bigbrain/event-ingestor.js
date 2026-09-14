@@ -5,7 +5,7 @@ import path from 'node:path';
 
 const STATE_VERSION = 1;
 const DEFAULT_MAX_BODY_BYTES = 1_000_000;
-const DEFAULT_POLL_INTERVAL_MS = 300_000;
+const DEFAULT_POLL_INTERVAL_MS = 3_600_000;
 const MAX_SEEN_ITEMS = 2_000;
 const MAX_RECEIVED_EVENTS = 2_000;
 
