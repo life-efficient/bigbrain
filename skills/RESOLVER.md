@@ -18,7 +18,9 @@
 | Ingest one dispatcher-classified human email thread into the correct BigBrain brain | `skills/bigbrain-email-ingest/SKILL.md` |
 | Reconcile concrete action evidence prepared by a source-ingestion workflow before it writes BigBrain tasks | `skills/bigbrain-action-review/SKILL.md` |
 | Ingest document-like material such as PDFs, decks, screenshots, or memos | `skills/bigbrain-document-ingest/SKILL.md` |
-| Ingest time-based or mixed media such as audio, video, or podcasts | `skills/bigbrain-media-ingest/SKILL.md` |
+| Ingest a YouTube video, interview, lecture, or channel upload | `skills/bigbrain-youtube-ingest/SKILL.md` |
+| Ingest a podcast episode or other published podcast audio | `skills/bigbrain-podcast-ingest/SKILL.md` |
+| Ingest local recordings or unsupported time-based or mixed media | `skills/bigbrain-media-ingest/SKILL.md` |
 | Capture durable knowledge from ordinary chat into BigBrain | `skills/bigbrain-ingest/SKILL.md` |
 | Update or create stronger entity or topic pages when new signal materially changes the brain | `skills/bigbrain-enrich/SKILL.md` |
 | Search existing Brain knowledge and answer in the calling harness with cited page evidence | `skills/bigbrain-search/SKILL.md` |

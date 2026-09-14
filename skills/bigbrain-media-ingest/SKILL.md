@@ -1,6 +1,6 @@
 ---
 name: bigbrain-media-ingest
-description: Save information from a YouTube video, podcast, or other audio or video recording to BigBrain. Use when the source needs to be watched, listened to, or transcribed. For supplied meeting notes or transcripts, use `bigbrain-meeting-ingest`; for written documents, use `bigbrain-document-ingest`.
+description: Save information from a local recording or unsupported audio or video source to BigBrain. Use when the source needs to be watched, listened to, or transcribed and no more specific source skill applies. For YouTube use `bigbrain-youtube-ingest`; for podcast episodes use `bigbrain-podcast-ingest`; for supplied meeting notes or transcripts use `bigbrain-meeting-ingest`; for written documents use `bigbrain-document-ingest`.
 ---
 
 # BigBrain Media Ingest

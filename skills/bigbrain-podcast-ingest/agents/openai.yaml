@@ -1,0 +1,4 @@
+interface:
+  display_name: "BigBrain: Podcast Ingest"
+  short_description: "Preserve podcast identity, transcript, and chronology"
+  default_prompt: "Use $bigbrain-podcast-ingest to preserve exact podcast episode provenance, retain complete transcript support, and create a verified chronological BigBrain source record."
