@@ -47,6 +47,6 @@ test('desktop error handling records failures without automatic renderer recover
   assert.match(clientSource, /document\.execCommand\('copy'\)/);
   assert.match(clientSource, /Clipboard copy is unavailable/);
   assert.match(clientSource, /Copy error/);
-  assert.match(dashboardSource, /\.error-actions \.graph-button \{[^}]*display: inline-flex/);
+  assert.match(dashboardSource, /\.error-actions \.graph-button \{[^}]*height: 38px;[^}]*display: inline-flex/);
   assert.match(dashboardSource, /\.error-actions \.graph-button svg \{[^}]*width: 18px; height: 18px/);
 });

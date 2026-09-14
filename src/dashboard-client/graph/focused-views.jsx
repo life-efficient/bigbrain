@@ -5,6 +5,7 @@ import { useGraphTheme } from './visualizer-core.jsx';
 
 const NETWORK_HOP_COLUMN_GAP = 320;
 const NETWORK_NODE_X_GAP = 142;
+const NETWORK_NODES_PER_ROW = 4;
 const NETWORK_COLUMN_START = 118;
 const NETWORK_TOP = 66;
 const NETWORK_ROW_GAP = 56;

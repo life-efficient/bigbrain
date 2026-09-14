@@ -1134,7 +1134,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       }
       .error-card { max-width: min(820px, 100%); }
       .error-actions { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
-      .error-actions .graph-button { min-height: 38px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box; white-space: nowrap; }
+      .error-actions .graph-button { flex: 0 0 auto; width: auto; height: 38px; min-height: 38px; padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; box-sizing: border-box; white-space: nowrap; }
       .error-actions .graph-button svg { width: 18px; height: 18px; flex: 0 0 auto; }
       .error-details { margin: 0; max-height: 320px; overflow: auto; border-radius: 14px; border: 1px solid var(--line); background: var(--pre-bg); color: var(--pre-ink); padding: 14px 16px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
       .error-report-status { color: var(--muted); font-size: 12px; }
