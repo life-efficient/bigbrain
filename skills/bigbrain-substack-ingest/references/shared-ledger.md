@@ -2,19 +2,35 @@
 
 Use one operational SQLite ledger across RSS, Gmail, interactive ingestion, and daily reconciliation. It is metadata only. Canonical sources and pages still belong in the owning Brain and are written and read back through that Brain's MCP.
 
-## Command and storage
+## MCP tools and storage
 
-Resolve the installed `bigbrain-substack-ledger` command first. For Harry's local deployment, the explicit fallback is:
+Prefer the owning Brain's `substack/ledger` tool (`substack_ledger` alias). Pass the operation and its JSON input directly, with no scratch file:
+
+```json
+{"operation":"status","input":{"outstandingOnly":true}}
+```
+
+Call `substack/workflow` (`substack_workflow` alias) with `{}` to read the fixed workflow bundle and required references through MCP. Its `documents` array contains each document's `name` and `content`. This supports RSS tasks that have MCP and browser tools but no shell or filesystem tool. Use targeted tool discovery for slash/underscore aliases when necessary.
+
+The ledger tool owns the server's shared store and rejects caller-specified database paths. Completion verification must identify the active owning Brain. Do not create a per-automation ledger. A missing tool or inaccessible store is an incomplete setup, not permission to invent a memory-only cursor. Stop before article retrieval or writes if targeted discovery cannot expose the required tools and no direct supported fallback exists.
+
+Never use TextEdit, Finder, Terminal UI, another desktop editor, or browser `file://` navigation to read workflow files, configuration, scratch files, or the database. A computer-use tool does not grant file-reading or command execution capability. Do not open local files just to discover a missing tool.
+
+## Optional command fallback
+
+Only when an actual shell execution tool is callable, the installed `bigbrain-substack-ledger` command can use the same shared store. For Harry's local deployment, its explicit fallback is:
 
 ```text
 node /Users/hq/projects/bigbrain/bin/bigbrain-substack-ledger.js <command> --input-file <JSON file>
 ```
 
-The default store is `~/.config/bigbrain/substack-ledger.sqlite`. Do not choose a per-automation database or pass `--db` in a production run. `--db` is for isolated tests. `status` is read-only and safe before a database exists. Follow `nextOffset` with `{ "offset": <nextOffset> }` plus the original filters until all relevant records are read; the default page contains at most 500 posts. A missing command or inaccessible shared store is a real incomplete setup, not permission to invent a memory-only cursor.
+The default store is `~/.config/bigbrain/substack-ledger.sqlite`. Do not choose a per-automation database or pass `--db` in a production run. `--db` is for isolated tests. `status` is read-only and safe before a database exists. Follow `nextOffset` with `{ "offset": <nextOffset> }` plus the original filters until all relevant records are read; the default page contains at most 500 posts.
 
 Write exact JSON using a structured file writer or safe quoting, then pass its path. Never interpolate URLs, prose, tokens, or evidence into shell code. Scratch files contain metadata only and should not enter Brain collections. Do not expose lease tokens or provider IDs to the user.
 
-## Commands
+## Operations
+
+For MCP, the table's Command is `operation`, and JSON input is `input`. The CLI uses the same operation names and fields.
 
 | Command | JSON input | Meaning |
 | --- | --- | --- |
@@ -28,7 +44,7 @@ Write exact JSON using a structured file writer or safe quoting, then pass its p
 | `retry` | `{ "url": "https://publisher.example/p/post", "reason": "New full-text access is available" }` | Reopen when there is evidence to revisit an outcome. Do not reset every ignored post daily. |
 | `scan-checkpoint` | `{ "publicationUrl": "https://publisher.example/", "channel": "browser", "through": "2026-09-14T08:00:00Z", "oldestSeenAt": "2026-09-07T08:00:00Z", "newestSeenAt": "2026-09-14T08:00:00Z" }` | Record only the range actually inspected. This is discovery coverage, never ingestion proof. |
 
-`claim` returns `claimed: true` plus `leaseToken` only when this worker acquired the lease. A false result requires inspecting `post.outcome` and `post.verification`; a live competing claim stays deferred. Status records use `filed_high_watermark` and `filed_low_watermark` on publications, and `publication_url`, `published_at`, `lease_owner`, `lease_expires_at`, and `verification` on posts. Read `--help` or the deployed command source if other response fields are unclear. Do not guess that a zero exit code alone proves a claim was granted. Keep all workers on the same deployed version and database.
+`claim` returns `claimed: true` plus `leaseToken` only when this worker acquired the lease. A false result requires inspecting `post.outcome` and `post.verification`; a live competing claim stays deferred. Status records use `filed_high_watermark` and `filed_low_watermark` on publications, and `publication_url`, `published_at`, `lease_owner`, `lease_expires_at`, and `verification` on posts. Use the tool's returned schema and structured fields; when the actual CLI is available its `--help` also documents the protocol. A successful tool response or zero exit code alone does not prove a claim was granted. Keep all workers on the same deployed version and database.
 
 ## Verified retained completion
 

@@ -11,7 +11,9 @@ Ingest and reconcile verified Substack posts through one shared ledger while pre
 
 - Read and follow [the shared ingestion completeness checklist](../bigbrain-ingest/references/ingestion-completeness.md) before any Brain write and before declaring ingestion complete.
 - This is the common transport adapter for RSS, email, direct posts, daily subscription reconciliation, and bounded backfill. It does not search Gmail, change Gmail state, send email, or own the Gmail delivery cursor.
-- Use the shared persistent ledger through [the ledger commands](references/shared-ledger.md). Automation memory is a delivery log or run summary, never the authority for Substack post outcomes or watermarks.
+- Load this workflow and its required references through the owning Brain's `substack/workflow` MCP tool (`substack_workflow` alias) when a file-reading tool is unavailable. Use `substack/ledger` (`substack_ledger` alias) with `{operation, input}` for shared state as described in [the ledger contract](references/shared-ledger.md). No local file or shell access is required for that route.
+- Never open TextEdit, Finder, Terminal UI, another desktop editor, or browser `file://` URLs to read skills, references, configuration, scratch files, or the ledger. Browser access is for publisher and Substack webpages only. If required workflow text or ledger tools remain unavailable after targeted discovery, stop before retrieval or writes and report a setup gap; do not work around it with desktop apps.
+- Automation memory is a delivery log or run summary, never the authority for Substack post outcomes or watermarks.
 - Resolve the live owning Brain and filing rules before content mutations. Write and perform same-Brain read-back only through that Brain's MCP. The local ledger stores operational metadata, not Brain content.
 - Normalize `publication_key` from the verified canonical publication origin and `post_key` from the canonical article URL. Register custom-domain aliases only with observed redirect or publication evidence, never guessed slug similarity.
 - Check the shared post record before fetching article content. Verified terminal records with unchanged source identity and complete saved verification for the same owning Brain are no-ops across all channels. A watermark alone never establishes a duplicate.
@@ -36,11 +38,11 @@ Use the ledger's scan checkpoints for durable discovery progress. Record opaque 
 ## Workflow
 
 1. Establish scope and preflight shared state:
-   - Identify the mode, live owning Brain, exact input source, run boundary, and allowed bounds. Read the completeness checklist and [ledger command contract](references/shared-ledger.md).
+   - Identify the mode, live owning Brain, exact input source, run boundary, and allowed bounds. Call `substack/workflow` with `{}` to read the complete workflow bundle, including the completeness checklist and ledger contract. Already supplied complete skill/reference text need not be reread. If the tool is missing, use targeted MCP discovery first; a real file-reading or shell tool is an optional fallback, desktop apps are never a fallback.
    - Read the shared publication/post status and outstanding holes. Import legacy automation-memory claims only after exact Brain provenance and saved-state verification; prose saying "ingested" is not completion evidence.
    - For known post identities, record discovery channel, then use a terminal record with complete verification to return `verified_noop` without another article fetch or write. Preserve the prior stored outcome and read-back evidence rather than overwriting an ignored or retained record.
    - Otherwise claim the post. If another live owner holds it, return deferred without advancing a Gmail delivery cursor or claiming completeness. Release recoverable failures and preserve retryable holes.
-   - Anti-patterns: fetching before ledger preflight, trusting automation prose, using a watermark as dedupe, stealing a live claim, writing Brain content into the operational ledger.
+   - Anti-patterns: fetching before ledger preflight, trusting automation prose, using a watermark as dedupe, stealing a live claim, writing Brain content into the operational ledger, opening local files in TextEdit or other desktop apps.
 
 2. Verify identity and discover/register subscriptions:
    - Confirm the canonical title, publication or author, and publication date from accessible source evidence. Follow observed redirects; normalize tracking parameters. Do not replace the supplied post with a different page.
@@ -83,6 +85,7 @@ Use the ledger's scan checkpoints for durable discovery progress. Record opaque 
 - Registering recommended publications or guessing subscription status from topic similarity.
 - Storing secrets, raw source content, or email bodies in ledger records or run summaries.
 - Writing to a Brain checkout, database, index, or mirror instead of the owning MCP.
+- Using computer control to compensate for missing file-reading or shell tools, including TextEdit, Finder, Terminal UI, and browser local-file navigation.
 
 ## Output
 

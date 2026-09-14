@@ -23,6 +23,7 @@ Review one canonical web article through BigBrain's single shared relevance and 
 - Keep the source text faithful to the publisher; never replace it with an AI rewrite.
 - Create an indexed Markdown source sidecar with standard Brain page structure, provenance, and entity links required by the shared completeness checklist.
 - Route canonical page creation and updates through `$bigbrain-page`; keep the article sidecar source-specific.
+- For Substack work, `substack/workflow` supplies this skill and its required reference text through MCP, and `substack/ledger` supplies shared state. Never open TextEdit, Finder, Terminal UI, another desktop editor, or browser `file://` URLs for local skill or ledger access. If required instructions cannot be read through MCP or a real file-reading tool, stop before retrieval or writes and return the setup gap to the caller.
 - Use stable provider IDs and canonical URLs for deduplication and provenance. Preserve the actual channel as `rss`, `substack`, or the most specific supported provenance type.
 - Treat an unavailable source as `needs_review`, not as a complete filing.
 

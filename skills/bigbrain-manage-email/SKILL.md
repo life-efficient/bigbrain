@@ -63,6 +63,7 @@ Do not include full email bodies or MIME payloads in durable Brain artifacts.
 
 - The Gmail thread cursor answers which delivery messages were completely reviewed.
 - The shared Substack ledger answers which canonical posts were reviewed and whether they were filed across RSS, email, browser, and backfill. Automation-local publication cursors are not authoritative.
+- The Substack branch uses the owning Brain's `substack/workflow` and `substack/ledger` MCP tools directly. Never open TextEdit, Finder, Terminal UI, another desktop editor, or a browser `file://` URL to read skills, references, configuration, or ledger files. If required workflow or ledger tools cannot be discovered and no direct file/shell tool is available, defer that branch with the Gmail cursor unchanged; continue independent email work.
 - The RSS event system answers which feed items were discovered and queued; it does not prove that Brain ingestion completed.
 - Record terminal outcomes distinctly: `ignored_verified`, `source_only_verified`, `source_and_update_verified`, `verified_noop`, and `cleanup_verified`.
 - Advance the Gmail cursor after a delegated `ignored` only when the subskill confirmed canonical identity, applied the shared relevance gate, recorded the reviewed outcome in the shared Substack ledger, and returned a complete result.

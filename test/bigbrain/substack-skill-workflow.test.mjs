@@ -53,6 +53,29 @@ test('Substack modes, email dispatcher, and generic source worker share one pref
   assert.match(emailSchedule, /shared persistent post ledger before article retrieval/);
 });
 
+test('shell-free RSS and email workers use MCP workflow and ledger without desktop file workarounds', async () => {
+  const documents = await Promise.all([
+    'skills/bigbrain-substack-ingest/SKILL.md',
+    'skills/bigbrain-substack-ingest/references/shared-ledger.md',
+    'skills/bigbrain-manage-email/SKILL.md',
+    'skills/bigbrain-source-article-ingest/SKILL.md',
+    'automations/daily-bigbrain-substack-reconcile/automation.toml',
+    'automations/bigbrain-email-ingest-daily/automation.toml',
+  ].map(read));
+  for (const document of documents) {
+    assert.match(document, /substack\/workflow/);
+    assert.match(document, /substack\/ledger/);
+    assert.match(document, /Never (?:use|open) TextEdit, Finder, Terminal UI/);
+    assert.match(document, /(?:stop|Stop|defer|gap)/);
+  }
+  const reference = documents[1];
+  assert.ok(reference.indexOf('## MCP tools and storage') < reference.indexOf('## Optional command fallback'));
+  assert.match(reference, /Only when an actual shell execution tool is callable/);
+  assert.match(reference, /"operation":"status","input"/);
+  assert.match(reference, /rejects caller-specified database paths/);
+  assert.match(documents[2], /Gmail cursor unchanged; continue independent email work/);
+});
+
 test('documented command protocol makes RSS completion reusable by email and browser while preserving older holes', async () => {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'substack-skill-flow-'));
   const db = path.join(temporary, 'ledger.sqlite');
