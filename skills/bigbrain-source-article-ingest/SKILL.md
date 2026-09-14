@@ -3,6 +3,8 @@ name: bigbrain-source-article-ingest
 description: Save a web article, blog post, essay, or RSS article to BigBrain. Use for individual published articles, including articles delivered through feeds or email. For Substack posts, start with `bigbrain-substack-ingest`; for human email correspondence, use `bigbrain-email-ingest`.
 ---
 
+# BigBrain Source Article Ingest
+
 Review one canonical web article through BigBrain's single shared relevance and filing workflow.
 
 ## Contract Checklist
@@ -24,20 +26,23 @@ Review one canonical web article through BigBrain's single shared relevance and 
 - Keep the source text faithful to the publisher; never replace it with an AI rewrite.
 - Create an indexed Markdown source sidecar with standard Brain page structure, provenance, and entity links required by the shared completeness checklist.
 - Route canonical page creation and updates through `$bigbrain-page`; keep the article sidecar source-specific.
-- For Substack work, `substack/workflow` supplies this skill and its required reference text through MCP, and `substack/ledger` supplies shared state. Never open TextEdit, Finder, Terminal UI, another desktop editor, or browser `file://` URLs for local skill or ledger access. If required instructions cannot be read through MCP or a real file-reading tool, stop before retrieval or writes and return the setup gap to the caller.
+- For generic RSS work, `rss/workflow` (`rss_workflow` alias) supplies this skill and its required reference text through MCP, and `rss/ledger` (`rss_ledger` alias) supplies shared state. Read [the RSS ledger contract](references/rss-ledger.md). For Substack work, `substack/workflow` supplies the adapter workflow and `substack/ledger` supplies the same shared article state. Never open TextEdit, Finder, Terminal UI, another desktop editor, or browser `file://` URLs for local skill or ledger access. If required instructions cannot be read through MCP or a real file-reading tool, stop before retrieval or writes and return the setup gap to the caller.
+- Every registered RSS feed owns verified low/high ingestion watermarks in the RSS configuration area, backed by shared per-article records. Low means the earliest retained verified post; high means the latest. Neither proves contiguous coverage. Polling cursors, queued events, ignored posts, and unresolved holes never establish retained coverage.
 - Use stable provider IDs and canonical URLs for deduplication and provenance. Preserve the actual channel as `rss`, `substack`, or the most specific supported provenance type.
 - Treat an unavailable source as `needs_review`, not as a complete filing.
 
 ## Workflow
 
 1. Establish the source and retrieve the article:
-   - Before retrieval, route a Substack-originated URL or RSS event through `$bigbrain-substack-ingest` for the shared ledger preflight and claim, unless this call already carries `substack_context: {ledger_preflight_complete: true, claimed: true}` from that adapter. Return to the adapter after filing so it completes the shared record. The marker prevents recursion and must represent a real held claim, not an invented bypass. A verified terminal record skips duplicate article retrieval and writes.
+   - Before retrieval, route a Substack-originated URL or Substack RSS event through `$bigbrain-substack-ingest` for the shared ledger preflight and claim, unless this call already carries `substack_context: {ledger_preflight_complete: true, claimed: true}` from that adapter. Return to the adapter after filing so it completes the shared record. The marker prevents recursion and must represent a real held claim, not an invented bypass. A verified terminal record skips duplicate article retrieval and writes.
+   - For a generic RSS event, read `rss/workflow` and follow `references/rss-ledger.md` before article retrieval. Resolve the verified listener ID and live owning Brain, register that exact feed with `feed-upsert`, record discovery, inspect shared status, then atomically claim unresolved work. Reuse adequately verified terminal outcomes for the same Brain without another fetch or write. A live competing claim is deferred. Missing tools after `$find-missing-tools` leave ingestion state unchanged and stop retrieval and writes.
+   - If the Substack adapter already holds the real claim represented by `substack_context`, it owns completion. Do not open a second generic RSS claim or complete its claim here. This shared-source call returns verified evidence to the adapter. Direct URLs without a verified feed match do not invent a feed registration.
    - Use the canonical article URL from the RSS item, not only the feed description.
    - Identify the transport as RSS, Substack, email-delivered article notification, or direct URL.
    - Read registered source guidance from the event, listener, publication registry, or exact publication match before applying the relevance test.
    - For Substack, an exact canonical publication match to a registered RSS listener reuses that listener's guidance. Do not duplicate or paraphrase it into a second policy.
    - If no guidance is present, use the conservative generic test in `references/relevance-gate.md` and say that source-specific guidance was unavailable.
-   - Visit the supplied article URL and confirm that the page title and publisher identify the requested article. For RSS-triggered work, follow the in-Codex browser policy above. When the documented CUA API is available, open the page with `cua.createBrowserTab("iab", url, { visible: true })`; otherwise use only the available tool's documented API to select the in-Codex browser explicitly. Keep the Substack preflight and claim ahead of any article retrieval.
+   - Visit the supplied article URL and confirm that the page title and publisher identify the requested article. For RSS-triggered work, follow the in-Codex browser policy above. When the documented CUA API is available, open the page with `cua.createBrowserTab("iab", url, { visible: true })`; otherwise use only the available tool's documented API to select the in-Codex browser explicitly. Keep the RSS or Substack preflight and claim ahead of any article retrieval.
    - If the page is blocked or cannot be accessed, retain `needs_review` internally and explain that the source could not be retrieved. Do not substitute another page or invent content.
    - Preserve the fetched source bytes through the runtime's `raw_content_source: event.source_document.raw_body` placeholder when filing.
    - Keep retrieval metadata, source URL, publisher, author, publication date, stable RSS ID, content type, and fetch status.
@@ -77,6 +82,7 @@ Review one canonical web article through BigBrain's single shared relevance and 
 5. Complete and verify the ingestion:
    - Execute the shared ingestion completeness checklist for canonical page reconciliation and saved-state verification, then check it again before reporting completion.
    - Keep the article sidecar source-specific and use `$bigbrain-page` for canonical subjects.
+   - For a generic RSS claim owned by this call, complete shared `rss/ledger` state only after same-Brain read-back, using the verification envelope in `references/rss-ledger.md`, then read the post and feed status back. Record irrelevant articles as reviewed `ignored` without content writes; record unresolved retrieval or coverage as `needs_review` with a concrete reason and no watermark advance. Return evidence to a claiming Substack adapter instead of completing twice.
    - Reconcile the final outcome with verified writes. Do not report `source_only` when canonical pages needed creation or updates, or completion while coverage gaps remain.
    - Anti-patterns: treating a linked name as a created or updated entity page, leaving new entity facts only in the sidecar, declaring success without completing the shared checklist.
 
@@ -138,6 +144,8 @@ What this establishes for the Brain, with uncertainty and attribution preserved.
 - Using source pages as replacements for canonical entity pages.
 - Treating publisher claims, intentions, or announcements as independently verified facts.
 - Reporting `filed` when the source was unavailable or the page was not read back.
+- Fetching an RSS article before shared preflight, using polling cursors as ingestion proof, or treating a high watermark as permission to skip older holes.
+- Opening workflow or state files through desktop apps when MCP tools are unavailable.
 
 ## Output
 

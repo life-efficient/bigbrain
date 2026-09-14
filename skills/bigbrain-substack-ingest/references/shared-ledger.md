@@ -1,6 +1,6 @@
 # Shared Substack ledger
 
-Use one operational SQLite ledger across RSS, Gmail, interactive ingestion, and daily reconciliation. It is metadata only. Canonical sources and pages still belong in the owning Brain and are written and read back through that Brain's MCP.
+Use one operational SQLite ledger across RSS, Gmail, interactive ingestion, and daily reconciliation. Generic RSS uses `rss/ledger` (`rss_ledger` alias) against this same store; Substack keeps the adapter protocol below. RSS configuration owns each registered feed's view of verified low/high watermarks, derived from these shared article records rather than a second completion store. It is metadata only. Canonical sources and pages still belong in the owning Brain and are written and read back through that Brain's MCP.
 
 ## MCP tools and storage
 
@@ -68,7 +68,7 @@ For MCP, the table's Command is `operation`, and JSON input is `input`. The CLI 
 
 Use real paths and evidence from this run. A historic prose log is not verification. When migrating an exact existing post, directly verify its source/artifact and entity coverage first, claim it, then record `verified_noop` with that evidence. Do not re-fetch an already terminal shared record simply to establish the same outcome again. If its stored verification is incomplete or invalid, reopen with a reason and verify the missing state.
 
-`ignored` requires the actual relevance rationale and a verification envelope with `readBack: true`, `verifiedAt`, `brainId`, `paths: []`, and nonempty `evidence` describing the canonical identity and relevance review. Here `readBack` attests that review, not a content mutation. It creates no content and does not move retained watermarks. `needs_review` leaves an explicit hole and no watermark change. Retained watermarks advance monotonically over verified retained posts; they do not claim contiguous coverage. Always combine them with per-post records and unresolved holes.
+`ignored` requires the actual relevance rationale and a verification envelope with `readBack: true`, `verifiedAt`, `brainId`, `paths: []`, and nonempty `evidence` describing the canonical identity and relevance review. Here `readBack` attests that review, not a content mutation. It creates no content and does not move retained watermarks. `needs_review` leaves an explicit hole and no watermark change. The low watermark is the earliest retained verified post and the high watermark is the latest. They expand over verified retained posts; they do not claim contiguous coverage. Always combine them with per-post records and unresolved holes.
 
 ## Recovery and cross-channel ordering
 
