@@ -541,7 +541,6 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.doesNotMatch(focusedViews, /columnByDate/);
   assert.match(focusedViews, /width=\{layout\.width\}/);
   assert.match(focusedViews, /height=\{layout\.height\}/);
-  assert.match(focusedViews, /NETWORK_NODES_PER_ROW = 4/);
   assert.match(focusedViews, /NETWORK_VISIBLE_CONTRIBUTORS = 5/);
   assert.match(focusedViews, /expandedContributorGroups/);
   assert.match(focusedViews, /collapsed_group_key/);
@@ -550,6 +549,7 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(focusedViews, /setExpandedContributorGroups/);
   assert.match(focusedViews, /x: column\.centerX/);
   assert.match(focusedViews, /focused-network-branches/);
+  assert.match(focusedViews, /for \(const branch of nonFocusBranches\) \{[\s\S]*branchBaseY\.set\(branch, nextBranchY\)[\s\S]*nextBranchY \+= maxRows \* rowGap \+ NETWORK_BRANCH_GAP/);
   assert.match(focusedViews, /key: 'focused-branch',[\s\S]*label: null/);
   assert.match(focusedViews, /networkNodeTitleLines/);
   assert.doesNotMatch(focusedViews, /compactNodeTitle/);

@@ -5,7 +5,6 @@ import { useGraphTheme } from './visualizer-core.jsx';
 
 const NETWORK_HOP_COLUMN_GAP = 320;
 const NETWORK_NODE_X_GAP = 142;
-const NETWORK_NODES_PER_ROW = 4;
 const NETWORK_COLUMN_START = 118;
 const NETWORK_TOP = 66;
 const NETWORK_ROW_GAP = 56;
@@ -328,24 +327,16 @@ function buildFocusedNetworkLayout(graph, focusSlug, expandedContributorGroups =
   const branches = [];
   let nextBranchY = NETWORK_TOP;
   const nonFocusBranches = branchKeys.filter((branch) => branch !== focusSlug);
-  for (let index = 0; index < nonFocusBranches.length; index += NETWORK_NODES_PER_ROW) {
-    const pack = nonFocusBranches.slice(index, index + NETWORK_NODES_PER_ROW);
-    const rowGapByBranch = new Map(pack.map((branch) => {
-      const branchGroups = [...groups.entries()].filter(([key]) => key.startsWith(`${branch}\0`));
-      const maxRows = Math.max(...branchGroups.map(([, group]) => group.length), 1);
-      const labelHeight = Math.max(...branchGroups
-        .flatMap(([, group]) => group)
-        .map((node) => networkNodeLabelHeight(node, focusSlug)), 0);
-      return [branch, { gap: Math.max(NETWORK_ROW_GAP, labelHeight), maxRows }];
-    }));
-    const rowGap = Math.max(...rowGapByBranch.values().map(({ gap }) => gap), NETWORK_ROW_GAP);
-    const maxRows = Math.max(...rowGapByBranch.values().map(({ maxRows: rows }) => rows), 1);
-    const packKey = `branch-pack-${index / NETWORK_NODES_PER_ROW}`;
-    pack.forEach((branch) => {
-      branchBaseY.set(branch, nextBranchY);
-      branchRowGapByKey.set(branch, rowGap);
-    });
-    branches.push({ key: packKey, y: nextBranchY, label: null });
+  for (const branch of nonFocusBranches) {
+    const branchGroups = [...groups.entries()].filter(([key]) => key.startsWith(`${branch}\0`));
+    const maxRows = Math.max(...branchGroups.map(([, group]) => group.length), 1);
+    const labelHeight = Math.max(...branchGroups
+      .flatMap(([, group]) => group)
+      .map((node) => networkNodeLabelHeight(node, focusSlug)), 0);
+    const rowGap = Math.max(NETWORK_ROW_GAP, labelHeight);
+    branchBaseY.set(branch, nextBranchY);
+    branchRowGapByKey.set(branch, rowGap);
+    branches.push({ key: `branch:${branch}`, y: nextBranchY, label: null });
     nextBranchY += maxRows * rowGap + NETWORK_BRANCH_GAP;
   }
   const contentHeight = Math.max(NETWORK_ROW_GAP, nextBranchY - NETWORK_BRANCH_GAP - NETWORK_TOP);
