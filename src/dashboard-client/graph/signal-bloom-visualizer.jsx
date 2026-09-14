@@ -239,6 +239,7 @@ const BloomNodeItem = memo(function BloomNodeItem({
       }}
     >
       <g className="graph-node-screen-scale">
+        {colorMode === 'domain' && <title>{`${node.title || node.slug}\n${node.domains?.length ? `Domains: ${node.domains.join(', ')}` : 'No domain'}`}</title>}
         <BloomNode node={node} nodeShape={nodeShape} nodeFill={nodeFill} nodeIcon={nodeIcon} colorMode={colorMode} typeColors={typeColors} emphasized={emphasized} theme={theme} glowId={glowId} />
       </g>
     </g>

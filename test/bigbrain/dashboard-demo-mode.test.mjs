@@ -103,11 +103,12 @@ test('dashboard exposes Demo mode as a persistent graph setting and privacy boun
   assert.match(main, /Slack/);
 });
 
-test('Demo mode lives in Settings and uses the D keyboard shortcut', async () => {
+test('Demo mode uses Shift+D while D is reserved for domain filtering', async () => {
   const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
   assert.match(main, /settings-demo-toggle/);
-  assert.match(main, /key === 'd'/);
+  assert.match(main, /key === 'd' && event\.shiftKey/);
   assert.match(main, /handleDemoModeChange\(!demoModeRef\.current\)/);
+  assert.match(main, /nextGraphDomainFilter\(current, domains\)/);
   assert.doesNotMatch(main, /graph-demo-toggle/);
 });
 

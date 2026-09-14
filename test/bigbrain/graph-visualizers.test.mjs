@@ -507,7 +507,7 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /type="color"/);
   assert.doesNotMatch(main, /graph-type-color-code/);
   assert.match(main, /key === 'r'/);
-  assert.match(main, /setAutoRotate\(\(value\) => !value\)/);
+  assert.match(main, /setAutoRotate\(\(current\) => !current\)/);
   assert.match(main, /GRAPH_ACTIVITY_MODES/);
   assert.match(main, /onPointerMove=\{handleActivityPointerMove\}/);
   assert.match(main, /const handleGraphNodeSelect = useEffectEvent/);
@@ -628,8 +628,8 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /context\.measureText\(value\)\.width/);
   assert.match(visualizer, /canvas\.height = Math\.max\(32, Math\.ceil\(height \* scale\)\);\n  context\.clearRect[\s\S]*context\.font =/);
   assert.match(visualizer, /sprite\.scale\.set\(label \? canvas\.width \/ scale/);
-  assert.match(visualizer, /\.nodeLabel\(\(node\) => buildNodeTooltip\(node\)\)/);
-  assert.match(visualizer, /function buildNodeTooltip\(node\)/);
+  assert.match(visualizer, /\.nodeLabel\(\(node\) => buildNodeTooltip\(node, settingsRef\.current\.colorMode\)\)/);
+  assert.match(visualizer, /function buildNodeTooltip\(node, colorMode\)/);
   assert.match(visualizer, /settingsRef\.current\.arcAnimation,[\s\S]*Boolean\(hoveredSlugRef\.current\)/);
   assert.doesNotMatch(visualizer, /TYPE_GLYPHS/);
   assert.match(visualizer, /scene\.rotation\.z \+=/);

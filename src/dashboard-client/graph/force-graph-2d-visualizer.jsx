@@ -137,7 +137,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
         drawForceGraphNode(node, context, globalScale, settingsRef.current, forceGraph);
       })
       .nodeVisibility((node) => isForceGraphNodeVisibleAtActivityDay(node, activityDayRef.current) || graphTransitionActive(node))
-      .nodeLabel((node) => buildNodeTooltip(node))
+      .nodeLabel((node) => buildNodeTooltip(node, settingsRef.current.colorMode))
       .linkSource('source')
       .linkTarget('target')
       .linkVisibility((link) => isForceGraphLinkVisibleAtActivityDay(link, activityDayRef.current) || graphTransitionActive(link))
@@ -731,8 +731,12 @@ function getForceGraphParticleSpeed(link, forceGraph) {
   return 0.004;
 }
 
-function buildNodeTooltip(node) {
-  return `<strong>${escapeHtml(node.title || node.slug)}</strong><br><small>${escapeHtml(node.type || 'page')}</small>`;
+function buildNodeTooltip(node, colorMode) {
+  const domains = Array.isArray(node.domains) ? node.domains : [];
+  const memberships = colorMode === 'domain'
+    ? `<br><small>${domains.length ? `Domains: ${domains.map(escapeHtml).join(', ')}` : 'No domain'}</small>`
+    : '';
+  return `<strong>${escapeHtml(node.title || node.slug)}</strong><br><small>${escapeHtml(node.type || 'page')}</small>${memberships}`;
 }
 
 function escapeHtml(value) {

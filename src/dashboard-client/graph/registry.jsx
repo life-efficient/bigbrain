@@ -131,6 +131,7 @@ export const GRAPH_LABEL_STYLES = [
 export const GRAPH_COLOR_MODES = [
   { id: 'updated', label: 'Updated' },
   { id: 'type', label: 'Type' },
+  { id: 'domain', label: 'Domains' },
   { id: 'none', label: 'None' },
 ];
 

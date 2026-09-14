@@ -19,7 +19,9 @@ import {
 
 import {
   GRAPH_COLOR_PALETTE_OPTIONS,
+  GRAPH_DOMAIN_UNASSIGNED_COLOR,
   getGraphColorPalette,
+  getGraphDomainColor,
   isGraphHexColor,
   sanitizeGraphTypeColors,
   TYPE_ORDER,
@@ -53,6 +55,7 @@ import {
   normalizeFocusedGraphSlug,
 } from './graph/focused-network-data.js';
 import { deriveGraphMotion, graphPayloadsEqual } from './graph/live-graph.js';
+import { nextGraphDomainFilter, nextGraphStyleOption } from './graph/style-shortcuts.js';
 import { KeepInTouchPanel } from './playbooks/keep-in-touch.jsx';
 import { ComprehensionPanel } from './playbooks/comprehension.jsx';
 import { PLAYBOOKS } from './playbooks/registry.js';
@@ -517,7 +520,7 @@ function DashboardApp() {
 
   useEffect(() => {
     function handleKeydown(event) {
-      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.repeat || event.isComposing) {
         return;
       }
       if (isTypingTarget(event.target)) {
@@ -534,12 +537,9 @@ function DashboardApp() {
       } else if (key === 'k' && enabledPlaybooks.includes('keep-in-touch')) {
         event.preventDefault();
         setView('keep-in-touch');
-      } else if (key === 'd') {
+      } else if (key === 'd' && event.shiftKey) {
         event.preventDefault();
         handleDemoModeChange(!demoModeRef.current);
-      } else if (key === 'r' && visualizerId === 'force-graph-3d') {
-        event.preventDefault();
-        setAutoRotate((value) => !value);
       }
     }
 
@@ -547,7 +547,7 @@ function DashboardApp() {
     return () => {
       window.removeEventListener('keydown', handleKeydown);
     };
-  }, [enabledPlaybooks, filesystemExplorerEnabled, visualizerId]);
+  }, [enabledPlaybooks, filesystemExplorerEnabled]);
 
   const taskSections = Array.isArray(state.data?.tasks?.sections) ? state.data.tasks.sections : [];
   const displayTaskSections = useMemo(() => (
@@ -910,7 +910,7 @@ function DashboardApp() {
                         aria-checked={demoMode}
                         onClick={() => handleDemoModeChange(!demoMode)}
                       >
-                        <span>Safe example data <kbd className="settings-shortcut">D</kbd></span>
+                        <span>Safe example data <kbd className="settings-shortcut">Shift+D</kbd></span>
                         <strong>{demoMode ? 'On' : 'Off'}</strong>
                       </button>
                     </div>
@@ -1029,6 +1029,7 @@ function DashboardApp() {
                 setAutoRotate={setAutoRotate}
                 flowTasks={graphFlowTasks}
                 visualizerRef={visualizerRef}
+                shortcutsEnabled={!preview && !healthOpen && !settingsOpen && !playbooksOpen}
                 activeSlug={activeGraphSlug}
                 onDomainScopeChange={setActiveDomainScope}
                 onActiveSlugChange={setActiveGraphSlug}
@@ -2878,6 +2879,7 @@ const GraphPanel = memo(function GraphPanel({
   setAutoRotate,
   flowTasks,
   visualizerRef,
+  shortcutsEnabled,
   activeSlug,
   onDomainScopeChange,
   onActiveSlugChange,
@@ -3141,6 +3143,37 @@ const GraphPanel = memo(function GraphPanel({
     }
   }
 
+  const handleGraphStyleKeyDown = useEffectEvent((event) => {
+    if (!shortcutsEnabled || event.defaultPrevented || event.repeat || event.isComposing) return;
+    if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || isTypingTarget(event.target)) return;
+    if (document.querySelector('[role="dialog"], [role="listbox"], .graph-flow-source-filter-menu')) return;
+    const key = event.key.toLowerCase();
+    if (key === 'd') {
+      setSelectedDomains((current) => nextGraphDomainFilter(current, domains));
+    } else if (key === 'c') {
+      setColorMode((current) => nextGraphStyleOption(current, GRAPH_COLOR_MODES));
+    } else if (key === 'p') {
+      selectColorPalette(nextGraphStyleOption(colorPaletteId, GRAPH_COLOR_PALETTE_OPTIONS));
+    } else if (key === 'r' && visualizerId === 'force-graph-3d') {
+      setAutoRotate((current) => !current);
+    } else if (key === 'l') {
+      setLabelStyle((current) => nextGraphStyleOption(current, GRAPH_LABEL_STYLES));
+    } else if (key === 'f') {
+      setFlowVisible((current) => !current);
+    } else if (key === 's') {
+      setNodeSizeMode((current) => nextGraphStyleOption(current, GRAPH_NODE_SIZE_MODES));
+    } else {
+      return;
+    }
+    event.preventDefault();
+  });
+
+  useEffect(() => {
+    const handleKeyDown = (event) => handleGraphStyleKeyDown(event);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   function updateTypeColor(type, value) {
     if (!isGraphHexColor(value)) return;
     setColorPaletteId('custom');
@@ -3366,6 +3399,9 @@ const GraphPanel = memo(function GraphPanel({
           <div className="graph-stats">
             <span className="graph-stat"><strong>{Number.isFinite(filteredGraph?.meta?.page_count) ? filteredGraph.meta.page_count : 0}</strong> pages</span>
             <span className="graph-stat"><strong>{Number.isFinite(filteredGraph?.meta?.edge_count) ? filteredGraph.meta.edge_count : 0}</strong> edges</span>
+            <span className="graph-stat" aria-live="polite">
+              {selectedDomains.length ? selectedDomains.map((domain) => domainLabels.get(domain) || domain).join(', ') : 'All domains'}
+            </span>
           </div>
         </div>
         <div className="graph-toolbar">
@@ -3374,6 +3410,7 @@ const GraphPanel = memo(function GraphPanel({
               type="button"
               className={`icon-button graph-icon-button ${filterMenuOpen ? 'graph-button-active' : ''}`}
               aria-label="Filter graph"
+              title="Filter graph (D cycles domains)"
               aria-expanded={filterMenuOpen}
               onClick={() => {
                 setStyleMenuOpen(false);
@@ -3411,7 +3448,7 @@ const GraphPanel = memo(function GraphPanel({
                   ))}
                 </div>
                 <div className="graph-filter-group">
-                  <span className="graph-filter-group-label">Domains</span>
+                  <span className="graph-filter-group-label">Domains <kbd className="settings-shortcut">D</kbd></span>
                   <button
                     type="button"
                     className={`menu-item ${selectedDomains.length === 0 ? 'selected' : ''}`}
@@ -3485,6 +3522,7 @@ const GraphPanel = memo(function GraphPanel({
                 />
                 <GraphStyleOptionGroup
                   label="Size scaling"
+                  shortcut="s"
                   value={nodeSizeMode}
                   options={GRAPH_NODE_SIZE_MODES}
                   onSelect={setNodeSizeMode}
@@ -3503,18 +3541,21 @@ const GraphPanel = memo(function GraphPanel({
                 />
                 <GraphStyleOptionGroup
                   label="Labels"
+                  shortcut="l"
                   value={labelStyle}
                   options={GRAPH_LABEL_STYLES}
                   onSelect={setLabelStyle}
                 />
                 <GraphStyleOptionGroup
                   label="Flow context"
+                  shortcut="f"
                   value={flowVisible ? 'visible' : 'hidden'}
                   options={GRAPH_FLOW_VISIBILITY_OPTIONS}
                   onSelect={(value) => setFlowVisible(value === 'visible')}
                 />
                 <GraphStyleOptionGroup
                   label="Auto rotation"
+                  shortcut="r"
                   value={autoRotate ? 'on' : 'off'}
                   options={GRAPH_AUTO_ROTATION_OPTIONS}
                   onSelect={(value) => setAutoRotate(value === 'on')}
@@ -3522,16 +3563,36 @@ const GraphPanel = memo(function GraphPanel({
                 />
                 <GraphStyleOptionGroup
                   label="Palette"
+                  shortcut="p"
                   value={colorPaletteId}
                   options={GRAPH_COLOR_PALETTE_OPTIONS}
                   onSelect={selectColorPalette}
                 />
                 <GraphStyleOptionGroup
                   label="Color"
+                  shortcut="c"
                   value={colorMode}
                   options={GRAPH_COLOR_MODES}
                   onSelect={setColorMode}
                 />
+                {colorMode === 'domain' ? (
+                  <div className="graph-menu-field">
+                    <span>Domain colors</span>
+                    <div className="graph-type-color-grid">
+                      {domains.map((domain) => (
+                        <div key={domain} className="graph-type-color-row">
+                          <span className="graph-type-color-name">{domainLabels.get(domain) || domain}</span>
+                          <i className="graph-domain-color-swatch" style={{ backgroundColor: getGraphDomainColor(domain, typeColors) }} aria-hidden="true" />
+                        </div>
+                      ))}
+                      <div className="graph-type-color-row">
+                        <span className="graph-type-color-name">No domain</span>
+                        <i className="graph-domain-color-swatch" style={{ backgroundColor: GRAPH_DOMAIN_UNASSIGNED_COLOR }} aria-hidden="true" />
+                      </div>
+                    </div>
+                    <small>Multiple memberships blend their domain colors. Hover a node to see its memberships.</small>
+                  </div>
+                ) : null}
                 <GraphTypeColorEditor colors={typeColors} onChange={updateTypeColor} />
               </div>
             ) : null}
@@ -3904,10 +3965,10 @@ function formatTaskStatus(status) {
   return String(status || 'open').replace(/_/g, ' ');
 }
 
-function GraphStyleOptionGroup({ label, value, options, onSelect, disabled = false }) {
+function GraphStyleOptionGroup({ label, value, options, onSelect, disabled = false, shortcut }) {
   return (
     <div className={`graph-menu-field ${disabled ? 'disabled' : ''}`}>
-      <span>{label}</span>
+      <span>{label}{shortcut ? <> <kbd className="settings-shortcut">{shortcut.toUpperCase()}</kbd></> : null}</span>
       <div className="graph-option-grid">
         {options.map((item) => (
           <button

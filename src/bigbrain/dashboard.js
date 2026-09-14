@@ -1824,6 +1824,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-option-button:disabled { cursor: not-allowed; }
       .graph-type-color-grid { display: grid; gap: 6px; }
       .graph-type-color-row { display: grid; grid-template-columns: minmax(0, 1fr) 36px; align-items: center; gap: 8px; }
+      .graph-domain-color-swatch { display: block; height: 18px; border: 1px solid var(--line); border-radius: 4px; }
       .graph-type-color-name { min-width: 0; overflow: hidden; color: var(--ink); font-size: 11px !important; text-transform: none !important; letter-spacing: 0 !important; white-space: nowrap; text-overflow: ellipsis; }
       .graph-type-color-swatch { width: 100%; height: 28px; box-sizing: border-box; padding: 0; appearance: none; -webkit-appearance: none; border: 1px solid var(--line); border-radius: 7px; background: transparent; cursor: pointer; overflow: hidden; }
       .graph-type-color-swatch::-webkit-color-swatch-wrapper { padding: 0; }

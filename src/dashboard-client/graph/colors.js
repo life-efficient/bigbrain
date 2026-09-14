@@ -345,6 +345,7 @@ export const TYPE_COLORS = getGraphColorPalette(GRAPH_DEFAULT_PALETTE_ID);
 export const GRAPH_UPDATED_RECENT_COLOR = '#00FF66';
 export const GRAPH_UPDATED_OLD_COLOR = '#FFFFFF';
 export const GRAPH_UPDATED_SCALE_DAYS = 5;
+export const GRAPH_DOMAIN_UNASSIGNED_COLOR = '#9CA3AF';
 
 export function getGraphColorPalette(paletteId) {
   const colors = GRAPH_COLOR_PALETTES.find((palette) => palette.id === paletteId)?.colors
@@ -365,12 +366,44 @@ export function isGraphHexColor(value) {
   return /^#[0-9A-F]{6}$/i.test(String(value || ''));
 }
 
+export function getGraphDomainColor(domainId, typeColors = TYPE_COLORS) {
+  const id = typeof domainId === 'string' ? domainId.trim() : '';
+  if (!id) return GRAPH_DOMAIN_UNASSIGNED_COLOR;
+
+  // Use only the domain ID, never its position among the visible domains, so
+  // filtering or loading more pages cannot change its color.
+  let hash = 2166136261;
+  for (let index = 0; index < id.length; index += 1) {
+    hash = Math.imul(hash ^ id.charCodeAt(index), 16777619);
+  }
+  const colors = [...new Set(TYPE_ORDER
+    .filter((type) => type !== 'archive')
+    .map((type) => typeColors?.[type] || TYPE_COLORS[type])
+    .filter(isGraphHexColor)
+    .map((color) => color.toUpperCase()))];
+  const position = ((hash >>> 0) / 4294967296) * colors.length;
+  const index = Math.floor(position);
+  return mixHexColor(colors[index], colors[(index + 1) % colors.length], position - index);
+}
+
 export function getGraphNodeColor(node, colorMode = 'updated', typeColors = TYPE_COLORS) {
   if (colorMode === 'none') {
     return null;
   }
   if (colorMode === 'type') {
     return typeColors?.[node?.type] || TYPE_COLORS[node?.type] || GRAPH_UPDATED_OLD_COLOR;
+  }
+  if (colorMode === 'domain') {
+    const domains = [...new Set((Array.isArray(node?.domains) ? node.domains : [])
+      .filter((domain) => typeof domain === 'string')
+      .map((domain) => domain.trim())
+      .filter(Boolean))];
+    if (!domains.length) return GRAPH_DOMAIN_UNASSIGNED_COLOR;
+    const colors = domains.map((domain) => parseHexColor(getGraphDomainColor(domain, typeColors)));
+    const channels = [0, 1, 2].map((channel) => Math.round(
+      colors.reduce((total, color) => total + color[channel], 0) / colors.length,
+    ));
+    return `#${channels.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`.toUpperCase();
   }
   return getUpdatedNodeColor(node?.updated_at);
 }

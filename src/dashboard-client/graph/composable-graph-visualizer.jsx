@@ -342,6 +342,7 @@ const NodeLayer = memo(function NodeLayer({
       }}
       style={{ cursor: 'pointer' }}
     >
+      {colorMode === 'domain' && <title>{`${node.title || node.slug}\n${node.domains?.length ? `Domains: ${node.domains.join(', ')}` : 'No domain'}`}</title>}
       {renderNodeShape(node, nodeShape, nodeFill, nodeIcon, theme, activeSlug === node.slug || hoveredSlug === node.slug, colorMode, typeColors)}
     </g>
   ));
