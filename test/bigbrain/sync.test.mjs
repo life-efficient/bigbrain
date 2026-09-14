@@ -3,11 +3,109 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { allEmbeddings, getPageRecord, listPageSlugs, openDatabase, replacePageIndex, sqliteRawDatabase } from '../../src/bigbrain/db.js';
 import { searchBrain } from '../../src/bigbrain/search.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
+
+test('opening a legacy SQLite index migrates embeddings to generic identities', async () => {
+  const fixture = await createFixture('bigbrain-sync-legacy-embeddings-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await fs.mkdir(path.dirname(config.sqlitePath), { recursive: true });
+    const legacy = new DatabaseSync(config.sqlitePath);
+    legacy.exec(`
+      CREATE TABLE embeddings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        page_slug TEXT NOT NULL,
+        chunk_id TEXT NOT NULL,
+        chunk_text TEXT NOT NULL,
+        embedding_model TEXT NOT NULL,
+        embedding_json TEXT NOT NULL,
+        content_hash TEXT NOT NULL
+      );
+      INSERT INTO embeddings (
+        page_slug, chunk_id, chunk_text, embedding_model, embedding_json, content_hash
+      ) VALUES (
+        'people/alice', 'people/alice:compiled_truth:0', 'Alice legacy input',
+        'text-embedding-3-small', '[0.1,0.2]', 'legacy-raw-page-hash'
+      );
+    `);
+    legacy.close();
+
+    const db = await openDatabase(config);
+    const columns = sqliteRawDatabase(db).prepare('PRAGMA table_info(embeddings)').all().map((row) => row.name);
+    assert.equal(columns.includes('source_type'), true);
+    assert.equal(columns.includes('input_hash'), true);
+    assert.equal(columns.includes('page_slug'), false);
+    assert.equal(columns.includes('content_hash'), false);
+    assert.deepEqual((await allEmbeddings(db)).map((row) => ({ ...row })), [{
+      source_type: 'page',
+      source_id: 'people/alice',
+      embedding_kind: 'compiled_truth_chunk',
+      embedding_key: 'people/alice:compiled_truth:0',
+      input_text: 'Alice legacy input',
+      input_hash: 'd7ecac93764d809068ec7811f298daa24305151944b492e5c77fd9961184c23a',
+      payload_version: 1,
+      embedding_model: 'text-embedding-3-small',
+      embedding_json: '[0.1,0.2]',
+    }]);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('refreshing the current representation preserves other embedding kinds', async () => {
+  const fixture = await createFixture('bigbrain-sync-embedding-kinds-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
+title: Alice
+---
+# Alice
+
+Original note.
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const embedder = async (texts) => texts.map(() => [0.1, 0.2]);
+    await syncBrain({ config, apiKey: 'test-key', embedder });
+
+    const db = await openDatabase(config);
+    sqliteRawDatabase(db).prepare(`
+      INSERT INTO embeddings (
+        source_type, source_id, embedding_kind, embedding_key, input_text,
+        input_hash, payload_version, embedding_model, embedding_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      'page',
+      'people/alice',
+      'summary',
+      'summary',
+      'Future summary representation',
+      '0'.repeat(64),
+      1,
+      'text-embedding-3-small',
+      '[0.3,0.4]',
+    );
+    sqliteRawDatabase(db).close();
+
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
+title: Alice
+---
+# Alice
+
+Changed note.
+`);
+    await syncBrain({ config, apiKey: 'test-key', embedder });
+
+    const refreshed = await allEmbeddings(await openDatabase(config));
+    assert.equal(refreshed.filter((row) => row.embedding_kind === 'compiled_truth_chunk').length, 1);
+    assert.equal(refreshed.filter((row) => row.embedding_kind === 'summary').length, 1);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
 
 test('sync indexes attachment sidecars under .raw despite legacy exclusion', async () => {
   const fixture = await createFixture('bigbrain-sync-attachment-sidecar-');
@@ -401,6 +499,12 @@ Original company note.
     assert.equal(calls[0].texts.length, 1);
     assert.equal(calls[1].texts.length, 1);
 
+    const stored = await allEmbeddings(await openDatabase(config));
+    assert.equal(stored.every((row) => row.source_type === 'page'), true);
+    assert.equal(stored.every((row) => row.embedding_kind === 'compiled_truth_chunk'), true);
+    assert.equal(stored.every((row) => row.payload_version === 1), true);
+    assert.equal(stored.every((row) => /^[a-f0-9]{64}$/.test(row.input_hash)), true);
+
     const secondSync = await syncBrain({ config, apiKey: 'test-key', embedder });
     assert.equal(secondSync.embeddings_generated, 0);
     assert.equal(secondSync.outstanding_work.pages_needing_embeddings, 0);
@@ -410,6 +514,21 @@ Original company note.
 
     await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
 title: Alice
+priority: high
+---
+# Alice
+
+Original person note.
+`);
+
+    const metadataSync = await syncBrain({ config, apiKey: 'test-key', embedder });
+    assert.equal(metadataSync.embeddings_generated, 0);
+    assert.equal(metadataSync.embedding_selection.pages_unchanged, 2);
+    assert.equal(calls.length, 2);
+
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
+title: Alice
+priority: high
 ---
 # Alice
 
@@ -527,7 +646,7 @@ New source evidence.
       'sources/new-source',
     ]);
     const embeddings = await allEmbeddings(db);
-    assert.equal(embeddings.some((row) => row.page_slug === 'ideas/remove-me'), false);
+    assert.equal(embeddings.some((row) => row.source_id === 'ideas/remove-me'), false);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -606,7 +725,7 @@ ${longBody}
     const db = await openDatabase(config);
     const embeddings = await allEmbeddings(db);
     assert.equal(embeddings.length, 3);
-    assert.deepEqual(embeddings.map((row) => row.page_slug), [
+    assert.deepEqual(embeddings.map((row) => row.source_id), [
       'concepts/long-note',
       'concepts/long-note',
       'concepts/long-note',

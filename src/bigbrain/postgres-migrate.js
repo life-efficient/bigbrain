@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { DatabaseSync } from 'node:sqlite';
 
 import { openDatabase } from './db.js';
@@ -64,17 +65,23 @@ export async function migrateSqliteToPostgres(config) {
 
     const embeddings = sqlite.prepare('SELECT * FROM embeddings ORDER BY id').all();
     for (const embedding of embeddings) {
+      const inputText = embedding.input_text ?? embedding.chunk_text;
       await postgres.query(`
-        INSERT INTO embeddings (page_slug, chunk_id, chunk_text, embedding_model, embedding, embedding_json, content_hash)
-        VALUES ($1,$2,$3,$4,$5::vector,$6,$7)
+        INSERT INTO embeddings (
+          source_type, source_id, embedding_kind, embedding_key, input_text,
+          input_hash, payload_version, embedding_model, embedding, embedding_json
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::vector,$10)
       `, [
-        embedding.page_slug,
-        embedding.chunk_id,
-        embedding.chunk_text,
+        embedding.source_type ?? 'page',
+        embedding.source_id ?? embedding.page_slug,
+        embedding.embedding_kind ?? 'compiled_truth_chunk',
+        embedding.embedding_key ?? embedding.chunk_id,
+        inputText,
+        embedding.input_hash ?? sha256(inputText),
+        embedding.payload_version ?? 1,
         embedding.embedding_model,
         vectorLiteral(JSON.parse(embedding.embedding_json)),
         embedding.embedding_json,
-        embedding.content_hash,
       ]);
     }
 
@@ -187,6 +194,10 @@ async function clearPostgresIndex(db) {
 
 function vectorLiteral(vector) {
   return `[${vector.map((value) => Number(value)).join(',')}]`;
+}
+
+function sha256(value) {
+  return crypto.createHash('sha256').update(String(value)).digest('hex');
 }
 
 function tableExists(db, name) {

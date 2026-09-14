@@ -34,7 +34,10 @@ test('runtime metadata reports release and compatibility information without ref
   assert.equal(metadata.contracts.api, BIGBRAIN_API_CONTRACT_VERSION);
   assert.equal(metadata.storage_schema, BIGBRAIN_STORAGE_SCHEMA_VERSION);
   assert.deepEqual(metadata.compatibility.api_contract, { minimum: 1, maximum: 1 });
-  assert.deepEqual(metadata.compatibility.storage_schema, { minimum: 1, maximum: 1 });
+  assert.deepEqual(metadata.compatibility.storage_schema, {
+    minimum: BIGBRAIN_STORAGE_SCHEMA_VERSION,
+    maximum: BIGBRAIN_STORAGE_SCHEMA_VERSION,
+  });
   assert.deepEqual(metadata.compatibility.mcp_protocols, ['2024-11-05']);
   assert.deepEqual(metadata.installation, {
     owner: 'desktop_bundle',

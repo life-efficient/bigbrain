@@ -362,7 +362,8 @@ async function semanticSearchLists({ db, config, queries, limit, apiKey }) {
     };
   }
   const embeddings = await allEmbeddings(db);
-  if (embeddings.length === 0) {
+  const pageEmbeddings = embeddings.filter((row) => row.source_type === 'page');
+  if (pageEmbeddings.length === 0) {
     return {
       lists: [],
       skippedReason: 'no_embeddings',
@@ -392,24 +393,24 @@ async function semanticSearchLists({ db, config, queries, limit, apiKey }) {
   }
 
   const metadataBySlug = new Map(
-    (await getPagesBySlugs(db, [...new Set(embeddings.map((row) => row.page_slug))])).map((row) => [row.slug, row]),
+    (await getPagesBySlugs(db, [...new Set(pageEmbeddings.map((row) => row.source_id))])).map((row) => [row.slug, row]),
   );
 
   return {
-    lists: queryVectors.map((queryVector) => poolBestChunkPerPage(embeddings
+    lists: queryVectors.map((queryVector) => poolBestChunkPerPage(pageEmbeddings
       .map((row) => {
-        const metadata = metadataBySlug.get(row.page_slug);
+        const metadata = metadataBySlug.get(row.source_id);
         return {
-          slug: row.page_slug,
-          title: metadata?.title ?? row.page_slug,
+          slug: row.source_id,
+          title: metadata?.title ?? row.source_id,
           type: metadata?.type ?? null,
           page_kind: metadata?.page_kind ?? 'canonical',
           summary: metadata?.summary ?? '',
           frontmatter_json: metadata?.frontmatter_json,
           updated_at: metadata?.updated_at ?? null,
-          snippet: row.chunk_text.slice(0, 240),
-          chunk_id: row.chunk_id,
-          chunk_text: row.chunk_text,
+          snippet: row.input_text.slice(0, 240),
+          chunk_id: row.embedding_key,
+          chunk_text: row.input_text,
           semantic_score: cosineSimilarity(queryVector, JSON.parse(row.embedding_json)),
         };
       })

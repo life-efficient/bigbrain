@@ -2,7 +2,18 @@ import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-import { deletePageIndex, getEmbeddingRecord, listPageSlugs, openDatabase, replaceEmbeddingsForPage, replaceLinksForPage, replacePageIndex } from './db.js';
+import {
+  COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
+  COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
+  deletePageIndex,
+  getEmbeddingRecords,
+  listPageSlugs,
+  openDatabase,
+  PAGE_EMBEDDING_SOURCE_TYPE,
+  replaceEmbeddingsForPage,
+  replaceLinksForPage,
+  replacePageIndex,
+} from './db.js';
 import { isAttachmentSidecarPath, isExcludedPath, matchesIncludeGlobs, shouldSkipSystemPath } from './file-selection.js';
 import { isBrainProfileDocument } from './brain-profile.js';
 import { embedTexts } from './openai.js';
@@ -85,7 +96,6 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
           chunks,
           model: config.openaiEmbeddingModel,
           vectors,
-          contentHash: page.contentHash,
         });
         embeddingChunksGenerated += vectors.filter(Boolean).length;
       } catch (error) {
@@ -169,10 +179,23 @@ function chunkPageForEmbedding(page) {
 }
 
 async function embeddingRefreshStatus(db, page, model) {
-  const existing = await getEmbeddingRecord(db, page.slug);
-  if (!existing) return { needsRefresh: true, reason: 'missing' };
-  if (existing.embedding_model !== model) return { needsRefresh: true, reason: 'model_changed' };
-  if (existing.content_hash !== page.contentHash) return { needsRefresh: true, reason: 'content_changed' };
+  const expected = chunkPageForEmbedding(page);
+  const existing = await getEmbeddingRecords(db, {
+    sourceType: PAGE_EMBEDDING_SOURCE_TYPE,
+    sourceId: page.slug,
+    embeddingKind: COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
+  });
+  if (existing.length === 0) return { needsRefresh: true, reason: 'missing' };
+  if (existing.some((row) => row.embedding_model !== model)) return { needsRefresh: true, reason: 'model_changed' };
+  if (existing.length !== expected.length) return { needsRefresh: true, reason: 'content_changed' };
+  const existingByKey = new Map(existing.map((row) => [row.embedding_key, row]));
+  const contentChanged = expected.some((chunk) => {
+    const row = existingByKey.get(chunk.id);
+    return !row
+      || Number(row.payload_version) !== COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION
+      || row.input_hash !== sha256(chunk.text);
+  });
+  if (contentChanged) return { needsRefresh: true, reason: 'content_changed' };
   return { needsRefresh: false, reason: 'up_to_date' };
 }
 

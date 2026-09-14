@@ -6,7 +6,11 @@ import { ensureDefaultRoles, ensureDefaultRolesSync } from './roles.js';
 import { commitMessageSchema, normalizeSourceType, provenanceSchema } from './source-taxonomy.js';
 import { latestTimelineDate } from './timeline.js';
 
-export const BIGBRAIN_STORAGE_SCHEMA_VERSION = 1;
+export const BIGBRAIN_STORAGE_SCHEMA_VERSION = 2;
+
+export const PAGE_EMBEDDING_SOURCE_TYPE = 'page';
+export const COMPILED_TRUTH_CHUNK_EMBEDDING_KIND = 'compiled_truth_chunk';
+export const COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION = 1;
 
 // Hosted MCP requests open the database in several authorization, tool, and
 // audit paths. Reusing the pool prevents each request from opening a new set
@@ -91,12 +95,16 @@ export function initializeSqliteSchema(db) {
     );
     CREATE TABLE IF NOT EXISTS embeddings (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      page_slug TEXT NOT NULL,
-      chunk_id TEXT NOT NULL,
-      chunk_text TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      embedding_kind TEXT NOT NULL,
+      embedding_key TEXT NOT NULL,
+      input_text TEXT NOT NULL,
+      input_hash TEXT NOT NULL,
+      payload_version INTEGER NOT NULL,
       embedding_model TEXT NOT NULL,
       embedding_json TEXT NOT NULL,
-      content_hash TEXT NOT NULL
+      UNIQUE (source_type, source_id, embedding_kind, embedding_key)
     );
     CREATE TABLE IF NOT EXISTS activity_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -230,6 +238,7 @@ export function initializeSqliteSchema(db) {
   ensureSqliteSharedGroupColumns(raw);
   ensureSqlitePageKindColumn(raw);
   ensureSqlitePageProvenanceColumns(raw);
+  ensureSqliteEmbeddingSchema(raw);
   ensureSqlitePageIndexes(raw);
   ensureSqliteAuditColumns(raw);
   ensureDefaultRolesSync(raw);
@@ -296,14 +305,16 @@ export async function initializePostgresSchema(db) {
     );
     CREATE TABLE IF NOT EXISTS embeddings (
       id BIGSERIAL PRIMARY KEY,
-      page_slug TEXT NOT NULL,
-      chunk_id TEXT NOT NULL,
-      chunk_text TEXT NOT NULL,
+      source_type TEXT NOT NULL,
+      source_id TEXT NOT NULL,
+      embedding_kind TEXT NOT NULL,
+      embedding_key TEXT NOT NULL,
+      input_text TEXT NOT NULL,
+      input_hash TEXT NOT NULL,
+      payload_version INTEGER NOT NULL,
       embedding_model TEXT NOT NULL,
       embedding vector,
-      embedding_json JSONB NOT NULL,
-      content_hash TEXT NOT NULL,
-      UNIQUE (page_slug, chunk_id)
+      embedding_json JSONB NOT NULL
     );
     CREATE TABLE IF NOT EXISTS activity_log (
       id BIGSERIAL PRIMARY KEY,
@@ -457,12 +468,12 @@ export async function initializePostgresSchema(db) {
     CREATE INDEX IF NOT EXISTS page_provenance_event_id_idx ON page_provenance (event_id);
     CREATE INDEX IF NOT EXISTS links_from_slug_idx ON links (from_slug);
     CREATE INDEX IF NOT EXISTS links_to_slug_idx ON links (to_slug);
-    CREATE INDEX IF NOT EXISTS embeddings_page_slug_idx ON embeddings (page_slug);
     CREATE INDEX IF NOT EXISTS hosted_brain_git_state_checked_at_idx ON hosted_brain_git_state (checked_at DESC);
     CREATE INDEX IF NOT EXISTS mcp_audit_log_created_at_idx ON mcp_audit_log (created_at DESC);
     CREATE INDEX IF NOT EXISTS shared_group_pages_group_slug_idx ON shared_group_pages (group_slug, sort_order);
   `);
   await ensurePostgresSharedGroupColumns(db);
+  await ensurePostgresEmbeddingSchema(db);
   await db.query("ALTER TABLE page_provenance ADD COLUMN IF NOT EXISTS commit_message TEXT NOT NULL DEFAULT 'Unknown mutation'");
   await db.query('ALTER TABLE page_provenance ADD COLUMN IF NOT EXISTS significance TEXT');
   await db.query("ALTER TABLE page_provenance ADD COLUMN IF NOT EXISTS source_message TEXT NOT NULL DEFAULT 'Unknown source message'");
@@ -511,6 +522,135 @@ function ensureSqlitePageProvenanceColumns(raw) {
 
 function ensureSqlitePageIndexes(raw) {
   raw.exec('CREATE INDEX IF NOT EXISTS pages_type_slug_idx ON pages (type, slug)');
+}
+
+function ensureSqliteEmbeddingSchema(raw) {
+  const columns = new Set(raw.prepare('PRAGMA table_info(embeddings)').all().map((row) => row.name));
+  if (columns.has('source_type')) {
+    raw.exec('CREATE INDEX IF NOT EXISTS embeddings_source_idx ON embeddings (source_type, source_id)');
+    return;
+  }
+
+  const legacyRows = raw.prepare('SELECT * FROM embeddings ORDER BY id').all();
+  raw.exec('BEGIN IMMEDIATE');
+  try {
+    raw.exec(`
+      ALTER TABLE embeddings RENAME TO embeddings_legacy;
+      CREATE TABLE embeddings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_type TEXT NOT NULL,
+        source_id TEXT NOT NULL,
+        embedding_kind TEXT NOT NULL,
+        embedding_key TEXT NOT NULL,
+        input_text TEXT NOT NULL,
+        input_hash TEXT NOT NULL,
+        payload_version INTEGER NOT NULL,
+        embedding_model TEXT NOT NULL,
+        embedding_json TEXT NOT NULL,
+        UNIQUE (source_type, source_id, embedding_kind, embedding_key)
+      );
+    `);
+    const insert = raw.prepare(`
+      INSERT INTO embeddings (
+        id, source_type, source_id, embedding_kind, embedding_key,
+        input_text, input_hash, payload_version, embedding_model, embedding_json
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const row of legacyRows) {
+      insert.run(
+        row.id,
+        PAGE_EMBEDDING_SOURCE_TYPE,
+        row.page_slug,
+        COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
+        row.chunk_id,
+        row.chunk_text,
+        sha256(row.chunk_text),
+        COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
+        row.embedding_model,
+        row.embedding_json,
+      );
+    }
+    raw.exec(`
+      DROP TABLE embeddings_legacy;
+      CREATE INDEX embeddings_source_idx ON embeddings (source_type, source_id);
+      COMMIT;
+    `);
+  } catch (error) {
+    raw.exec('ROLLBACK');
+    throw error;
+  }
+}
+
+async function ensurePostgresEmbeddingSchema(db) {
+  const pg = unwrapPostgres(db);
+  const client = await pg.raw.connect();
+  try {
+    const result = await client.query(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_schema = current_schema() AND table_name = 'embeddings'
+    `);
+    const columns = new Set(result.rows.map((row) => row.column_name));
+    if (!columns.has('source_type')) {
+      await client.query('BEGIN');
+      try {
+        await client.query(`
+          ALTER TABLE embeddings
+            ADD COLUMN source_type TEXT,
+            ADD COLUMN source_id TEXT,
+            ADD COLUMN embedding_kind TEXT,
+            ADD COLUMN embedding_key TEXT,
+            ADD COLUMN input_text TEXT,
+            ADD COLUMN input_hash TEXT,
+            ADD COLUMN payload_version INTEGER
+        `);
+        await client.query(`
+          UPDATE embeddings
+          SET source_type = $1,
+              source_id = page_slug,
+              embedding_kind = $2,
+              embedding_key = chunk_id,
+              input_text = chunk_text,
+              payload_version = $3
+        `, [
+          PAGE_EMBEDDING_SOURCE_TYPE,
+          COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
+          COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
+        ]);
+        const rows = (await client.query('SELECT id, input_text FROM embeddings')).rows;
+        for (const row of rows) {
+          await client.query('UPDATE embeddings SET input_hash = $1 WHERE id = $2', [sha256(row.input_text), row.id]);
+        }
+        await client.query(`
+          ALTER TABLE embeddings
+            ALTER COLUMN source_type SET NOT NULL,
+            ALTER COLUMN source_id SET NOT NULL,
+            ALTER COLUMN embedding_kind SET NOT NULL,
+            ALTER COLUMN embedding_key SET NOT NULL,
+            ALTER COLUMN input_text SET NOT NULL,
+            ALTER COLUMN input_hash SET NOT NULL,
+            ALTER COLUMN payload_version SET NOT NULL
+        `);
+        await client.query('ALTER TABLE embeddings DROP CONSTRAINT IF EXISTS embeddings_page_slug_chunk_id_key');
+        await client.query('DROP INDEX IF EXISTS embeddings_page_slug_idx');
+        await client.query(`
+          ALTER TABLE embeddings
+            DROP COLUMN page_slug,
+            DROP COLUMN chunk_id,
+            DROP COLUMN chunk_text,
+            DROP COLUMN content_hash
+        `);
+        await client.query('COMMIT');
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      }
+    }
+    await client.query('CREATE UNIQUE INDEX IF NOT EXISTS embeddings_identity_idx ON embeddings (source_type, source_id, embedding_kind, embedding_key)');
+    await client.query('CREATE INDEX IF NOT EXISTS embeddings_source_idx ON embeddings (source_type, source_id)');
+  } finally {
+    client.release();
+  }
 }
 
 function ensureSqliteSharedGroupColumns(raw) {
@@ -650,35 +790,77 @@ export async function replaceLinksForPage(db, slug, links, knownSlugs) {
   }
 }
 
-export async function replaceEmbeddingsForPage(db, { pageSlug, chunks, model, vectors, contentHash }) {
+export async function replaceEmbeddingsForPage(db, { pageSlug, chunks, model, vectors }) {
   if (db.backend === 'postgres') {
-    await db.query('DELETE FROM embeddings WHERE page_slug = $1', [pageSlug]);
+    await db.query(
+      'DELETE FROM embeddings WHERE source_type = $1 AND source_id = $2 AND embedding_kind = $3',
+      [PAGE_EMBEDDING_SOURCE_TYPE, pageSlug, COMPILED_TRUTH_CHUNK_EMBEDDING_KIND],
+    );
     for (let index = 0; index < chunks.length; index += 1) {
       if (!vectors[index]) continue;
       await db.query(`
-        INSERT INTO embeddings (page_slug, chunk_id, chunk_text, embedding_model, embedding, embedding_json, content_hash)
-        VALUES ($1,$2,$3,$4,$5::vector,$6,$7)
-      `, [pageSlug, chunks[index].id, chunks[index].text, model, vectorLiteral(vectors[index]), JSON.stringify(vectors[index]), contentHash]);
+        INSERT INTO embeddings (
+          source_type, source_id, embedding_kind, embedding_key, input_text,
+          input_hash, payload_version, embedding_model, embedding, embedding_json
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::vector,$10)
+      `, [
+        PAGE_EMBEDDING_SOURCE_TYPE,
+        pageSlug,
+        COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
+        chunks[index].id,
+        chunks[index].text,
+        sha256(chunks[index].text),
+        COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
+        model,
+        vectorLiteral(vectors[index]),
+        JSON.stringify(vectors[index]),
+      ]);
     }
     return;
   }
   const raw = unwrapSqlite(db);
-  raw.prepare('DELETE FROM embeddings WHERE page_slug = ?').run(pageSlug);
+  raw.prepare('DELETE FROM embeddings WHERE source_type = ? AND source_id = ? AND embedding_kind = ?').run(
+    PAGE_EMBEDDING_SOURCE_TYPE,
+    pageSlug,
+    COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
+  );
   const insert = raw.prepare(`
-    INSERT INTO embeddings (page_slug, chunk_id, chunk_text, embedding_model, embedding_json, content_hash)
-    VALUES (?, ?, ?, ?, ?, ?)
+    INSERT INTO embeddings (
+      source_type, source_id, embedding_kind, embedding_key, input_text,
+      input_hash, payload_version, embedding_model, embedding_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `);
   for (let index = 0; index < chunks.length; index += 1) {
     if (!vectors[index]) continue;
-    insert.run(pageSlug, chunks[index].id, chunks[index].text, model, JSON.stringify(vectors[index]), contentHash);
+    insert.run(
+      PAGE_EMBEDDING_SOURCE_TYPE,
+      pageSlug,
+      COMPILED_TRUTH_CHUNK_EMBEDDING_KIND,
+      chunks[index].id,
+      chunks[index].text,
+      sha256(chunks[index].text),
+      COMPILED_TRUTH_EMBEDDING_PAYLOAD_VERSION,
+      model,
+      JSON.stringify(vectors[index]),
+    );
   }
 }
 
-export async function getEmbeddingRecord(db, pageSlug) {
+export async function getEmbeddingRecords(db, { sourceType, sourceId, embeddingKind }) {
   if (db.backend === 'postgres') {
-    return (await db.query('SELECT embedding_model, content_hash FROM embeddings WHERE page_slug = $1 LIMIT 1', [pageSlug])).rows[0];
+    return (await db.query(`
+      SELECT embedding_key, input_hash, payload_version, embedding_model
+      FROM embeddings
+      WHERE source_type = $1 AND source_id = $2 AND embedding_kind = $3
+      ORDER BY embedding_key
+    `, [sourceType, sourceId, embeddingKind])).rows;
   }
-  return unwrapSqlite(db).prepare('SELECT embedding_model, content_hash FROM embeddings WHERE page_slug = ? LIMIT 1').get(pageSlug);
+  return unwrapSqlite(db).prepare(`
+    SELECT embedding_key, input_hash, payload_version, embedding_model
+    FROM embeddings
+    WHERE source_type = ? AND source_id = ? AND embedding_kind = ?
+    ORDER BY embedding_key
+  `).all(sourceType, sourceId, embeddingKind);
 }
 
 export async function listPageSlugs(db) {
@@ -690,7 +872,7 @@ export async function listPageSlugs(db) {
 
 export async function deletePageIndex(db, slug) {
   if (db.backend === 'postgres') {
-    await db.query('DELETE FROM embeddings WHERE page_slug = $1', [slug]);
+    await db.query('DELETE FROM embeddings WHERE source_type = $1 AND source_id = $2', [PAGE_EMBEDDING_SOURCE_TYPE, slug]);
     await db.query('DELETE FROM links WHERE from_slug = $1 OR to_slug = $1', [slug]);
     await db.query('DELETE FROM sources WHERE page_slug = $1', [slug]);
     await db.query('DELETE FROM activity_log WHERE page_slug = $1', [slug]);
@@ -699,7 +881,7 @@ export async function deletePageIndex(db, slug) {
     return;
   }
   const raw = unwrapSqlite(db);
-  raw.prepare('DELETE FROM embeddings WHERE page_slug = ?').run(slug);
+  raw.prepare('DELETE FROM embeddings WHERE source_type = ? AND source_id = ?').run(PAGE_EMBEDDING_SOURCE_TYPE, slug);
   raw.prepare('DELETE FROM links WHERE from_slug = ? OR to_slug = ?').run(slug, slug);
   raw.prepare('DELETE FROM sources WHERE page_slug = ?').run(slug);
   raw.prepare('DELETE FROM activity_log WHERE page_slug = ?').run(slug);
@@ -1148,9 +1330,9 @@ export async function lexicalSearch(db, query, limit = 10) {
 export async function semanticSearch(db, queryVector, limit = 10) {
   if (db.backend !== 'postgres') return null;
   const result = await db.query(`
-    SELECT e.page_slug,
-           e.chunk_id,
-           e.chunk_text,
+    SELECT e.source_id,
+           e.embedding_key,
+           e.input_text,
            e.embedding_model,
            p.slug,
            p.title,
@@ -1160,31 +1342,39 @@ export async function semanticSearch(db, queryVector, limit = 10) {
            p.updated_at,
            1 - (e.embedding <=> $1::vector) AS semantic_score
     FROM embeddings e
-    JOIN pages p ON p.slug = e.page_slug
-    WHERE e.embedding IS NOT NULL
+    JOIN pages p ON p.slug = e.source_id
+    WHERE e.source_type = $3 AND e.embedding IS NOT NULL
     ORDER BY e.embedding <=> $1::vector
     LIMIT $2
-  `, [vectorLiteral(queryVector), limit]);
+  `, [vectorLiteral(queryVector), limit, PAGE_EMBEDDING_SOURCE_TYPE]);
   return result.rows.map((row) => ({
-    slug: row.page_slug,
-    title: row.title ?? row.page_slug,
+    slug: row.source_id,
+    title: row.title ?? row.source_id,
     type: row.type ?? null,
     page_kind: row.page_kind ?? 'canonical',
     summary: row.summary ?? '',
     updated_at: normalizeTimestampValue(row.updated_at),
-    snippet: row.chunk_text.slice(0, 240),
-    chunk_id: row.chunk_id,
-    chunk_text: row.chunk_text,
+    snippet: row.input_text.slice(0, 240),
+    chunk_id: row.embedding_key,
+    chunk_text: row.input_text,
     semantic_score: Number(row.semantic_score),
   }));
 }
 
 export async function allEmbeddings(db) {
   if (db.backend === 'postgres') {
-    const rows = (await db.query('SELECT page_slug, chunk_id, chunk_text, embedding_model, embedding_json FROM embeddings')).rows;
+    const rows = (await db.query(`
+      SELECT source_type, source_id, embedding_kind, embedding_key, input_text,
+             input_hash, payload_version, embedding_model, embedding_json
+      FROM embeddings
+    `)).rows;
     return rows.map((row) => ({ ...row, embedding_json: JSON.stringify(row.embedding_json) }));
   }
-  return unwrapSqlite(db).prepare('SELECT page_slug, chunk_id, chunk_text, embedding_model, embedding_json FROM embeddings').all();
+  return unwrapSqlite(db).prepare(`
+    SELECT source_type, source_id, embedding_kind, embedding_key, input_text,
+           input_hash, payload_version, embedding_model, embedding_json
+    FROM embeddings
+  `).all();
 }
 
 export async function clearHealthFindings(db) {
@@ -1525,6 +1715,10 @@ function postgresPoolKey(envName, connectionString) {
     .update(`${envName}\0${connectionString}`)
     .digest('hex');
   return `${envName}:${digest}`;
+}
+
+function sha256(value) {
+  return crypto.createHash('sha256').update(String(value)).digest('hex');
 }
 
 function unwrapSqlite(db) {
