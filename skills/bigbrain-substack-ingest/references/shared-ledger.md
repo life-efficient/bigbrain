@@ -10,7 +10,7 @@ Prefer the owning Brain's `substack/ledger` tool (`substack_ledger` alias). Pass
 {"operation":"status","input":{"outstandingOnly":true}}
 ```
 
-Call `substack/workflow` (`substack_workflow` alias) with `{}` to read the fixed workflow bundle and required references through MCP. Its `documents` array contains each document's `name` and `content`. This supports RSS tasks that have MCP and browser tools but no shell or filesystem tool. Use targeted tool discovery for slash/underscore aliases when necessary.
+Call `substack/workflow` (`substack_workflow` alias) with `{}` to read the fixed workflow bundle and required references through MCP. Its `documents` array contains each document's `name` and `content`. Use targeted tool discovery for slash/underscore aliases when necessary.
 
 The ledger tool owns the server's shared store and rejects caller-specified database paths. Completion verification must identify the active owning Brain. Do not create a per-automation ledger. A missing tool or inaccessible store is an incomplete setup, not permission to invent a memory-only cursor. Stop before article retrieval or writes if targeted discovery cannot expose the required tools and no direct supported fallback exists.
 
