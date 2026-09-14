@@ -8,9 +8,10 @@ Review one canonical web article through BigBrain's single shared relevance and 
 ## Contract Checklist
 
 - Decide relevance for the user's digest before creating any Brain page or raw artifact.
-- Filing is optional: the valid outcomes are `ignored`, `source_only`, `source_and_update`, or `needs_review`.
+- Filing is optional: the valid outcomes are `ignored`, `source_only`, `source_and_update`, `verified_noop`, or `needs_review`.
 - This skill is the sole article relevance and filing owner for RSS, Substack, email-delivered article notifications, and direct web URLs. Transport adapters must not create competing relevance rules.
 - Apply the shared decision contract in `references/relevance-gate.md` before any source or page write.
+- Read and follow [the shared ingestion completeness checklist](../bigbrain-ingest/references/ingestion-completeness.md) before writing and again before declaring completion, including when this skill is invoked directly. It owns canonical entity coverage, creation and updates, deduplication, links, and saved-state verification for every accepted article.
 - When a registered source provides guidance, treat it as the source-specific inclusion and exclusion policy. It expresses why the source is followed and what should be prioritized or ignored.
 - Do not apply one global content taxonomy across different sources. Source guidance may legitimately differ by publication, including how it treats company news, regulation, startup ideas, research, or promotion.
 - Require either a clear match to the registered source guidance or a named, current user anchor: an active project, task, question, learning topic, tracked entity with live significance, or explicitly requested enrichment topic.
@@ -20,12 +21,10 @@ Review one canonical web article through BigBrain's single shared relevance and 
 - Fetch and preserve the canonical source for every relevant article when the source is available and the filing rules permit it.
 - Visit the supplied article page and confirm that you landed on the correct article. If the page is blocked or cannot be accessed, stop and let me know. Do not substitute another page.
 - Keep the source text faithful to the publisher; never replace it with an AI rewrite.
-- Create an indexed Markdown source sidecar with standard Brain page structure, provenance, and links to the author, publisher, primary subject, and materially mentioned entities.
-- Update existing canonical pages only when the article changes durable understanding or records a meaningful event.
+- Create an indexed Markdown source sidecar with standard Brain page structure, provenance, and entity links required by the shared completeness checklist.
 - Route canonical page creation and updates through `$bigbrain-page`; keep the article sidecar source-specific.
 - Use stable provider IDs and canonical URLs for deduplication and provenance. Preserve the actual channel as `rss`, `substack`, or the most specific supported provenance type.
 - Treat an unavailable source as `needs_review`, not as a complete filing.
-- Read back every write and confirm the owning Brain reflects the expected changes.
 
 ## Workflow
 
@@ -56,11 +55,12 @@ Review one canonical web article through BigBrain's single shared relevance and 
 
 3. Choose the filing outcome:
    - `ignored`: no Brain page or raw source; retain only the transport's reviewed-outcome record. This is the required outcome when the item does not match the registered source guidance or a named user anchor, even if the user asked to ingest the item.
-   - `source_only`: preserve the source and create its indexed sidecar when it is useful for learning, enrichment, or awareness but does not change a canonical entity page.
-   - `source_and_update`: preserve the source, create the indexed sidecar, and update existing canonical pages when the article changes durable understanding or records a meaningful event.
-   - Create a new canonical entity page only when the article establishes a distinct durable person, organization, company, project, concept, deal, or other Brain subject that does not already exist.
+   - For an accepted article, before choosing `source_only` or `source_and_update`, read the shared ingestion completeness checklist and compare the whole article with existing canonical coverage.
+   - `source_only`: preserve the source and create its indexed sidecar only when the article has durable value and the shared checklist confirms all mentioned entities already have sufficient canonical coverage and need no page changes. Establish and verify the required source links.
+   - `source_and_update`: preserve the source, create the indexed sidecar, and create or update the canonical pages required by the shared checklist. This includes missing secondary entities, not just changes to existing primary subjects.
+   - A relevance decision accepts or rejects the article; it must not become a second filter that silently excludes entities from an accepted article.
    - When relevance is uncertain, do not resolve the uncertainty by creating a source artifact or new concept page. Return `ignored` or ask for clarification if the user's intended retention scope is genuinely unclear.
-   - Anti-patterns: treating `source_and_update` as the default, updating every mentioned entity, creating duplicate canonical pages, making a source page the compiled truth for an entity, writing before the outcome is selected.
+   - Anti-patterns: choosing `source_only` before checking canonical coverage, manufacturing updates to already complete pages, making a source page the compiled truth for an entity, writing before the outcome is selected.
 
 4. Build the source sidecar:
    - Follow the active Brain `filing_rules` for the owning collection and `.raw/` path.
@@ -68,16 +68,14 @@ Review one canonical web article through BigBrain's single shared relevance and 
    - Preserve transport metadata without letting it determine relevance. Use `source_type: rss` for RSS and `source_type: substack` for Substack.
    - The indexed Markdown sidecar must contain frontmatter, title, `## Summary`, `## Compiled Truth` or `## Current Relevance`, `## Key Facts` when useful, `## Related Pages`, `## Source`, a `---` separator, and `## Timeline`.
    - Put the original source in the raw artifact; put only structured synthesis and provenance in the sidecar body.
-   - Link to the author, publisher, primary subject, and any mentioned entity whose relationship is materially supported by the source.
+   - Apply the shared checklist's source-to-entity links, using only relationships and identity supported by the article.
    - Anti-patterns: putting raw source text into the compiled-truth section, omitting source links, using an unstructured summary as a canonical page, filing raw files directly in entity directories.
 
-5. Update the Brain graph conservatively:
-   - Search for existing canonical pages before creating or updating anything.
-   - Add an evidence-backed timeline entry and update compiled truth only for a durable change, material event, or reusable insight.
-   - Use relative Markdown links so the source sidecar is visible from entity pages through the Brain graph and backlinks.
-   - Preserve uncertainty, distinguish publisher claims from verified facts, and do not infer a transaction, partnership, or relationship beyond the source.
-   - Read back every created or updated page and confirm the expected source link, entity links, and provenance.
-   - Anti-patterns: silently overwriting compiled truth, converting claims into facts, adding speculative relationships, declaring success without read-back.
+5. Complete and verify the ingestion:
+   - Execute the shared ingestion completeness checklist for canonical page reconciliation and saved-state verification, then check it again before reporting completion.
+   - Keep the article sidecar source-specific and use `$bigbrain-page` for canonical subjects.
+   - Reconcile the final outcome with verified writes. Do not report `source_only` when canonical pages needed creation or updates, or completion while coverage gaps remain.
+   - Anti-patterns: treating a linked name as a created or updated entity page, leaving new entity facts only in the sidecar, declaring success without completing the shared checklist.
 
 ## Article Page Template
 
@@ -133,11 +131,11 @@ What this establishes for the Brain, with uncertainty and attribution preserved.
 - Treating a short RSS description as sufficient source content.
 - Rewriting a strong author's prose into an AI-authored substitute.
 - Creating a raw artifact for an item that failed the digest-value test.
-- Updating every entity named in an article without a durable change.
+- Skipping secondary entities or manufacturing factual changes when existing coverage is sufficient.
 - Using source pages as replacements for canonical entity pages.
 - Treating publisher claims, intentions, or announcements as independently verified facts.
 - Reporting `filed` when the source was unavailable or the page was not read back.
 
 ## Output
 
-Report the relevance decision and concise user-specific rationale first. Then report the chosen outcome, source artifact and sidecar paths, canonical pages created or updated, linked entities, read-back status, stable event or RSS ID, and any uncertainty or follow-up needed. For `ignored`, explicitly state that no raw artifact or Brain page was created.
+Report the relevance decision and concise user-specific rationale first, followed by the chosen outcome, source artifact and sidecar paths, stable event or RSS ID, and the shared checklist's completion result. Use concise prose, with no required decision table or structured output. For `ignored`, explicitly state that no raw artifact or Brain page was created.

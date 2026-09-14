@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Meeting Ingest"
   short_description: "Process one canonical meeting directly or for a source-ingestion caller"
-  default_prompt: "Use $bigbrain-meeting-ingest to process one meeting, preserve its canonical page, prep, transcript artifacts, speaker-level ownership, entity context, and $bigbrain-action-review task judgment. In delegated mode, verify the per-meeting writes and explicitly return control to the calling ingestion skill without taking over its sync, ledger, cursor, batch, or reporting lifecycle."
+  default_prompt: "Use $bigbrain-meeting-ingest to process one meeting, preserve its canonical page, prep, transcript artifacts, speaker-level ownership, entity context, and $bigbrain-action-review task judgment. In delegated mode, verify the per-meeting writes and explicitly return control to the calling ingestion skill without taking over its verification, ledger, cursor, batch, or reporting lifecycle."

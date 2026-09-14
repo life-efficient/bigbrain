@@ -15,7 +15,7 @@ Expected behavior:
 - writes a comprehensive chronological prose exposition that reads like detailed third-person meeting minutes;
 - naturally preserves material facts, terminology, examples, evidence, counterarguments, qualifications, and concise key quotes without forcing a fact ledger, glossary, timestamp grid, or other rigid schema;
 - does not create concept pages unless the source clearly contributes independently reusable knowledge;
-- syncs and reads back the sidecar and raw transcript through the owning Brain MCP.
+- relies on the owning Brain MCP's automatic propagation and independently reads back the sidecar, raw transcript, and canonical updates; manual sync is only a repair for a verified failed side effect.
 
 ## Faithfulness adversarial test
 

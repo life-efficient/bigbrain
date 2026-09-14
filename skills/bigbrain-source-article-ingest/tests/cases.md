@@ -25,9 +25,9 @@ or other source that would help the user master a topic, stay current, bring a
 useful point into conversation, or read for enrichment.
 
 Expected behavior: preserve the source faithfully, create the standard article
-sidecar, link the author, publisher, subject, and materially mentioned Brain
-entities, and update canonical pages only when the durable understanding
-changes.
+sidecar, and execute the shared ingestion completeness checklist for the whole
+article. Create missing canonical entity pages, integrate new supported evidence
+into existing pages, and link already covered entities without duplicate facts.
 
 Visit the supplied article page, confirm that it is the requested article, and
 file it if it is accessible and clears the digest-value gate. If it is blocked

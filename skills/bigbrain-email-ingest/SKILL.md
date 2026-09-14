@@ -9,13 +9,14 @@ Reconcile one eligible human-authored email thread into durable canonical Brain 
 
 ## Contract Checklist
 
+- Read and follow [the shared ingestion completeness checklist](../bigbrain-ingest/references/ingestion-completeness.md) before any Brain write, including when this skill is invoked directly. Complete that checklist before declaring ingestion complete.
 - Accept one bounded thread handoff from `$bigbrain-manage-email`, or one explicitly named human-authored thread from the user.
 - Do not scan the mailbox, classify unrelated messages, process Substack or article notifications, or change Gmail state.
 - Require an identifiable real-person author for each message used as durable evidence. Automated and system-generated messages are not eligible for this worker.
 - Use email bodies only as source context. Do not preserve whole messages, MIME payloads, or generic email-log pages.
 - Preserve sender, recipients, direction, chronology, newly authored text boundaries, attachment metadata, and stable Gmail delivery provenance.
 - Route the durable cluster to exactly one owning Brain using live registered Brain descriptions, then read that Brain's live filing rules.
-- Update an existing canonical page when possible. Create a page only when the evidence supports a useful standalone subject and no canonical page exists.
+- Reconcile canonical subjects and mentioned entities under the shared checklist, retaining email provenance without storing whole email bodies.
 - Route ordinary subject-page creation and updates through `$bigbrain-page`.
 - Invoke `$bigbrain-action-review` before every task create or update decision.
 - Preserve every relevant substantive PDF under the owning collection's `.raw/` folder with a deterministic same-basename indexed sidecar.
@@ -76,6 +77,7 @@ Classify corrections by resulting impact. Preserve append-only history and add a
 ## Workflow
 
 1. Validate the handoff and authorship:
+   - Read the shared ingestion completeness checklist linked above and use it throughout this workflow, even on direct invocation.
    - Confirm that the thread boundary, message identities, sender, recipients, direction, timestamp, and newly authored content are present.
    - Separate quoted and forwarded history from the current author's words.
    - Reject automated wrappers, no-reply mail, platform notifications, and other system-authored content back to the dispatcher as `ineligible`.
@@ -91,7 +93,7 @@ Classify corrections by resulting impact. Preserve append-only history and add a
 3. Route and reconcile canonical state:
    - Read live registered Brain descriptions and choose exactly one destination.
    - Read the selected Brain's filing rules, search for canonical pages, and inspect relevant tasks before proposing changes.
-   - Use stable provenance keys to prevent replay. If an exact event already exists, read it back and return `verified_noop`.
+   - Use stable provenance keys to prevent replay. If an exact event already exists, read it back and confirm shared-checklist coverage before returning `verified_noop`.
    - Invoke `$bigbrain-action-review` before every task write. Do not turn another party's action or an unaccepted optional offer into Harry-facing work.
    - Anti-patterns: routing from stale memory, writing to multiple Brains, creating duplicate entities, replaying a generic update after an ambiguous response.
 
@@ -103,13 +105,14 @@ Classify corrections by resulting impact. Preserve append-only history and add a
    - Anti-patterns: storing every attachment, relying on filenames or previews, preserving signature images, treating projections as verified facts.
 
 5. Apply the smallest canonical update:
-   - Update only pages whose durable state genuinely changes.
+   - Apply the shared checklist to create missing canonical entity pages, add supported new information to existing pages, and link already-covered entities without redundant updates.
    - Keep exact wording only when it controls a commitment, approval, commercial term, deadline, confidentiality boundary, dispute, or instruction.
    - Provide `significance` and a concise `provenance.source_message` on each page mutation.
    - Apply task changes only after action review and include next actor, concrete action, purpose, dependency, approval gate when relevant, and checkable completion.
-   - Anti-patterns: transcript dumps, updating every related page, inventing owners or dates, omitting mutation significance.
+   - Anti-patterns: transcript dumps, redundant updates to already-covered pages, inventing owners or dates, omitting mutation significance.
 
 6. Verify and return to the dispatcher:
+   - Complete the shared checklist before returning a completed ingestion outcome.
    - Read back every changed page and task through the same Brain.
    - Read back each stored PDF and sidecar, comparing length and SHA-256 when possible.
    - If a write errors or times out, assume it may have persisted and search for the exact provenance key before retrying.
@@ -127,18 +130,4 @@ Classify corrections by resulting impact. Preserve append-only history and add a
 
 ## Output
 
-Return a compact dispatcher-safe result:
-
-```text
-<ignored | source_only | source_and_update | verified_noop | needs_review | reconciliation_incomplete>
-
-Thread: <subject>
-Brain: <destination or none>
-Pages: <created or updated pages with significance>
-Tasks: <created or updated tasks, if any>
-Artifacts: <created, reused, skipped, and verification state>
-Outbound state: <sent_and_logged or other state, only when applicable>
-Read-back: <verified | partial | not verified>
-Gmail action: none
-Handoff: return to $bigbrain-manage-email for cursor handling
-```
+Return a compact prose handoff to the mailbox dispatcher. Preserve the existing outcomes `ignored`, `source_only`, `source_and_update`, `verified_noop`, `needs_review`, or `reconciliation_incomplete`. State the thread subject, destination Brain, canonical and task changes, artifact verification, and any relevant significance or outbound state. Confirm same-Brain read-back and that no Gmail action occurred, then explicitly return control to `$bigbrain-manage-email` for cursor handling. Do not require a field template or expose provider identifiers and private message content.

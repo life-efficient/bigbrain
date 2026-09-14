@@ -9,16 +9,9 @@ Route new information into the narrowest BigBrain ingest workflow and verify the
 
 This skill guarantees:
 - Choose the narrowest fitting ingest subroute instead of using one generic path for everything.
-- File new knowledge by primary subject, not by source or format.
-- Keep canonical subject pages locally comprehensible as useful 80-20 briefings without copying the full detail of linked pages or sources.
-- Read and follow the target Brain's filing rules before writing.
-- Preserve raw supporting material according to those filing rules.
-- Update an existing canonical page when one already exists.
+- Read and follow [the shared ingestion completeness checklist](references/ingestion-completeness.md) before writing and again before declaring completion. It is the single owner of whole-source coverage, canonical entity creation and updates, links, and read-back requirements for all ingest routes.
 - Route canonical page creation and updates through `$bigbrain-page`.
-- Make a new or updated canonical page locally comprehensible as a useful 80-20 briefing of its primary subject, without making it exhaustive.
-- Use links for deeper detail, adjacent subjects, and related records; links are relationships, not necessarily a hierarchy.
-- Keep the overall understanding of each subject on its canonical page. Mention linked subjects in context without creating a competing full account, and leave source-specific detail on meeting, source, or attachment pages.
-- Rely on successful owning-Brain MCP writes and same-Brain read-back; MCP mutations propagate and back up automatically.
+- Require each selected subskill to apply that same checklist, including when invoked directly.
 
 ## Workflow
 
@@ -33,22 +26,14 @@ This skill guarantees:
    - Anti-patterns: using one generic route for everything, routing an article to document ingest when source-article ingest applies, inventing a route for a one-off input.
 
 2. Apply shared filing controls:
-   - Before any MCP or service-backed write, call `filing_rules` and use the paths and tools it specifies.
-   - Check whether the target page already exists before creating a new one.
-   - Keep the durable overall understanding on the canonical subject page; keep source-specific detail on the meeting, source, or attachment page and link to it.
-   - Use `$bigbrain-page` for a new or existing canonical subject. Specialized meeting, task, and attachment workflows retain their own page shapes.
-   - Apply the digest-value test before preserving a source or creating a page.
-   - Use `.raw/` and raw-file tools when the filing rules require raw source preservation there.
-   - Use `.artifacts/` only when the target Brain's filing rules or directly accessed folder structure explicitly call for artifacts.
-   - Prefer updating compiled truth above the separator and appending evidence below it.
-   - Do not run manual sync, maintenance, propagation, or backup after MCP writes.
-   - Report no-op, hold, draft, and completed outcomes distinctly.
-   - Anti-patterns: writing before reading filing rules, duplicating an existing page, hiding a meaningful change in an unindexed artifact, declaring completion before sync.
+   - Read `references/ingestion-completeness.md` before writing and execute it for every accepted source. Do not replace it with a shorter route-specific checklist.
+   - Apply the selected route's relevance and retrieval rules first; the shared checklist does not require retaining rejected sources.
+   - Keep source-specific handling in the subskill and use `$bigbrain-page` for canonical subject pages.
+   - Anti-patterns: treating source preservation as complete ingestion, skipping secondary entities, duplicating the shared rules in individual routes.
 
 3. Verify and report the result:
-   - Read back every created or updated page.
-   - Confirm source provenance, page links, raw artifacts, and follow-on updates.
-   - State what was deliberately not changed and identify any remaining uncertainty.
+   - Recheck the shared checklist against saved Brain state, including entity coverage and source links.
+   - Report no-op, hold, draft, incomplete, and completed outcomes distinctly, with any remaining gaps.
    - Anti-patterns: reporting a plan as completion, omitting no-op rationale, claiming a link or page exists without read-back.
 
 ## Anti-Patterns
@@ -62,4 +47,4 @@ This skill guarantees:
 
 ## Output
 
-Report the chosen ingest route, relevance decision, canonical pages updated or created, raw files or artifacts preserved, linked entities, read-back status, and any follow-on enrichment recommendation.
+Report the chosen ingest route and the shared checklist's completion result in concise prose. No structured decision output is required.

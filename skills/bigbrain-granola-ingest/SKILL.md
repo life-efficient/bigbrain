@@ -5,10 +5,11 @@ description: Use when the user asks to import or process recent Granola meetings
 
 # BigBrain Granola Ingest
 
-Discover and route recent Granola meetings, delegate each claimed meeting to `$bigbrain-meeting-ingest`, then resume the Granola ledger, cursor, sync, and batch-reporting lifecycle.
+Discover and route recent Granola meetings, delegate each claimed meeting to `$bigbrain-meeting-ingest`, then resume the Granola ledger, cursor, verification, and batch-reporting lifecycle.
 
 ## Contract Checklist
 
+- Read and follow [the shared ingestion completeness checklist](../bigbrain-ingest/references/ingestion-completeness.md) before any Brain write, including when this skill is invoked directly. Complete that checklist before declaring ingestion complete.
 - The active brain or routed destination is resolved before any write.
 - Machine-wide routing uses each reachable brain's live description as the routing source of truth.
 - Machine-wide routing ingests every processable meeting; when no specialized brain clearly wins, route to Personal Brain if it is reachable and writable.
@@ -19,7 +20,7 @@ Discover and route recent Granola meetings, delegate each claimed meeting to `$b
 - Before delegation, a continuation checklist records the Granola-owned steps that remain after the delegated result returns.
 - A delegated Meeting Ingest result is intermediate and cannot complete the Granola run, verify a route, advance a cursor, or emit the batch report.
 - Partial or failed delegated results never verify the route or advance the cursor.
-- The destination brain is synced and read back before reporting success.
+- Rely on the destination Brain MCP for automatic propagation and backup, and perform independent caller read-back before reporting success. Run manual sync or maintenance only if verification identifies a failed side effect that requires repair.
 - Final output is count-first, grouped by destination-brain headings with meeting-title bullets and created-page sub-bullets, and privacy-safe.
 
 ## Scheduled machine-wide ledger control
@@ -42,7 +43,7 @@ helper. Do not use removed `bigbrain granola cursor` or low-level
    code for a terminal failure. For an explicit user-requested retry of a
    failed route, use `retry --source granola --item ID` and then inspect and
    claim the route again. A retry starts a new isolated attempt and still
-   requires the full delegation, sync, read-back, verification, and cursor
+   requires the full delegation, read-back, verification, and cursor
    gates.
 5. Use `advance` only after the matching route is verified. The helper enforces
    that gate and monotonic cursor ordering. Held, failed, partial, unavailable,
@@ -55,6 +56,7 @@ prompts, credentials, or other private content to the ledger helper.
 ## Workflow
 
 1. Resolve candidate brains and routing context.
+   - Read the shared ingestion completeness checklist linked above and use it throughout this workflow, even on direct invocation.
    - In selected-brain mode, resolve the target through selected BigBrain context, `--brain-home`, `BIGBRAIN_HOME`, or the saved default pointer.
    - In machine-wide routing mode, list registered machine-wide brains first, then read each reachable brain's live description and authenticated capability/about state.
    - Consider only brains that are reachable, authenticated, writable, and have a valid description.
@@ -93,8 +95,9 @@ prompts, credentials, or other private content to the ledger helper.
    - Anti-patterns: duplicate meeting pages, relying on title-only dedupe, ignoring changed titles with same Granola ID, skipping a new processable meeting because it feels low-value, repairing pages without a concrete gap
 6. Prepare the delegated meeting handoff and continuation checklist.
    - Complete the routing-ledger `record` and `claim` steps before allowing any destination write. Invoke Meeting Ingest only after the route is successfully claimed with `claimed: true`; a route with `claimed: false` permits no delegation.
-   - Before delegation, record an ephemeral continuation checklist for this route: receive and validate the delegated result, run destination sync, perform Granola final read-back, verify or fail the route, advance only after verification, then continue the batch and emit the Granola report.
+   - Before delegation, record an ephemeral continuation checklist for this route: receive and validate the delegated result, perform Granola final read-back, verify or fail the route, advance only after verification, then continue the batch and emit the Granola report.
    - Prepare a natural-language delegated handoff containing caller identity `$bigbrain-granola-ingest`, the resolved destination, live filing context, Granola source identity and provenance, meeting metadata, fetched transcript and notes, source-specific authority boundaries, privacy constraints, and allowed mutations.
+   - Require the worker to apply the shared ingestion completeness checklist to the full accepted meeting evidence, including secondary entities, and to verify its coverage before returning complete.
    - Explicitly instruct `$bigbrain-meeting-ingest` to use delegated mode and return control to `$bigbrain-granola-ingest` after one meeting. Do not pass the ledger lease token, cursor state, credentials, or private batch-control data.
    - Renew the private ledger lease while delegated work continues when necessary.
    - Anti-patterns: delegating before claim, relying on memory for remaining Granola steps, passing routing secrets to Meeting Ingest, asking Meeting Ingest to process a batch, omitting the return-control instruction
@@ -104,17 +107,17 @@ prompts, credentials, or other private content to the ledger helper.
    - Immediately resume Granola processing from the recorded continuation checklist after the delegated result returns. Do not stop, summarize to the user, or move to another route before resolving the current route's post-delegation lifecycle.
    - Require the delegated result to identify `complete`, `partial`, or `failed`, the canonical meeting outcome, required-artifact verification, related changes, blockers, and explicit return of control.
    - Partial or failed delegated results must not run ledger verification or cursor advancement.
-   - If the delegated result is incomplete, malformed, partial, failed, or lacks required verification, record a non-sensitive terminal failure code with `bigbrain-granola-ledger fail`; leave the route unverified and the cursor unchanged.
+   - If the delegated result is incomplete, unclear, partial, failed, or lacks required verification, record a non-sensitive terminal failure code with `bigbrain-granola-ledger fail`; leave the route unverified and the cursor unchanged.
    - Anti-patterns: treating delegated success as overall success, losing the caller continuation, emitting Meeting Ingest output to the user, invoking Action Review or duplicating meeting interpretation in Granola, verifying a partial result
 8. Complete the Granola-owned post-delegation lifecycle.
-   - For a delegated `complete` result, run `bigbrain sync --json` from the destination Brain root or use the destination Brain's live sync tool.
-   - After sync succeeds, perform the final read-back of the referenced canonical meeting, provenance, required transcript sidecar or artifact, affected stable pages, and tasks through the same destination Brain.
+   - For a delegated `complete` result, perform the final read-back of the referenced canonical meeting, provenance, required transcript sidecar or artifact, affected stable pages, and tasks through the same destination Brain.
    - Confirm the stored raw transcript is full-text using content, size, or equivalent metadata against the fetched transcript payload when available.
    - Re-scan the destination for duplicate Granola provenance and confirm changed pages match live filing rules.
-   - Only after delegated completion, destination sync, Granola final read-back, and required-artifact verification succeed may the caller run `bigbrain-granola-ledger verify` with a non-sensitive verification reference.
+   - Confirm the shared checklist is complete for this meeting before declaring it ingested or verifying its route; a delegated report alone is not proof.
+   - Only after delegated completion, Granola final read-back, and required-artifact verification succeed may the caller run `bigbrain-granola-ledger verify` with a non-sensitive verification reference.
    - Run `bigbrain-granola-ledger advance` only after the same route is verified. If any post-delegation check fails, use `fail` with a non-sensitive code and leave the cursor unchanged.
    - Mark the route's continuation checklist complete only after verify and any eligible advance succeed.
-   - Anti-patterns: trusting the delegated report without independent caller read-back, failing to resume after delegation, verifying before sync or final read-back, advancing before verify, leaving a claimed route unresolved, treating a failed advance as successful completion
+   - Anti-patterns: trusting the delegated report without independent caller read-back, failing to resume after delegation, verifying before final read-back, advancing before verify, leaving a claimed route unresolved, treating a failed advance as successful completion
 9. Continue the batch.
    - Repeat claim, continuation recording, one-meeting delegation, caller resumption, final verification, and cursor handling for every processable candidate.
    - Keep each route isolated so one partial or failed meeting does not erase verified results for other meetings.
@@ -143,43 +146,13 @@ prompts, credentials, or other private content to the ledger helper.
 - Inventing facts, decisions, owners, due dates, task status, affiliations, or participant identities.
 - Treating external actions, unaccepted requests, or optional offers as member-owned backlog tasks.
 - Performing meeting interpretation directly instead of delegating the claimed standard-path meeting to `$bigbrain-meeting-ingest`.
-- Treating the delegated per-meeting result as completion and failing to resume Granola sync, ledger, cursor, batch, or reporting work.
+- Treating the delegated per-meeting result as completion and failing to resume Granola verification, ledger, cursor, batch, or reporting work.
 - Allowing partial, failed, or unverified delegated work to verify a route or advance the cursor.
 - Storing secrets, credentials, transcript content, summaries, participant lists, notes, or model prompts in machine-wide routing state.
 - Quoting unsafe, slanderous, highly personal, sensitive, or private transcript text in the final report.
 
 ## Output
 
-Granola Ingest is the sole owner of the batch user-facing report. Delegated Meeting Ingest results are internal handoffs and must never be emitted as competing user-facing output.
+Granola Ingest owns the sole user-facing batch report; delegated Meeting Ingest results remain internal handoffs. Start with a plain count sentence, such as `3 meetings ingested, 1 repaired`. For successful ingests, group concise meeting-title bullets by destination Brain and mention newly created non-meeting pages beneath the relevant meeting. Omit assumed meeting pages and transcript sidecars from that created-page list. If nothing changed, say `0 meetings ingested`.
 
-Use this shape:
-
-```text
-5 meetings ingested
-
-Personal Brain
-- Quarterly planning sync - ingested
-  - Tasks: Prepare budget options, Schedule partner follow-up
-  - Organizations: Example Foundation
-- Health protocol review - ingested
-
-ICAIRE Brain
-- Programme standup - ingested
-  - People: New facilitator profile
-  - Projects: Cohort delivery tracker
-
-Needs attention
-- One destination was unavailable, so its matching meeting was not ingested.
-```
-
-If nothing changed:
-
-```text
-0 meetings ingested
-```
-
-Only add `Issues`, `Errors`, `Warnings`, or `Needs review` sections when there
-is something the user should act on. Keep IDs, hashes, slugs, page paths, raw
-paths, folder IDs, sync JSON, participants, private summaries, transcripts,
-notes, credentials, and private content out of the user-facing output by
-default.
+Add an attention section only for issues the user should act on. Keep provider identifiers, private routing state, page and raw paths, technical diagnostics, participants, private summaries, transcripts, notes, and credentials out of the report by default. Do not reproduce the internal completeness checklist or require a structured decision output.

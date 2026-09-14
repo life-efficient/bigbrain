@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Source Article Ingest"
   short_description: "Apply one shared article relevance gate"
-  default_prompt: "Run $bigbrain-source-article-ingest as the sole relevance and filing workflow for this RSS, Substack, email-delivered, or direct article. First read any registered source guidance or name a current user anchor, apply the shared relevance gate before any write, and choose ignored, source_only, source_and_update, needs_review, or verified_noop."
+  default_prompt: "Run $bigbrain-source-article-ingest as the sole relevance and filing workflow for this RSS, Substack, email-delivered, or direct article. First read any registered source guidance or name a current user anchor and apply the shared relevance gate before any write. For accepted articles, read and execute the shared ingestion completeness checklist for canonical entity pages, links, and verified coverage. Report the outcome and gaps in concise prose."

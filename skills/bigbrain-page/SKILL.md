@@ -36,7 +36,7 @@ Create or update one ordinary BigBrain page from durable evidence.
 
 ## Anti-Patterns
 
-- Do not create duplicates, weak stubs, or a page-system explanation.
+- Do not create duplicates, weak stubs, or a page-system explanation. A confidently identified entity with sparse, attributable source context is sufficient for a concise page; unsupported identity or invented details are weak evidence. Do not pad a page to fill the briefing topics.
 - Do not use the canonical page as a source transcript or as the full account of a linked subject.
 
 ## Output

@@ -66,11 +66,6 @@ test('Granola resumes after delegation and alone completes the ledger lifecycle'
   );
   const completion = afterDelegation.slice(resume);
 
-  const sync = position(
-    completion,
-    /run (?:the )?(?:destination(?: Brain)? )?sync|run `bigbrain sync --json`|use the destination brain's live sync tool/iu,
-    'destination sync',
-  );
   const readBack = position(
     completion,
     /perform (?:the )?final (?:same-Brain )?read-back|final read-back of|read back every final/iu,
@@ -87,7 +82,10 @@ test('Granola resumes after delegation and alone completes the ledger lifecycle'
     'cursor advance',
   );
 
-  assert.ok(sync < readBack, 'Granola must sync the destination before its final read-back');
+  const coverage = position(completion, /Confirm the shared checklist is complete/iu, 'shared ingestion completeness gate');
+  assert.ok(coverage < verify, 'Granola must confirm shared-checklist coverage before ledger verification');
+  assert.match(granola, /automatic propagation and backup/iu);
+  assert.match(granola, /manual sync or maintenance only if verification identifies a failed side effect/iu);
   assert.ok(readBack < verify, 'Granola must finish destination read-back before ledger verification');
   assert.ok(verify < advance, 'Granola must verify the route before advancing the cursor');
 
@@ -113,20 +111,20 @@ test('Meeting Ingest separates standalone output from delegated worker output', 
   const meeting = await fs.readFile(meetingPath, 'utf8');
   const output = section(meeting, '## Output');
 
-  const standalone = position(output, /### Standalone (?:mode|output)/iu, 'Meeting Ingest standalone output');
-  const delegated = position(output, /### Delegated (?:mode|output)/iu, 'Meeting Ingest delegated output');
+  const standalone = position(output, /In standalone mode/iu, 'Meeting Ingest standalone output');
+  const delegated = position(output, /In delegated mode/iu, 'Meeting Ingest delegated output');
   assert.notEqual(standalone, delegated, 'Standalone and delegated output contracts must be distinct');
 
   const delegatedOutput = output.slice(delegated);
   assert.match(
     delegatedOutput,
-    /(?:return|produce|provide)[^\n.]{0,120}(?:internal|structured)[\s\S]{0,180}(?:result|status)/iu,
-    'Delegated Meeting Ingest must return an internal result to its caller',
+    /return a compact prose handoff to the named caller/iu,
+    'Delegated Meeting Ingest must return a prose result to its caller',
   );
   assert.match(
     meeting,
-    /delegated mode[^\n.]{0,180}(?:do not|must not|does not)[^\n.]{0,120}(?:run|perform|own)?[^\n.]{0,80}(?:independent(?:ly)? )?sync|(?:independent )?sync[^\n.]{0,100}(?:belongs to|is owned by)[^\n.]{0,80}(?:caller|Granola)/iu,
-    'Delegated Meeting Ingest must not independently sync',
+    /delegated mode[^\n.]{0,180}do not take over caller verification/iu,
+    'Delegated Meeting Ingest must not take over caller verification',
   );
   assert.match(
     meeting,
@@ -139,7 +137,7 @@ test('forward cases cover post-delegation distraction and failure propagation', 
   const cases = await fs.readFile(casesPath, 'utf8');
 
   assert.match(cases, /## Complete delegated result is not overall completion/);
-  assert.match(cases, /runs destination sync/);
+  assert.match(cases, /automatic propagation; manual sync is only a repair for a verified failed side effect/);
   assert.match(cases, /final same-Brain read-back/);
   assert.match(cases, /verifies the ledger route only after/);
   assert.match(cases, /advances the cursor only after/);

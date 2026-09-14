@@ -20,7 +20,7 @@ assert "$bigbrain-page" in SKILL
 assert "significance: patch | minor | major" in SKILL
 assert "selected Brain's MCP" in SKILL
 assert "Never run manual sync" in SKILL
-assert "Gmail action: none" in SKILL
+assert "no Gmail action occurred" in SKILL
 assert "Substack" in SKILL
 assert "ineligible" in SKILL
 assert SKILL.count("Anti-patterns:") >= 6

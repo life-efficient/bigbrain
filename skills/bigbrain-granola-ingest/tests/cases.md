@@ -21,7 +21,7 @@ Meeting Ingest returns:
 Expected behavior:
 
 - Granola explicitly regains control.
-- Granola runs destination sync.
+- Granola relies on successful destination MCP writes for automatic propagation; manual sync is only a repair for a verified failed side effect.
 - Granola performs its final same-Brain read-back and duplicate-provenance check.
 - Granola verifies the ledger route only after those checks succeed.
 - Granola advances the cursor only after the same route is verified.
@@ -31,7 +31,8 @@ Forbidden behavior:
 
 - Ending the run or reporting success immediately after the delegated result.
 - Treating Meeting Ingest output as the Granola user-facing report.
-- Skipping destination sync, final read-back, ledger verification, cursor handling, or remaining candidates.
+- Skipping final read-back, ledger verification, cursor handling, or remaining candidates.
+- Running routine manual sync after successful MCP writes and read-back.
 
 ## Partial delegated result fails closed
 

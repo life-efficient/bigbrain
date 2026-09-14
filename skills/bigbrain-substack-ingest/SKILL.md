@@ -1,6 +1,6 @@
 ---
 name: bigbrain-substack-ingest
-description: Ingest a verified Substack post or explicitly requested bounded archive item into BigBrain by validating publication identity, preserving the canonical source, and updating linked pages only when durable value warrants it.
+description: Ingest a verified Substack post or explicitly requested bounded archive item into BigBrain by validating publication identity, preserving the canonical source, and reconciling canonical subjects and entities with the shared ingestion checklist.
 ---
 
 # BigBrain Substack Ingest
@@ -9,6 +9,7 @@ Ingest one verified Substack post into the correct BigBrain while preserving sou
 
 ## Contract Checklist
 
+- Read and follow [the shared ingestion completeness checklist](../bigbrain-ingest/references/ingestion-completeness.md) before any Brain write, including when this skill is invoked directly. Complete that checklist before declaring ingestion complete.
 - Use this skill for a canonical Substack post received from `$bigbrain-manage-email`, a direct user request to ingest a Substack URL, or an explicitly requested bounded archive backfill.
 - This skill does not search Gmail, change Gmail state, send email, or own the Gmail delivery cursor. The email skill routes candidate notifications here with a compact evidence packet.
 - For a Gmail handoff, require the post URL, sender and recipient evidence, notification type when known, `List-Id` and `List-Post` when present, publication identity, and stable Gmail delivery identity. A direct user URL may omit email evidence.
@@ -80,6 +81,7 @@ For each verified post, retain its normalized `post_key`, canonical URL, publica
 ## Workflow
 
 1. Establish the request and owning Brain:
+   - Read the shared ingestion completeness checklist linked above and use it throughout this workflow, even on direct invocation.
    - Determine whether the input is a Gmail handoff, direct post request, or explicit archive backfill. Require a canonical post URL or stop with `needs_review`.
    - Read the live Brain identity and filing rules. Route the durable content to exactly one owning Brain.
    - Set a bounded run boundary and locate the named automation memory when available. Do not search Gmail from this skill.
@@ -94,7 +96,7 @@ For each verified post, retain its normalized `post_key`, canonical URL, publica
    - Anti-patterns: trusting a search result or email preview, treating a digest as one post, using a Gmail thread as article identity, filing a substituted URL, inventing missing article text.
 
 3. Resolve guidance, then preflight deduplication, relevance, and cursor state:
-   - Search existing Brain provenance and source sidecars for the normalized `post_key` and canonical URL before writing. An exact existing post is a verified no-op when no new evidence exists.
+   - Search existing Brain provenance and source sidecars for the normalized `post_key` and canonical URL before writing. An exact existing post is a verified no-op only when no new evidence exists and shared-checklist coverage is complete.
    - Read the publication's cursor entry. A new post may advance `high_watermark`; an older out-of-order post must not regress it. Only explicit backfill may use archive pagination or move the low watermark.
    - Read live registered source listeners when available. If the canonical Substack publication exactly matches an RSS listener or registered source, reuse its guidance verbatim.
    - Otherwise use explicit publication guidance or a named current user anchor. Followed status proves delivery eligibility only and is not a relevance anchor.
@@ -107,11 +109,12 @@ For each verified post, retain its normalized `post_key`, canonical URL, publica
    - For a relevant post, use `$bigbrain-source-article-ingest` to preserve the publisher source faithfully in the owning collection's `.raw/` location with its indexed Markdown sidecar.
    - Include Substack metadata such as `source_kind: substack`, publication URL, author, publication date, normalized publication and post keys, canonical source URL, retrieval date, and raw-file reference. Keep raw source in the raw artifact and structured synthesis in the sidecar.
    - Use `source_type: substack` in every Substack-originated page provenance entry. When routed from Gmail, bind the delivery identity through `origin_id` or supported handoff metadata without copying the email body.
-   - Search and update existing canonical pages only when the article changes durable understanding or records a material event. Create a new page only when the evidence supports a distinct durable subject.
+   - Require the article worker to complete the shared ingestion checklist for canonical subjects and every identifiable mentioned entity. Reuse already-covered pages without manufactured updates.
    - Apply every canonical page change through `$bigbrain-page`, with required significance and provenance, and keep claims attributed and uncertainty explicit.
-   - Anti-patterns: storing the email as the source, rewriting the publisher's source as the raw artifact, creating a generic article-log page, updating every named entity, converting claims into verified facts, bypassing Brain MCP writes.
+   - Anti-patterns: storing the email as the source, rewriting the publisher's source as the raw artifact, creating a generic article-log page, skipping secondary entities, duplicating already-covered updates, converting claims into verified facts, bypassing Brain MCP writes.
 
 5. Verify, advance the publication cursor, and return the handoff result:
+   - Confirm the shared checklist is complete before declaring the post ingested or advancing publication watermarks.
    - Read back every source sidecar, raw artifact, and affected canonical page through the same Brain MCP. Confirm links, provenance, and expected content.
    - Advance `high_watermark` only for a newer fully verified post. Advance `low_watermark` only for a fully verified older post or bounded backfill result. Preserve both on any failure or ambiguity.
    - Update `backfill_page_cursor` only after the bounded page result is verified. Mark backfill complete only after the archive traversal itself proves completion.
@@ -138,21 +141,6 @@ For each verified post, retain its normalized `post_key`, canonical URL, publica
 
 ## Output
 
-Return a compact handoff-safe result:
+Return a compact prose handoff with the existing outcome `source_only`, `source_and_update`, `ignored`, `needs_review`, or verified no-op. State the publication and post titles, relevance rationale, owning Brain, affected source and canonical pages, read-back result, and whether publication cursors advanced. Mention bounded backfill progress only when requested. For a Gmail handoff, return control to `$bigbrain-manage-email` with delivery provenance bound internally.
 
-```text
-<source_only | source_and_update | ignored | needs_review | verified no-op>
-
-Publication: <publication name>
-Post: <post title>
-Relevance: <one-sentence rationale or exclusion>
-Brain: <owning Brain name>
-Created: <sidecar or page, when applicable>
-Updated: <canonical page, when applicable>
-Read-back: <verified | partial | not verified>
-Substack cursor: <high/low advanced | verified no-op | unchanged>
-Backfill: <not requested | bounded progress | complete | needs_review>
-Handoff: <return to Gmail dispatcher with its delivery provenance bound>
-```
-
-For `ignored` or `needs_review`, explicitly state that no synthetic source was created and whether cursor state was unchanged. Do not include provider IDs, full email text, raw source text, credentials, or opaque cursor values in the user-facing result.
+For `ignored` or `needs_review`, state that no synthetic source was created and whether cursors remained unchanged. Do not require a field template. Do not include provider IDs, full email text, raw source text, credentials, or opaque cursor values.

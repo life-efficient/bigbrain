@@ -9,6 +9,7 @@ Preserve time-based media and create a comprehensive, readable account of what t
 
 ## Contract Checklist
 
+- Read and follow [the shared ingestion completeness checklist](../bigbrain-ingest/references/ingestion-completeness.md) before any Brain write, including when this skill is invoked directly. Complete that checklist before declaring ingestion complete.
 - Read live `filing_rules` before choosing a destination or writing.
 - Deduplicate by stable source ID, exact title, proposed path, and direct reads of plausible matches.
 - Preserve the complete timestamped transcript when one is available or can reasonably be produced.
@@ -19,9 +20,8 @@ Preserve time-based media and create a comprehensive, readable account of what t
 - Make the sidecar a comprehensive chronological prose exposition, not a condensed thematic summary or an analytical rewrite.
 - Write as a third-person observer taking detailed, readable meeting minutes: preserve the source's sequence, substance, reported facts, definitions, examples, evidence, counterarguments, qualifications, and key short quotes without forcing them into a rigid schema.
 - Attribute claims to the source and distinguish what the source reports from independently verified facts. Do not add an unlabelled agent take.
-- Treat canonical concept enrichment as optional. Create or update a concept page only when the source materially improves a durable subject beyond the source itself.
-- Route optional canonical concept creation and updates through `$bigbrain-page`; keep the source sidecar on its specialized shape.
-- Run BigBrain sync after writes, then read back the sidecar and raw transcript through the owning Brain MCP. Read back any optional canonical update as well.
+- Reconcile canonical subjects and every identifiable mentioned entity using the shared checklist and `$bigbrain-page`; keep the source sidecar on its specialized shape.
+- Rely on the owning Brain MCP for automatic propagation and backup, and independently read back the sidecar, raw transcript, and canonical updates. Run manual sync or maintenance only if verification identifies a failed side effect that requires repair.
 
 ## YouTube Identity and Chapter Standard
 
@@ -48,11 +48,12 @@ As the source unfolds, naturally preserve the material a future reader would nee
 
 Aim for comprehensive coverage rather than maximal compression. A reader should be able to follow the full source without watching it, while the raw transcript remains the authority for exact wording. Timestamps are optional navigation aids for especially useful passages, user highlights, or key quotes; timestamp ranges are not required throughout the exposition.
 
-Keep the exposition observational. It may explain how one part leads to the next, but it should not replace the source's structure with a new framework or silently derive its own conclusions. If agent analysis would add durable value, place it on an optional canonical concept page or in a clearly labelled, brief analytical note that cannot be confused with the source account.
+Keep the exposition observational. It may explain how one part leads to the next, but it should not replace the source's structure with a new framework or silently derive its own conclusions. If agent analysis would add durable value, place it on the appropriate canonical concept page or in a clearly labelled, brief analytical note that cannot be confused with the source account.
 
 ## Workflow
 
 1. Resolve the source and destination:
+   - Read the shared ingestion completeness checklist linked above and use it throughout this workflow, even on direct invocation.
    - identify the source URL or local media, exact title, publisher or channel, stable source ID, duration, publication date, speakers when known, and primary subject
    - call live `filing_rules` and select the owning collection by primary subject rather than media format
    - preserve `youtube_title`, `channel`, `youtube_id`, and the raw description before drafting or constructing write arguments
@@ -79,21 +80,20 @@ Keep the exposition observational. It may explain how one part leads to the next
    - preserve source claims as attributed claims and integrate concise key quotes only where their wording materially matters
    - link the sidecar to its raw transcript and any directly relevant existing pages
    - Anti-patterns: condensed thematic summary, rigid fact ledger or glossary schema, merged or renamed source chapters, agent-authored thesis replacing the source, long transcript copy in the Markdown page
-5. Consider optional canonical enrichment:
-   - search and read before any concept write
-   - update an existing canonical page only when the recording contributes independently reusable knowledge beyond its own account
-   - create a new concept page only for a genuinely distinct, durable concept, not for every chapter, fact, person, or example
-   - keep source exposition on the sidecar and analytical synthesis on the canonical page
-   - Anti-patterns: mandatory canonical update, concept-page fanout, copying the exposition into a concept page, upgrading source claims into facts
-6. Sync and verify through the owning Brain:
-   - run maintenance sync
-   - directly read back the canonical page and source sidecar when canonical enrichment was written
+5. Reconcile canonical coverage:
+   - Apply the shared checklist to the complete transcript and source sidecar, using `$bigbrain-page` for canonical creation and updates.
+   - Keep the chronological source exposition on the sidecar and supported reusable knowledge on its canonical subject page.
+   - Link already-covered entities without manufacturing new facts or duplicate updates.
+   - Anti-patterns: treating entity reconciliation as optional, creating a separate concept page for every chapter or fact, copying the exposition into a concept page, upgrading source claims into facts
+6. Verify through the owning Brain:
+   - Complete the shared checklist before declaring success.
+   - directly read back the canonical page and source sidecar when canonical changes were written
    - read back the sidecar and run `validateYouTubeSidecar` against the retrieved metadata, description, frontmatter, and body before treating the run as complete
    - confirm exact source metadata, derived title, stable source ID, raw-file link, chapter count, chapter labels, chapter order, chronological coverage, and evidence caveats
    - read back the raw transcript, compare its bytes when practical, and confirm it appears in the raw-file listing
-   - read back any optional canonical page and verify its link to the source sidecar
-   - a failed read-back assertion is a failed run; do not report sync as sufficient evidence of source fidelity
-   - Anti-patterns: declaring success from a write response, skipping raw-file verification, skipping the metadata or chapter audit, reporting an optional concept update that was not read back
+   - read back any changed canonical page and verify its link to the source sidecar
+   - a failed read-back assertion is a failed run; do not report a successful write as sufficient evidence of source fidelity
+   - Anti-patterns: declaring success from a write response, skipping raw-file verification, skipping the metadata or chapter audit, reporting a canonical update that was not read back
 
 ## Anti-Patterns
 
@@ -103,18 +103,10 @@ Keep the exposition observational. It may explain how one part leads to the next
 - Treating the derived display title as proof that the exact source title was preserved.
 - Requiring timestamp ranges, a fact ledger, a glossary, or a coverage matrix as fixed sidecar sections when the source does not provide them.
 - Omitting quantitative claims, terminology, examples, evidence, counterarguments, or key quotes merely because they are inconvenient to summarize.
-- Treating every mentioned entity or concept as a reason to create another Brain page.
+- Creating duplicate entity pages or leaving mentioned entities unreconciled because they appear only briefly.
 - Confusing source-reported claims with independently verified facts.
-- Reporting completion without same-MCP sync and read-back.
+- Reporting completion without same-MCP read-back or adding routine manual sync after successful MCP writes.
 
 ## Output
 
-Report:
-
-- the sidecar title and path;
-- the raw transcript or media path, completeness status, and transcription caveats;
-- the source's coverage and progression preserved in the exposition;
-- user-highlighted passages preserved, if any;
-- any optional canonical page created or updated, or that none was needed;
-- sync, raw-file, and same-MCP read-back verification;
-- any material source gaps or transcription limitations.
+Briefly report the source title, sidecar and raw artifact, preserved coverage and any transcription gaps, canonical pages created, updated, or linked as already covered, and the read-back result. Mention user-highlighted passages when applicable. Do not require a fixed output schema or repeat the internal checklist.

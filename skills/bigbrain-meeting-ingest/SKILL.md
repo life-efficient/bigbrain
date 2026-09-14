@@ -9,8 +9,9 @@ Turn one meeting transcript, summary, or set of call notes into a verified canon
 
 ## Contract Checklist
 
+- Read and follow [the shared ingestion completeness checklist](../bigbrain-ingest/references/ingestion-completeness.md) before any Brain write, including when this skill is invoked directly. Complete that checklist before declaring ingestion complete.
 - Exactly one meeting is processed per invocation.
-- Standalone mode owns destination resolution, final sync, and the user-facing result for that meeting.
+- Standalone mode owns destination resolution, final verification, and the user-facing result for that meeting.
 - Delegated mode accepts a resolved destination and source evidence from a calling ingestion skill, performs the per-meeting work, then returns control to that caller.
 - Delegated completion is an intermediate result. It never implies that the caller's routing, ledger, cursor, batch, or reporting lifecycle is complete.
 - One canonical meeting page is used across preparation and post-meeting updates, and existing `## Prep` content is preserved.
@@ -29,7 +30,7 @@ Turn one meeting transcript, summary, or set of call notes into a verified canon
 
 ### Standalone mode
 
-Use when the user directly provides or identifies one meeting. Resolve the destination Brain, read its live filing rules, complete and verify the meeting ingest, sync that Brain, and report the result to the user.
+Use when the user directly provides or identifies one meeting. Resolve the destination Brain, read its live filing rules, complete and verify the meeting ingest, and report the result to the user.
 
 ### Delegated mode
 
@@ -49,6 +50,7 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
 ## Workflow
 
 1. Establish invocation mode and destination.
+   - Read the shared ingestion completeness checklist linked above and use it throughout this workflow, even on direct invocation.
    - Identify whether the request is standalone or delegated.
    - In standalone mode, resolve one writable destination Brain before any mutation.
    - In delegated mode, confirm the caller supplied a resolved destination, source provenance, and an explicit return-control instruction. Stop with a delegated partial result if the handoff is incomplete.
@@ -76,14 +78,13 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
    - Use the actual fetched transcript content, never a pointer, placeholder, provenance note, or generated summary as the raw transcript.
    - Anti-patterns: fake action items, backlog tasks for uninvoked offers, raw dumps in the canonical page, orphan raw artifacts, placeholder transcripts
 5. Reconcile supported entity and task updates.
-   - Read the most relevant people, organizations, deals, projects, relationships, and open, in-progress, or waiting tasks.
-   - Update an attendee or represented organization when identity, affiliation, and durable context are supported strongly enough for a useful canonical record.
-   - Keep lightly mentioned entities in meeting context instead of creating pages for every name.
+   - Apply the shared checklist to attendees and all identifiable entities mentioned in the accepted meeting evidence, including people who did not attend. Use `$bigbrain-page` for canonical reconciliation.
+   - Read open, in-progress, or waiting tasks relevant to the meeting before action review.
    - Pass source-attributed action evidence, relevant Brain context, live tasks, and approval limits to `$bigbrain-action-review` before any task creation or update.
    - Use Brain context to sharpen a supported action, never to override source ownership or manufacture acceptance.
    - Create or update tasks only for concrete member-owned actions returned by Action Review. Preserve approval at action time for messages, introductions, scheduling, sharing, publication, or other externally visible work.
    - Keep each member-owned action associated with its task create or update while the task write is read back and the meeting and sidecar text is rendered. This is temporary working context, not a persisted action schema.
-   - Anti-patterns: entity proliferation, duplicate tasks, vague umbrella tasks, assigning another party's obligation to a member, treating execution mode as external-action approval
+   - Anti-patterns: skipping secondary entities, duplicate entity pages, duplicate tasks, vague umbrella tasks, assigning another party's obligation to a member, treating execution mode as external-action approval
 6. Apply the smallest supported write set.
    - Create or update supported tasks through the destination Brain's live write tools before finalizing action sections. Capture the exact returned task path, read that task back, and use that verified path for the corresponding action.
    - Render each task-backed action with one concise inline Markdown link to the verified task page. Compute the link relative to the page being rendered, such as `../tasks/example.md` from `meetings/example.md` or `../../tasks/example.md` from `meetings/.raw/example.md`; never invent or reuse a stale path.
@@ -93,6 +94,7 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
    - Do not perform external sends, invitations, publication, Calendar changes, or other externally visible actions.
    - Anti-patterns: direct file or database edits when an owning Brain service exists, duplicated facts across many pages, lost provenance, unauthorized external action
 7. Verify the per-meeting result.
+   - Complete the shared checklist before declaring this meeting complete, including in delegated mode.
    - Read back every changed meeting, sidecar, entity, deal, project, and task page through the same destination Brain.
    - Verify each raw transcript or attachment against the source content or available size and metadata evidence.
    - Re-scan for duplicate meeting provenance, confirm canonical links and filing-rule compliance, and check that every task-backed action bullet links exactly once to the verified task path.
@@ -100,11 +102,12 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
    - If an owning Brain or source remains unavailable after repair attempts, explain the concrete failure directly in the current Codex chat with the affected paths and what was tried. Do not add a new persisted failure state or opaque handoff result for this issue.
    - Anti-patterns: trusting write responses without read-back, treating a sidecar as proof of raw content, ignoring duplicate provenance, returning complete with an unverified required artifact
 8. Finalize according to invocation mode.
-   - In standalone mode, sync the destination Brain after successful read-back, verify the sync result, and provide the standalone user-facing output.
-   - In delegated mode, do not independently sync, advance a cursor, verify a source ledger, or emit the caller's user-facing report.
+   - Rely on the owning Brain MCP's automatic propagation and backup. Run manual sync or maintenance only if verification identifies a failed side effect that requires repair.
+   - In standalone mode, complete verification and provide the standalone user-facing output.
+   - In delegated mode, do not take over caller verification, advance a cursor, verify a source ledger, or emit the caller's user-facing report.
    - In delegated mode, return the compact delegated result below and explicitly return control to the named caller so it can resume its recorded continuation checklist.
    - A delegated `complete` result means only that this one meeting's delegated work and read-back succeeded. The caller still owns all post-delegation lifecycle steps.
-   - Anti-patterns: ending the overall run after delegated completion, emitting a competing batch report, advancing caller state, skipping standalone sync
+   - Anti-patterns: ending the overall run after delegated completion, emitting a competing batch report, advancing caller state, skipping standalone verification
 
 ## Anti-Patterns
 
@@ -113,27 +116,11 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
 - Creating a second meeting page when a canonical page exists.
 - Erasing `## Prep` during the post-meeting update.
 - Conflating speaker, responsible actor, request, acceptance, external action, and optional offer.
-- Creating task or entity sprawl from vague discussion or passing mentions.
+- Creating tasks from vague discussion, inventing entity details, or skipping identifiable people because they were only mentioned in passing.
 - Reporting success before per-meeting writes and artifacts are read back.
 
 ## Output
 
-### Standalone output
+In standalone mode, briefly report the meeting page created, updated, repaired, or unchanged; whether prep was preserved; verified source artifacts; supported entity and task changes; and any issue requiring attention.
 
-Report the meeting page created, updated, repaired, or unchanged; whether prep was preserved; transcript or attachment verification; supported entity and task changes; sync result; and any issue requiring attention.
-
-### Delegated output
-
-Return a compact internal handoff to the named caller:
-
-```text
-Delegated meeting result
-- Status: complete | partial | failed
-- Canonical meeting: created | updated | repaired | unchanged
-- Required artifacts: verified | partial | unavailable
-- Related changes: <concise page and task outcomes>
-- Needs attention: <none or concise blockers>
-- Return control to: <calling ingestion skill>
-```
-
-This is an ephemeral coordination format, not a persisted Brain schema and not a user-facing batch report.
+In delegated mode, return a compact prose handoff to the named caller. State whether the per-meeting result is `complete`, `partial`, or `failed`, the canonical meeting outcome, required-artifact verification, related changes, and any blockers, then explicitly return control. Preserve those existing transport outcomes without imposing a field template, persisted schema, or competing user-facing batch report.
