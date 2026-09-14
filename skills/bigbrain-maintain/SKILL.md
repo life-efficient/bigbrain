@@ -103,12 +103,18 @@ Use only these built-in repair paths unless the user asks for deeper edits:
      compiled truth, and record one precise timeline entry with provenance.
      Use `tasks/update` for pages under `tasks/`; for every other page, use
      `update_page` with a one-key `frontmatter` patch.
+   - Treat `schema_field_type_mismatch` as deterministic only when the
+     registered field type is `array` and the read-back value is exactly the
+     empty string. Normalize that value to `[]`; never split, reinterpret, or
+     replace a non-empty string. Count these pages within the same 25-page
+     limit.
    - Verify each change through the same owning MCP, then run `sync` and
      health again. Stop if any verification fails.
    - Do not infer or overwrite values for `schema_required_field_missing`,
-     `schema_field_type_mismatch`, `schema_field_invalid_enum`,
-     `unknown_page_schema`, or `invalid_page_schema_registry`. Report the
-     affected page, field, schema, and observed value for manual review.
+     non-deterministic `schema_field_type_mismatch`,
+     `schema_field_invalid_enum`, `unknown_page_schema`, or
+     `invalid_page_schema_registry`. Report the affected page, field, schema,
+     and observed value for manual review.
 
 5. Post-remediation persistence:
    - After any content or brain-file edit, run `node ./bin/bigbrain.js sync
@@ -160,6 +166,8 @@ Do not keep digging once one of these is true:
    - missing page-schema registry -> bootstrap through the owning MCP, then
      re-run health
    - missing page-schema default -> apply only the declared default through
+     the owning MCP, then re-run health
+   - blank-string array schema mismatch -> normalize to an empty array through
      the owning MCP, then re-run health
 3. After a successful remediation:
    - run `node ./bin/bigbrain.js sync --json`
