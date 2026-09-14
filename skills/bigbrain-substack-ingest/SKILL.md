@@ -11,7 +11,7 @@ Ingest and reconcile verified Substack posts through one shared ledger while pre
 
 - Read and follow [the shared ingestion completeness checklist](../bigbrain-ingest/references/ingestion-completeness.md) before any Brain write and before declaring ingestion complete.
 - This is the common transport adapter for RSS, email, direct posts, daily subscription reconciliation, and bounded backfill. It does not search Gmail, change Gmail state, send email, or own the Gmail delivery cursor.
-- Load this workflow and its required references through the owning Brain's `substack/workflow` MCP tool (`substack_workflow` alias) when a file-reading tool is unavailable. Use `substack/ledger` (`substack_ledger` alias) with `{operation, input}` for shared state as described in [the ledger contract](references/shared-ledger.md). No local file or shell access is required for that route.
+- Load this workflow and its required references through the owning Brain's `substack/workflow` MCP tool (`substack_workflow` alias) when a file-reading tool is unavailable. Use `substack/ledger` (`substack_ledger` alias) with `{operation, input}` for shared state as described in [the ledger contract](references/shared-ledger.md).
 - Never open TextEdit, Finder, Terminal UI, another desktop editor, or browser `file://` URLs to read skills, references, configuration, scratch files, or the ledger. Browser access is for publisher and Substack webpages only. If required workflow text or ledger tools remain unavailable after targeted discovery, stop before retrieval or writes and report a setup gap; do not work around it with desktop apps.
 - RSS configuration owns each registered feed's verified low/high ingestion watermarks, backed by the shared article ledger used by generic RSS and this Substack adapter. Low is the earliest retained verified post and high is the latest, not contiguous completeness. Keep one cross-channel outcome and claim per article.
 - Automation memory is a delivery log or run summary, never the authority for Substack post outcomes or watermarks.
@@ -39,7 +39,7 @@ Use the ledger's scan checkpoints for durable discovery progress. Record opaque 
 ## Workflow
 
 1. Establish scope and preflight shared state:
-   - Identify the mode, live owning Brain, exact input source, run boundary, and allowed bounds. Call `substack/workflow` with `{}` to read the complete workflow bundle, including the completeness checklist and ledger contract. Already supplied complete skill/reference text need not be reread. If the tool is missing, use targeted MCP discovery first; a real file-reading or shell tool is an optional fallback, desktop apps are never a fallback.
+   - Identify the mode, live owning Brain, exact input source, run boundary, and allowed bounds. Call `substack/workflow` with `{}` to read the complete workflow bundle, including the completeness checklist and ledger contract. Already supplied complete skill/reference text need not be reread. If the tool is missing, use targeted MCP discovery first.
    - Read the shared publication/post status and outstanding holes. Import legacy automation-memory claims only after exact Brain provenance and saved-state verification; prose saying "ingested" is not completion evidence.
    - For known post identities, record discovery channel, then use a terminal record with complete verification to return `verified_noop` without another article fetch or write. Preserve the prior stored outcome and read-back evidence rather than overwriting an ignored or retained record.
    - Otherwise claim the post. If another live owner holds it, return deferred without advancing a Gmail delivery cursor or claiming completeness. Release recoverable failures and preserve retryable holes.
@@ -56,6 +56,7 @@ Use the ledger's scan checkpoints for durable discovery progress. Record opaque 
 3. Retrieve and apply the shared relevance gate:
    - For a claimed, unresolved post, read exact registered source guidance or resolve a named current user anchor. Followed status proves delivery eligibility only.
    - Delegate to `$bigbrain-source-article-ingest` with `substack_context: {ledger_preflight_complete: true, claimed: true}` and the verified identity, claim context, source guidance, and delivery provenance. This marker prevents recursive transport delegation; it does not replace the actual ledger claim. RSS-triggered work inherits that skill's flexible documented browser and article-retrieval policy, preferring the in-Codex browser when available without blocking supported alternatives.
+   - For a Substack post whose canonical page is a podcast or other audio item, identify the publisher's audio URL from the page or feed metadata and download that URL with cURL or an equivalent shell retrieval tool. Clicking the audio control and opening its media element in a separate browser tab is not a download. Preserve the downloaded audio as the source input and obtain a complete transcript through the supported transcription path before substantive ingestion.
    - Confirm complete accessible article content or an authorized full transcript. A paywalled post can proceed only when the legitimately accessible preview is substantively sufficient and the limitation is retained in provenance. An unavailable, insufficiently previewed, truncated, empty, or mismatched source is `needs_review`, with no synthetic source, content writes, or watermark advancement. Another legitimate transport for the same canonical source is allowed; access controls are not bypassed.
    - Require the shared source workflow to state its relevance rationale before any content/artifact write. If irrelevant, complete the claim as `ignored` with the reason, scoped verification of canonical identity and the relevance review, and no raw artifact or Brain page.
    - Anti-patterns: treating subscription as relevance, storing a notification body as the article, treating a teaser as complete, applying competing RSS/email gates, recursive Substack delegation.
@@ -86,7 +87,6 @@ Use the ledger's scan checkpoints for durable discovery progress. Record opaque 
 - Registering recommended publications or guessing subscription status from topic similarity.
 - Storing secrets, raw source content, or email bodies in ledger records or run summaries.
 - Writing to a Brain checkout, database, index, or mirror instead of the owning MCP.
-- Using computer control to compensate for missing file-reading or shell tools, including TextEdit, Finder, Terminal UI, and browser local-file navigation.
 
 ## Output
 
