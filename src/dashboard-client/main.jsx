@@ -498,6 +498,21 @@ function DashboardApp() {
   }, [clearGraphFocus, lineage]);
 
   useEffect(() => {
+    if (view !== 'graph' || preview || lineage || healthOpen || settingsOpen || playbooksOpen) return undefined;
+
+    function handleGraphResetKeyDown(event) {
+      if (event.key !== 'Escape' || event.defaultPrevented || event.repeat || event.isComposing) return;
+      if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || isTypingTarget(event.target)) return;
+      if (document.querySelector('[role="menu"], [role="dialog"], [role="listbox"], .graph-style-menu')) return;
+      event.preventDefault();
+      visualizerRef.current?.resetView?.();
+    }
+
+    window.addEventListener('keydown', handleGraphResetKeyDown);
+    return () => window.removeEventListener('keydown', handleGraphResetKeyDown);
+  }, [healthOpen, lineage, playbooksOpen, preview, settingsOpen, view]);
+
+  useEffect(() => {
     function handleKeydown(event) {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) {
         return;
