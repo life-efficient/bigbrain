@@ -20,6 +20,7 @@ Review one canonical web article through BigBrain's single shared relevance and 
 - If relevance is ambiguous, stop before writing and either return `ignored` or ask for clarification when the intended scope cannot be inferred safely.
 - Fetch and preserve the canonical source for every relevant article when the source is available and the filing rules permit it.
 - Visit the supplied article page and confirm that you landed on the correct article. If the page is blocked or cannot be accessed, stop and let me know. Do not substitute another page.
+- For RSS-triggered ingestion, use the in-Codex browser (`iab`) for page visits and browser-based retrieval unless the user explicitly requests an external browser. Select `iab` explicitly; never silently default or fall back to external Chrome, Safari, or Edge. If it is unavailable after targeted tool discovery, return `needs_review` and report the browser access blocker.
 - Keep the source text faithful to the publisher; never replace it with an AI rewrite.
 - Create an indexed Markdown source sidecar with standard Brain page structure, provenance, and entity links required by the shared completeness checklist.
 - Route canonical page creation and updates through `$bigbrain-page`; keep the article sidecar source-specific.
@@ -36,7 +37,7 @@ Review one canonical web article through BigBrain's single shared relevance and 
    - Read registered source guidance from the event, listener, publication registry, or exact publication match before applying the relevance test.
    - For Substack, an exact canonical publication match to a registered RSS listener reuses that listener's guidance. Do not duplicate or paraphrase it into a second policy.
    - If no guidance is present, use the conservative generic test in `references/relevance-gate.md` and say that source-specific guidance was unavailable.
-   - Visit the supplied article URL and confirm that the page title and publisher identify the requested article.
+   - Visit the supplied article URL and confirm that the page title and publisher identify the requested article. For RSS-triggered work, follow the in-Codex browser policy above. When the documented CUA API is available, open the page with `cua.createBrowserTab("iab", url, { visible: true })`; otherwise use only the available tool's documented API to select the in-Codex browser explicitly. Keep the Substack preflight and claim ahead of any article retrieval.
    - If the page is blocked or cannot be accessed, return `needs_review` and report that the source could not be retrieved. Do not substitute another page or invent content.
    - Preserve the fetched source bytes through the runtime's `raw_content_source: event.source_document.raw_body` placeholder when filing.
    - Keep retrieval metadata, source URL, publisher, author, publication date, stable RSS ID, content type, and fetch status.

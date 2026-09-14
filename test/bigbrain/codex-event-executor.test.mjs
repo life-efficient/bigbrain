@@ -98,6 +98,37 @@ test('Substack detection supports explicit custom domains and exact hosted domai
   assert.equal(isSubstackRssEvent({ type: 'webhook.event' }, { skill: 'bigbrain-substack-ingest' }), false);
 });
 
+test('RSS browser preference reaches task prompts and app developer instructions across RSS routes', async () => {
+  const cases = [
+    { event: { type: 'rss.item', payload: { link: 'https://publisher.test/article' } }, listener: {} },
+    { event: { payload: { link: 'https://publisher.test/article' } }, listener: { type: 'rss' } },
+    { event: { type: 'rss.item', payload: { link: 'https://publisher.substack.com/p/post' } }, listener: {} },
+    { event: { type: 'rss.item', payload: { link: 'https://newsletter.test/p/post' } }, listener: { skill: 'bigbrain-substack-ingest' } },
+  ];
+  for (const input of cases) {
+    const calls = [];
+    const executor = new CodexAppThreadExecutor({ clientFactory: async () => ({
+      notifications: [],
+      request: async (method, params) => {
+        calls.push({ method, params });
+        return method === 'thread/start' ? { thread: { id: 'rss-thread' } } : { id: 'rss-turn' };
+      },
+      close: async () => {},
+    }) });
+    await executor.execute(input);
+    const instructions = calls.find(call => call.method === 'thread/start').params.developerInstructions;
+    const prompt = calls.find(call => call.method === 'turn/start').params.input[0].text;
+    for (const text of [instructions, prompt]) {
+      assert.match(text, /use the in-Codex browser/);
+      assert.match(text, /Explicitly select the iab browser/);
+      assert.match(text, /targeted tool discovery first/);
+      assert.match(text, /ledger preflight and claim before article retrieval/);
+      assert.match(text, /report needs_review.*rather than automatically switching to an external browser/);
+    }
+  }
+  assert.doesNotMatch(buildEventPrompt(event, { provider: 'calendar' }), /RSS-triggered ingestion|iab browser/);
+});
+
 test('RSS outcomes accept the direct operation form emitted by the source-article skill', () => {
   const outcome = normalizeCodexOutcome({ status: 'filed', capture_mode: 'full', reason: 'useful', destinations: [{
     operation: 'create_raw_file_with_page',
