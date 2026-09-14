@@ -98,3 +98,50 @@ Prompt:
 Expected:
 
 - Do not search Gmail or perform ingestion from this skill. Return control to the email-discovery workflow or report that no ingestion was requested.
+
+## RSS followed by email and daily reconciliation
+
+Prompt: "This Substack post arrived through RSS; later its email notification and Recent feed entry arrive."
+
+Expected:
+
+- RSS, email, and daily modes all consult the same shared post ledger before article retrieval.
+- The first worker claims the canonical URL, files through the shared source skill, verifies saved source and entity coverage, then records scoped verification.
+- Later channels reuse the verified terminal record and skip article retrieval and writes. Gmail advances only its delivery cursor.
+- A live competing claim returns deferred, not complete. The daily run remains quiet on an unchanged no-op.
+
+## New subscriptions outside the first Recent page
+
+Prompt: "Check for missed posts and add missing RSS feeds for my subscriptions."
+
+Expected:
+
+- Confirm genuine subscriptions using the signed-in subscriptions UI, not recommended publishers.
+- Validate missing feeds, register the common Substack skill and verified destination, and read the registration back without another permission request.
+- Traverse Recent within the run bound and carry unfinished navigation forward. Perform the bounded weekly full subscription inventory so less active publications are eventually included.
+- Do not remove a feed because it is absent from a bounded scan.
+
+## Old paywall below a newer verified watermark
+
+Prompt: "RSS ingested today's article but an older article remains blocked. Reconcile the feed."
+
+Expected:
+
+- The newer retained watermark does not hide the older needs_review record.
+- Retry the oldest eligible hole within the five-post batch, using authorized access only.
+- Preserve the hole and unchanged retained watermarks if full content remains unavailable. Do not repeatedly alert about an unchanged paywall or claim complete backfill.
+
+## Substack discovered through generic article ingestion
+
+Prompt: "Ingest this RSS article" with a custom-domain URL whose registered listener identifies it as Substack.
+
+Expected:
+
+- Generic source ingestion delegates once to Substack before article retrieval for shared dedupe and claiming.
+- The Substack adapter then calls the source relevance workflow with an actual held claim and delegation context; no recursion occurs.
+
+## Trigger discrimination
+
+- Positive: "Reconcile my Substack subscriptions, add missing RSS feeds, and backfill five missed posts" selects this skill.
+- Negative: "Draft a post for my Substack publication" does not select ingestion.
+- Ambiguous neighbor: "Ingest this newsletter article from a custom domain" requires verifying publisher identity; choose this adapter for Substack and generic source-article for another publisher.

@@ -55,17 +55,17 @@ For a Substack post, pass:
 - canonical publication identity and stable delivery provenance;
 - exact registered source guidance when a live RSS listener or source registry unambiguously matches the publication;
 - otherwise, any explicit publication guidance or named current user anchor;
-- the automation memory path for publication-state and delivery-state reconciliation.
+- the automation memory path for Gmail delivery-state reconciliation only; the Substack worker uses its shared persistent ledger for publication outcomes and watermarks.
 
 Do not include full email bodies or MIME payloads in durable Brain artifacts.
 
 ## Cursor Contract
 
 - The Gmail thread cursor answers which delivery messages were completely reviewed.
-- The Substack publication state answers which canonical posts were reviewed and whether they were filed.
-- The RSS event system answers which feed items were reviewed.
+- The shared Substack ledger answers which canonical posts were reviewed and whether they were filed across RSS, email, browser, and backfill. Automation-local publication cursors are not authoritative.
+- The RSS event system answers which feed items were discovered and queued; it does not prove that Brain ingestion completed.
 - Record terminal outcomes distinctly: `ignored_verified`, `source_only_verified`, `source_and_update_verified`, `verified_noop`, and `cleanup_verified`.
-- Advance the Gmail cursor after a delegated `ignored` only when the subskill confirmed canonical identity, applied the shared relevance gate, recorded the reviewed outcome in automation memory, and returned a complete result.
+- Advance the Gmail cursor after a delegated `ignored` only when the subskill confirmed canonical identity, applied the shared relevance gate, recorded the reviewed outcome in the shared Substack ledger, and returned a complete result.
 - Preserve the previous cursor after `needs_review`, incomplete source retrieval, failed Brain verification, failed Gmail Trash read-back, or ambiguous delegation.
 - Never infer publication or RSS cursor advancement from a Gmail cursor.
 
@@ -103,7 +103,8 @@ The active automation or user request may narrow this list or add named sender c
 4. Delegate article notifications:
    - For Substack, verify one plausible canonical post from headers and links, then call `$bigbrain-substack-ingest` even though the delivery is automated.
    - Resolve exact matching registered source guidance when available. Otherwise pass explicit source guidance or a named current user anchor without inventing one.
-   - Require the Substack adapter to call `$bigbrain-source-article-ingest`, which makes the sole relevance and filing decision.
+   - Require the Substack adapter to check the shared ledger before fetching article content. If RSS already completed the canonical post with verified coverage, return a verified no-op and skip duplicate fetching and writing. A live competing claim is deferred and leaves the Gmail cursor unchanged.
+   - For unresolved posts, require the Substack adapter to claim the shared record and call `$bigbrain-source-article-ingest`, which makes the sole relevance and filing decision. Verify the shared terminal outcome before treating a delegated task as complete.
    - For a verified `ignored`, record `ignored_verified` and advance only the Gmail delivery cursor. For `source_only`, `source_and_update`, or `verified_noop`, require all relevant same-Brain reads before advancing.
    - Anti-patterns: excluding a post because the email is automated, filing the email body, treating followed status as sufficient relevance, advancing after `needs_review`.
 
@@ -114,7 +115,7 @@ The active automation or user request may narrow this list or add named sender c
    - Anti-patterns: permanent deletion, deleting by display name, cleaning outside active scope, trashing human-authored or mixed threads.
 
 6. Reconcile memory and report:
-   - Atomically update only verified Gmail cursors and delegated publication-state outcomes.
+   - Atomically update only verified Gmail delivery cursors and compact delegated results. Do not write publication outcomes or watermarks in automation memory; the shared Substack ledger is authoritative.
    - Retain unresolved and partial records without cursor advancement.
    - Report count first, then group human email outcomes by destination Brain, article outcomes by publication, and Gmail cleanup by authorized class.
    - Anti-patterns: storing bodies in memory, hiding ignored article decisions, exposing provider IDs, running sync or backup.

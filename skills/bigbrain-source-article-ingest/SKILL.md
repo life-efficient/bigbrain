@@ -29,6 +29,7 @@ Review one canonical web article through BigBrain's single shared relevance and 
 ## Workflow
 
 1. Establish the source and retrieve the article:
+   - Before retrieval, route a Substack-originated URL or RSS event through `$bigbrain-substack-ingest` for the shared ledger preflight and claim, unless this call already carries `substack_context: {ledger_preflight_complete: true, claimed: true}` from that adapter. Return to the adapter after filing so it completes the shared record. The marker prevents recursion and must represent a real held claim, not an invented bypass. A verified terminal record skips duplicate article retrieval and writes.
    - Use the canonical article URL from the RSS item, not only the feed description.
    - Identify the transport as RSS, Substack, email-delivered article notification, or direct URL.
    - Read registered source guidance from the event, listener, publication registry, or exact publication match before applying the relevance test.
