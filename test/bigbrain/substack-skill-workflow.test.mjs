@@ -37,6 +37,7 @@ test('Substack modes, email dispatcher, and generic source worker share one pref
   assert.match(substack, /Do not mark inventory complete until the list's end is observed/);
   assert.match(substack, /`events\/listener_upsert`/);
   assert.match(substack, /`skill: bigbrain-substack-ingest`/);
+  assert.match(substack, /`bootstrap: all`/);
   assert.match(substack, /never pause, remove, or unsubscribe/);
   assert.match(substack, /daily no-op exits quietly/);
   assert.doesNotMatch(substack, /Use the active automation's `memory.md`/);
