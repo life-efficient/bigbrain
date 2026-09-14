@@ -13,6 +13,7 @@ import {
   startGraphTransitionLoop,
 } from './graph-transition.js';
 import { prepareForceGraphData } from './force-graph-data.js';
+import { getForceGraphNodeFocusCamera, getForceGraphNodeWorldPosition } from './force-graph-3d-camera.js';
 import { getGraphNodeConnectionScale, getGraphNodeSizeScale } from './node-sizes.js';
 import { useGraphTheme } from './visualizer-core.jsx';
 
@@ -94,7 +95,8 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       element.hidden = true;
       return;
     }
-    const point = forceGraph.graph2ScreenCoords?.(node.x, node.y, node.z);
+    const world = getForceGraphNodeWorldPosition(forceGraph, node);
+    const point = world && forceGraph.graph2ScreenCoords?.(world.x, world.y, world.z);
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
       element.hidden = true;
       return;
@@ -128,6 +130,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     focusNode(slug) {
       const forceGraph = graphRef.current;
       const node = getForceGraphData(forceGraph).nodes?.find((item) => item.id === slug || item.slug === slug);
+      rotationPauseUntilRef.current = Number.POSITIVE_INFINITY;
       focusForceGraphNodeBySlug(graphRef.current, slug);
       if (node) showFocusLabel(forceGraph, node);
     },
@@ -336,6 +339,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     const focus = () => {
       const node = getForceGraphData(forceGraph).nodes?.find((item) => item.id === activeSlug || item.slug === activeSlug);
       if (node && Number.isFinite(node.x) && Number.isFinite(node.y) && Number.isFinite(node.z)) {
+        rotationPauseUntilRef.current = Number.POSITIVE_INFINITY;
         focusForceGraphNode(forceGraph, node);
         showFocusLabel(forceGraph, node);
         return;
@@ -1059,18 +1063,9 @@ function zoomCamera(forceGraph, factor) {
 }
 
 function focusForceGraphNode(forceGraph, node) {
-  const target = { x: node.x, y: node.y, z: node.z };
-  const camera = forceGraph.camera?.();
-  const current = camera?.position;
-  const dx = (current?.x || 0) - target.x;
-  const dy = (current?.y || 0) - target.y;
-  const dz = (current?.z || 0) - target.z;
-  const currentDistance = Math.hypot(dx, dy, dz);
-  const distance = Math.min(Math.max(currentDistance || 90, 42), 150);
-  const directionLength = currentDistance || 1;
-  const position = currentDistance
-    ? { x: target.x + (dx / directionLength) * distance, y: target.y + (dy / directionLength) * distance, z: target.z + (dz / directionLength) * distance }
-    : { x: target.x, y: target.y, z: target.z + distance };
+  const view = getForceGraphNodeFocusCamera(forceGraph, node);
+  if (!view) return;
+  const { position, target } = view;
   forceGraph.cameraPosition(position, target, 850);
 }
 
