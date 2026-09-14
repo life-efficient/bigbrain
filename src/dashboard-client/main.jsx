@@ -123,14 +123,14 @@ function DashboardFatalError({ error }) {
         <div className="error-actions">
           <button
             type="button"
-            className="graph-button"
+            className="graph-button error-reload-button"
             onClick={() => window.location.reload()}
           >
             Reload dashboard
           </button>
           <button
             type="button"
-            className="graph-button"
+            className="graph-button error-copy-button"
             onClick={copyErrorDetails}
             disabled={copyState === 'copying'}
           >
@@ -473,7 +473,7 @@ function DashboardApp() {
 
     function handlePointerDown(event) {
       const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('.sidecar-panel, .graph-wrap')) return;
+      if (target?.closest('.sidecar-panel, .graph-wrap, .graph-focus-banner')) return;
       clearGraphFocus();
     }
 
@@ -2461,9 +2461,14 @@ function summarizeFrontmatter(frontmatter) {
 }
 
 async function copyTextToClipboard(value) {
+  let clipboardError = null;
   if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(value);
-    return;
+    try {
+      await navigator.clipboard.writeText(value);
+      return;
+    } catch (error) {
+      clipboardError = error;
+    }
   }
   const textarea = document.createElement('textarea');
   textarea.value = value;
@@ -2473,7 +2478,11 @@ async function copyTextToClipboard(value) {
   try {
     document.body.appendChild(textarea);
     textarea.select();
-    document.execCommand('copy');
+    if (!document.execCommand('copy')) {
+      throw clipboardError || new Error('Clipboard copy is unavailable');
+    }
+  } catch (error) {
+    throw clipboardError || error;
   } finally {
     document.body.removeChild(textarea);
   }
@@ -3202,6 +3211,7 @@ const GraphPanel = memo(function GraphPanel({
             ) : focusedViewMode === 'subgraph' ? (
               <VisualizerComponent
                 ref={visualizerRef}
+                key={`focused-subgraph:${focusSlug}`}
                 graph={filteredSubgraph}
                 activityDay={null}
                 motionEvent={null}
@@ -3233,6 +3243,7 @@ const GraphPanel = memo(function GraphPanel({
           ) : (
             <VisualizerComponent
               ref={visualizerRef}
+              key="full-graph"
               graph={isForceRenderer ? forceGraph : filteredGraph}
               activityDay={isForceRenderer ? selectedActivityDay : null}
               motionEvent={eligibleMotionEvent}

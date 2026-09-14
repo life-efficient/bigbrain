@@ -521,13 +521,16 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /nextFocusedViewMode/);
   assert.match(main, /graph-wrap-focused/);
   assert.match(main, /event\.key\.toLowerCase\(\) !== 't'/);
+  assert.match(main, /target\?\.closest\('\.sidecar-panel, \.graph-wrap, \.graph-focus-banner'\)/);
+  assert.match(main, /key=\{`focused-subgraph:\$\{focusSlug\}`\}/);
+  assert.match(main, /key="full-graph"/);
   assert.match(main, /timeline_updates/);
   assert.match(main, /focusedNetworkStats\.direct/);
   assert.match(focusedData, /focus_branch/);
   assert.match(focusedData, /incomingByTarget/);
   assert.match(focusedData, /network_at: lineageAt \|\| sourceNode\?\.created_at/);
   assert.match(focusedData, /sourceHop >= targetHop/);
-  assert.match(main, /closest\('\.sidecar-panel, \.graph-wrap'\)/);
+  assert.match(main, /closest\('\.sidecar-panel, \.graph-wrap, \.graph-focus-banner'\)/);
   assert.doesNotMatch(focusedViews, /Related pages by update order/);
   assert.match(focusedViews, /NETWORK_HOP_COLUMN_GAP = 320/);
   assert.match(focusedViews, /scroll\.scrollLeft = Math\.max/);
@@ -584,6 +587,8 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /nodeVisibility/);
   assert.match(visualizer, /linkVisibility/);
   assert.match(visualizer, /forceGraph\.zoomToFit\(FIT_TO_CANVAS_DURATION, FIT_TO_CANVAS_PADDING\)/);
+  assert.match(visualizer, /cleanupForceGraphTransientParticles\(forceGraph\);\s*forceGraph\._destructor\?\.\(\);/);
+  assert.match(visualizer, /delete link\.__singleHopPhotonsObj/);
   assert.match(visualizer, /arcStyle = 'curve'/);
   assert.match(visualizer, /arcAnimation = 'instant'/);
   assert.match(visualizer, /startArcAnimation/);

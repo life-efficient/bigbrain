@@ -28,9 +28,10 @@ test('local error logs are bounded and sanitize nested values', async () => {
 });
 
 test('desktop error handling records failures without automatic renderer recovery', async () => {
-  const [mainSource, clientSource] = await Promise.all([
+  const [mainSource, clientSource, dashboardSource] = await Promise.all([
     fs.readFile(new URL('../../electron/main.cjs', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
   ]);
   assert.match(mainSource, /recordAppError/);
   assert.match(mainSource, /dashboard-renderer-gone/);
@@ -41,5 +42,11 @@ test('desktop error handling records failures without automatic renderer recover
   assert.match(clientSource, /window\.location\.reload\(\)/);
   assert.match(clientSource, /async function copyErrorDetails\(\)/);
   assert.match(clientSource, /await copyTextToClipboard\(errorDetails\)/);
+  assert.match(clientSource, /let clipboardError = null/);
+  assert.match(clientSource, /clipboardError = error/);
+  assert.match(clientSource, /document\.execCommand\('copy'\)/);
+  assert.match(clientSource, /Clipboard copy is unavailable/);
   assert.match(clientSource, /Copy error/);
+  assert.match(dashboardSource, /\.error-actions \.graph-button \{[^}]*display: inline-flex/);
+  assert.match(dashboardSource, /\.error-actions \.graph-button svg \{[^}]*width: 18px; height: 18px/);
 });

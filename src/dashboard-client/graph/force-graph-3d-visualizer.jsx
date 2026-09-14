@@ -252,6 +252,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       cancelScheduledForceGraphFit(forceGraph);
       forceGraph.__bigBrainDisposed = true;
       if (forceGraph.__bigBrainInitialFadeFrame) window.cancelAnimationFrame(forceGraph.__bigBrainInitialFadeFrame);
+      cleanupForceGraphTransientParticles(forceGraph);
       forceGraph._destructor?.();
       forceGraph.__bigBrainInitialFadeContainer = null;
       forceGraph.__bigBrainInitialFadeElement = null;
@@ -505,6 +506,17 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
   forceGraph.__bigBrainInitialized = true;
   graphDataRefFor(forceGraph, getForceGraphData(forceGraph));
   updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), focusSlug, settings.arcAnimation, true, false);
+}
+
+function cleanupForceGraphTransientParticles(forceGraph) {
+  const links = getForceGraphData(forceGraph).links || [];
+  for (const link of links) {
+    const singlePhotonsObj = link?.__singleHopPhotonsObj;
+    if (!singlePhotonsObj) continue;
+    if (singlePhotonsObj.parent) singlePhotonsObj.parent.remove(singlePhotonsObj);
+    disposeForceGraphNodeChildren(singlePhotonsObj);
+    delete link.__singleHopPhotonsObj;
+  }
 }
 
 function startForceGraphInitialFade(forceGraph) {
