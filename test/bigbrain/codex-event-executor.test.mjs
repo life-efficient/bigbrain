@@ -45,7 +45,7 @@ test('prompt payload can be narrowed to configured fields and omits RSS raw XML 
   }), { title: 'Meeting', data: { summary: 'Useful' } });
 });
 
-test('RSS article prompt makes filing optional and gates writes on relevance', () => {
+test('RSS article prompt is a concise skill handoff', () => {
   const prompt = buildEventPrompt({
     event_id: 'rss-1',
     listener_id: 'openai-news',
@@ -62,33 +62,19 @@ test('RSS article prompt makes filing optional and gates writes on relevance', (
     },
     allowed_brain_ids: ['personal'],
   }, { type: 'rss', display_name: 'OpenAI News', guidance: 'Prioritize substantive model and policy updates; ignore routine promotion.' }, { allowedDestinations: [{ id: 'personal', name: 'Personal' }] });
-  assert.match(prompt, /Run the BigBrain source-article workflow for this article/);
-  assert.match(prompt, /Use the \$bigbrain-source-article-ingest skill as the primary workflow/);
-  assert.match(prompt, /Filing is optional/);
-  assert.match(prompt, /Do not create a raw artifact or Brain page unless it clears the gate/);
-  assert.match(prompt, /Feed-specific guidance:/);
+  assert.match(prompt, /Ingest this article using \$bigbrain-source-article-ingest/);
   assert.match(prompt, /Prioritize substantive model and policy updates; ignore routine promotion/);
-  assert.doesNotMatch(prompt, /put it in the right Brain pages/);
-  assert.match(prompt, /Title: Article/);
-  assert.match(prompt, /URL: https:\/\/example\.test\/article/);
-  assert.doesNotMatch(prompt, /Return JSON only/);
-  assert.doesNotMatch(prompt, /Source retrieval status/);
-  assert.doesNotMatch(prompt, /Original article text/);
-  assert.doesNotMatch(prompt, /<html>Original article text<\/html>/);
+  assert.match(prompt, /Article: Article\nhttps:\/\/example\.test\/article/);
+  assert.doesNotMatch(prompt, /Original article text|rss\/ledger|Source identity/);
 });
 
-test('Substack RSS preserves identity and Brain scope even when prompt fields are narrowed', () => {
+test('Substack RSS uses the same concise article handoff', () => {
   const item = { event_id: 'rss-post-1', delivery_id: 'delivery-1', listener_id: 'publication-1', type: 'rss.item', allowed_brain_ids: ['personal'], payload: { title: 'Post', link: 'https://newsletter.example.test/p/post', published_at: '2026-09-14T10:00:00Z', guid: 'item-guid', raw: '<item>private payload</item>' } };
   const prompt = buildEventPrompt(item, { type: 'rss', skill: 'bigbrain-substack-ingest', url: 'https://newsletter.example.test/feed', prompt_payload_fields: ['title'], guidance: 'Only relevant infrastructure analysis.' }, { allowedDestinations: [{ id: 'personal', name: 'Personal Brain' }] });
-  assert.match(prompt, /Use the \$bigbrain-substack-ingest skill as the primary workflow/);
-  assert.match(prompt, /atomic claim before fetching the body or writing/);
-  assert.match(prompt, /substack\/workflow/);
-  assert.match(prompt, /substack\/ledger/);
-  assert.match(prompt, /Never open or control TextEdit, Finder, Terminal/);
-  assert.match(prompt, /determines this RSS delivery outcome from the shared ledger/);
+  assert.match(prompt, /Ingest this article using \$bigbrain-substack-ingest/);
   assert.match(prompt, /Only relevant infrastructure analysis\./);
-  for (const value of ['rss-post-1', 'delivery-1', 'publication-1', 'https://newsletter.example.test/p/post', 'https://newsletter.example.test/feed', '2026-09-14T10:00:00Z', 'item-guid', 'personal', 'Personal Brain']) assert.ok(prompt.includes(value));
-  assert.doesNotMatch(prompt, /private payload/);
+  assert.match(prompt, /Article: Post\nhttps:\/\/newsletter\.example\.test\/p\/post/);
+  assert.doesNotMatch(prompt, /private payload|delivery-1|rss-post-1|allowed_brain_ids/);
 });
 
 test('Substack detection supports explicit custom domains and exact hosted domain suffix', () => {
@@ -98,7 +84,7 @@ test('Substack detection supports explicit custom domains and exact hosted domai
   assert.equal(isSubstackRssEvent({ type: 'webhook.event' }, { skill: 'bigbrain-substack-ingest' }), false);
 });
 
-test('RSS browser and prose output instructions reach both prompt layers across RSS routes', async () => {
+test('RSS tasks use concise instructions at both prompt layers', async () => {
   const cases = [
     { event: { type: 'rss.item', payload: { link: 'https://publisher.test/article' } }, listener: {} },
     { event: { payload: { link: 'https://publisher.test/article' } }, listener: { type: 'rss' } },
@@ -118,17 +104,9 @@ test('RSS browser and prose output instructions reach both prompt layers across 
     await executor.execute(input);
     const instructions = calls.find(call => call.method === 'thread/start').params.developerInstructions;
     const prompt = calls.find(call => call.method === 'turn/start').params.input[0].text;
-    for (const text of [instructions, prompt]) {
-      assert.match(text, /any available documented browser or article-retrieval tool/);
-      assert.match(text, /Prefer the in-Codex browser when it is available/);
-      assert.match(text, /ledger preflight and claim before article retrieval/);
-      assert.match(text, /If every supported retrieval path fails, explain what went wrong in plain language/);
-      assert.match(text, /Respond in natural prose stating whether you ingested it and why/);
-      assert.match(text, /one-paragraph summary of the article whether ingested or skipped/);
-      assert.match(text, /reliable summary is unavailable; do not invent one/);
-      assert.match(text, /Do not return JSON, a structured output schema/);
-      assert.doesNotMatch(text, /needs_review|source_only|source_and_update|verified_noop/);
-    }
+    assert.match(instructions, /Use the configured (RSS|Substack) ingestion skill/);
+    assert.match(prompt, /Ingest this article using/);
+    assert.doesNotMatch(`${instructions}\n${prompt}`, /any available documented browser|atomic claim|needs_review|source_only|structured output schema/);
     assert.equal(calls.find(call => call.method === 'turn/start').params.outputSchema, undefined);
   }
   assert.doesNotMatch(buildEventPrompt(event, { provider: 'calendar' }), /RSS-triggered ingestion|iab browser/);
@@ -206,7 +184,7 @@ test('app-thread executor uses the supported app-server thread and turn methods'
   assert.equal(calls.find((call) => call.method === 'turn/start').params.outputSchema, undefined);
 });
 
-test('shell-free Substack app tasks receive MCP access and no-desktop fallback instructions at developer priority', async () => {
+test('Substack app tasks receive concise skill instructions at developer priority', async () => {
   const calls = [];
   const executor = new CodexAppThreadExecutor({ clientFactory: async () => ({
     notifications: [],
@@ -219,11 +197,8 @@ test('shell-free Substack app tasks receive MCP access and no-desktop fallback i
   await executor.execute({ event: { type: 'rss.item', payload: { link: 'https://publisher.substack.com/p/post' } }, listener: { type: 'rss', provider: 'substack' } });
   const start = calls.find(call => call.method === 'thread/start').params;
   assert.deepEqual(start.environments, []);
-  assert.match(start.developerInstructions, /substack\/workflow/);
-  assert.match(start.developerInstructions, /substack\/ledger/);
-  assert.match(start.developerInstructions, /Never open or control TextEdit, Finder, Terminal/);
-  assert.match(start.developerInstructions, /stop with a clear capability blocker/);
-  assert.match(calls.find(call => call.method === 'turn/start').params.input[0].text, /leave completion and watermarks unchanged/);
+  assert.equal(start.developerInstructions, 'Use the configured Substack ingestion skill and complete the linked article task directly.');
+  assert.match(calls.find(call => call.method === 'turn/start').params.input[0].text, /Ingest this article using/);
 });
 
 test('thread title prioritizes configured title, then payload title, then safe fallback', () => {
@@ -271,21 +246,17 @@ test('CLI JSON parsing tolerates progress lines', () => {
   assert.equal(parseCodexThreadId(`{"type":"thread.started","thread_id":"thread-1"}`), 'thread-1');
 });
 
-test('all RSS prompts retain ledger identity and scope outside configurable display fields', () => {
+test('RSS prompts contain the article link and listener guidance', () => {
   const prompt = buildEventPrompt({ event_id: 'event-42', delivery_id: 'delivery-42', listener_id: 'query-feed', type: 'rss.item', allowed_brain_ids: ['personal'], payload: { title: 'Article', link: 'https://publisher.test/?article=42', published_at: '2026-09-14T10:00:00Z', guid: 'item-42' } }, { type: 'rss', url: 'https://feedhost.test/rss', prompt_payload_fields: ['title'] }, { allowedDestinations: [{ id: 'personal', name: 'Personal Brain' }] });
-  for (const text of ['rss/workflow', 'rss/ledger', 'query-feed', 'https://publisher.test/?article=42', 'https://feedhost.test/rss', '2026-09-14T10:00:00Z', 'event-42', 'delivery-42', 'item-42', 'personal', 'Personal Brain']) assert.ok(prompt.includes(text), text);
-  assert.match(prompt, /acquire its atomic claim/);
-  assert.match(prompt, /Never open TextEdit, Finder, Terminal/);
-  assert.match(prompt, /runtime verifies the ledger outcome/);
+  assert.match(prompt, /Ingest this article using \$bigbrain-source-article-ingest/);
+  assert.match(prompt, /https:\/\/publisher\.test\/\?article=42/);
+  assert.doesNotMatch(prompt, /rss\/workflow|rss\/ledger|event-42|delivery-42/);
 });
 
-test('generic RSS app tasks receive MCP-only workflow access at developer priority', async () => {
+test('generic RSS app tasks receive concise instructions at developer priority', async () => {
   const calls = [];
   const executor = new CodexAppThreadExecutor({ clientFactory: async () => ({ notifications: [], request: async (method, args) => { calls.push({ method, args }); return method === 'thread/start' ? { thread: { id: 'rss-thread' } } : { id: 'rss-turn' }; }, notify: async () => {}, close: async () => {} }) });
   await executor.execute({ event: { type: 'rss.item', payload: { link: 'https://publisher.test/article' } }, listener: { type: 'rss' } });
   const instructions = calls.find(call => call.method === 'thread/start').args.developerInstructions;
-  assert.match(instructions, /rss\/workflow/);
-  assert.match(instructions, /rss\/ledger/);
-  assert.match(instructions, /Never open TextEdit, Finder, Terminal/);
-  assert.match(instructions, /leave completion and watermarks unchanged/);
+  assert.equal(instructions, 'Use the configured RSS ingestion skill and complete the linked article task directly.');
 });
