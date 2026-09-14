@@ -16,6 +16,7 @@ import {
   GRAPH_NODE_ICONS,
   GRAPH_NODE_SHAPES,
   GRAPH_NODE_SIZES,
+  GRAPH_NODE_SIZE_MODES,
   graphVisualizers,
   migrateGraphPreferences,
 } from './registry.jsx';
@@ -392,6 +393,7 @@ function SchemaBrainConstellation({ innerRef, graph }) {
           nodeFill={preferences.nodeFill}
           nodeIcon={preferences.nodeIcon}
           nodeSize={preferences.nodeSize}
+          nodeSizeMode={preferences.nodeSizeMode}
           arcStyle={preferences.arcStyle}
           arcAnimation={preferences.arcAnimation}
           layoutStyle={preferences.layoutStyle}
@@ -420,6 +422,7 @@ function readGraphPreferences() {
       nodeFill: new Set(GRAPH_NODE_FILLS.map((item) => item.id)),
       nodeIcon: new Set(GRAPH_NODE_ICONS.map((item) => item.id)),
       nodeSize: new Set(GRAPH_NODE_SIZES.map((item) => item.id)),
+      nodeSizeMode: new Set(GRAPH_NODE_SIZE_MODES.map((item) => item.id)),
       arcStyle: new Set(GRAPH_ARC_STYLES.map((item) => item.id)),
       arcAnimation: new Set(GRAPH_ARC_ANIMATIONS.map((item) => item.id)),
       layoutStyle: new Set(GRAPH_LAYOUT_STYLES.map((item) => item.id)),

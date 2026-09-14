@@ -13,7 +13,7 @@ import {
   startGraphTransitionLoop,
 } from './graph-transition.js';
 import { prepareForceGraphData } from './force-graph-data.js';
-import { getGraphNodeSizeScale } from './node-sizes.js';
+import { getGraphNodeConnectionScale, getGraphNodeSizeScale } from './node-sizes.js';
 import { useGraphTheme } from './visualizer-core.jsx';
 
 const DEFAULT_NODE_COLOR = '#E4E4E7';
@@ -36,6 +36,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   nodeFill = 'outline',
   nodeIcon = 'none',
   nodeSize = 'medium',
+  nodeSizeMode = 'default',
   arcStyle = 'curve',
   arcAnimation = 'instant',
   labelStyle = 'selected',
@@ -63,13 +64,13 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   const onActiveSlugChangeRef = useRef(onActiveSlugChange);
   const onBackgroundClickRef = useRef(onBackgroundClick);
   const renderedArcStyleRef = useRef(arcStyle);
-  const settingsRef = useRef({ nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, arcAnimation, labelStyle, colorMode, typeColors, theme });
+  const settingsRef = useRef({ nodeShape, nodeFill, nodeIcon, nodeSize, nodeSizeMode, arcStyle, arcAnimation, labelStyle, colorMode, typeColors, theme });
   const activeSlugRef = useRef(activeSlug);
   const hoveredSlugRef = useRef(null);
   const activityDayRef = useRef(activityDay);
   const labelSlugs = useMemo(() => getForceGraphLabelSlugs(graph?.nodes, labelStyle), [graph?.nodes, labelStyle]);
 
-  settingsRef.current = { nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, arcAnimation, labelStyle, colorMode, typeColors, theme, labelSlugs, activeSlug };
+  settingsRef.current = { nodeShape, nodeFill, nodeIcon, nodeSize, nodeSizeMode, arcStyle, arcAnimation, labelStyle, colorMode, typeColors, theme, labelSlugs, activeSlug };
   onNodeOpenRef.current = onNodeOpen;
   onActiveSlugChangeRef.current = onActiveSlugChange;
   onBackgroundClickRef.current = onBackgroundClick;
@@ -315,7 +316,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     if (forceGraph.__bigBrainArcAnimation?.mode !== arcAnimation) {
       updateForceGraphHighlight(forceGraph, getForceGraphData(forceGraph), hoveredSlugRef.current || activeSlugRef.current, arcAnimation, !hoveredSlugRef.current, false);
     }
-  }, [arcAnimation, arcStyle, colorMode, labelStyle, nodeFill, nodeIcon, nodeShape, nodeSize, theme, typeColors]);
+  }, [arcAnimation, arcStyle, colorMode, labelStyle, nodeFill, nodeIcon, nodeShape, nodeSize, nodeSizeMode, theme, typeColors]);
 
   useEffect(() => {
     const forceGraph = graphRef.current;
@@ -426,15 +427,18 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
     Object.assign(next, node, {
       id: node.slug,
       slug: node.slug,
+      arcCount: 0,
       color: normalizeHex(getGraphNodeColor(node, settings.colorMode, settings.typeColors), DEFAULT_NODE_COLOR),
     });
     return next;
   });
-  const nodeIds = new Set(nodes.map((node) => node.id));
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
   const links = (Array.isArray(graph?.edges) ? graph.edges : [])
     .map((edge, index) => ({ edge, index }))
-    .filter(({ edge }) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
+    .filter(({ edge }) => nodeMap.has(edge.source) && nodeMap.has(edge.target))
     .map(({ edge, index }) => {
+      nodeMap.get(edge.source).arcCount += 1;
+      if (edge.target !== edge.source) nodeMap.get(edge.target).arcCount += 1;
       const id = edge.id || `${edge.source}:${edge.target}:${index}`;
       const previous = previousLinks.get(id);
       const previousSource = previous?.source;
@@ -478,9 +482,10 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
     forceGraph.__bigBrainFitNodeIds = shouldFitAfterUpdate ? targetNodeIds : null;
     forceGraph.__bigBrainFitLinkIds = shouldFitAfterUpdate ? targetLinkIds : null;
     forceGraph.graphData(forceData);
-  } else {
-    updateForceGraphNodeObjects(forceGraph, settings);
   }
+  // The renderer reuses custom objects when graph membership changes.
+  // Refresh existing geometry so newly attached or removed arcs resize nodes.
+  updateForceGraphNodeObjects(forceGraph, settings);
   if (nodes.length > 0) {
     forceGraph.__bigBrainHasData = true;
     startForceGraphInitialFade(forceGraph);
@@ -720,7 +725,7 @@ function createForceGraphNodeObject(node, settings, existingGroup = null) {
   const group = existingGroup || new THREE.Group();
   if (existingGroup) disposeForceGraphNodeChildren(group);
   const nodeColor = normalizeHex(getGraphNodeColor(node, settings.colorMode, settings.typeColors), DEFAULT_NODE_COLOR);
-  const radius = getForceGraphNodeRadius(node, settings.nodeSize);
+  const radius = getForceGraphNodeRadius(node, settings.nodeSize, settings.nodeSizeMode);
   const geometry = settings.nodeFill === 'none' ? null : createNodeGeometry(settings.nodeShape, radius);
   const glow = createForceGraphNodeGlow(radius);
   group.add(glow);
@@ -889,9 +894,12 @@ function createForceGraphIconSprite(type, iconStyle, color, radius) {
   return sprite;
 }
 
-function getForceGraphNodeRadius(node, nodeSize) {
+function getForceGraphNodeRadius(node, nodeSize, nodeSizeMode = 'default') {
   const sizeScale = getGraphNodeSizeScale(nodeSize);
-  return (1.9 + Math.sqrt(Math.max(1, Number(node.degree) || 1)) * 0.42) * (0.72 + sizeScale * 0.22);
+  const baseRadius = nodeSizeMode === 'connections'
+    ? 1.9 + 0.42
+    : 1.9 + Math.sqrt(Math.max(1, Number(node.degree) || 1)) * 0.42;
+  return baseRadius * (0.72 + sizeScale * 0.22) * getGraphNodeConnectionScale(node, nodeSizeMode);
 }
 
 function getForceGraphLabelSlugs(nodes, labelStyle) {

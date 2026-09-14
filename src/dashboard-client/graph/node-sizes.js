@@ -4,6 +4,18 @@ export const GRAPH_NODE_SIZES = [
   { id: 'large', label: 'Large', scale: 3 },
 ];
 
+export const GRAPH_NODE_SIZE_MODES = [
+  { id: 'default', label: 'Default' },
+  { id: 'connections', label: 'By arc count' },
+];
+
+export function getGraphNodeConnectionScale(node, nodeSizeMode = 'default') {
+  if (nodeSizeMode !== 'connections') return 1;
+  const count = Number(node?.arcCount ?? node?.degree);
+  // Scale radius by the square root so visible area is proportional to arcs.
+  return Math.sqrt(Number.isFinite(count) ? Math.max(1, count) : 1);
+}
+
 const NODE_SIZE_SCALE_BY_ID = new Map(
   GRAPH_NODE_SIZES.map((size) => [size.id, size.scale]),
 );

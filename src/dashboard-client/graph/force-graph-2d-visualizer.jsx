@@ -12,7 +12,7 @@ import {
   startGraphTransitionLoop,
 } from './graph-transition.js';
 import { prepareForceGraphData } from './force-graph-data.js';
-import { getGraphNodeSizeScale } from './node-sizes.js';
+import { getGraphNodeConnectionScale, getGraphNodeSizeScale } from './node-sizes.js';
 import { PRESET_GRAPH_LABEL_FONT_SIZE, useGraphTheme } from './visualizer-core.jsx';
 
 const DEFAULT_NODE_COLOR = '#E4E4E7';
@@ -32,6 +32,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   nodeFill = 'outline',
   nodeIcon = 'none',
   nodeSize = 'medium',
+  nodeSizeMode = 'default',
   arcStyle = 'curve',
   arcAnimation = 'instant',
   labelStyle = 'selected',
@@ -54,6 +55,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     nodeFill,
     nodeIcon,
     nodeSize,
+    nodeSizeMode,
     arcStyle,
     labelStyle,
     colorMode,
@@ -71,6 +73,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
     nodeFill,
     nodeIcon,
     nodeSize,
+    nodeSizeMode,
     arcStyle,
     labelStyle,
     colorMode,
@@ -174,6 +177,7 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
         );
       });
 
+    updateForceGraphNodePointerArea(forceGraph, settingsRef.current);
     syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
 
     return () => {
@@ -221,8 +225,9 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkDirectionalParticleSpeed((link) => getForceGraphParticleSpeed(link, forceGraph))
       .linkDirectionalParticleColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph));
+    updateForceGraphNodePointerArea(forceGraph, settingsRef.current);
     updateForceGraphHighlight(forceGraph, hoveredSlugRef.current || activeSlugRef.current, settingsRef.current.arcAnimation, false);
-  }, [arcAnimation, arcStyle, colorMode, labelStyle, nodeFill, nodeIcon, nodeShape, nodeSize, theme, typeColors]);
+  }, [arcAnimation, arcStyle, colorMode, labelStyle, nodeFill, nodeIcon, nodeShape, nodeSize, nodeSizeMode, theme, typeColors]);
 
   useEffect(() => {
     const forceGraph = graphRef.current;
@@ -301,15 +306,18 @@ function syncForceGraphData(forceGraph, graph, settings, focusSlug = null, optio
     Object.assign(next, node, {
       id: node.slug,
       slug: node.slug,
+      arcCount: 0,
       color: normalizeHex(getGraphNodeColor(node, settings.colorMode, settings.typeColors), DEFAULT_NODE_COLOR),
     });
     return next;
   });
-  const nodeIds = new Set(nodes.map((node) => node.id));
+  const nodeMap = new Map(nodes.map((node) => [node.id, node]));
   const links = (Array.isArray(graph?.edges) ? graph.edges : [])
     .map((edge, index) => ({ edge, index }))
-    .filter(({ edge }) => nodeIds.has(edge.source) && nodeIds.has(edge.target))
+    .filter(({ edge }) => nodeMap.has(edge.source) && nodeMap.has(edge.target))
     .map(({ edge, index }) => {
+      nodeMap.get(edge.source).arcCount += 1;
+      if (edge.target !== edge.source) nodeMap.get(edge.target).arcCount += 1;
       const id = edge.id || `${edge.source}:${edge.target}:${index}`;
       const previous = previousLinks.get(id);
       const previousSource = previous?.source;
@@ -548,9 +556,23 @@ function getForceGraphHighlightLinks(forceGraph) {
   return forceGraph?.__bigBrainHighlightLinks || new Set();
 }
 
+function updateForceGraphNodePointerArea(forceGraph, settings) {
+  forceGraph.nodePointerAreaPaint(settings.nodeSizeMode === 'connections'
+    ? (node, color, context) => {
+      if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
+      const radius = getForceGraphNodeRadius(node, settings.nodeSize, settings.nodeSizeMode);
+      context.save();
+      traceNodeShape(context, settings.nodeShape, node.x, node.y, radius);
+      context.fillStyle = color;
+      context.fill();
+      context.restore();
+    }
+    : null);
+}
+
 function drawForceGraphNode(node, context, globalScale, settings, forceGraph) {
   if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
-  const radius = getForceGraphNodeRadius(node, settings.nodeSize);
+  const radius = getForceGraphNodeRadius(node, settings.nodeSize, settings.nodeSizeMode);
   const transition = graphTransitionProgress(node);
   const color = normalizeHex(node.color, DEFAULT_NODE_COLOR);
   const emphasized = Boolean(node.__bigBrainEmphasized);
@@ -657,9 +679,12 @@ function traceNodeShape(context, shape, x, y, radius) {
   context.arc(x, y, radius, 0, Math.PI * 2);
 }
 
-function getForceGraphNodeRadius(node, nodeSize) {
+function getForceGraphNodeRadius(node, nodeSize, nodeSizeMode = 'default') {
   const sizeScale = getGraphNodeSizeScale(nodeSize);
-  return (2.7 + Math.sqrt(Math.max(1, Number(node.degree) || 1)) * 0.52) * (0.72 + sizeScale * 0.22);
+  const baseRadius = nodeSizeMode === 'connections'
+    ? 2.7 + 0.52
+    : 2.7 + Math.sqrt(Math.max(1, Number(node.degree) || 1)) * 0.52;
+  return baseRadius * (0.72 + sizeScale * 0.22) * getGraphNodeConnectionScale(node, nodeSizeMode);
 }
 
 function getForceGraphLabelSlugs(nodes, labelStyle) {

@@ -22,6 +22,7 @@ export function normalizeGraph(graph, { width = GRAPH_LAYOUT_SIZE.width, height 
     index,
     radius: getNodeRadius(node.degree),
     neighbors: 0,
+    arcCount: 0,
     x: width / 2,
     y: height / 2,
   }));
@@ -31,6 +32,8 @@ export function normalizeGraph(graph, { width = GRAPH_LAYOUT_SIZE.width, height 
       const source = nodeMap.get(edge.source);
       const target = nodeMap.get(edge.target);
       if (!source || !target) return null;
+      source.arcCount += 1;
+      if (target !== source) target.arcCount += 1;
       source.neighbors += 1;
       target.neighbors += 1;
       return {

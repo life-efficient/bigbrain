@@ -3,6 +3,7 @@ import React, { forwardRef, memo, useId, useMemo, useState } from 'react';
 import { getGraphNodeColor } from './colors.js';
 import { GraphTypeIcon } from './graph-type-icon.jsx';
 import {
+  getGraphNodeConnectionScale,
   getGraphNodeScreenScale,
   getGraphNodeSizeScale,
   getGraphNodeTransformScale,
@@ -14,6 +15,7 @@ import {
   buildNetworkConstellationLayout,
   buildSignalBloomLayout,
   buildSpaciousConstellationLayout,
+  getNodeRadius,
   pickLabelNodes,
 } from './shared.js';
 import {
@@ -39,6 +41,7 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   nodeFill = 'outline',
   nodeIcon = 'none',
   nodeSize = 'medium',
+  nodeSizeMode = 'default',
   arcStyle = 'straight',
   arcAnimation = 'instant',
   layoutStyle = 'orbital',
@@ -57,7 +60,15 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   const [hoveredSlug, setHoveredSlug] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const buildLayout = LAYOUT_BUILDERS[layoutStyle] || buildJarvisLayout;
-  const laidOut = useMemo(() => buildLayout(graph), [buildLayout, graph]);
+  const laidOut = useMemo(() => {
+    const layout = buildLayout(graph);
+    if (nodeSizeMode === 'connections') {
+      layout.nodes.forEach((node) => {
+        node.radius = getNodeRadius(1) * getGraphNodeConnectionScale(node, nodeSizeMode);
+      });
+    }
+    return layout;
+  }, [buildLayout, graph, nodeSizeMode]);
   const viewportBounds = { minScale: minScale ?? 0.42, maxScale: maxScale ?? 3.4 };
   const { viewport, bind } = useGraphViewport(ref, laidOut, {
     minScale,

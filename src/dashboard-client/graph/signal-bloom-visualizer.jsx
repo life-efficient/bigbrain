@@ -3,11 +3,12 @@ import React, { forwardRef, memo, useId, useMemo, useState } from 'react';
 import { getGraphNodeColor } from './colors.js';
 import { GraphTypeIcon } from './graph-type-icon.jsx';
 import {
+  getGraphNodeConnectionScale,
   getGraphNodeScreenScale,
   getGraphNodeSizeScale,
   getGraphNodeTransformScale,
 } from './node-sizes.js';
-import { buildCurvedEdgePath, buildSignalBloomLayout, pickLabelNodes } from './shared.js';
+import { buildCurvedEdgePath, buildSignalBloomLayout, getNodeRadius, pickLabelNodes } from './shared.js';
 import {
   GraphBackdropDefs,
   GraphFixedLabels,
@@ -33,6 +34,7 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
   nodeFill = 'outline',
   nodeIcon = 'none',
   nodeSize = 'medium',
+  nodeSizeMode = 'default',
   arcAnimation = 'instant',
   labelStyle = 'selected',
   colorMode = 'updated',
@@ -45,7 +47,15 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
   const defsId = useId().replace(/:/g, '-');
   const [hoveredSlug, setHoveredSlug] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
-  const laidOut = useMemo(() => buildSignalBloomLayout(graph), [graph]);
+  const laidOut = useMemo(() => {
+    const layout = buildSignalBloomLayout(graph);
+    if (nodeSizeMode === 'connections') {
+      layout.nodes.forEach((node) => {
+        node.radius = getNodeRadius(1) * getGraphNodeConnectionScale(node, nodeSizeMode);
+      });
+    }
+    return layout;
+  }, [graph, nodeSizeMode]);
   const viewportBounds = { minScale: 0.35, maxScale: 4 };
   const { viewport, bind } = useGraphViewport(ref, laidOut, {
     ...viewportBounds,

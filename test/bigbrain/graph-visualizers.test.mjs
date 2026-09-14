@@ -8,6 +8,7 @@ import {
   buildNetworkConstellationLayout,
   buildSignalBloomLayout,
   buildSpaciousConstellationLayout,
+  normalizeGraph,
 } from '../../src/dashboard-client/graph/shared.js';
 import {
   getGraphColorPalette,
@@ -45,6 +46,7 @@ import {
 import { prepareForceGraphData } from '../../src/dashboard-client/graph/force-graph-data.js';
 import {
   GRAPH_NODE_SIZES,
+  getGraphNodeConnectionScale,
   getGraphNodeScreenScale,
   getGraphNodeSizeScale,
   getGraphNodeTransformScale,
@@ -694,6 +696,20 @@ test('graph node base sizes interpolate smoothly with semantic zoom', () => {
   assert.equal(getGraphNodeTransformScale(2, 10, bounds), 0.3);
 });
 
+test('arc-based node sizing makes area proportional and keeps isolated nodes visible', () => {
+  const radiusForOne = getGraphNodeConnectionScale({ arcCount: 1 }, 'connections');
+  for (const count of [1, 2, 4, 9, 100]) {
+    const radius = getGraphNodeConnectionScale({ arcCount: count }, 'connections');
+    assert.ok(Math.abs(radius ** 2 / radiusForOne ** 2 - count) < 1e-10);
+    assert.equal(getGraphNodeConnectionScale({ arcCount: count }, 'default'), 1);
+  }
+  for (const count of [0, -1, NaN, Infinity, undefined]) {
+    assert.equal(getGraphNodeConnectionScale({ arcCount: count }, 'connections'), 1);
+  }
+  assert.equal(getGraphNodeConnectionScale({ arcCount: 4, degree: 100 }, 'connections'), 2);
+  assert.equal(getGraphNodeConnectionScale({ degree: 9 }, 'connections'), 3);
+});
+
 test('icon nodes cover built-in schema types and use stable custom fallbacks', async () => {
   const canonicalTypes = [
     'people', 'organizations', 'deals', 'projects', 'ideas', 'meetings',
@@ -1102,4 +1118,26 @@ test('3D force renderer is registered with the shared graph controls', async () 
   assert.match(forceGraph2d, /aria-label="2D force-directed brain graph"/);
   assert.doesNotMatch(forceGraph2d, /source\?\.color/);
   assert.doesNotMatch(forceGraph2d, /autoRotate/);
+});
+
+
+test('arc-based node counts use valid displayed edges instead of global degree', () => {
+  const graph = normalizeGraph({
+    nodes: [
+      { slug: 'a', degree: 99 },
+      { slug: 'b', degree: 99 },
+      { slug: 'isolated', degree: 99 },
+    ],
+    edges: [
+      { source: 'a', target: 'b' },
+      { source: 'b', target: 'a' },
+      { source: 'a', target: 'a' },
+      { source: 'a', target: 'missing' },
+    ],
+  });
+  assert.equal(graph.edges.length, 3);
+  assert.deepEqual(graph.nodes.map((node) => node.arcCount), [3, 2, 0]);
+  assert.deepEqual(graph.nodes.map((node) => node.degree), [99, 99, 99]);
+  assert.equal(getGraphNodeConnectionScale(graph.nodes[0], 'connections'), Math.sqrt(3));
+  assert.equal(getGraphNodeConnectionScale(graph.nodes[2], 'connections'), 1);
 });

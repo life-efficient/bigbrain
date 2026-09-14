@@ -7,7 +7,7 @@ import { NetworkConstellationVisualizer } from './network-constellation-visualiz
 import { SignalBloomVisualizer } from './signal-bloom-visualizer.jsx';
 import { SpaciousConstellationVisualizer } from './spacious-constellation-visualizer.jsx';
 
-export { GRAPH_NODE_SIZES } from './node-sizes.js';
+export { GRAPH_NODE_SIZES, GRAPH_NODE_SIZE_MODES } from './node-sizes.js';
 
 export const GRAPH_CONTROL_LABELS = {
   zoomIn: 'Zoom in',
@@ -21,6 +21,7 @@ export const GRAPH_DEFAULTS = {
   nodeFill: 'solid',
   nodeIcon: 'none',
   nodeSize: 'small',
+  nodeSizeMode: 'default',
   arcStyle: 'straight',
   arcAnimation: 'shoot',
   layoutStyle: 'lanes',

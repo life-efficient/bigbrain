@@ -39,6 +39,7 @@ import {
   GRAPH_NODE_ICONS,
   GRAPH_NODE_SHAPES,
   GRAPH_NODE_SIZES,
+  GRAPH_NODE_SIZE_MODES,
   graphVisualizers,
   migrateGraphPreferences,
 } from './graph/registry.jsx';
@@ -166,6 +167,7 @@ function loadGraphPreferences() {
       nodeFill: new Set(GRAPH_NODE_FILLS.map((item) => item.id)),
       nodeIcon: new Set(GRAPH_NODE_ICONS.map((item) => item.id)),
       nodeSize: new Set(GRAPH_NODE_SIZES.map((item) => item.id)),
+      nodeSizeMode: new Set(GRAPH_NODE_SIZE_MODES.map((item) => item.id)),
       arcStyle: new Set(GRAPH_ARC_STYLES.map((item) => item.id)),
       arcAnimation: new Set(GRAPH_ARC_ANIMATIONS.map((item) => item.id)),
       layoutStyle: new Set(GRAPH_LAYOUT_STYLES.map((item) => item.id)),
@@ -218,6 +220,7 @@ function DashboardApp() {
   const [nodeFill, setNodeFill] = useState(savedGraphPreferences.nodeFill);
   const [nodeIcon, setNodeIcon] = useState(savedGraphPreferences.nodeIcon);
   const [nodeSize, setNodeSize] = useState(savedGraphPreferences.nodeSize);
+  const [nodeSizeMode, setNodeSizeMode] = useState(savedGraphPreferences.nodeSizeMode);
   const [arcStyle, setArcStyle] = useState(savedGraphPreferences.arcStyle);
   const [arcAnimation, setArcAnimation] = useState(savedGraphPreferences.arcAnimation);
   const [layoutStyle] = useState(savedGraphPreferences.layoutStyle);
@@ -269,12 +272,12 @@ function DashboardApp() {
   useEffect(() => {
     try {
       window.localStorage.setItem('bigbrain:graph-preferences', JSON.stringify({
-        graphPreferencesVersion: GRAPH_PREFERENCES_VERSION, visualizerId, nodeShape, nodeFill, nodeIcon, nodeSize, arcStyle, arcAnimation, layoutStyle, labelStyle, colorMode, colorPaletteId, typeColors, flowVisible, autoRotate, demoMode,
+        graphPreferencesVersion: GRAPH_PREFERENCES_VERSION, visualizerId, nodeShape, nodeFill, nodeIcon, nodeSize, nodeSizeMode, arcStyle, arcAnimation, layoutStyle, labelStyle, colorMode, colorPaletteId, typeColors, flowVisible, autoRotate, demoMode,
       }));
     } catch {
       // Storage can be unavailable in restricted browser contexts; defaults remain usable.
     }
-  }, [arcAnimation, arcStyle, autoRotate, colorMode, colorPaletteId, demoMode, flowVisible, labelStyle, layoutStyle, nodeFill, nodeIcon, nodeShape, nodeSize, typeColors, visualizerId]);
+  }, [arcAnimation, arcStyle, autoRotate, colorMode, colorPaletteId, demoMode, flowVisible, labelStyle, layoutStyle, nodeFill, nodeIcon, nodeShape, nodeSize, nodeSizeMode, typeColors, visualizerId]);
 
   useEffect(() => {
     if (window.parent === window) return;
@@ -1005,6 +1008,8 @@ function DashboardApp() {
                 setNodeIcon={setNodeIcon}
                 nodeSize={nodeSize}
                 setNodeSize={setNodeSize}
+                nodeSizeMode={nodeSizeMode}
+                setNodeSizeMode={setNodeSizeMode}
                 arcStyle={arcStyle}
                 setArcStyle={setArcStyle}
                 arcAnimation={arcAnimation}
@@ -2852,6 +2857,8 @@ const GraphPanel = memo(function GraphPanel({
   setNodeIcon,
   nodeSize,
   setNodeSize,
+  nodeSizeMode,
+  setNodeSizeMode,
   arcStyle,
   setArcStyle,
   arcAnimation,
@@ -3242,6 +3249,7 @@ const GraphPanel = memo(function GraphPanel({
                 nodeFill={nodeFill}
                 nodeIcon={nodeIcon}
                 nodeSize={nodeSize}
+                nodeSizeMode={nodeSizeMode}
                 arcStyle={arcStyle}
                 arcAnimation={arcAnimation}
                 layoutStyle={layoutStyle}
@@ -3273,6 +3281,7 @@ const GraphPanel = memo(function GraphPanel({
               nodeFill={nodeFill}
               nodeIcon={nodeIcon}
               nodeSize={nodeSize}
+              nodeSizeMode={nodeSizeMode}
               arcStyle={arcStyle}
               arcAnimation={arcAnimation}
               layoutStyle={layoutStyle}
@@ -3473,6 +3482,12 @@ const GraphPanel = memo(function GraphPanel({
                   value={nodeSize}
                   options={GRAPH_NODE_SIZES}
                   onSelect={setNodeSize}
+                />
+                <GraphStyleOptionGroup
+                  label="Size scaling"
+                  value={nodeSizeMode}
+                  options={GRAPH_NODE_SIZE_MODES}
+                  onSelect={setNodeSizeMode}
                 />
                 <GraphStyleOptionGroup
                   label="Arc"
