@@ -179,23 +179,28 @@ export async function searchBrain({
   const innerLimit = Math.max(resolvedLimit * 3, modeBundle.innerLimit);
   const lexicalEnabled = ablationProfile?.lexical ?? true;
   const semanticEnabled = ablationProfile?.semantic ?? true;
-  const lexicalLists = lexicalEnabled
+  // Start semantic I/O before scheduling SQLite's synchronous lexical work.
+  const semanticPromise = semanticEnabled
+    ? semanticSearchLists({ db, config, queries, limit: innerLimit, apiKey })
+    : Promise.resolve({ lists: [], skippedReason: null });
+  const lexicalPromise = Promise.resolve().then(async () => lexicalEnabled
     ? (await Promise.all(queries
       .map((candidate) => lexicalSearch(db, safeFtsQuery(candidate), innerLimit))))
       .filter((rows) => rows.length > 0)
-    : [];
+    : []);
+  // Drain both branches before returning or throwing so callers can close the DB.
+  const [lexicalOutcome, semanticOutcome] = await Promise.allSettled([lexicalPromise, semanticPromise]);
+  if (lexicalOutcome.status === 'rejected') throw lexicalOutcome.reason;
+  const lexicalLists = lexicalOutcome.value;
   let semanticLists = [];
-  if (semanticEnabled) {
-    try {
-      const semanticResult = await semanticSearchLists({ db, config, queries, limit: innerLimit, apiKey });
-      semanticLists = semanticResult.lists;
-      if (semanticResult.skippedReason) {
-        if (strictRetrieval) throw new Error(semanticSkipWarning(semanticResult.skippedReason));
-        warnings.push(semanticSkipWarning(semanticResult.skippedReason));
-      }
-    } catch (error) {
-      if (strictRetrieval) throw error;
-      warnings.push(formatWarning('semantic search unavailable; falling back to lexical-only results', error));
+  if (semanticOutcome.status === 'rejected') {
+    if (strictRetrieval) throw semanticOutcome.reason;
+    warnings.push(formatWarning('semantic search unavailable; falling back to lexical-only results', semanticOutcome.reason));
+  } else {
+    semanticLists = semanticOutcome.value.lists;
+    if (semanticOutcome.value.skippedReason) {
+      if (strictRetrieval) throw new Error(semanticSkipWarning(semanticOutcome.value.skippedReason));
+      warnings.push(semanticSkipWarning(semanticOutcome.value.skippedReason));
     }
   }
   const intentWeights = weightsForIntent(intent, modeBundle);

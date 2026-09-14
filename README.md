@@ -172,7 +172,7 @@ For each request, BigBrain currently:
    `tokenmax` mode. The original query always remains included.
 3. **Runs lexical retrieval** over indexed titles, summaries, compiled truth,
    timelines, and page text.
-4. **Runs semantic retrieval** by embedding the query and comparing it with
+4. **Runs semantic retrieval alongside keyword retrieval** by embedding the query and comparing it with
    stored full-document page embeddings. For SQLite this uses cosine similarity
    in-process; for Postgres it uses pgvector.
 5. **Keeps one semantic candidate per page**, with a temporary fallback to

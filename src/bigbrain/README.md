@@ -17,11 +17,15 @@ engine.
    - direct entity/title lookups stay unexpanded
    - broader question-style queries can expand into up to 2 alternate
      phrasings through `expandQueryVariants()`
-3. Each query variant runs:
+3. Keyword and semantic branches start concurrently after query expansion:
    - lexical retrieval from SQLite FTS5 via `lexicalSearch()` in [db.js](./db.js)
    - semantic retrieval from stored full-document embeddings
    - temporary per-page fallback to legacy compiled-truth vectors only where a
      full-document embedding has not been created yet
+   - query-embedding I/O can overlap synchronous SQLite keyword work; SQLite
+     CPU work still runs on the same JavaScript thread
+   - both branches settle before returning, including on failure, so callers
+     can safely close the database
 4. The ranked lists are merged with reciprocal-rank fusion:
    - multiple ranked lists
    - weighted RRF
