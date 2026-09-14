@@ -2,7 +2,7 @@
 
 This directory holds the runtime implementation for `bigbrain`.
 
-## Search And Query
+## Search And Harness Answers
 
 The current retrieval stack in [search.js](./search.js) is deliberately small
 and inspectable. It combines lexical retrieval, optional semantic retrieval,
@@ -11,9 +11,9 @@ engine.
 
 ### Current flow
 
-1. `queryBrain()` calls `searchBrain()` and then sends the fused result context
-   to `answerQuestion()` in [openai.js](./openai.js).
-2. `searchBrain()` decides whether the query should auto-expand.
+1. `searchBrain()` runs retrieval. The default `balanced` mode enables neither
+   query expansion nor reranking; `tokenmax` retains both.
+2. When expansion is enabled, `searchBrain()` applies the expansion heuristic.
    - direct entity/title lookups stay unexpanded
    - broader question-style queries can expand into up to 2 alternate
      phrasings through `expandQueryVariants()`
@@ -28,25 +28,49 @@ engine.
    - light intent-based weighting
    - exact-match boost for direct entity lookups
    - lexical tie-break preference when fused scores are equal
-5. The fused results become the retrieval context for answer generation.
-6. `queryBrain()` formats that context so the answer model sees:
+5. `searchBrain()` hydrates ranked pages from indexed Markdown and builds
+   `retrieval_context` for the calling agent harness.
+6. The context contains:
    - the top-ranked source slugs first
    - then complete page embedding payloads in rank order
    - only a contiguous ranked prefix that fits within the shared
-     `answer_context_max_bytes` budget
+     `search_context_max_bytes` budget
    - no partially truncated page content
-7. `answerQuestion()` answers only from that retrieved context and is told to:
-   - prefer the top-ranked sources when possible
-   - cite source slugs inline
-   - admit when the context is insufficient instead of guessing
+7. The calling harness generates the answer from that evidence, cites source
+   slugs, and identifies gaps. BigBrain performs no internal answer synthesis.
+
+`retrieval_context` has the shape
+`{context, max_bytes, used_bytes, included_pages, omitted_pages, stop_reason}`.
+The default `search_context_max_bytes` is `65536`, configurable with
+`BIGBRAIN_SEARCH_CONTEXT_MAX_BYTES`. Legacy `answer_context_max_bytes` and
+`BIGBRAIN_ANSWER_CONTEXT_MAX_BYTES` are supported as fallbacks. The budget counts
+the exact UTF-8 bytes of the rendered context, including labels and separators;
+it is not a token budget or a cap on the entire response. It applies in all
+modes, including `tokenmax`.
+
+Packing stops at the first missing or over-budget ranked page. Later pages are
+reported as omitted, even if a smaller one could fit; no page is partially
+truncated. Full page content is emitted only in `retrieval_context.context`,
+without duplicate full bodies or embedding payloads in `lexical`, `semantic`,
+`fused`, or explanation diagnostics. Ranked metadata and snippets remain useful
+for inspection, with summary and snippet previews capped at 240 characters
+each even when `explain` is enabled. These previews are not complete evidence.
+
+`queryBrain()` is a deprecated compatibility wrapper around `searchBrain()`.
+It returns `{answer: null, preferred_sources, search, warnings}`, with context
+at `search.retrieval_context`. The MCP `query` tool remains callable but is
+omitted from `tools/list`. New CLI and MCP callers should use `search`, for example:
+
+```bash
+bigbrain search "What changed in this deal?" --mode balanced --json
+```
 
 ### Current heuristics
 
 #### Expansion default
 
-Expansion is no longer "always on when an API key exists."
-
-The current heuristic is:
+Expansion is off in `balanced` and `conservative`. When enabled by `tokenmax`
+or an explicit expansion option, the current heuristic is:
 
 - no expansion for short/direct lookups such as `Jordan Lee` or `Who is Jordan Lee?`
 - yes expansion for broader question-style queries such as:
@@ -82,7 +106,7 @@ This is intentionally narrow and easy to test.
 
 ### Current Retrieval Behaviors
 
-- expansion before semantic retrieval
+- optional expansion before semantic retrieval
 - multiple ranked lists instead of one lexical list plus one semantic list
 - weighted reciprocal-rank fusion
 - intent-aware keyword vs semantic weighting
@@ -175,7 +199,9 @@ The arms are:
   aliases, and deterministic boosts; no reranking
 - `hybrid-reranked`: the hybrid-fusion pipeline followed by OpenAI reranking
 
-The default `balanced` production mode uses hybrid fusion without reranking.
+The default `balanced` production mode uses hybrid fusion without expansion or
+reranking and defaults to 10 results. `conservative` also defaults to 10 results
+with both stages disabled; `tokenmax` defaults to 25 with both enabled.
 This keeps the broad candidate coverage and avoids paying the reranker latency
 on every normal search. `tokenmax` and the explicit `hybrid-reranked`
 evaluation arm retain reranking for deliberate high-cost or experimental use.
@@ -240,7 +266,7 @@ That means:
 
 ### Relevant files
 
-- [search.js](./search.js): retrieval orchestration, expansion hookup, weighted RRF
-- [openai.js](./openai.js): embeddings, query expansion, grounded answer generation
+- [search.js](./search.js): retrieval orchestration, expansion, weighted RRF, and bounded whole-page context
+- [openai.js](./openai.js): embeddings, optional query expansion, and reranking
 - [db.js](./db.js): FTS5 lookup and page metadata access for ranking
 - [sync.js](./sync.js): keeps the search index and embeddings aligned with markdown

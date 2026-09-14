@@ -31,7 +31,7 @@ for mutation in the current turn after seeing the recommendations.
 - Use BigBrain MCP for current context when an MCP-backed brain is available.
 - Prefer suggestions for existing task pages over suggestions to create new
   tasks.
-- Use `me`, `members/list`, `tasks/list`, `filing_rules`, `query`, `search`,
+- Use `me`, `members/list`, `tasks/list`, `filing_rules`, `search`,
   and `read` when available. If `tasks/list` is not visible, use targeted
   Codex tool discovery before falling back to runtime or code inspection.
 - Do not call `tasks/update` or `tasks/create` during refresh-task behavior
@@ -58,7 +58,7 @@ for mutation in the current turn after seeing the recommendations.
 2. Retrieve task context:
    - `filing_rules` for current task-page conventions
    - `tasks/list` for in_progress, open, waiting, and recently done tasks
-   - `query` or `search` for recent meetings, project updates, blockers,
+   - `search` for recent meetings, project updates, blockers,
      decisions, legacy inbox notes, and roadmap pages related to those tasks
    - direct `read` on task pages and source pages that may change task state
 3. For each relevant task, decide whether to recommend that it should be:

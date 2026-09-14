@@ -11,7 +11,7 @@ export const DEFAULT_STATE_ROOT = path.join(os.homedir(), STATE_ROOT_DIRNAME, 'b
 export const DEFAULT_DASHBOARD_PORT = 3474;
 export const DEFAULT_EMBEDDING_MODEL = 'text-embedding-3-small';
 export const DEFAULT_QUERY_MODEL = 'gpt-4o-mini';
-export const DEFAULT_ANSWER_CONTEXT_MAX_BYTES = 65_536;
+export const DEFAULT_SEARCH_CONTEXT_MAX_BYTES = 65_536;
 export const DEFAULT_RAW_FILE_MAX_BYTES = 25 * 1024 * 1024;
 export const DEFAULT_MAX_EMBEDDING_PAGES_PER_SYNC = 1000;
 

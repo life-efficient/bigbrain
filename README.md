@@ -5,7 +5,7 @@ against the same durable memory.
 
 Your knowledge stays in ordinary Markdown files and can be backed up with Git.
 BigBrain adds the layer agents need around those files: indexing, hybrid
-retrieval, grounded answers, controlled writes, health checks, automations,
+retrieval context for agent answers, controlled writes, health checks, automations,
 MCP access, and a dashboard.
 
 > **The short version:** Markdown and Git hold the knowledge you own. BigBrain
@@ -29,19 +29,22 @@ npm link
 
 bigbrain init /path/to/brain-home --name "My Brain"
 bigbrain sync --json
-bigbrain query "What should I know about this project?"
+bigbrain search "What should I know about this project?" --json
 ```
 
 Requirements:
 
 - Node.js 22.5 or newer
-- an OpenAI API key for semantic search, reranking, and generated answers
+- an OpenAI API key for semantic search, optional query expansion, and reranking
 - no API key is required for Markdown storage, indexing, links, or lexical search
 
 BigBrain is local-first, not necessarily local-only. When an OpenAI API key is
-configured, sync sends page text for embeddings, search can send the query and
-candidate snippets for reranking, and `query` sends the question plus retrieved
-context for grounded answer generation. Without a key, those stages are skipped.
+configured, sync sends page text for embeddings, and search can send query text
+for embeddings and expansion plus candidate snippets for reranking. Without a
+key, those stages are skipped. Search returns complete page context to the
+calling agent harness, which generates the answer using its own model. BigBrain
+does not call an internal answer model, including through the deprecated `query`
+alias.
 
 See [`INSTALL_FOR_AGENTS.md`](./INSTALL_FOR_AGENTS.md) for guided setup and
 [`skills/RESOLVER.md`](./skills/RESOLVER.md) for agent skill routing.
@@ -53,8 +56,8 @@ BigBrain has two primary elements:
 | | Storage | Retrieval |
 | --- | --- | --- |
 | Purpose | Keep durable, inspectable knowledge | Find the right context when an agent needs it |
-| Canonical layer | Markdown files, optionally backed by Git | The original Markdown pages returned as sources |
-| Runtime layer | SQLite locally or Postgres on a server | Lexical search, embeddings, ranking, and grounded synthesis |
+| Canonical layer | Markdown files, optionally backed by Git | Complete page payloads returned as sources, excluding operational frontmatter |
+| Runtime layer | SQLite locally or Postgres on a server | Lexical search, embeddings, ranking, and bounded page context |
 | Core principle | The database is not the authored source of truth | Search remains useful even when AI-powered stages are unavailable |
 
 ```mermaid
@@ -66,7 +69,8 @@ flowchart LR
     C --> E["Semantic retrieval"]
     D --> F["Ranked sources"]
     E --> F
-    F --> H["Search results or grounded answer"]
+    F --> H["Whole-page retrieval context within byte budget"]
+    H --> I["Calling agent harness generates grounded answer"]
 ```
 
 ## 1. Storage
@@ -142,13 +146,17 @@ appropriately.
 
 ## 2. Retrieval
 
-BigBrain separates **search** from **query**:
+BigBrain retrieves evidence; the calling agent harness generates answers:
 
 - `get` directly reads a known canonical page.
 - `links` and `backlinks` inspect explicit relationships in the indexed graph.
-- `search` returns ranked pages and snippets. It does not generate an answer.
-- `query` runs the same retrieval pipeline, then generates a concise answer
-  grounded in the retrieved context with citations back to source page slugs.
+- `search` returns ranked source metadata and `retrieval_context` containing
+  complete page payloads within a shared byte budget. The harness uses that
+  context to answer with source-slug citations and identify missing evidence.
+- `query` is a deprecated retrieval alias with `answer: null`,
+  `preferred_sources`, `search`, and `warnings`. Its context is at
+  `search.retrieval_context`. It remains callable for compatibility but is not
+  advertised in MCP `tools/list`; new callers should use `search`.
 - `pages/query` runs safe structured filters over indexed page fields and flat
   front matter, returning compact rows, counts, and offset pagination. It is
   useful for deterministic questions such as how many people or deals match a
@@ -176,29 +184,44 @@ For each request, BigBrain currently:
 8. **Reranks the candidate set with OpenAI** in `tokenmax` mode.
    If that step fails, BigBrain keeps the pre-rerank order.
 9. **Returns ranked sources** with snippets and optional score explanations.
-10. **For `query`, supplies complete ranked page embedding payloads** until the
-    shared `answer_context_max_bytes` budget is reached, then synthesizes a
-    grounded answer with source-slug citations. Pages are never partially
-    truncated to fit the budget.
+10. **Supplies complete page payloads in `retrieval_context.context`** as a
+    contiguous ranked prefix within `search_context_max_bytes`. Pages are never
+    partially truncated to fit. Full page content appears only in that context,
+    not again in lexical, semantic, fused, or explanation diagnostics.
 
-Semantic retrieval, reranking, query expansion, and answer generation require
+Semantic retrieval, reranking, and query expansion require
 `OPENAI_API_KEY`. When those stages are unavailable, BigBrain degrades to
 lexical retrieval and reports what was skipped instead of silently guessing.
+
+`retrieval_context` contains `context`, `max_bytes`, `used_bytes`,
+`included_pages`, `omitted_pages`, and `stop_reason`. The default budget is
+`65536` UTF-8 bytes, including source labels and separators. Configure it with
+`search_context_max_bytes` or `BIGBRAIN_SEARCH_CONTEXT_MAX_BYTES`; legacy
+`answer_context_max_bytes` and `BIGBRAIN_ANSWER_CONTEXT_MAX_BYTES` remain
+fallbacks. This bounds the context string, not the entire response or the
+harness's token window. If the next ranked page is missing or does not fit,
+the prefix stops and remaining pages are reported as omitted. The harness can
+narrow the search or read an omitted source directly when more evidence is needed.
 
 ### Search modes
 
 | Mode | Query expansion | OpenAI reranking | Default results |
 | --- | ---: | ---: | ---: |
 | `conservative` | No | No | 10 |
-| `balanced` (default) | No | Yes | 10 |
+| `balanced` (default) | No | No | 10 |
 | `tokenmax` | Yes | Yes | 25 |
+
+These result defaults apply to the CLI/runtime. MCP search defaults to 10 in
+every mode unless the caller supplies `limit`.
 
 Use `--explain` to inspect retrieval evidence and score components:
 
 ```bash
-bigbrain search "Ariana Properties" --mode balanced --explain
-bigbrain query "What changed in this deal?" --mode tokenmax --explain
+bigbrain search "Ariana Properties" --mode balanced --explain --json
+bigbrain search "What changed in this deal?" --mode tokenmax --explain --json
 ```
+
+The context byte budget applies in every mode, including `tokenmax`.
 
 The MCP `pages/query` tool supports exact matches, ordered comparisons, set
 membership, existence checks, path/type filters, selected front-matter fields,
@@ -282,7 +305,7 @@ OAuth allowlisting gives each connected person or agent its own credential.
 The current hosted OAuth flow uses Google identities.
 Server tools are exposed according to explicit scopes:
 
-- `brain:read` for reading, listing, search, query, and raw-file access
+- `brain:read` for reading, listing, search, the deprecated query alias, and raw-file access
 - `brain:create` for page, task, and raw-file contributions
 - `brain:publish` for deliberately publishing pages or shared groups
 - separate privileged scopes for destructive raw-file operations, Git backup,
@@ -362,8 +385,8 @@ Run `bigbrain schema` for the live page and filing contract.
 ```bash
 bigbrain init /path/to/brain-home --name "My Brain"
 bigbrain sync --json
-bigbrain search "query terms"
-bigbrain query "grounded question"
+bigbrain search "query terms" --json
+bigbrain search "What changed in this deal?" --json
 bigbrain links people/alice
 bigbrain backlinks people/alice
 bigbrain recent --since 24h
@@ -399,7 +422,8 @@ Machine-local secrets live outside both the source repo and brain home:
 ```
 
 Add `OPENAI_API_KEY=...` there to enable embeddings, semantic retrieval,
-reranking, and generated answers.
+optional query expansion, and reranking. The calling harness generates answers
+from the returned search context.
 
 ## Inbound events
 

@@ -21,7 +21,7 @@
 | Ingest time-based or mixed media such as audio, video, or podcasts | `skills/bigbrain-media-ingest/SKILL.md` |
 | Capture durable knowledge from ordinary chat into BigBrain | `skills/bigbrain-ingest/SKILL.md` |
 | Update or create stronger entity or topic pages when new signal materially changes the brain | `skills/bigbrain-enrich/SKILL.md` |
-| Answer questions using the selected BigBrain brain home with cited source slugs | `skills/bigbrain-query/SKILL.md` |
+| Search existing Brain knowledge and answer in the calling harness with cited page evidence | `skills/bigbrain-search/SKILL.md` |
 | Provide a short snapshot of what needs to be done next across all registered Brains by default, or one or more named Brains when requested | `skills/bigbrain-whats-next/SKILL.md` |
 | Launch Codex threads from BigBrain task pages exposed through MCP using handoff prompts | `skills/bigbrain-fanout-tasks/SKILL.md` |
 | Clarify underspecified BigBrain task pages, identify archive and merge candidates, and ask focused questions | `skills/bigbrain-clarify-tasks/SKILL.md` |

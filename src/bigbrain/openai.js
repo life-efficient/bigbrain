@@ -51,42 +51,6 @@ export async function expandQueryVariants({ query, model, apiKey }) {
   return dedupeQueries([query, ...alternatives]).slice(0, 3);
 }
 
-export async function answerQuestion({ model, apiKey, question, context }) {
-  if (!apiKey) return null;
-  const response = await fetch('https://api.openai.com/v1/responses', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      input: [
-        {
-          role: 'system',
-          content: [{
-            type: 'input_text',
-            text: [
-              'Answer only from the provided bigbrain context.',
-              'Prefer the top-ranked sources when they support the answer.',
-              'Cite supporting source slugs inline in parentheses.',
-              'If the retrieved context is insufficient or conflicting, say so instead of guessing.',
-              'Be concise and concrete.',
-            ].join(' '),
-          }],
-        },
-        {
-          role: 'user',
-          content: [{ type: 'input_text', text: `Question:\n${question}\n\nContext:\n${context}` }],
-        },
-      ],
-    }),
-  });
-  if (!response.ok) throw new Error(`OpenAI query failed: ${response.status} ${await response.text()}`);
-  const payload = await response.json();
-  return extractOutputText(payload) || null;
-}
-
 export async function rerankSearchResults({ model, apiKey, query, results }) {
   if (!apiKey || !Array.isArray(results) || results.length === 0) return [];
   const candidates = results.slice(0, 30).map((result, index) => ({

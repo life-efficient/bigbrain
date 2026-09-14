@@ -584,7 +584,7 @@ test('MCP page mutations reject missing or invalid timeline significance', async
   }
 });
 
-test('MCP search/query tools expose GBrain-style retrieval parameters', async () => {
+test('MCP advertises search with whole page context and keeps query as a deprecated retrieval-only alias', async () => {
   const fixture = await createFixture('bigbrain-mcp-search-query-');
   let running;
   const originalApiKey = process.env.OPENAI_API_KEY;
@@ -613,8 +613,16 @@ MCP query retrieval target.
     const query = listed.result.tools.find((tool) => tool.name === 'query');
     assert.deepEqual(search.inputSchema.properties.mode.enum, ['conservative', 'balanced', 'tokenmax']);
     assert.equal(search.inputSchema.properties.explain.type, 'boolean');
-    assert.equal(query.inputSchema.properties.query.type, 'string');
-    assert.equal(query.inputSchema.required, undefined);
+    assert.equal(query, undefined);
+    assert.match(search.description, /retrieval_context/);
+
+    const searched = await rpc(running.url, 'tools/call', {
+      name: 'search',
+      arguments: { query: 'MCP query retrieval target', mode: 'conservative' },
+    }, 'secret');
+    assert.equal(searched.error, undefined, searched.error?.message);
+    assert.match(searched.result.structuredContent.retrieval_context.context, /MCP query retrieval target/);
+    assert.equal(searched.result.structuredContent.answer, undefined);
 
     const queried = await rpc(running.url, 'tools/call', {
       name: 'query',
@@ -627,6 +635,9 @@ MCP query retrieval target.
     assert.equal(queried.error, undefined, queried.error?.message);
     assert.equal(queried.result.structuredContent.search.fused[0].slug, 'people/mcp-query');
     assert.equal(queried.result.structuredContent.search.fused[0].evidence.length > 0, true);
+    assert.equal(queried.result.structuredContent.answer, null);
+    assert.match(queried.result.structuredContent.warnings.join('\n'), /query is deprecated/);
+    assert.match(queried.result.structuredContent.search.retrieval_context.context, /MCP query retrieval target/);
   } finally {
     if (originalApiKey === undefined) delete process.env.OPENAI_API_KEY;
     else process.env.OPENAI_API_KEY = originalApiKey;

@@ -1836,7 +1836,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'search',
-      description: 'Search the selected BigBrain brain using lexical and semantic retrieval when embeddings are available.',
+      description: 'Retrieve ranked BigBrain pages using lexical and semantic search. Returns complete page embedding payloads without operational frontmatter in budgeted retrieval_context, plus included and omitted page slugs. Answer from this evidence in the calling harness; read omitted pages when needed. Default balanced mode uses no answer-generation, expansion, or reranking model.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -1846,21 +1846,6 @@ function toolDefinitions(config = null) {
           explain: { type: 'boolean' },
         },
         required: ['query'],
-      },
-    },
-    {
-      name: 'query',
-      description: 'Answer a question using retrieved BigBrain context.',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          question: { type: 'string' },
-          query: { type: 'string' },
-          limit: { type: 'number' },
-          mode: { type: 'string', enum: ['conservative', 'balanced', 'tokenmax'] },
-          explain: { type: 'boolean' },
-          expand: { type: 'boolean' },
-        },
       },
     },
     {

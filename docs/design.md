@@ -15,7 +15,7 @@ The design goal is to keep the parts that materially help an individual operate:
 - a small set of maintenance and freshness workflows
 - a scoped CLI
 - a lightweight dashboard
-- OpenAI-native embeddings, grounded query, and enrichment defaults
+- OpenAI-native embeddings and retrieval context for harness-generated answers
 
 ## Product Definition
 
@@ -25,7 +25,7 @@ The design goal is to keep the parts that materially help an individual operate:
 - markdown-native for canonical authored pages
 - database-backed for links, search, embeddings, and operational state
 - opinionated about filing and consistency
-- OpenAI-first for embeddings and query-time synthesis
+- OpenAI-first for embeddings and optional retrieval expansion and reranking
 - pleasant to inspect through its dashboard
 - easy for agents to visit through CLI, MCP, or future API surfaces
 
@@ -56,8 +56,9 @@ for agents:
 
 - markdown and git are the durable, inspectable source of truth
 - the database is a rebuildable runtime projection and operational ledger
-- OpenAI APIs are the opinionated default for embeddings, query synthesis, and
-  future enrichment workflows
+- OpenAI APIs are the opinionated default for embeddings, optional retrieval
+  expansion and reranking, and future enrichment workflows
+- the calling agent harness synthesizes answers from returned page evidence
 - automations are explicit, scheduled, and inspectable rather than hidden
   personalities
 - the dashboard is a first-class surface for health, graph, tasks, sync, and
@@ -443,9 +444,9 @@ The database should stay narrow and derived from the markdown layer.
 
 These should come later, only if the page-derived tables are insufficient.
 
-## Search vs Query
+## Search and Harness Answers
 
-These should not be the same command.
+BigBrain owns retrieval. The calling agent harness owns answer generation.
 
 ### `search`
 
@@ -453,24 +454,28 @@ These should not be the same command.
 
 It should:
 
-- return matching pages or chunks
+- return ranked source metadata and bounded whole-page retrieval context
 - support exact terms and fuzzy lexical matches
 - support semantic retrieval
 - optionally show the fused score components
 - never synthesize an answer
 
-### `query`
+`searchBrain()` returns `retrieval_context` with
+`{context, max_bytes, used_bytes, included_pages, omitted_pages, stop_reason}`.
+The calling harness uses `context` to answer, cite source slugs, and identify
+insufficient evidence. Full page payloads appear only in this context string;
+lexical, semantic, fused, and explanation diagnostics must not duplicate complete
+page bodies or embedding text.
 
-`query` is answer generation over retrieved context.
+### Deprecated `query` compatibility alias
 
-It should:
-
-- call `search` internally
-- use OpenAI for synthesis
-- return a concise answer with citations back to pages
-- remain grounded in retrieved context
-
-This distinction matters because you use both modes differently.
+`queryBrain()` calls `searchBrain()` and returns
+`{answer: null, preferred_sources, search, warnings}`. It never calls an internal
+answer model. Existing callers can retrieve evidence at
+`search.retrieval_context`, but must move answer generation into their harness.
+The CLI `query` command remains deprecated compatibility access. MCP `query`
+remains callable with its existing read authorization but is unadvertised in
+`tools/list`. New integrations and examples use `search`.
 
 ### `pages/query`
 
@@ -489,12 +494,16 @@ specialized client skills without requiring a corpus-wide content migration.
 The retrieval stack should be:
 
 1. lexical retrieval over page text and titles
-2. semantic retrieval over chunk embeddings
+2. semantic retrieval over full-document page embeddings, with temporary legacy fallback
 3. reciprocal-rank fusion over both lists
-4. optional lightweight re-ranking later
+4. deterministic ranking boosts and optional OpenAI reranking
 
-The first version should avoid over-optimizing. The key is predictable results
-and debuggability.
+The default mode is `balanced`: 10 results, no query expansion, and no
+reranking. `conservative` also defaults to 10 results with both disabled.
+`tokenmax` retains query expansion, reranking, and its 25-result CLI/runtime
+default. MCP search defaults to 10 in every mode unless `limit` is supplied.
+Expansion still applies its query-shape heuristic. Every mode uses the shared
+whole-page context byte budget described below.
 
 ## Link Model
 
@@ -623,12 +632,14 @@ The CLI should stay close to the operating needs you named.
 - `bigbrain get <slug>`
 - `bigbrain put <slug>`
 - `bigbrain list`
-- `bigbrain search <query>`
-- `bigbrain query <question>`
+- `bigbrain search <query> --json`
 - `bigbrain links <slug>`
 - `bigbrain backlinks <slug>`
 - `bigbrain health`
 - `bigbrain recent`
+
+`bigbrain query <question>` remains a deprecated retrieval compatibility alias;
+new callers use `search` and generate answers in their own harness.
 
 ### Phase 2 commands
 
@@ -657,12 +668,12 @@ Migration is a first-class feature, not an afterthought.
 
 A migration target can be any selected markdown brain home, such as `/path/to/brain-home`.
 
-## Embeddings and Query Provider
+## Embeddings and Retrieval Providers
 
 Use OpenAI by default for:
 
 - embeddings
-- grounded answer generation for `query`
+- optional query expansion and reranking
 - optional enrichment transforms
 
 The system should be provider-aware, but not provider-complicated.
@@ -670,7 +681,11 @@ The system should be provider-aware, but not provider-complicated.
 Practical default:
 
 - `text-embedding-3-small` for embeddings first
-- a chat model for `query`
+- a chat model for optional query expansion and reranking
+
+The calling harness chooses and runs its own answer model. Deprecating internal
+answer synthesis does not remove `openai_query_model`, which still configures
+query expansion and reranking.
 
 `bigbrain sync` embeds one full-document input per page containing the title,
 aliases, and complete body after frontmatter, including timeline. Operational
@@ -698,14 +713,23 @@ per-page embedding failure; BigBrain does not silently truncate the page.
 During migration, search prefers a page's current full-document embedding and
 falls back to its legacy compiled-truth rows only until that page is refreshed.
 
-For answer generation, BigBrain rebuilds the same frontmatter-free
+For search context, BigBrain rebuilds the same frontmatter-free
 full-document payload from each ranked page. It includes complete pages in rank
 order until adding the next whole page would exceed
-`answer_context_max_bytes` (default `65536`, configurable with
-`BIGBRAIN_ANSWER_CONTEXT_MAX_BYTES`). The exact UTF-8 byte count includes page
-labels and separators. BigBrain does not substitute an arbitrary
-prefix or partially truncate a page. Query results report which pages were
-included or omitted from answer context.
+`search_context_max_bytes` (default `65536`, configurable with
+`BIGBRAIN_SEARCH_CONTEXT_MAX_BYTES`). Legacy `answer_context_max_bytes` and
+`BIGBRAIN_ANSWER_CONTEXT_MAX_BYTES` remain configuration fallbacks. The exact
+UTF-8 byte count includes page labels and separators. This budget applies to
+`retrieval_context.context`, not the response envelope or the harness's token
+window.
+
+The included pages are a contiguous ranked prefix. Packing stops at the first
+missing or over-budget page and reports the remaining pages as omitted; if the
+first page cannot fit, context is empty. BigBrain never truncates a page or
+skips it to fit smaller, lower-ranked pages. `retrieval_context` reports the
+included and omitted pages, byte usage, and stop reason. The harness can narrow
+retrieval or read an omitted page directly when needed. Diagnostics retain
+metadata and snippets without repeating the full page payloads.
 
 ## Dashboard
 
@@ -775,7 +799,7 @@ parallel dashboard or API implementations. See
 - embeddings
 - RRF fusion
 - `search`
-- `query`
+- bounded whole-page context returned to the calling harness
 
 ### Milestone 3: integrity
 
@@ -822,8 +846,8 @@ Ideas worth adapting:
 - a small admin surface for live activity, clients, sync, embeddings, and health
 - install and operations docs written so agents can execute them safely
 - ingestion/source logs so imported or agent-written knowledge is reversible
-- retrieval/query evals for entity lookup, temporal questions, citations, and
-  top-k search quality
+- retrieval evals for entity lookup, temporal questions, top-k search quality,
+  and whole-page context budgets; answer and citation evaluation in the harness
 - migration commands that make moving between SQLite and server Postgres boring
 
 Things not to copy wholesale:

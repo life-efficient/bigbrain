@@ -7,17 +7,41 @@ import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import { loadBrainProfile } from '../../src/bigbrain/brain-profile.js';
-import { configPathForBrainHome, initializeBrainHome, loadConfig, loadUserEnv, metaDirForBrainHome, updateBrainName, userEnvPath } from '../../src/bigbrain/config.js';
+import { buildDefaultConfig, configPathForBrainHome, initializeBrainHome, loadConfig, loadUserEnv, metaDirForBrainHome, updateBrainName, userEnvPath } from '../../src/bigbrain/config.js';
 import { getHostedBrainGitState, openDatabase } from '../../src/bigbrain/db.js';
 import { filingRulesForBrain } from '../../src/bigbrain/filing-rules.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
 import { loadRetrievalEvalCases, runRetrievalEvalOnConfig } from '../../src/bigbrain/eval-retrieval.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
-import { applyRankingExperimentPolicy, boostResultsForQuery, buildRankedAnswerContext, classifyQueryIntent, DEFAULT_RANKING_POLICY, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, RANKING_EXPERIMENT_POLICIES, searchBrain, shouldAutoExpandQuery, shouldExpandGraphForQuery } from '../../src/bigbrain/search.js';
+import { applyRankingExperimentPolicy, boostResultsForQuery, buildRankedRetrievalContext, classifyQueryIntent, DEFAULT_RANKING_POLICY, DEFAULT_SEARCH_MODE, formatRetrievalContext, fuseResults, queryBrain, RANKING_EXPERIMENT_POLICIES, searchBrain, shouldAutoExpandQuery, shouldExpandGraphForQuery } from '../../src/bigbrain/search.js';
 import { renderSchemaMarkdown, recommendFolderForInput } from '../../src/bigbrain/schema.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
 const execFileAsync = promisify(execFile);
+
+test('search context budget supports new config and legacy answer-context settings', async () => {
+  const fixture = await createFixture('bigbrain-search-budget-config-');
+  try {
+    assert.equal(buildDefaultConfig(fixture.brainHome, {}).search_context_max_bytes, 65_536);
+    assert.equal(buildDefaultConfig(fixture.brainHome, { BIGBRAIN_SEARCH_CONTEXT_MAX_BYTES: '4096' }).search_context_max_bytes, 4096);
+    assert.equal(buildDefaultConfig(fixture.brainHome, { BIGBRAIN_ANSWER_CONTEXT_MAX_BYTES: '8192' }).search_context_max_bytes, 8192);
+    assert.equal(buildDefaultConfig(fixture.brainHome, {
+      BIGBRAIN_SEARCH_CONTEXT_MAX_BYTES: '4096', BIGBRAIN_ANSWER_CONTEXT_MAX_BYTES: '8192',
+    }).search_context_max_bytes, 4096);
+    assert.throws(() => buildDefaultConfig(fixture.brainHome, { BIGBRAIN_SEARCH_CONTEXT_MAX_BYTES: '0' }), /positive integer/);
+
+    const raw = JSON.parse(await fs.readFile(fixture.configPath, 'utf8'));
+    delete raw.search_context_max_bytes;
+    raw.answer_context_max_bytes = 8192;
+    await fs.writeFile(fixture.configPath, JSON.stringify(raw));
+    assert.equal((await loadConfig({ configPath: fixture.configPath })).searchContextMaxBytes, 8192);
+    raw.search_context_max_bytes = 4096;
+    await fs.writeFile(fixture.configPath, JSON.stringify(raw));
+    assert.equal((await loadConfig({ configPath: fixture.configPath })).searchContextMaxBytes, 4096);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
 
 test('init creates an external brain home with runtime state under the home-level state root', async () => {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-init-'));
@@ -319,6 +343,28 @@ test('CLI configures webhook event types and prompt payload fields', async () =>
     assert.deepEqual(configured.prompt_omit_fields, ['calendar_event']);
   } finally {
     await fs.rm(rootDir, { recursive: true, force: true });
+  }
+});
+
+test('CLI search prints whole-page evidence and deprecated query returns it without an answer', async () => {
+  const fixture = await createFixture('bigbrain-cli-search-evidence-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'projects/renewal.md', `---\ntitle: Renewal\nstatus: active\n---\n# Renewal\n\n${'Background context. '.repeat(40)}\nUnique complete evidence: renewal in November.\n`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const options = { cwd: process.cwd(), env: { OPENAI_API_KEY: '' } };
+    const searched = await runNode(['./bin/bigbrain.js', '--config', fixture.configPath, 'search', 'Renewal'], options);
+    assert.equal(searched.code, 0, searched.stderr);
+    assert.match(searched.stdout, /Unique complete evidence: renewal in November/);
+    assert.doesNotMatch(searched.stdout, /status: active/);
+    const queried = await runNode(['./bin/bigbrain.js', '--config', fixture.configPath, 'query', 'Renewal', '--json'], options);
+    assert.equal(queried.code, 0, queried.stderr);
+    const result = JSON.parse(queried.stdout);
+    assert.equal(result.answer, null);
+    assert.match(result.search.retrieval_context.context, /Unique complete evidence: renewal in November/);
+    assert.match(result.warnings.join('\n'), /query is deprecated/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
 });
 
@@ -736,7 +782,7 @@ Seed-stage companies I have advised include software, education, and workflow st
   }
 });
 
-test('query returns retrieved context and warns when OpenAI answer generation fails', async () => {
+test('deprecated query returns search evidence without calling an answer model', async () => {
   const fixture = await createFixture('bigbrain-query-fallback-');
   const originalFetch = globalThis.fetch;
   try {
@@ -750,8 +796,10 @@ Alex Rivera is the founder of ExampleCo and a useful customer-discovery contact.
     const config = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({ config, apiKey: null });
 
+    let modelCalls = 0;
     globalThis.fetch = async () => {
-      throw new Error('fetch failed');
+      modelCalls += 1;
+      throw new Error('No model call expected without indexed embeddings');
     };
 
     const db = await openDatabase(config);
@@ -759,14 +807,16 @@ Alex Rivera is the founder of ExampleCo and a useful customer-discovery contact.
     assert.equal(result.answer, null);
     assert.equal(result.search.fused[0].slug, 'people/alex-rivera');
     assert.equal(result.warnings.length >= 1, true);
-    assert.match(result.warnings.join('\n'), /returning retrieved context only/);
+    assert.match(result.warnings.join('\n'), /query is deprecated/);
+    assert.match(result.search.retrieval_context.context, /useful customer-discovery contact/);
+    assert.equal(modelCalls, 0);
   } finally {
     globalThis.fetch = originalFetch;
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
 });
 
-test('query sends complete ranked page content without operational frontmatter', async () => {
+test('search returns complete ranked content within budget, without frontmatter or synthesis calls', async () => {
   const fixture = await createFixture('bigbrain-query-complete-context-');
   const originalFetch = globalThis.fetch;
   try {
@@ -790,53 +840,84 @@ ${buriedEvidence}
       embedder: async (texts) => texts.map(() => [1, 0]),
     });
 
-    let answerPrompt = '';
-    let answerCalls = 0;
+    let responseCalls = 0;
     globalThis.fetch = async (url, options) => {
       if (String(url).endsWith('/embeddings')) {
         return { ok: true, json: async () => ({ data: [{ embedding: [1, 0] }] }) };
       }
-      answerCalls += 1;
-      const payload = JSON.parse(options.body);
-      answerPrompt = payload.input[1].content[0].text;
-      return { ok: true, json: async () => ({ output_text: 'The agreement renews in November.' }) };
+      responseCalls += 1;
+      throw new Error('Search must not synthesize an answer');
     };
 
     const db = await openDatabase(config);
-    const result = await queryBrain({
+    const result = await searchBrain({
       db,
       config,
-      question: 'When does the agreement renew?',
+      query: 'When does the agreement renew?',
       expand: false,
       apiKey: 'answer-key',
     });
-    assert.equal(result.answer, 'The agreement renews in November.');
-    assert.match(answerPrompt, /the agreement renews in November/);
-    assert.match(answerPrompt, /Aliases: Renewal Agreement/);
-    assert.doesNotMatch(answerPrompt, /status: active|priority: p1/);
-    assert.equal(result.answer_context.max_bytes, 65_536);
-    assert.deepEqual(result.answer_context.included_pages, ['deals/example-agreement']);
-    assert.deepEqual(result.answer_context.omitted_pages, []);
+    assert.equal(result.answer, undefined);
+    assert.match(result.retrieval_context.context, /the agreement renews in November/);
+    assert.match(result.retrieval_context.context, /Aliases: Renewal Agreement/);
+    assert.doesNotMatch(JSON.stringify(result), /status: active|priority: p1|frontmatter_json|embedding_text/);
+    assert.equal(result.retrieval_context.max_bytes, 65_536);
+    assert.deepEqual(result.retrieval_context.included_pages, ['deals/example-agreement']);
+    assert.deepEqual(result.retrieval_context.omitted_pages, []);
+    assert.equal(responseCalls, 0);
 
-    config.answerContextMaxBytes = 1;
-    const overBudget = await queryBrain({
+    config.searchContextMaxBytes = 1;
+    const overBudget = await searchBrain({
       db,
       config,
-      question: 'When does the agreement renew?',
+      query: 'When does the agreement renew?',
+      explain: true,
       expand: false,
       apiKey: 'answer-key',
     });
-    assert.equal(answerCalls, 1);
-    assert.equal(overBudget.answer, null);
-    assert.deepEqual(overBudget.preferred_sources, []);
-    assert.deepEqual(overBudget.answer_context.included_pages, []);
-    assert.deepEqual(overBudget.answer_context.omitted_pages, [{
+    assert.equal(responseCalls, 0);
+    assert.equal(overBudget.retrieval_context.context, '');
+    assert.equal(overBudget.retrieval_context.used_bytes, 0);
+    assert.deepEqual(overBudget.retrieval_context.included_pages, []);
+    assert.deepEqual(overBudget.retrieval_context.omitted_pages, [{
       slug: 'deals/example-agreement',
       reason: 'over_budget',
     }]);
-    assert.match(overBudget.warnings.join('\n'), /no complete ranked page fit/);
+    assert.match(overBudget.warnings.join('\n'), /No page content was truncated/);
+    assert.doesNotMatch(JSON.stringify(overBudget), /the agreement renews in November|frontmatter_json|embedding_text/);
+    assert.equal(overBudget.fused[0].slug, 'deals/example-agreement');
   } finally {
     globalThis.fetch = originalFetch;
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('oversized one-line pages cannot escape the context budget through lexical or alias previews', async () => {
+  const fixture = await createFixture('bigbrain-search-preview-budget-');
+  let db;
+  try {
+    const body = `Needle ${'large one-line body '.repeat(6000)}unique evidence at the end.`;
+    await writeMarkdown(fixture.brainHome, 'projects/long-page.md', `---\ntitle: Long Page\naliases: [Shortcut]\n---\n${body}\n`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    config.searchContextMaxBytes = 1;
+    db = await openDatabase(config);
+    for (const query of ['Needle', 'Shortcut']) {
+      for (const explain of [false, true]) {
+        const result = await searchBrain({ db, config, query, explain, apiKey: null });
+        assert.equal(result.fused[0].slug, 'projects/long-page');
+        assert.equal(result.retrieval_context.context, '');
+        assert.equal(result.retrieval_context.omitted_pages[0].reason, 'over_budget');
+        for (const row of [...result.lexical, ...result.semantic, ...result.fused]) {
+          assert.ok((row.summary?.length ?? 0) <= 240);
+          assert.ok((row.snippet?.length ?? 0) <= 240);
+        }
+        assert.doesNotMatch(JSON.stringify(result), /unique evidence at the end/);
+        assert.ok(Buffer.byteLength(JSON.stringify(result)) < 10_000);
+      }
+    }
+  } finally {
+    await db?.close?.();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
 });
@@ -863,7 +944,7 @@ Alex Rivera is the founder of ExampleCo.
   }
 });
 
-test('query warns when answer generation is skipped because api key is missing', async () => {
+test('deprecated query returns lexical page content without an API key', async () => {
   const fixture = await createFixture('bigbrain-query-no-api-key-');
   try {
     await writeMarkdown(fixture.brainHome, 'people/alex-rivera.md', `---
@@ -880,7 +961,8 @@ Alex Rivera is the founder of ExampleCo.
     const result = await queryBrain({ db, config, question: 'Alex Rivera', apiKey: null });
     assert.equal(result.answer, null);
     assert.equal(result.preferred_sources[0], 'people/alex-rivera');
-    assert.match(result.warnings.join('\n'), /OpenAI answer generation skipped because OPENAI_API_KEY is not set/);
+    assert.match(result.warnings.join('\n'), /query is deprecated/);
+    assert.match(result.search.retrieval_context.context, /Alex Rivera is the founder of ExampleCo/);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }
@@ -1224,7 +1306,7 @@ test('fused search favors the strongest semantic page across multiple ranked lis
   assert.equal(fused.some((row) => row.slug === 'deals/exampleco-process'), true);
 });
 
-test('answer context emphasizes the top-ranked sources first', () => {
+test('retrieval context includes only whole pages in rank order within the byte budget', () => {
   const results = [
     {
       slug: 'deals/exampleco-process',
@@ -1237,7 +1319,7 @@ test('answer context emphasizes the top-ranked sources first', () => {
       embedding_text: 'Title: ExampleCo\n\nContent:\nComplete company context.',
     },
   ];
-  const context = formatAnswerContext(results);
+  const context = formatRetrievalContext(results);
 
   assert.match(context, /Top-ranked sources:/);
   assert.match(context, /1\. deals\/exampleco-process — ExampleCo Process/);
@@ -1246,8 +1328,8 @@ test('answer context emphasizes the top-ranked sources first', () => {
   assert.match(context, /Complete company context/);
   assert.doesNotMatch(context, /Snippet:/);
 
-  const firstOnly = formatAnswerContext([results[0]]);
-  const budgeted = buildRankedAnswerContext(results, { maxBytes: Buffer.byteLength(firstOnly, 'utf8') });
+  const firstOnly = formatRetrievalContext([results[0]]);
+  const budgeted = buildRankedRetrievalContext(results, { maxBytes: Buffer.byteLength(firstOnly, 'utf8') });
   assert.equal(budgeted.context, firstOnly);
   assert.equal(budgeted.used_bytes <= budgeted.max_bytes, true);
   assert.deepEqual(budgeted.included_pages, ['deals/exampleco-process']);
@@ -1260,8 +1342,8 @@ test('answer context emphasizes the top-ranked sources first', () => {
     title: 'Unicode',
     embedding_text: `Title: Unicode\n\nContent:\n${'🙂'.repeat(20)}`,
   }];
-  const unicodeContext = formatAnswerContext(unicodeResult);
-  const unicodeBudgeted = buildRankedAnswerContext(unicodeResult, {
+  const unicodeContext = formatRetrievalContext(unicodeResult);
+  const unicodeBudgeted = buildRankedRetrievalContext(unicodeResult, {
     maxBytes: Buffer.byteLength(unicodeContext, 'utf8') - 1,
   });
   assert.equal(unicodeBudgeted.context, '');

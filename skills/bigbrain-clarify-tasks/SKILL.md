@@ -33,7 +33,7 @@ reconstruct old `ops/tasks.md` task lists.
   available.
 - Use `tasks/list` as the task source of truth. Pass `readiness:
   "underspecified"` by default when the user asks what needs clarification.
-- Use `me`, `members/list`, `tasks/list`, `read`, `search`, `query`,
+- Use `me`, `members/list`, `tasks/list`, `read`, `search`,
   `filing_rules`, and `tasks/update` as needed.
 - Do not call `tasks/enrich`; task clarification is owned by this skill, not a
   separate MCP enrichment endpoint.
@@ -57,7 +57,7 @@ reconstruct old `ops/tasks.md` task lists.
      the pass
    - when no status is named, review `in_progress`, `open`, and `waiting`
      tasks; do not include `done` or `archived` unless explicitly requested
-3. Read task bodies when summaries are not enough. Use `search` or `query` for
+3. Read task bodies when summaries are not enough. Use `search` for
    missing project, meeting, person, company, or decision context before asking
    the user.
 4. Classify each relevant task:

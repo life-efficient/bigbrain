@@ -384,7 +384,7 @@ async function handleSearch(args, global) {
     explain: options.explain,
   });
   await db.close?.();
-  output(global, result, renderWarningText(result.warnings, renderSearchText(result.fused, options.explain)));
+  output(global, result, renderWarningText(result.warnings, renderRetrievalText(result, options.explain)));
 }
 
 async function handleQuery(args, global) {
@@ -403,10 +403,7 @@ async function handleQuery(args, global) {
     expand: options.expand,
   });
   await db.close?.();
-  const text = result.answer
-    ? `${result.answer}\n\nSources:\n${renderSearchText(result.search.fused, options.explain)}`
-    : `No OpenAI answer generated.\n\nRetrieved:\n${renderSearchText(result.search.fused, options.explain)}`;
-  output(global, result, renderWarningText(result.warnings, text));
+  output(global, result, renderWarningText(result.warnings, renderRetrievalText(result.search, options.explain)));
 }
 
 async function handleLinks(args, global) {
@@ -1026,7 +1023,7 @@ Commands:
   put <slug>           (reads markdown from stdin)
   search <query> [--limit N] [--mode conservative|balanced|tokenmax] [--explain]
   search modes [--json]
-  query <question> [--limit N] [--mode conservative|balanced|tokenmax] [--explain] [--no-expand]
+  query <question>    (deprecated retrieval-only alias; use search)
   links <slug>
   backlinks <slug>
   recent [--since 24h] [--until ISO]
@@ -1142,6 +1139,10 @@ function renderRoutesText(routes) {
 function renderRecentText(report) {
   if (report.files.length === 0) return `No markdown files changed between ${report.window_start} and ${report.window_end}.`;
   return report.files.map((file) => `${file.mtime}  ${file.category.padEnd(10)}  ${file.relative_path}`).join('\n');
+}
+
+function renderRetrievalText(result, explain = false) {
+  return [renderSearchText(result.fused, explain), result.retrieval_context.context].filter(Boolean).join('\n\n');
 }
 
 function renderSearchText(rows, explain = false) {

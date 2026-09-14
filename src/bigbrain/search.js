@@ -14,14 +14,15 @@ import {
   listPageSlugs,
   semanticSearch,
 } from './db.js';
-import { DEFAULT_ANSWER_CONTEXT_MAX_BYTES } from './constants.js';
+import { DEFAULT_SEARCH_CONTEXT_MAX_BYTES } from './constants.js';
 import { buildFullDocumentEmbeddingInput } from './embedding-payload.js';
 import { parseMarkdownPage } from './markdown.js';
-import { answerQuestion, embedTexts, expandQueryVariants, rerankSearchResults } from './openai.js';
+import { embedTexts, expandQueryVariants, rerankSearchResults } from './openai.js';
 
 const RRF_K = 60;
 const HIGH_MATCH_FLOOR = 0.85;
 const SOLID_MATCH_FLOOR = 0.6;
+const DIAGNOSTIC_PREVIEW_MAX_CHARACTERS = 240;
 
 export const DEFAULT_SEARCH_MODE = 'balanced';
 export const RETRIEVAL_ABLATION_ARMS = Object.freeze({
@@ -236,14 +237,24 @@ export async function searchBrain({
     }
   }
   const finalResults = fused.slice(0, resolvedLimit);
+  const hydratedResults = await hydrateRankedResults(db, finalResults);
+  const retrievalContext = buildRankedRetrievalContext(hydratedResults, {
+    maxBytes: config.searchContextMaxBytes ?? config.answerContextMaxBytes,
+  });
+  if (retrievalContext.omitted_pages.length > 0) {
+    warnings.push(retrievalContext.stop_reason === 'missing_content'
+      ? `Retrieval context omitted ${retrievalContext.omitted_pages.length} page(s) because complete indexed page content was unavailable. Read the relevant pages directly before answering.`
+      : `Retrieval context omitted ${retrievalContext.omitted_pages.length} page(s) because the next complete page would exceed search_context_max_bytes=${retrievalContext.max_bytes}. No page content was truncated. Read omitted pages directly when needed.`);
+  }
   return {
     mode: resolvedMode,
     intent,
     expanded: queries.length > 1,
     queries,
-    lexical: lexicalLists[0] ?? [],
-    semantic: semanticLists[0] ?? [],
-    fused: explain ? finalResults : finalResults.map(compactResult),
+    lexical: (lexicalLists[0] ?? []).map((result) => compactResult(result, explain)),
+    semantic: (semanticLists[0] ?? []).map((result) => compactResult(result, explain)),
+    fused: finalResults.map((result) => compactResult(result, explain)),
+    retrieval_context: retrievalContext,
     ablation_arm: resolvedAblationArm,
     ranking_policy: resolvedRankingPolicy,
     ...(explain ? { explain: { mode: resolvedMode, intent, ablation_arm: resolvedAblationArm, ranking_policy: resolvedRankingPolicy, rerank_enabled: rerankEnabled, expansion_enabled: expansionEnabled } } : {}),
@@ -251,6 +262,7 @@ export async function searchBrain({
   };
 }
 
+/** @deprecated Use searchBrain and synthesize the answer in the calling harness. */
 export async function queryBrain({
   db,
   config,
@@ -272,52 +284,24 @@ export async function queryBrain({
     limit,
     mode,
     expand,
-    explain: true,
+    explain,
     apiKey,
     reranker,
     rankingPolicy,
   });
-  const hydratedResults = await hydrateRankedAnswerResults(db, search.fused);
-  const answerContext = buildRankedAnswerContext(hydratedResults, {
-    maxBytes: config.answerContextMaxBytes,
-  });
-  const context = answerContext.context;
-  const preferredSources = answerContext.included_pages.slice(0, 3);
-  const warnings = [...search.warnings];
-  if (answerContext.omitted_pages.length > 0) {
-    warnings.push(answerContext.stop_reason === 'missing_content'
-      ? `Answer context omitted ${answerContext.omitted_pages.length} page(s) because complete indexed page content was unavailable.`
-      : `Answer context omitted ${answerContext.omitted_pages.length} lower-ranked page(s) because complete page content would exceed answer_context_max_bytes=${answerContext.max_bytes}. No page content was truncated.`);
-  }
-  let answer = null;
-  if (!apiKey) {
-    warnings.push('OpenAI answer generation skipped because OPENAI_API_KEY is not set.');
-  } else if (!context) {
-    warnings.push('OpenAI answer generation skipped because no complete ranked page fit within the answer context budget.');
-  }
-  try {
-    if (apiKey && context) answer = await answerQuestion({ model: config.openaiQueryModel, apiKey, question: effectiveQuestion, context });
-  } catch (error) {
-    warnings.push(formatWarning('OpenAI answer generation unavailable; returning retrieved context only', error));
-  }
-  if (!explain) search.fused = search.fused.map(compactResult);
   return {
-    answer: answer || null,
-    preferred_sources: preferredSources,
-    answer_context: {
-      max_bytes: answerContext.max_bytes,
-      used_bytes: answerContext.used_bytes,
-      included_pages: answerContext.included_pages,
-      omitted_pages: answerContext.omitted_pages,
-      stop_reason: answerContext.stop_reason,
-    },
+    answer: null,
+    preferred_sources: search.retrieval_context.included_pages.slice(0, 3),
     search,
-    warnings,
+    warnings: [
+      'query is deprecated. Use search and answer from retrieval_context in the calling harness. BigBrain no longer generates answers.',
+      ...search.warnings,
+    ],
   };
 }
 
-export function buildRankedAnswerContext(results, {
-  maxBytes = DEFAULT_ANSWER_CONTEXT_MAX_BYTES,
+export function buildRankedRetrievalContext(results, {
+  maxBytes = DEFAULT_SEARCH_CONTEXT_MAX_BYTES,
 } = {}) {
   const max = normalizeContextByteBudget(maxBytes);
   const included = [];
@@ -325,13 +309,13 @@ export function buildRankedAnswerContext(results, {
   let stopReason = null;
 
   for (const result of results) {
-    const pageContent = String(result.answer_content ?? result.embedding_text ?? '');
+    const pageContent = String(result.retrieval_content ?? result.embedding_text ?? '');
     if (!pageContent) {
       stopReason = 'missing_content';
       break;
     }
-    const candidate = [...included, { ...result, answer_content: pageContent }];
-    const candidateContext = renderAnswerContext(candidate);
+    const candidate = [...included, { ...result, retrieval_content: pageContent }];
+    const candidateContext = renderRetrievalContext(candidate);
     if (Buffer.byteLength(candidateContext, 'utf8') > max) {
       stopReason = 'budget';
       break;
@@ -355,11 +339,11 @@ export function buildRankedAnswerContext(results, {
   };
 }
 
-export function formatAnswerContext(results, options = {}) {
-  return buildRankedAnswerContext(results, options).context;
+export function formatRetrievalContext(results, options = {}) {
+  return buildRankedRetrievalContext(results, options).context;
 }
 
-function renderAnswerContext(results) {
+function renderRetrievalContext(results) {
   const preferredSources = results.slice(0, 3).map((result, index) => (
     `${index + 1}. ${result.slug} — ${result.title || result.slug}`
   ));
@@ -368,7 +352,7 @@ function renderAnswerContext(results) {
     `Result ${index + 1}`,
     `Slug: ${result.slug}`,
     'Complete page embedding text:',
-    result.answer_content,
+    result.retrieval_content,
   ].join('\n'));
 
   return [
@@ -380,20 +364,20 @@ function renderAnswerContext(results) {
   ].join('\n');
 }
 
-async function hydrateRankedAnswerResults(db, results) {
+async function hydrateRankedResults(db, results) {
   const rows = await getPageContentRecordsBySlugs(db, results.map((result) => result.slug));
   const bySlug = new Map(rows.map((row) => [row.slug, row]));
   return results.map((result) => {
     const row = bySlug.get(result.slug);
-    if (row?.body_markdown === undefined || row?.body_markdown === null) return { ...result, answer_content: '' };
+    if (row?.body_markdown === undefined || row?.body_markdown === null) return { ...result, retrieval_content: '' };
     const page = parseMarkdownPage(row.body_markdown, row.slug);
-    return { ...result, answer_content: buildFullDocumentEmbeddingInput(page) };
+    return { ...result, retrieval_content: buildFullDocumentEmbeddingInput(page) };
   });
 }
 
 function normalizeContextByteBudget(value) {
   const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_ANSWER_CONTEXT_MAX_BYTES;
+  if (!Number.isFinite(numeric) || numeric <= 0) return DEFAULT_SEARCH_CONTEXT_MAX_BYTES;
   return Math.floor(numeric);
 }
 
@@ -880,14 +864,29 @@ function normalizeLimit(limit, fallback) {
   return Math.min(Math.floor(value), 100);
 }
 
-function compactResult(result) {
+function compactResult(result, explain = false) {
   const {
     frontmatter_json,
     rank_contributions,
     embedding_text,
+    input_text,
+    embedding_json,
+    summary,
+    snippet,
     ...rest
   } = result;
-  return rest;
+  return {
+    ...rest,
+    ...(summary === undefined ? {} : { summary: diagnosticPreview(summary) }),
+    ...(snippet === undefined ? {} : { snippet: diagnosticPreview(snippet) }),
+    ...(explain && rank_contributions ? { rank_contributions } : {}),
+  };
+}
+
+function diagnosticPreview(value) {
+  const text = String(value ?? '');
+  if (text.length <= DIAGNOSTIC_PREVIEW_MAX_CHARACTERS) return text;
+  return `${text.slice(0, DIAGNOSTIC_PREVIEW_MAX_CHARACTERS - 1)}…`;
 }
 
 function effectiveRrfK(baseK, weight) {

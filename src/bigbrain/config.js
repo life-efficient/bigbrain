@@ -14,7 +14,7 @@ import {
   DEFAULT_FRESHNESS_INPUTS,
   DEFAULT_MAX_EMBEDDING_PAGES_PER_SYNC,
   DEFAULT_POINTER_PATH,
-  DEFAULT_ANSWER_CONTEXT_MAX_BYTES,
+  DEFAULT_SEARCH_CONTEXT_MAX_BYTES,
   DEFAULT_QUERY_MODEL,
   DEFAULT_RAW_FILE_MAX_BYTES,
   DEFAULT_STATE_ROOT,
@@ -135,6 +135,7 @@ export async function resolveBrainHome({
 
 export function buildDefaultConfig(brainHome, env = process.env, { brainId = null, brainName = null } = {}) {
   const resolvedBrainHome = path.resolve(brainHome);
+  const searchContextBudget = env.BIGBRAIN_SEARCH_CONTEXT_MAX_BYTES ?? env.BIGBRAIN_ANSWER_CONTEXT_MAX_BYTES;
   return {
     brain_id: brainId || createBrainId(),
     brain_name: normalizeBrainName(brainName || defaultBrainName(resolvedBrainHome)),
@@ -145,10 +146,10 @@ export function buildDefaultConfig(brainHome, env = process.env, { brainId = nul
     sqlite_path: dbPathForBrainHome(resolvedBrainHome, env),
     openai_embedding_model: DEFAULT_EMBEDDING_MODEL,
     openai_query_model: DEFAULT_QUERY_MODEL,
-    answer_context_max_bytes: normalizePositiveInteger(
-      env.BIGBRAIN_ANSWER_CONTEXT_MAX_BYTES === undefined ? undefined : Number(env.BIGBRAIN_ANSWER_CONTEXT_MAX_BYTES),
-      DEFAULT_ANSWER_CONTEXT_MAX_BYTES,
-      'BIGBRAIN_ANSWER_CONTEXT_MAX_BYTES',
+    search_context_max_bytes: normalizePositiveInteger(
+      searchContextBudget === undefined ? undefined : Number(searchContextBudget),
+      DEFAULT_SEARCH_CONTEXT_MAX_BYTES,
+      'BIGBRAIN_SEARCH_CONTEXT_MAX_BYTES',
     ),
     freshness_inputs: [...DEFAULT_FRESHNESS_INPUTS],
     dashboard_port: DEFAULT_DASHBOARD_PORT,
@@ -248,10 +249,10 @@ export async function loadConfig(input = null) {
     sqlitePath: resolveConfigPathValue(raw.sqlite_path ?? derivedDefault.sqlite_path, brainHome, 'sqlite_path'),
     openaiEmbeddingModel: requireNonEmptyString(raw.openai_embedding_model ?? derivedDefault.openai_embedding_model, 'openai_embedding_model'),
     openaiQueryModel: requireNonEmptyString(raw.openai_query_model ?? derivedDefault.openai_query_model, 'openai_query_model'),
-    answerContextMaxBytes: normalizePositiveInteger(
-      raw.answer_context_max_bytes ?? derivedDefault.answer_context_max_bytes,
-      derivedDefault.answer_context_max_bytes,
-      'answer_context_max_bytes',
+    searchContextMaxBytes: normalizePositiveInteger(
+      raw.search_context_max_bytes ?? raw.answer_context_max_bytes ?? derivedDefault.search_context_max_bytes,
+      derivedDefault.search_context_max_bytes,
+      'search_context_max_bytes',
     ),
     freshnessInputs: normalizeStringArray(raw.freshness_inputs, derivedDefault.freshness_inputs, 'freshness_inputs'),
     dashboardPort: normalizePositiveInteger(raw.dashboard_port ?? derivedDefault.dashboard_port, DEFAULT_DASHBOARD_PORT, 'dashboard_port'),

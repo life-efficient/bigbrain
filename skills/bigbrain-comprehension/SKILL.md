@@ -8,7 +8,7 @@ Run a focused, evidence-based Comprehension session over important BigBrain page
 ## Contract Checklist
 
 - Read the user-scoped Comprehension guidance before choosing what to study.
-- Use existing BigBrain search, query, and read tools to select and inspect source pages.
+- Use existing BigBrain search and read tools to select and inspect source pages.
 - Treat the selected page and its linked source evidence as the curriculum authority.
 - Teach, test, remediate, and retest rather than accepting self-certification.
 - Persist one complete written summary after every meaningful interaction, especially during voice or realtime sessions.
@@ -24,7 +24,7 @@ Run a focused, evidence-based Comprehension session over important BigBrain page
    - Anti-patterns: ignoring the saved guidance, treating a generic topic framework as the source, silently crossing Brain ownership boundaries.
 
 2. Select and read the source page or pages.
-   - Consider prior session summaries across pages before ranking candidates. Then use existing `search`, `query`, or `pages/query` tools to find candidates and `list` or `read` to inspect them.
+   - Consider prior session summaries across pages before ranking candidates. Then use existing `search` or `pages/query` tools to find candidates and `list` or `read` to inspect them.
    - Rank candidates using judgement grounded in the saved guidance, page importance, current content, meaningful updates, unresolved gaps or next-resume steps, prerequisites, and fairness across eligible pages. Explain why the selected page is the best starting point.
    - If a page has linked raw transcript or source evidence, read it when needed for a faithful curriculum.
    - A page is eligible again when its current page update is later than the latest persisted summary for that page. Do not repeatedly review an unchanged page merely because it is visible in search results.

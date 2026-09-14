@@ -47,7 +47,7 @@ assignable task pages under `tasks/*.md`.
 2. Retrieve current context:
    - `filing_rules` for current task-page and routing conventions
    - `tasks/list` for existing in_progress, open, and waiting tasks
-   - `query` or `search` for projects, initiatives, roadmaps, blockers, recent
+   - `search` for projects, initiatives, roadmaps, blockers, recent
      meetings, legacy inbox questions, and relevant operating notes
    - direct `read` on the most relevant pages
 3. Identify task candidates:
