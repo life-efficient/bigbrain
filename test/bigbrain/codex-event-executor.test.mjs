@@ -119,11 +119,10 @@ test('RSS browser and prose output instructions reach both prompt layers across 
     const instructions = calls.find(call => call.method === 'thread/start').params.developerInstructions;
     const prompt = calls.find(call => call.method === 'turn/start').params.input[0].text;
     for (const text of [instructions, prompt]) {
-      assert.match(text, /use the in-Codex browser/);
-      assert.match(text, /Explicitly select the iab browser/);
-      assert.match(text, /targeted tool discovery first/);
+      assert.match(text, /any available documented browser or article-retrieval tool/);
+      assert.match(text, /Prefer the in-Codex browser when it is available/);
       assert.match(text, /ledger preflight and claim before article retrieval/);
-      assert.match(text, /explain what went wrong in plain language rather than automatically switching to an external browser/);
+      assert.match(text, /If every supported retrieval path fails, explain what went wrong in plain language/);
       assert.match(text, /Respond in natural prose stating whether you ingested it and why/);
       assert.match(text, /one-paragraph summary of the article whether ingested or skipped/);
       assert.match(text, /reliable summary is unavailable; do not invent one/);
