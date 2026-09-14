@@ -453,7 +453,22 @@ test('graph lineage combines current connections with source events', async () =
         },
       })} -->`,
     ].join('\n'));
-    await writeMarkdown(fixture.brainHome, 'people/mentor.md', '# Mentor\n');
+    await writeMarkdown(fixture.brainHome, 'people/mentor.md', [
+      '# Mentor',
+      '',
+      '---',
+      '',
+      '## Timeline',
+      '',
+      '- **2026-08-29** | Mentor update.',
+      `  <!-- bigbrain:timeline ${JSON.stringify({
+        schema_version: 1,
+        entry_id: 'mentor:event-0',
+        occurred_at: '2026-08-29',
+        recorded_at: '2026-08-30T10:00:00.000Z',
+        text: 'Mentor update.',
+      })} -->`,
+    ].join('\n'));
     await writeMarkdown(fixture.brainHome, 'projects/deal.md', '# Deal\n\nLinked to [[people/mentor]].\n');
     const config = await loadConfig({ configPath: fixture.configPath });
     await syncBrain({ config, apiKey: null });
@@ -483,23 +498,16 @@ test('graph lineage combines current connections with source events', async () =
       received_at: '2026-08-28T10:00:00.000Z',
     }]);
     assert.deepEqual(lineage.timeline_updates, [{
-      entry_id: 'gmail:event-0',
-      page: { slug: 'people/friend', title: 'Friend', type: 'people' },
-      occurred_at: '2026-08-27',
+      entry_id: 'mentor:event-0',
+      page: { slug: 'people/mentor', title: 'Mentor', type: 'people' },
+      occurred_at: '2026-08-29',
       occurred_label: null,
-      recorded_at: '2026-08-28T10:00:00.000Z',
-      text: 'Introduced Mentor.',
+      recorded_at: '2026-08-30T10:00:00.000Z',
+      text: 'Mentor update.',
       significance: null,
-      provenance: {
-        event_id: 'gmail:event-0',
-        source_type: 'gmail',
-        source_label: 'Friend thread',
-        source_message: 'The source context that led to the introduction.',
-        source_icon: null,
-        source_url: null,
-        received_at: '2026-08-28T10:00:00.000Z',
-      },
+      provenance: null,
     }]);
+    assert.doesNotMatch(JSON.stringify(lineage.timeline_updates), /people\/friend/);
     assert.ok(Array.isArray(lineage.link_events));
     await db.close?.();
   } finally {

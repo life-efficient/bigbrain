@@ -526,6 +526,8 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /key=\{`focused-subgraph:\$\{focusSlug\}`\}/);
   assert.match(main, /key="full-graph"/);
   assert.match(main, /timeline_updates/);
+  assert.match(main, /const focusSlug = normalizeFocusedGraphSlug\(lineage\?\.slug\);[\s\S]*\.filter\(\(update\) => normalizeFocusedGraphSlug\(update\?\.page\?\.slug\) === focusSlug\)/);
+  assert.match(main, /find\(\(node\) => normalizeFocusedGraphSlug\(node\?\.slug\) === focusSlug && node\.latest_timeline_entry\)/);
   assert.match(main, /focusedNetworkStats\.direct/);
   assert.match(focusedData, /focus_branch/);
   assert.match(focusedData, /incomingByTarget/);

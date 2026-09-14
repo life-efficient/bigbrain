@@ -2764,22 +2764,23 @@ function buildFocusedSubgraphGraph(graph, lineage, focusSlug) {
 }
 
 function buildFocusedTimelineUpdates(lineage, graph) {
-  const updates = Array.isArray(lineage?.timeline_updates) ? lineage.timeline_updates : [];
+  const focusSlug = normalizeFocusedGraphSlug(lineage?.slug);
+  const updates = (Array.isArray(lineage?.timeline_updates) ? lineage.timeline_updates : [])
+    .filter((update) => normalizeFocusedGraphSlug(update?.page?.slug) === focusSlug);
   if (updates.length) return updates;
-  if (!lineage || lineage.status !== 'ready') return [];
-  return (Array.isArray(graph?.nodes) ? graph.nodes : [])
-    .filter((node) => node?.slug && node.latest_timeline_entry)
-    .map((node) => ({
-      entry_id: `latest:${node.slug}`,
-      page: { slug: node.slug, title: node.title, type: node.type },
-      occurred_at: node.updated_at || node.created_at || null,
-      occurred_label: null,
-      recorded_at: null,
-      text: node.latest_timeline_entry,
-      significance: null,
-      provenance: null,
-    }))
-    .sort((left, right) => String(left.occurred_at || '').localeCompare(String(right.occurred_at || '')));
+  if (!lineage || lineage.status !== 'ready' || !focusSlug) return [];
+  const focusedNode = (Array.isArray(graph?.nodes) ? graph.nodes : [])
+    .find((node) => normalizeFocusedGraphSlug(node?.slug) === focusSlug && node.latest_timeline_entry);
+  return focusedNode ? [{
+    entry_id: `latest:${focusedNode.slug}`,
+    page: { slug: focusedNode.slug, title: focusedNode.title, type: focusedNode.type },
+    occurred_at: focusedNode.updated_at || focusedNode.created_at || null,
+    occurred_label: null,
+    recorded_at: null,
+    text: focusedNode.latest_timeline_entry,
+    significance: null,
+    provenance: null,
+  }] : [];
 }
 
 function activityModeLabel(mode) {

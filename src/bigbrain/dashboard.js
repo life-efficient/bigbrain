@@ -3467,7 +3467,7 @@ export async function buildGraphLineagePayload(db, config, slug) {
     page: pageSummary(normalizedSlug),
     outgoing: outgoing.map((link) => ({ ...link, page: pageSummary(link.to_slug) })),
     backlinks: backlinks.map((link) => ({ ...link, page: pageSummary(link.from_slug) })),
-    timeline_updates: buildFocusedTimelineUpdates(relatedPages, pageSummary),
+    timeline_updates: buildFocusedTimelineUpdates([page], pageSummary),
     provenance: provenance
       .filter((row) => isGraphInputOutcome(row.outcome))
       .map((row) => ({
@@ -3489,8 +3489,8 @@ export async function buildGraphLineagePayload(db, config, slug) {
   };
 }
 
-function buildFocusedTimelineUpdates(relatedPages, pageSummary) {
-  return [...relatedPages.values()].flatMap((page) => parseTimeline(page.timeline).entries.map((entry) => ({
+function buildFocusedTimelineUpdates(pages, pageSummary) {
+  return pages.flatMap((page) => parseTimeline(page.timeline).entries.map((entry) => ({
     entry_id: entry.entry_id || null,
     page: pageSummary(page.slug),
     occurred_at: entry.occurred_at || null,
