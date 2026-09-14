@@ -3205,7 +3205,7 @@ const GraphPanel = memo(function GraphPanel({
           </button>
         </div>
       ) : null}
-      <div className={`graph-wrap graph-wrap-expanded ${flowVisible ? 'graph-flow-enabled' : ''} ${focusSlug ? 'graph-wrap-focused' : ''}`}>
+      <div className={`graph-wrap graph-wrap-expanded ${flowVisible ? 'graph-flow-enabled' : ''} ${focusSlug ? 'graph-wrap-focused' : ''} ${focusSlug && focusedViewMode === 'network' ? 'graph-wrap-focused-network' : ''}`}>
         <div className={focusSlug ? 'focused-view-stage' : 'graph-canvas-stage'}>
           {focusSlug ? (
             focusedViewMode === 'timeline' ? (

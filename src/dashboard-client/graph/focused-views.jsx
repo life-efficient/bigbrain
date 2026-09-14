@@ -203,13 +203,6 @@ export const FocusedTimelineView = memo(function FocusedTimelineView({ lineage, 
 
   return (
     <div className="focused-view focused-timeline-view" aria-label="Focused page timeline">
-      <div className="focused-view-heading">
-        <div>
-          <span className="focused-view-kicker">Timeline</span>
-          <strong>Page updates and their sources</strong>
-        </div>
-        <span className="focused-view-hint">Structured timeline entries</span>
-      </div>
       {lineage?.status === 'loading' ? <div className="focused-view-empty" role="status">Loading page history…</div> : null}
       {lineage?.status === 'error' ? <div className="focused-view-empty" role="status">{lineage.message || 'Timeline is unavailable.'}</div> : null}
       {lineage?.status === 'ready' && !updates.length ? (

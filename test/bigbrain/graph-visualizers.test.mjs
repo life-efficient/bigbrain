@@ -558,9 +558,13 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /if \(!lineage\) return undefined/);
   assert.match(dashboard, /\.graph-focus-banner \{[\s\S]*flex: 0 0 auto;[\s\S]*width: 100%; max-width: none;[\s\S]*margin: 0 0 10px;/);
   assert.match(dashboard, /\.graph-wrap-focused \.focused-view-stage \{[\s\S]*position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; overflow: hidden;/);
+  assert.match(main, /graph-wrap-focused-network/);
+  assert.match(dashboard, /\.graph-wrap-focused-network \{[^}]*border: 0; border-radius: 0;/);
+  assert.match(dashboard, /\.focused-view-empty \{[^}]*height: 100%;/);
   assert.match(dashboard, /\.focused-network-view \{[^}]*padding: 0;/);
   assert.match(dashboard, /\.focused-network-scroll \{[^}]*border: 0; border-radius: 0; background: transparent;/);
   assert.match(dashboard, /\.focused-network-node\.collapsed circle:first-child/);
+  assert.doesNotMatch(focusedViews, /focused-view-heading|Page updates and their sources|Structured timeline entries/);
 });
 
 test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async () => {

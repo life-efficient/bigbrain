@@ -1148,6 +1148,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-wrap-expanded { flex: 1; min-height: 0; height: auto; }
       .graph-canvas-stage { position: absolute; inset: 0; transition: opacity 260ms ease, transform 320ms cubic-bezier(.22,.61,.36,1), filter 260ms ease; }
       .graph-wrap-focused { display: block; }
+      .graph-wrap-focused-network { border: 0; border-radius: 0; }
       .graph-focus-banner { position: relative; z-index: 4; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; flex: 0 0 auto; gap: 10px 14px; width: 100%; max-width: none; box-sizing: border-box; margin: 0 0 10px; padding: 10px 12px; border: 1px solid rgba(148,163,184,0.22); border-radius: 14px; background: rgba(12,12,14,0.92); box-shadow: 0 18px 42px rgba(0,0,0,0.24), inset 0 1px 0 rgba(255,255,255,0.04); backdrop-filter: blur(18px); }
       .graph-focus-copy { min-width: 0; display: grid; gap: 2px; }
       .graph-focus-copy span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
@@ -1162,12 +1163,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .focused-view-stage { position: absolute; inset: 0; overflow: hidden; }
       .graph-wrap-focused .focused-view-stage { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; overflow: hidden; }
       .focused-view { box-sizing: border-box; height: 100%; min-height: 0; padding: 18px; overflow: hidden; background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.035), transparent 38%); }
-      .focused-view-heading { display: flex; align-items: end; justify-content: space-between; gap: 14px; margin: 0 auto 12px; max-width: 1120px; color: var(--ink); }
-      .focused-view-heading > div { min-width: 0; display: grid; gap: 4px; }
-      .focused-view-kicker { color: var(--muted); font: 800 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.12em; text-transform: uppercase; }
-      .focused-view-heading strong { overflow: hidden; font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-      .focused-view-hint { flex: 0 0 auto; color: var(--muted); font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
-      .focused-view-empty { display: grid; place-items: center; height: calc(100% - 42px); color: var(--muted); font-size: 13px; text-align: center; }
+      .focused-view-empty { display: grid; place-items: center; height: 100%; color: var(--muted); font-size: 13px; text-align: center; }
       .focused-network-view { display: flex; flex-direction: column; padding: 0; }
       .focused-network-scroll { flex: 1; min-height: 0; overflow: auto; border: 0; border-radius: 0; background: transparent; }
       .focused-network-svg { display: block; max-width: none; }
