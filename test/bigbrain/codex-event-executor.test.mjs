@@ -271,3 +271,22 @@ test('CLI JSON parsing tolerates progress lines', () => {
   assert.deepEqual(parseCodexJsonOutput(`{"type":"thread.started","thread_id":"thread-1"}\n{"type":"item.completed","item":{"type":"agent_message","text":"{\\"status\\":\\"filed\\",\\"reason\\":\\"ok\\",\\"destinations\\":[]}"}}\n{"type":"turn.completed"}`), { status: 'filed', reason: 'ok', destinations: [] });
   assert.equal(parseCodexThreadId(`{"type":"thread.started","thread_id":"thread-1"}`), 'thread-1');
 });
+
+test('all RSS prompts retain ledger identity and scope outside configurable display fields', () => {
+  const prompt = buildEventPrompt({ event_id: 'event-42', delivery_id: 'delivery-42', listener_id: 'query-feed', type: 'rss.item', allowed_brain_ids: ['personal'], payload: { title: 'Article', link: 'https://publisher.test/?article=42', published_at: '2026-09-14T10:00:00Z', guid: 'item-42' } }, { type: 'rss', url: 'https://feedhost.test/rss', prompt_payload_fields: ['title'] }, { allowedDestinations: [{ id: 'personal', name: 'Personal Brain' }] });
+  for (const text of ['rss/workflow', 'rss/ledger', 'query-feed', 'https://publisher.test/?article=42', 'https://feedhost.test/rss', '2026-09-14T10:00:00Z', 'event-42', 'delivery-42', 'item-42', 'personal', 'Personal Brain']) assert.ok(prompt.includes(text), text);
+  assert.match(prompt, /acquire its atomic claim/);
+  assert.match(prompt, /Never open TextEdit, Finder, Terminal/);
+  assert.match(prompt, /runtime verifies the ledger outcome/);
+});
+
+test('generic RSS app tasks receive MCP-only workflow access at developer priority', async () => {
+  const calls = [];
+  const executor = new CodexAppThreadExecutor({ clientFactory: async () => ({ notifications: [], request: async (method, args) => { calls.push({ method, args }); return method === 'thread/start' ? { thread: { id: 'rss-thread' } } : { id: 'rss-turn' }; }, notify: async () => {}, close: async () => {} }) });
+  await executor.execute({ event: { type: 'rss.item', payload: { link: 'https://publisher.test/article' } }, listener: { type: 'rss' } });
+  const instructions = calls.find(call => call.method === 'thread/start').args.developerInstructions;
+  assert.match(instructions, /rss\/workflow/);
+  assert.match(instructions, /rss\/ledger/);
+  assert.match(instructions, /Never open TextEdit, Finder, Terminal/);
+  assert.match(instructions, /leave completion and watermarks unchanged/);
+});

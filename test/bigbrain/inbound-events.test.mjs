@@ -237,7 +237,7 @@ test('RSS collector resets its polling guard after a registry failure', async ()
   }
 });
 
-test('processor records completed RSS tasks without brokering their chat output', async () => {
+test('processor quarantines RSS success claims without ledger proof and never brokers chat output', async () => {
   const paths = await fixture();
   try {
     const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
@@ -246,17 +246,17 @@ test('processor records completed RSS tasks without brokering their chat output'
     const event = createRssEventEnvelope({ listener: rssListener(), item: { title: 'Useful', link: 'https://example.test/useful', guid: 'useful', raw: '<item />' } });
     const queued = await inbox.enqueue(event, { clientId: 'client-1' });
     const calls = [];
-    const processor = new InboundEventProcessor({
+    const processor = new InboundEventProcessor({ rssLedgerPrepare: async () => {}, rssLedgerReader: async () => null,
       registryStore: registry,
       inboxStore: inbox,
       executorFactory: async () => ({ execute: async () => ({ execution_id: 'exec-1', thread_id: 'thread-1', outcome: { status: 'filed', capture_mode: 'summary', reason: 'useful', destinations: [{ brain_id: 'brain_personal', writes: [] }] } }) }),
       filingBroker: { file: async (input, outcome) => { calls.push({ input, outcome }); return { status: 'filed', destinations: [] }; } },
     });
     const processed = await processor.process(queued.event.delivery_id);
-    assert.equal(processed.state, 'filed');
+    assert.equal(processed.state, 'quarantined');
     assert.equal(processed.thread_id, 'thread-1');
     assert.equal(calls.length, 0);
-    assert.equal((await inbox.list({ state: 'filed' })).length, 1);
+    assert.equal((await inbox.list({ state: 'filed' })).length, 0);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
@@ -285,7 +285,7 @@ test('Substack RSS completion requires terminal scoped ledger evidence, regardle
       const url = 'https://publisher.test/p/post';
       const queued = await inbox.enqueue(createRssEventEnvelope({ listener, item: { title: 'Post', link: url, guid: 'post' } }), { clientId: 'client-1' });
       let executed = false;
-      const processor = new InboundEventProcessor({
+      const processor = new InboundEventProcessor({ rssLedgerPrepare: async () => {}, rssLedgerReader: async () => null,
         registryStore: registry, inboxStore: inbox,
         substackLedgerReader: async (value) => { assert.equal(value, url); return executed && record ? { url, ...record } : null; },
         executorFactory: async () => ({ execute: async () => { executed = true; return { mode: 'app_thread', execution_id: 'turn-1', thread_id: 'thread-1', response_text: 'Task finished.', outcome: { status: 'filed', reason: 'Done', destinations: [] } }; } }),
@@ -317,7 +317,7 @@ test('Substack cross-channel verified duplicates skip executor creation, while w
       const inbox = new EventInboxStore({ filePath: paths.inboxPath });
       const queued = await inbox.enqueue(createRssEventEnvelope({ listener, item: { title: 'Post', link: url, guid: 'post' } }), { clientId: 'client-1' });
       let executed = false;
-      const processor = new InboundEventProcessor({ registryStore: registry, inboxStore: inbox,
+      const processor = new InboundEventProcessor({ rssLedgerPrepare: async () => {}, rssLedgerReader: async () => null, registryStore: registry, inboxStore: inbox,
         substackLedgerReader: async (value) => { assert.equal(value, url); return record; },
         executorFactory: async () => {
           assert.equal(shouldExecute, true, 'A verified duplicate must not create a Codex executor or task');
@@ -394,7 +394,7 @@ test('RSS event envelopes retain source bodies beyond the generic metadata strin
   assert.equal(event.metadata.source_document.raw_body, rawBody);
 });
 
-test('processor does not validate or replay RSS task output', async () => {
+test('processor requires ledger proof even when RSS source bytes were fetched', async () => {
   const paths = await fixture();
   try {
     const listener = rssListener({ article_policy: { fetch_source: true, preserve_source: true, require_source: true } });
@@ -403,21 +403,21 @@ test('processor does not validate or replay RSS task output', async () => {
     const inbox = new EventInboxStore({ filePath: paths.inboxPath });
     const event = createRssEventEnvelope({ listener, item: { title: 'Useful', link: 'https://example.test/useful', guid: 'useful', raw: '<item />' }, sourceDocument: { status: 'fetched', raw_body: '<html>source</html>', text: 'source' } });
     const queued = await inbox.enqueue(event, { clientId: 'client-1' });
-    const processor = new InboundEventProcessor({
+    const processor = new InboundEventProcessor({ rssLedgerPrepare: async () => {}, rssLedgerReader: async () => null,
       registryStore: registry,
       inboxStore: inbox,
       executorFactory: async () => ({ execute: async () => ({ execution_id: 'exec-1', thread_id: 'thread-1', outcome: { status: 'filed', capture_mode: 'full', reason: 'useful', destinations: [{ brain_id: 'brain_personal', writes: [] }] } }) }),
       filingBroker: { file: async () => { throw new Error('RSS task output must not be brokered'); } },
     });
     const processed = await processor.process(queued.event.delivery_id);
-    assert.equal(processed.state, 'filed');
-    assert.match(processed.outcome.reason, /normal Codex article-ingestion task/);
+    assert.equal(processed.state, 'quarantined');
+    assert.match(processed.last_error, /no verified terminal ledger outcome/);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
 });
 
-test('processor treats a successful normal-language RSS task as complete without broker replay', async () => {
+test('processor does not treat successful RSS prose as verified ingestion', async () => {
   const paths = await fixture();
   try {
     const listener = rssListener({ skill: 'bigbrain-ingest' });
@@ -425,22 +425,22 @@ test('processor treats a successful normal-language RSS task as complete without
     await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [listener] });
     const inbox = new EventInboxStore({ filePath: paths.inboxPath });
     const queued = await inbox.enqueue(createRssEventEnvelope({ listener, item: { title: 'Useful', link: 'https://example.test/useful', guid: 'useful', pubDate: 'Thu, 28 Aug 2026 10:00:00 GMT', raw: '<item />' } }), { clientId: 'client-1' });
-    const processor = new InboundEventProcessor({
+    const processor = new InboundEventProcessor({ rssLedgerPrepare: async () => {}, rssLedgerReader: async () => null,
       registryStore: registry,
       inboxStore: inbox,
       executorFactory: async () => ({ execute: async () => ({ mode: 'app_thread', execution_id: 'turn-1', thread_id: 'thread-1', response_text: 'Ingested through the BigBrain MCP.' }) }),
       filingBroker: { file: async () => { throw new Error('broker must not replay a direct MCP write'); } },
     });
     const processed = await processor.process(queued.event.delivery_id);
-    assert.equal(processed.state, 'filed');
+    assert.equal(processed.state, 'quarantined');
     assert.equal(processed.thread_id, 'thread-1');
-    assert.match(processed.outcome.reason, /normal Codex article-ingestion task/);
+    assert.match(processed.last_error, /no verified terminal ledger outcome/);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
 });
 
-test('processor ignores RSS chat output and records only task completion', async () => {
+test('processor leaves RSS review requests unresolved without ledger completion', async () => {
   const paths = await fixture();
   try {
     const listener = rssListener();
@@ -448,15 +448,15 @@ test('processor ignores RSS chat output and records only task completion', async
     await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [listener] });
     const inbox = new EventInboxStore({ filePath: paths.inboxPath });
     const queued = await inbox.enqueue(createRssEventEnvelope({ listener, item: { title: 'Useful', link: 'https://example.test/useful', guid: 'useful', raw: '<item />' } }), { clientId: 'client-1' });
-    const processor = new InboundEventProcessor({
+    const processor = new InboundEventProcessor({ rssLedgerPrepare: async () => {}, rssLedgerReader: async () => null,
       registryStore: registry,
       inboxStore: inbox,
       executorFactory: async () => ({ execute: async () => ({ mode: 'app_thread', execution_id: 'turn-1', thread_id: 'thread-1', outcome: { status: 'needs_review', reason: 'chat summary text', destinations: [] } }) }),
       filingBroker: { file: async () => { throw new Error('RSS task output must not be brokered'); } },
     });
     const processed = await processor.process(queued.event.delivery_id);
-    assert.equal(processed.state, 'filed');
-    assert.match(processed.outcome.reason, /normal Codex article-ingestion task/);
+    assert.equal(processed.state, 'quarantined');
+    assert.match(processed.last_error, /no verified terminal ledger outcome/);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
@@ -539,7 +539,7 @@ test('Granola completion webhook is normalized, processed, filed, and deduplicat
   await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [granola] });
   const inbox = new EventInboxStore({ filePath: paths.inboxPath });
   const executions = [];
-  const processor = new InboundEventProcessor({
+  const processor = new InboundEventProcessor({ rssLedgerPrepare: async () => {}, rssLedgerReader: async () => null,
     registryStore: registry,
     inboxStore: inbox,
     executorFactory: async () => ({ execute: async ({ event }) => {
@@ -650,8 +650,8 @@ test('client delivery route preserves host RSS origin and explicit Brain scope',
 
 test('runtime lock prevents a desktop and service poller from running concurrently', async () => {
   const paths = await fixture();
-  const first = new InboundEventRuntime({ registryPath: paths.registryPath, inboxPath: paths.inboxPath, webhook: { enabled: false } });
-  const second = new InboundEventRuntime({ registryPath: paths.registryPath, inboxPath: paths.inboxPath, webhook: { enabled: false } });
+  const first = new InboundEventRuntime({ rssLedgerPrepare: async () => {}, rssLedgerReader: async () => null, registryPath: paths.registryPath, inboxPath: paths.inboxPath, webhook: { enabled: false } });
+  const second = new InboundEventRuntime({ rssLedgerPrepare: async () => {}, rssLedgerReader: async () => null, registryPath: paths.registryPath, inboxPath: paths.inboxPath, webhook: { enabled: false } });
   try {
     await first.start();
     await assert.rejects(() => second.start(), /already running/);
@@ -671,7 +671,7 @@ test('RSS failures are isolated from webhook serving and webhook failures do not
     await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [rssListener({ id: 'feed', url: 'https://example.test/feed.xml' }), webhook] });
     const inbox = new EventInboxStore({ filePath: paths.inboxPath });
     let rssFetches = 0;
-    runtime = new InboundEventRuntime({
+    runtime = new InboundEventRuntime({ rssLedgerPrepare: async () => {}, rssLedgerReader: async () => null,
       registryPath: paths.registryPath,
       inboxPath: paths.inboxPath,
       webhook: { enabled: true, host: '127.0.0.1', port: 0 },
@@ -728,7 +728,7 @@ test('webhook startup failure degrades only the webhook plane and still runs RSS
       listeners: [rssListener({ id: 'feed', url: 'https://example.test/feed.xml' }), normalizeListener({ id: 'calendar', type: 'webhook', brain_ids: ['brain_personal'] })],
     });
     const inbox = new EventInboxStore({ filePath: paths.inboxPath });
-    const runtime = new InboundEventRuntime({
+    const runtime = new InboundEventRuntime({ rssLedgerPrepare: async () => {}, rssLedgerReader: async () => null,
       registryPath: paths.registryPath,
       inboxPath: paths.inboxPath,
       webhook: { enabled: true, host: '127.0.0.1', port: blocker.address().port },
@@ -746,4 +746,73 @@ test('webhook startup failure degrades only the webhook plane and still runs RSS
     await new Promise((resolve) => blocker.close(resolve));
     await fs.rm(paths.root, { recursive: true, force: true });
   }
+});
+
+test('generic RSS uses persisted verified outcomes for completion and duplicate delivery suppression', async () => {
+  const { openRssLedger } = await import('../../src/bigbrain/rss-ledger.js');
+  const paths = await fixture();
+  const ledger = openRssLedger({ ledgerPath: path.join(paths.root, 'rss.sqlite') });
+  try {
+    const listener = rssListener({ id: 'general-feed' });
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [listener] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+    const url = 'https://publisher.test/?article=42';
+    const publishedAt = '2026-09-12T10:00:00.000Z';
+    let executions = 0;
+    const processor = new InboundEventProcessor({ registryStore: registry, inboxStore: inbox,
+      rssLedgerPrepare: async (event, source) => {
+        ledger.feedUpsert({ feedId: source.id, feedUrl: source.url, title: 'General feed' });
+        ledger.discover({ feedId: source.id, url: event.payload.link, title: event.payload.title, publishedAt: event.payload.published_at, channel: 'rss' });
+      },
+      rssLedgerReader: async (value) => ledger.post(value),
+      executorFactory: async () => ({ execute: async () => {
+        executions += 1;
+        assert.equal(ledger.status({ feedId: listener.id }).feeds[0].filed_high_watermark, null);
+        const claim = ledger.claim({ url, owner: 'test-worker' });
+        assert.equal(claim.claimed, true);
+        ledger.complete({ url, leaseToken: claim.leaseToken, outcome: 'source_only', verification: { readBack: true, verifiedAt: new Date().toISOString(), brainId: 'brain_personal', paths: ['concepts/.raw/post.html', 'concepts/.raw/post.md'], evidence: 'Verified raw publisher source and indexed sidecar through the owning Brain.' } });
+        return { mode: 'app_thread', thread_id: 'rss-task', response_text: 'Saved the article.' };
+      } }),
+      filingBroker: { file: async () => { throw new Error('Never replay already verified writes'); } },
+    });
+    for (const guid of ['first-delivery', 'later-delivery']) {
+      const queued = await inbox.enqueue(createRssEventEnvelope({ listener, item: { title: 'Post', link: url, guid, published_at: publishedAt } }), { clientId: 'client-1' });
+      const result = await processor.process(queued.event.delivery_id);
+      assert.equal(result.state, 'filed');
+      assert.equal(result.outcome.rss_outcome, 'source_only');
+      if (guid === 'later-delivery') {
+        assert.equal(result.execution_meta.mode, 'rss_ledger');
+        assert.equal(result.thread_id, null);
+      }
+    }
+    assert.equal(executions, 1);
+    const feed = ledger.status({ feedId: listener.id }).feeds[0];
+    assert.equal(feed.filed_low_watermark, publishedAt);
+    assert.equal(feed.filed_high_watermark, publishedAt);
+    assert.equal(feed.outstanding_count, 0);
+  } finally { ledger.close(); await fs.rm(paths.root, { recursive: true, force: true }); }
+});
+
+test('generic RSS wrong-Brain and unverified ignored outcomes never complete a delivery', async (t) => {
+  for (const record of [
+    { outcome: 'source_only', verification: { readBack: true, verifiedAt: '2026-09-14T10:00:00Z', brainId: 'other-brain', paths: ['concepts/.raw/post.md'], evidence: 'Wrong scope.' } },
+    { outcome: 'ignored', reason: 'No relevance', verification: null },
+  ]) await t.test(record.outcome, async () => {
+    const paths = await fixture();
+    try {
+      const listener = rssListener();
+      const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+      await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [listener] });
+      const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+      const queued = await inbox.enqueue(createRssEventEnvelope({ listener, item: { title: 'Post', link: 'https://example.test/post', guid: 'post' } }), { clientId: 'client-1' });
+      const processor = new InboundEventProcessor({ registryStore: registry, inboxStore: inbox,
+        rssLedgerPrepare: async () => {}, rssLedgerReader: async () => record,
+        executorFactory: async () => ({ execute: async () => ({ thread_id: 'review-task', response_text: 'Done.' }) }),
+      });
+      const result = await processor.process(queued.event.delivery_id);
+      assert.equal(result.state, 'quarantined');
+      assert.match(result.last_error, /no verified terminal ledger outcome in an allowed Brain/);
+    } finally { await fs.rm(paths.root, { recursive: true, force: true }); }
+  });
 });

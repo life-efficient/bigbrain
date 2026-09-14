@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import { CodexAppThreadExecutor, CodexCliExecutor, isSubstackRssEvent, normalizeCodexOutcome } from './codex-event-executor.js';
 import { openSubstackLedger } from './substack-ledger.js';
+import { openRssLedger } from './rss-ledger.js';
 import { DEFAULT_RSS_POLL_LIMIT, RssCollector } from './rss-events.js';
 import { InboundWebhookServer } from './webhook-events.js';
 import { normalizeSourceType } from './source-taxonomy.js';
@@ -612,13 +613,15 @@ export class EventInboxStore {
 }
 
 export class InboundEventProcessor {
-  constructor({ registryStore, inboxStore, executorFactory, filingBroker = null, substackLedgerReader = readSubstackLedgerPost, logger = console, now = () => new Date() } = {}) {
+  constructor({ registryStore, inboxStore, executorFactory, filingBroker = null, substackLedgerReader = readSubstackLedgerPost, rssLedgerReader = readRssLedgerPost, rssLedgerPrepare = prepareRssLedgerPost, logger = console, now = () => new Date() } = {}) {
     if (!registryStore || !inboxStore) throw new Error('Inbound event processor requires registryStore and inboxStore.');
     this.registryStore = registryStore;
     this.inboxStore = inboxStore;
     this.executorFactory = executorFactory;
     this.filingBroker = filingBroker;
     this.substackLedgerReader = substackLedgerReader;
+    this.rssLedgerReader = rssLedgerReader;
+    this.rssLedgerPrepare = rssLedgerPrepare;
     this.logger = logger;
     this.now = now;
   }
@@ -651,19 +654,24 @@ export class InboundEventProcessor {
       if (processingEvent.execution.location !== registry.runtime.kind) {
         throw new Error(`Event requires Codex processing on ${processingEvent.execution.location}, but this runtime is ${registry.runtime.kind}.`);
       }
-      if (isSubstackRssEvent(processingEvent, listener)) {
+      const isSubstack = isSubstackRssEvent(processingEvent, listener);
+      const isRss = processingEvent.type === 'rss.item' || listener.type === 'rss';
+      const ledgerLabel = isSubstack ? 'Substack' : 'RSS';
+      const ledgerReader = isSubstack ? this.substackLedgerReader : this.rssLedgerReader;
+      if (isRss) {
+        if (!isSubstack) await this.rssLedgerPrepare(processingEvent, listener);
         let previous = null;
-        try { previous = await this.substackLedgerReader(processingEvent.payload?.link || processingEvent.payload?.url); } catch {
+        try { previous = await ledgerReader(processingEvent.payload?.link || processingEvent.payload?.url); } catch {
           // A missing post or unavailable ledger is not a duplicate. Let the
           // normal skill discover/claim it, then require verified completion.
         }
-        const outcome = verifiedSubstackOutcome(previous, allowedDestinations, classification.decision);
+        const outcome = verifiedRssOutcome(previous, allowedDestinations, classification.decision, isSubstack);
         if (outcome) {
           return this.inboxStore.complete(deliveryId, {
             state: outcome.status,
             outcome,
-            executionId: `substack-ledger-${this.now().getTime()}`,
-            executionMeta: { mode: 'substack_ledger', exit_status: 0 },
+            executionId: `${isSubstack ? 'substack' : 'rss'}-ledger-${this.now().getTime()}`,
+            executionMeta: { mode: isSubstack ? 'substack_ledger' : 'rss_ledger', exit_status: 0 },
             retainRaw: listener.capture_policy.retain_raw,
           });
         }
@@ -671,35 +679,20 @@ export class InboundEventProcessor {
       const executor = await this.executorFactory({ mode: processingEvent.execution.mode, location: processingEvent.execution.location, listener, registry });
       if (!executor || typeof executor.execute !== 'function') throw new Error(`No Codex executor is configured for ${processingEvent.execution.location}/${processingEvent.execution.mode}.`);
       execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
-      if (isSubstackRssEvent(processingEvent, listener)) {
+      if (isRss) {
         let record;
         try {
-          record = await this.substackLedgerReader(processingEvent.payload?.link || processingEvent.payload?.url);
+          record = await ledgerReader(processingEvent.payload?.link || processingEvent.payload?.url);
         } catch (error) {
-          return this.inboxStore.fail(deliveryId, `Substack ledger verification unavailable: ${error.message}`, { quarantine: true, executionId: execution?.execution_id, threadId: execution?.thread_id, executionMeta: executionMetadata(execution) });
+          return this.inboxStore.fail(deliveryId, `${ledgerLabel} ledger verification unavailable: ${error.message}`, { quarantine: true, executionId: execution?.execution_id, threadId: execution?.thread_id, executionMeta: executionMetadata(execution) });
         }
-        const outcome = verifiedSubstackOutcome(record, allowedDestinations, classification.decision);
+        const outcome = verifiedRssOutcome(record, allowedDestinations, classification.decision, isSubstack);
         if (!outcome) {
-          return this.inboxStore.fail(deliveryId, 'Substack article has no verified terminal ledger outcome in an allowed Brain; leave it for review.', { quarantine: true, executionId: execution?.execution_id, threadId: execution?.thread_id, executionMeta: executionMetadata(execution) });
+          return this.inboxStore.fail(deliveryId, `${ledgerLabel} article has no verified terminal ledger outcome in an allowed Brain; leave it for review.`, { quarantine: true, executionId: execution?.execution_id, threadId: execution?.thread_id, executionMeta: executionMetadata(execution) });
         }
         return this.inboxStore.complete(deliveryId, {
           state: outcome.status,
           outcome,
-          executionId: execution?.execution_id,
-          threadId: execution?.thread_id,
-          executionMeta: executionMetadata(execution),
-          retainRaw: listener.capture_policy.retain_raw,
-        });
-      }
-      if (processingEvent.type === 'rss.item') {
-        return this.inboxStore.complete(deliveryId, {
-          state: 'filed',
-          outcome: {
-            status: 'filed',
-            capture_mode: classification.decision,
-            reason: 'Completed the normal Codex article-ingestion task.',
-            destinations: [],
-          },
           executionId: execution?.execution_id,
           threadId: execution?.thread_id,
           executionMeta: executionMetadata(execution),
@@ -767,7 +760,25 @@ function readSubstackLedgerPost(url) {
   try { return ledger.post(url); } finally { ledger.close(); }
 }
 
-function verifiedSubstackOutcome(record, allowedDestinations, captureMode) {
+function readRssLedgerPost(url) {
+  const ledger = openRssLedger({ readOnly: true });
+  if (!ledger) return null;
+  try { return ledger.post(url); } finally { ledger.close(); }
+}
+
+function prepareRssLedgerPost(event, listener) {
+  const ledger = openRssLedger();
+  try {
+    ledger.feedUpsert({ feedId: listener.id, feedUrl: listener.url, title: listener.display_name || listener.id, provider: listener.provider });
+    const publishedAt = event.payload?.published_at || event.payload?.pubDate;
+    // A missing publisher date must be resolved by the workflow, never replaced
+    // with receipt time just to produce a watermark.
+    if (!publishedAt) return;
+    ledger.discover({ feedId: listener.id, url: event.payload?.link || event.payload?.url, title: event.payload?.title || 'Untitled article', publishedAt: new Date(publishedAt).toISOString(), channel: 'rss' });
+  } finally { ledger.close(); }
+}
+
+function verifiedRssOutcome(record, allowedDestinations, captureMode, isSubstack = false) {
   const verification = record?.verification;
   const allowedIds = allowedDestinations.map((brain) => brain.id || brain.brain_id);
   const retained = ['source_only', 'source_and_update', 'verified_noop'].includes(record?.outcome);
@@ -782,8 +793,9 @@ function verifiedSubstackOutcome(record, allowedDestinations, captureMode) {
   return {
     status: ignored ? 'ignored' : 'filed',
     capture_mode: ignored ? 'none' : captureMode,
-    reason: record.reason || `Verified Substack ledger outcome: ${record.outcome}.`,
-    substack_outcome: record.outcome,
+    reason: record.reason || `Verified ${isSubstack ? 'Substack' : 'RSS'} ledger outcome: ${record.outcome}.`,
+    rss_outcome: record.outcome,
+    ...(isSubstack ? { substack_outcome: record.outcome } : {}),
     post_key: record.url,
     destinations: [{ brain_id: verification.brainId, paths: verification.paths }],
   };
@@ -798,6 +810,8 @@ export class InboundEventRuntime {
     fetchImpl = globalThis.fetch,
     executorFactory = null,
     filingBroker = null,
+    rssLedgerReader = readRssLedgerPost,
+    rssLedgerPrepare = prepareRssLedgerPost,
     credentialResolver = resolveCredentialRef,
     logger = console,
     now = () => new Date(),
@@ -821,7 +835,7 @@ export class InboundEventRuntime {
         return new SimpleMcpHttpClient({ url: brain.mcp_url, fetchImpl, credentialRef: brain.credential_ref, credentialResolver });
       },
     });
-    this.processor = new InboundEventProcessor({ registryStore: this.registryStore, inboxStore: this.inboxStore, executorFactory: this.executorFactory, filingBroker: this.filingBroker, logger, now });
+    this.processor = new InboundEventProcessor({ registryStore: this.registryStore, inboxStore: this.inboxStore, executorFactory: this.executorFactory, filingBroker: this.filingBroker, rssLedgerReader, rssLedgerPrepare, logger, now });
     this.rssTimer = null;
   }
 

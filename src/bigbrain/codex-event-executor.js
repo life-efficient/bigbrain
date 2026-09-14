@@ -13,6 +13,8 @@ export const RSS_OUTPUT_INSTRUCTIONS = 'After checking relevance, ingest the art
 
 export const SUBSTACK_BACKGROUND_ACCESS_INSTRUCTIONS = 'This background Substack task has no local shell or filesystem tools. Use the owning BigBrain MCP substack/workflow (alias substack_workflow) to read the complete ingestion instructions and substack/ledger (alias substack_ledger) with {operation, input} for shared ledger operations. Never open or control TextEdit, Finder, Terminal, an editor, or a file-open dialog to read skills, configuration, files, or the ledger. Never use browser file URLs or desktop UI as a filesystem or command fallback. Browser access is only for the actual publication, article, or authenticated Substack subscription page. If the required MCP tools cannot be discovered or called, stop with a clear capability blocker and leave completion and watermarks unchanged.';
 
+export const RSS_BACKGROUND_ACCESS_INSTRUCTIONS = 'Use the owning BigBrain MCP rss/workflow (alias rss_workflow) to load the trusted ingestion instructions and rss/ledger (alias rss_ledger) with {operation, input} for shared per-feed article tracking. This background task has no local shell or filesystem tools. Never open TextEdit, Finder, Terminal, editors, file-open dialogs, or browser file URLs to read workflow files, configuration, or the ledger. Browser access is only for actual publisher or article pages. If required MCP tools cannot be discovered or called, stop with a capability blocker and leave completion and watermarks unchanged.';
+
 function configuredCodexTimeout(env = process.env) {
   const value = Number(env?.BIGBRAIN_CODEX_TIMEOUT_MS);
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_CODEX_TIMEOUT_MS;
@@ -93,11 +95,17 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
   }
   if (isRssArticle) {
     return [
+      RSS_BACKGROUND_ACCESS_INSTRUCTIONS,
       'Run the BigBrain source-article workflow for this article.',
       `Use the $${skill.replace(/^\$/, '')} skill as the primary workflow.`,
       RSS_BROWSER_INSTRUCTIONS,
       RSS_OUTPUT_INSTRUCTIONS,
+      'Before fetching the article or writing, use rss/ledger to register this feed by listener_id, discover the exact article identity, and check for a same-Brain verified terminal outcome. A verified duplicate requires no new ingestion. Otherwise acquire its atomic claim; another live claim means defer without writing.',
+      'Preserve meaningful URL query parameters and the publisher publication timestamp. Never substitute receipt time for a missing publication date. Feed identity is listener_id, even when several feeds share a publisher or a third party hosts the feed.',
       'First decide whether the article clears the digest-value gate. Filing is optional. Do not create a raw artifact or Brain page unless it clears the gate.',
+      'Record completion in rss/ledger only after owning-Brain artifact and page read-back. A verified relevance rejection records ignored; missing content, access, or incomplete verification remains unresolved. Low/high watermarks are earliest/latest verified retained posts, not proof every intervening post was ingested. The runtime verifies the ledger outcome instead of treating your final prose as completion.',
+      'Source identity and allowed scope:',
+      JSON.stringify({ listener_id: event?.listener_id || listener?.id || null, feed_url: listener?.url || event?.source?.endpoint || null, feed_title: listener?.display_name || null, provider: listener?.provider || null, post_url: event?.payload?.link || event?.payload?.url || null, post_title: event?.payload?.title || null, post_published_at: event?.payload?.published_at || event?.payload?.pubDate || null, event_id: event?.event_id || null, delivery_id: event?.delivery_id || null, feed_item_id: event?.payload?.guid || null, allowed_brain_ids: event?.allowed_brain_ids || [], allowed_destinations: allowedDestinations.map(brain => ({ id: brain.id || brain.brain_id, name: brain.name || brain.brain_name })) }, null, 2),
       '',
       'Feed-specific guidance:',
       sourceDescription,
@@ -302,7 +310,7 @@ export class CodexAppThreadExecutor {
         developerInstructions: isSubstackRssEvent(event, listener)
           ? `${SUBSTACK_BACKGROUND_ACCESS_INSTRUCTIONS}\n${RSS_BROWSER_INSTRUCTIONS}\n${RSS_OUTPUT_INSTRUCTIONS}`
           : listener?.type === 'rss' || event?.type === 'rss.item'
-          ? `Use the normal Codex environment and available BigBrain tools. Treat this as a regular user task.\n${RSS_BROWSER_INSTRUCTIONS}\n${RSS_OUTPUT_INSTRUCTIONS}`
+          ? `${RSS_BACKGROUND_ACCESS_INSTRUCTIONS}\n${RSS_BROWSER_INSTRUCTIONS}\n${RSS_OUTPUT_INSTRUCTIONS}`
           : 'This is an event-triggered BigBrain ingestion task. Follow the turn instructions, use the available BigBrain MCP and the named BigBrain ingest skill, read filing rules before writes, check existing coverage, and read back changes. Do not send external messages. Complete the work directly and summarize it normally.',
       });
       const threadId = started?.thread?.id || started?.id || started?.threadId;
