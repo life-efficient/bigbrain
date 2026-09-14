@@ -231,6 +231,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
 
     const controls = forceGraph.controls?.();
+    if (controls) controls.zoomToCursor = true;
     const handleControlStart = () => {
       userInteractingRef.current = true;
     };
@@ -1037,8 +1038,12 @@ function hexToRgba(hex, alpha) {
 function zoomCamera(forceGraph, factor) {
   const camera = forceGraph?.camera?.();
   if (!camera?.position) return;
+  const controls = forceGraph.controls?.();
+  const target = controls?.target;
+  if (target) camera.position.sub(target);
   camera.position.multiplyScalar(factor);
-  forceGraph.controls?.().update?.();
+  if (target) camera.position.add(target);
+  controls?.update?.();
 }
 
 function focusForceGraphNode(forceGraph, node) {
