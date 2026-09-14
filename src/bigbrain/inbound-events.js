@@ -651,6 +651,23 @@ export class InboundEventProcessor {
       if (processingEvent.execution.location !== registry.runtime.kind) {
         throw new Error(`Event requires Codex processing on ${processingEvent.execution.location}, but this runtime is ${registry.runtime.kind}.`);
       }
+      if (isSubstackRssEvent(processingEvent, listener)) {
+        let previous = null;
+        try { previous = await this.substackLedgerReader(processingEvent.payload?.link || processingEvent.payload?.url); } catch {
+          // A missing post or unavailable ledger is not a duplicate. Let the
+          // normal skill discover/claim it, then require verified completion.
+        }
+        const outcome = verifiedSubstackOutcome(previous, allowedDestinations, classification.decision);
+        if (outcome) {
+          return this.inboxStore.complete(deliveryId, {
+            state: outcome.status,
+            outcome,
+            executionId: `substack-ledger-${this.now().getTime()}`,
+            executionMeta: { mode: 'substack_ledger', exit_status: 0 },
+            retainRaw: listener.capture_policy.retain_raw,
+          });
+        }
+      }
       const executor = await this.executorFactory({ mode: processingEvent.execution.mode, location: processingEvent.execution.location, listener, registry });
       if (!executor || typeof executor.execute !== 'function') throw new Error(`No Codex executor is configured for ${processingEvent.execution.location}/${processingEvent.execution.mode}.`);
       execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
@@ -661,29 +678,13 @@ export class InboundEventProcessor {
         } catch (error) {
           return this.inboxStore.fail(deliveryId, `Substack ledger verification unavailable: ${error.message}`, { quarantine: true, executionId: execution?.execution_id, threadId: execution?.thread_id, executionMeta: executionMetadata(execution) });
         }
-        const verification = record?.verification;
-        const allowedIds = allowedDestinations.map((brain) => brain.id || brain.brain_id);
-        const retained = ['source_only', 'source_and_update', 'verified_noop'].includes(record?.outcome);
-        const ignored = record?.outcome === 'ignored';
-        const verified = verification?.readBack === true
-          && Number.isFinite(Date.parse(verification?.verifiedAt || ''))
-          && allowedIds.includes(verification?.brainId)
-          && typeof verification?.evidence === 'string' && verification.evidence.trim()
-          && Array.isArray(verification?.paths)
-          && (ignored ? Boolean(record?.reason?.trim()) : retained && verification.paths.length > 0);
-        if (!verified) {
+        const outcome = verifiedSubstackOutcome(record, allowedDestinations, classification.decision);
+        if (!outcome) {
           return this.inboxStore.fail(deliveryId, 'Substack article has no verified terminal ledger outcome in an allowed Brain; leave it for review.', { quarantine: true, executionId: execution?.execution_id, threadId: execution?.thread_id, executionMeta: executionMetadata(execution) });
         }
         return this.inboxStore.complete(deliveryId, {
-          state: ignored ? 'ignored' : 'filed',
-          outcome: {
-            status: ignored ? 'ignored' : 'filed',
-            capture_mode: ignored ? 'none' : classification.decision,
-            reason: record.reason || `Verified Substack ledger outcome: ${record.outcome}.`,
-            substack_outcome: record.outcome,
-            post_key: record.url,
-            destinations: [{ brain_id: verification.brainId, paths: verification.paths }],
-          },
+          state: outcome.status,
+          outcome,
           executionId: execution?.execution_id,
           threadId: execution?.thread_id,
           executionMeta: executionMetadata(execution),
@@ -764,6 +765,28 @@ function readSubstackLedgerPost(url) {
   const ledger = openSubstackLedger({ readOnly: true });
   if (!ledger) return null;
   try { return ledger.post(url); } finally { ledger.close(); }
+}
+
+function verifiedSubstackOutcome(record, allowedDestinations, captureMode) {
+  const verification = record?.verification;
+  const allowedIds = allowedDestinations.map((brain) => brain.id || brain.brain_id);
+  const retained = ['source_only', 'source_and_update', 'verified_noop'].includes(record?.outcome);
+  const ignored = record?.outcome === 'ignored';
+  const verified = verification?.readBack === true
+    && Number.isFinite(Date.parse(verification?.verifiedAt || ''))
+    && allowedIds.includes(verification?.brainId)
+    && typeof verification?.evidence === 'string' && verification.evidence.trim()
+    && Array.isArray(verification?.paths)
+    && (ignored ? Boolean(record?.reason?.trim()) : retained && verification.paths.length > 0);
+  if (!verified) return null;
+  return {
+    status: ignored ? 'ignored' : 'filed',
+    capture_mode: ignored ? 'none' : captureMode,
+    reason: record.reason || `Verified Substack ledger outcome: ${record.outcome}.`,
+    substack_outcome: record.outcome,
+    post_key: record.url,
+    destinations: [{ brain_id: verification.brainId, paths: verification.paths }],
+  };
 }
 
 export class InboundEventRuntime {

@@ -284,16 +284,55 @@ test('Substack RSS completion requires terminal scoped ledger evidence, regardle
       const inbox = new EventInboxStore({ filePath: paths.inboxPath });
       const url = 'https://publisher.test/p/post';
       const queued = await inbox.enqueue(createRssEventEnvelope({ listener, item: { title: 'Post', link: url, guid: 'post' } }), { clientId: 'client-1' });
+      let executed = false;
       const processor = new InboundEventProcessor({
         registryStore: registry, inboxStore: inbox,
-        substackLedgerReader: async (value) => { assert.equal(value, url); return record && { url, ...record }; },
-        executorFactory: async () => ({ execute: async () => ({ mode: 'app_thread', execution_id: 'turn-1', thread_id: 'thread-1', response_text: 'Task finished.', outcome: { status: 'filed', reason: 'Done', destinations: [] } }) }),
+        substackLedgerReader: async (value) => { assert.equal(value, url); return executed && record ? { url, ...record } : null; },
+        executorFactory: async () => ({ execute: async () => { executed = true; return { mode: 'app_thread', execution_id: 'turn-1', thread_id: 'thread-1', response_text: 'Task finished.', outcome: { status: 'filed', reason: 'Done', destinations: [] } }; } }),
         filingBroker: { file: async () => { throw new Error('Do not replay verified Substack writes'); } },
       });
       const processed = await processor.process(queued.event.delivery_id);
       assert.equal(processed.state, expected);
       assert.equal(processed.thread_id, 'thread-1');
       if (expected !== 'quarantined') assert.equal(processed.outcome.substack_outcome, record.outcome);
+    } finally { await fs.rm(paths.root, { recursive: true, force: true }); }
+  });
+});
+
+test('Substack cross-channel verified duplicates skip executor creation, while wrong-scope and blocked posts do not', async (t) => {
+  const url = 'https://publisher.test/p/post';
+  const verification = { readBack: true, verifiedAt: '2026-09-14T10:00:00Z', brainId: 'brain_personal', paths: ['concepts/.raw/post.md'], evidence: 'Canonical source read back during email ingestion.' };
+  const cases = [
+    ['retained email post', { url, outcome: 'source_only', verification }, false, 'filed'],
+    ['ignored browser post', { url, outcome: 'ignored', reason: 'Complete review found no relevant durable value.', verification: { ...verification, paths: [] } }, false, 'ignored'],
+    ['wrong-Brain retained post', { url, outcome: 'source_only', verification: { ...verification, brainId: 'other-brain' } }, true, 'quarantined'],
+    ['blocked post', { url, outcome: 'needs_review', reason: 'paid preview' }, true, 'quarantined'],
+  ];
+  for (const [name, record, shouldExecute, expected] of cases) await t.test(name, async () => {
+    const paths = await fixture();
+    try {
+      const listener = rssListener({ skill: 'bigbrain-substack-ingest' });
+      const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+      await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [listener] });
+      const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+      const queued = await inbox.enqueue(createRssEventEnvelope({ listener, item: { title: 'Post', link: url, guid: 'post' } }), { clientId: 'client-1' });
+      let executed = false;
+      const processor = new InboundEventProcessor({ registryStore: registry, inboxStore: inbox,
+        substackLedgerReader: async (value) => { assert.equal(value, url); return record; },
+        executorFactory: async () => {
+          assert.equal(shouldExecute, true, 'A verified duplicate must not create a Codex executor or task');
+          executed = true;
+          return { execute: async () => ({ mode: 'app_thread', thread_id: 'thread-retry', response_text: 'Still needs review.' }) };
+        },
+      });
+      const processed = await processor.process(queued.event.delivery_id);
+      assert.equal(executed, shouldExecute);
+      assert.equal(processed.state, expected);
+      if (!shouldExecute) {
+        assert.equal(processed.thread_id, null);
+        assert.equal(processed.execution_meta.mode, 'substack_ledger');
+        assert.equal(processed.outcome.substack_outcome, record.outcome);
+      }
     } finally { await fs.rm(paths.root, { recursive: true, force: true }); }
   });
 });
