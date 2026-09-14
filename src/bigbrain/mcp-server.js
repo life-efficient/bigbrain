@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { randomUUID } from 'node:crypto';
 
 import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
+import { callSubstackLedger, substackLedgerInputSchema, substackWorkflow } from './substack-mcp.js';
 import { persistState } from './config.js';
 import { BRAIN_PROFILE_JSON_SCHEMA, authenticatedBrainAbout, loadBrainProfile, saveBrainProfileRevision } from './brain-profile.js';
 import {
@@ -550,6 +551,12 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       await recordWriteProvenance(config, args.path, args.provenance, args.commit_message);
       return toolJson(task);
     }
+    case 'substack/workflow':
+    case 'substack_workflow':
+      return toolJson(await substackWorkflow(args));
+    case 'substack/ledger':
+    case 'substack_ledger':
+      return toolJson(callSubstackLedger(config, args));
     case 'events/listeners':
       return toolJson(await eventRegistryValue(config).then((registry) => ({ revision: registry.revision, runtime: registry.runtime, listeners: registry.listeners.map(safeListener) })), { arrayKey: 'listeners' });
     case 'events/listener_upsert': {
@@ -1750,6 +1757,26 @@ function toolDefinitions(config = null) {
       inputSchema: taskWriteSchema({ update: true }),
     },
     {
+      name: 'substack/workflow',
+      description: 'Read the complete trusted Substack ingestion workflow and required references directly. No shell, local file reader, or desktop app is needed. Call before Substack ingestion.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    },
+    {
+      name: 'substack_workflow',
+      description: 'Alias for substack/workflow for clients that do not support slash tool names.',
+      inputSchema: { type: 'object', properties: {}, additionalProperties: false },
+    },
+    {
+      name: 'substack/ledger',
+      description: 'Read or update the shared Substack ingestion register directly, without opening files or desktop apps. Atomically claim before ingestion; complete only after owning-Brain read-back. Uses server-owned storage and rejects verification for another Brain. Get operation guidance from substack/workflow.',
+      inputSchema: substackLedgerInputSchema(),
+    },
+    {
+      name: 'substack_ledger',
+      description: 'Alias for substack/ledger for clients that do not support slash tool names.',
+      inputSchema: substackLedgerInputSchema(),
+    },
+    {
       name: 'events/listeners',
       description: 'List configured RSS and webhook listeners for this connector runtime. Credentials and raw payloads are never returned.',
       inputSchema: { type: 'object', properties: {} },
@@ -2448,6 +2475,10 @@ const TOOL_POLICIES = {
   read_raw_file: { layer: 'read', scopes: ['brain:read'] },
   'tasks/create': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   'tasks/update': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'substack/workflow': { layer: 'read', scopes: ['brain:read'] },
+  substack_workflow: { layer: 'read', scopes: ['brain:read'] },
+  'substack/ledger': { layer: 'events_manage', scopes: ['brain:admin'] },
+  substack_ledger: { layer: 'events_manage', scopes: ['brain:admin'] },
   'events/listeners': { layer: 'read', scopes: ['brain:read'] },
   'events/listener_upsert': { layer: 'events_manage', scopes: ['brain:admin'] },
   'events/listener_pause': { layer: 'events_manage', scopes: ['brain:admin'] },

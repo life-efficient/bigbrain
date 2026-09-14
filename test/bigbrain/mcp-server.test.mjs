@@ -1328,6 +1328,12 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
     });
 
     const readTools = toolNames(await rpc(running.url, 'tools/list', {}, readToken));
+    assert.equal(readTools.includes('substack/workflow'), true);
+    assert.equal(readTools.includes('substack_workflow'), true);
+    assert.equal(readTools.includes('substack/ledger'), false);
+    assert.equal(readTools.includes('substack_ledger'), false);
+    const readLedger = await rpc(running.url, 'tools/call', { name: 'substack/ledger', arguments: { operation: 'status', input: {} } }, readToken);
+    assert.equal(readLedger.error.code, -32003);
     assert.equal(readTools.includes('read'), true);
     assert.equal(readTools.includes('tasks/summary'), true);
     assert.equal(readTools.includes('tasks/get'), true);
