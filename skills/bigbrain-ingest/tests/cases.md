@@ -27,7 +27,7 @@ turn a reported investment target into completed spending.
 Prompts: "Use $bigbrain-media-ingest for this YouTube interview";
 "Use $bigbrain-meeting-ingest for these call notes";
 "Use $bigbrain-document-ingest for this memo";
-"Use $bigbrain-conversation-ingest to capture these facts."
+"Use $bigbrain-ingest to remember these facts from our conversation."
 
 Fixture: Each source includes a secondary named person and organization absent
 from the test Brain. The media fixture has exact title, channel, and chapter

@@ -10,7 +10,7 @@ AGENT = (ROOT / "agents" / "openai.yaml").read_text(encoding="utf-8")
 CASES = (ROOT / "tests" / "cases.md").read_text(encoding="utf-8")
 
 assert "name: bigbrain-substack-ingest" in SKILL
-assert "description: Ingest a verified Substack post" in SKILL
+assert "description: Save Substack posts to BigBrain" in SKILL
 assert "# BigBrain Substack Ingest" in SKILL
 assert "## Contract Checklist" in SKILL
 assert "## Workflow" in SKILL

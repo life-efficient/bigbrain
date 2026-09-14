@@ -1,6 +1,6 @@
 ---
 name: bigbrain-source-article-ingest
-description: Apply the shared article relevance gate to RSS, Substack, and direct web sources, then preserve and link only content with durable value.
+description: Save a web article, blog post, essay, or RSS article to BigBrain. Use for individual published articles, including articles delivered through feeds or email. For Substack posts, start with `bigbrain-substack-ingest`; for human email correspondence, use `bigbrain-email-ingest`.
 ---
 
 Review one canonical web article through BigBrain's single shared relevance and filing workflow.

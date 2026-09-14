@@ -1,6 +1,6 @@
 ---
 name: bigbrain-granola-ingest
-description: Use when the user asks to import or process recent Granola meetings into the correct BigBrain brain, including machine-wide routing by brain description.
+description: Import meetings from Granola into BigBrain. Use when asked to retrieve and ingest a specific Granola meeting or recent meetings. For meeting notes or transcripts supplied directly, use `bigbrain-meeting-ingest`.
 ---
 
 # BigBrain Granola Ingest

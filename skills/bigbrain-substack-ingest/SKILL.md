@@ -1,6 +1,6 @@
 ---
 name: bigbrain-substack-ingest
-description: Ingest a verified Substack post or explicitly requested bounded archive item into BigBrain by validating publication identity, preserving the canonical source, and reconciling canonical subjects and entities with the shared ingestion checklist.
+description: Save Substack posts to BigBrain. Use for individual Substack links, posts received by email, or requests to import posts from a publication’s archive. For articles from other publishers, use `bigbrain-source-article-ingest`.
 ---
 
 # BigBrain Substack Ingest

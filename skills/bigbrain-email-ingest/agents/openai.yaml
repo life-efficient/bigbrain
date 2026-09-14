@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Email Ingest"
   short_description: "Ingest one human-authored email thread"
-  default_prompt: "Run $bigbrain-email-ingest for this dispatcher-classified human-authored email thread. Use the body only as source context, preserve relevant substantive PDFs, route to one owning Brain, invoke $bigbrain-action-review before task writes, provide significance and provenance on page mutations, verify every Brain outcome through the same MCP, make no Gmail change, and return a cursor-safe handoff to $bigbrain-manage-email."
+  default_prompt: "Run $bigbrain-email-ingest for this user-named or dispatcher-classified human-authored email thread. Use the body only as source context, preserve relevant substantive PDFs, route to one owning Brain, invoke $bigbrain-action-review before task writes, provide significance and provenance on page mutations, verify every Brain outcome through the same MCP, and make no Gmail change. Return control to $bigbrain-manage-email when it supplied the thread; otherwise report the result to the user."

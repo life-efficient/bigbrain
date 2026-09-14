@@ -9,7 +9,7 @@ SKILL = (ROOT / "SKILL.md").read_text(encoding="utf-8")
 AGENT = (ROOT / "agents" / "openai.yaml").read_text(encoding="utf-8")
 
 assert "name: bigbrain-email-ingest" in SKILL
-assert "one human-authored email thread" in SKILL
+assert "description: Save information from human-written email correspondence" in SKILL
 assert "$bigbrain-manage-email" in SKILL
 assert "Do not scan the mailbox" in SKILL
 assert "Do not preserve whole messages" in SKILL

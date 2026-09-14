@@ -1,6 +1,6 @@
 ---
 name: bigbrain-document-ingest
-description: Ingest a PDF, deck, memo, article text, screenshot, or other document into BigBrain with preserved raw support, an indexed sidecar, and reconciled canonical subjects and entities.
+description: Save information from a PDF, presentation, memo, screenshot, or other document to BigBrain. Use when the document itself is the supplied source. For meeting notes or a published article available at a supplied URL, use the corresponding ingestion skill.
 ---
 
 # BigBrain: Document Ingest

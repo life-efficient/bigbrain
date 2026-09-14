@@ -1,6 +1,6 @@
 ---
 name: bigbrain-meeting-ingest
-description: Ingest one meeting into its canonical BigBrain record, either directly or as the per-meeting worker for a source-specific ingestion skill.
+description: Save meeting notes, a transcript, or a post-meeting summary to BigBrain. Use for one meeting supplied directly or passed from another ingestion skill. For retrieving meetings from Granola, start with `bigbrain-granola-ingest`; for talks or podcasts, use `bigbrain-media-ingest`.
 ---
 
 # BigBrain Meeting Ingest

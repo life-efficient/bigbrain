@@ -1,6 +1,6 @@
 ---
 name: bigbrain-media-ingest
-description: Ingest audio, video, podcasts, or other time-based media into BigBrain as complete raw evidence plus a faithful chronological source exposition.
+description: Save information from a YouTube video, podcast, or other audio or video recording to BigBrain. Use when the source needs to be watched, listened to, or transcribed. For supplied meeting notes or transcripts, use `bigbrain-meeting-ingest`; for written documents, use `bigbrain-document-ingest`.
 ---
 
 # BigBrain Media Ingest

@@ -1,6 +1,6 @@
 ---
 name: bigbrain-email-ingest
-description: Ingest one human-authored email thread into the correct BigBrain brain after a mailbox dispatcher has classified and handed it off.
+description: Save information from human-written email correspondence to BigBrain. Use for an email or thread containing facts, decisions, commitments, or relationship updates. For newsletter articles or Substack posts delivered by email, use the corresponding article ingestion skill.
 ---
 
 # BigBrain Email Ingest
@@ -130,4 +130,4 @@ Classify corrections by resulting impact. Preserve append-only history and add a
 
 ## Output
 
-Return a compact prose handoff to the mailbox dispatcher. Preserve the existing outcomes `ignored`, `source_only`, `source_and_update`, `verified_noop`, `needs_review`, or `reconciliation_incomplete`. State the thread subject, destination Brain, canonical and task changes, artifact verification, and any relevant significance or outbound state. Confirm same-Brain read-back and that no Gmail action occurred, then explicitly return control to `$bigbrain-manage-email` for cursor handling. Do not require a field template or expose provider identifiers and private message content.
+Return a compact prose result. Preserve the existing outcomes `ignored`, `source_only`, `source_and_update`, `verified_noop`, `needs_review`, or `reconciliation_incomplete`. State the thread subject, destination Brain, canonical and task changes, artifact verification, and any relevant significance or outbound state. Confirm same-Brain read-back and that no Gmail action occurred. For a dispatcher handoff, explicitly return control to `$bigbrain-manage-email` for cursor handling; for a direct user request, report the result to the user. Do not require a field template or expose provider identifiers and private message content.

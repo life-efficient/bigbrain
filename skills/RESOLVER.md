@@ -19,7 +19,7 @@
 | Reconcile concrete action evidence prepared by a source-ingestion workflow before it writes BigBrain tasks | `skills/bigbrain-action-review/SKILL.md` |
 | Ingest document-like material such as PDFs, decks, screenshots, or memos | `skills/bigbrain-document-ingest/SKILL.md` |
 | Ingest time-based or mixed media such as audio, video, or podcasts | `skills/bigbrain-media-ingest/SKILL.md` |
-| Capture durable knowledge from ordinary chat into BigBrain | `skills/bigbrain-conversation-ingest/SKILL.md` |
+| Capture durable knowledge from ordinary chat into BigBrain | `skills/bigbrain-ingest/SKILL.md` |
 | Update or create stronger entity or topic pages when new signal materially changes the brain | `skills/bigbrain-enrich/SKILL.md` |
 | Answer questions using the selected BigBrain brain home with cited source slugs | `skills/bigbrain-query/SKILL.md` |
 | Provide a short snapshot of what needs to be done next across all registered Brains by default, or one or more named Brains when requested | `skills/bigbrain-whats-next/SKILL.md` |

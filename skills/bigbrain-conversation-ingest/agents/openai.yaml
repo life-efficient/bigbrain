@@ -1,4 +1,0 @@
-interface:
-  display_name: "BigBrain: Conversation Ingest"
-  short_description: "Capture durable knowledge from chat without ingesting routine chatter"
-  default_prompt: "Use $bigbrain-conversation-ingest to identify durable conversation content and complete the shared ingestion checklist for canonical subjects, mentioned entities, source links, and read-back."

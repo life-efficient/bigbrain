@@ -51,14 +51,18 @@ test('page resolver and core workflows route page writes through the page skill'
   const understand = await fs.readFile(path.join(repoRoot, 'skills', 'bigbrain-understand', 'SKILL.md'), 'utf8');
   const enrich = await fs.readFile(path.join(repoRoot, 'skills', 'bigbrain-enrich', 'SKILL.md'), 'utf8');
   const ingest = await fs.readFile(path.join(repoRoot, 'skills', 'bigbrain-ingest', 'SKILL.md'), 'utf8');
-  const conversation = await fs.readFile(path.join(repoRoot, 'skills', 'bigbrain-conversation-ingest', 'SKILL.md'), 'utf8');
 
   assert.match(resolver, /bigbrain-page\/SKILL\.md/);
   assert.match(understand, /BigBrain: Create or Update Page/);
-  for (const content of [enrich, ingest, conversation]) {
+  for (const content of [enrich, ingest]) {
     assert.match(content, /bigbrain-page/);
     assert.doesNotMatch(content, /bigbrain-(?:create|update)-page/);
   }
   assert.doesNotMatch(resolver, /bigbrain-(?:create|update)-page\/SKILL\.md/);
   assert.doesNotMatch(understand, /BigBrain: (?:Create|Update) Page/);
+  assert.doesNotMatch(resolver, /bigbrain-conversation-ingest/);
+  assert.match(ingest, /## Conversation guidance/);
+  assert.match(ingest, /including corrections/);
+  assert.match(ingest, /routine operational chatter/);
+  assert.match(ingest, /conversation provenance/);
 });
