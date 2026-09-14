@@ -1168,8 +1168,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .focused-view-heading strong { overflow: hidden; font-size: 14px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
       .focused-view-hint { flex: 0 0 auto; color: var(--muted); font: 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
       .focused-view-empty { display: grid; place-items: center; height: calc(100% - 42px); color: var(--muted); font-size: 13px; text-align: center; }
-      .focused-network-view { display: flex; flex-direction: column; }
-      .focused-network-scroll { flex: 1; min-height: 0; overflow: auto; border: 1px solid rgba(148,163,184,0.14); border-radius: 14px; background: rgba(0,0,0,0.08); }
+      .focused-network-view { display: flex; flex-direction: column; padding: 0; }
+      .focused-network-scroll { flex: 1; min-height: 0; overflow: auto; border: 0; border-radius: 0; background: transparent; }
       .focused-network-svg { display: block; max-width: none; }
       .focused-network-hop { font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.04em; }
       .focused-network-branch { font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; text-transform: uppercase; }
