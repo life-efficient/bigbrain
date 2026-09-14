@@ -698,6 +698,15 @@ per-page embedding failure; BigBrain does not silently truncate the page.
 During migration, search prefers a page's current full-document embedding and
 falls back to its legacy compiled-truth rows only until that page is refreshed.
 
+For answer generation, BigBrain rebuilds the same frontmatter-free
+full-document payload from each ranked page. It includes complete pages in rank
+order until adding the next whole page would exceed
+`answer_context_max_bytes` (default `65536`, configurable with
+`BIGBRAIN_ANSWER_CONTEXT_MAX_BYTES`). The exact UTF-8 byte count includes page
+labels and separators. BigBrain does not substitute an arbitrary
+prefix or partially truncate a page. Query results report which pages were
+included or omitted from answer context.
+
 ## Dashboard
 
 The web surface should stay lightweight, polished, and operational.

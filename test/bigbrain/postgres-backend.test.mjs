@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { allEmbeddings, closePostgresPools, dbDoctor, getHostedBrainGitState, getPageRecord, insertMcpAuditLog, listMcpAuditLog, listPageSlugs, openDatabase, semanticSearch, upsertHostedBrainGitState } from '../../src/bigbrain/db.js';
+import { allEmbeddings, closePostgresPools, dbDoctor, getHostedBrainGitState, getPageContentRecordsBySlugs, getPageRecord, insertMcpAuditLog, listMcpAuditLog, listPageSlugs, openDatabase, semanticSearch, upsertHostedBrainGitState } from '../../src/bigbrain/db.js';
 import { createMcpAuthStore, PostgresMcpAuthStore } from '../../src/bigbrain/mcp-auth-store.js';
 import { migrateSqliteToPostgres } from '../../src/bigbrain/postgres-migrate.js';
 import { searchBrain } from '../../src/bigbrain/search.js';
@@ -42,6 +42,22 @@ test('Postgres semantic search uses the current model and prefers full documents
     'compiled_truth_chunk',
     1,
   ]);
+});
+
+test('Postgres answer hydration loads complete indexed markdown for ranked slugs', async () => {
+  const calls = [];
+  const rows = [{ slug: 'people/alice', title: 'Alice', body_markdown: '# Alice\n\nComplete body.' }];
+  const db = {
+    backend: 'postgres',
+    query: async (sql, params) => {
+      calls.push({ sql, params });
+      return { rows };
+    },
+  };
+
+  assert.deepEqual(await getPageContentRecordsBySlugs(db, ['people/alice']), rows);
+  assert.match(calls[0].sql, /SELECT slug, title, body_markdown/);
+  assert.deepEqual(calls[0].params, [['people/alice']]);
 });
 
 test('postgres backend reuses one process pool across database handles', async (t) => {

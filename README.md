@@ -165,20 +165,21 @@ For each request, BigBrain currently:
 3. **Runs lexical retrieval** over indexed titles, summaries, compiled truth,
    timelines, and page text.
 4. **Runs semantic retrieval** by embedding the query and comparing it with
-   stored page chunks. For SQLite this uses cosine similarity in-process; for
-   Postgres it uses pgvector.
-5. **Keeps the best semantic chunk per page** so one long page does not crowd
-   out the rest of the result set.
+   stored full-document page embeddings. For SQLite this uses cosine similarity
+   in-process; for Postgres it uses pgvector.
+5. **Keeps one semantic candidate per page**, with a temporary fallback to
+   legacy compiled-truth rows until that page has a full-document embedding.
 6. **Fuses lexical and semantic rankings** using weighted reciprocal-rank
    fusion.
 7. **Adds deterministic boosts** for exact page or slug matches, aliases, title
    phrases, ordered title tokens, and full title-token coverage.
-8. **Reranks the candidate set with OpenAI** in `balanced` and `tokenmax` modes.
+8. **Reranks the candidate set with OpenAI** in `tokenmax` mode.
    If that step fails, BigBrain keeps the pre-rerank order.
 9. **Returns ranked sources** with snippets and optional score explanations.
-10. **For `query`, synthesizes a grounded answer** from those sources and cites
-    the supporting page slugs. If generation is unavailable, the retrieved
-    context is still returned.
+10. **For `query`, supplies complete ranked page embedding payloads** until the
+    shared `answer_context_max_bytes` budget is reached, then synthesizes a
+    grounded answer with source-slug citations. Pages are never partially
+    truncated to fit the budget.
 
 Semantic retrieval, reranking, query expansion, and answer generation require
 `OPENAI_API_KEY`. When those stages are unavailable, BigBrain degrades to

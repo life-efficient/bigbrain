@@ -17,6 +17,7 @@ import {
 } from './db.js';
 import { isAttachmentSidecarPath, isExcludedPath, matchesIncludeGlobs, shouldSkipSystemPath } from './file-selection.js';
 import { isBrainProfileDocument } from './brain-profile.js';
+import { buildFullDocumentEmbeddingInput } from './embedding-payload.js';
 import { embedTexts } from './openai.js';
 import { extractLinks, parseMarkdownPage, slugFromPath } from './markdown.js';
 import { latestTimelineDate } from './timeline.js';
@@ -168,16 +169,7 @@ export async function syncBrain({ config, apiKey = process.env.OPENAI_API_KEY, e
   }
 }
 
-export function buildFullDocumentEmbeddingInput(page) {
-  const title = String(page?.title || page?.slug || '').trim();
-  const aliases = normalizeEmbeddingAliases(page?.frontmatter?.aliases);
-  const body = normalizeEmbeddingBody(page?.bodyContentMarkdown);
-  return [
-    `Title: ${title || 'Untitled'}`,
-    aliases.length > 0 ? `Aliases: ${aliases.join(', ')}` : null,
-    `Content:\n${body || title || page?.slug || 'Untitled'}`,
-  ].filter(Boolean).join('\n\n');
-}
+export { buildFullDocumentEmbeddingInput } from './embedding-payload.js';
 
 async function embeddingRefreshStatus(db, page, model) {
   const expectedInput = buildFullDocumentEmbeddingInput(page);
@@ -196,19 +188,6 @@ async function embeddingRefreshStatus(db, page, model) {
     return { needsRefresh: true, reason: 'content_changed' };
   }
   return { needsRefresh: false, reason: 'up_to_date' };
-}
-
-function normalizeEmbeddingAliases(value) {
-  const aliases = Array.isArray(value) ? value : typeof value === 'string' ? [value] : [];
-  return [...new Set(aliases.map((alias) => String(alias).trim()).filter(Boolean))]
-    .sort((left, right) => left.localeCompare(right));
-}
-
-function normalizeEmbeddingBody(value) {
-  return String(value || '')
-    .replace(/\r\n?/g, '\n')
-    .replace(/^[ \t]*<!--\s*bigbrain:timeline\b[\s\S]*?-->[ \t]*(?:\n|$)/gim, '')
-    .trim();
 }
 
 async function collectMarkdownFiles(config) {

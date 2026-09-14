@@ -13,7 +13,7 @@ import { filingRulesForBrain } from '../../src/bigbrain/filing-rules.js';
 import { runHealthCheck } from '../../src/bigbrain/health.js';
 import { loadRetrievalEvalCases, runRetrievalEvalOnConfig } from '../../src/bigbrain/eval-retrieval.js';
 import { migrateBrain } from '../../src/bigbrain/migrate.js';
-import { applyRankingExperimentPolicy, boostResultsForQuery, classifyQueryIntent, DEFAULT_RANKING_POLICY, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, RANKING_EXPERIMENT_POLICIES, searchBrain, shouldAutoExpandQuery, shouldExpandGraphForQuery } from '../../src/bigbrain/search.js';
+import { applyRankingExperimentPolicy, boostResultsForQuery, buildRankedAnswerContext, classifyQueryIntent, DEFAULT_RANKING_POLICY, DEFAULT_SEARCH_MODE, formatAnswerContext, fuseResults, queryBrain, RANKING_EXPERIMENT_POLICIES, searchBrain, shouldAutoExpandQuery, shouldExpandGraphForQuery } from '../../src/bigbrain/search.js';
 import { renderSchemaMarkdown, recommendFolderForInput } from '../../src/bigbrain/schema.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -766,6 +766,81 @@ Alex Rivera is the founder of ExampleCo and a useful customer-discovery contact.
   }
 });
 
+test('query sends complete ranked page content without operational frontmatter', async () => {
+  const fixture = await createFixture('bigbrain-query-complete-context-');
+  const originalFetch = globalThis.fetch;
+  try {
+    const buriedEvidence = `Buried evidence: ${'context '.repeat(80)}the agreement renews in November.`;
+    await writeMarkdown(fixture.brainHome, 'deals/example-agreement.md', `---
+title: Example Agreement
+aliases: [Renewal Agreement]
+status: active
+priority: p1
+---
+# Example Agreement
+
+Opening context that is intentionally much longer than the former snippet.
+
+${buriedEvidence}
+`);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({
+      config,
+      apiKey: 'index-key',
+      embedder: async (texts) => texts.map(() => [1, 0]),
+    });
+
+    let answerPrompt = '';
+    let answerCalls = 0;
+    globalThis.fetch = async (url, options) => {
+      if (String(url).endsWith('/embeddings')) {
+        return { ok: true, json: async () => ({ data: [{ embedding: [1, 0] }] }) };
+      }
+      answerCalls += 1;
+      const payload = JSON.parse(options.body);
+      answerPrompt = payload.input[1].content[0].text;
+      return { ok: true, json: async () => ({ output_text: 'The agreement renews in November.' }) };
+    };
+
+    const db = await openDatabase(config);
+    const result = await queryBrain({
+      db,
+      config,
+      question: 'When does the agreement renew?',
+      expand: false,
+      apiKey: 'answer-key',
+    });
+    assert.equal(result.answer, 'The agreement renews in November.');
+    assert.match(answerPrompt, /the agreement renews in November/);
+    assert.match(answerPrompt, /Aliases: Renewal Agreement/);
+    assert.doesNotMatch(answerPrompt, /status: active|priority: p1/);
+    assert.equal(result.answer_context.max_bytes, 65_536);
+    assert.deepEqual(result.answer_context.included_pages, ['deals/example-agreement']);
+    assert.deepEqual(result.answer_context.omitted_pages, []);
+
+    config.answerContextMaxBytes = 1;
+    const overBudget = await queryBrain({
+      db,
+      config,
+      question: 'When does the agreement renew?',
+      expand: false,
+      apiKey: 'answer-key',
+    });
+    assert.equal(answerCalls, 1);
+    assert.equal(overBudget.answer, null);
+    assert.deepEqual(overBudget.preferred_sources, []);
+    assert.deepEqual(overBudget.answer_context.included_pages, []);
+    assert.deepEqual(overBudget.answer_context.omitted_pages, [{
+      slug: 'deals/example-agreement',
+      reason: 'over_budget',
+    }]);
+    assert.match(overBudget.warnings.join('\n'), /no complete ranked page fit/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('search warns when semantic search is skipped because api key is missing', async () => {
   const fixture = await createFixture('bigbrain-search-no-api-key-');
   try {
@@ -1150,24 +1225,47 @@ test('fused search favors the strongest semantic page across multiple ranked lis
 });
 
 test('answer context emphasizes the top-ranked sources first', () => {
-  const context = formatAnswerContext([
+  const results = [
     {
       slug: 'deals/exampleco-process',
       title: 'ExampleCo Process',
-      summary: '# ExampleCo Process',
-      snippet: 'Competitive sale timeline.',
+      embedding_text: 'Title: ExampleCo Process\n\nContent:\nComplete competitive sale timeline with buried evidence.',
     },
     {
       slug: 'companies/exampleco',
       title: 'ExampleCo',
-      summary: '# ExampleCo',
-      snippet: 'Company context.',
+      embedding_text: 'Title: ExampleCo\n\nContent:\nComplete company context.',
     },
-  ]);
+  ];
+  const context = formatAnswerContext(results);
 
   assert.match(context, /Top-ranked sources:/);
   assert.match(context, /1\. deals\/exampleco-process — ExampleCo Process/);
   assert.match(context, /Result 1\nSlug: deals\/exampleco-process/);
+  assert.match(context, /Complete competitive sale timeline with buried evidence/);
+  assert.match(context, /Complete company context/);
+  assert.doesNotMatch(context, /Snippet:/);
+
+  const firstOnly = formatAnswerContext([results[0]]);
+  const budgeted = buildRankedAnswerContext(results, { maxBytes: Buffer.byteLength(firstOnly, 'utf8') });
+  assert.equal(budgeted.context, firstOnly);
+  assert.equal(budgeted.used_bytes <= budgeted.max_bytes, true);
+  assert.deepEqual(budgeted.included_pages, ['deals/exampleco-process']);
+  assert.deepEqual(budgeted.omitted_pages, [{ slug: 'companies/exampleco', reason: 'over_budget' }]);
+  assert.equal(budgeted.stop_reason, 'budget');
+  assert.doesNotMatch(budgeted.context, /Complete company context/);
+
+  const unicodeResult = [{
+    slug: 'concepts/unicode',
+    title: 'Unicode',
+    embedding_text: `Title: Unicode\n\nContent:\n${'🙂'.repeat(20)}`,
+  }];
+  const unicodeContext = formatAnswerContext(unicodeResult);
+  const unicodeBudgeted = buildRankedAnswerContext(unicodeResult, {
+    maxBytes: Buffer.byteLength(unicodeContext, 'utf8') - 1,
+  });
+  assert.equal(unicodeBudgeted.context, '');
+  assert.deepEqual(unicodeBudgeted.included_pages, []);
 });
 
 test('auto expansion stays off for direct entity lookups and on for broader questions', () => {

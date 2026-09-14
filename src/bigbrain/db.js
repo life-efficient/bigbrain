@@ -1088,6 +1088,23 @@ export async function getPagesBySlugs(db, slugs) {
   `).all(...slugs);
 }
 
+export async function getPageContentRecordsBySlugs(db, slugs) {
+  if (slugs.length === 0) return [];
+  if (db.backend === 'postgres') {
+    return (await db.query(`
+      SELECT slug, title, body_markdown
+      FROM pages
+      WHERE slug = ANY($1::text[])
+    `, [slugs])).rows;
+  }
+  const placeholders = slugs.map(() => '?').join(', ');
+  return unwrapSqlite(db).prepare(`
+    SELECT slug, title, body_markdown
+    FROM pages
+    WHERE slug IN (${placeholders})
+  `).all(...slugs);
+}
+
 export async function getOutgoingLinks(db, slug) {
   if (db.backend === 'postgres') {
     return (await db.query('SELECT to_slug, link_text, link_kind, is_resolved FROM links WHERE from_slug = $1 ORDER BY to_slug', [slug]))

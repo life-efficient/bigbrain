@@ -31,7 +31,10 @@ engine.
 5. The fused results become the retrieval context for answer generation.
 6. `queryBrain()` formats that context so the answer model sees:
    - the top-ranked source slugs first
-   - then the retrieved summaries/snippets for the full fused set
+   - then complete page embedding payloads in rank order
+   - only a contiguous ranked prefix that fits within the shared
+     `answer_context_max_bytes` budget
+   - no partially truncated page content
 7. `answerQuestion()` answers only from that retrieved context and is told to:
    - prefer the top-ranked sources when possible
    - cite source slugs inline
