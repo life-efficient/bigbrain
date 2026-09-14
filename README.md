@@ -447,6 +447,16 @@ where Codex runs (`client` or `host`), with either a visible `app_thread` or a
 background `cli` execution. Registry subscriptions may name only registered
 Brain IDs.
 
+Each RSS listener's configuration readout includes an `ingestion` summary from
+the shared operational ledger. `filed_low_watermark` and
+`filed_high_watermark` are the publication times of the oldest and newest
+verified ingested articles. They remain `null` until verified records exist.
+`outstanding_count` counts known unresolved articles, not the publisher's entire
+archive; it is `null` when tracking has not been initialized or is unavailable.
+These bounds allow gaps and are separate from the inbox's polling cursor.
+The registry owns feed identity and settings; status reads project ledger values
+without storing a second copy in `event-registry.json`.
+
 RSS polling and webhook intake are separate runtime planes. RSS owns feed
 polling, seven-day initial cursors, and item deduplication. Webhooks own HTTP
 authentication, configured event-type filtering, and enqueueing. They share

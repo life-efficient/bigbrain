@@ -1090,6 +1090,11 @@ function renderSyncText(result) {
 function renderRssStatusText(report) {
   const lines = [];
   for (const listener of report.listeners || []) {
+    const ingestion = listener.ingestion;
+    if (ingestion) {
+      lines.push(`${listener.listener_id}: oldest verified ingested ${ingestion.filed_low_watermark || 'none verified'}; newest verified ingested ${ingestion.filed_high_watermark || 'none verified'}; known outstanding ${ingestion.outstanding_count ?? 'unknown'} (${ingestion.status}).`);
+      lines.push('  These bounds describe verified articles; gaps may remain between them.');
+    }
     if (listener.status === 'error') {
       lines.push(`${listener.listener_id}: ERROR ${listener.message}`);
       continue;

@@ -693,7 +693,7 @@ function registerDesktopIpc() {
     "desktop:set-default": (_event, id) => desktopController.setDefault(id),
     "desktop:reveal": (_event, targetPath) => shell.showItemInFolder(targetPath),
     "desktop:event-state": () => eventRuntimeManager?.state() || { ok: false, running: false },
-    "desktop:event-listeners": () => eventRuntimeManager?.registry.get().then((value) => ({ revision: value.revision, listeners: value.listeners.map(({ credential_ref, ...listener }) => ({ ...listener, credential_configured: Boolean(credential_ref) })) })) || [],
+    "desktop:event-listeners": () => eventRuntimeManager?.listeners() || { revision: null, listeners: [] },
     "desktop:event-upsert-listener": (_event, value) => eventRuntimeManager.upsertListener(value),
     "desktop:event-upsert-subscription": (_event, value) => eventRuntimeManager.updateSubscription(value),
     "desktop:event-listener-state": (_event, listenerId, action) => eventRuntimeManager.setListenerState(listenerId, action),

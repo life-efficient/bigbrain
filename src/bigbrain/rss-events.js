@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { withRssIngestionStatus } from './rss-ingestion-status.js';
 
 import {
   DEFAULT_RSS_INITIAL_CURSOR_DAYS,
@@ -27,7 +28,7 @@ export const DEFAULT_RSS_POLL_LIMIT = 1;
  * advancement, item deduplication, and optional subscription forwarding.
  */
 export class RssCollector {
-  constructor({ registryStore, inboxStore, fetchImpl = globalThis.fetch, curlImpl = execFileAsync, secretResolver = () => null, now = () => new Date(), logger = console } = {}) {
+  constructor({ registryStore, inboxStore, fetchImpl = globalThis.fetch, curlImpl = execFileAsync, secretResolver = () => null, now = () => new Date(), logger = console, readLedgerStatus } = {}) {
     this.registryStore = registryStore;
     this.inboxStore = inboxStore;
     this.fetchImpl = fetchImpl;
@@ -36,6 +37,7 @@ export class RssCollector {
     this.now = now;
     this.logger = logger;
     this.polling = false;
+    this.readLedgerStatus = readLedgerStatus;
   }
 
   async pollAll({ limit = null } = {}) {
@@ -219,19 +221,21 @@ export class RssCollector {
       && (!listenerId || listener.id === listenerId));
     if (listenerId && !listeners.length) throw new Error(`Active RSS listener not found: ${listenerId}`);
     const report = { listeners: [], errors: [] };
-    for (const listener of listeners) {
+    const projected = await withRssIngestionStatus(listeners, { readLedgerStatus: this.readLedgerStatus });
+    for (const listener of projected) {
       try {
-        report.listeners.push(await this.status(listener, registry, { limit }));
+        report.listeners.push(await this.status(listener, registry, { limit, ingestion: listener.ingestion }));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         report.errors.push({ listener_id: listener.id, message });
-        report.listeners.push({ listener_id: listener.id, status: 'error', message });
+        report.listeners.push({ listener_id: listener.id, status: 'error', message, ingestion: listener.ingestion });
       }
     }
     return report;
   }
 
-  async status(listener, registry, { limit = 50 } = {}) {
+  async status(listener, registry, { limit = 50, ingestion } = {}) {
+    ingestion ||= (await withRssIngestionStatus([listener], { readLedgerStatus: this.readLedgerStatus }))[0].ingestion;
     const previous = (await this.inboxStore.get()).collectors[listener.id] || {};
     const response = await this.fetchImpl(listener.url, { headers: { 'user-agent': 'BigBrain RSS status/1.0' } });
     if (!response.ok) throw new Error(`Feed returned HTTP ${response.status}.`);
@@ -251,6 +255,7 @@ export class RssCollector {
       listener_id: listener.id,
       status: 'ok',
       feed_title: feed.title,
+      ingestion,
       item_count: items.length,
       initialized_at: previous.initialized_at || null,
       initial_cursor: { cursor_at: initialCursorAt, cursor_id: null, source: initialCursorPersisted ? 'persisted' : 'derived_from_status_time' },

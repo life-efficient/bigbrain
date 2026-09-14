@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { withRssIngestionStatus } from '../../src/bigbrain/rss-ingestion-status.js';
 import os from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
@@ -6,7 +7,7 @@ import { spawn } from 'node:child_process';
 import { EventInboxStore, EventRegistryStore, createEmptyEventRegistry, normalizeEventRegistry, normalizeListener, normalizeSubscription, defaultEventInboxPath, defaultEventRegistryPath } from '../../src/bigbrain/inbound-events.js';
 
 export class EventRuntimeManager {
-  constructor({ appPath = process.cwd(), registryPath = null, inboxPath = null, configPath = null, runnerPath = null, spawnImpl = spawn, env = process.env, logger = console } = {}) {
+  constructor({ appPath = process.cwd(), registryPath = null, inboxPath = null, configPath = null, runnerPath = null, spawnImpl = spawn, env = process.env, logger = console, readLedgerStatus } = {}) {
     this.appPath = appPath;
     this.registryPath = path.resolve(registryPath || defaultEventRegistryPath(env));
     this.inboxPath = path.resolve(inboxPath || defaultEventInboxPath(env));
@@ -15,6 +16,7 @@ export class EventRuntimeManager {
     this.spawnImpl = spawnImpl;
     this.env = env;
     this.logger = logger;
+    this.readLedgerStatus = readLedgerStatus;
     this.registry = new EventRegistryStore({ filePath: this.registryPath });
     this.inbox = new EventInboxStore({ filePath: this.inboxPath });
     this.child = null;
@@ -25,7 +27,12 @@ export class EventRuntimeManager {
     const registry = await this.registry.get();
     const inbox = await this.inbox.get();
     const counts = Object.values(inbox.deliveries).reduce((value, event) => { value[event.state] = (value[event.state] || 0) + 1; return value; }, {});
-    return { ok: true, running: Boolean(this.child), registry_revision: registry.revision, runtime: registry.runtime, listeners: registry.listeners.map(safeListener), counts, collectors: inbox.collectors, registry_path: this.registryPath, inbox_path: this.inboxPath };
+    return { ok: true, running: Boolean(this.child), registry_revision: registry.revision, runtime: registry.runtime, listeners: await withRssIngestionStatus(registry.listeners.map(safeListener), { readLedgerStatus: this.readLedgerStatus }), counts, collectors: inbox.collectors, registry_path: this.registryPath, inbox_path: this.inboxPath };
+  }
+
+  async listeners() {
+    const registry = await this.registry.get();
+    return { revision: registry.revision, listeners: await withRssIngestionStatus(registry.listeners.map(safeListener), { readLedgerStatus: this.readLedgerStatus }) };
   }
 
   async ensureBrain(brain) {
