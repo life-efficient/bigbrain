@@ -70,8 +70,8 @@ export class RssCollector {
   async poll(listener, registry, { limit = null } = {}) {
     const previous = (await this.inboxStore.get()).collectors[listener.id] || {};
     const headers = { 'user-agent': 'BigBrain Inbound RSS/2.0' };
-    if (previous.etag) headers['if-none-match'] = previous.etag;
-    if (previous.last_modified) headers['if-modified-since'] = previous.last_modified;
+    if (previous.etag && !previous.pending_items) headers['if-none-match'] = previous.etag;
+    if (previous.last_modified && !previous.pending_items) headers['if-modified-since'] = previous.last_modified;
     const response = await this.fetchImpl(listener.url, { headers });
     const polledAt = this.now().toISOString();
     const next = {
@@ -99,9 +99,18 @@ export class RssCollector {
     const xml = await response.text();
     const feed = parseRssDocument(xml);
     const items = feed.items.map(normalizeRssItemForEvent).sort((a, b) => Date.parse(b.published_at || '') - Date.parse(a.published_at || ''));
+    const allItems = listener.bootstrap === 'all';
     const eligible = items.filter((item) => isAfterRssCursor(listener.id, item, cursorAt, previous.cursor_id));
+    if (allItems) {
+      // Advance a chronological cursor only across accepted items. Taking the
+      // newest item first would permanently skip the rest of a bounded burst.
+      eligible.sort((left, right) => compareRssCursors(rssCursorForItem(listener.id, left), rssCursorForItem(listener.id, right)));
+    }
     const boundedEligible = Number.isInteger(limit) && limit > 0 ? eligible.slice(0, limit) : eligible;
     const candidates = listener.bootstrap === 'all' ? boundedEligible : listener.bootstrap === 'none' ? [] : boundedEligible.slice(0, 1);
+    // Persist this before enqueueing so a crash cannot cache an unchanged feed
+    // response while leaving its unaccepted items behind the cursor.
+    next.pending_items = allItems && eligible.length > 0;
     const seen = { ...(previous.seen || {}) };
     let cursor = { cursor_at: cursorAt, cursor_id: previous.cursor_id || null };
     if (!previous.cursor_at) {
@@ -116,7 +125,7 @@ export class RssCollector {
     const candidateKeys = new Set(candidates.map((item) => stableSourceEventId(listener.id, item.guid || item.link || `${item.title}:${item.pubDate}`)));
     for (const item of items) {
       const key = stableSourceEventId(listener.id, item.guid || item.link || `${item.title}:${item.pubDate}`);
-      if (!candidateKeys.has(key)) seen[key] ||= polledAt;
+      if (!allItems && !candidateKeys.has(key)) seen[key] ||= polledAt;
     }
     let ingested = 0;
     let duplicates = 0;
@@ -127,6 +136,10 @@ export class RssCollector {
       if (seen[key] || previous.legacy_seen?.[legacyKey]) {
         duplicates += 1;
         seen[key] ||= previous.legacy_seen?.[legacyKey] || polledAt;
+        if (allItems) {
+          const itemCursor = rssCursorForItem(listener.id, item);
+          if (itemCursor && compareRssCursors(itemCursor, cursor) > 0) cursor = itemCursor;
+        }
         continue;
       }
       const event = createRssEventEnvelope({ listener, item, feedXml: item.raw || xml, now: this.now(), registry });
@@ -160,7 +173,7 @@ export class RssCollector {
           continue;
         }
         const result = await this.inboxStore.enqueue(deliveryEvent, { clientId: subscription.client_id, subscriptionId: subscription.id || null });
-        if (result.duplicate) duplicates += 1; else { ingested += 1; accepted = true; acceptedDeliveryIds.push(result.event.delivery_id); }
+        if (result.duplicate) { duplicates += 1; accepted = true; } else { ingested += 1; accepted = true; acceptedDeliveryIds.push(result.event.delivery_id); }
       }
       if (!accepted && subscriptions.length) continue;
       seen[key] = polledAt;
@@ -182,6 +195,7 @@ export class RssCollector {
     }
     const latest = latestRssCursor(listener.id, items);
     if (!candidates.length && latest && compareRssCursors(latest, cursor) > 0) cursor = latest;
+    next.pending_items = allItems && eligible.some((item) => isAfterRssCursor(listener.id, item, cursor.cursor_at, cursor.cursor_id));
     await this.inboxStore.updateCollector(listener.id, {
       ...next,
       seen: trimObject(seen, 2000),

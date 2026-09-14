@@ -3,7 +3,8 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { CodexAppThreadExecutor, CodexCliExecutor, normalizeCodexOutcome } from './codex-event-executor.js';
+import { CodexAppThreadExecutor, CodexCliExecutor, isSubstackRssEvent, normalizeCodexOutcome } from './codex-event-executor.js';
+import { openSubstackLedger } from './substack-ledger.js';
 import { DEFAULT_RSS_POLL_LIMIT, RssCollector } from './rss-events.js';
 import { InboundWebhookServer } from './webhook-events.js';
 import { normalizeSourceType } from './source-taxonomy.js';
@@ -611,12 +612,13 @@ export class EventInboxStore {
 }
 
 export class InboundEventProcessor {
-  constructor({ registryStore, inboxStore, executorFactory, filingBroker = null, logger = console, now = () => new Date() } = {}) {
+  constructor({ registryStore, inboxStore, executorFactory, filingBroker = null, substackLedgerReader = readSubstackLedgerPost, logger = console, now = () => new Date() } = {}) {
     if (!registryStore || !inboxStore) throw new Error('Inbound event processor requires registryStore and inboxStore.');
     this.registryStore = registryStore;
     this.inboxStore = inboxStore;
     this.executorFactory = executorFactory;
     this.filingBroker = filingBroker;
+    this.substackLedgerReader = substackLedgerReader;
     this.logger = logger;
     this.now = now;
   }
@@ -652,6 +654,42 @@ export class InboundEventProcessor {
       const executor = await this.executorFactory({ mode: processingEvent.execution.mode, location: processingEvent.execution.location, listener, registry });
       if (!executor || typeof executor.execute !== 'function') throw new Error(`No Codex executor is configured for ${processingEvent.execution.location}/${processingEvent.execution.mode}.`);
       execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
+      if (isSubstackRssEvent(processingEvent, listener)) {
+        let record;
+        try {
+          record = await this.substackLedgerReader(processingEvent.payload?.link || processingEvent.payload?.url);
+        } catch (error) {
+          return this.inboxStore.fail(deliveryId, `Substack ledger verification unavailable: ${error.message}`, { quarantine: true, executionId: execution?.execution_id, threadId: execution?.thread_id, executionMeta: executionMetadata(execution) });
+        }
+        const verification = record?.verification;
+        const allowedIds = allowedDestinations.map((brain) => brain.id || brain.brain_id);
+        const retained = ['source_only', 'source_and_update', 'verified_noop'].includes(record?.outcome);
+        const ignored = record?.outcome === 'ignored';
+        const verified = verification?.readBack === true
+          && Number.isFinite(Date.parse(verification?.verifiedAt || ''))
+          && allowedIds.includes(verification?.brainId)
+          && typeof verification?.evidence === 'string' && verification.evidence.trim()
+          && Array.isArray(verification?.paths)
+          && (ignored ? Boolean(record?.reason?.trim()) : retained && verification.paths.length > 0);
+        if (!verified) {
+          return this.inboxStore.fail(deliveryId, 'Substack article has no verified terminal ledger outcome in an allowed Brain; leave it for review.', { quarantine: true, executionId: execution?.execution_id, threadId: execution?.thread_id, executionMeta: executionMetadata(execution) });
+        }
+        return this.inboxStore.complete(deliveryId, {
+          state: ignored ? 'ignored' : 'filed',
+          outcome: {
+            status: ignored ? 'ignored' : 'filed',
+            capture_mode: ignored ? 'none' : classification.decision,
+            reason: record.reason || `Verified Substack ledger outcome: ${record.outcome}.`,
+            substack_outcome: record.outcome,
+            post_key: record.url,
+            destinations: [{ brain_id: verification.brainId, paths: verification.paths }],
+          },
+          executionId: execution?.execution_id,
+          threadId: execution?.thread_id,
+          executionMeta: executionMetadata(execution),
+          retainRaw: listener.capture_policy.retain_raw,
+        });
+      }
       if (processingEvent.type === 'rss.item') {
         return this.inboxStore.complete(deliveryId, {
           state: 'filed',
@@ -720,6 +758,12 @@ export class InboundEventProcessor {
     for (const event of pending) results.push(await this.process(event.delivery_id));
     return results;
   }
+}
+
+function readSubstackLedgerPost(url) {
+  const ledger = openSubstackLedger({ readOnly: true });
+  if (!ledger) return null;
+  try { return ledger.post(url); } finally { ledger.close(); }
 }
 
 export class InboundEventRuntime {

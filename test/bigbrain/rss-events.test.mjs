@@ -124,6 +124,68 @@ test('RSS polling does not fail when the article URL is unavailable', async () =
   }
 });
 
+test('all-item RSS collection drains a bounded burst without gaps or conditional-GET starvation', async () => {
+  const paths = await fixture();
+  try {
+    const now = () => new Date('2026-08-28T13:00:00.000Z');
+    const feedListener = listener({ bootstrap: 'all', skill: 'bigbrain-substack-ingest' });
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1', now });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [feedListener] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath, now });
+    // Two items share a date. The cursor's stable ID must order that tie too.
+    const items = [{ guid: 'newest', date: 'Fri, 28 Aug 2026 12:00:00 GMT' }, { guid: 'same-b', date: 'Fri, 28 Aug 2026 11:00:00 GMT' }, { guid: 'same-a', date: 'Fri, 28 Aug 2026 11:00:00 GMT' }];
+    const xml = '<rss><channel><title>Feed</title>' + items.map(({ guid, date }) => `<item><guid>${guid}</guid><title>${guid}</title><link>https://publisher.test/p/${guid}</link><pubDate>${date}</pubDate></item>`).join('') + '</channel></rss>';
+    const requests = [];
+    const collector = new RssCollector({ registryStore: registry, inboxStore: inbox, now, fetchImpl: async (_url, { headers }) => {
+      requests.push(headers);
+      if (headers['if-none-match']) return { status: 304, ok: false, headers: { get: () => null } };
+      return { ...response(xml), headers: { get: (key) => key === 'etag' ? 'feed-version-1' : null } };
+    } });
+    const deliveryOrder = [];
+    for (let i = 0; i < 3; i++) {
+      const report = await collector.pollAll({ limit: 1 });
+      assert.equal(report.ingested, 1);
+      assert.equal(report.duplicates, 0);
+      const state = await inbox.get();
+      deliveryOrder.push(state.deliveries[report.listeners[0].delivery_ids[0]].payload.guid);
+      assert.equal(state.collectors.feed.pending_items, i < 2);
+    }
+    assert.equal(deliveryOrder.at(-1), 'newest');
+    assert.deepEqual(new Set(deliveryOrder), new Set(items.map((item) => item.guid)));
+    assert.equal((await inbox.list()).length, 3);
+    assert.equal(requests.every((headers) => !headers['if-none-match']), true);
+    const finished = await collector.pollAll({ limit: 1 });
+    assert.equal(finished.listeners[0].status, 'not_modified');
+    assert.equal(requests.at(-1)['if-none-match'], 'feed-version-1');
+    assert.equal((await inbox.get()).collectors.feed.cursor_at, '2026-08-28T12:00:00.000Z');
+  } finally { await fs.rm(paths.root, { recursive: true, force: true }); }
+});
+
+test('all-item RSS collection retries an unchanged feed after enqueue failure', async () => {
+  const paths = await fixture();
+  try {
+    const now = () => new Date('2026-08-28T13:00:00.000Z');
+    const feedListener = listener({ bootstrap: 'all' });
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1', now });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [feedListener] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath, now });
+    const enqueue = inbox.enqueue.bind(inbox);
+    let failEnqueue = true;
+    inbox.enqueue = async (...args) => { if (failEnqueue) throw new Error('Interrupted enqueue'); return enqueue(...args); };
+    const xml = '<rss><channel><item><guid>post</guid><title>Post</title><link>https://publisher.test/p/post</link><pubDate>Fri, 28 Aug 2026 12:00:00 GMT</pubDate></item></channel></rss>';
+    const collector = new RssCollector({ registryStore: registry, inboxStore: inbox, now, fetchImpl: async (_url, { headers }) => {
+      assert.equal(headers['if-none-match'], undefined);
+      return { ...response(xml), headers: { get: (key) => key === 'etag' ? 'unchanged-feed' : null } };
+    } });
+    await assert.rejects(() => collector.poll(feedListener, registry.value, { limit: 1 }), /Interrupted enqueue/);
+    assert.equal((await inbox.get()).collectors.feed.pending_items, true);
+    failEnqueue = false;
+    const recovered = await collector.poll(feedListener, registry.value, { limit: 1 });
+    assert.equal(recovered.ingested, 1);
+    assert.equal((await inbox.get()).collectors.feed.pending_items, false);
+  } finally { await fs.rm(paths.root, { recursive: true, force: true }); }
+});
+
 test('RSS source retrieval falls back to curl after HTTP 403', async () => {
   const paths = await fixture();
   try {

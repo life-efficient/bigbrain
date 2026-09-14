@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { CodexAppThreadExecutor, CodexCliExecutor, buildEventPrompt, normalizeCodexOutcome, parseCodexJsonOutput, parseCodexThreadId, resolveThreadTitle, selectPromptPayload } from '../../src/bigbrain/codex-event-executor.js';
+import { CodexAppThreadExecutor, CodexCliExecutor, buildEventPrompt, isSubstackRssEvent, normalizeCodexOutcome, parseCodexJsonOutput, parseCodexThreadId, resolveThreadTitle, selectPromptPayload } from '../../src/bigbrain/codex-event-executor.js';
 
 const event = {
   event_id: 'event-1',
@@ -75,6 +75,24 @@ test('RSS article prompt makes filing optional and gates writes on relevance', (
   assert.doesNotMatch(prompt, /Source retrieval status/);
   assert.doesNotMatch(prompt, /Original article text/);
   assert.doesNotMatch(prompt, /<html>Original article text<\/html>/);
+});
+
+test('Substack RSS preserves identity and Brain scope even when prompt fields are narrowed', () => {
+  const item = { event_id: 'rss-post-1', delivery_id: 'delivery-1', listener_id: 'publication-1', type: 'rss.item', allowed_brain_ids: ['personal'], payload: { title: 'Post', link: 'https://newsletter.example.test/p/post', published_at: '2026-09-14T10:00:00Z', guid: 'item-guid', raw: '<item>private payload</item>' } };
+  const prompt = buildEventPrompt(item, { type: 'rss', skill: 'bigbrain-substack-ingest', url: 'https://newsletter.example.test/feed', prompt_payload_fields: ['title'], guidance: 'Only relevant infrastructure analysis.' }, { allowedDestinations: [{ id: 'personal', name: 'Personal Brain' }] });
+  assert.match(prompt, /Use the \$bigbrain-substack-ingest skill as the primary workflow/);
+  assert.match(prompt, /atomic claim before fetching the body or writing/);
+  assert.match(prompt, /determines this RSS delivery outcome from the shared ledger/);
+  assert.match(prompt, /Only relevant infrastructure analysis\./);
+  for (const value of ['rss-post-1', 'delivery-1', 'publication-1', 'https://newsletter.example.test/p/post', 'https://newsletter.example.test/feed', '2026-09-14T10:00:00Z', 'item-guid', 'personal', 'Personal Brain']) assert.ok(prompt.includes(value));
+  assert.doesNotMatch(prompt, /private payload/);
+});
+
+test('Substack detection supports explicit custom domains and exact hosted domain suffix', () => {
+  assert.equal(isSubstackRssEvent({ type: 'rss.item', payload: { link: 'https://publication.substack.com/p/post' } }, {}), true);
+  assert.equal(isSubstackRssEvent({ type: 'rss.item', payload: { link: 'https://substack.com.attacker.test/p/post' } }, {}), false);
+  assert.equal(isSubstackRssEvent({ type: 'rss.item', payload: { link: 'https://publisher.test/p/post' } }, { skill: '$bigbrain-substack-ingest' }), true);
+  assert.equal(isSubstackRssEvent({ type: 'webhook.event' }, { skill: 'bigbrain-substack-ingest' }), false);
 });
 
 test('RSS outcomes accept the direct operation form emitted by the source-article skill', () => {

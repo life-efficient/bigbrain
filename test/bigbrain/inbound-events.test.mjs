@@ -262,6 +262,42 @@ test('processor records completed RSS tasks without brokering their chat output'
   }
 });
 
+test('Substack RSS completion requires terminal scoped ledger evidence, regardless of task prose', async (t) => {
+  const verification = { readBack: true, verifiedAt: '2026-09-14T10:00:00Z', brainId: 'brain_personal', paths: ['concepts/.raw/post.md', 'concepts/.raw/post.html'], evidence: 'Same-Brain raw and source read-back verified.' };
+  const cases = [
+    ['missing ledger record', null, 'quarantined'],
+    ['pending article', { outcome: 'pending' }, 'quarantined'],
+    ['blocked article', { outcome: 'needs_review', reason: 'paid preview only' }, 'quarantined'],
+    ['unverified ignored article', { outcome: 'ignored', reason: 'not relevant' }, 'quarantined'],
+    ['retained without artifact paths', { outcome: 'source_only', verification: { ...verification, paths: [] } }, 'quarantined'],
+    ['retained in different Brain', { outcome: 'source_and_update', verification: { ...verification, brainId: 'another-brain' } }, 'quarantined'],
+    ['verified retained article', { outcome: 'source_only', verification }, 'filed'],
+    ['verified ignored article', { outcome: 'ignored', reason: 'Reviewed complete article; no durable relevant value.', verification: { ...verification, paths: [] } }, 'ignored'],
+    ['verified duplicate', { outcome: 'verified_noop', verification }, 'filed'],
+  ];
+  for (const [name, record, expected] of cases) await t.test(name, async () => {
+    const paths = await fixture();
+    try {
+      const listener = rssListener({ skill: 'bigbrain-substack-ingest' });
+      const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+      await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [listener] });
+      const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+      const url = 'https://publisher.test/p/post';
+      const queued = await inbox.enqueue(createRssEventEnvelope({ listener, item: { title: 'Post', link: url, guid: 'post' } }), { clientId: 'client-1' });
+      const processor = new InboundEventProcessor({
+        registryStore: registry, inboxStore: inbox,
+        substackLedgerReader: async (value) => { assert.equal(value, url); return record && { url, ...record }; },
+        executorFactory: async () => ({ execute: async () => ({ mode: 'app_thread', execution_id: 'turn-1', thread_id: 'thread-1', response_text: 'Task finished.', outcome: { status: 'filed', reason: 'Done', destinations: [] } }) }),
+        filingBroker: { file: async () => { throw new Error('Do not replay verified Substack writes'); } },
+      });
+      const processed = await processor.process(queued.event.delivery_id);
+      assert.equal(processed.state, expected);
+      assert.equal(processed.thread_id, 'thread-1');
+      if (expected !== 'quarantined') assert.equal(processed.outcome.substack_outcome, record.outcome);
+    } finally { await fs.rm(paths.root, { recursive: true, force: true }); }
+  });
+});
+
 test('filing broker injects fetched RSS source bytes into a raw source write and reads it back', async () => {
   const calls = [];
   const broker = new ScopedFilingBroker({
