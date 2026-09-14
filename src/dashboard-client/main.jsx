@@ -3143,7 +3143,9 @@ const GraphPanel = memo(function GraphPanel({
     }
   }
 
-  const handleGraphStyleKeyDown = useEffectEvent((event) => {
+  const graphStyleKeyDownRef = useRef(null);
+  // Keep the window listener attached while refreshing the values it reads.
+  graphStyleKeyDownRef.current = (event) => {
     if (!shortcutsEnabled || event.defaultPrevented || event.repeat || event.isComposing) return;
     if (event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || isTypingTarget(event.target)) return;
     if (document.querySelector('[role="dialog"], [role="listbox"], .graph-flow-source-filter-menu')) return;
@@ -3166,10 +3168,10 @@ const GraphPanel = memo(function GraphPanel({
       return;
     }
     event.preventDefault();
-  });
+  };
 
   useEffect(() => {
-    const handleKeyDown = (event) => handleGraphStyleKeyDown(event);
+    const handleKeyDown = (event) => graphStyleKeyDownRef.current?.(event);
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
