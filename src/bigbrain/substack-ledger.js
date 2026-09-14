@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto';
 const RETAINED = ['source_only', 'source_and_update', 'verified_noop'];
 const OUTCOMES = [...RETAINED, 'ignored', 'needs_review'];
 const OPERATIONS = ['status', 'publication-upsert', 'discover', 'claim', 'renew', 'complete', 'release', 'retry', 'scan-checkpoint'];
-export const SUBSTACK_LEDGER_SCHEMA_VERSION = 1;
+export const SUBSTACK_LEDGER_SCHEMA_VERSION = 2;
 const required = (value, field) => {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`${field} must be a non-empty string.`);
   return value.trim();
@@ -42,7 +42,7 @@ export function openSubstackLedger({ ledgerPath = defaultSubstackLedgerPath(), r
   try {
     db.exec('PRAGMA busy_timeout = 10000; PRAGMA foreign_keys = ON;');
     const version = Number(db.prepare('PRAGMA user_version').get().user_version);
-    if (version > SUBSTACK_LEDGER_SCHEMA_VERSION || (readOnly && version !== SUBSTACK_LEDGER_SCHEMA_VERSION)) throw new Error(`Unsupported Substack ledger schema version ${version}.`);
+    if (version > SUBSTACK_LEDGER_SCHEMA_VERSION || (readOnly && version < 1)) throw new Error(`Unsupported Substack ledger schema version ${version}.`);
     if (!readOnly) {
       db.exec('PRAGMA journal_mode = WAL; BEGIN IMMEDIATE;');
       try {
@@ -54,7 +54,12 @@ export function openSubstackLedger({ ledgerPath = defaultSubstackLedgerPath(), r
           CREATE TABLE IF NOT EXISTS scans (publication_url TEXT NOT NULL REFERENCES publications(url), channel TEXT NOT NULL, through_at TEXT NOT NULL, oldest_seen_at TEXT, newest_seen_at TEXT, updated_at TEXT NOT NULL, PRIMARY KEY(publication_url, channel));
           CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY, operation TEXT NOT NULL, url TEXT NOT NULL, details TEXT NOT NULL, created_at TEXT NOT NULL);
           CREATE INDEX IF NOT EXISTS posts_publication ON posts(publication_url, published_at);
-          PRAGMA user_version = 1;
+          CREATE TABLE IF NOT EXISTS rss_feeds (feed_id TEXT PRIMARY KEY, feed_url TEXT NOT NULL, title TEXT NOT NULL, provider TEXT NOT NULL DEFAULT 'rss', created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+          CREATE TABLE IF NOT EXISTS rss_feed_posts (feed_id TEXT NOT NULL REFERENCES rss_feeds(feed_id), url TEXT NOT NULL REFERENCES posts(url), PRIMARY KEY(feed_id,url));
+          CREATE INDEX IF NOT EXISTS rss_feed_posts_url ON rss_feed_posts(url);
+          INSERT OR IGNORE INTO rss_feeds SELECT rss_registration_id,feed_url,title,'substack',created_at,updated_at FROM publications WHERE rss_registration_id IS NOT NULL;
+          INSERT OR IGNORE INTO rss_feed_posts SELECT p.rss_registration_id,a.url FROM publications p JOIN posts a ON a.publication_url=p.url WHERE p.rss_registration_id IS NOT NULL;
+          PRAGMA user_version = 2;
         `);
         db.exec('COMMIT;');
       } catch (error) { db.exec('ROLLBACK;'); throw error; }
@@ -64,7 +69,7 @@ export function openSubstackLedger({ ledgerPath = defaultSubstackLedgerPath(), r
   } catch (error) { db.close(); throw error; }
 }
 
-class SubstackLedger {
+export class SubstackLedger {
   constructor(db, now, readOnly) { this.db = db; this.now = now; this.readOnly = readOnly; }
   close() { this.db.close(); }
   time() { return this.now().toISOString(); }
@@ -107,9 +112,18 @@ class SubstackLedger {
       }
       this.db.prepare(`INSERT INTO publications VALUES(?,?,?,?,?,?) ON CONFLICT(url) DO UPDATE SET title=excluded.title,feed_url=excluded.feed_url,rss_registration_id=COALESCE(excluded.rss_registration_id,publications.rss_registration_id),updated_at=MAX(publications.updated_at,excluded.updated_at)`).run(url,title,feed,input.rssRegistrationId || null,this.time(),this.time());
       for (const original of aliases) this.db.prepare('INSERT OR IGNORE INTO aliases VALUES(?,?,?)').run(canonicalSubstackUrl(original,{publication:true}),url,original);
+      const registrationId = this.db.prepare('SELECT rss_registration_id FROM publications WHERE url=?').get(url).rss_registration_id;
+      if (registrationId) this.associatePublicationFeed(url, registrationId, feed, title);
       this.event('publication-upsert',url,{ feedUrl:feed,aliases });
       return { publication: this.db.prepare('SELECT * FROM publications WHERE url=?').get(url) };
     });
+  }
+  associatePublicationFeed(publication, feedId, feedUrl, title) {
+    const existing = this.db.prepare('SELECT * FROM rss_feeds WHERE feed_id=?').get(feedId);
+    if (existing && existing.feed_url !== feedUrl) throw new Error('Feed URL changed for an existing feed ID; explicit reconciliation is required.');
+    if (existing && existing.provider !== 'substack') throw new Error('Feed provider changed for an existing feed ID; explicit reconciliation is required.');
+    this.db.prepare(`INSERT INTO rss_feeds VALUES(?,?,?,'substack',?,?) ON CONFLICT(feed_id) DO UPDATE SET title=excluded.title,provider='substack',updated_at=MAX(rss_feeds.updated_at,excluded.updated_at)`).run(feedId,feedUrl,title,this.time(),this.time());
+    this.db.prepare('INSERT OR IGNORE INTO rss_feed_posts SELECT ?,url FROM posts WHERE publication_url=?').run(feedId,publication);
   }
   discover(input) {
     return this.transaction(() => {
@@ -122,6 +136,7 @@ class SubstackLedger {
       if (existing && existing.published_at !== publishedAt) throw new Error('Conflicting publication timestamp for existing article; preserve original evidence.');
       this.db.prepare('INSERT OR IGNORE INTO posts(url,publication_url,published_at,title,created_at,updated_at) VALUES(?,?,?,?,?,?)').run(url,publication,publishedAt,required(input.title,'title'),this.time(),this.time());
       this.db.prepare('INSERT INTO sightings VALUES(?,?,?,?) ON CONFLICT(url,channel,original_url) DO UPDATE SET seen_at=MAX(sightings.seen_at,excluded.seen_at)').run(url,required(input.channel,'channel'),input.url,this.time());
+      this.db.prepare("INSERT OR IGNORE INTO rss_feed_posts SELECT f.feed_id,? FROM rss_feeds f JOIN publications p ON (p.rss_registration_id=f.feed_id OR (f.provider='substack' AND p.feed_url=f.feed_url)) WHERE p.url=?").run(url,publication);
       this.event('discover',url,{channel:input.channel,alreadyExists:!!existing});
       return { alreadyExists:!!existing, post:this.post(url) };
     });
@@ -205,14 +220,14 @@ class SubstackLedger {
     const publication=input.publicationUrl?this.publicationUrl(input.publicationUrl):null;
     const limit=input.limit??500,offset=input.offset??0;
     if (!Number.isInteger(limit)||limit<1||limit>5000||!Number.isInteger(offset)||offset<0) throw new Error('limit must be 1..5000 and offset must be nonnegative.');
-    const where=[],args=[];
+    const where=["publication_url NOT LIKE 'urn:bigbrain:rss:%'"],args=[];
     if (publication) {where.push('publication_url=?');args.push(publication);}
     if (input.url) {where.push('url=?');args.push(this.postUrl(input.url));}
     if (input.outstandingOnly) where.push("outcome IN ('pending','processing','needs_review')");
     const filter=where.length?` WHERE ${where.join(' AND ')}`:'';
     const count=Number(this.db.prepare(`SELECT COUNT(*) AS n FROM posts${filter}`).get(...args).n);
     const posts=this.db.prepare(`SELECT * FROM posts${filter} ORDER BY published_at DESC,url LIMIT ? OFFSET ?`).all(...args,limit,offset).map(p=>({...p,verification:p.verification?JSON.parse(p.verification):null}));
-    const publications=this.db.prepare(`SELECT p.*,(SELECT MIN(published_at) FROM posts WHERE publication_url=p.url AND outcome IN ('source_only','source_and_update','verified_noop')) AS filed_low_watermark,(SELECT MAX(published_at) FROM posts WHERE publication_url=p.url AND outcome IN ('source_only','source_and_update','verified_noop')) AS filed_high_watermark,(SELECT COUNT(*) FROM posts WHERE publication_url=p.url AND outcome IN ('pending','processing','needs_review')) AS outstanding_count FROM publications p ${publication?'WHERE p.url=?':''} ORDER BY p.url`).all(...(publication?[publication]:[]));
+    const publications=this.db.prepare(`SELECT p.*,(SELECT MIN(published_at) FROM posts WHERE publication_url=p.url AND outcome IN ('source_only','source_and_update','verified_noop')) AS filed_low_watermark,(SELECT MAX(published_at) FROM posts WHERE publication_url=p.url AND outcome IN ('source_only','source_and_update','verified_noop')) AS filed_high_watermark,(SELECT COUNT(*) FROM posts WHERE publication_url=p.url AND outcome IN ('pending','processing','needs_review')) AS outstanding_count FROM publications p WHERE p.url NOT LIKE 'urn:bigbrain:rss:%' ${publication?'AND p.url=?':''} ORDER BY p.url`).all(...(publication?[publication]:[]));
     return {exists:true,schemaVersion:SUBSTACK_LEDGER_SCHEMA_VERSION,publications,aliases:this.db.prepare(`SELECT * FROM aliases ${publication?'WHERE publication_url=?':''}`).all(...(publication?[publication]:[])),scans:this.db.prepare(`SELECT * FROM scans ${publication?'WHERE publication_url=?':''}`).all(...(publication?[publication]:[])),posts,total:count,nextOffset:offset+posts.length<count?offset+posts.length:null};
   }
 }

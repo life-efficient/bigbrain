@@ -7,6 +7,8 @@ import { randomUUID } from 'node:crypto';
 
 import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
 import { callSubstackLedger, substackLedgerInputSchema, substackWorkflow } from './substack-mcp.js';
+import { callRssLedger, rssLedgerInputSchema, rssWorkflow } from './rss-mcp.js';
+import { withRssIngestionStatus } from './rss-ingestion-status.js';
 import { persistState } from './config.js';
 import { BRAIN_PROFILE_JSON_SCHEMA, authenticatedBrainAbout, loadBrainProfile, saveBrainProfileRevision } from './brain-profile.js';
 import {
@@ -551,6 +553,12 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       await recordWriteProvenance(config, args.path, args.provenance, args.commit_message);
       return toolJson(task);
     }
+    case 'rss/workflow':
+    case 'rss_workflow':
+      return toolJson(await rssWorkflow(args));
+    case 'rss/ledger':
+    case 'rss_ledger':
+      return toolJson(callRssLedger(config, args));
     case 'substack/workflow':
     case 'substack_workflow':
       return toolJson(await substackWorkflow(args));
@@ -558,7 +566,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'substack_ledger':
       return toolJson(callSubstackLedger(config, args));
     case 'events/listeners':
-      return toolJson(await eventRegistryValue(config).then((registry) => ({ revision: registry.revision, runtime: registry.runtime, listeners: registry.listeners.map(safeListener) })), { arrayKey: 'listeners' });
+      return toolJson(await eventRegistryValue(config).then(async (registry) => ({ revision: registry.revision, runtime: registry.runtime, listeners: await withRssIngestionStatus(registry.listeners.map(safeListener)) })), { arrayKey: 'listeners' });
     case 'events/listener_upsert': {
       const registryStore = eventRegistryStore(config);
       const listener = normalizeListener(args.listener || args);
@@ -1757,6 +1765,26 @@ function toolDefinitions(config = null) {
       inputSchema: taskWriteSchema({ update: true }),
     },
     {
+      name: 'rss/workflow',
+      description: 'Get trusted RSS article ingestion instructions directly, without filesystem or desktop access.',
+      inputSchema: { type: 'object', additionalProperties: false, properties: {} },
+    },
+    {
+      name: 'rss_workflow',
+      description: 'Alias for rss/workflow for clients that do not support slash tool names.',
+      inputSchema: { type: 'object', additionalProperties: false, properties: {} },
+    },
+    {
+      name: 'rss/ledger',
+      description: 'Read or update shared per-feed RSS ingestion state. Claim articles atomically across RSS, email and reconciliation, then complete with owning-Brain read-back. Low/high watermarks represent verified articles, not complete coverage. Get guidance from rss/workflow.',
+      inputSchema: rssLedgerInputSchema(),
+    },
+    {
+      name: 'rss_ledger',
+      description: 'Alias for rss/ledger for clients that do not support slash tool names.',
+      inputSchema: rssLedgerInputSchema(),
+    },
+    {
       name: 'substack/workflow',
       description: 'Read the complete trusted Substack ingestion workflow and required references directly. No shell, local file reader, or desktop app is needed. Call before Substack ingestion.',
       inputSchema: { type: 'object', properties: {}, additionalProperties: false },
@@ -2475,6 +2503,10 @@ const TOOL_POLICIES = {
   read_raw_file: { layer: 'read', scopes: ['brain:read'] },
   'tasks/create': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   'tasks/update': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'rss/workflow': { layer: 'read', scopes: ['brain:read'] },
+  rss_workflow: { layer: 'read', scopes: ['brain:read'] },
+  'rss/ledger': { layer: 'events_manage', scopes: ['brain:admin'] },
+  rss_ledger: { layer: 'events_manage', scopes: ['brain:admin'] },
   'substack/workflow': { layer: 'read', scopes: ['brain:read'] },
   substack_workflow: { layer: 'read', scopes: ['brain:read'] },
   'substack/ledger': { layer: 'events_manage', scopes: ['brain:admin'] },

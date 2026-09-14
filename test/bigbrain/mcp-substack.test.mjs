@@ -27,7 +27,7 @@ test('MCP Substack workflow and shared ledger work without shell or arbitrary fi
     const ledger = (operation, input = {}) => call('substack/ledger', { operation, input });
     const rejected = async args => assert.ok((await rpc('tools/call', { name: 'substack/ledger', arguments: args })).error);
     const listed = await rpc('tools/list', {});
-    for (const name of ['substack/workflow', 'substack_workflow', 'substack/ledger', 'substack_ledger']) assert.ok(listed.result.tools.some(tool => tool.name === name));
+    for (const name of ['substack/workflow', 'substack_workflow', 'substack/ledger', 'substack_ledger', 'rss/workflow', 'rss_workflow', 'rss/ledger', 'rss_ledger']) assert.ok(listed.result.tools.some(tool => tool.name === name));
     const workflow = await call('substack/workflow', {});
     assert.equal(workflow.documents.length, 6);
     assert.ok(workflow.documents.some(doc => doc.name.endsWith('ingestion-completeness.md') && doc.content.includes('saved Brain state')));
@@ -64,6 +64,29 @@ test('MCP Substack workflow and shared ledger work without shell or arbitrary fi
     assert.equal(status.publications[0].filed_high_watermark, '2026-09-01T10:00:00.000Z');
     assert.equal(status.scans[0].channel, 'browser');
     assert.equal((await ledger('claim', { url, owner: 'email-after-rss' })).claimed, false);
+    const rssWorkflow = await call('rss/workflow', {});
+    assert.equal(rssWorkflow.documents.length, 5);
+    assert.ok(rssWorkflow.documents.some(doc => doc.name.endsWith('rss-ledger.md')));
+    assert.match(rssWorkflow.instruction, /Never open TextEdit/);
+    assert.deepEqual(await call('rss_workflow', {}), rssWorkflow);
+    assert.ok((await rpc('tools/call', { name: 'rss/workflow', arguments: { path: '/etc/passwd' } })).error);
+    const rss = (operation, input = {}) => call('rss/ledger', { operation, input });
+    const rssRejected = async args => assert.ok((await rpc('tools/call', { name: 'rss/ledger', arguments: args })).error);
+    await rssRejected({ operation: 'status', input: { ledgerPath: '/tmp/forbidden.sqlite' } });
+    await rssRejected({ operation: 'status', input: {}, ledgerPath: '/tmp/forbidden.sqlite' });
+    await rss('feed-upsert', { feedId: 'generic', feedUrl: 'https://feeds.example/feed', title: 'Generic feed' });
+    const genericUrl = 'https://articles.example/?post=1';
+    await rss('discover', { feedId: 'generic', url: genericUrl, publishedAt: '2026-09-02T00:00:00Z', title: 'Generic article', channel: 'rss' });
+    const rssClaim = await rss('claim', { url: genericUrl, owner: 'rss' });
+    await rssRejected({ operation: 'complete', input: { url: genericUrl, leaseToken: rssClaim.leaseToken, outcome: 'source_only', verification: { ...verification, brainId: 'another-brain' } } });
+    await rssRejected({ operation: 'complete', input: { url: genericUrl, leaseToken: rssClaim.leaseToken, outcome: 'source_only', verification: { ...verification, paths: ['../another-brain/source.md'] } } });
+    assert.equal((await rss('status', { feedId: 'generic' })).feeds[0].filed_high_watermark, null);
+    await rss('complete', { url: genericUrl, leaseToken: rssClaim.leaseToken, outcome: 'source_only', verification });
+    const rssState = await call('rss_ledger', { operation: 'status', input: { feedId: 'generic' } });
+    assert.equal(rssState.feeds[0].filed_high_watermark, '2026-09-02T00:00:00.000Z');
+    assert.equal(rssState.feeds[0].outstanding_count, 0);
+    assert.equal((await rss('claim', { url: genericUrl, owner: 'email-after-rss' })).claimed, false);
+
   } finally {
     await server?.close();
     if (previous === undefined) delete process.env.BIGBRAIN_SUBSTACK_LEDGER_PATH;
