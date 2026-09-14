@@ -182,7 +182,12 @@ For each request, BigBrain currently:
 7. **Adds deterministic boosts** for exact page or slug matches, aliases, title
    phrases, ordered title tokens, and full title-token coverage.
 8. **Reranks the candidate set with OpenAI** in `tokenmax` mode.
-   If that step fails, BigBrain keeps the pre-rerank order.
+   The model receives complete indexed page payloads, including timeline,
+   rather than previews. It considers up to 30 candidates in original rank
+   order, stopping before the next whole page exceeds the context byte budget.
+   Unread candidates retain their original order after the reranked group.
+   Fewer than two fitting pages skips the model call. Failure or incomplete
+   scores preserve the original order; `reranking` reports status and coverage.
 9. **Returns ranked sources** with snippets and optional score explanations.
 10. **Supplies complete page payloads in `retrieval_context.context`** as a
     contiguous ranked prefix within `search_context_max_bytes`. Pages are never

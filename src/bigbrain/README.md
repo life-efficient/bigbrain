@@ -67,6 +67,23 @@ bigbrain search "What changed in this deal?" --mode balanced --json
 
 ### Current heuristics
 
+#### Whole-page reranking
+
+When enabled, reranking hydrates the first 30 candidates from indexed Markdown
+and rebuilds the same title, aliases, body, and timeline payload used for
+embeddings. Operational frontmatter and hidden timeline provenance are excluded.
+The reranker gets a complete ranked prefix within `search_context_max_bytes`;
+it never gets preview snippets as evidence or partially truncated pages.
+This limit applies separately to the reranker context and the final harness
+context, which is assembled after reranking.
+
+Only candidates actually included in that context are reranked. Candidates
+outside the budget or candidate limit retain their original order after that
+group. Fewer than two fitting pages skips the call. The model must return one
+valid score for every included page, or BigBrain keeps the original order.
+The `reranking` report exposes status and, when context was built successfully,
+coverage and byte usage without returning a duplicate context body.
+
 #### Expansion default
 
 Expansion is off in `balanced` and `conservative`. When enabled by `tokenmax`

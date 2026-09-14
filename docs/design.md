@@ -505,6 +505,17 @@ default. MCP search defaults to 10 in every mode unless `limit` is supplied.
 Expansion still applies its query-shape heuristic. Every mode uses the shared
 whole-page context byte budget described below.
 
+Optional model reranking uses the complete indexed payload for each page,
+including body and timeline, with the same operational-frontmatter exclusions
+as embeddings. Up to 30 candidates are considered in original rank order;
+packing stops at the first unavailable or over-budget whole page. The
+`search_context_max_bytes` cap applies independently to this reranker input
+context and the final context returned to the harness. No page is truncated.
+The included prefix is reranked and the unread tail stays in its existing
+order after it. Fewer than two fitting pages skips the model call; failed or
+incomplete scoring retains the original order. The response includes
+`reranking` status and coverage diagnostics without duplicating page bodies.
+
 ## Link Model
 
 Relative links in markdown are core to the system.

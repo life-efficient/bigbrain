@@ -224,15 +224,23 @@ export async function searchBrain({
   stampEvidence(fused);
   fused.sort((left, right) => right.score - left.score || left.slug.localeCompare(right.slug));
   const rerankEnabled = ablationProfile?.rerank ?? modeBundle.rerank;
+  let reranking = { status: 'disabled' };
   if (rerankEnabled) {
     try {
       if (apiKey) {
-        fused = await rerankResults({ config, apiKey, query, results: fused, reranker });
+        const reranked = await rerankResults({ db, config, apiKey, query, results: fused, reranker });
+        fused = reranked.results;
+        reranking = reranked.report;
+        if (reranking.omitted_pages.length > 0) {
+          warnings.push(`Whole-page reranking considered ${reranking.included_pages.length} page(s); ${reranking.omitted_pages.length} candidate(s) were outside its context or candidate limit. Unranked candidates retain their original order after that group.`);
+        }
       } else {
+        reranking = { status: 'skipped', reason: 'missing_api_key' };
         warnings.push('OpenAI reranking skipped because OPENAI_API_KEY is not set.');
       }
     } catch (error) {
       if (strictRetrieval && ablationProfile?.rerank) throw error;
+      reranking = { status: 'failed' };
       warnings.push(formatWarning('OpenAI reranking unavailable; using pre-rerank order', error));
     }
   }
@@ -255,6 +263,7 @@ export async function searchBrain({
     semantic: (semanticLists[0] ?? []).map((result) => compactResult(result, explain)),
     fused: finalResults.map((result) => compactResult(result, explain)),
     retrieval_context: retrievalContext,
+    reranking,
     ablation_arm: resolvedAblationArm,
     ranking_policy: resolvedRankingPolicy,
     ...(explain ? { explain: { mode: resolvedMode, intent, ablation_arm: resolvedAblationArm, ranking_policy: resolvedRankingPolicy, rerank_enabled: rerankEnabled, expansion_enabled: expansionEnabled } } : {}),
@@ -639,22 +648,49 @@ function poolBestEmbeddingPerPage(rows) {
   return [...best.values()].sort((left, right) => Number(right.semantic_score ?? 0) - Number(left.semantic_score ?? 0));
 }
 
-async function rerankResults({ config, apiKey, query, results, reranker }) {
-  const scores = await reranker({ model: config.openaiQueryModel, apiKey, query, results });
-  if (!Array.isArray(scores) || scores.length === 0) return results;
-  const byIndex = new Map(scores.map((entry) => [entry.index, entry.score]));
-  for (let index = 0; index < results.length; index += 1) {
-    if (!byIndex.has(index)) continue;
-    const rerankScore = byIndex.get(index);
-    results[index].rerank_score = rerankScore;
-    results[index].score = (results[index].score * 0.35) + (rerankScore * 0.65);
-    results[index].boosts.push({ type: 'openai_rerank', score: rerankScore });
+async function rerankResults({ db, config, apiKey, query, results, reranker }) {
+  const candidateLimit = 30;
+  const hydrated = await hydrateRankedResults(db, results.slice(0, candidateLimit));
+  const { context, ...coverage } = buildRankedRetrievalContext(hydrated, {
+    maxBytes: config.searchContextMaxBytes ?? config.answerContextMaxBytes,
+  });
+  const candidates = hydrated.slice(0, coverage.included_pages.length);
+  const report = {
+    status: 'skipped',
+    ...coverage,
+    omitted_pages: [
+      ...coverage.omitted_pages,
+      ...results.slice(candidateLimit).map((result) => ({ slug: result.slug, reason: 'candidate_limit' })),
+    ],
+  };
+  if (candidates.length < 2) return { results, report: { ...report, reason: 'fewer_than_two_complete_pages' } };
+  const scores = await reranker({ model: config.openaiQueryModel, apiKey, query, results: candidates, context });
+  if (!Array.isArray(scores) || scores.length !== candidates.length) {
+    throw new Error('Reranker did not score every complete page; keeping the original order.');
   }
-  return results.sort((left, right) => (
+  const byIndex = new Map(scores.map((entry) => [entry.index, entry.score]));
+  if (byIndex.size !== candidates.length || candidates.some((_, index) => (
+    !Number.isFinite(byIndex.get(index)) || byIndex.get(index) < 0 || byIndex.get(index) > 1
+  ))) {
+    throw new Error('Reranker returned invalid page scores; keeping the original order.');
+  }
+  const ranked = results.slice(0, candidates.length).map((result, index) => {
+    const rerankScore = byIndex.get(index);
+    return {
+      ...result,
+      rerank_score: rerankScore,
+      score: (result.score * 0.35) + (rerankScore * 0.65),
+      boosts: [...result.boosts, { type: 'openai_rerank', score: rerankScore }],
+    };
+  }).sort((left, right) => (
     right.score - left.score
     || Number(right.rerank_score ?? 0) - Number(left.rerank_score ?? 0)
     || left.slug.localeCompare(right.slug)
   ));
+  return {
+    results: [...ranked, ...results.slice(candidates.length)],
+    report: { ...report, status: 'completed' },
+  };
 }
 
 function normalizeSearchMode(mode) {

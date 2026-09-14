@@ -1050,6 +1050,94 @@ shared retrieval target
   }
 });
 
+test('model reranking receives complete indexed bodies and timelines instead of previews', async () => {
+  const fixture = await createFixture('bigbrain-rerank-whole-page-');
+  const originalFetch = globalThis.fetch;
+  let db;
+  try {
+    for (const id of ['alpha', 'beta']) {
+      await writeMarkdown(fixture.brainHome, `projects/${id}.md`, `---\ntitle: ${id}\naliases: [${id} alias]\nstatus: active\npriority: p1\n---\n# ${id}\n\nshared retrieval target\n\n${'Background detail. '.repeat(80)}\nBuried ${id} evidence beyond every preview.\n\n## Timeline\n- 2026-09-14: ${id} agreement was renewed.\n<!-- bigbrain:timeline hidden provenance -->\n`);
+    }
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    db = await openDatabase(config);
+    let modelCalls = 0;
+    globalThis.fetch = async (url, options) => {
+      assert.match(String(url), /\/responses$/);
+      modelCalls += 1;
+      const payload = JSON.parse(options.body);
+      const prompt = payload.input[1].content[0].text;
+      for (const id of ['alpha', 'beta']) {
+        assert.match(prompt, new RegExp(`Buried ${id} evidence beyond every preview`));
+        assert.match(prompt, new RegExp(`${id} agreement was renewed`));
+        assert.match(prompt, new RegExp(`Aliases: ${id} alias`));
+      }
+      assert.doesNotMatch(prompt, /status: active|priority: p1|hidden provenance|Snippet:|Summary:/);
+      assert.match(payload.input[0].content[0].text, /zero-based candidate index/);
+      return { ok: true, json: async () => ({ output_text: JSON.stringify({ scores: [{ index: 0, score: 0 }, { index: 1, score: 1 }] }) }) };
+    };
+    const result = await searchBrain({ db, config, query: 'shared retrieval target', mode: 'tokenmax', expand: false, apiKey: 'mock-key' });
+    assert.equal(modelCalls, 1);
+    assert.equal(result.reranking.status, 'completed');
+    assert.deepEqual(result.reranking.included_pages, ['projects/alpha', 'projects/beta']);
+    assert.equal(result.fused[0].slug, 'projects/beta');
+    assert.deepEqual(result.retrieval_context.included_pages, ['projects/beta', 'projects/alpha']);
+    assert.equal(result.reranking.context, undefined);
+    assert.doesNotMatch(JSON.stringify(result.fused), /Buried .* evidence|retrieval_content|embedding_text/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    await db?.close?.();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('reranking respects whole-page budget, preserves unread tail, and rejects incomplete scores', async () => {
+  const fixture = await createFixture('bigbrain-rerank-budget-');
+  let db;
+  try {
+    for (const id of ['alpha', 'bravo', 'delta']) {
+      await writeMarkdown(fixture.brainHome, `projects/${id}.md`, `---\ntitle: Match\n---\n# Match\n\nshared retrieval target\n\n${'Context '.repeat(60)}\nEvidence for ${id}.\n`);
+    }
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    db = await openDatabase(config);
+    const baseline = await searchBrain({ db, config, query: 'shared retrieval target', limit: 3, apiKey: null });
+    const firstTwo = await searchBrain({ db, config, query: 'shared retrieval target', limit: 2, apiKey: null });
+    config.searchContextMaxBytes = firstTwo.retrieval_context.used_bytes;
+    let modelCalls = 0;
+    const reranker = async ({ results, context }) => {
+      modelCalls += 1;
+      assert.equal(results.length, 2);
+      assert.equal(context, firstTwo.retrieval_context.context);
+      assert.ok(Buffer.byteLength(context) <= config.searchContextMaxBytes);
+      assert.doesNotMatch(context, /Evidence for delta/);
+      return [{ index: 0, score: 0 }, { index: 1, score: 1 }];
+    };
+    const options = { db, config, query: 'shared retrieval target', mode: 'tokenmax', expand: false, limit: 3, apiKey: 'mock-key', reranker };
+    const result = await searchBrain(options);
+    assert.equal(modelCalls, 1);
+    assert.deepEqual(result.fused.map((row) => row.slug), ['projects/bravo', 'projects/alpha', 'projects/delta']);
+    assert.equal(result.fused[2].rerank_score, undefined);
+    assert.deepEqual(result.reranking.omitted_pages, [{ slug: 'projects/delta', reason: 'over_budget' }]);
+    assert.ok(result.reranking.used_bytes <= result.reranking.max_bytes);
+
+    const incomplete = await searchBrain({ ...options, reranker: async () => [{ index: 0, score: 1 }] });
+    assert.equal(incomplete.reranking.status, 'failed');
+    assert.deepEqual(incomplete.fused.map((row) => row.slug), baseline.fused.map((row) => row.slug));
+    assert.ok(incomplete.fused.every((row) => row.rerank_score === undefined));
+
+    config.searchContextMaxBytes = 1;
+    const skipped = await searchBrain(options);
+    assert.equal(modelCalls, 1);
+    assert.equal(skipped.reranking.status, 'skipped');
+    assert.deepEqual(skipped.reranking.included_pages, []);
+    assert.deepEqual(skipped.fused.map((row) => row.slug), baseline.fused.map((row) => row.slug));
+  } finally {
+    await db?.close?.();
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('retrieval ablation arms isolate lexical, semantic, fusion, and reranking calls', async () => {
   const fixture = await createFixture('bigbrain-search-ablation-arms-');
   const originalFetch = globalThis.fetch;
