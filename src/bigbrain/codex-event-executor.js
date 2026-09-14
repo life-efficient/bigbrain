@@ -7,6 +7,8 @@ const execFileAsync = promisify(execFile);
 export const DEFAULT_CODEX_EVENT_CWD = process.env.BIGBRAIN_CODEX_EVENT_CWD || process.cwd();
 export const DEFAULT_CODEX_TIMEOUT_MS = 60 * 60 * 1000;
 
+export const SUBSTACK_BACKGROUND_ACCESS_INSTRUCTIONS = 'This background Substack task has no local shell or filesystem tools. Use the owning BigBrain MCP substack/workflow (alias substack_workflow) to read the complete ingestion instructions and substack/ledger (alias substack_ledger) with {operation, input} for shared ledger operations. Never open or control TextEdit, Finder, Terminal, an editor, or a file-open dialog to read skills, configuration, files, or the ledger. Never use browser file URLs or desktop UI as a filesystem or command fallback. Browser access is only for the actual publication, article, or authenticated Substack subscription page. If the required MCP tools cannot be discovered or called, stop with a clear capability blocker and leave completion and watermarks unchanged.';
+
 function configuredCodexTimeout(env = process.env) {
   const value = Number(env?.BIGBRAIN_CODEX_TIMEOUT_MS);
   return Number.isFinite(value) && value > 0 ? value : DEFAULT_CODEX_TIMEOUT_MS;
@@ -68,6 +70,7 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
       allowed_destinations: allowedDestinations.map((brain) => ({ id: brain.id || brain.brain_id, name: brain.name || brain.brain_name })),
     };
     return [
+      SUBSTACK_BACKGROUND_ACCESS_INSTRUCTIONS,
       'Use the $bigbrain-substack-ingest skill as the primary workflow for this RSS-delivered Substack article.',
       'Use the shared Substack ledger for RSS, email, and browser ingestion. Normalize the canonical post identity, look it up in the allowed owning Brain, and acquire its atomic claim before fetching the body or writing. If a verified terminal record already exists, reconcile this delivery without repeating ingestion. If another worker holds the claim, stop without writing or claiming completion.',
       'Use the $bigbrain-source-article-ingest shared relevance gate. Filing is optional: choose ignored, source_only, source_and_update, or needs_review. Followed status alone does not justify filing.',
@@ -288,7 +291,9 @@ export class CodexAppThreadExecutor {
         ephemeral: false,
         environments: [],
         ...(listener?.codex_model ? { model: listener.codex_model } : {}),
-        developerInstructions: listener?.type === 'rss' || event?.type === 'rss.item'
+        developerInstructions: isSubstackRssEvent(event, listener)
+          ? SUBSTACK_BACKGROUND_ACCESS_INSTRUCTIONS
+          : listener?.type === 'rss' || event?.type === 'rss.item'
           ? 'Use the normal Codex environment and available BigBrain tools. Treat this as a regular user task.'
           : 'This is an event-triggered BigBrain ingestion task. Follow the turn instructions, use the available BigBrain MCP and the named BigBrain ingest skill, read filing rules before writes, check existing coverage, and read back changes. Do not send external messages. Complete the work directly and summarize it normally.',
       });

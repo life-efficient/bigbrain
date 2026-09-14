@@ -82,6 +82,9 @@ test('Substack RSS preserves identity and Brain scope even when prompt fields ar
   const prompt = buildEventPrompt(item, { type: 'rss', skill: 'bigbrain-substack-ingest', url: 'https://newsletter.example.test/feed', prompt_payload_fields: ['title'], guidance: 'Only relevant infrastructure analysis.' }, { allowedDestinations: [{ id: 'personal', name: 'Personal Brain' }] });
   assert.match(prompt, /Use the \$bigbrain-substack-ingest skill as the primary workflow/);
   assert.match(prompt, /atomic claim before fetching the body or writing/);
+  assert.match(prompt, /substack\/workflow/);
+  assert.match(prompt, /substack\/ledger/);
+  assert.match(prompt, /Never open or control TextEdit, Finder, Terminal/);
   assert.match(prompt, /determines this RSS delivery outcome from the shared ledger/);
   assert.match(prompt, /Only relevant infrastructure analysis\./);
   for (const value of ['rss-post-1', 'delivery-1', 'publication-1', 'https://newsletter.example.test/p/post', 'https://newsletter.example.test/feed', '2026-09-14T10:00:00Z', 'item-guid', 'personal', 'Personal Brain']) assert.ok(prompt.includes(value));
@@ -165,6 +168,26 @@ test('app-thread executor uses the supported app-server thread and turn methods'
   assert.equal(calls.find((call) => call.method === 'turn/start').params.model, 'gpt-5.6-luna');
   assert.equal(calls.find((call) => call.method === 'turn/start').params.effort, 'xhigh');
   assert.equal(calls.find((call) => call.method === 'turn/start').params.outputSchema, undefined);
+});
+
+test('shell-free Substack app tasks receive MCP access and no-desktop fallback instructions at developer priority', async () => {
+  const calls = [];
+  const executor = new CodexAppThreadExecutor({ clientFactory: async () => ({
+    notifications: [],
+    request: async (method, params) => {
+      calls.push({ method, params });
+      return method === 'thread/start' ? { thread: { id: 'substack-thread' } } : { id: 'substack-turn' };
+    },
+    close: async () => {},
+  }) });
+  await executor.execute({ event: { type: 'rss.item', payload: { link: 'https://publisher.substack.com/p/post' } }, listener: { type: 'rss', provider: 'substack' } });
+  const start = calls.find(call => call.method === 'thread/start').params;
+  assert.deepEqual(start.environments, []);
+  assert.match(start.developerInstructions, /substack\/workflow/);
+  assert.match(start.developerInstructions, /substack\/ledger/);
+  assert.match(start.developerInstructions, /Never open or control TextEdit, Finder, Terminal/);
+  assert.match(start.developerInstructions, /stop with a clear capability blocker/);
+  assert.match(calls.find(call => call.method === 'turn/start').params.input[0].text, /leave completion and watermarks unchanged/);
 });
 
 test('thread title prioritizes configured title, then payload title, then safe fallback', () => {
