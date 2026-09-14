@@ -98,7 +98,7 @@ test('Substack detection supports explicit custom domains and exact hosted domai
   assert.equal(isSubstackRssEvent({ type: 'webhook.event' }, { skill: 'bigbrain-substack-ingest' }), false);
 });
 
-test('RSS browser preference reaches task prompts and app developer instructions across RSS routes', async () => {
+test('RSS browser and prose output instructions reach both prompt layers across RSS routes', async () => {
   const cases = [
     { event: { type: 'rss.item', payload: { link: 'https://publisher.test/article' } }, listener: {} },
     { event: { payload: { link: 'https://publisher.test/article' } }, listener: { type: 'rss' } },
@@ -123,8 +123,14 @@ test('RSS browser preference reaches task prompts and app developer instructions
       assert.match(text, /Explicitly select the iab browser/);
       assert.match(text, /targeted tool discovery first/);
       assert.match(text, /ledger preflight and claim before article retrieval/);
-      assert.match(text, /report needs_review.*rather than automatically switching to an external browser/);
+      assert.match(text, /explain what went wrong in plain language rather than automatically switching to an external browser/);
+      assert.match(text, /Respond in natural prose stating whether you ingested it and why/);
+      assert.match(text, /one-paragraph summary of the article whether ingested or skipped/);
+      assert.match(text, /reliable summary is unavailable; do not invent one/);
+      assert.match(text, /Do not return JSON, a structured output schema/);
+      assert.doesNotMatch(text, /needs_review|source_only|source_and_update|verified_noop/);
     }
+    assert.equal(calls.find(call => call.method === 'turn/start').params.outputSchema, undefined);
   }
   assert.doesNotMatch(buildEventPrompt(event, { provider: 'calendar' }), /RSS-triggered ingestion|iab browser/);
 });

@@ -51,7 +51,10 @@ test('source article ingest keeps filing optional and gates writes on relevance'
   assert.doesNotMatch(skill, /source-retrieval fallback order/);
   assert.doesNotMatch(skill, /after all fallbacks/);
   assert.match(skill, /“ingest this article” or “put it in the right Brain pages”/);
-  assert.match(skill, /For `ignored`, explicitly state that no raw artifact or Brain page was created/);
+  assert.match(skill, /A skipped article's response must make clear that nothing was added to the Brain/);
+  assert.match(skill, /respond in natural prose/);
+  assert.match(skill, /one paragraph summarizing the article's substance whenever the article was readable, whether ingested or skipped/);
+  assert.match(skill, /never fabricate one from a title, snippet, or feed description/);
   assert.match(agent, /sole relevance and filing workflow/);
   assert.match(agent, /shared relevance gate before any write/);
 });

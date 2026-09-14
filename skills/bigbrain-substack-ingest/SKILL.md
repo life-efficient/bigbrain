@@ -20,7 +20,7 @@ Ingest and reconcile verified Substack posts through one shared ledger while pre
 - Atomically claim an unresolved post before retrieval or any content write. A live claim held by another worker means deferred, not ingested; do not duplicate that work. Expired claims are reclaimable.
 - Keep article relevance separate from followed status. Use exact registered source guidance or a named current user anchor. `$bigbrain-source-article-ingest` is the sole relevance and filing gate; `$bigbrain-page` owns canonical page mutations.
 - Preserve full accessible publisher content faithfully, including required source artifacts. No email previews, RSS descriptions, search snippets, synthetic substitutes, or paywall bypass.
-- Outcomes are `source_only`, `source_and_update`, `ignored`, `needs_review`, and `verified_noop`. `ignored` is terminal reviewed metadata without source artifacts. `needs_review` remains an explicit hole.
+- Internal outcomes are `source_only`, `source_and_update`, `ignored`, `needs_review`, and `verified_noop`. `ignored` is terminal reviewed metadata without source artifacts. `needs_review` remains an explicit hole. These labels belong only in operational state and tool handoffs, never in user-facing output categories.
 - Retained outcomes advance verified `high_watermark` and `low_watermark` only after source/artifact/entity coverage and read-back. `ignored` and `needs_review` do not move those watermarks. Discovery checkpoints are separate and never prove ingestion completeness.
 - During authorized daily reconciliation, register RSS feeds for newly discovered genuinely followed publications without asking again. Verify the feed and registry read-back, preserve existing guidance, and never pause, remove, or unsubscribe feeds merely absent from a bounded page.
 - Keep each run bounded. Default reconciliation examines at most five loaded subscription-feed pages, processes at most five unresolved posts, and uses a seven-day overlap. Prefer newest misses while reserving one slot for the oldest retryable hole so older failures are not starved.
@@ -89,6 +89,8 @@ Use the ledger's scan checkpoints for durable discovery progress. Record opaque 
 
 ## Output
 
-For an interactive batch, report verified retained/ignored/duplicate/blocked counts, new RSS registrations, owning Brain and source/page links, watermark changes, and explicit remaining backfill scope. For a single post, return the outcome, rationale, verified saved-state result, and cursor status. Keep provider IDs, lease tokens, raw text, and opaque cursors internal.
+For a single post, explain its relevance, whether it was ingested, skipped, or already covered, and anything that went wrong in natural prose. Follow the shared article skill's RSS output contract: include one paragraph summarizing every readable article, even when skipped; reuse previously verified source content for duplicates without fetching again. If no verified content is accessible, explain why a reliable summary is unavailable instead of inventing one. Do not emit a structured schema, decision table, category labels, or internal outcome names such as `needs_review`.
+
+For an interactive batch, explain what was added, skipped, already covered, or could not be completed, plus useful source/page links, new feeds, and remaining backfill scope. Keep provider IDs, lease tokens, raw text, opaque cursors, watermark bookkeeping, and internal outcomes out of the user-facing response.
 
 A daily no-op exits quietly. An unchanged blocked backlog remains recorded for retry without another alert. Do not claim all history is ingested unless archive and subscription traversal prove it.

@@ -46,7 +46,7 @@ Unless exact source guidance or a named anchor says otherwise, ignore:
 - thin teasers whose substantive source cannot be retrieved;
 - repeated coverage that adds no durable evidence or interpretation.
 
-## Outcomes
+## Internal Outcomes
 
 - `ignored`: canonical identity and article content were reviewed, but the article failed the gate. Create no raw artifact or Brain page.
 - `source_only`: preserve the faithful source and indexed sidecar because the article has durable learning or reference value, and the [shared ingestion completeness checklist](../../bigbrain-ingest/references/ingestion-completeness.md) verifies that all mentioned entities already have sufficient canonical coverage and require no page changes. Required source links must still be established and verified.
@@ -54,6 +54,6 @@ Unless exact source guidance or a named anchor says otherwise, ignore:
 - `needs_review`: canonical identity, complete source retrieval, applicable guidance, or the relevance decision cannot be verified safely.
 - `verified_noop`: the exact source and intended durable updates already exist and read back successfully.
 
-Write the concise relevance rationale and outcome before any mutation. Transport cursor handling belongs to the caller, but no caller may convert `needs_review` or partial work into a completed outcome.
+Record the concise relevance rationale and internal outcome before any mutation. Transport cursor handling belongs to the caller, but no caller may convert `needs_review` or partial work into a completed outcome.
 
-These are the existing article workflow outcomes, not a required structured user-facing response. Report them in concise prose. The relevance gate decides whether to retain the article; the shared completeness checklist governs full coverage after acceptance.
+These labels are for operational state and tool handoffs only. Never surface them as user-facing categories or a structured schema. Explain relevance, whether the article was ingested or skipped, and anything that went wrong in natural prose. RSS responses also include the shared article skill's one-paragraph summary for readable articles, including skipped ones. The relevance gate decides whether to retain the article; the shared completeness checklist governs full coverage after acceptance.

@@ -8,7 +8,7 @@ Review one canonical web article through BigBrain's single shared relevance and 
 ## Contract Checklist
 
 - Decide relevance for the user's digest before creating any Brain page or raw artifact.
-- Filing is optional: the valid outcomes are `ignored`, `source_only`, `source_and_update`, `verified_noop`, or `needs_review`.
+- Filing is optional: the internal workflow outcomes are `ignored`, `source_only`, `source_and_update`, `verified_noop`, or `needs_review`. Keep these labels in operational state and tool handoffs only; never present them as user-facing output categories.
 - This skill is the sole article relevance and filing owner for RSS, Substack, email-delivered article notifications, and direct web URLs. Transport adapters must not create competing relevance rules.
 - Apply the shared decision contract in `references/relevance-gate.md` before any source or page write.
 - Read and follow [the shared ingestion completeness checklist](../bigbrain-ingest/references/ingestion-completeness.md) before writing and again before declaring completion, including when this skill is invoked directly. It owns canonical entity coverage, creation and updates, deduplication, links, and saved-state verification for every accepted article.
@@ -20,7 +20,7 @@ Review one canonical web article through BigBrain's single shared relevance and 
 - If relevance is ambiguous, stop before writing and either return `ignored` or ask for clarification when the intended scope cannot be inferred safely.
 - Fetch and preserve the canonical source for every relevant article when the source is available and the filing rules permit it.
 - Visit the supplied article page and confirm that you landed on the correct article. If the page is blocked or cannot be accessed, stop and let me know. Do not substitute another page.
-- For RSS-triggered ingestion, use the in-Codex browser (`iab`) for page visits and browser-based retrieval unless the user explicitly requests an external browser. Select `iab` explicitly; never silently default or fall back to external Chrome, Safari, or Edge. If it is unavailable after targeted tool discovery, return `needs_review` and report the browser access blocker.
+- For RSS-triggered ingestion, use the in-Codex browser (`iab`) for page visits and browser-based retrieval unless the user explicitly requests an external browser. Select `iab` explicitly; never silently default or fall back to external Chrome, Safari, or Edge. If it is unavailable after targeted tool discovery, retain `needs_review` internally and explain the browser access problem in natural prose.
 - Keep the source text faithful to the publisher; never replace it with an AI rewrite.
 - Create an indexed Markdown source sidecar with standard Brain page structure, provenance, and entity links required by the shared completeness checklist.
 - Route canonical page creation and updates through `$bigbrain-page`; keep the article sidecar source-specific.
@@ -38,7 +38,7 @@ Review one canonical web article through BigBrain's single shared relevance and 
    - For Substack, an exact canonical publication match to a registered RSS listener reuses that listener's guidance. Do not duplicate or paraphrase it into a second policy.
    - If no guidance is present, use the conservative generic test in `references/relevance-gate.md` and say that source-specific guidance was unavailable.
    - Visit the supplied article URL and confirm that the page title and publisher identify the requested article. For RSS-triggered work, follow the in-Codex browser policy above. When the documented CUA API is available, open the page with `cua.createBrowserTab("iab", url, { visible: true })`; otherwise use only the available tool's documented API to select the in-Codex browser explicitly. Keep the Substack preflight and claim ahead of any article retrieval.
-   - If the page is blocked or cannot be accessed, return `needs_review` and report that the source could not be retrieved. Do not substitute another page or invent content.
+   - If the page is blocked or cannot be accessed, retain `needs_review` internally and explain that the source could not be retrieved. Do not substitute another page or invent content.
    - Preserve the fetched source bytes through the runtime's `raw_content_source: event.source_document.raw_body` placeholder when filing.
    - Keep retrieval metadata, source URL, publisher, author, publication date, stable RSS ID, content type, and fetch status.
    - Stop with `needs_review` if the supplied page cannot be fetched or does not identify the requested article.
@@ -141,4 +141,8 @@ What this establishes for the Brain, with uncertainty and attribution preserved.
 
 ## Output
 
-Report the relevance decision and concise user-specific rationale first, followed by the chosen outcome, source artifact and sidecar paths, stable event or RSS ID, and the shared checklist's completion result. Use concise prose, with no required decision table or structured output. For `ignored`, explicitly state that no raw artifact or Brain page was created.
+For RSS-triggered ingestion, respond in natural prose. First explain whether the article is relevant and why, then say whether it was ingested, skipped, or already covered. Mention useful source or saved-page links and explain anything that went wrong, including access failures or incomplete writes or verification. Do not emit a structured schema, decision table, category labels, or internal outcome names such as `needs_review`. Keep event IDs and operational state internal.
+
+Include one paragraph summarizing the article's substance whenever the article was readable, whether ingested or skipped. A verified duplicate may use its previously verified source content without fetching the article again. If the source was inaccessible and no verified content is available, explain why a reliable summary cannot be provided; never fabricate one from a title, snippet, or feed description. Do not create a source artifact or Brain page merely to produce a summary for a skipped article.
+
+For other article routes, also explain the relevance, ingestion result, and any gaps in concise prose without surfacing internal outcome labels. A skipped article's response must make clear that nothing was added to the Brain.
