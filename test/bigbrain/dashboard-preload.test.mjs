@@ -105,7 +105,8 @@ test('dashboard header exposes local page search beside the view controls', asyn
     fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
   ]);
-  assert.match(clientSource, /<DashboardSearch nodes=\{searchableNodes\} onOpenPage=\{openPageBySlug\} \/>/);
+  assert.match(clientSource, /<DashboardSearch nodes=\{searchableNodes\} onSelectPage=\{focusGraphNode\} \/>/);
+  assert.match(clientSource, /const focusGraphNode = useEffectEvent\([\s\S]*setView\('graph'\)[\s\S]*handleGraphNodeSelect\(slug\)/);
   assert.match(clientSource, /function searchGraphNodes\(nodes, query, limit = 8\)/);
   assert.match(clientSource, /placeholder="Search pages"/);
   assert.match(dashboardSource, /\.dashboard-search-form \{[^}]*border-radius: 999px/);

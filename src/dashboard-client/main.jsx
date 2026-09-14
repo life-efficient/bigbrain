@@ -653,6 +653,12 @@ function DashboardApp() {
     handleGraphNodeOpen(slug);
   });
 
+  const focusGraphNode = useEffectEvent((slug) => {
+    if (!slug) return;
+    setView('graph');
+    handleGraphNodeSelect(slug);
+  });
+
   function handleDemoModeChange(nextDemoMode) {
     demoModeRef.current = nextDemoMode;
     previewRequestRef.current += 1;
@@ -821,7 +827,7 @@ function DashboardApp() {
                   <kbd className="view-chip-kbd">{item.shortcut}</kbd>
                 </button>
               ))}
-              <DashboardSearch nodes={searchableNodes} onOpenPage={openPageBySlug} />
+              <DashboardSearch nodes={searchableNodes} onSelectPage={focusGraphNode} />
             </div>
             <div className="topline-actions">
               {demoMode ? <span className="demo-mode-badge">Demo mode</span> : null}
@@ -1046,7 +1052,7 @@ function DashboardApp() {
   );
 }
 
-function DashboardSearch({ nodes, onOpenPage }) {
+function DashboardSearch({ nodes, onSelectPage }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const shellRef = useRef(null);
@@ -1073,7 +1079,7 @@ function DashboardSearch({ nodes, onOpenPage }) {
     if (!node?.slug) return;
     setOpen(false);
     setQuery('');
-    onOpenPage(node.slug);
+    onSelectPage(node.slug);
   }
 
   function handleSubmit(event) {
