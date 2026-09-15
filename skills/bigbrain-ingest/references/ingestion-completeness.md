@@ -24,7 +24,7 @@ Apply this checklist to each source accepted for ingestion. A source rejected by
 - Update each existing entity page with the new supported facts, events, relationships, or context relevant to that entity. Integrate changes into its current understanding and add dated evidence where appropriate; a link alone does not substitute for a needed factual update.
 - When an entity page already covers everything the source establishes, reuse and link it without manufacturing a factual change or duplicating a timeline entry. Verify that coverage before treating it as a no-op.
 - Keep each canonical page a useful briefing of its own subject. Keep source-specific detail on the source or specialized record, with links to deeper evidence and related subjects. Do not copy the same full account across company, person, project, and domain pages.
-- Preserve existing knowledge, attribution, disagreement, and uncertainty. Distinguish announcements, targets, estimates, and allegations from completed or independently verified events. Do not infer roles, ownership, funding, partnership, or personal relationships beyond the evidence.
+- Preserve existing knowledge, attribution, disagreement, and uncertainty. Do not strengthen what the source says or infer relationships beyond the evidence.
 - Propagate relevant changes to existing domain or synthesis pages where the new evidence changes their understanding. Follow the route's action-review rules for supported tasks or commitments; do not invent tasks merely to make ingestion appear complete.
 
 ## 4. Connect source, entities, and related pages

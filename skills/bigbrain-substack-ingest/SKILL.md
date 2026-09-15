@@ -5,7 +5,7 @@ description: Save and reconcile Substack posts in BigBrain using one shared arti
 
 # BigBrain Substack Ingest
 
-Ingest and reconcile verified Substack posts through one shared ledger while preserving source fidelity and the owning Brain's relevance rules.
+Ingest and reconcile Substack posts through one shared ledger while preserving source fidelity and the owning Brain's relevance rules.
 
 ## Contract Checklist
 

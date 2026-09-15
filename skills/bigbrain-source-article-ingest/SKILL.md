@@ -64,11 +64,10 @@ Review one canonical web article through BigBrain's single shared relevance and 
 
 3. Choose the filing outcome:
    - `ignored`: no Brain page or raw source; retain only the transport's reviewed-outcome record. This is the required outcome when the item does not match the registered source guidance or a named user anchor, even if the user asked to ingest the item.
-   - For an accepted article, before choosing `source_only` or `source_and_update`, read the shared ingestion completeness checklist and compare the whole article with existing canonical coverage.
-   - `source_only`: preserve the source and create its indexed sidecar only when the article has durable value and the shared checklist confirms all mentioned entities already have sufficient canonical coverage and need no page changes. Establish and verify the required source links.
-   - `source_and_update`: preserve the source, create the indexed sidecar, and create or update the canonical pages required by the shared checklist. This includes missing secondary entities, not just changes to existing primary subjects.
+   - For an accepted article, read the shared ingestion completeness checklist and compare the article with existing coverage before filing.
+   - `source_only`: preserve the source and create its indexed sidecar when the article has durable value and no canonical page change is needed. Establish and verify the required source links.
+   - `source_and_update`: preserve the source and create or update canonical pages when the article adds durable knowledge to the Brain.
    - A relevance decision accepts or rejects the article; it must not become a second filter that silently excludes entities from an accepted article.
-   - When relevance is uncertain, do not resolve the uncertainty by creating a source artifact or new concept page. Return `ignored` or ask for clarification if the user's intended retention scope is genuinely unclear.
    - Anti-patterns: choosing `source_only` before checking canonical coverage, manufacturing updates to already complete pages, making a source page the compiled truth for an entity, writing before the outcome is selected.
 
 4. Build the source sidecar:
@@ -143,7 +142,6 @@ What this establishes for the Brain, with uncertainty and attribution preserved.
 - Creating a raw artifact for an item that failed the digest-value test.
 - Skipping secondary entities or manufacturing factual changes when existing coverage is sufficient.
 - Using source pages as replacements for canonical entity pages.
-- Treating publisher claims, intentions, or announcements as independently verified facts.
 - Reporting `filed` when the source was unavailable or the page was not read back.
 - Fetching an RSS article before shared preflight, using polling cursors as ingestion proof, or treating a high watermark as permission to skip older holes.
 - Opening workflow or state files through desktop apps when MCP tools are unavailable.
