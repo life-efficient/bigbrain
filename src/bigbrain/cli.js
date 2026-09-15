@@ -471,9 +471,16 @@ async function handleEvents(args, global) {
     return;
   }
   if (action === 'drain') {
-    const { InboundEventProcessor, defaultExecutorFactory } = await import('./inbound-events.js');
+    const { InboundEventProcessor, InboundExecutionQueue, defaultExecutorFactory } = await import('./inbound-events.js');
     const processor = new InboundEventProcessor({ registryStore: registry, inboxStore: inbox, executorFactory: defaultExecutorFactory });
-    const results = await processor.drain({ limit: argValue(args, '--limit') || 10, type: argValue(args, '--type') || null });
+    const queue = new InboundExecutionQueue({ processor });
+    const pending = await inbox.list({ state: 'received', type: argValue(args, '--type') || null, limit: argValue(args, '--limit') || 10, includeDeliveryOnly: false });
+    const results = [];
+    try {
+      for (const event of pending) results.push(await queue.schedule(event.delivery_id));
+    } finally {
+      await queue.close();
+    }
     output(global, { results }, results.map((event) => `${event.state.padEnd(11)} ${event.delivery_id}`).join('\n') || 'No received events to drain. Failed events require an explicit retry first.');
     return;
   }

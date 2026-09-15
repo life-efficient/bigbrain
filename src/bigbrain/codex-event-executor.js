@@ -6,6 +6,9 @@ const execFileAsync = promisify(execFile);
 
 export const DEFAULT_CODEX_EVENT_CWD = process.env.BIGBRAIN_CODEX_EVENT_CWD || process.cwd();
 export const DEFAULT_CODEX_TIMEOUT_MS = 60 * 60 * 1000;
+const MAX_APP_SERVER_NOTIFICATIONS = 200;
+const MAX_APP_SERVER_NOTIFICATION_TEXT = 10_000;
+const MAX_APP_SERVER_BUFFER_BYTES = 20 * 1024 * 1024;
 
 export const RSS_BROWSER_INSTRUCTIONS = 'For this RSS-triggered ingestion, retrieve and verify the canonical article using any available documented browser or article-retrieval tool. Prefer the in-Codex browser when it is available, but do not block ingestion when only another supported browser or retrieval path is available. Preserve any required ledger preflight and claim before article retrieval. Never open Finder, TextEdit, Terminal UI, an editor, a file-open dialog, or browser file URLs to inspect local workflow files or state. If every supported retrieval path fails, explain what went wrong in plain language and leave the article unresolved for retry.';
 
@@ -235,6 +238,7 @@ export class CodexAppThreadExecutor {
     this.timeoutMs = timeoutMs;
     this.env = env;
     this.clientFactory = clientFactory;
+    this.activeClients = new Set();
   }
 
   async execute({ event, listener, allowedDestinations = [] } = {}) {
@@ -249,6 +253,7 @@ export class CodexAppThreadExecutor {
         timeoutMs: this.timeoutMs,
         env: this.env,
     });
+    this.activeClients.add(client);
     try {
       await client.request('initialize', {
         clientInfo: { name: 'bigbrain-inbound-events', version: '2.0.0' },
@@ -258,7 +263,9 @@ export class CodexAppThreadExecutor {
       const started = await client.request('thread/start', {
         cwd: this.cwd,
         threadSource: 'user',
-        ephemeral: false,
+        // Event-triggered threads are background work. Do not make every RSS
+        // delivery a persistent desktop thread that the renderer must retain.
+        ephemeral: true,
         environments: [],
         ...(listener?.codex_model ? { model: listener.codex_model } : {}),
         developerInstructions: isSubstackRssEvent(event, listener)
@@ -311,8 +318,13 @@ export class CodexAppThreadExecutor {
         notifications: client.notifications.slice(-100),
       };
     } finally {
+      this.activeClients.delete(client);
       await client.close?.();
     }
+  }
+
+  async close() {
+    await Promise.allSettled([...this.activeClients].map((client) => client.close?.()));
   }
 }
 
@@ -336,7 +348,7 @@ export class AppServerJsonRpcClient {
     if (this.process) return;
     this.process = this.spawnImpl(this.command, this.args, { cwd: this.cwd, env: this.env, stdio: ['pipe', 'pipe', 'pipe'] });
     this.process.stdout?.on('data', (chunk) => this.handleData(chunk));
-    this.process.stderr?.on('data', (chunk) => this.notifications.push({ type: 'stderr', text: String(chunk).slice(-10_000) }));
+    this.process.stderr?.on('data', (chunk) => this.pushNotification({ type: 'stderr', text: String(chunk).slice(-MAX_APP_SERVER_NOTIFICATION_TEXT) }));
     this.process.on('error', (error) => this.rejectPending(error));
     this.process.on('exit', (code, signal) => {
       if (this.pending.size || this.waiters.length) {
@@ -370,6 +382,12 @@ export class AppServerJsonRpcClient {
 
   handleData(chunk) {
     this.buffer += String(chunk);
+    if (Buffer.byteLength(this.buffer, 'utf8') > MAX_APP_SERVER_BUFFER_BYTES) {
+      const error = new Error(`Codex app-server protocol buffer exceeded ${MAX_APP_SERVER_BUFFER_BYTES} bytes.`);
+      this.rejectPending(error);
+      this.process?.kill?.('SIGTERM');
+      return;
+    }
     const lines = this.buffer.split(/\r?\n/);
     this.buffer = lines.pop() || '';
     for (const line of lines) {
@@ -377,7 +395,7 @@ export class AppServerJsonRpcClient {
       let message;
       try { message = JSON.parse(line); } catch { continue; }
       if (message.id === undefined) {
-        this.notifications.push(message);
+        this.pushNotification(message);
         this.resolveWaiters(message);
         continue;
       }
@@ -388,6 +406,11 @@ export class AppServerJsonRpcClient {
       if (message.error) pending.reject(new Error(message.error.message || `Codex app-server ${message.error.code || 'error'}`));
       else pending.resolve(message.result);
     }
+  }
+
+  pushNotification(message) {
+    this.notifications.push(message);
+    if (this.notifications.length > MAX_APP_SERVER_NOTIFICATIONS) this.notifications.splice(0, this.notifications.length - MAX_APP_SERVER_NOTIFICATIONS);
   }
 
   rejectPending(error) {
@@ -429,9 +452,21 @@ export class AppServerJsonRpcClient {
 
   async close() {
     if (!this.process) return;
+    const process = this.process;
     this.rejectPending(new Error('Codex app-server client closed.'));
-    this.process.kill?.();
     this.process = null;
+    const exited = process.exitCode !== null || process.signalCode !== null;
+    if (exited) return;
+    process.kill?.('SIGTERM');
+    if (typeof process.once !== 'function') return;
+    await new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        process.kill?.('SIGKILL');
+        resolve();
+      }, 2_000);
+      timer.unref?.();
+      process.once('exit', () => { clearTimeout(timer); resolve(); });
+    });
   }
 }
 

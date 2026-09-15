@@ -17,7 +17,18 @@ async function main() {
       webhook: config.webhook || config.server,
     })
     : new EventIngestor({ config });
+  let closing = false;
+  let closeRuntime = null;
+  const shutdown = async () => {
+    if (closing) return;
+    closing = true;
+    await closeRuntime?.();
+    process.exit(0);
+  };
+  process.once('SIGTERM', shutdown);
+  process.once('SIGINT', shutdown);
   const result = await ingestor.start({ once: options.once });
+  closeRuntime = result.close;
   console.log(JSON.stringify(result.firstReport, null, 2));
   if (options.once) {
     await result.close?.();

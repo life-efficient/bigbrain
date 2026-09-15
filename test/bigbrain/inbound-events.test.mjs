@@ -10,6 +10,7 @@ import {
   EventRegistryStore,
   InboundEventProcessor,
   InboundEventRuntime,
+  InboundExecutionQueue,
   InboundWebhookServer,
   classifyEvent,
   configuredWebhookEventType,
@@ -521,6 +522,33 @@ test('webhook server authenticates, limits, and deduplicates generic events', as
     await server.close();
     await fs.rm(paths.root, { recursive: true, force: true });
   }
+});
+
+test('execution queue bounds concurrent event processing and applies pending backpressure', async () => {
+  let active = 0;
+  let maximumActive = 0;
+  const processor = {
+    process: async (deliveryId) => {
+      active += 1;
+      maximumActive = Math.max(maximumActive, active);
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      active -= 1;
+      return { delivery_id: deliveryId, state: 'filed' };
+    },
+    close: async () => {},
+  };
+  const queue = new InboundExecutionQueue({ processor, maxConcurrency: 1, maxPending: 2 });
+  const first = queue.schedule('delivery-1');
+  const second = queue.schedule('delivery-2');
+  const third = queue.schedule('delivery-3');
+  const rejected = await queue.schedule('delivery-4');
+  assert.equal(rejected.accepted, false);
+  assert.equal(rejected.reason, 'queue_full');
+  assert.deepEqual((await Promise.all([first, second, third])).map((result) => result.state), ['filed', 'filed', 'filed']);
+  assert.equal(maximumActive, 1);
+  assert.equal(queue.status().pending, 0);
+  assert.equal(queue.status().metrics.rejected, 1);
+  await queue.close();
 });
 
 test('Granola completion webhook is normalized, processed, filed, and deduplicated', async () => {

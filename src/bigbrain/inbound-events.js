@@ -21,6 +21,8 @@ export const DEFAULT_EVENT_MAX_BODY_BYTES = 1_000_000;
 export const DEFAULT_RSS_INITIAL_CURSOR_DAYS = 7;
 export const DEFAULT_RSS_SOURCE_MAX_BYTES = 2_000_000;
 export const DEFAULT_RSS_SOURCE_TIMEOUT_MS = 30_000;
+export const DEFAULT_EVENT_EXECUTION_CONCURRENCY = 1;
+export const DEFAULT_EVENT_MAX_PENDING = 100;
 export const EVENT_STATES = ['received', 'running', 'filed', 'ignored', 'failed', 'quarantined'];
 export const EXECUTION_MODES = ['app_thread', 'cli'];
 export const RUNTIME_LOCATIONS = ['client', 'host'];
@@ -625,6 +627,7 @@ export class InboundEventProcessor {
     this.rssLedgerPrepare = rssLedgerPrepare;
     this.logger = logger;
     this.now = now;
+    this.activeExecutors = new Set();
   }
 
   async process(deliveryId) {
@@ -679,7 +682,12 @@ export class InboundEventProcessor {
       }
       const executor = await this.executorFactory({ mode: processingEvent.execution.mode, location: processingEvent.execution.location, listener, registry });
       if (!executor || typeof executor.execute !== 'function') throw new Error(`No Codex executor is configured for ${processingEvent.execution.location}/${processingEvent.execution.mode}.`);
-      execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
+      this.activeExecutors.add(executor);
+      try {
+        execution = await executor.execute({ event: { ...processingEvent, capture_policy: { ...processingEvent.capture_policy, default_mode: classification.decision } }, listener, allowedDestinations });
+      } finally {
+        this.activeExecutors.delete(executor);
+      }
       if (isRss) {
         let record;
         try {
@@ -747,11 +755,91 @@ export class InboundEventProcessor {
     }
   }
 
+  async close() {
+    await Promise.allSettled([...this.activeExecutors].map((executor) => executor.close?.()));
+  }
+
   async drain({ limit = 10, type = null } = {}) {
     const pending = await this.inboxStore.list({ state: 'received', type, limit, includeDeliveryOnly: false });
     const results = [];
     for (const event of pending) results.push(await this.process(event.delivery_id));
     return results;
+  }
+}
+
+/**
+ * Keeps event-triggered Codex work bounded. The queue stores delivery IDs,
+ * not payloads, so backpressure does not retain article bodies in memory.
+ */
+export class InboundExecutionQueue {
+  constructor({ processor, maxConcurrency = DEFAULT_EVENT_EXECUTION_CONCURRENCY, maxPending = DEFAULT_EVENT_MAX_PENDING, logger = console } = {}) {
+    if (!processor || typeof processor.process !== 'function') throw new Error('Execution queue requires an event processor.');
+    this.processor = processor;
+    this.maxConcurrency = Math.max(1, Math.min(8, Number(maxConcurrency) || DEFAULT_EVENT_EXECUTION_CONCURRENCY));
+    this.maxPending = Math.max(1, Math.min(1000, Number(maxPending) || DEFAULT_EVENT_MAX_PENDING));
+    this.logger = logger;
+    this.queue = [];
+    this.queued = new Set();
+    this.active = new Set();
+    this.closed = false;
+    this.metrics = { accepted: 0, rejected: 0, completed: 0, failed: 0, max_active: 0 };
+  }
+
+  schedule(deliveryId) {
+    const id = String(deliveryId || '').trim();
+    if (!id) return Promise.reject(new Error('Delivery ID is required.'));
+    if (this.closed) return Promise.resolve({ accepted: false, delivery_id: id, reason: 'runtime_closed' });
+    if (this.queued.has(id) || this.active.has(id)) return Promise.resolve({ accepted: false, delivery_id: id, reason: 'already_scheduled' });
+    if (this.queue.length >= this.maxPending) {
+      this.metrics.rejected += 1;
+      this.logger.warn?.(`BigBrain event execution queue is full; leaving ${id} persisted for later processing.`);
+      return Promise.resolve({ accepted: false, delivery_id: id, reason: 'queue_full' });
+    }
+    this.metrics.accepted += 1;
+    this.queue.push({ id });
+    this.queued.add(id);
+    const result = new Promise((resolve, reject) => { this.queue.at(-1).resolve = resolve; this.queue.at(-1).reject = reject; });
+    this.pump();
+    return result;
+  }
+
+  pump() {
+    while (!this.closed && this.active.size < this.maxConcurrency && this.queue.length) {
+      const job = this.queue.shift();
+      this.queued.delete(job.id);
+      this.active.add(job.id);
+      this.metrics.max_active = Math.max(this.metrics.max_active, this.active.size);
+      Promise.resolve(this.processor.process(job.id)).then((result) => {
+        this.metrics.completed += 1;
+        job.resolve(result);
+      }, (error) => {
+        this.metrics.failed += 1;
+        job.reject(error);
+      }).finally(() => {
+        this.active.delete(job.id);
+        this.pump();
+      });
+    }
+  }
+
+  status() {
+    return {
+      max_concurrency: this.maxConcurrency,
+      max_pending: this.maxPending,
+      active: this.active.size,
+      pending: this.queue.length,
+      closed: this.closed,
+      metrics: { ...this.metrics },
+    };
+  }
+
+  async close() {
+    this.closed = true;
+    for (const job of this.queue.splice(0)) {
+      this.queued.delete(job.id);
+      job.resolve({ accepted: false, delivery_id: job.id, reason: 'runtime_closed' });
+    }
+    await this.processor.close?.();
   }
 }
 
@@ -814,6 +902,8 @@ export class InboundEventRuntime {
     rssLedgerReader = readRssLedgerPost,
     rssLedgerPrepare = prepareRssLedgerPost,
     credentialResolver = resolveCredentialRef,
+    maxExecutionConcurrency = DEFAULT_EVENT_EXECUTION_CONCURRENCY,
+    maxPendingExecutions = DEFAULT_EVENT_MAX_PENDING,
     logger = console,
     now = () => new Date(),
   } = {}) {
@@ -837,7 +927,9 @@ export class InboundEventRuntime {
       },
     });
     this.processor = new InboundEventProcessor({ registryStore: this.registryStore, inboxStore: this.inboxStore, executorFactory: this.executorFactory, filingBroker: this.filingBroker, rssLedgerReader, rssLedgerPrepare, logger, now });
+    this.executionQueue = new InboundExecutionQueue({ processor: this.processor, maxConcurrency: maxExecutionConcurrency, maxPending: maxPendingExecutions, logger });
     this.rssTimer = null;
+    this.rssCycleRunning = false;
   }
 
   async start({ once = false } = {}) {
@@ -847,7 +939,7 @@ export class InboundEventRuntime {
       await this.registryStore.get();
       await this.inboxStore.get();
       if (this.webhookConfig.enabled !== false) {
-        this.webhookServer = new InboundWebhookServer({ registryStore: this.registryStore, inboxStore: this.inboxStore, ...this.webhookConfig, onAccepted: (deliveryId) => this.processor.process(deliveryId), now: this.now, logger: this.logger });
+        this.webhookServer = new InboundWebhookServer({ registryStore: this.registryStore, inboxStore: this.inboxStore, ...this.webhookConfig, onAccepted: (deliveryId) => this.executionQueue.schedule(deliveryId), healthProvider: () => ({ execution_queue: this.executionQueue.status() }), now: this.now, logger: this.logger });
         try {
           await this.webhookServer.start();
           this.webhookError = null;
@@ -877,6 +969,7 @@ export class InboundEventRuntime {
   async close() {
     if (this.rssTimer) clearInterval(this.rssTimer);
     this.rssTimer = null;
+    await this.executionQueue?.close();
     await this.webhookServer?.close();
     this.webhookServer = null;
     await this.releaseRuntimeLock();
@@ -896,27 +989,33 @@ export class InboundEventRuntime {
   }
 
   async runRssCycle() {
+    if (this.rssCycleRunning) return { listeners: [], ingested: 0, duplicates: 0, errors: [{ scope: 'rss', message: 'RSS cycle already running.' }], processed: [], skipped: true };
+    this.rssCycleRunning = true;
     let registry = null;
-    let report = { listeners: [], ingested: 0, duplicates: 0, errors: [] };
     try {
-      registry = await this.registryStore.get();
-      report = await this.collector.pollAll({ limit: DEFAULT_RSS_POLL_LIMIT });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      report.errors.push({ scope: 'rss', message });
-      this.logger.error?.(`BigBrain RSS cycle failed: ${message}`);
+      let report = { listeners: [], ingested: 0, duplicates: 0, errors: [] };
+      try {
+        registry = await this.registryStore.get();
+        report = await this.collector.pollAll({ limit: DEFAULT_RSS_POLL_LIMIT });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        report.errors.push({ scope: 'rss', message });
+        this.logger.error?.(`BigBrain RSS cycle failed: ${message}`);
+      }
+      const processed = [];
+      try {
+        const deliveryIds = report.listeners.flatMap((listener) => listener.delivery_ids || []);
+        for (const deliveryId of deliveryIds.slice(0, 25)) processed.push(await this.executionQueue.schedule(deliveryId));
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        report.errors.push({ scope: 'rss_processing', message });
+        this.logger.error?.(`BigBrain RSS processing failed: ${message}`);
+      }
+      if (registry) await this.inboxStore.prune({ retentionDays: registry.retention_days }).catch((error) => this.logger.error?.(`BigBrain RSS retention failed: ${error.message}`));
+      return { ...report, processed };
+    } finally {
+      this.rssCycleRunning = false;
     }
-    let processed = [];
-    try {
-      const deliveryIds = report.listeners.flatMap((listener) => listener.delivery_ids || []);
-      for (const deliveryId of deliveryIds.slice(0, 25)) processed.push(await this.processor.process(deliveryId));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      report.errors.push({ scope: 'rss_processing', message });
-      this.logger.error?.(`BigBrain RSS processing failed: ${message}`);
-    }
-    if (registry) await this.inboxStore.prune({ retentionDays: registry.retention_days }).catch((error) => this.logger.error?.(`BigBrain RSS retention failed: ${error.message}`));
-    return { ...report, processed };
   }
 
   async runCycle() {

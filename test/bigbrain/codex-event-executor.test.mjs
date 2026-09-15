@@ -176,6 +176,7 @@ test('app-thread executor uses the supported app-server thread and turn methods'
   assert.deepEqual(calls.map((call) => call.method), ['initialize', 'initialized', 'thread/start', 'thread/name/set', 'turn/start']);
   assert.deepEqual(calls.find((call) => call.method === 'initialize').params.capabilities, { experimentalApi: true });
   assert.deepEqual(calls.find((call) => call.method === 'thread/start').params.environments, []);
+  assert.equal(calls.find((call) => call.method === 'thread/start').params.ephemeral, true);
   assert.equal(calls.find((call) => call.method === 'thread/start').params.model, 'gpt-5.6-luna');
   assert.equal(calls.find((call) => call.method === 'thread/name/set').params.name, 'Planning meeting');
   assert.match(calls.find((call) => call.method === 'thread/start').params.developerInstructions, /available BigBrain MCP/);
@@ -259,4 +260,20 @@ test('generic RSS app tasks receive concise instructions at developer priority',
   await executor.execute({ event: { type: 'rss.item', payload: { link: 'https://publisher.test/article' } }, listener: { type: 'rss' } });
   const instructions = calls.find(call => call.method === 'thread/start').args.developerInstructions;
   assert.equal(instructions, 'Use the configured RSS ingestion skill and complete the linked article task directly.');
+});
+
+test('app-thread executor closes an active client when the executor is shut down', async () => {
+  let closeCalls = 0;
+  let release;
+  const waiting = new Promise((resolve) => { release = resolve; });
+  const executor = new CodexAppThreadExecutor({ clientFactory: async () => ({
+    notifications: [],
+    request: async (method) => method === 'initialize' ? {} : method === 'thread/start' ? { thread: { id: 'thread-shutdown' } } : method === 'turn/start' ? waiting : {},
+    close: async () => { closeCalls += 1; release(); },
+  }) });
+  const running = executor.execute({ event, listener: { description: 'Calendar' } });
+  await new Promise((resolve) => setImmediate(resolve));
+  await executor.close();
+  await running;
+  assert.ok(closeCalls >= 1);
 });

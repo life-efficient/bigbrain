@@ -17,7 +17,7 @@ import {
  * handed to the shared processor only after an event passes these guards.
  */
 export class InboundWebhookServer {
-  constructor({ registryStore, inboxStore, host = '127.0.0.1', port = 55561, secretResolver = () => null, maxBodyBytes = DEFAULT_EVENT_MAX_BODY_BYTES, onAccepted = null, now = () => new Date(), logger = console } = {}) {
+  constructor({ registryStore, inboxStore, host = '127.0.0.1', port = 55561, secretResolver = () => null, maxBodyBytes = DEFAULT_EVENT_MAX_BODY_BYTES, onAccepted = null, healthProvider = null, now = () => new Date(), logger = console } = {}) {
     this.registryStore = registryStore;
     this.inboxStore = inboxStore;
     this.host = host;
@@ -25,6 +25,7 @@ export class InboundWebhookServer {
     this.secretResolver = secretResolver;
     this.maxBodyBytes = maxBodyBytes;
     this.onAccepted = onAccepted;
+    this.healthProvider = healthProvider;
     this.now = now;
     this.logger = logger;
     this.server = null;
@@ -38,7 +39,7 @@ export class InboundWebhookServer {
 
   async handle(request, response) {
     const url = new URL(request.url || '/', 'http://127.0.0.1');
-    if (request.method === 'GET' && url.pathname === '/health') return this.send(response, 200, { ok: true, status: 'ready', host: this.host, port: this.server?.address()?.port || this.port });
+    if (request.method === 'GET' && url.pathname === '/health') return this.send(response, 200, { ok: true, status: 'ready', host: this.host, port: this.server?.address()?.port || this.port, ...(this.healthProvider?.() || {}) });
     if (request.method !== 'POST') return this.send(response, 404, { ok: false, error: 'Not found' });
     const deliveryRoute = url.pathname.match(/^\/deliveries\/([^/]+)$/);
     const listenerId = deliveryRoute?.[1] || url.pathname.match(/^\/(?:events|webhooks)\/([^/]+)$/)?.[1] || request.headers['x-bigbrain-listener'];
