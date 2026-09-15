@@ -527,13 +527,45 @@ export class EventInboxStore {
       const current = state.deliveries[deliveryId];
       if (!current) throw new Error(`Event delivery not found: ${deliveryId}`);
       if (!['received', 'failed'].includes(current.state)) return withClaimFlag(current, false);
-      const event = { ...current, state: 'running', attempts: Number(current.attempts || 0) + 1, started_at: this.now().toISOString(), last_error: null };
+      const event = { ...current, state: 'running', attempts: Number(current.attempts || 0) + 1, started_at: this.now().toISOString(), runtime_pid: process.pid, last_error: null };
       state.deliveries[deliveryId] = event;
       state.updated_at = this.now().toISOString();
       await atomicWriteJson(this.filePath, state);
       this.value = state;
       this.mtimeMs = (await fs.stat(this.filePath)).mtimeMs;
       return withClaimFlag(event, true);
+    });
+  }
+
+  async recoverOrphanedRunning() {
+    return withFileLock(`${this.filePath}.lock`, async () => {
+      const state = normalizeEventInbox(await readJson(this.filePath, createEmptyEventInbox()));
+      const recovered = [];
+      for (const [deliveryId, event] of Object.entries(state.deliveries)) {
+        if (event.state !== 'running') continue;
+        const pid = Number(event.runtime_pid);
+        const live = Number.isInteger(pid) && pid > 0 && isProcessAlive(pid);
+        if (live) continue;
+        state.deliveries[deliveryId] = {
+          ...event,
+          state: 'received',
+          started_at: null,
+          finished_at: null,
+          outcome: null,
+          execution_id: null,
+          thread_id: null,
+          runtime_pid: null,
+          last_error: 'Recovered after the prior inbound event runtime stopped before terminal completion.',
+        };
+        recovered.push(deliveryId);
+      }
+      if (recovered.length) {
+        state.updated_at = this.now().toISOString();
+        await atomicWriteJson(this.filePath, state);
+        this.value = state;
+        this.mtimeMs = (await fs.stat(this.filePath)).mtimeMs;
+      }
+      return recovered;
     });
   }
 
@@ -938,6 +970,7 @@ export class InboundEventRuntime {
     try {
       await this.registryStore.get();
       await this.inboxStore.get();
+      await this.inboxStore.recoverOrphanedRunning();
       if (this.webhookConfig.enabled !== false) {
         this.webhookServer = new InboundWebhookServer({ registryStore: this.registryStore, inboxStore: this.inboxStore, ...this.webhookConfig, onAccepted: (deliveryId) => this.executionQueue.schedule(deliveryId), healthProvider: () => ({ execution_queue: this.executionQueue.status() }), now: this.now, logger: this.logger });
         try {
@@ -1512,6 +1545,15 @@ function normalizeRuntimeLocation(value) {
   const location = String(value || '').trim().toLowerCase();
   if (!RUNTIME_LOCATIONS.includes(location)) throw new Error(`Runtime location must be client or host, got ${value}.`);
   return location;
+}
+
+function isProcessAlive(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    return error?.code === 'EPERM';
+  }
 }
 
 function requireEnum(value, values, name) {

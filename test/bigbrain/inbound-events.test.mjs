@@ -110,6 +110,24 @@ test('inbox is durable, idempotent, retryable, and purges payloads on ignored ou
   }
 });
 
+test('inbox requeues orphaned running deliveries but preserves a live runtime claim', async () => {
+  const paths = await fixture();
+  try {
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+    const orphan = await inbox.enqueue({ event_id: 'orphan', listener_id: 'feed', type: 'rss.item', payload: { title: 'Orphan' } }, { clientId: 'client-1' });
+    const live = await inbox.enqueue({ event_id: 'live', listener_id: 'feed', type: 'rss.item', payload: { title: 'Live' } }, { clientId: 'client-1' });
+    await inbox.claim(orphan.event.delivery_id);
+    await inbox.claim(live.event.delivery_id);
+    await inbox.update(orphan.event.delivery_id, (event) => ({ ...event, runtime_pid: 999999 }));
+    const recovered = await inbox.recoverOrphanedRunning();
+    assert.deepEqual(recovered, [orphan.event.delivery_id]);
+    assert.equal((await inbox.get()).deliveries[orphan.event.delivery_id].state, 'received');
+    assert.equal((await inbox.get()).deliveries[live.event.delivery_id].state, 'running');
+  } finally {
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
 test('RSS policy supports ignore, summary, and full outcomes without creating Brain pages', () => {
   const listener = rssListener({ filter: { ignore_categories: ['security'], summary_categories: ['company'], full_categories: ['research'] } });
   assert.equal(classifyEvent({ payload: { category: 'Security', title: 'Patch' }, capture_policy: listener.capture_policy }, listener).decision, 'ignore');
