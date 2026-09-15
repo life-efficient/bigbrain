@@ -176,7 +176,7 @@ test('app-thread executor uses the supported app-server thread and turn methods'
   assert.deepEqual(calls.map((call) => call.method), ['initialize', 'initialized', 'thread/start', 'thread/name/set', 'turn/start']);
   assert.deepEqual(calls.find((call) => call.method === 'initialize').params.capabilities, { experimentalApi: true });
   assert.deepEqual(calls.find((call) => call.method === 'thread/start').params.environments, []);
-  assert.equal(calls.find((call) => call.method === 'thread/start').params.ephemeral, true);
+  assert.equal(calls.find((call) => call.method === 'thread/start').params.ephemeral, false);
   assert.equal(calls.find((call) => call.method === 'thread/start').params.model, 'gpt-5.6-luna');
   assert.equal(calls.find((call) => call.method === 'thread/name/set').params.name, 'Planning meeting');
   assert.match(calls.find((call) => call.method === 'thread/start').params.developerInstructions, /available BigBrain MCP/);

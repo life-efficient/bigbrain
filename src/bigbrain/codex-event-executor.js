@@ -263,9 +263,10 @@ export class CodexAppThreadExecutor {
       const started = await client.request('thread/start', {
         cwd: this.cwd,
         threadSource: 'user',
-        // Event-triggered threads are background work. Do not make every RSS
-        // delivery a persistent desktop thread that the renderer must retain.
-        ephemeral: true,
+        // Keep event-triggered work visible as a normal Codex desktop thread.
+        // Execution remains bounded by the inbound queue and the app-server
+        // client still closes after each turn.
+        ephemeral: false,
         environments: [],
         ...(listener?.codex_model ? { model: listener.codex_model } : {}),
         developerInstructions: isSubstackRssEvent(event, listener)
