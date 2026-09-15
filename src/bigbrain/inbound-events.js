@@ -1004,7 +1004,11 @@ export class InboundEventRuntime {
       }
       const processed = [];
       try {
-        const deliveryIds = report.listeners.flatMap((listener) => listener.delivery_ids || []);
+        const queued = await this.inboxStore.list({ state: 'received', limit: 25, includeDeliveryOnly: false });
+        const deliveryIds = [...new Set([
+          ...report.listeners.flatMap((listener) => listener.delivery_ids || []),
+          ...queued.map((event) => event.delivery_id),
+        ])];
         for (const deliveryId of deliveryIds.slice(0, 25)) processed.push(await this.executionQueue.schedule(deliveryId));
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
