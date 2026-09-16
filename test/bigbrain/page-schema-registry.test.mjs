@@ -28,6 +28,10 @@ test('new Brains receive an editable default page schema registry', async () => 
     const task = resolvePageSchema(loaded.registry, { pagePath: 'tasks/follow-up.md' });
     assert.equal(task.id, 'tasks');
     assert.deepEqual(task.schema.fields.status.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
+    const article = resolvePageSchema(loaded.registry, { pagePath: 'articles/.raw/example.md' });
+    assert.equal(article.id, 'articles');
+    assert.equal(article.schema.fields.published_date.required, true);
+    assert.equal(article.schema.fields.article_url.required, true);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

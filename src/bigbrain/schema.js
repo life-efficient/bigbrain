@@ -17,6 +17,7 @@ const FOLDER_RULES = [
   ['writing', 'Prose artifacts, drafts, and essay-style outputs.'],
   ['protocol', 'Repeatable operating rules, preferences, processes, playbooks, and how-things-should-work guidance.'],
   ['archive', 'Historical or dead pages that should not stay active.'],
+  ['articles', 'Published online articles, Substack posts, newsletters, and other durable source publications.'],
 ];
 
 export function schemaDescription() {
@@ -52,6 +53,15 @@ export function schemaDescription() {
         due: 'optional YYYY-MM-DD',
       },
       body: 'current task context above --- plus append-only ## Timeline evidence log',
+    },
+    article_page_shape: {
+      path: 'articles/.raw/<article-slug>.md',
+      raw_path: 'articles/.raw/<article-slug>.html',
+      frontmatter: {
+        published_date: 'required ISO 8601 publication timestamp',
+        article_url: 'required canonical article URL used for provenance',
+      },
+      body: 'source-specific summary, current relevance, key facts, related pages, and source link above --- plus append-only ## Timeline evidence log',
     },
     timeline_entry: {
       occurred_at: 'YYYY-MM-DD or ISO timestamp for when the underlying event happened; defaults to now and may be overridden for historical ingestion',
@@ -99,6 +109,23 @@ export function renderSchemaMarkdown() {
     '6. Append-only structured timeline / evidence log',
     '',
     'Raw transcript dumps belong under the meeting collection `.raw/` folder, not as standalone brain pages.',
+    '',
+    '## Article Page Shape',
+    '',
+    '```yaml',
+    '---',
+    'title: Article title',
+    'published_date: 2026-09-16T00:00:00Z',
+    'article_url: https://example.com/article',
+    'source_kind: online-article',
+    'raw_file: articles/.raw/article-slug.html',
+    '---',
+    '```',
+    '',
+    '- Published online articles, Substack posts, newsletters, and RSS-delivered source articles belong in `articles/`.',
+    '- `published_date` is the publisher publication timestamp, distinct from retrieval time.',
+    '- `article_url` is the canonical source URL and primary provenance field.',
+    '- Preserve raw source material under `articles/.raw/` with a same-basename indexed Markdown sidecar.',
     '',
     '## Raw Attachment Shape',
     '',
@@ -182,6 +209,7 @@ export function recommendFolderForInput(input) {
   const lower = text.toLowerCase();
 
   if (/meeting|call|transcript|sync|prep/.test(lower)) return recommendation('meetings', text, 'the primary subject is a specific meeting or call');
+  if (/substack|newsletter|rss article|online article|article url|published article|source article/.test(lower)) return recommendation('articles', text, 'the item is a published online source article');
   if (/deal|acquisition|investor|fundraise|teaser|valuation/.test(lower)) return recommendation('deals', text, 'the primary subject is a transaction or financing item');
   if (/draft|essay|writeup|proposal|memo|article/.test(lower)) return recommendation('writing', text, 'the primary subject is a prose artifact');
   if (/\bprocess\b|commissioning|engineering procurement construction|\bepc\b|grid interconnection process/.test(lower)) return recommendation('processes', text, 'the primary subject is a repeatable infrastructure development or operating process');

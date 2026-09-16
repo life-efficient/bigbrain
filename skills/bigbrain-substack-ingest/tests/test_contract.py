@@ -56,6 +56,10 @@ assert "no synthetic source" in CASES
 assert "Relevant substantive preview before a block" in CASES
 assert "preview-only" in SKILL
 assert "do not advance a publication watermark" in SKILL
+assert "articles/" in SKILL
+assert "articles/.raw/" in SKILL
+assert "published_date" in AGENT
+assert "article_url" in AGENT
 assert "without changing Gmail" in AGENT
 
 print("bigbrain-substack-ingest contract checks passed")

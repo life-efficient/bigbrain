@@ -30,6 +30,7 @@ export const CANONICAL_SCHEMA_DIRS = [
   'writing',
   'protocol',
   'archive',
+  'articles',
 ];
 
 export const LEGACY_SCHEMA_DIRS = [

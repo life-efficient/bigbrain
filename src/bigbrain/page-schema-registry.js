@@ -12,6 +12,7 @@ export const PAGE_SCHEMA_REGISTRY_VERSION = 1;
 const SCHEMA_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const FIELD_TYPES = ['string', 'number', 'boolean', 'array', 'object'];
 const DEFAULT_SCHEMA_DESCRIPTIONS = {
+  articles: 'Published online articles, Substack posts, newsletters, and other durable source publications.',
   people: 'Canonical pages for people and relationship context.',
   organizations: 'Canonical pages for organizations and institutions.',
   deals: 'Canonical pages for transactions and deal work.',
@@ -87,8 +88,23 @@ export function defaultPageSchemaRegistry() {
     schemas: Object.fromEntries(CANONICAL_SCHEMA_DIRS.map((collection) => [collection, {
       path_prefix: collection,
       description: DEFAULT_SCHEMA_DESCRIPTIONS[collection] || `Canonical pages under ${collection}/.`,
-      fields: collection === 'tasks' ? defaultTaskFields() : {},
+      fields: collection === 'tasks' ? defaultTaskFields() : collection === 'articles' ? defaultArticleFields() : {},
     }])),
+  };
+}
+
+function defaultArticleFields() {
+  return {
+    published_date: {
+      type: 'string',
+      required: true,
+      description: 'Publisher publication timestamp in ISO 8601 format.',
+    },
+    article_url: {
+      type: 'string',
+      required: true,
+      description: 'Canonical article URL used for source provenance.',
+    },
   };
 }
 

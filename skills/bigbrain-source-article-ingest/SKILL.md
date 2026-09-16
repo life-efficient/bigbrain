@@ -1,6 +1,6 @@
 ---
 name: bigbrain-source-article-ingest
-description: Save a web article, blog post, essay, or RSS article to BigBrain. Use for individual published articles, including articles delivered through feeds or email. For Substack posts, start with `bigbrain-substack-ingest`; for human email correspondence, use `bigbrain-email-ingest`.
+description: Save a web article, blog post, essay, newsletter article, or RSS article to BigBrain's articles collection. Use for individual published online sources, including Bloomberg and other publishers delivered through feeds, email, or direct URLs. For Substack posts, start with `bigbrain-substack-ingest`; for human email correspondence, use `bigbrain-email-ingest`.
 ---
 
 # BigBrain Source Article Ingest
@@ -12,6 +12,7 @@ Review one canonical web article through BigBrain's single shared relevance and 
 - Decide relevance for the user's digest before creating any Brain page or raw artifact.
 - Filing is optional: the internal workflow outcomes are `ignored`, `source_only`, `source_and_update`, `verified_noop`, or `needs_review`. Keep these labels in operational state and tool handoffs only; never present them as user-facing output categories.
 - This skill is the sole article relevance and filing owner for RSS, Substack, email-delivered article notifications, and direct web URLs. Transport adapters must not create competing relevance rules.
+- Accepted online articles, Substack posts, newsletters, and RSS-delivered publications file under the owning Brain's `articles/` collection, with preserved source material and its indexed sidecar under `articles/.raw/`.
 - Apply the shared decision contract in `references/relevance-gate.md` before any source or page write.
 - Read and follow [the shared ingestion completeness checklist](../bigbrain-ingest/references/ingestion-completeness.md) before writing and again before declaring completion, including when this skill is invoked directly. It owns canonical entity coverage, creation and updates, deduplication, links, and saved-state verification for every accepted article.
 - When a registered source provides guidance, treat it as the source-specific inclusion and exclusion policy. It expresses why the source is followed and what should be prioritized or ignored.
@@ -73,7 +74,7 @@ Review one canonical web article through BigBrain's single shared relevance and 
    - Anti-patterns: choosing `source_only` before checking canonical coverage, manufacturing updates to already complete pages, making a source page the compiled truth for an entity, writing before the outcome is selected.
 
 4. Build the source sidecar:
-   - Follow the active Brain `filing_rules` for the owning collection and `.raw/` path.
+   - Follow the active Brain `filing_rules` for the `articles/` collection and `articles/.raw/` path.
    - Use a collision-safe raw filename and stable article path derived from the source identity.
    - Preserve transport metadata without letting it determine relevance. Use `source_type: rss` for RSS and `source_type: substack` for Substack.
    - The indexed Markdown sidecar must contain frontmatter, title, `## Summary`, `## Compiled Truth` or `## Current Relevance`, `## Key Facts` when useful, `## Related Pages`, `## Source`, a `---` separator, and `## Timeline`.
@@ -97,13 +98,14 @@ Use this shape for the indexed source sidecar, adapting the owning collection an
 ```markdown
 ---
 title: Article title
-source_url: https://example.com/article
+article_url: https://example.com/article
 source_feed: feed-id
 author: Author name
-published: 2026-08-29
+published_date: 2026-08-29T00:00:00Z
 retrieved: 2026-08-29
 rss_id: stable-id
-raw_file: <collection>/.raw/article-slug.html
+raw_file: articles/.raw/article-slug.html
+source_kind: online-article
 ---
 
 # Article title
@@ -119,7 +121,7 @@ What this establishes for the Brain, with uncertainty and attribution preserved.
 ## Related Pages
 
 - [Author](../../people/author.md)
-- [Primary subject](../../organizations/subject.md)
+  - [Primary subject](../../organizations/subject.md)
 
 ## Source
 
@@ -156,6 +158,6 @@ What this establishes for the Brain, with uncertainty and attribution preserved.
 
 For RSS-triggered ingestion, respond in natural prose. First explain whether the article is relevant and why, then say whether it was ingested, skipped, or already covered. Mention useful source or saved-page links and explain anything that went wrong, including access failures or incomplete writes or verification. Do not emit a structured schema, decision table, category labels, or internal outcome names such as `needs_review`. Keep event IDs and operational state internal.
 
-Include one paragraph summarizing the article's substance whenever enough article content was readable, whether ingested or skipped. A legitimate public preview may support both a summary and a partial capture when it contains enough substantive content, and the response must say that only the preview was retained and that the article remains incomplete. A verified duplicate may use its previously verified source content without fetching the article again. If a subscriber-only paywall or other access block leaves no reliable substantive content, explain why a reliable summary cannot be provided; never fabricate one from a title, snippet, or feed description. Do not create a source artifact or Brain page merely to produce a summary for a skipped article.
+Include one paragraph summarizing the article's substance whenever the article was readable, whether ingested or skipped. A legitimate public preview may support both a summary and a partial capture when it contains enough substantive content, and the response must say that only the preview was retained and that the article remains incomplete. A verified duplicate may use its previously verified source content without fetching the article again. If a subscriber-only paywall or other access block leaves no reliable substantive content, explain why a reliable summary cannot be provided; never fabricate one from a title, snippet, or feed description. Do not create a source artifact or Brain page merely to produce a summary for a skipped article.
 
 For other article routes, also explain the relevance, ingestion result, and any gaps in concise prose without surfacing internal outcome labels. A skipped article's response must make clear that nothing was added to the Brain.
