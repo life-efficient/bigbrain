@@ -10,7 +10,7 @@ AGENT = (ROOT / "agents" / "openai.yaml").read_text(encoding="utf-8")
 CASES = (ROOT / "tests" / "cases.md").read_text(encoding="utf-8")
 
 assert "name: bigbrain-substack-ingest" in SKILL
-assert "description: Save Substack posts to BigBrain" in SKILL
+assert "description: Save and reconcile Substack posts in BigBrain" in SKILL
 assert "# BigBrain Substack Ingest" in SKILL
 assert "## Contract Checklist" in SKILL
 assert "## Workflow" in SKILL
@@ -26,21 +26,20 @@ assert "post_key" in SKILL
 assert "source_type: substack" in SKILL
 assert "$bigbrain-source-article-ingest" in SKILL
 assert "$bigbrain-manage-email" in SKILL
-assert "single shared gate also used by RSS" in SKILL
+assert "`$bigbrain-source-article-ingest` is the sole relevance and filing gate" in SKILL
 assert "Followed status proves delivery eligibility only" in SKILL
-assert "verified `ignored` is terminal" in SKILL
+assert "`ignored` is terminal reviewed metadata without source artifacts" in SKILL
 assert "$bigbrain-page" in SKILL
 assert "source_only" in SKILL
 assert "source_and_update" in SKILL
-assert "verified no-op" in SKILL
+assert "verified_noop" in SKILL
 assert "needs_review" in SKILL
-assert "substack_publications" in SKILL
+assert "Subscription inventory" in SKILL
 assert "high_watermark" in SKILL
 assert "low_watermark" in SKILL
 assert "backfill_page_cursor" in SKILL
-assert "explicitly requested bounded archive backfill" in SKILL
-assert "Do not regress" not in SKILL
-assert "Do not include provider IDs" in SKILL
+assert "bounded to one archive page or five posts per run" in SKILL
+assert "Keep provider IDs" in SKILL
 assert "display_name: \"BigBrain: Substack Ingest\"" in AGENT
 assert "$bigbrain-substack-ingest" in AGENT
 assert "$bigbrain-source-article-ingest" in AGENT
@@ -54,6 +53,9 @@ assert "Adjacent prompt that should not trigger" in CASES
 assert "List-Id" in CASES
 assert "source_type: substack" in CASES
 assert "no synthetic source" in CASES
+assert "Relevant substantive preview before a block" in CASES
+assert "preview-only" in SKILL
+assert "do not advance a publication watermark" in SKILL
 assert "without changing Gmail" in AGENT
 
 print("bigbrain-substack-ingest contract checks passed")

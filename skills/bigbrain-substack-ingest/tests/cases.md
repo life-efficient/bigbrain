@@ -78,16 +78,35 @@ Expected:
 - Return `ignored` unless the user explicitly requested that different content.
 - Create no source artifact, canonical page, or cursor advancement.
 
+## Relevant substantive preview before a block
+
+Evidence:
+
+- The supplied URL identifies the requested post and exposes substantive
+  article content before a paywall or other access block.
+- The readable portion clears the shared source-article relevance gate.
+
+Expected:
+
+- Preserve exactly the readable portion and indexed sidecar, label both as
+  preview-only, and apply only canonical updates supported by that portion.
+- Record the item as still needing review, with the access boundary and saved
+  paths verified, and do not advance publication or RSS watermarks.
+- Summarize the readable substance while making clear that only the preview
+  was ingested.
+
 ## Blocked or mismatched canonical page
 
 Evidence:
 
-- The supplied URL is paywalled beyond the available session, blocked, empty, truncated, or identifies a different post.
+- The supplied URL is paywalled before enough substantive content is
+  available, blocked, empty, truncated, or identifies a different post.
 
 Expected:
 
 - Return `needs_review`.
-- Create no synthetic source, page update, or watermark advancement.
+- Create no synthetic source, page update, or watermark advancement when no
+  substantive preview is available.
 
 ## Adjacent prompt that should not trigger
 

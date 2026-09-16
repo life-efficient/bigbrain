@@ -4,7 +4,7 @@ Apply this gate to every canonical article regardless of whether it arrived thro
 
 ## Required Inputs
 
-- Canonical article URL and successfully retrieved article body.
+- Canonical article URL and successfully retrieved article body, which may be a clearly bounded substantive preview when the canonical page confirms that access stopped before the full article.
 - Publisher, author when available, and publication date.
 - Exact registered source guidance when available.
 - Named current user anchor when source guidance does not independently justify retention.
@@ -51,9 +51,9 @@ Unless exact source guidance or a named anchor says otherwise, ignore:
 - `ignored`: canonical identity and article content were reviewed, but the article failed the gate. Create no raw artifact or Brain page.
 - `source_only`: preserve the faithful source and indexed sidecar because the article has durable learning or reference value and no canonical page change is needed. Required source links must still be established and verified.
 - `source_and_update`: preserve the source and create or update canonical pages when the article adds durable knowledge to the Brain.
-- `needs_review`: canonical identity, complete source retrieval, or applicable guidance remains unresolved.
+- `needs_review`: canonical identity, sufficient source retrieval, or applicable guidance remains unresolved. A substantive preview that passes relevance may still be saved as an explicitly partial capture under this outcome, with its access boundary recorded and verified; this does not establish full coverage or permit watermark advancement.
 - `verified_noop`: the exact source and intended durable updates already exist and read back successfully.
 
-Record the concise relevance rationale and internal outcome before any mutation. Transport cursor handling belongs to the caller, but no caller may convert `needs_review` or partial work into a completed outcome.
+Record the concise relevance rationale and internal outcome before any mutation. Transport cursor handling belongs to the caller, but no caller may convert `needs_review` or partial work into a full retained outcome.
 
 These labels are for operational state and tool handoffs only. Never surface them as user-facing categories or a structured schema. Explain relevance, whether the article was ingested or skipped, and anything that went wrong in natural prose. RSS responses also include the shared article skill's one-paragraph summary for readable articles, including skipped ones. The relevance gate decides whether to retain the article; the shared completeness checklist governs full coverage after acceptance.

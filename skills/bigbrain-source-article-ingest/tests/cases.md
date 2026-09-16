@@ -30,8 +30,11 @@ article. Create missing canonical entity pages, integrate new supported evidence
 into existing pages, and link already covered entities without duplicate facts.
 
 Visit the supplied article page, confirm that it is the requested article, and
-file it if it is accessible and clears the digest-value gate. If it is blocked
-or cannot be accessed, return `needs_review` without substituting another page.
+file it if it is accessible and clears the digest-value gate. If access stops
+after a substantive preview, retain the readable portion as an explicitly
+partial capture, keep the item under review, and do not advance a watermark.
+If it is empty, thin, mismatched, or cannot be accessed, return `needs_review`
+without content writes or substituting another page.
 
 An accessible article whose URL slug is shorter than its title is still the
 requested article when the page itself confirms the title and publisher.
@@ -76,11 +79,22 @@ Expected behavior: `source_only` or `source_and_update` is allowed only after
 the workflow states the promotional status and the specific durable implication
 that outweighs it. Entity or topical linkage alone does not qualify.
 
+## Should retain a substantive partial preview
+
+An item is identity-confirmed and relevant, but a paywall or other access
+block appears after a substantive portion of the article.
+
+Expected behavior: preserve the exact readable portion and indexed sidecar,
+make only evidence-supported canonical updates, label the capture as preview
+only, read the saved state back, and retain `needs_review` with no watermark
+advancement. The result must not be described as a full article ingestion.
+
 ## Should trigger review
 
-An item appears relevant but its canonical source is unavailable, empty, or
-truncated.
+An item appears relevant but its canonical source is unavailable, empty, thin,
+mismatched, or truncated before enough substantive content is available.
 
-Expected behavior: return `needs_review` and do not file a synthetic article.
+Expected behavior: return `needs_review` and do not file a synthetic article
+or any content artifact.
 
 The review result should say that the supplied source could not be retrieved.
