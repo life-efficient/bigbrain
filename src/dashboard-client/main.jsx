@@ -2028,6 +2028,7 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
                   />
                 </div>
               ) : null}
+              <PageFrontmatter frontmatter={preview.frontmatter} />
               <div className={`sidecar-document ${hasLinks ? 'has-link-sections' : ''}`}>
                 <MarkdownDocument
                   markdown={preview.markdown}
@@ -2044,6 +2045,30 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
       </div>
     </aside>
   );
+}
+
+function PageFrontmatter({ frontmatter }) {
+  const entries = Object.entries(frontmatter || {}).filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== '');
+  if (!entries.length) return null;
+  return (
+    <details className="explorer-frontmatter sidecar-frontmatter">
+      <summary>
+        <span className="explorer-frontmatter-title">Frontmatter</span>
+        <span className="explorer-frontmatter-meta">{entries.length} {entries.length === 1 ? 'field' : 'fields'}</span>
+        {entries.slice(0, 3).map(([key, value]) => (
+          <span className="explorer-frontmatter-chip" key={key}>
+            <span>{key}</span>
+            <strong>{formatFrontmatterValue(value)}</strong>
+          </span>
+        ))}
+      </summary>
+      <pre>{entries.map(([key, value]) => `${key}: ${formatFrontmatterValue(value)}`).join('\n')}</pre>
+    </details>
+  );
+}
+
+function formatFrontmatterValue(value) {
+  return Array.isArray(value) || (value && typeof value === 'object') ? JSON.stringify(value) : String(value);
 }
 
 function PageLinkSection({ title, links, onPageOpen }) {

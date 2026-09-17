@@ -24,6 +24,11 @@ debug surfaces.
 - Use authenticated `/api/about`, the MCP `about` tool, and CLI `about show` as
   views over the same normalized profile contract.
 
+## Page Metadata
+
+- Every internal page viewer, including graph-selected page panels, exposes a collapsed **Frontmatter** section when metadata exists.
+- Keep the rendered page body clean. Metadata is inspectable on demand and must not be copied into the page prose merely to make it visible.
+
 ## Updates
 
 - Show the installed BigBrain version and a manual **Check for Updates** action

@@ -1998,6 +1998,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .sidecar-summary .tailwind-prose p:empty { display: none; }
       .sidecar-summary .tailwind-prose p:has(> br.ProseMirror-trailingBreak:only-child) { display: none; }
       .sidecar-summary .tailwind-prose > *:last-child { margin-bottom: 0; }
+      .sidecar-frontmatter { margin: 10px 0; }
       .sidecar-summary .tailwind-prose h1,
       .sidecar-summary .tailwind-prose h2,
       .sidecar-summary .tailwind-prose h3,
