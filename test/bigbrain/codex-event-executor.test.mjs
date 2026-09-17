@@ -284,6 +284,19 @@ test('background app-server defaults retain browser REPL access but disable nati
     '--config', 'mcp_servers.cua_repl.enabled=false',
     '--config', 'plugins."computer-use@openai-bundled".enabled=false',
     '--config', 'plugins."unified-computer-use@openai-bundled".enabled=false',
+    '--config', 'mcp_servers.personal_brain.tools."rss/workflow".approval_mode="auto"',
+    '--config', 'mcp_servers.personal_brain.tools.rss_workflow.approval_mode="auto"',
+    '--config', 'mcp_servers.personal_brain.tools."rss/ledger".approval_mode="auto"',
+    '--config', 'mcp_servers.personal_brain.tools.rss_ledger.approval_mode="auto"',
+    '--config', 'mcp_servers.personal_brain.tools."events/listeners".approval_mode="auto"',
+    '--config', 'mcp_servers.personal_brain.tools."events/subscriptions".approval_mode="auto"',
+    '--config', 'mcp_servers.personal_brain.tools."events/inbox".approval_mode="auto"',
+    '--config', 'mcp_servers.personal_brain.tools."domains/list".approval_mode="auto"',
+    '--config', 'mcp_servers.personal_brain.tools.capture_article.approval_mode="auto"',
+    '--config', 'mcp_servers.personal_brain.tools.create_raw_file_with_page.approval_mode="auto"',
+    '--config', 'mcp_servers.personal_brain.tools.create_page.approval_mode="auto"',
+    '--config', 'mcp_servers.personal_brain.tools.create_raw_file.approval_mode="auto"',
+    '--config', 'mcp_servers.personal_brain.tools."events/provenance".approval_mode="auto"',
   ]);
 });
 
