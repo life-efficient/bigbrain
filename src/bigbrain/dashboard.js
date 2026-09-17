@@ -1987,6 +1987,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .sidecar-title-row { display: flex; justify-content: space-between; gap: 18px; align-items: start; }
       .sidecar-title-copy { min-width: 0; display: grid; gap: 8px; }
       .sidecar-page-title { margin: 0; color: var(--ink); font-size: 21px; line-height: 1.18; letter-spacing: -0.02em; }
+      .sidecar-path-row { min-width: 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+      .sidecar-path-row > .meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .sidecar-title-copy h2 { margin: 0; font-size: 25px; line-height: 1.12; overflow-wrap: anywhere; }
       .sidecar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
       .sidecar-meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -2004,7 +2006,16 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .sidecar-summary .tailwind-prose p:empty { display: none; }
       .sidecar-summary .tailwind-prose p:has(> br.ProseMirror-trailingBreak:only-child) { display: none; }
       .sidecar-summary .tailwind-prose > *:last-child { margin-bottom: 0; }
-      .sidecar-frontmatter { margin: 10px 0; }
+      .sidecar-metadata { position: relative; }
+      .sidecar-metadata summary { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; list-style: none; }
+      .sidecar-metadata summary::-webkit-details-marker { display: none; }
+      .sidecar-metadata summary::before { content: "›"; display: inline-block; font-size: 15px; line-height: 1; transition: transform 140ms ease; }
+      .sidecar-metadata[open] summary::before { transform: rotate(90deg); }
+      .sidecar-metadata-records { position: absolute; z-index: 4; top: calc(100% + 8px); left: 0; width: min(380px, calc(100vw - 56px)); margin: 0; padding: 10px 12px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-soft); }
+      .sidecar-metadata-records > div { display: grid; grid-template-columns: minmax(92px, 0.35fr) minmax(0, 1fr); gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 12px; line-height: 1.4; }
+      .sidecar-metadata-records > div:last-child { border-bottom: 0; }
+      .sidecar-metadata-records dt { color: var(--muted); text-transform: capitalize; }
+      .sidecar-metadata-records dd { min-width: 0; margin: 0; color: var(--ink); overflow-wrap: anywhere; }
       .sidecar-summary .tailwind-prose h1,
       .sidecar-summary .tailwind-prose h2,
       .sidecar-summary .tailwind-prose h3,

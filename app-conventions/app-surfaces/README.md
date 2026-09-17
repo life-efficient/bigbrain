@@ -34,6 +34,7 @@ debug surfaces.
 - Preserve supported publisher images as ordered page attachments in the owning collection's `.raw/` directory.
 - Keep the source article's Markdown image references at their original positions. Every page surface renders those references inline and also exposes the same ordered attachments in the image carousel.
 - In graph page panels, the visual order is page title, compact attachment image strip, expandable Metadata, then the article body. The strip is horizontally scrollable, shows every image at one fixed height, and has no label, border, title, or rounded corners. Inline images fill the readable column and do not have rounded corners.
+- Keep the collapsed Metadata trigger beside the page slug in the header. Show no metadata pills when it is collapsed. When opened, show a readable line-by-line record list, summarizing attachment arrays by count instead of displaying raw serialized data.
 
 ## Updates
 

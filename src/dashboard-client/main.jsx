@@ -2004,7 +2004,10 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
                 {updatedLabel ? <span className="sidecar-chip">{updatedLabel}</span> : null}
               </div>
               {preview?.title ? <h1 className="sidecar-page-title">{preview.title}</h1> : null}
-              {pathLabel ? <div className="meta">{pathLabel}</div> : null}
+              <div className="sidecar-path-row">
+                {pathLabel ? <span className="meta">{pathLabel}</span> : null}
+                <PageMetadata frontmatter={preview.frontmatter} />
+              </div>
             </div>
             <div className="sidecar-actions">
               {canChangeVisibility ? (
@@ -2039,7 +2042,6 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
           {preview?.status === 'ready' ? (
             <>
               <PageImageCarousel images={preview.images} compact />
-              <PageFrontmatter frontmatter={preview.frontmatter} />
               <div className={`sidecar-document ${hasLinks ? 'has-link-sections' : ''}`}>
                 <MarkdownDocument
                   markdown={stripLeadingMarkdownHeading(preview.markdown, preview.title)}
@@ -2059,27 +2061,28 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
   );
 }
 
-function PageFrontmatter({ frontmatter }) {
+function PageMetadata({ frontmatter }) {
   const entries = Object.entries(frontmatter || {}).filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== '');
   if (!entries.length) return null;
   return (
-    <details className="explorer-frontmatter sidecar-frontmatter">
+    <details className="sidecar-metadata">
       <summary>
-        <span className="explorer-frontmatter-title">Metadata</span>
-        <span className="explorer-frontmatter-meta">{entries.length} {entries.length === 1 ? 'field' : 'fields'}</span>
-        {entries.slice(0, 3).map(([key, value]) => (
-          <span className="explorer-frontmatter-chip" key={key}>
-            <span>{key}</span>
-            <strong>{formatFrontmatterValue(value)}</strong>
-          </span>
-        ))}
+        Metadata
       </summary>
-      <pre>{entries.map(([key, value]) => `${key}: ${formatFrontmatterValue(value)}`).join('\n')}</pre>
+      <dl className="sidecar-metadata-records">
+        {entries.map(([key, value]) => (
+          <div key={key}>
+            <dt>{key.replace(/_/g, ' ')}</dt>
+            <dd>{formatMetadataValue(key, value)}</dd>
+          </div>
+        ))}
+      </dl>
     </details>
   );
 }
 
-function formatFrontmatterValue(value) {
+function formatMetadataValue(key, value) {
+  if (key === 'images' && Array.isArray(value)) return `${value.length} attached ${value.length === 1 ? 'image' : 'images'}`;
   return Array.isArray(value) || (value && typeof value === 'object') ? JSON.stringify(value) : String(value);
 }
 
