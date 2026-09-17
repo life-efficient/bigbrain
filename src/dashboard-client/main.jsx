@@ -2031,6 +2031,7 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
                 </div>
               ) : null}
               <PageFrontmatter frontmatter={preview.frontmatter} />
+              <PageImageCarousel images={preview.images} />
               <div className={`sidecar-document ${hasLinks ? 'has-link-sections' : ''}`}>
                 <MarkdownDocument
                   markdown={preview.markdown}

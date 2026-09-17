@@ -17,6 +17,7 @@ test('page image attachments render as an accessible carousel in private and pub
   assert.match(clientSource, /event\.key === 'ArrowRight'/);
   assert.match(clientSource, /Show attached image/);
   assert.equal((clientSource.match(/<PageImageCarousel images=\{state\.page\.images\} \/>/g) || []).length, 2);
+  assert.match(clientSource, /<PageImageCarousel images=\{preview\.images\} \/>/);
   assert.match(dashboardSource, /\.page-image-carousel \{/);
   assert.match(dashboardSource, /object-fit: contain/);
   assert.match(dashboardSource, /\.page-image-control-next/);
