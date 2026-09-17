@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
 import { callSubstackLedger, substackLedgerInputSchema, substackWorkflow } from './substack-mcp.js';
 import { callRssLedger, rssLedgerInputSchema, rssWorkflow } from './rss-mcp.js';
+import { articleSlug, fetchArticleCapture } from './article-capture.js';
 import { withRssIngestionStatus } from './rss-ingestion-status.js';
 import { persistState } from './config.js';
 import { BRAIN_PROFILE_JSON_SCHEMA, authenticatedBrainAbout, loadBrainProfile, saveBrainProfileRevision } from './brain-profile.js';
@@ -830,6 +831,49 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
       await recordWriteProvenance(config, args.page_path || args.raw_path, args.provenance, args.commit_message);
       return toolJson({ ...result, page_health: await quickPageHealthCheck({ config, pagePath: result.page.path }) });
+    }
+    case 'capture_article': {
+      const capture = await fetchArticleCapture(args.article_url);
+      const slug = articleSlug(args.title);
+      const rawPath = `articles/.raw/${slug}.html`;
+      const pagePath = `articles/${slug}.md`;
+      const rawFile = await createRawFile({ config, rawPath, rawContentText: capture.html, mimeType: 'text/html' });
+      try {
+        const body = [
+          '## Summary', args.summary.trim(),
+          '## Current Relevance', args.current_relevance.trim(),
+          '## Source',
+          `- [Original publisher page](${args.article_url})`,
+          `- [Archived publisher HTML](.raw/${slug}.html)`,
+          `- Capture: ${capture.word_count.toLocaleString()} words of publisher text; archival and transcript hashes recorded in frontmatter.`,
+          '## Faithful Publisher Text', capture.transcript,
+        ].join('\n\n');
+        const page = await createBrainPage({
+          config,
+          pagePath,
+          title: args.title,
+          compiledTruth: body,
+          timelineEntry: timelineForMutation(args, actor),
+          frontmatter: {
+            source_kind: args.source_kind || 'online-article',
+            published_date: args.published_date,
+            article_url: args.article_url,
+            raw_file: rawPath,
+            capture_status: 'full',
+            publisher_text_words: capture.word_count,
+            archival_sha256: capture.html_sha256,
+            transcript_sha256: capture.transcript_sha256,
+            ...(args.domains ? { domains: args.domains } : {}),
+          },
+          domains: args.domains,
+        });
+        await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+        await recordWriteProvenance(config, page.path, args.provenance, args.commit_message);
+        return toolJson({ page, raw_file: rawFile, capture: { status: 'full', word_count: capture.word_count }, page_health: await quickPageHealthCheck({ config, pagePath: page.path }) });
+      } catch (error) {
+        await deleteRawFile({ config, rawPath }).catch(() => {});
+        throw error;
+      }
     }
     case 'update_raw_file': {
       const rawFile = await updateRawFile({
@@ -2198,6 +2242,26 @@ function toolDefinitions(config = null) {
       },
     },
     {
+      name: 'capture_article',
+      description: 'Fetch a publisher article, preserve its HTML as optional archival evidence, and create one searchable Markdown article page containing retrieval context plus a faithful full-text transcript.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          ...mutationProperties(),
+          article_url: { type: 'string', format: 'uri', description: 'Canonical publisher URL for the article.' },
+          title: { type: 'string' },
+          published_date: { type: 'string', description: 'Publisher publication date in ISO 8601 form.' },
+          source_kind: { type: 'string', description: 'For example substack, rss, newsletter, or online-article.' },
+          summary: { type: 'string', description: 'Concise retrieval-oriented explanation. The full publisher text is fetched separately.' },
+          current_relevance: { type: 'string', description: 'Why this source matters to the Brain and which canonical pages it informs.' },
+          domains: domainField,
+          ...timelineInputProperties(),
+        },
+        required: ['article_url', 'title', 'published_date', 'summary', 'current_relevance', ...mutationRequired()],
+        anyOf: timelineInputRequirements(),
+      },
+    },
+    {
       name: 'update_raw_file',
       description: 'Replace the bytes of one existing raw file under .raw. Raw uploads are size-limited to protect git-backed sync.',
       inputSchema: {
@@ -2533,6 +2597,7 @@ const TOOL_POLICIES = {
   create_raw_file: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   create_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   create_raw_file_with_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  capture_article: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   update_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   attach_page_images: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   rename_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
@@ -2571,6 +2636,7 @@ const GIT_SYNC_MUTATION_TOOLS = new Set([
   'create_raw_file',
   'create_page',
   'create_raw_file_with_page',
+  'capture_article',
   'attach_page_images',
   'update_raw_file',
   'delete_raw_file',
@@ -2733,6 +2799,8 @@ function pageEditPathsForTool(name, args) {
       return [args.path || args.slug || 'tasks'].filter(Boolean);
     case 'create_raw_file_with_page':
       return [args.page_path].filter(Boolean);
+    case 'capture_article':
+      return [`articles/${articleSlug(args.title)}.md`];
     default:
       return [];
   }
