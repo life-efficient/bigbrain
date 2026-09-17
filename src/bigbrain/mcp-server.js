@@ -875,6 +875,25 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         throw error;
       }
     }
+    case 'refresh_article_capture': {
+      const capture = await fetchArticleCapture(args.article_url);
+      const slug = articleSlug(args.title);
+      const pagePath = `articles/${slug}.md`;
+      const page = await updateBrainPage({
+        config,
+        pagePath,
+        compiledTruth: capture.transcript,
+        timelineEntry: timelineForMutation(args, actor),
+        frontmatterValues: {
+          capture_status: 'full',
+          publisher_text_words: capture.word_count,
+          transcript_sha256: capture.transcript_sha256,
+        },
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      await recordWriteProvenance(config, page.path, args.provenance, args.commit_message);
+      return toolJson({ page, capture: { status: 'full', word_count: capture.word_count }, page_health: await quickPageHealthCheck({ config, pagePath }) });
+    }
     case 'update_raw_file': {
       const rawFile = await updateRawFile({
         config,
@@ -2262,6 +2281,21 @@ function toolDefinitions(config = null) {
       },
     },
     {
+      name: 'refresh_article_capture',
+      description: 'Refresh an existing canonical article page with the exact current publisher text, leaving only the article prose in the rendered body.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          ...mutationProperties(),
+          article_url: { type: 'string', format: 'uri' },
+          title: { type: 'string' },
+          ...timelineInputProperties(),
+        },
+        required: ['article_url', 'title', ...mutationRequired()],
+        anyOf: timelineInputRequirements(),
+      },
+    },
+    {
       name: 'update_raw_file',
       description: 'Replace the bytes of one existing raw file under .raw. Raw uploads are size-limited to protect git-backed sync.',
       inputSchema: {
@@ -2598,6 +2632,7 @@ const TOOL_POLICIES = {
   create_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   create_raw_file_with_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   capture_article: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  refresh_article_capture: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   update_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   attach_page_images: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   rename_page: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
@@ -2637,6 +2672,7 @@ const GIT_SYNC_MUTATION_TOOLS = new Set([
   'create_page',
   'create_raw_file_with_page',
   'capture_article',
+  'refresh_article_capture',
   'attach_page_images',
   'update_raw_file',
   'delete_raw_file',
@@ -2800,6 +2836,8 @@ function pageEditPathsForTool(name, args) {
     case 'create_raw_file_with_page':
       return [args.page_path].filter(Boolean);
     case 'capture_article':
+      return [`articles/${articleSlug(args.title)}.md`];
+    case 'refresh_article_capture':
       return [`articles/${articleSlug(args.title)}.md`];
     default:
       return [];
