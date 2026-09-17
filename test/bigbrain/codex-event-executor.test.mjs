@@ -280,6 +280,7 @@ test('background app-server defaults retain browser REPL access but disable nati
     '--config', 'mcp_servers.node_repl.env.BROWSER_USE_TINYSKY_ENABLED="0"',
     '--config', 'mcp_servers.computer-use.enabled=false',
     '--config', 'plugins."computer-use@openai-bundled".enabled=false',
+    '--config', 'plugins."unified-computer-use@openai-bundled".enabled=false',
   ]);
 });
 
