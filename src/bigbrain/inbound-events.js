@@ -23,7 +23,11 @@ export const DEFAULT_RSS_SOURCE_MAX_BYTES = 2_000_000;
 export const DEFAULT_RSS_SOURCE_TIMEOUT_MS = 30_000;
 export const DEFAULT_EVENT_EXECUTION_CONCURRENCY = 1;
 export const DEFAULT_EVENT_MAX_PENDING = 100;
+export const DEFAULT_EVENT_RETRY_BASE_MS = 60_000;
+export const DEFAULT_EVENT_RETRY_MAX_MS = 86_400_000;
 export const EVENT_STATES = ['received', 'running', 'filed', 'ignored', 'failed', 'quarantined'];
+export const THREAD_STATUSES = ['waiting', 'triggered', 'done', 'error'];
+export const INGESTION_CAPTURE_MODES = ['full', 'partial', 'none'];
 export const EXECUTION_MODES = ['app_thread', 'cli'];
 export const RUNTIME_LOCATIONS = ['client', 'host'];
 export const LISTENER_TYPES = ['rss', 'webhook'];
@@ -365,11 +369,86 @@ export function normalizeEventInbox(value) {
   return {
     version: INBOUND_EVENTS_VERSION,
     origin_events: input.origin_events && typeof input.origin_events === 'object' ? input.origin_events : {},
-    deliveries: input.deliveries && typeof input.deliveries === 'object' ? input.deliveries : {},
+    deliveries: input.deliveries && typeof input.deliveries === 'object'
+      ? Object.fromEntries(Object.entries(input.deliveries).map(([id, event]) => [id, normalizeDeliveryRecord(event)]))
+      : {},
     outcomes: input.outcomes && typeof input.outcomes === 'object' ? input.outcomes : {},
     collectors: input.collectors && typeof input.collectors === 'object' ? input.collectors : {},
     updated_at: input.updated_at || null,
   };
+}
+
+export function normalizeIngestionResult(value) {
+  if (!value || typeof value !== 'object') return null;
+  if (typeof value.ingested !== 'boolean') return null;
+  const requestedCapture = INGESTION_CAPTURE_MODES.includes(value.capture) ? value.capture : 'full';
+  const capture = value.ingested
+    ? requestedCapture === 'partial' ? 'partial' : 'full'
+    : 'none';
+  return {
+    ingested: value.ingested,
+    capture,
+    reason: optionalString(value.reason),
+  };
+}
+
+function normalizeDeliveryRecord(value) {
+  const event = value && typeof value === 'object' ? value : {};
+  const threadStatus = THREAD_STATUSES.includes(event.thread_status)
+    ? event.thread_status
+    : threadStatusForLegacyState(event.state);
+  const ingestionResult = normalizeIngestionResult(event.ingestion_result)
+    || inferredIngestionResult(event.outcome, event.state);
+  return {
+    ...event,
+    thread_status: threadStatus,
+    ingestion_result: ingestionResult,
+    next_retry_at: event.next_retry_at || null,
+  };
+}
+
+function threadStatusForLegacyState(state) {
+  if (state === 'received') return 'waiting';
+  if (state === 'running') return 'triggered';
+  if (state === 'filed' || state === 'ignored') return 'done';
+  if (state === 'failed' || state === 'quarantined') return 'error';
+  return 'waiting';
+}
+
+function inferredIngestionResult(outcome, state) {
+  if (!outcome || typeof outcome !== 'object') return null;
+  if (outcome.status === 'ignored' || state === 'ignored') {
+    return { ingested: false, capture: 'none', reason: optionalString(outcome.reason) };
+  }
+  if (outcome.status !== 'filed') return null;
+  return {
+    ingested: true,
+    capture: outcome.capture_mode === 'partial' || outcome.capture_mode === 'summary' ? 'partial' : 'full',
+    reason: optionalString(outcome.reason),
+  };
+}
+
+export function selectRssDeliveryIds(events, { limit = 5 } = {}) {
+  const boundedLimit = Math.max(1, Math.min(Number(limit) || 5, 1000));
+  const ordered = [...events]
+    .filter((event) => event?.type === 'rss.item' && !event.delivery_only)
+    .sort(compareRssDeliveries);
+  if (ordered.length <= boundedLimit) return ordered.map((event) => event.delivery_id);
+  if (boundedLimit === 1) return [ordered[0].delivery_id];
+  return [...ordered.slice(0, boundedLimit - 1), ordered.at(-1)].map((event) => event.delivery_id);
+}
+
+function compareRssDeliveries(left, right) {
+  const published = timestampForSort(right.payload?.published_at || right.payload?.pubDate)
+    - timestampForSort(left.payload?.published_at || left.payload?.pubDate);
+  return published
+    || String(right.received_at || '').localeCompare(String(left.received_at || ''))
+    || String(right.delivery_id || '').localeCompare(String(left.delivery_id || ''));
+}
+
+function timestampForSort(value) {
+  const parsed = Date.parse(value || '');
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export class EventRegistryStore {
@@ -483,6 +562,9 @@ export class EventInboxStore {
         execution_id: null,
         thread_id: null,
         last_error: null,
+        thread_status: 'waiting',
+        ingestion_result: null,
+        next_retry_at: null,
       };
       state.deliveries[resolvedDeliveryId] = record;
       state.updated_at = this.now().toISOString();
@@ -527,7 +609,16 @@ export class EventInboxStore {
       const current = state.deliveries[deliveryId];
       if (!current) throw new Error(`Event delivery not found: ${deliveryId}`);
       if (!['received', 'failed'].includes(current.state)) return withClaimFlag(current, false);
-      const event = { ...current, state: 'running', attempts: Number(current.attempts || 0) + 1, started_at: this.now().toISOString(), runtime_pid: process.pid, last_error: null };
+      const event = {
+        ...current,
+        state: 'running',
+        thread_status: 'triggered',
+        attempts: Number(current.attempts || 0) + 1,
+        started_at: this.now().toISOString(),
+        runtime_pid: process.pid,
+        last_error: null,
+        next_retry_at: null,
+      };
       state.deliveries[deliveryId] = event;
       state.updated_at = this.now().toISOString();
       await atomicWriteJson(this.filePath, state);
@@ -556,6 +647,9 @@ export class EventInboxStore {
           thread_id: null,
           runtime_pid: null,
           last_error: 'Recovered after the prior inbound event runtime stopped before terminal completion.',
+          thread_status: 'waiting',
+          ingestion_result: null,
+          next_retry_at: null,
         };
         recovered.push(deliveryId);
       }
@@ -569,10 +663,22 @@ export class EventInboxStore {
     });
   }
 
-  async complete(deliveryId, { state = 'filed', outcome = {}, executionId = null, threadId = null, executionMeta = null, retainRaw = false } = {}) {
+  async complete(deliveryId, { state = 'filed', outcome = {}, ingestionResult = null, executionId = null, threadId = null, executionMeta = null, retainRaw = false } = {}) {
     if (!['filed', 'ignored'].includes(state)) throw new Error(`Terminal event state must be filed or ignored, got ${state}.`);
     return this.update(deliveryId, (event) => {
-      const next = { ...event, state, finished_at: this.now().toISOString(), outcome, execution_id: executionId || event.execution_id, thread_id: threadId || event.thread_id, execution_meta: executionMeta || event.execution_meta || null, last_error: null };
+      const next = {
+        ...event,
+        state,
+        thread_status: 'done',
+        finished_at: this.now().toISOString(),
+        outcome,
+        ingestion_result: normalizeIngestionResult(ingestionResult) || inferredIngestionResult(outcome, state),
+        execution_id: executionId || event.execution_id,
+        thread_id: threadId || event.thread_id,
+        execution_meta: executionMeta || event.execution_meta || null,
+        last_error: null,
+        next_retry_at: null,
+      };
       if (!retainRaw) {
         next.raw_payload = null;
         next.payload = state === 'ignored' ? null : next.payload;
@@ -587,10 +693,11 @@ export class EventInboxStore {
     });
   }
 
-  async fail(deliveryId, error, { quarantine = false, executionId = null, threadId = null, executionMeta = null } = {}) {
+  async fail(deliveryId, error, { quarantine = false, executionId = null, threadId = null, executionMeta = null, retryAt = null } = {}) {
     return this.update(deliveryId, (event) => ({
       ...event,
       state: quarantine ? 'quarantined' : 'failed',
+      thread_status: 'error',
       finished_at: this.now().toISOString(),
       last_error: String(error instanceof Error ? error.message : error),
       execution_id: executionId || event.execution_id,
@@ -598,13 +705,15 @@ export class EventInboxStore {
       execution_meta: executionMeta || event.execution_meta || null,
       error_details: executionMeta?.error_details || event.error_details || null,
       outcome: { status: quarantine ? 'quarantined' : 'failed' },
+      ingestion_result: null,
+      next_retry_at: quarantine ? null : retryAt || nextRetryAt(event.attempts, this.now()),
     }));
   }
 
   async retry(deliveryId) {
     return this.update(deliveryId, (event) => {
       if (!['failed', 'quarantined'].includes(event.state)) throw new Error(`Only failed or quarantined events can be retried: ${deliveryId}`);
-      return { ...event, state: 'received', finished_at: null, outcome: null, last_error: null };
+      return { ...event, state: 'received', thread_status: 'waiting', finished_at: null, outcome: null, ingestion_result: null, last_error: null, next_retry_at: null };
     });
   }
 
@@ -616,12 +725,19 @@ export class EventInboxStore {
     return this.fail(deliveryId, reason, { quarantine: true });
   }
 
-  async list({ state = null, listenerId = null, type = null, limit = 100, includeDeliveryOnly = true } = {}) {
+  async list({ state = null, states = null, threadStatus = null, listenerId = null, type = null, limit = 100, includeDeliveryOnly = true } = {}) {
     const inbox = await this.get();
+    const allowedStates = Array.isArray(states) ? new Set(states) : null;
     return Object.values(inbox.deliveries)
-      .filter((event) => (!state || event.state === state) && (!listenerId || event.listener_id === listenerId) && (!type || event.type === type) && (includeDeliveryOnly || !event.delivery_only))
+      .filter((event) => (!state || event.state === state) && (!allowedStates || allowedStates.has(event.state)) && (!threadStatus || event.thread_status === threadStatus) && (!listenerId || event.listener_id === listenerId) && (!type || event.type === type) && (includeDeliveryOnly || !event.delivery_only))
       .sort((a, b) => String(b.received_at).localeCompare(String(a.received_at)))
       .slice(0, Math.max(1, Math.min(Number(limit) || 100, 1000)));
+  }
+
+  async listReadyForExecution({ type = null, limit = 1000, now = this.now(), includeDeliveryOnly = false } = {}) {
+    const current = await this.list({ states: ['received', 'failed'], type, limit, includeDeliveryOnly });
+    const nowMs = new Date(now).getTime();
+    return current.filter((event) => event.state === 'received' || !event.next_retry_at || Date.parse(event.next_retry_at) <= nowMs);
   }
 
   async prune({ retentionDays = DEFAULT_EVENT_RETENTION_DAYS, now = this.now() } = {}) {
@@ -679,6 +795,7 @@ export class InboundEventProcessor {
       return this.inboxStore.complete(deliveryId, {
         state: 'ignored',
         outcome: { status: 'ignored', reason: classification.reason, capture_mode: 'none' },
+        ingestionResult: { ingested: false, capture: 'none', reason: classification.reason },
         executionId: `policy-${this.now().getTime()}`,
         executionMeta: { mode: 'policy', exit_status: 0 },
         retainRaw: listener.capture_policy.retain_raw,
@@ -706,6 +823,7 @@ export class InboundEventProcessor {
           return this.inboxStore.complete(deliveryId, {
             state: outcome.status,
             outcome,
+            ingestionResult: ingestionResultForOutcome(outcome),
             executionId: `${isSubstack ? 'substack' : 'rss'}-ledger-${this.now().getTime()}`,
             executionMeta: { mode: isSubstack ? 'substack_ledger' : 'rss_ledger', exit_status: 0 },
             retainRaw: listener.capture_policy.retain_raw,
@@ -727,13 +845,14 @@ export class InboundEventProcessor {
         } catch (error) {
           return this.inboxStore.fail(deliveryId, `${ledgerLabel} ledger verification unavailable: ${error.message}`, { quarantine: true, executionId: execution?.execution_id, threadId: execution?.thread_id, executionMeta: executionMetadata(execution) });
         }
-        const outcome = verifiedRssOutcome(record, allowedDestinations, classification.decision, isSubstack);
+        const outcome = verifiedRssOutcome(record, allowedDestinations, classification.decision, isSubstack, true);
         if (!outcome) {
           return this.inboxStore.fail(deliveryId, `${ledgerLabel} article has no verified terminal ledger outcome in an allowed Brain; leave it for review.`, { quarantine: true, executionId: execution?.execution_id, threadId: execution?.thread_id, executionMeta: executionMetadata(execution) });
         }
         return this.inboxStore.complete(deliveryId, {
           state: outcome.status,
           outcome,
+          ingestionResult: ingestionResultForOutcome(outcome),
           executionId: execution?.execution_id,
           threadId: execution?.thread_id,
           executionMeta: executionMetadata(execution),
@@ -753,6 +872,7 @@ export class InboundEventProcessor {
             reason: `Completed by the ${execution?.mode || 'Codex'} event-ingestion task.`,
             destinations: [],
           },
+          ingestionResult: { ingested: true, capture: captureModeForIngestion(classification.decision), reason: `Completed by the ${execution?.mode || 'Codex'} event-ingestion task.` },
           executionId: execution?.execution_id,
           threadId: execution?.thread_id,
           executionMeta,
@@ -763,6 +883,7 @@ export class InboundEventProcessor {
         return this.inboxStore.complete(deliveryId, {
           state: 'ignored',
           outcome,
+          ingestionResult: ingestionResultForOutcome(outcome),
           executionId: execution.execution_id,
           threadId: execution.thread_id,
           executionMeta,
@@ -776,6 +897,7 @@ export class InboundEventProcessor {
       return this.inboxStore.complete(deliveryId, {
         state: 'filed',
         outcome: { ...outcome, filing },
+        ingestionResult: ingestionResultForOutcome({ ...outcome, filing }),
         executionId: execution.execution_id,
         threadId: execution.thread_id,
         executionMeta,
@@ -899,12 +1021,18 @@ function prepareRssLedgerPost(event, listener) {
   } finally { ledger.close(); }
 }
 
-function verifiedRssOutcome(record, allowedDestinations, captureMode, isSubstack = false) {
+function verifiedRssOutcome(record, allowedDestinations, captureMode, isSubstack = false, allowUnresolved = false) {
   const verification = record?.verification;
   const allowedIds = allowedDestinations.map((brain) => brain.id || brain.brain_id);
-  const retained = ['source_only', 'source_and_update', 'verified_noop'].includes(record?.outcome);
+  const retained = ['source_only', 'source_partial', 'source_and_update', 'verified_noop'].includes(record?.outcome);
   const ignored = record?.outcome === 'ignored';
-  const verified = verification?.readBack === true
+  const unresolved = record?.outcome === 'needs_review';
+  // An unresolved semantic hole is not a cross-channel duplicate. Let the
+  // delivery start its ingestion thread again so the source can be retried.
+  if (unresolved && !allowUnresolved) return null;
+  const verified = unresolved
+    ? Boolean(record?.reason?.trim())
+    : verification?.readBack === true
     && Number.isFinite(Date.parse(verification?.verifiedAt || ''))
     && allowedIds.includes(verification?.brainId)
     && typeof verification?.evidence === 'string' && verification.evidence.trim()
@@ -912,14 +1040,25 @@ function verifiedRssOutcome(record, allowedDestinations, captureMode, isSubstack
     && (ignored ? Boolean(record?.reason?.trim()) : retained && verification.paths.length > 0);
   if (!verified) return null;
   return {
-    status: ignored ? 'ignored' : 'filed',
-    capture_mode: ignored ? 'none' : captureMode,
+    status: ignored || unresolved ? 'ignored' : 'filed',
+    capture_mode: ignored || unresolved ? 'none' : record.outcome === 'source_partial' ? 'partial' : captureMode,
     reason: record.reason || `Verified ${isSubstack ? 'Substack' : 'RSS'} ledger outcome: ${record.outcome}.`,
     rss_outcome: record.outcome,
     ...(isSubstack ? { substack_outcome: record.outcome } : {}),
     post_key: record.url,
-    destinations: [{ brain_id: verification.brainId, paths: verification.paths }],
+    destinations: verification ? [{ brain_id: verification.brainId, paths: verification.paths }] : [],
   };
+}
+
+function ingestionResultForOutcome(outcome) {
+  if (!outcome || typeof outcome !== 'object') return null;
+  if (outcome.status === 'ignored') return { ingested: false, capture: 'none', reason: optionalString(outcome.reason) };
+  if (outcome.status !== 'filed') return null;
+  return { ingested: true, capture: captureModeForIngestion(outcome.capture_mode), reason: optionalString(outcome.reason) };
+}
+
+function captureModeForIngestion(value) {
+  return value === 'partial' || value === 'summary' ? 'partial' : value === 'none' ? 'none' : 'full';
 }
 
 export class InboundEventRuntime {
@@ -1022,11 +1161,11 @@ export class InboundEventRuntime {
   }
 
   async runRssCycle() {
-    if (this.rssCycleRunning) return { listeners: [], ingested: 0, duplicates: 0, errors: [{ scope: 'rss', message: 'RSS cycle already running.' }], processed: [], skipped: true };
+    if (this.rssCycleRunning) return { listeners: [], enqueued: 0, duplicates: 0, errors: [{ scope: 'rss', message: 'RSS cycle is already running.' }], processed: [], status: 'waiting' };
     this.rssCycleRunning = true;
     let registry = null;
     try {
-      let report = { listeners: [], ingested: 0, duplicates: 0, errors: [] };
+      let report = { listeners: [], enqueued: 0, duplicates: 0, errors: [] };
       try {
         registry = await this.registryStore.get();
         report = await this.collector.pollAll({ limit: DEFAULT_RSS_POLL_LIMIT });
@@ -1037,12 +1176,13 @@ export class InboundEventRuntime {
       }
       const processed = [];
       try {
-        const queued = await this.inboxStore.list({ state: 'received', limit: 25, includeDeliveryOnly: false });
-        const deliveryIds = [...new Set([
-          ...report.listeners.flatMap((listener) => listener.delivery_ids || []),
-          ...queued.map((event) => event.delivery_id),
-        ])];
-        for (const deliveryId of deliveryIds.slice(0, 25)) processed.push(await this.executionQueue.schedule(deliveryId));
+        const ready = await this.inboxStore.listReadyForExecution({ type: 'rss.item', now: this.now(), includeDeliveryOnly: false });
+        const deliveryIds = selectRssDeliveryIds(ready, { limit: DEFAULT_RSS_POLL_LIMIT });
+        const results = await Promise.allSettled(deliveryIds.map((deliveryId) => this.executionQueue.schedule(deliveryId)));
+        for (const [index, result] of results.entries()) {
+          if (result.status === 'fulfilled') processed.push(result.value);
+          else report.errors.push({ scope: 'rss_processing', delivery_id: deliveryIds[index], message: result.reason?.message || String(result.reason) });
+        }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         report.errors.push({ scope: 'rss_processing', message });
@@ -1226,14 +1366,22 @@ export function summarizeEventOutcome(event) {
     event_id: event.event_id,
     listener_id: event.listener_id,
     state: event.state,
+    thread_status: event.thread_status || threadStatusForLegacyState(event.state),
     received_at: event.received_at,
     finished_at: event.finished_at,
     execution_id: event.execution_id || null,
     thread_id: event.thread_id || null,
     outcome: event.outcome || null,
+    ingestion_result: event.ingestion_result || inferredIngestionResult(event.outcome, event.state),
     execution_meta: event.execution_meta || null,
     last_error: event.last_error || null,
   };
+}
+
+function nextRetryAt(attempts, now) {
+  const attempt = Math.max(1, Number(attempts) || 1);
+  const delay = Math.min(DEFAULT_EVENT_RETRY_MAX_MS, DEFAULT_EVENT_RETRY_BASE_MS * (2 ** Math.min(attempt - 1, 10)));
+  return new Date(now.getTime() + delay).toISOString();
 }
 
 function executionMetadata(execution) {

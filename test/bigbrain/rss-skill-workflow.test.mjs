@@ -20,7 +20,7 @@ test('generic RSS worker owns preflight before retrieval and returns a held Subs
   assert.match(skill, /Record irrelevant articles as reviewed `ignored` without content writes/);
   assert.match(skill, /sole article relevance and filing owner/);
   assert.match(skill, /shared ingestion completeness checklist/);
-  assert.match(skill, /one paragraph summarizing the article's substance whenever the article was readable, whether ingested or skipped/);
+  assert.match(skill, /one paragraph summarizing the article's substance whenever the article was readable/);
 });
 
 test('RSS contract preserves feed identity, query identities, holes, and scoped verification', async () => {

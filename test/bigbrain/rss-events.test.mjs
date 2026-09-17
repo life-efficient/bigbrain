@@ -91,7 +91,7 @@ test('RSS polling queues the article link without fetching the article', async (
       },
     });
     const report = await collector.pollAll();
-    assert.equal(report.ingested, 1);
+    assert.equal(report.enqueued, 1);
     assert.deepEqual(calls, ['https://example.test/feed.xml']);
     const event = (await inbox.list())[0];
     assert.equal(event.metadata.source_document, undefined);
@@ -144,7 +144,7 @@ test('all-item RSS collection drains a bounded burst without gaps or conditional
     const deliveryOrder = [];
     for (let i = 0; i < 3; i++) {
       const report = await collector.pollAll({ limit: 1 });
-      assert.equal(report.ingested, 1);
+      assert.equal(report.enqueued, 1);
       assert.equal(report.duplicates, 0);
       const state = await inbox.get();
       deliveryOrder.push(state.deliveries[report.listeners[0].delivery_ids[0]].payload.guid);
@@ -181,7 +181,7 @@ test('all-item RSS collection retries an unchanged feed after enqueue failure', 
     assert.equal((await inbox.get()).collectors.feed.pending_items, true);
     failEnqueue = false;
     const recovered = await collector.poll(feedListener, registry.value, { limit: 1 });
-    assert.equal(recovered.ingested, 1);
+    assert.equal(recovered.enqueued, 1);
     assert.equal((await inbox.get()).collectors.feed.pending_items, false);
   } finally { await fs.rm(paths.root, { recursive: true, force: true }); }
 });
@@ -247,7 +247,7 @@ test('RSS manual backfill requires explicit older stable IDs and deduplicates re
     assert.equal(repeated.counts.duplicates, 2);
     assert.equal((await inbox.list()).length, 2);
     const rejected = await collector.backfill(feedListener.id, { itemIds: [newId] });
-    assert.equal(rejected.counts.skipped, 1);
+    assert.equal(rejected.counts.not_eligible, 1);
     assert.equal(rejected.selected[0].reason, 'not_beyond_initial_cursor');
     assert.equal((await inbox.list()).length, 2);
   } finally {

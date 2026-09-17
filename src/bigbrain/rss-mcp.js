@@ -13,7 +13,7 @@ const inputs = {
   discover: z.strictObject({ feedId: text, url, publishedAt: instant, title: text, channel: text }),
   claim: z.strictObject({ url, owner: text, leaseSeconds: duration }),
   renew: z.strictObject({ ...lease, leaseSeconds: duration }),
-  complete: z.strictObject({ ...lease, outcome: z.enum(['source_only', 'source_and_update', 'verified_noop', 'ignored', 'needs_review']), reason: text.optional(), verification: z.strictObject({ readBack: z.literal(true), verifiedAt: instant, brainId: text, paths: z.array(text).max(1000), evidence: text }).optional() }),
+  complete: z.strictObject({ ...lease, outcome: z.enum(['source_only', 'source_partial', 'source_and_update', 'verified_noop', 'ignored', 'needs_review']), reason: text.optional(), verification: z.strictObject({ readBack: z.literal(true), verifiedAt: instant, brainId: text, paths: z.array(text).max(1000), evidence: text }).optional() }),
   release: z.strictObject({ ...lease, reason: text }),
   retry: z.strictObject({ url, reason: text }),
 };

@@ -90,8 +90,8 @@ Expected:
 
 - Preserve exactly the readable portion and indexed sidecar, label both as
   preview-only, and apply only canonical updates supported by that portion.
-- Record the item as still needing review, with the access boundary and saved
-  paths verified, and do not advance publication or RSS watermarks.
+- Record the item as `source_partial`, with the access boundary and saved
+  paths verified, and advance publication or RSS watermarks.
 - Summarize the readable substance while making clear that only the preview
   was ingested.
 
@@ -104,7 +104,7 @@ Evidence:
 
 Expected:
 
-- Return `needs_review`.
+- Return semantic `needs_review`.
 - Create no synthetic source, page update, or watermark advancement when no
   substantive preview is available.
 

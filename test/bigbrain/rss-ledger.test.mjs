@@ -107,3 +107,28 @@ test('pending, ignored and needs-review RSS articles never advance verified boun
   assert.equal(status.filed_high_watermark,'2026-09-01T00:00:00.000Z');
   assert.equal(status.outstanding_count,1);
 });
+
+test('substantive partial previews are retained, explicitly partial, and advance verified bounds', t => {
+  const { ledgerPath } = fixture(t);
+  const ledger = openRssLedger({ ledgerPath, now });
+  t.after(() => ledger.close());
+  feed(ledger, 'partial-feed');
+  const url = 'https://publisher.test/article?id=partial';
+  discover(ledger, 'partial-feed', url, '2026-09-12T00:00:00Z');
+  const claim = ledger.claim({ url, owner: 'rss' });
+  const result = ledger.complete({
+    url,
+    leaseToken: claim.leaseToken,
+    outcome: 'source_partial',
+    reason: 'Only the substantive preview was accessible before the paywall.',
+    verification: {
+      ...evidence,
+      paths: ['sources/article.partial.md'],
+      evidence: 'The partial source and its preview-only note were read back through the owning Brain.',
+    },
+  });
+  assert.equal(result.post.outcome, 'source_partial');
+  assert.equal(ledger.status({ feedId: 'partial-feed' }).feeds[0].filed_low_watermark, '2026-09-12T00:00:00.000Z');
+  assert.equal(ledger.status({ feedId: 'partial-feed' }).feeds[0].filed_high_watermark, '2026-09-12T00:00:00.000Z');
+  assert.equal(ledger.status({ feedId: 'partial-feed' }).feeds[0].outstanding_count, 0);
+});

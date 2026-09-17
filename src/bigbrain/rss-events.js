@@ -21,7 +21,7 @@ import {
 const execFileAsync = promisify(execFile);
 
 export const DEFAULT_RSS_MANUAL_BACKFILL_LIMIT = 3;
-export const DEFAULT_RSS_POLL_LIMIT = 1;
+export const DEFAULT_RSS_POLL_LIMIT = 5;
 
 /**
  * RSS is deliberately poll-based. This module owns feed fetching, cursor
@@ -40,21 +40,21 @@ export class RssCollector {
     this.readLedgerStatus = readLedgerStatus;
   }
 
-  async pollAll({ limit = null } = {}) {
-    if (this.polling) return { skipped: true, reason: 'poll already running' };
+  async pollAll({ limit = DEFAULT_RSS_POLL_LIMIT } = {}) {
+    if (this.polling) return { status: 'waiting', reason: 'poll already running', enqueued: 0, duplicates: 0, errors: [] };
     this.polling = true;
     try {
       const registry = await this.registryStore.get();
-      const report = { listeners: [], ingested: 0, duplicates: 0, errors: [] };
+      const report = { listeners: [], enqueued: 0, duplicates: 0, errors: [] };
       let remaining = Number.isInteger(limit) && limit > 0 ? limit : null;
       for (const listener of registry.listeners.filter((item) => item.type === 'rss' && item.enabled && !item.removed && item.listener_location === registry.runtime.kind)) {
         if (remaining !== null && remaining <= 0) break;
         try {
           const result = await this.poll(listener, registry, { limit: remaining });
           report.listeners.push(result);
-          report.ingested += result.ingested || 0;
+          report.enqueued += result.enqueued || 0;
           report.duplicates += result.duplicates || 0;
-          if (remaining !== null) remaining -= result.ingested || 0;
+          if (remaining !== null) remaining -= result.enqueued || 0;
         } catch (error) {
           const message = error instanceof Error ? error.message : String(error);
           report.errors.push({ listener_id: listener.id, message });
@@ -95,7 +95,7 @@ export class RssCollector {
         last_success_at: polledAt,
         last_error: null,
       });
-      return { listener_id: listener.id, status: 'not_modified', ingested: 0, duplicates: 0 };
+      return { listener_id: listener.id, status: 'not_modified', enqueued: 0, duplicates: 0 };
     }
     if (!response.ok) throw new Error(`Feed returned HTTP ${response.status}.`);
     const xml = await response.text();
@@ -129,7 +129,7 @@ export class RssCollector {
       const key = stableSourceEventId(listener.id, item.guid || item.link || `${item.title}:${item.pubDate}`);
       if (!allItems && !candidateKeys.has(key)) seen[key] ||= polledAt;
     }
-    let ingested = 0;
+    let enqueued = 0;
     let duplicates = 0;
     const acceptedDeliveryIds = [];
     for (const item of candidates) {
@@ -175,7 +175,7 @@ export class RssCollector {
           continue;
         }
         const result = await this.inboxStore.enqueue(deliveryEvent, { clientId: subscription.client_id, subscriptionId: subscription.id || null });
-        if (result.duplicate) { duplicates += 1; accepted = true; } else { ingested += 1; accepted = true; acceptedDeliveryIds.push(result.event.delivery_id); }
+        if (result.duplicate) { duplicates += 1; accepted = true; } else { enqueued += 1; accepted = true; acceptedDeliveryIds.push(result.event.delivery_id); }
       }
       if (!accepted && subscriptions.length) continue;
       seen[key] = polledAt;
@@ -209,7 +209,7 @@ export class RssCollector {
       last_error: null,
       item_count: items.length,
     });
-    return { listener_id: listener.id, status: 'ok', feed_title: feed.title, item_count: items.length, ingested, duplicates, delivery_ids: acceptedDeliveryIds };
+    return { listener_id: listener.id, status: 'ok', feed_title: feed.title, item_count: items.length, enqueued, duplicates, delivery_ids: acceptedDeliveryIds };
   }
 
   async statusAll({ listenerId = null, limit = 50 } = {}) {
@@ -324,7 +324,7 @@ export class RssCollector {
         continue;
       }
       if (!description.manual_backfill_candidate) {
-        result.selected.push({ ...description, action: 'skipped', reason: 'not_beyond_initial_cursor' });
+        result.selected.push({ ...description, action: 'not_eligible', reason: 'not_beyond_initial_cursor' });
         continue;
       }
       if (dryRun) {
@@ -332,8 +332,8 @@ export class RssCollector {
         continue;
       }
       const delivery = await this.enqueueRssItem({ listener, item, feedXml: item.raw || xml, registry });
-      const action = delivery.duplicates ? 'duplicate' : delivery.ingested ? 'enqueued' : 'handled';
-      result.selected.push({ ...description, action, ingested: delivery.ingested, duplicates: delivery.duplicates });
+      const action = delivery.duplicates ? 'duplicate' : delivery.enqueued ? 'enqueued' : 'handled';
+      result.selected.push({ ...description, action, enqueued: delivery.enqueued, duplicates: delivery.duplicates });
       seen[itemId] = this.now().toISOString();
       selectedForState.push(itemId);
     }
@@ -348,7 +348,7 @@ export class RssCollector {
     result.counts = {
       enqueued: result.selected.filter((item) => item.action === 'enqueued').length,
       duplicates: result.selected.filter((item) => item.action === 'duplicate').length,
-      skipped: result.selected.filter((item) => item.action === 'skipped').length,
+      not_eligible: result.selected.filter((item) => item.action === 'not_eligible').length,
       unknown: result.unknown_item_ids.length,
     };
     return result;
@@ -387,9 +387,9 @@ export class RssCollector {
     if (!deliveries.length) {
       const unassigned = await this.inboxStore.enqueue(event, { clientId: registry.runtime.id, deliveryOnly: true });
       if (!unassigned.duplicate) await this.inboxStore.complete(unassigned.event.delivery_id, { state: 'ignored', outcome: { status: 'ignored', reason: 'no_active_subscriptions', capture_mode: 'none' }, retainRaw: false });
-      return { accepted: true, ingested: 0, duplicates: unassigned.duplicate ? 1 : 0 };
+      return { accepted: true, enqueued: 0, duplicates: unassigned.duplicate ? 1 : 0 };
     }
-    let ingested = 0;
+    let enqueued = 0;
     let duplicates = 0;
     for (const subscription of deliveries) {
       const deliveryEvent = { ...event, allowed_brain_ids: subscription.brain_ids?.length ? subscription.brain_ids : event.allowed_brain_ids };
@@ -407,9 +407,9 @@ export class RssCollector {
         continue;
       }
       const result = await this.inboxStore.enqueue(deliveryEvent, { clientId: subscription.client_id, subscriptionId: subscription.id || null });
-      if (result.duplicate) duplicates += 1; else ingested += 1;
+      if (result.duplicate) duplicates += 1; else enqueued += 1;
     }
-    return { accepted: true, ingested, duplicates };
+    return { accepted: true, enqueued, duplicates };
   }
 
   async fetchSourceDocument(listener, item) {

@@ -23,6 +23,7 @@ import {
   normalizeEventEnvelope,
   parseRssDocument,
   RssCollector,
+  selectRssDeliveryIds,
   ScopedFilingBroker,
   defaultEventConfigDir,
   defaultEventInboxPath,
@@ -102,12 +103,50 @@ test('inbox is durable, idempotent, retryable, and purges payloads on ignored ou
     await inbox.claim(first.event.delivery_id);
     const ignored = await inbox.complete(first.event.delivery_id, { state: 'ignored', outcome: { status: 'ignored', reason: 'not useful' } });
     assert.equal(ignored.state, 'ignored');
+    assert.equal(ignored.thread_status, 'done');
+    assert.deepEqual(ignored.ingestion_result, { ingested: false, capture: 'none', reason: 'not useful' });
     assert.equal(ignored.raw_payload, null);
     assert.equal((await inbox.list({ state: 'ignored' })).length, 1);
     await assert.rejects(inbox.retry(first.event.delivery_id), /Only failed/);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
   }
+});
+
+test('inbox keeps execution status separate from semantic ingestion and retries technical failures with backoff', async () => {
+  const paths = await fixture();
+  let current = new Date('2026-09-17T10:00:00.000Z');
+  try {
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath, now: () => current });
+    const queued = await inbox.enqueue({ event_id: 'lifecycle-1', listener_id: 'feed', type: 'rss.item', payload: { title: 'Lifecycle' } }, { clientId: 'client-1' });
+    assert.equal(queued.event.thread_status, 'waiting');
+    assert.equal(queued.event.ingestion_result, null);
+    const triggered = await inbox.claim(queued.event.delivery_id);
+    assert.equal(triggered.thread_status, 'triggered');
+    const failed = await inbox.fail(queued.event.delivery_id, 'temporary executor outage');
+    assert.equal(failed.thread_status, 'error');
+    assert.equal(failed.ingestion_result, null);
+    assert.equal(failed.next_retry_at, '2026-09-17T10:01:00.000Z');
+    assert.equal((await inbox.listReadyForExecution({ type: 'rss.item', now: current })).length, 0);
+    current = new Date('2026-09-17T10:01:00.000Z');
+    assert.deepEqual((await inbox.listReadyForExecution({ type: 'rss.item', now: current })).map((event) => event.delivery_id), [queued.event.delivery_id]);
+    const retried = await inbox.retry(queued.event.delivery_id);
+    assert.equal(retried.thread_status, 'waiting');
+    assert.equal(retried.next_retry_at, null);
+  } finally {
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
+test('RSS drain selection favors four newest deliveries and reserves one oldest slot', () => {
+  const events = [10, 9, 8, 7, 6, 5].map((day) => ({
+    delivery_id: `delivery-${day}`,
+    type: 'rss.item',
+    delivery_only: false,
+    received_at: `2026-09-${String(day).padStart(2, '0')}T12:00:00.000Z`,
+    payload: { published_at: `2026-09-${String(day).padStart(2, '0')}T10:00:00.000Z` },
+  }));
+  assert.deepEqual(selectRssDeliveryIds(events, { limit: 5 }), ['delivery-10', 'delivery-9', 'delivery-8', 'delivery-7', 'delivery-5']);
 });
 
 test('inbox requeues orphaned running deliveries but preserves a live runtime claim', async () => {
@@ -165,11 +204,11 @@ test('RSS collector polls feeds, honors bootstrap, and deduplicates later polls'
     });
     const first = await collector.pollAll();
     assert.equal(fetches, 1);
-    assert.equal(first.ingested, 1);
+    assert.equal(first.enqueued, 1);
     assert.equal((await inbox.list()).length, 1);
     const second = await collector.pollAll();
     assert.equal(fetches, 2);
-    assert.equal(second.ingested, 0);
+    assert.equal(second.enqueued, 0);
     assert.equal(second.duplicates, 0);
     assert.equal((await inbox.list()).length, 1);
   } finally {
@@ -192,13 +231,13 @@ test('RSS first poll is bounded to the initial seven-day cursor and advances by 
       fetchImpl: async () => ({ status: 200, ok: true, headers: { get: () => null }, text: async () => xml }),
     });
     const first = await collector.pollAll();
-    assert.equal(first.ingested, 2);
+    assert.equal(first.enqueued, 2);
     assert.deepEqual((await inbox.list()).map((event) => event.payload.guid).sort(), ['latest', 'recent']);
     const state = (await inbox.get()).collectors[listener.id];
     assert.equal(state.cursor_at, '2026-08-27T10:00:00.000Z');
     assert.match(state.cursor_id, /^openai-news:/);
     const second = await collector.pollAll();
-    assert.equal(second.ingested, 0);
+    assert.equal(second.enqueued, 0);
     assert.equal((await inbox.list()).length, 2);
   } finally {
     await fs.rm(paths.root, { recursive: true, force: true });
@@ -221,7 +260,7 @@ test('RSS collector recognizes legacy v1 keys during service migration', async (
       fetchImpl: async () => ({ status: 200, ok: true, headers: { get: () => null }, text: async () => xml }),
     });
     const report = await collector.pollAll();
-    assert.equal(report.ingested, 0);
+    assert.equal(report.enqueued, 0);
     assert.equal(report.duplicates, 1);
     assert.equal((await inbox.list()).length, 0);
   } finally {
@@ -286,10 +325,11 @@ test('Substack RSS completion requires terminal scoped ledger evidence, regardle
   const cases = [
     ['missing ledger record', null, 'quarantined'],
     ['pending article', { outcome: 'pending' }, 'quarantined'],
-    ['blocked article', { outcome: 'needs_review', reason: 'paid preview only' }, 'quarantined'],
+    ['unresolved article without readable source', { outcome: 'needs_review', reason: 'No reliable readable source was available.' }, 'ignored'],
     ['unverified ignored article', { outcome: 'ignored', reason: 'not relevant' }, 'quarantined'],
     ['retained without artifact paths', { outcome: 'source_only', verification: { ...verification, paths: [] } }, 'quarantined'],
     ['retained in different Brain', { outcome: 'source_and_update', verification: { ...verification, brainId: 'another-brain' } }, 'quarantined'],
+    ['verified partial preview', { outcome: 'source_partial', reason: 'Only the substantive preview was accessible.', verification }, 'filed'],
     ['verified retained article', { outcome: 'source_only', verification }, 'filed'],
     ['verified ignored article', { outcome: 'ignored', reason: 'Reviewed complete article; no durable relevant value.', verification: { ...verification, paths: [] } }, 'ignored'],
     ['verified duplicate', { outcome: 'verified_noop', verification }, 'filed'],
@@ -313,6 +353,7 @@ test('Substack RSS completion requires terminal scoped ledger evidence, regardle
       const processed = await processor.process(queued.event.delivery_id);
       assert.equal(processed.state, expected);
       assert.equal(processed.thread_id, 'thread-1');
+      if (record?.outcome === 'source_partial') assert.deepEqual(processed.ingestion_result, { ingested: true, capture: 'partial', reason: 'Only the substantive preview was accessible.' });
       if (expected !== 'quarantined') assert.equal(processed.outcome.substack_outcome, record.outcome);
     } finally { await fs.rm(paths.root, { recursive: true, force: true }); }
   });
@@ -325,7 +366,7 @@ test('Substack cross-channel verified duplicates skip executor creation, while w
     ['retained email post', { url, outcome: 'source_only', verification }, false, 'filed'],
     ['ignored browser post', { url, outcome: 'ignored', reason: 'Complete review found no relevant durable value.', verification: { ...verification, paths: [] } }, false, 'ignored'],
     ['wrong-Brain retained post', { url, outcome: 'source_only', verification: { ...verification, brainId: 'other-brain' } }, true, 'quarantined'],
-    ['blocked post', { url, outcome: 'needs_review', reason: 'paid preview' }, true, 'quarantined'],
+    ['unresolved post without readable source', { url, outcome: 'needs_review', reason: 'No reliable readable source was available.' }, true, 'ignored'],
   ];
   for (const [name, record, shouldExecute, expected] of cases) await t.test(name, async () => {
     const paths = await fixture();
@@ -708,6 +749,62 @@ test('runtime lock prevents a desktop and service poller from running concurrent
   }
 });
 
+test('RSS runtime applies one global drain limit and does not start more than five threads per cycle', async () => {
+  const paths = await fixture();
+  const started = [];
+  const completedRecords = new Map();
+  try {
+    const listener = rssListener({ id: 'bounded-feed' });
+    const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1', now: () => new Date('2026-09-17T12:00:00.000Z') });
+    await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [listener] });
+    const inbox = new EventInboxStore({ filePath: paths.inboxPath, now: () => new Date('2026-09-17T12:00:00.000Z') });
+    for (let day = 10; day <= 16; day += 1) {
+      await inbox.enqueue(createRssEventEnvelope({ listener, item: {
+        guid: `post-${day}`,
+        title: `Post ${day}`,
+        link: `https://publisher.test/p/${day}`,
+        published_at: `2026-09-${day}T10:00:00.000Z`,
+      } }), { clientId: 'client-1' });
+    }
+    const runtime = new InboundEventRuntime({
+      registryPath: paths.registryPath,
+      inboxPath: paths.inboxPath,
+      webhook: { enabled: false },
+      fetchImpl: async () => ({ status: 304, ok: false, headers: { get: () => null } }),
+      rssLedgerPrepare: async () => {},
+      rssLedgerReader: async (url) => completedRecords.get(url) || null,
+      maxExecutionConcurrency: 2,
+      executorFactory: async () => ({ execute: async ({ event }) => {
+        started.push(event.payload.guid);
+        const url = event.payload.link;
+        completedRecords.set(url, {
+          url,
+          outcome: 'source_only',
+          verification: {
+            readBack: true,
+            verifiedAt: '2026-09-17T11:00:00Z',
+            brainId: 'brain_personal',
+            paths: [`concepts/.raw/${event.payload.guid}.md`],
+            evidence: 'Same-Brain read-back verified.',
+          },
+        });
+        return { execution_id: `execution-${event.payload.guid}`, thread_id: `thread-${event.payload.guid}` };
+      } }),
+      now: () => new Date('2026-09-17T12:00:00.000Z'),
+    });
+    const report = await runtime.runRssCycle();
+    assert.equal(report.processed.length, 5);
+    assert.equal(started.length, 5);
+    assert.deepEqual(new Set(started), new Set(['post-16', 'post-15', 'post-14', 'post-13', 'post-10']));
+    assert.equal((await inbox.list({ state: 'received' })).length, 2);
+    assert.equal(report.processed.every((event) => event.thread_status === 'done'), true);
+    assert.equal(report.processed.every((event) => event.ingestion_result?.ingested === true), true);
+    await runtime.close();
+  } finally {
+    await fs.rm(paths.root, { recursive: true, force: true });
+  }
+});
+
 test('RSS failures are isolated from webhook serving and webhook failures do not stop RSS cycles', async () => {
   const paths = await fixture();
   let runtime = null;
@@ -743,7 +840,7 @@ test('RSS failures are isolated from webhook serving and webhook failures do not
     await waitForInboxState(inbox, 'calendar', 'failed');
     const secondReport = await runtime.runRssCycle();
     assert.equal(secondReport.errors.length, 0);
-    assert.equal(secondReport.ingested, 1);
+    assert.equal(secondReport.enqueued, 1);
     assert.equal((await inbox.list({ listenerId: 'feed' })).length, 1);
     assert.equal((await fetch(`http://127.0.0.1:${address.port}/health`)).status, 200);
   } finally {
@@ -785,7 +882,7 @@ test('webhook startup failure degrades only the webhook plane and still runs RSS
     });
     const started = await runtime.start();
     assert.match(runtime.webhookError, /EADDRINUSE|address already in use/i);
-    assert.equal(started.firstReport.ingested, 1);
+    assert.equal(started.firstReport.enqueued, 1);
     assert.equal((await inbox.list({ listenerId: 'feed' })).length, 1);
     await runtime.close();
   } finally {

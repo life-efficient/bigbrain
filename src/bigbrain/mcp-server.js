@@ -617,7 +617,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       return toolJson({ revision: next.revision, subscription: next.subscriptions.find((item) => item.id === subscription.id) });
     }
     case 'events/inbox': {
-      const events = await eventInboxStore(config).list({ state: args.state || null, listenerId: args.listener_id || null, limit: args.limit });
+      const events = await eventInboxStore(config).list({ state: args.state || null, threadStatus: args.thread_status || null, listenerId: args.listener_id || null, limit: args.limit });
       return toolJson({ events: events.map(safeEventRecord) }, { arrayKey: 'events' });
     }
     case 'events/rss_status':
@@ -658,7 +658,13 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'events/health': {
       const registry = await eventRegistryValue(config);
       const inbox = await eventInboxStore(config).get();
-      const counts = Object.values(inbox.deliveries).reduce((value, event) => { value[event.state] = (value[event.state] || 0) + 1; return value; }, {});
+      const counts = Object.values(inbox.deliveries).reduce((value, event) => {
+        value[event.state] = (value[event.state] || 0) + 1;
+        value.thread_status = value.thread_status || {};
+        const threadStatus = event.thread_status || 'waiting';
+        value.thread_status[threadStatus] = (value.thread_status[threadStatus] || 0) + 1;
+        return value;
+      }, {});
       return toolJson({ ok: true, registry_revision: registry.revision, runtime: registry.runtime, listener_count: registry.listeners.filter((listener) => !listener.removed).length, counts, collectors: inbox.collectors, registry_path: eventRegistryStore(config).filePath, inbox_path: eventInboxStore(config).filePath });
     }
     case 'events/provenance': {
@@ -1910,7 +1916,7 @@ function toolDefinitions(config = null) {
     {
       name: 'events/inbox',
       description: 'Inspect bounded inbound event metadata, outcomes, failures, and retries without returning payloads or credentials.',
-      inputSchema: { type: 'object', properties: { state: { type: 'string', enum: EVENT_STATE_SCHEMA_VALUES() }, listener_id: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 1000 } } },
+      inputSchema: { type: 'object', properties: { state: { type: 'string', enum: EVENT_STATE_SCHEMA_VALUES(), description: 'Legacy storage-state filter.' }, thread_status: { type: 'string', enum: ['waiting', 'triggered', 'done', 'error'] }, listener_id: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 1000 } } },
     },
     {
       name: 'events/rss_status',
@@ -2511,7 +2517,27 @@ function assertEventBrainIdsRegistered(registry, brainIds, config = null) {
 function safeEventRecord(event) {
   if (!event) return null;
   const { payload, raw_payload, ...safe } = event;
-  return { ...safe, payload_present: payload !== null && payload !== undefined, raw_payload_present: Boolean(raw_payload) };
+  return {
+    ...safe,
+    thread_status: safe.thread_status || legacyThreadStatus(safe.state),
+    ingestion_result: safe.ingestion_result || inferredSafeIngestionResult(safe.outcome, safe.state),
+    payload_present: payload !== null && payload !== undefined,
+    raw_payload_present: Boolean(raw_payload),
+  };
+}
+
+function legacyThreadStatus(state) {
+  if (state === 'received') return 'waiting';
+  if (state === 'running') return 'triggered';
+  if (state === 'filed' || state === 'ignored') return 'done';
+  return 'error';
+}
+
+function inferredSafeIngestionResult(outcome, state) {
+  if (!outcome || typeof outcome !== 'object') return null;
+  if (outcome.status === 'ignored' || state === 'ignored') return { ingested: false, capture: 'none', reason: outcome.reason || null };
+  if (outcome.status !== 'filed') return null;
+  return { ingested: true, capture: outcome.capture_mode === 'partial' || outcome.capture_mode === 'summary' ? 'partial' : 'full', reason: outcome.reason || null };
 }
 
 async function recordWriteProvenance(config, pagePath, provenance, commitMessage) {

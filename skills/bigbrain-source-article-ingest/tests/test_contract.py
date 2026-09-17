@@ -18,8 +18,8 @@ assert "$bigbrain-page" in SKILL
 assert "shared relevance gate" in SKILL
 assert "substantive, identity-confirmed partial preview" in SKILL
 assert "preview-only" in SKILL
-assert "use `needs_review`" in SKILL
-assert "do not advance any RSS, Substack, or Gmail completeness watermark" in SKILL
+assert "use `source_partial`" in SKILL
+assert "advance the verified watermark after same-Brain read-back" in SKILL
 assert "email preview, search snippet, or notification body" in SKILL
 assert "filing a partial preview as a full capture" in SKILL
 assert "articles/" in SKILL

@@ -32,7 +32,8 @@ into existing pages, and link already covered entities without duplicate facts.
 Visit the supplied article page, confirm that it is the requested article, and
 file it if it is accessible and clears the digest-value gate. If access stops
 after a substantive preview, retain the readable portion as an explicitly
-partial capture, keep the item under review, and do not advance a watermark.
+partial capture, record `source_partial`, and advance the verified watermark
+after same-Brain read-back.
 If it is empty, thin, mismatched, or cannot be accessed, return `needs_review`
 without content writes or substituting another page.
 
@@ -86,7 +87,7 @@ block appears after a substantive portion of the article.
 
 Expected behavior: preserve the exact readable portion and indexed sidecar,
 make only evidence-supported canonical updates, label the capture as preview
-only, read the saved state back, and retain `needs_review` with no watermark
+only, read the saved state back, and record `source_partial` with watermark
 advancement. The result must not be described as a full article ingestion.
 
 ## Should trigger review
@@ -94,7 +95,7 @@ advancement. The result must not be described as a full article ingestion.
 An item appears relevant but its canonical source is unavailable, empty, thin,
 mismatched, or truncated before enough substantive content is available.
 
-Expected behavior: return `needs_review` and do not file a synthetic article
+Expected behavior: return semantic `needs_review` and do not file a synthetic article
 or any content artifact.
 
 The review result should say that the supplied source could not be retrieved.

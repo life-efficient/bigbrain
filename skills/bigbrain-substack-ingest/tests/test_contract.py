@@ -31,6 +31,7 @@ assert "Followed status proves delivery eligibility only" in SKILL
 assert "`ignored` is terminal reviewed metadata without source artifacts" in SKILL
 assert "$bigbrain-page" in SKILL
 assert "source_only" in SKILL
+assert "source_partial" in SKILL
 assert "source_and_update" in SKILL
 assert "verified_noop" in SKILL
 assert "needs_review" in SKILL
@@ -55,7 +56,7 @@ assert "source_type: substack" in CASES
 assert "no synthetic source" in CASES
 assert "Relevant substantive preview before a block" in CASES
 assert "preview-only" in SKILL
-assert "do not advance a publication watermark" in SKILL
+assert "advance the publication watermarks" in SKILL
 assert "articles/" in SKILL
 assert "articles/.raw/" in SKILL
 assert "published_date" in AGENT

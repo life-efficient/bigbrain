@@ -20,6 +20,7 @@ import { syncBrain } from './sync.js';
 import { resolveWindow } from './time.js';
 import { applyUpdate, checkForUpdate, renderUpdateText, updateExitCode } from './update.js';
 import { EventInboxStore, EventRegistryStore, RssCollector, normalizeListener, normalizeSubscription, defaultEventInboxPath, defaultEventRegistryPath } from './inbound-events.js';
+import { DEFAULT_RSS_POLL_LIMIT } from './rss-events.js';
 import { BIGBRAIN_MCP_RELEASE_VERSION, BIGBRAIN_RELEASE_MANIFEST } from './release-manifest.js';
 import { buildComprehensionPayload, getComprehensionPage, updateComprehensionSetup } from './playbooks/comprehension.js';
 
@@ -438,7 +439,12 @@ async function handleEvents(args, global) {
     const value = await registry.get();
     const state = await inbox.get();
     const counts = Object.values(state.deliveries).reduce((result, event) => { result[event.state] = (result[event.state] || 0) + 1; return result; }, {});
-    output(global, { ok: true, runtime: value.runtime, revision: value.revision, listeners: value.listeners.length, counts, registry_path: registry.filePath, inbox_path: inbox.filePath }, `Event runtime ${value.runtime.kind} revision ${value.revision}: ${value.listeners.length} listener(s), ${Object.values(counts).reduce((sum, count) => sum + count, 0)} inbox event(s).`);
+    counts.thread_status = Object.values(state.deliveries).reduce((result, event) => {
+      const status = event.thread_status || legacyThreadStatus(event.state);
+      result[status] = (result[status] || 0) + 1;
+      return result;
+    }, {});
+    output(global, { ok: true, runtime: value.runtime, revision: value.revision, listeners: value.listeners.length, counts, registry_path: registry.filePath, inbox_path: inbox.filePath }, `Event runtime ${value.runtime.kind} revision ${value.revision}: ${value.listeners.length} listener(s), ${Object.keys(state.deliveries).length} inbox event(s).`);
     return;
   }
   if (action === 'rss-status') {
@@ -466,22 +472,22 @@ async function handleEvents(args, global) {
     return;
   }
   if (action === 'inbox') {
-    const events = await inbox.list({ state: argValue(args, '--state'), listenerId: argValue(args, '--listener'), limit: argValue(args, '--limit') });
-    output(global, { events }, events.map((event) => `${event.state.padEnd(11)} ${event.delivery_id}  ${event.listener_id}  ${event.event_id}`).join('\n') || 'Inbox is empty.');
+    const events = await inbox.list({ state: argValue(args, '--state'), threadStatus: argValue(args, '--thread-status'), listenerId: argValue(args, '--listener'), limit: argValue(args, '--limit') });
+    output(global, { events }, events.map((event) => `${(event.thread_status || legacyThreadStatus(event.state)).padEnd(9)} ${formatIngestionResult(event).padEnd(16)} ${event.delivery_id}  ${event.listener_id}  ${event.event_id}`).join('\n') || 'Inbox is empty.');
     return;
   }
   if (action === 'drain') {
     const { InboundEventProcessor, InboundExecutionQueue, defaultExecutorFactory } = await import('./inbound-events.js');
     const processor = new InboundEventProcessor({ registryStore: registry, inboxStore: inbox, executorFactory: defaultExecutorFactory });
     const queue = new InboundExecutionQueue({ processor });
-    const pending = await inbox.list({ state: 'received', type: argValue(args, '--type') || null, limit: argValue(args, '--limit') || 10, includeDeliveryOnly: false });
+    const pending = await inbox.listReadyForExecution({ type: argValue(args, '--type') || null, limit: argValue(args, '--limit') || DEFAULT_RSS_POLL_LIMIT, includeDeliveryOnly: false });
     const results = [];
     try {
       for (const event of pending) results.push(await queue.schedule(event.delivery_id));
     } finally {
       await queue.close();
     }
-    output(global, { results }, results.map((event) => `${event.state.padEnd(11)} ${event.delivery_id}`).join('\n') || 'No received events to drain. Failed events require an explicit retry first.');
+    output(global, { results }, results.map((event) => `${(event.thread_status || legacyThreadStatus(event.state)).padEnd(9)} ${formatIngestionResult(event).padEnd(16)} ${event.delivery_id}`).join('\n') || 'No ready events to drain.');
     return;
   }
   if (action === 'configure') {
@@ -1053,7 +1059,7 @@ Commands:
   events rss-status [--listener ID] [--limit N]
   events rss-backfill <listener-id> --item-id STABLE_ID [--item-id STABLE_ID ...] [--dry-run|--apply] [--max-items N]
   events listeners
-  events inbox [--state STATE] [--listener ID] [--limit N]
+  events inbox [--state STATE] [--thread-status STATUS] [--listener ID] [--limit N]
   events drain [--limit N] [--type TYPE]
   events configure <listener-id> [--event-type-path PATH] [--event-type TYPE ...] [--prompt-field FIELD ...] [--prompt-omit-field FIELD ...] [--model MODEL] [--reasoning-effort EFFORT] [--chat-title TITLE]
   events listener-upsert --from <listener.json>
@@ -1114,9 +1120,25 @@ function renderRssStatusText(report) {
   return lines.join('\n') || 'No active RSS listeners configured.';
 }
 
+function legacyThreadStatus(state) {
+  if (state === 'received') return 'waiting';
+  if (state === 'running') return 'triggered';
+  if (state === 'filed' || state === 'ignored') return 'done';
+  return 'error';
+}
+
+function formatIngestionResult(event) {
+  const result = event.ingestion_result;
+  if (result?.ingested) return result.capture === 'partial' ? 'ingested:partial' : 'ingested';
+  if (result && result.ingested === false) return 'not-ingested';
+  if (event.state === 'filed') return 'ingested';
+  if (event.state === 'ignored') return 'not-ingested';
+  return 'not-started';
+}
+
 function renderRssBackfillText(report) {
   const mode = report.status === 'dry_run' ? 'Dry run' : 'Manual backfill';
-  const lines = [`${mode} for ${report.listener_id}: ${report.counts.enqueued} enqueued, ${report.counts.duplicates} duplicate(s), ${report.counts.skipped} skipped, ${report.counts.unknown} unknown.`];
+  const lines = [`${mode} for ${report.listener_id}: ${report.counts.enqueued} enqueued, ${report.counts.duplicates} duplicate(s), ${report.counts.not_eligible} not eligible, ${report.counts.unknown} unknown.`];
   for (const item of report.selected || []) lines.push(`  ${item.action.padEnd(10)} ${item.item_id}  ${item.title}${item.reason ? ` (${item.reason})` : ''}`);
   for (const itemId of report.unknown_item_ids || []) lines.push(`  unknown    ${itemId}`);
   return lines.join('\n');
