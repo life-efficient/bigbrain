@@ -16,6 +16,7 @@ export const DEFAULT_CODEX_APP_SERVER_ARGS = [
   '--config', 'mcp_servers.node_repl.env.SKY_CUA_SERVICE_PATH=""',
   '--config', 'mcp_servers.node_repl.env.BROWSER_USE_TINYSKY_ENABLED="0"',
   '--config', 'mcp_servers.computer-use.enabled=false',
+  '--config', 'mcp_servers.cua_repl.enabled=false',
   '--config', 'plugins."computer-use@openai-bundled".enabled=false',
   '--config', 'plugins."unified-computer-use@openai-bundled".enabled=false',
 ];
