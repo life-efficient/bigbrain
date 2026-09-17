@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { DEFAULT_CODEX_APP_SERVER_ARGS, CodexAppThreadExecutor, CodexCliExecutor, buildEventPrompt, isSubstackRssEvent, normalizeCodexOutcome, parseCodexJsonOutput, parseCodexThreadId, resolveThreadTitle, selectPromptPayload } from '../../src/bigbrain/codex-event-executor.js';
+import { DEFAULT_CODEX_APP_SERVER_ARGS, CodexAppThreadExecutor, CodexCliExecutor, buildBackgroundCodexEnv, buildEventPrompt, isSubstackRssEvent, normalizeCodexOutcome, parseCodexJsonOutput, parseCodexThreadId, resolveThreadTitle, selectPromptPayload } from '../../src/bigbrain/codex-event-executor.js';
 
 const event = {
   event_id: 'event-1',
@@ -282,6 +282,25 @@ test('background app-server defaults retain browser REPL access but disable nati
     '--config', 'plugins."computer-use@openai-bundled".enabled=false',
     '--config', 'plugins."unified-computer-use@openai-bundled".enabled=false',
   ]);
+});
+
+test('background executor environment removes inherited native computer-use surfaces', () => {
+  const env = buildBackgroundCodexEnv({
+    CUA_REPL_ENABLED_SURFACES: 'browser,computer',
+    BROWSER_USE_TINYSKY_ENABLED: '1',
+    NODE_REPL_JS_BANNER: 'await import("@oai/cua/tinyskyAlt")',
+    NODE_REPL_TOOL_OVERRIDES: '{"tools":{"js":{}}}',
+    NODE_REPL_UNTRUSTED_ENV_ALLOWLIST: 'CUA_REPL_ENABLED_SURFACES',
+    NODE_REPL_INSTRUCTIONS_USE_CASE_COMPUTER_USE: 'Control desktop apps',
+    NODE_REPL_TRUSTED_SERVICES: '{"browser":"x","sky":"y"}',
+    SKY_CUA_SERVICE_PATH: '/tmp/Codex Computer Use.app',
+  });
+  assert.equal(env.CUA_REPL_ENABLED_SURFACES, 'browser');
+  assert.equal(env.BROWSER_USE_TINYSKY_ENABLED, '0');
+  assert.equal(env.NODE_REPL_INSTRUCTIONS_USE_CASE_COMPUTER_USE, '');
+  assert.equal(env.NODE_REPL_TRUSTED_SERVICES, '{"browser":"@oai/browser-desktop/service"}');
+  assert.equal(env.SKY_CUA_SERVICE_PATH, '');
+  for (const key of ['NODE_REPL_JS_BANNER', 'NODE_REPL_TOOL_OVERRIDES', 'NODE_REPL_UNTRUSTED_ENV_ALLOWLIST']) assert.equal(env[key], undefined);
 });
 
 test('app-thread executor closes an active client when the executor is shut down', async () => {

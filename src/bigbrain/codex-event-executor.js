@@ -19,6 +19,11 @@ export const DEFAULT_CODEX_APP_SERVER_ARGS = [
   '--config', 'plugins."computer-use@openai-bundled".enabled=false',
   '--config', 'plugins."unified-computer-use@openai-bundled".enabled=false',
 ];
+const BACKGROUND_CUA_ENV_KEYS = [
+  'NODE_REPL_JS_BANNER',
+  'NODE_REPL_TOOL_OVERRIDES',
+  'NODE_REPL_UNTRUSTED_ENV_ALLOWLIST',
+];
 const MAX_APP_SERVER_NOTIFICATIONS = 200;
 const MAX_APP_SERVER_NOTIFICATION_TEXT = 10_000;
 const MAX_APP_SERVER_BUFFER_BYTES = 20 * 1024 * 1024;
@@ -32,6 +37,17 @@ export const SUBSTACK_BACKGROUND_ACCESS_INSTRUCTIONS = 'Use the owning BigBrain 
 export const RSS_BACKGROUND_ACCESS_INSTRUCTIONS = 'Use the owning BigBrain MCP rss/workflow (alias rss_workflow) to load the trusted ingestion instructions and rss/ledger (alias rss_ledger) with {operation, input} for shared per-feed article tracking. Browser access is for actual publisher or article pages.';
 
 export const BACKGROUND_EVENT_TOOL_INSTRUCTIONS = 'This is unattended background work. Use BigBrain and source-provider MCP tools directly, and use the terminal when local inspection is necessary. Use browser APIs for web pages, preferring the in-Codex browser and falling back to another supported browser only when required. Do not use native computer-use actions or control desktop applications, Finder, TextEdit, or other foreground GUI apps.';
+
+export function buildBackgroundCodexEnv(env = process.env) {
+  const next = { ...env };
+  for (const key of BACKGROUND_CUA_ENV_KEYS) delete next[key];
+  next.CUA_REPL_ENABLED_SURFACES = 'browser';
+  next.BROWSER_USE_TINYSKY_ENABLED = '0';
+  next.NODE_REPL_INSTRUCTIONS_USE_CASE_COMPUTER_USE = '';
+  next.NODE_REPL_TRUSTED_SERVICES = '{"browser":"@oai/browser-desktop/service"}';
+  next.SKY_CUA_SERVICE_PATH = '';
+  return next;
+}
 
 function configuredCodexTimeout(env = process.env) {
   const value = Number(env?.BIGBRAIN_CODEX_TIMEOUT_MS);
@@ -200,7 +216,7 @@ export class CodexCliExecutor {
     this.cwd = cwd;
     this.execFileImpl = execFileImpl;
     this.timeoutMs = timeoutMs;
-    this.env = env;
+    this.env = buildBackgroundCodexEnv(env);
   }
 
   async execute({ event, listener, allowedDestinations = [] } = {}) {
@@ -251,7 +267,7 @@ export class CodexAppThreadExecutor {
     this.cwd = cwd;
     this.spawnImpl = spawnImpl;
     this.timeoutMs = timeoutMs;
-    this.env = env;
+    this.env = buildBackgroundCodexEnv(env);
     this.clientFactory = clientFactory;
     this.activeClients = new Set();
   }
