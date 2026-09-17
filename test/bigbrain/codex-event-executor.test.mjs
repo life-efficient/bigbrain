@@ -275,6 +275,7 @@ test('background app-server defaults retain browser REPL access but disable nati
     '--config', 'notify=[]',
     '--config', 'sandbox_mode="workspace-write"',
     '--config', 'approval_policy="on-request"',
+    '--config', 'mcp_servers.personal_brain.enabled_tools=["about","me","filing_rules","search","read","list","read_raw_file","list_raw_files","pages/query","create_raw_file_with_page","capture_article","create_page","create_raw_file","update_page","rss/workflow","rss_workflow","rss/ledger","rss_ledger","domains/list","domains_list","events/provenance"]',
     '--config', 'mcp_servers.node_repl.env.CUA_REPL_ENABLED_SURFACES="browser"',
     '--config', 'mcp_servers.node_repl.env.NODE_REPL_TRUSTED_SERVICES=\'{"browser":"@oai/browser-desktop/service"}\'',
     '--config', 'mcp_servers.node_repl.env.SKY_CUA_SERVICE_PATH=""',

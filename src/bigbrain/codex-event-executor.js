@@ -14,6 +14,9 @@ export const DEFAULT_CODEX_APP_SERVER_ARGS = [
   // Background app threads must be able to answer the MCP approval handshake
   // themselves. The client auto-accepts only the source/Brain servers below.
   '--config', 'approval_policy="on-request"',
+  // Keep the normal read surface and add only the bounded RSS/article
+  // workflow and capture operations needed by unattended ingestion.
+  '--config', 'mcp_servers.personal_brain.enabled_tools=["about","me","filing_rules","search","read","list","read_raw_file","list_raw_files","pages/query","create_raw_file_with_page","capture_article","create_page","create_raw_file","update_page","rss/workflow","rss_workflow","rss/ledger","rss_ledger","domains/list","domains_list","events/provenance"]',
   '--config', 'mcp_servers.node_repl.env.CUA_REPL_ENABLED_SURFACES="browser"',
   '--config', 'mcp_servers.node_repl.env.NODE_REPL_TRUSTED_SERVICES=\'{"browser":"@oai/browser-desktop/service"}\'',
   '--config', 'mcp_servers.node_repl.env.SKY_CUA_SERVICE_PATH=""',
