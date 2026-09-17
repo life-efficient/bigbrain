@@ -1960,6 +1960,7 @@ function AssigneePills({ assignees, invalidAssignees }) {
 
 function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisibilityChange }) {
   const type = preview?.type || preview?.slug?.split('/')[0] || 'page';
+  const isArticle = type === 'articles';
   const updatedLabel = formatDateTime(preview?.updated_at);
   const pathLabel = preview?.path || preview?.slug || preview?.href || '';
   const outgoing = Array.isArray(preview?.links?.outgoing) ? preview.links.outgoing : [];
@@ -2044,7 +2045,10 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
               <PageImageCarousel images={preview.images} compact />
               <div className={`sidecar-document ${hasLinks ? 'has-link-sections' : ''}`}>
                 <MarkdownDocument
-                  markdown={stripLeadingMarkdownHeading(preview.markdown, preview.title)}
+                  markdown={stripLeadingMarkdownHeading(
+                    isArticle ? stripManagedArticleTimeline(preview.markdown) : preview.markdown,
+                    preview.title,
+                  )}
                   sourceSlug={preview.slug}
                   images={preview.images}
                   onRelativeLinkClick={onRelativeLinkClick}
@@ -4146,6 +4150,10 @@ function stripLeadingMarkdownHeading(markdown, title) {
   const expected = String(title || '').trim();
   if (!expected) return markdown;
   return String(markdown || '').replace(new RegExp(`^\\s*#\\s+${escapeRegExp(expected)}\\s*(?:\\n|$)`, 'i'), '').trim();
+}
+
+function stripManagedArticleTimeline(markdown) {
+  return String(markdown || '').replace(/\n{2,}## Timeline\s*[\s\S]*$/i, '').trim();
 }
 
 function escapeRegExp(value) {
