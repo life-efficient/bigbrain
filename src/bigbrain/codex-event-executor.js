@@ -6,6 +6,15 @@ const execFileAsync = promisify(execFile);
 
 export const DEFAULT_CODEX_EVENT_CWD = process.env.BIGBRAIN_CODEX_EVENT_CWD || process.cwd();
 export const DEFAULT_CODEX_TIMEOUT_MS = 60 * 60 * 1000;
+export const DEFAULT_CODEX_APP_SERVER_ARGS = [
+  'app-server',
+  '--stdio',
+  '--config', 'notify=[]',
+  '--config', 'sandbox_mode="read-only"',
+  '--config', 'mcp_servers.node_repl.env.CUA_REPL_ENABLED_SURFACES="browser"',
+  '--config', 'mcp_servers.computer-use.enabled=false',
+  '--config', 'plugins."computer-use@openai-bundled".enabled=false',
+];
 const MAX_APP_SERVER_NOTIFICATIONS = 200;
 const MAX_APP_SERVER_NOTIFICATION_TEXT = 10_000;
 const MAX_APP_SERVER_BUFFER_BYTES = 20 * 1024 * 1024;
@@ -17,6 +26,8 @@ export const RSS_OUTPUT_INSTRUCTIONS = 'After checking relevance, ingest the art
 export const SUBSTACK_BACKGROUND_ACCESS_INSTRUCTIONS = 'Use the owning BigBrain MCP substack/workflow (alias substack_workflow) to read the complete ingestion instructions and substack/ledger (alias substack_ledger) with {operation, input} for shared article tracking. Browser access is for the actual publication, article, or authenticated Substack subscription page.';
 
 export const RSS_BACKGROUND_ACCESS_INSTRUCTIONS = 'Use the owning BigBrain MCP rss/workflow (alias rss_workflow) to load the trusted ingestion instructions and rss/ledger (alias rss_ledger) with {operation, input} for shared per-feed article tracking. Browser access is for actual publisher or article pages.';
+
+export const BACKGROUND_EVENT_TOOL_INSTRUCTIONS = 'This is unattended background work. Use BigBrain and source-provider MCP tools directly, and use the terminal when local inspection is necessary. Use browser APIs for web pages, preferring the in-Codex browser and falling back to another supported browser only when required. Do not use native computer-use actions or control desktop applications, Finder, TextEdit, or other foreground GUI apps.';
 
 function configuredCodexTimeout(env = process.env) {
   const value = Number(env?.BIGBRAIN_CODEX_TIMEOUT_MS);
@@ -247,7 +258,7 @@ export class CodexAppThreadExecutor {
       ? await this.clientFactory({ command: this.command, args: this.args, cwd: this.cwd, spawnImpl: this.spawnImpl, env: this.env })
       : new AppServerJsonRpcClient({
         command: this.command,
-        args: this.args || ['app-server', '--stdio'],
+        args: this.args || DEFAULT_CODEX_APP_SERVER_ARGS,
         cwd: this.cwd,
         spawnImpl: this.spawnImpl,
         timeoutMs: this.timeoutMs,
@@ -267,13 +278,16 @@ export class CodexAppThreadExecutor {
         // Execution remains bounded by the inbound queue and the app-server
         // client still closes after each turn.
         ephemeral: false,
-        environments: [],
+        sandbox: 'read-only',
         ...(listener?.codex_model ? { model: listener.codex_model } : {}),
-        developerInstructions: isSubstackRssEvent(event, listener)
-          ? 'Use the configured Substack ingestion skill and complete the linked article task directly.'
-          : listener?.type === 'rss' || event?.type === 'rss.item'
-          ? 'Use the configured RSS ingestion skill and complete the linked article task directly.'
-          : 'This is an event-triggered BigBrain ingestion task. Follow the turn instructions, use the available BigBrain MCP and the named BigBrain ingest skill, read filing rules before writes, check existing coverage, and read back changes. Do not send external messages. Complete the work directly and summarize it normally.',
+        developerInstructions: [
+          BACKGROUND_EVENT_TOOL_INSTRUCTIONS,
+          isSubstackRssEvent(event, listener)
+            ? 'Use the configured Substack ingestion skill and complete the linked article task directly.'
+            : listener?.type === 'rss' || event?.type === 'rss.item'
+            ? 'Use the configured RSS ingestion skill and complete the linked article task directly.'
+            : 'This is an event-triggered BigBrain ingestion task. Follow the turn instructions, use the available BigBrain MCP and the named BigBrain ingest skill, read filing rules before writes, check existing coverage, and read back changes. Do not send external messages. Complete the work directly and summarize it normally.',
+        ].join('\n'),
       });
       const threadId = started?.thread?.id || started?.id || started?.threadId;
       if (!threadId) throw new Error('Codex app-server did not return a thread ID.');

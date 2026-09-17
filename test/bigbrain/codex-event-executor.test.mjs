@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { CodexAppThreadExecutor, CodexCliExecutor, buildEventPrompt, isSubstackRssEvent, normalizeCodexOutcome, parseCodexJsonOutput, parseCodexThreadId, resolveThreadTitle, selectPromptPayload } from '../../src/bigbrain/codex-event-executor.js';
+import { DEFAULT_CODEX_APP_SERVER_ARGS, CodexAppThreadExecutor, CodexCliExecutor, buildEventPrompt, isSubstackRssEvent, normalizeCodexOutcome, parseCodexJsonOutput, parseCodexThreadId, resolveThreadTitle, selectPromptPayload } from '../../src/bigbrain/codex-event-executor.js';
 
 const event = {
   event_id: 'event-1',
@@ -175,10 +175,12 @@ test('app-thread executor uses the supported app-server thread and turn methods'
   assert.equal(result.outcome.status, 'ignored');
   assert.deepEqual(calls.map((call) => call.method), ['initialize', 'initialized', 'thread/start', 'thread/name/set', 'turn/start']);
   assert.deepEqual(calls.find((call) => call.method === 'initialize').params.capabilities, { experimentalApi: true });
-  assert.deepEqual(calls.find((call) => call.method === 'thread/start').params.environments, []);
+  assert.equal(calls.find((call) => call.method === 'thread/start').params.environments, undefined);
+  assert.equal(calls.find((call) => call.method === 'thread/start').params.sandbox, 'read-only');
   assert.equal(calls.find((call) => call.method === 'thread/start').params.ephemeral, false);
   assert.equal(calls.find((call) => call.method === 'thread/start').params.model, 'gpt-5.6-luna');
   assert.equal(calls.find((call) => call.method === 'thread/name/set').params.name, 'Planning meeting');
+  assert.match(calls.find((call) => call.method === 'thread/start').params.developerInstructions, /Do not use native computer-use actions/);
   assert.match(calls.find((call) => call.method === 'thread/start').params.developerInstructions, /available BigBrain MCP/);
   assert.equal(calls.find((call) => call.method === 'turn/start').params.model, 'gpt-5.6-luna');
   assert.equal(calls.find((call) => call.method === 'turn/start').params.effort, 'xhigh');
@@ -197,8 +199,10 @@ test('Substack app tasks receive concise skill instructions at developer priorit
   }) });
   await executor.execute({ event: { type: 'rss.item', payload: { link: 'https://publisher.substack.com/p/post' } }, listener: { type: 'rss', provider: 'substack' } });
   const start = calls.find(call => call.method === 'thread/start').params;
-  assert.deepEqual(start.environments, []);
-  assert.equal(start.developerInstructions, 'Use the configured Substack ingestion skill and complete the linked article task directly.');
+  assert.equal(start.environments, undefined);
+  assert.equal(start.sandbox, 'read-only');
+  assert.match(start.developerInstructions, /Use the configured Substack ingestion skill and complete the linked article task directly/);
+  assert.match(start.developerInstructions, /Do not use native computer-use actions/);
   assert.match(calls.find(call => call.method === 'turn/start').params.input[0].text, /Ingest this article using/);
 });
 
@@ -259,7 +263,20 @@ test('generic RSS app tasks receive concise instructions at developer priority',
   const executor = new CodexAppThreadExecutor({ clientFactory: async () => ({ notifications: [], request: async (method, args) => { calls.push({ method, args }); return method === 'thread/start' ? { thread: { id: 'rss-thread' } } : { id: 'rss-turn' }; }, notify: async () => {}, close: async () => {} }) });
   await executor.execute({ event: { type: 'rss.item', payload: { link: 'https://publisher.test/article' } }, listener: { type: 'rss' } });
   const instructions = calls.find(call => call.method === 'thread/start').args.developerInstructions;
-  assert.equal(instructions, 'Use the configured RSS ingestion skill and complete the linked article task directly.');
+  assert.match(instructions, /Use the configured RSS ingestion skill and complete the linked article task directly/);
+  assert.match(instructions, /Do not use native computer-use actions/);
+});
+
+test('background app-server defaults retain browser REPL access but disable native computer use', () => {
+  assert.deepEqual(DEFAULT_CODEX_APP_SERVER_ARGS, [
+    'app-server',
+    '--stdio',
+    '--config', 'notify=[]',
+    '--config', 'sandbox_mode="read-only"',
+    '--config', 'mcp_servers.node_repl.env.CUA_REPL_ENABLED_SURFACES="browser"',
+    '--config', 'mcp_servers.computer-use.enabled=false',
+    '--config', 'plugins."computer-use@openai-bundled".enabled=false',
+  ]);
 });
 
 test('app-thread executor closes an active client when the executor is shut down', async () => {
