@@ -2006,7 +2006,7 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
               {preview?.title ? <h1 className="sidecar-page-title">{preview.title}</h1> : null}
               <div className="sidecar-path-row">
                 {pathLabel ? <span className="meta">{pathLabel}</span> : null}
-                <PageMetadata frontmatter={preview.frontmatter} />
+                <PageMetadata frontmatter={preview?.frontmatter} />
               </div>
             </div>
             <div className="sidecar-actions">
