@@ -21,6 +21,8 @@ test('page image attachments render as an accessible carousel in private and pub
   assert.match(dashboardSource, /\.page-image-carousel \{/);
   assert.match(dashboardSource, /object-fit: contain/);
   assert.match(dashboardSource, /\.page-image-control-next/);
+  assert.match(dashboardSource, /\.sidecar-body \.page-image-dots \{ flex-wrap: wrap;/);
+  assert.match(dashboardSource, /\.sidecar-document \.markdown-shell img \{ display: block; width: 100%;/);
   assert.match(markdownSource, /@tiptap\/extension-image/);
   assert.match(markdownSource, /function rewriteAttachedImageSources/);
   assert.match(markdownSource, /Image\.configure/);

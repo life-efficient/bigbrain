@@ -1989,7 +1989,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .sidecar-chip.strong { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.08); }
       .sidecar-chip.visibility-public { color: #2563eb; border-color: rgba(37,99,235,0.32); background: rgba(37,99,235,0.10); }
       .sidecar-error { color: var(--danger); font-size: 12px; line-height: 1.4; }
-      .sidecar-body { padding: 18px 28px 34px; display: grid; gap: 16px; }
+      .sidecar-body { min-width: 0; padding: 18px 28px 34px; display: grid; gap: 16px; }
       .sidecar-summary { color: var(--muted); overflow-wrap: anywhere; font-style: italic; }
       .sidecar-summary .tailwind-prose { font-size: 12px; line-height: 1.45; color: var(--muted); font-style: italic; }
       .sidecar-summary .tailwind-prose p,
@@ -2014,6 +2014,15 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .sidecar-document { border-top: 1px solid var(--line); padding-top: 18px; }
       .sidecar-document.has-link-sections { border-bottom: 1px solid var(--line); padding-bottom: 18px; }
       .sidecar-document .tailwind-prose { font-size: 15px; line-height: 1.75; }
+      .sidecar-body .page-images,
+      .sidecar-body .page-image-carousel { min-width: 0; }
+      .sidecar-body .page-image-carousel { gap: 8px; padding: 8px; }
+      .sidecar-body .page-image-stage { min-height: 0; aspect-ratio: 16 / 9; }
+      .sidecar-body .page-image-link { height: 150px; }
+      .sidecar-body .page-image-caption { font-size: 12px; }
+      .sidecar-body .page-image-dots { flex-wrap: wrap; gap: 5px; }
+      .sidecar-body .page-image-dot { width: 7px; height: 7px; flex: 0 0 auto; }
+      .sidecar-document .markdown-shell img { display: block; width: 100%; height: auto; max-width: 100%; max-height: none; margin: 18px 0; }
       @keyframes graph-pulse {
         from { stroke-dashoffset: 0; }
         to { stroke-dashoffset: -46; }
