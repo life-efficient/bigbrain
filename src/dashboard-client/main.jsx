@@ -56,9 +56,7 @@ import {
 } from './graph/focused-network-data.js';
 import { deriveGraphMotion, graphPayloadsEqual } from './graph/live-graph.js';
 import { nextGraphDomainFilter, nextGraphStyleOption } from './graph/style-shortcuts.js';
-import { KeepInTouchPanel } from './playbooks/keep-in-touch.jsx';
-import { ComprehensionPanel } from './playbooks/comprehension.jsx';
-import { PLAYBOOKS } from './playbooks/registry.js';
+import { PlaybooksController } from './playbooks/shell.jsx';
 import {
   buildDemoExplorer,
   buildDemoExplorerFile,
@@ -191,33 +189,10 @@ function loadGraphPreferences() {
   return defaults;
 }
 
-function playbookPreferenceKey(brainId) {
-  return `bigbrain:playbooks:${brainId || 'current'}`;
-}
-
-function loadEnabledPlaybooks(brainId) {
-  try {
-    const parsed = JSON.parse(window.localStorage.getItem(playbookPreferenceKey(brainId)) || '[]');
-    return Array.isArray(parsed) ? parsed.filter((id) => typeof id === 'string') : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveEnabledPlaybooks(brainId, playbooks) {
-  try {
-    window.localStorage.setItem(playbookPreferenceKey(brainId), JSON.stringify(playbooks));
-  } catch {
-    // Local storage can be unavailable; the current session still works.
-  }
-}
-
 function DashboardApp() {
   const savedGraphPreferences = useMemo(() => loadGraphPreferences(), []);
   const [state, setState] = useState({ status: 'loading', error: null, data: null });
   const [view, setView] = useState('graph');
-  const [playbooksOpen, setPlaybooksOpen] = useState(false);
-  const [enabledPlaybooks, setEnabledPlaybooks] = useState([]);
   const [visualizerId, setVisualizerId] = useState(savedGraphPreferences.visualizerId);
   const [nodeShape, setNodeShape] = useState(savedGraphPreferences.nodeShape);
   const [nodeFill, setNodeFill] = useState(savedGraphPreferences.nodeFill);
@@ -255,7 +230,6 @@ function DashboardApp() {
   const visualizerRef = useRef(null);
   const healthMenuRef = useRef(null);
   const settingsMenuRef = useRef(null);
-  const playbooksMenuRef = useRef(null);
   const latestGraphRef = useRef(null);
   const graphMotionEligibleRef = useRef(false);
   latestGraphRef.current = state.data?.graph || latestGraphRef.current;
@@ -295,7 +269,7 @@ function DashboardApp() {
       try {
         const assigneeQuery = assigneeFilter ? `?${new URLSearchParams({ assignee: assigneeFilter }).toString()}` : '';
         const about = await fetchJson('/api/about');
-        const [schema, tasks, recent, health, graph, explorer, explorerRecent, keepInTouch] = await Promise.all([
+        const [schema, tasks, recent, health, graph, explorer, explorerRecent] = await Promise.all([
           fetchJson('/api/schema'),
           fetchJson(`/api/tasks${assigneeQuery}`),
           fetchJson('/api/recent'),
@@ -307,7 +281,6 @@ function DashboardApp() {
           about?.capabilities?.filesystem_explorer === true
             ? fetchJson('/api/explorer/recent')
             : Promise.resolve(null),
-          fetchJson('/api/playbooks/keep-in-touch'),
         ]);
         if (cancelled) return;
         const currentMemberSlug = tasks?.filters?.current_member?.person_slug || '';
@@ -331,13 +304,6 @@ function DashboardApp() {
             explorer: explorer ? { ...explorer, recent: explorerRecent } : null,
           },
         });
-        const savedPlaybooks = loadEnabledPlaybooks(about?.brain_id);
-        const enabled = keepInTouch?.playbook?.enabled;
-        const nextPlaybooks = typeof enabled === 'boolean'
-          ? (enabled ? [...new Set([...savedPlaybooks, 'keep-in-touch'])] : savedPlaybooks.filter((id) => id !== 'keep-in-touch'))
-          : savedPlaybooks;
-        setEnabledPlaybooks(nextPlaybooks);
-        saveEnabledPlaybooks(about?.brain_id, nextPlaybooks);
       } catch (error) {
         if (cancelled) return;
         setAssigneeLoading(false);
@@ -421,7 +387,7 @@ function DashboardApp() {
   }, []);
 
   useEffect(() => {
-    if (!healthOpen && !settingsOpen && !playbooksOpen) return undefined;
+    if (!healthOpen && !settingsOpen) return undefined;
 
     function handlePointerDown(event) {
       if (healthMenuRef.current && !healthMenuRef.current.contains(event.target)) {
@@ -430,16 +396,12 @@ function DashboardApp() {
       if (settingsMenuRef.current && !settingsMenuRef.current.contains(event.target)) {
         setSettingsOpen(false);
       }
-      if (playbooksMenuRef.current && !playbooksMenuRef.current.contains(event.target)) {
-        setPlaybooksOpen(false);
-      }
     }
 
     function handleEscape(event) {
       if (event.key === 'Escape') {
         setHealthOpen(false);
         setSettingsOpen(false);
-        setPlaybooksOpen(false);
       }
     }
 
@@ -449,7 +411,7 @@ function DashboardApp() {
       window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [healthOpen, playbooksOpen, settingsOpen]);
+  }, [healthOpen, settingsOpen]);
 
   useEffect(() => {
     if (!preview || lineage || healthOpen) return undefined;
@@ -504,7 +466,7 @@ function DashboardApp() {
   }, [clearGraphFocus, lineage]);
 
   useEffect(() => {
-    if (view !== 'graph' || preview || lineage || healthOpen || settingsOpen || playbooksOpen) return undefined;
+    if (view !== 'graph' || preview || lineage || healthOpen || settingsOpen) return undefined;
 
     function handleGraphResetKeyDown(event) {
       if (event.key !== 'Escape' || event.defaultPrevented || event.repeat || event.isComposing) return;
@@ -516,7 +478,7 @@ function DashboardApp() {
 
     window.addEventListener('keydown', handleGraphResetKeyDown);
     return () => window.removeEventListener('keydown', handleGraphResetKeyDown);
-  }, [healthOpen, lineage, playbooksOpen, preview, settingsOpen, view]);
+  }, [healthOpen, lineage, preview, settingsOpen, view]);
 
   useEffect(() => {
     function handleKeydown(event) {
@@ -534,9 +496,6 @@ function DashboardApp() {
       } else if (key === 'e' && filesystemExplorerEnabled) {
         event.preventDefault();
         setView('explorer');
-      } else if (key === 'k' && enabledPlaybooks.includes('keep-in-touch')) {
-        event.preventDefault();
-        setView('keep-in-touch');
       } else if (key === 'd' && event.shiftKey) {
         event.preventDefault();
         handleDemoModeChange(!demoModeRef.current);
@@ -547,7 +506,7 @@ function DashboardApp() {
     return () => {
       window.removeEventListener('keydown', handleKeydown);
     };
-  }, [enabledPlaybooks, filesystemExplorerEnabled]);
+  }, [filesystemExplorerEnabled]);
 
   const taskSections = Array.isArray(state.data?.tasks?.sections) ? state.data.tasks.sections : [];
   const displayTaskSections = useMemo(() => (
@@ -732,9 +691,6 @@ function DashboardApp() {
   }
 
   const { about, schema, tasks, recent, health, graph, explorer } = state.data;
-  const brainId = about?.brain_id || 'current';
-  const keepInTouchEnabled = enabledPlaybooks.includes('keep-in-touch');
-  const comprehensionEnabled = enabledPlaybooks.includes('comprehension');
   const members = Array.isArray(tasks?.members) ? tasks.members : [];
   const healthFindingCount = Number.isFinite(health?.finding_count) ? health.finding_count : 0;
   const healthFindings = Array.isArray(health?.findings)
@@ -744,39 +700,9 @@ function DashboardApp() {
       : [];
   const healthSeverity = deriveHealthSeverity(healthFindings);
 
-  function setPlaybookEnabled(playbookId, enabled) {
-    const next = enabled
-      ? [...new Set([...enabledPlaybooks, playbookId])]
-      : enabledPlaybooks.filter((id) => id !== playbookId);
-    setEnabledPlaybooks(next);
-    saveEnabledPlaybooks(brainId, next);
-    if (playbookId === 'keep-in-touch') {
-      void fetchJson('/api/playbooks/keep-in-touch/set-enabled', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ enabled }),
-      }).catch((error) => {
-        setState((current) => ({
-          ...current,
-          error: `Keep in Touch setting failed: ${error instanceof Error ? error.message : String(error)}`,
-        }));
-      });
-    }
-    if (!enabled && view === playbookId) setView('graph');
-  }
-
-  function openPlaybook(playbookId) {
-    if (!enabledPlaybooks.includes(playbookId)) setPlaybookEnabled(playbookId, true);
-    setPlaybooksOpen(false);
-    setView(playbookId);
-  }
-
   const views = [
     { id: 'graph', label: 'Graph', shortcut: 'G' },
     ...(filesystemExplorerEnabled ? [{ id: 'explorer', label: 'Explorer', shortcut: 'E' }] : []),
-    ...PLAYBOOKS
-      .filter((playbook) => enabledPlaybooks.includes(playbook.id))
-      .map((playbook) => ({ id: playbook.id, label: playbook.label, shortcut: playbook.shortcut })),
   ];
 
   async function openPreview({ href, sourceSlug }) {
@@ -826,7 +752,19 @@ function DashboardApp() {
   const searchableNodes = Array.isArray(displayGraph?.nodes) ? displayGraph.nodes : [];
 
   return (
-    <GraphThemeProvider resolvedTheme={resolvedTheme}>
+    <PlaybooksController
+      brainId={about?.brain_id || 'current'}
+      brainName={about?.brain_name}
+      activeView={view}
+      onActiveViewChange={setView}
+      onOpenPage={openPageBySlug}
+      onBeforeToggle={() => {
+        setHealthOpen(false);
+        setSettingsOpen(false);
+      }}
+    >
+      {({ menu, content, menuOpen }) => (
+        <GraphThemeProvider resolvedTheme={resolvedTheme}>
       <div className={`page-shell theme-${resolvedTheme} view-${view} ${preview ? 'preview-open' : ''}`} data-theme-mode={themeMode}>
         <main>
           <div className="desktop-drag-strip" aria-hidden="true" />
@@ -849,34 +787,7 @@ function DashboardApp() {
             </div>
             <div className="topline-actions">
               {demoMode ? <span className="demo-mode-badge">Demo mode</span> : null}
-              <div className="playbooks-menu" ref={playbooksMenuRef}>
-                <button
-                  type="button"
-                  className={`playbooks-button ${playbooksOpen ? 'open' : ''}`}
-                  aria-expanded={playbooksOpen}
-                  onClick={() => {
-                    setHealthOpen(false);
-                    setSettingsOpen(false);
-                    setPlaybooksOpen((value) => !value);
-                  }}
-                >
-                  Playbooks
-                  {(keepInTouchEnabled || comprehensionEnabled) ? <span className="playbooks-live-dot" aria-label="Playbook enabled" /> : null}
-                </button>
-                {playbooksOpen ? (
-                  <PlaybookLauncher
-                    brainName={about?.brain_name}
-                    keepInTouchEnabled={keepInTouchEnabled}
-                    onEnable={() => setPlaybookEnabled('keep-in-touch', true)}
-                    onDisable={() => setPlaybookEnabled('keep-in-touch', false)}
-                    onOpen={() => openPlaybook('keep-in-touch')}
-                    comprehensionEnabled={comprehensionEnabled}
-                    onEnableComprehension={() => setPlaybookEnabled('comprehension', true)}
-                    onDisableComprehension={() => setPlaybookEnabled('comprehension', false)}
-                    onOpenComprehension={() => openPlaybook('comprehension')}
-                  />
-                ) : null}
-              </div>
+              {menu}
               <div className="settings-menu" ref={settingsMenuRef}>
                 <button
                   type="button"
@@ -1029,7 +940,7 @@ function DashboardApp() {
                 setAutoRotate={setAutoRotate}
                 flowTasks={graphFlowTasks}
                 visualizerRef={visualizerRef}
-                shortcutsEnabled={!preview && !healthOpen && !settingsOpen && !playbooksOpen}
+                shortcutsEnabled={!preview && !healthOpen && !settingsOpen && !menuOpen}
                 activeSlug={activeGraphSlug}
                 onDomainScopeChange={setActiveDomainScope}
                 onActiveSlugChange={setActiveGraphSlug}
@@ -1048,13 +959,7 @@ function DashboardApp() {
               />
             ) : null}
 
-            {view === 'keep-in-touch' && keepInTouchEnabled ? (
-              <KeepInTouchPanel onOpenPerson={openPageBySlug} />
-            ) : null}
-
-            {view === 'comprehension' && comprehensionEnabled ? (
-              <ComprehensionPanel onOpenPage={openPageBySlug} />
-            ) : null}
+            {content}
 
             {view === 'analytics' ? <AnalyticsPanel analytics={analytics} /> : null}
           </div>
@@ -1069,7 +974,9 @@ function DashboardApp() {
           onVisibilityChange={changePageVisibility}
         />
       </div>
-    </GraphThemeProvider>
+        </GraphThemeProvider>
+      )}
+    </PlaybooksController>
   );
 }
 
