@@ -454,8 +454,8 @@ export class AppServerJsonRpcClient {
       if (!line.trim()) continue;
       let message;
       try { message = JSON.parse(line); } catch { continue; }
+      if (this.respondToBackgroundMcpApproval(message)) continue;
       if (message.id === undefined) {
-        if (this.respondToBackgroundMcpApproval(message)) continue;
         this.pushNotification(message);
         this.resolveWaiters(message);
         continue;

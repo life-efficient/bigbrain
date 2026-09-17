@@ -324,11 +324,12 @@ test('background app-server auto-approves only source and Brain MCP approval req
   const writes = [];
   const client = new AppServerJsonRpcClient({ autoApprovedMcpServers: new Set(['personal_brain', 'granola']) });
   client.process = { stdin: { write: (value) => writes.push(value) } };
-  assert.equal(client.respondToBackgroundMcpApproval({
+  const approvalMessage = JSON.stringify({
     method: 'mcpServer/elicitation/request',
     id: 7,
     params: { serverName: 'personal_brain', _meta: { codex_approval_kind: 'mcp_tool_call' } },
-  }), true);
+  });
+  client.handleData(`${approvalMessage}\n`);
   assert.deepEqual(JSON.parse(writes[0]), { jsonrpc: '2.0', id: 7, result: { action: 'accept' } });
   assert.equal(client.respondToBackgroundMcpApproval({
     method: 'mcpServer/elicitation/request',
