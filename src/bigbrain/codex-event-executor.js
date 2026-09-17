@@ -11,6 +11,9 @@ export const DEFAULT_CODEX_APP_SERVER_ARGS = [
   '--stdio',
   '--config', 'notify=[]',
   '--config', 'sandbox_mode="workspace-write"',
+  // Background app threads must be able to answer the MCP approval handshake
+  // themselves. The client auto-accepts only the source/Brain servers below.
+  '--config', 'approval_policy="on-request"',
   '--config', 'mcp_servers.node_repl.env.CUA_REPL_ENABLED_SURFACES="browser"',
   '--config', 'mcp_servers.node_repl.env.NODE_REPL_TRUSTED_SERVICES=\'{"browser":"@oai/browser-desktop/service"}\'',
   '--config', 'mcp_servers.node_repl.env.SKY_CUA_SERVICE_PATH=""',
@@ -47,10 +50,11 @@ const BACKGROUND_CUA_ENV_KEYS = [
 const MAX_APP_SERVER_NOTIFICATIONS = 200;
 const MAX_APP_SERVER_NOTIFICATION_TEXT = 10_000;
 const MAX_APP_SERVER_BUFFER_BYTES = 20 * 1024 * 1024;
+const BACKGROUND_AUTO_APPROVED_MCP_SERVERS = new Set(['personal_brain', 'granola']);
 
 export const RSS_BROWSER_INSTRUCTIONS = 'For this RSS-triggered ingestion, retrieve and verify the canonical article using any available documented browser or article-retrieval tool. Prefer the in-Codex browser when it is available, but do not block ingestion when only another supported browser or retrieval path is available. Preserve any required ledger preflight and claim before article retrieval. Never open Finder, TextEdit, Terminal UI, an editor, a file-open dialog, or browser file URLs to inspect local workflow files or state. If every supported retrieval path fails, explain what went wrong in plain language and leave the article unresolved for retry.';
 
-export const RSS_OUTPUT_INSTRUCTIONS = 'After checking relevance, ingest the article if it is relevant; otherwise do not ingest it. Respond in natural prose stating whether you ingested it and why, with useful links to saved pages when applicable. If anything went wrong, explain what happened and any partial work without claiming completion. Include a one-paragraph summary of the article whether ingested or skipped, based only on article content you actually read or previously verified saved content for a duplicate. If the article could not be read, say that a reliable summary is unavailable; do not invent one from a title or feed snippet. Do not return JSON, a structured output schema, a decision table, named outcome categories, or status labels. Keep internal ledger values, provider IDs, and cursor details out of the response.';
+export const RSS_OUTPUT_INSTRUCTIONS = 'After checking the listener guidance and relevance, ingest the article when appropriate and report the semantic result in natural prose. A substantive preview that passes the relevance gate is a successful partial capture: preserve only what was readable, note the access boundary in the saved page, and do not describe it as a full article. A source with no reliable readable content is a completed non-ingestion result when the reason has been recorded. Execution failures are separate from these semantic decisions and should be retried by the runtime. Include a summary based only on article content you actually read or previously verified saved content for a duplicate. Do not invent one from a title or feed snippet. Do not return JSON, a structured output schema, a decision table, named outcome categories, or status labels. Keep internal ledger values, provider IDs, and cursor details out of the response.';
 
 export const SUBSTACK_BACKGROUND_ACCESS_INSTRUCTIONS = 'Use the owning BigBrain MCP substack/workflow (alias substack_workflow) to read the complete ingestion instructions and substack/ledger (alias substack_ledger) with {operation, input} for shared article tracking. Browser access is for the actual publication, article, or authenticated Substack subscription page.';
 
@@ -384,13 +388,14 @@ export class CodexAppThreadExecutor {
 }
 
 export class AppServerJsonRpcClient {
-  constructor({ command, args, cwd, spawnImpl = spawn, timeoutMs = configuredCodexTimeout(), env = process.env } = {}) {
+  constructor({ command, args, cwd, spawnImpl = spawn, timeoutMs = configuredCodexTimeout(), env = process.env, autoApprovedMcpServers = BACKGROUND_AUTO_APPROVED_MCP_SERVERS } = {}) {
     this.command = command;
     this.args = args;
     this.cwd = cwd;
     this.spawnImpl = spawnImpl;
     this.timeoutMs = timeoutMs;
     this.env = env;
+    this.autoApprovedMcpServers = autoApprovedMcpServers;
     this.nextId = 1;
     this.pending = new Map();
     this.notifications = [];
@@ -450,6 +455,7 @@ export class AppServerJsonRpcClient {
       let message;
       try { message = JSON.parse(line); } catch { continue; }
       if (message.id === undefined) {
+        if (this.respondToBackgroundMcpApproval(message)) continue;
         this.pushNotification(message);
         this.resolveWaiters(message);
         continue;
@@ -461,6 +467,15 @@ export class AppServerJsonRpcClient {
       if (message.error) pending.reject(new Error(message.error.message || `Codex app-server ${message.error.code || 'error'}`));
       else pending.resolve(message.result);
     }
+  }
+
+  respondToBackgroundMcpApproval(message) {
+    if (message?.method !== 'mcpServer/elicitation/request' || message?.id === undefined) return false;
+    const params = message.params || {};
+    if (params?._meta?.codex_approval_kind !== 'mcp_tool_call') return false;
+    if (!this.autoApprovedMcpServers?.has(params.serverName)) return false;
+    this.process?.stdin?.write(`${JSON.stringify({ jsonrpc: '2.0', id: message.id, result: { action: 'accept' } })}\n`);
+    return true;
   }
 
   pushNotification(message) {

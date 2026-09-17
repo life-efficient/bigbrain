@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { DEFAULT_CODEX_APP_SERVER_ARGS, CodexAppThreadExecutor, CodexCliExecutor, buildBackgroundCodexEnv, buildEventPrompt, isSubstackRssEvent, normalizeCodexOutcome, parseCodexJsonOutput, parseCodexThreadId, resolveThreadTitle, selectPromptPayload } from '../../src/bigbrain/codex-event-executor.js';
+import { AppServerJsonRpcClient, DEFAULT_CODEX_APP_SERVER_ARGS, CodexAppThreadExecutor, CodexCliExecutor, buildBackgroundCodexEnv, buildEventPrompt, isSubstackRssEvent, normalizeCodexOutcome, parseCodexJsonOutput, parseCodexThreadId, resolveThreadTitle, selectPromptPayload } from '../../src/bigbrain/codex-event-executor.js';
 
 const event = {
   event_id: 'event-1',
@@ -274,6 +274,7 @@ test('background app-server defaults retain browser REPL access but disable nati
     '--stdio',
     '--config', 'notify=[]',
     '--config', 'sandbox_mode="workspace-write"',
+    '--config', 'approval_policy="on-request"',
     '--config', 'mcp_servers.node_repl.env.CUA_REPL_ENABLED_SURFACES="browser"',
     '--config', 'mcp_servers.node_repl.env.NODE_REPL_TRUSTED_SERVICES=\'{"browser":"@oai/browser-desktop/service"}\'',
     '--config', 'mcp_servers.node_repl.env.SKY_CUA_SERVICE_PATH=""',
@@ -317,6 +318,29 @@ test('background executor environment removes inherited native computer-use surf
   assert.equal(env.NODE_REPL_TRUSTED_SERVICES, '{"browser":"@oai/browser-desktop/service"}');
   assert.equal(env.SKY_CUA_SERVICE_PATH, '');
   for (const key of ['NODE_REPL_JS_BANNER', 'NODE_REPL_TOOL_OVERRIDES', 'NODE_REPL_UNTRUSTED_ENV_ALLOWLIST']) assert.equal(env[key], undefined);
+});
+
+test('background app-server auto-approves only source and Brain MCP approval requests', () => {
+  const writes = [];
+  const client = new AppServerJsonRpcClient({ autoApprovedMcpServers: new Set(['personal_brain', 'granola']) });
+  client.process = { stdin: { write: (value) => writes.push(value) } };
+  assert.equal(client.respondToBackgroundMcpApproval({
+    method: 'mcpServer/elicitation/request',
+    id: 7,
+    params: { serverName: 'personal_brain', _meta: { codex_approval_kind: 'mcp_tool_call' } },
+  }), true);
+  assert.deepEqual(JSON.parse(writes[0]), { jsonrpc: '2.0', id: 7, result: { action: 'accept' } });
+  assert.equal(client.respondToBackgroundMcpApproval({
+    method: 'mcpServer/elicitation/request',
+    id: 8,
+    params: { serverName: 'whatsapp', _meta: { codex_approval_kind: 'mcp_tool_call' } },
+  }), false);
+  assert.equal(client.respondToBackgroundMcpApproval({
+    method: 'mcpServer/elicitation/request',
+    id: 9,
+    params: { serverName: 'personal_brain', _meta: { codex_approval_kind: 'other' } },
+  }), false);
+  assert.equal(writes.length, 1);
 });
 
 test('app-thread executor closes an active client when the executor is shut down', async () => {
