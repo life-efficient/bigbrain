@@ -1393,7 +1393,7 @@ function PrivatePageApp({ route }) {
   );
 }
 
-function PageImageCarousel({ images }) {
+function PageImageCarousel({ images, compact = false }) {
   const items = Array.isArray(images) ? images.filter((image) => image?.url) : [];
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -1402,6 +1402,23 @@ function PageImageCarousel({ images }) {
   }, [items.length]);
 
   if (!items.length) return null;
+
+  if (compact) {
+    return (
+      <section className="page-images page-images-strip" aria-label="Attached images">
+        <div className="page-image-strip" role="list" aria-label="Article image strip">
+          {items.map((image, index) => {
+            const label = image.caption || image.alt_text || image.filename || `Attached image ${index + 1}`;
+            return (
+              <a className="page-image-strip-item" href={image.url} target="_blank" rel="noreferrer" role="listitem" key={`${image.path}:${index}`}>
+                <img src={image.url} alt={image.alt_text || label} loading={index < 4 ? 'eager' : 'lazy'} />
+              </a>
+            );
+          })}
+        </div>
+      </section>
+    );
+  }
 
   const safeActiveIndex = Math.min(activeIndex, items.length - 1);
   const activeItem = items[safeActiveIndex];
@@ -1945,7 +1962,6 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
   const type = preview?.type || preview?.slug?.split('/')[0] || 'page';
   const updatedLabel = formatDateTime(preview?.updated_at);
   const pathLabel = preview?.path || preview?.slug || preview?.href || '';
-  const summary = typeof preview?.summary === 'string' ? preview.summary.trim() : '';
   const outgoing = Array.isArray(preview?.links?.outgoing) ? preview.links.outgoing : [];
   const backlinks = Array.isArray(preview?.links?.backlinks) ? preview.links.backlinks : [];
   const hasLinks = outgoing.length || backlinks.length;
@@ -1987,6 +2003,7 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
                 <span className={`sidecar-chip visibility-${visibility}`}>{isPublic ? 'Public' : 'Internal'}</span>
                 {updatedLabel ? <span className="sidecar-chip">{updatedLabel}</span> : null}
               </div>
+              {preview?.title ? <h1 className="sidecar-page-title">{preview.title}</h1> : null}
               {pathLabel ? <div className="meta">{pathLabel}</div> : null}
             </div>
             <div className="sidecar-actions">
@@ -2021,20 +2038,11 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
           {preview?.status === 'error' && <div className="empty-copy">{preview.message}</div>}
           {preview?.status === 'ready' ? (
             <>
-              {summary ? (
-                <div className="sidecar-summary">
-                  <MarkdownDocument
-                    markdown={summary}
-                    sourceSlug={preview.slug}
-                    onRelativeLinkClick={onRelativeLinkClick}
-                  />
-                </div>
-              ) : null}
+              <PageImageCarousel images={preview.images} compact />
               <PageFrontmatter frontmatter={preview.frontmatter} />
-              <PageImageCarousel images={preview.images} />
               <div className={`sidecar-document ${hasLinks ? 'has-link-sections' : ''}`}>
                 <MarkdownDocument
-                  markdown={preview.markdown}
+                  markdown={stripLeadingMarkdownHeading(preview.markdown, preview.title)}
                   sourceSlug={preview.slug}
                   images={preview.images}
                   onRelativeLinkClick={onRelativeLinkClick}
@@ -2057,7 +2065,7 @@ function PageFrontmatter({ frontmatter }) {
   return (
     <details className="explorer-frontmatter sidecar-frontmatter">
       <summary>
-        <span className="explorer-frontmatter-title">Frontmatter</span>
+        <span className="explorer-frontmatter-title">Metadata</span>
         <span className="explorer-frontmatter-meta">{entries.length} {entries.length === 1 ? 'field' : 'fields'}</span>
         {entries.slice(0, 3).map(([key, value]) => (
           <span className="explorer-frontmatter-chip" key={key}>
@@ -4129,6 +4137,16 @@ function DownloadIcon() {
 
 function stripSourceReferences(value) {
   return value.replace(/\s*\[Source:[^\]]+\]/g, '').replace(/\s{2,}/g, ' ').trim();
+}
+
+function stripLeadingMarkdownHeading(markdown, title) {
+  const expected = String(title || '').trim();
+  if (!expected) return markdown;
+  return String(markdown || '').replace(new RegExp(`^\\s*#\\s+${escapeRegExp(expected)}\\s*(?:\\n|$)`, 'i'), '').trim();
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 const root = createRoot(document.getElementById('root'));

@@ -750,9 +750,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .page-images { display: grid; gap: 12px; }
       .page-images-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
       .page-images-heading h2 { margin: 0; color: var(--ink); font-size: 18px; }
-      .page-image-carousel { display: grid; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); box-shadow: var(--shadow-soft); }
+      .page-image-carousel { display: grid; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 0; background: var(--card); box-shadow: var(--shadow-soft); }
       .page-image-carousel:focus-visible { outline: 3px solid rgba(138,180,255,0.42); outline-offset: 3px; }
-      .page-image-stage { position: relative; display: grid; place-items: center; min-height: 240px; overflow: hidden; border-radius: 8px; background: var(--surface-muted); }
+      .page-image-stage { position: relative; display: grid; place-items: center; min-height: 240px; overflow: hidden; border-radius: 0; background: var(--surface-muted); }
       .page-image-link { display: grid; place-items: center; width: 100%; height: min(62vh, 580px); background: var(--surface-muted); }
       .page-image-link:focus-visible { outline: 3px solid rgba(138,180,255,0.42); outline-offset: -3px; }
       .page-image-link img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
@@ -768,6 +768,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .page-image-dot:hover { background: var(--muted); }
       .page-image-dot.active { border-color: var(--ink); background: var(--ink); }
       .page-image-dot:focus-visible { outline: 3px solid rgba(138,180,255,0.42); outline-offset: 3px; }
+      .page-image-strip { display: flex; gap: 8px; height: 112px; overflow-x: auto; overflow-y: hidden; padding-bottom: 4px; scrollbar-width: thin; }
+      .page-image-strip-item { display: block; flex: 0 0 auto; height: 108px; border: 0; border-radius: 0; background: var(--surface-muted); }
+      .page-image-strip-item:focus-visible { outline: 3px solid rgba(138,180,255,0.42); outline-offset: 3px; }
+      .page-image-strip-item img { display: block; width: auto; height: 108px; max-width: 240px; object-fit: cover; border-radius: 0; }
       @media (max-width: 560px) {
         .page-image-carousel { padding: 10px; }
         .page-image-link { height: min(58vh, 460px); }
@@ -1982,6 +1986,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .sidecar-head { position: sticky; top: 0; z-index: 2; display: grid; gap: 14px; padding: 26px 28px 18px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(18px); }
       .sidecar-title-row { display: flex; justify-content: space-between; gap: 18px; align-items: start; }
       .sidecar-title-copy { min-width: 0; display: grid; gap: 8px; }
+      .sidecar-page-title { margin: 0; color: var(--ink); font-size: 21px; line-height: 1.18; letter-spacing: -0.02em; }
       .sidecar-title-copy h2 { margin: 0; font-size: 25px; line-height: 1.12; overflow-wrap: anywhere; }
       .sidecar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
       .sidecar-meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
@@ -2016,13 +2021,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .sidecar-document .tailwind-prose { font-size: 15px; line-height: 1.75; }
       .sidecar-body .page-images,
       .sidecar-body .page-image-carousel { min-width: 0; }
-      .sidecar-body .page-image-carousel { gap: 8px; padding: 8px; }
-      .sidecar-body .page-image-stage { min-height: 0; aspect-ratio: 16 / 9; }
-      .sidecar-body .page-image-link { height: 150px; }
-      .sidecar-body .page-image-caption { font-size: 12px; }
-      .sidecar-body .page-image-dots { flex-wrap: wrap; gap: 5px; }
-      .sidecar-body .page-image-dot { width: 7px; height: 7px; flex: 0 0 auto; }
-      .sidecar-document .markdown-shell img { display: block; width: 100%; height: auto; max-width: 100%; max-height: none; margin: 18px 0; }
+      .sidecar-document .markdown-shell img { display: block; width: 100%; height: auto; max-width: 100%; max-height: none; margin: 18px 0; border-radius: 0; }
       @keyframes graph-pulse {
         from { stroke-dashoffset: 0; }
         to { stroke-dashoffset: -46; }

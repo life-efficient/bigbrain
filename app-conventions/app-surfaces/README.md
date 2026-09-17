@@ -33,7 +33,7 @@ debug surfaces.
 
 - Preserve supported publisher images as ordered page attachments in the owning collection's `.raw/` directory.
 - Keep the source article's Markdown image references at their original positions. Every page surface renders those references inline and also exposes the same ordered attachments in the image carousel.
-- In graph page panels, inline images fill the readable column. The attachment carousel is compact, and its image selector wraps rather than causing horizontal scrolling.
+- In graph page panels, the visual order is page title, compact attachment image strip, expandable Metadata, then the article body. The strip is horizontally scrollable, shows every image at one fixed height, and has no label, border, title, or rounded corners. Inline images fill the readable column and do not have rounded corners.
 
 ## Updates
 
