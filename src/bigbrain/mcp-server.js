@@ -839,15 +839,10 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       const pagePath = `articles/${slug}.md`;
       const rawFile = await createRawFile({ config, rawPath, rawContentText: capture.html, mimeType: 'text/html' });
       try {
-        const body = [
-          '## Summary', args.summary.trim(),
-          '## Current Relevance', args.current_relevance.trim(),
-          '## Source',
-          `- [Original publisher page](${args.article_url})`,
-          `- [Archived publisher HTML](.raw/${slug}.html)`,
-          `- Capture: ${capture.word_count.toLocaleString()} words of publisher text; archival and transcript hashes recorded in frontmatter.`,
-          '## Faithful Publisher Text', capture.transcript,
-        ].join('\n\n');
+        // The article page is the readable source record. Keep publisher prose
+        // intact in its body; provenance belongs in frontmatter and the optional
+        // HTML archive, not in AI-authored sections before the source.
+        const body = capture.transcript;
         const page = await createBrainPage({
           config,
           pagePath,
@@ -2262,7 +2257,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'capture_article',
-      description: 'Fetch a publisher article, preserve its HTML as optional archival evidence, and create one searchable Markdown article page containing retrieval context plus a faithful full-text transcript.',
+      description: 'Fetch a publisher article, preserve its HTML as optional archival evidence, and create one searchable Markdown article page whose rendered body is the faithful full publisher text.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -2271,12 +2266,10 @@ function toolDefinitions(config = null) {
           title: { type: 'string' },
           published_date: { type: 'string', description: 'Publisher publication date in ISO 8601 form.' },
           source_kind: { type: 'string', description: 'For example substack, rss, newsletter, or online-article.' },
-          summary: { type: 'string', description: 'Concise retrieval-oriented explanation. The full publisher text is fetched separately.' },
-          current_relevance: { type: 'string', description: 'Why this source matters to the Brain and which canonical pages it informs.' },
           domains: domainField,
           ...timelineInputProperties(),
         },
-        required: ['article_url', 'title', 'published_date', 'summary', 'current_relevance', ...mutationRequired()],
+        required: ['article_url', 'title', 'published_date', ...mutationRequired()],
         anyOf: timelineInputRequirements(),
       },
     },
