@@ -12,6 +12,9 @@ export const DEFAULT_CODEX_APP_SERVER_ARGS = [
   '--config', 'notify=[]',
   '--config', 'sandbox_mode="read-only"',
   '--config', 'mcp_servers.node_repl.env.CUA_REPL_ENABLED_SURFACES="browser"',
+  '--config', 'mcp_servers.node_repl.env.NODE_REPL_TRUSTED_SERVICES=\'{"browser":"@oai/browser-desktop/service"}\'',
+  '--config', 'mcp_servers.node_repl.env.SKY_CUA_SERVICE_PATH=""',
+  '--config', 'mcp_servers.node_repl.env.BROWSER_USE_TINYSKY_ENABLED="0"',
   '--config', 'mcp_servers.computer-use.enabled=false',
   '--config', 'plugins."computer-use@openai-bundled".enabled=false',
 ];
