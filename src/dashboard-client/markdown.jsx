@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 
 import { EditorContent, useEditor } from '@tiptap/react';
 import Link from '@tiptap/extension-link';
+import Image from '@tiptap/extension-image';
 import { Table } from '@tiptap/extension-table';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
@@ -28,6 +29,9 @@ function buildExtensions() {
       openOnClick: false,
       isAllowedUri: () => true,
     }),
+    Image.configure({
+      allowBase64: false,
+    }),
     Markdown.configure({
       markedOptions: { gfm: true },
     }),
@@ -38,10 +42,11 @@ export function MarkdownDocument({
   markdown,
   sourceSlug,
   onRelativeLinkClick,
+  images = [],
   shouldHandleRelativeLink = isRelativeMarkdownHref,
   emptyLabel = '',
 }) {
-  const markdownText = typeof markdown === 'string' ? markdown : '';
+  const markdownText = rewriteAttachedImageSources(markdown, sourceSlug, images);
   const editor = useEditor(
     {
       immediatelyRender: false,
@@ -86,6 +91,21 @@ export function MarkdownDocument({
       <EditorContent editor={editor} />
     </div>
   );
+}
+
+function rewriteAttachedImageSources(markdown, sourceSlug, images) {
+  const urlsByPath = new Map(
+    (Array.isArray(images) ? images : [])
+      .filter((image) => image?.path && image?.url)
+      .map((image) => [String(image.path).replace(/^\.\//, ''), image.url]),
+  );
+  if (!urlsByPath.size || typeof markdown !== 'string') return typeof markdown === 'string' ? markdown : '';
+  const collection = String(sourceSlug || '').split('/')[0];
+  return markdown.replace(/(!\[[^\]]*\]\()([^\s)]+)(\))/g, (match, prefix, source, suffix) => {
+    const normalized = String(source).replace(/^\.\//, '');
+    const path = normalized.startsWith('.raw/') && collection ? `${collection}/${normalized}` : normalized;
+    return urlsByPath.has(path) ? `${prefix}${urlsByPath.get(path)}${suffix}` : match;
+  });
 }
 
 function isRelativeMarkdownHref(href) {

@@ -1937,6 +1937,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .explorer-document-copy p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
       .explorer-open-blob { text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
       .markdown-shell { color: var(--ink); }
+      .markdown-shell img { display: block; width: auto; max-width: 100%; max-height: 620px; margin: 18px auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); object-fit: contain; }
       .empty-copy { color: var(--muted); font-size: 14px; }
       .tailwind-prose { color: var(--ink); font-size: 14px; line-height: 1.7; }
       .tailwind-prose:focus { outline: none; }

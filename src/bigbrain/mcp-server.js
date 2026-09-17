@@ -838,11 +838,12 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       const rawPath = `articles/.raw/${slug}.html`;
       const pagePath = `articles/${slug}.md`;
       const rawFile = await createRawFile({ config, rawPath, rawContentText: capture.html, mimeType: 'text/html' });
+      const articleImages = await archiveArticleImages({ config, slug, images: capture.images });
       try {
         // The article page is the readable source record. Keep publisher prose
         // intact in its body; provenance belongs in frontmatter and the optional
         // HTML archive, not in AI-authored sections before the source.
-        const body = capture.transcript;
+        const body = replaceArticleImageLinks(capture.transcript, articleImages);
         const page = await createBrainPage({
           config,
           pagePath,
@@ -861,12 +862,14 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
             ...(args.domains ? { domains: args.domains } : {}),
           },
           domains: args.domains,
+          images: articleImages.map(({ path: imagePath, alt_text, source }) => ({ path: imagePath, alt_text, source })),
         });
         await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
         await recordWriteProvenance(config, page.path, args.provenance, args.commit_message);
         return toolJson({ page, raw_file: rawFile, capture: { status: 'full', word_count: capture.word_count }, page_health: await quickPageHealthCheck({ config, pagePath: page.path }) });
       } catch (error) {
         await deleteRawFile({ config, rawPath }).catch(() => {});
+        await Promise.all(articleImages.map(({ path: imagePath }) => deleteRawFile({ config, rawPath: imagePath }).catch(() => {})));
         throw error;
       }
     }
@@ -874,20 +877,27 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       const capture = await fetchArticleCapture(args.article_url);
       const slug = articleSlug(args.title);
       const pagePath = `articles/${slug}.md`;
-      const page = await updateBrainPage({
-        config,
-        pagePath,
-        compiledTruth: capture.transcript,
-        timelineEntry: timelineForMutation(args, actor),
-        frontmatterValues: {
-          capture_status: 'full',
-          publisher_text_words: capture.word_count,
-          transcript_sha256: capture.transcript_sha256,
-        },
-      });
-      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
-      await recordWriteProvenance(config, page.path, args.provenance, args.commit_message);
-      return toolJson({ page, capture: { status: 'full', word_count: capture.word_count }, page_health: await quickPageHealthCheck({ config, pagePath }) });
+      const articleImages = await archiveArticleImages({ config, slug, images: capture.images });
+      try {
+        const page = await updateBrainPage({
+          config,
+          pagePath,
+          compiledTruth: replaceArticleImageLinks(capture.transcript, articleImages),
+          timelineEntry: timelineForMutation(args, actor),
+          frontmatterValues: {
+            capture_status: 'full',
+            publisher_text_words: capture.word_count,
+            transcript_sha256: capture.transcript_sha256,
+            images: articleImages.map(({ path: imagePath, alt_text, source }) => ({ path: imagePath, alt_text, source })),
+          },
+        });
+        await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+        await recordWriteProvenance(config, page.path, args.provenance, args.commit_message);
+        return toolJson({ page, capture: { status: 'full', word_count: capture.word_count, image_count: articleImages.length }, page_health: await quickPageHealthCheck({ config, pagePath }) });
+      } catch (error) {
+        await Promise.all(articleImages.map(({ path: imagePath }) => deleteRawFile({ config, rawPath: imagePath }).catch(() => {})));
+        throw error;
+      }
     }
     case 'update_raw_file': {
       const rawFile = await updateRawFile({
@@ -3593,6 +3603,37 @@ function formatBytes(bytes) {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
   return `${bytes} bytes`;
+}
+
+async function archiveArticleImages({ config, slug, images }) {
+  const archived = [];
+  for (const [index, image] of (images || []).entries()) {
+    const extension = String(image.extension || '').replace(/^\./, '');
+    if (!extension || !Buffer.isBuffer(image.content)) continue;
+    const rawPath = `articles/.raw/${slug}-image-${String(index + 1).padStart(2, '0')}.${extension}`;
+    await createRawFile({
+      config,
+      rawPath,
+      rawContentBase64: image.content.toString('base64'),
+      mimeType: image.mime_type,
+    });
+    archived.push({
+      path: rawPath,
+      alt_text: image.alt_text || `Article image ${index + 1}`,
+      source: image.url,
+    });
+  }
+  return archived;
+}
+
+function replaceArticleImageLinks(markdown, images) {
+  let rendered = String(markdown || '');
+  for (const image of images || []) {
+    const source = String(image.source || '');
+    if (!source) continue;
+    rendered = rendered.split(`](${source})`).join(`](${image.path.replace(/^articles\//, '')})`);
+  }
+  return rendered;
 }
 
 function requireString(value, name) {

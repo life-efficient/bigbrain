@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
 test('page image attachments render as an accessible carousel in private and public page views', async () => {
-  const [clientSource, dashboardSource] = await Promise.all([
+  const [clientSource, dashboardSource, markdownSource] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/markdown.jsx', import.meta.url), 'utf8'),
   ]);
 
   assert.match(clientSource, /function PageImageCarousel\(\{ images \}\)/);
@@ -19,4 +20,7 @@ test('page image attachments render as an accessible carousel in private and pub
   assert.match(dashboardSource, /\.page-image-carousel \{/);
   assert.match(dashboardSource, /object-fit: contain/);
   assert.match(dashboardSource, /\.page-image-control-next/);
+  assert.match(markdownSource, /@tiptap\/extension-image/);
+  assert.match(markdownSource, /function rewriteAttachedImageSources/);
+  assert.match(markdownSource, /Image\.configure/);
 });

@@ -29,6 +29,11 @@ debug surfaces.
 - Every internal page viewer, including graph-selected page panels, exposes a collapsed **Frontmatter** section when metadata exists.
 - Keep the rendered page body clean. Metadata is inspectable on demand and must not be copied into the page prose merely to make it visible.
 
+## Article Images
+
+- Preserve supported publisher images as ordered page attachments in the owning collection's `.raw/` directory.
+- Keep the source article's Markdown image references at their original positions. Every page surface renders those references inline and also exposes the same ordered attachments in the image carousel.
+
 ## Updates
 
 - Show the installed BigBrain version and a manual **Check for Updates** action

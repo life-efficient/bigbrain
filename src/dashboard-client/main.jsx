@@ -1383,6 +1383,7 @@ function PrivatePageApp({ route }) {
         <MarkdownDocument
           markdown={state.page.markdown}
           sourceSlug={state.page.slug}
+          images={state.page.images}
           onRelativeLinkClick={openPrivatePageLink}
           shouldHandleRelativeLink={(href) => Boolean(privatePageHref(href, state.page.slug))}
           emptyLabel="This page is empty."
@@ -1587,6 +1588,7 @@ function PublicPageApp() {
         <MarkdownDocument
           markdown={state.page.markdown}
           sourceSlug={state.page.slug}
+          images={state.page.images}
           emptyLabel="This public page is empty."
         />
       </article>
@@ -2033,6 +2035,7 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
                 <MarkdownDocument
                   markdown={preview.markdown}
                   sourceSlug={preview.slug}
+                  images={preview.images}
                   onRelativeLinkClick={onRelativeLinkClick}
                   emptyLabel="This file is empty."
                 />
