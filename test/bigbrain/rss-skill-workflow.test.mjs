@@ -51,7 +51,7 @@ test('RSS contract preserves feed identity, query identities, holes, and scoped 
   assert.match(reference, /`needs_review` preserves an explicit outstanding hole/);
 });
 
-test('RSS workflow is discoverable without shell or desktop access and keeps routing metadata coherent', async () => {
+test('RSS workflow is discoverable without desktop file access and keeps routing metadata coherent', async () => {
   const skill = await read('skills/bigbrain-source-article-ingest/SKILL.md');
   const reference = await read('skills/bigbrain-source-article-ingest/references/rss-ledger.md');
   const substack = await read('skills/bigbrain-substack-ingest/SKILL.md');

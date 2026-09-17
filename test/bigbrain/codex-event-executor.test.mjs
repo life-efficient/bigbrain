@@ -176,11 +176,12 @@ test('app-thread executor uses the supported app-server thread and turn methods'
   assert.deepEqual(calls.map((call) => call.method), ['initialize', 'initialized', 'thread/start', 'thread/name/set', 'turn/start']);
   assert.deepEqual(calls.find((call) => call.method === 'initialize').params.capabilities, { experimentalApi: true });
   assert.equal(calls.find((call) => call.method === 'thread/start').params.environments, undefined);
-  assert.equal(calls.find((call) => call.method === 'thread/start').params.sandbox, 'read-only');
+  assert.equal(calls.find((call) => call.method === 'thread/start').params.sandbox, 'workspace-write');
   assert.equal(calls.find((call) => call.method === 'thread/start').params.ephemeral, false);
   assert.equal(calls.find((call) => call.method === 'thread/start').params.model, 'gpt-5.6-luna');
   assert.equal(calls.find((call) => call.method === 'thread/name/set').params.name, 'Planning meeting');
   assert.match(calls.find((call) => call.method === 'thread/start').params.developerInstructions, /Do not use native computer-use actions/);
+  assert.match(calls.find((call) => call.method === 'thread/start').params.developerInstructions, /use the terminal/);
   assert.match(calls.find((call) => call.method === 'thread/start').params.developerInstructions, /available BigBrain MCP/);
   assert.equal(calls.find((call) => call.method === 'turn/start').params.model, 'gpt-5.6-luna');
   assert.equal(calls.find((call) => call.method === 'turn/start').params.effort, 'xhigh');
@@ -200,7 +201,7 @@ test('Substack app tasks receive concise skill instructions at developer priorit
   await executor.execute({ event: { type: 'rss.item', payload: { link: 'https://publisher.substack.com/p/post' } }, listener: { type: 'rss', provider: 'substack' } });
   const start = calls.find(call => call.method === 'thread/start').params;
   assert.equal(start.environments, undefined);
-  assert.equal(start.sandbox, 'read-only');
+  assert.equal(start.sandbox, 'workspace-write');
   assert.match(start.developerInstructions, /Use the configured Substack ingestion skill and complete the linked article task directly/);
   assert.match(start.developerInstructions, /Do not use native computer-use actions/);
   assert.match(calls.find(call => call.method === 'turn/start').params.input[0].text, /Ingest this article using/);
@@ -272,7 +273,7 @@ test('background app-server defaults retain browser REPL access but disable nati
     'app-server',
     '--stdio',
     '--config', 'notify=[]',
-    '--config', 'sandbox_mode="read-only"',
+    '--config', 'sandbox_mode="workspace-write"',
     '--config', 'mcp_servers.node_repl.env.CUA_REPL_ENABLED_SURFACES="browser"',
     '--config', 'mcp_servers.node_repl.env.NODE_REPL_TRUSTED_SERVICES=\'{"browser":"@oai/browser-desktop/service"}\'',
     '--config', 'mcp_servers.node_repl.env.SKY_CUA_SERVICE_PATH=""',

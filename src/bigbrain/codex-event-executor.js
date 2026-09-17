@@ -10,7 +10,7 @@ export const DEFAULT_CODEX_APP_SERVER_ARGS = [
   'app-server',
   '--stdio',
   '--config', 'notify=[]',
-  '--config', 'sandbox_mode="read-only"',
+  '--config', 'sandbox_mode="workspace-write"',
   '--config', 'mcp_servers.node_repl.env.CUA_REPL_ENABLED_SURFACES="browser"',
   '--config', 'mcp_servers.node_repl.env.NODE_REPL_TRUSTED_SERVICES=\'{"browser":"@oai/browser-desktop/service"}\'',
   '--config', 'mcp_servers.node_repl.env.SKY_CUA_SERVICE_PATH=""',
@@ -281,7 +281,7 @@ export class CodexAppThreadExecutor {
         // Execution remains bounded by the inbound queue and the app-server
         // client still closes after each turn.
         ephemeral: false,
-        sandbox: 'read-only',
+        sandbox: 'workspace-write',
         ...(listener?.codex_model ? { model: listener.codex_model } : {}),
         developerInstructions: [
           BACKGROUND_EVENT_TOOL_INSTRUCTIONS,

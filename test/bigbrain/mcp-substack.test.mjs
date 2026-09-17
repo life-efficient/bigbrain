@@ -6,7 +6,7 @@ import path from 'node:path';
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { startMcpServer } from '../../src/bigbrain/mcp-server.js';
 
-test('MCP Substack workflow and shared ledger work without shell or arbitrary filesystem access', async () => {
+test('MCP Substack workflow and shared ledger work without arbitrary filesystem access', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'bigbrain-mcp-substack-'));
   const previous = process.env.BIGBRAIN_SUBSTACK_LEDGER_PATH;
   process.env.BIGBRAIN_SUBSTACK_LEDGER_PATH = path.join(root, 'shared-ledger.sqlite');
