@@ -591,18 +591,18 @@ test('force graph label modes produce static labels for key and all modes', asyn
   assert.match(force3d, /const labelBaseVisible = settings\.labelSlugs\?\.has\(node\.slug\);/);
 });
 
-test('force graph hover labels are explicitly above canvas content', async () => {
+test('force graph hover tooltips stay cursor based and above canvas content', async () => {
   const [force2d, force3d, dashboard] = await Promise.all([
     fs.readFile(new URL('../../src/dashboard-client/graph/force-graph-2d-visualizer.jsx', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/dashboard-client/graph/force-graph-3d-visualizer.jsx', import.meta.url), 'utf8'),
     fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
   ]);
 
-  assert.match(force2d, /className="force2d-focus-label"/);
-  assert.match(force2d, /showFocusLabel\(forceGraph, node\)/);
-  assert.match(force3d, /showFocusLabel\(forceGraph, node\)/);
+  assert.doesNotMatch(force2d, /force2d-focus-label|showFocusLabel/);
+  const force3dHoverBlock = force3d.match(/\.onNodeHover\(\(node\) => \{([\s\S]*?)\n      \}\);/)?.[1] || '';
+  assert.doesNotMatch(force3dHoverBlock, /showFocusLabel|hideFocusLabel/);
   assert.match(dashboard, /\.force3d-surface \.float-tooltip-kap, \.force2d-surface \.float-tooltip-kap \{[^}]*z-index: 8 !important;/);
-  assert.match(dashboard, /\.force3d-focus-label, \.force2d-focus-label \{ z-index: 9 !important; \}/);
+  assert.match(dashboard, /\.force3d-focus-label \{ z-index: 9 !important; \}/);
 });
 
 test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async () => {

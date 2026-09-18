@@ -222,13 +222,6 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
         const nextHoveredSlug = node?.id || null;
         if (nextHoveredSlug === hoveredSlugRef.current) return;
         hoveredSlugRef.current = nextHoveredSlug;
-        if (node) {
-          showFocusLabel(forceGraph, node);
-        } else {
-          const activeNode = getForceGraphData(forceGraph).nodes?.find((item) => item.id === activeSlugRef.current || item.slug === activeSlugRef.current);
-          if (activeNode) showFocusLabel(forceGraph, activeNode);
-          else hideFocusLabel();
-        }
         updateForceGraphHighlight(
           forceGraph,
           getForceGraphData(forceGraph),

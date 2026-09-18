@@ -1258,7 +1258,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .force3d-surface > div, .force2d-surface > div { width: 100% !important; height: 100% !important; }
       .force3d-surface canvas, .force2d-surface canvas { display: block; width: 100% !important; height: 100% !important; max-width: 100%; max-height: 100%; outline: none; }
       .force3d-surface .float-tooltip-kap, .force2d-surface .float-tooltip-kap { z-index: 8 !important; }
-      .force3d-focus-label, .force2d-focus-label { z-index: 9 !important; }
+      .force3d-focus-label { z-index: 9 !important; }
       .force3d-surface .graph-info-msg, .force2d-surface .graph-info-msg { color: rgba(244,244,245,0.68); font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.16em; text-transform: uppercase; }
       .vis-network-surface { opacity: 0.52; transform-origin: 0 0; will-change: transform; }
       .vis-network-booted .vis-network-surface { animation: vis-network-materialize 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
