@@ -56,6 +56,7 @@ import {
   buildFocusedNetworkGraph,
   normalizeFocusedGraphSlug,
 } from '../../src/dashboard-client/graph/focused-network-data.js';
+import { buildFocusedSubgraphGraph } from '../../src/dashboard-client/graph/focused-subgraph-data.js';
 
 test('responsive graph visualizers do not paint letterboxed viewBox backdrops', async () => {
   const sources = await Promise.all([
@@ -112,6 +113,52 @@ test('focused network canonicalizes cyclical lineage and keeps only upstream edg
     'projects/gpu:people/focus',
   ]);
   assert.equal(network.meta.focused_slug, 'people/focus');
+});
+
+test('focused subgraph includes outgoing links and incoming backlinks for the selected page', () => {
+  const graph = {
+    nodes: [
+      { slug: 'people/focus', title: 'Focus' },
+      { slug: 'projects/outgoing', title: 'Outgoing' },
+      { slug: 'projects/incoming', title: 'Incoming' },
+    ],
+    edges: [
+      { source: 'people/focus', target: 'projects/outgoing' },
+    ],
+  };
+  const lineage = {
+    page: { slug: 'people/focus.md', title: 'Focus', type: 'people' },
+    outgoing: [{ to_slug: 'projects/outgoing', is_resolved: 1 }],
+    backlinks: [{ from_slug: 'projects/incoming' }],
+    link_events: [],
+  };
+
+  const subgraph = buildFocusedSubgraphGraph(graph, lineage, 'people/focus.md');
+  assert.deepEqual(subgraph.nodes.map((node) => node.slug).sort(), [
+    'people/focus',
+    'projects/incoming',
+    'projects/outgoing',
+  ]);
+  assert.deepEqual(subgraph.edges.map((edge) => `${edge.source}:${edge.target}`).sort(), [
+    'people/focus:projects/outgoing',
+    'projects/incoming:people/focus',
+  ]);
+
+  const backlinkOnly = buildFocusedSubgraphGraph({
+    nodes: [
+      { slug: 'people/focus', title: 'Focus' },
+      { slug: 'projects/incoming', title: 'Incoming' },
+    ],
+    edges: [],
+  }, {
+    page: { slug: 'people/focus', title: 'Focus', type: 'people' },
+    outgoing: [],
+    backlinks: [{ from_slug: 'projects/incoming' }],
+    link_events: [],
+  }, 'people/focus');
+  assert.deepEqual(backlinkOnly.edges.map((edge) => `${edge.source}:${edge.target}`), [
+    'projects/incoming:people/focus',
+  ]);
 });
 
 test('spacious and signal bloom use larger node and cluster labels without changing the custom baseline', async () => {
@@ -525,7 +572,11 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /shortcutsEnabled=\{!healthOpen && !settingsOpen && !menuOpen\}/);
   assert.match(main, /key === 'l' \|\| key === 's'/);
   assert.match(main, /className="graph-focus-mode-toggle"/);
-  assert.match(main, /aria-keyshortcuts="T"/);
+  assert.match(main, /className=\{`graph-focus-mode-button/);
+  assert.match(main, /<kbd className="settings-shortcut">T<\/kbd>/);
+  assert.doesNotMatch(main, /<span>View<\/span>/);
+  assert.match(dashboard, /\.graph-focus-mode-button \{/);
+  assert.doesNotMatch(dashboard, /\.graph-focus-mode-toggle strong/);
   assert.match(main, /nextFocusedViewMode/);
   assert.match(main, /graph-wrap-focused/);
   assert.match(main, /event\.key\.toLowerCase\(\) !== 't'/);

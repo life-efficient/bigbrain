@@ -1159,10 +1159,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-focus-copy small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
       .graph-focus-close { flex: 0 0 auto; border: 1px solid rgba(148,163,184,0.24); border-radius: 999px; padding: 6px 9px; background: rgba(255,255,255,0.05); color: var(--ink); cursor: pointer; font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
       .graph-focus-close:hover { border-color: var(--accent); color: var(--accent); }
-      .graph-focus-mode-toggle { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 4px 7px 4px 9px; border: 1px solid rgba(148,163,184,0.28); border-radius: 8px; background: rgba(255,255,255,0.045); color: var(--muted); cursor: pointer; font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
-      .graph-focus-mode-toggle:hover, .graph-focus-mode-toggle:focus-visible { border-color: var(--accent); background: rgba(255,255,255,0.09); color: var(--ink); outline: none; }
-      .graph-focus-mode-toggle strong { color: var(--ink); font: inherit; letter-spacing: .04em; text-transform: uppercase; }
-      .graph-focus-mode-toggle kbd { min-width: 17px; padding: 3px 4px; border: 1px solid rgba(148,163,184,0.32); border-bottom-color: rgba(148,163,184,0.52); border-radius: 4px; background: rgba(0,0,0,0.18); color: var(--ink); font: inherit; text-align: center; box-shadow: inset 0 -1px 0 rgba(255,255,255,0.06); }
+      .graph-focus-mode-toggle { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid rgba(148,163,184,0.22); border-radius: 999px; background: rgba(255,255,255,0.04); }
+      .graph-focus-mode-button { border: 0; border-radius: 999px; padding: 6px 8px; background: transparent; color: var(--muted); cursor: pointer; font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .graph-focus-mode-button:hover, .graph-focus-mode-button.active { background: rgba(255,255,255,0.12); color: var(--ink); }
+      .graph-focus-mode-button kbd { margin-left: 4px; color: var(--muted); font: inherit; }
       .focused-view-stage { position: absolute; inset: 0; overflow: hidden; }
       .graph-wrap-focused .focused-view-stage { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; overflow: hidden; }
       .focused-view { box-sizing: border-box; height: 100%; min-height: 0; padding: 18px; overflow: hidden; background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.035), transparent 38%); }
