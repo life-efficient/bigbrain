@@ -1159,10 +1159,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-focus-copy small { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
       .graph-focus-close { flex: 0 0 auto; border: 1px solid rgba(148,163,184,0.24); border-radius: 999px; padding: 6px 9px; background: rgba(255,255,255,0.05); color: var(--ink); cursor: pointer; font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
       .graph-focus-close:hover { border-color: var(--accent); color: var(--accent); }
-      .graph-focus-mode-toggle { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid rgba(148,163,184,0.22); border-radius: 999px; background: rgba(255,255,255,0.04); }
-      .graph-focus-mode-button { border: 0; border-radius: 999px; padding: 6px 8px; background: transparent; color: var(--muted); cursor: pointer; font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
-      .graph-focus-mode-button:hover, .graph-focus-mode-button.active { background: rgba(255,255,255,0.12); color: var(--ink); }
-      .graph-focus-mode-button kbd { margin-left: 4px; color: var(--muted); font: inherit; }
+      .graph-focus-mode-toggle { display: inline-flex; align-items: center; gap: 7px; min-height: 30px; padding: 4px 7px 4px 9px; border: 1px solid rgba(148,163,184,0.28); border-radius: 8px; background: rgba(255,255,255,0.045); color: var(--muted); cursor: pointer; font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .graph-focus-mode-toggle:hover, .graph-focus-mode-toggle:focus-visible { border-color: var(--accent); background: rgba(255,255,255,0.09); color: var(--ink); outline: none; }
+      .graph-focus-mode-toggle strong { color: var(--ink); font: inherit; letter-spacing: .04em; text-transform: uppercase; }
+      .graph-focus-mode-toggle kbd { min-width: 17px; padding: 3px 4px; border: 1px solid rgba(148,163,184,0.32); border-bottom-color: rgba(148,163,184,0.52); border-radius: 4px; background: rgba(0,0,0,0.18); color: var(--ink); font: inherit; text-align: center; box-shadow: inset 0 -1px 0 rgba(255,255,255,0.06); }
       .focused-view-stage { position: absolute; inset: 0; overflow: hidden; }
       .graph-wrap-focused .focused-view-stage { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; overflow: hidden; }
       .focused-view { box-sizing: border-box; height: 100%; min-height: 0; padding: 18px; overflow: hidden; background: radial-gradient(circle at 50% 0%, rgba(255,255,255,0.035), transparent 38%); }
@@ -1254,9 +1254,11 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-flow-energy-out { stroke: url(#graph-flow-energy-out); }
       @keyframes graph-flow-energy { to { stroke-dashoffset: -58; } }
       .force-shell canvas { border-radius: 18px; }
-      .force3d-surface, .force2d-surface { position: absolute; inset: 0; min-width: 0; min-height: 0; overflow: hidden; border-radius: 18px; background: radial-gradient(circle at 50% 48%, rgba(22,32,50,0.56), rgba(9,10,14,0.98) 72%); }
+      .force3d-surface, .force2d-surface { position: absolute; inset: 0; z-index: 1; min-width: 0; min-height: 0; overflow: hidden; border-radius: 18px; background: radial-gradient(circle at 50% 48%, rgba(22,32,50,0.56), rgba(9,10,14,0.98) 72%); }
       .force3d-surface > div, .force2d-surface > div { width: 100% !important; height: 100% !important; }
       .force3d-surface canvas, .force2d-surface canvas { display: block; width: 100% !important; height: 100% !important; max-width: 100%; max-height: 100%; outline: none; }
+      .force3d-surface .float-tooltip-kap, .force2d-surface .float-tooltip-kap { z-index: 8 !important; }
+      .force3d-focus-label, .force2d-focus-label { z-index: 9 !important; }
       .force3d-surface .graph-info-msg, .force2d-surface .graph-info-msg { color: rgba(244,244,245,0.68); font: 700 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.16em; text-transform: uppercase; }
       .vis-network-surface { opacity: 0.52; transform-origin: 0 0; will-change: transform; }
       .vis-network-booted .vis-network-surface { animation: vis-network-materialize 720ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }

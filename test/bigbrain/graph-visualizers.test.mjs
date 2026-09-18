@@ -518,13 +518,18 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /FOCUSED_VIEW_MODES = \['network', 'timeline', 'subgraph'\]/);
   assert.match(main, /focusedViewMode === 'subgraph'/);
   const focusedSubgraphRender = main.match(/focusedViewMode === 'subgraph' \? \([\s\S]*?\/\>\s*\)\s*:\s*\(/)?.[0] || '';
-  assert.match(focusedSubgraphRender, /labelStyle="all"/);
+  assert.match(focusedSubgraphRender, /labelStyle=\{labelStyle\}/);
   assert.match(focusedSubgraphRender, /activeSlug=\{activeSlug\}/);
   assert.doesNotMatch(focusedSubgraphRender, /onBackgroundClick=\{onLineageClose\}/);
+  assert.match(main, /setFocusedViewMode\(focusSlug \? 'subgraph' : 'network'\)/);
+  assert.match(main, /shortcutsEnabled=\{!healthOpen && !settingsOpen && !menuOpen\}/);
+  assert.match(main, /key === 'l' \|\| key === 's'/);
+  assert.match(main, /className="graph-focus-mode-toggle"/);
+  assert.match(main, /aria-keyshortcuts="T"/);
   assert.match(main, /nextFocusedViewMode/);
   assert.match(main, /graph-wrap-focused/);
   assert.match(main, /event\.key\.toLowerCase\(\) !== 't'/);
-  assert.match(main, /target\?\.closest\('\.sidecar-panel, \.graph-wrap, \.graph-focus-banner'\)/);
+  assert.match(main, /target\?\.closest\('\.sidecar-panel, \.page-image-lightbox-overlay, \.graph-wrap, \.graph-focus-banner, \.graph-footer'\)/);
   assert.match(main, /key=\{`focused-subgraph:\$\{focusSlug\}`\}/);
   assert.match(main, /key="full-graph"/);
   assert.match(main, /timeline_updates/);
@@ -535,7 +540,7 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(focusedData, /incomingByTarget/);
   assert.match(focusedData, /network_at: lineageAt \|\| sourceNode\?\.created_at/);
   assert.match(focusedData, /sourceHop >= targetHop/);
-  assert.match(main, /closest\('\.sidecar-panel, \.graph-wrap, \.graph-focus-banner'\)/);
+  assert.match(main, /closest\('\.sidecar-panel, \.page-image-lightbox-overlay, \.graph-wrap, \.graph-focus-banner, \.graph-footer'\)/);
   assert.doesNotMatch(focusedViews, /Related pages by update order/);
   assert.match(focusedViews, /NETWORK_HOP_COLUMN_GAP = 320/);
   assert.match(focusedViews, /scroll\.scrollLeft = Math\.max/);
@@ -569,6 +574,35 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(dashboard, /\.focused-network-scroll \{[^}]*border: 0; border-radius: 0; background: transparent;/);
   assert.match(dashboard, /\.focused-network-node\.collapsed circle:first-child/);
   assert.doesNotMatch(focusedViews, /focused-view-heading|Page updates and their sources|Structured timeline entries/);
+});
+
+test('force graph label modes produce static labels for key and all modes', async () => {
+  const [force2d, force3d] = await Promise.all([
+    'force-graph-2d-visualizer.jsx',
+    'force-graph-3d-visualizer.jsx',
+  ].map((file) => fs.readFile(new URL(`../../src/dashboard-client/graph/${file}`, import.meta.url), 'utf8')));
+
+  for (const source of [force2d, force3d]) {
+    assert.match(source, /if \(labelStyle === 'all'\) return new Set\(values\.map\(\(node\) => node\.slug\)\);/);
+    assert.match(source, /if \(labelStyle === 'off'\) return new Set\(\);/);
+    assert.match(source, /settings\.labelSlugs\?\.has\(node\.slug\)/);
+  }
+  assert.match(force2d, /settings\.labelSlugs\?\.has\(node\.slug\) \|\| emphasized/);
+  assert.match(force3d, /const labelBaseVisible = settings\.labelSlugs\?\.has\(node\.slug\);/);
+});
+
+test('force graph hover labels are explicitly above canvas content', async () => {
+  const [force2d, force3d, dashboard] = await Promise.all([
+    fs.readFile(new URL('../../src/dashboard-client/graph/force-graph-2d-visualizer.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/dashboard-client/graph/force-graph-3d-visualizer.jsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../src/bigbrain/dashboard.js', import.meta.url), 'utf8'),
+  ]);
+
+  assert.match(force2d, /className="force2d-focus-label"/);
+  assert.match(force2d, /showFocusLabel\(forceGraph, node\)/);
+  assert.match(force3d, /showFocusLabel\(forceGraph, node\)/);
+  assert.match(dashboard, /\.force3d-surface \.float-tooltip-kap, \.force2d-surface \.float-tooltip-kap \{[^}]*z-index: 8 !important;/);
+  assert.match(dashboard, /\.force3d-focus-label, \.force2d-focus-label \{ z-index: 9 !important; \}/);
 });
 
 test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async () => {

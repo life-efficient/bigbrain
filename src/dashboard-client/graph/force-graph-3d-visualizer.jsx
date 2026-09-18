@@ -222,6 +222,13 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
         const nextHoveredSlug = node?.id || null;
         if (nextHoveredSlug === hoveredSlugRef.current) return;
         hoveredSlugRef.current = nextHoveredSlug;
+        if (node) {
+          showFocusLabel(forceGraph, node);
+        } else {
+          const activeNode = getForceGraphData(forceGraph).nodes?.find((item) => item.id === activeSlugRef.current || item.slug === activeSlugRef.current);
+          if (activeNode) showFocusLabel(forceGraph, activeNode);
+          else hideFocusLabel();
+        }
         updateForceGraphHighlight(
           forceGraph,
           getForceGraphData(forceGraph),
@@ -402,7 +409,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
         aria-hidden="true"
         style={{
           position: 'absolute',
-          zIndex: 3,
+          zIndex: 9,
           pointerEvents: 'none',
           transform: 'translateY(-50%)',
           padding: '5px 8px',
@@ -758,7 +765,7 @@ function createForceGraphNodeObject(node, settings, existingGroup = null) {
     group.add(createForceGraphIconSprite(node.type, settings.nodeIcon, iconColor, radius));
   }
 
-  const labelBaseVisible = settings.labelStyle === 'all' || settings.labelSlugs?.has(node.slug);
+  const labelBaseVisible = settings.labelSlugs?.has(node.slug);
   const label = labelBaseVisible
     ? createForceGraphNodeLabel(node, settings, radius)
     : null;
@@ -907,7 +914,9 @@ function getForceGraphNodeRadius(node, nodeSize, nodeSizeMode = 'default') {
 }
 
 function getForceGraphLabelSlugs(nodes, labelStyle) {
-  if (labelStyle !== 'selected') return new Set();
+  const values = Array.isArray(nodes) ? nodes : [];
+  if (labelStyle === 'all') return new Set(values.map((node) => node.slug));
+  if (labelStyle === 'off') return new Set();
   const ordered = [...(Array.isArray(nodes) ? nodes : [])]
     .sort((left, right) => (right.degree || 0) - (left.degree || 0) || String(left.slug).localeCompare(String(right.slug)))
     .slice(0, 12);

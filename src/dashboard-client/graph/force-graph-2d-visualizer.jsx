@@ -46,6 +46,9 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
 }, ref) {
   const theme = useGraphTheme();
   const containerRef = useRef(null);
+  const focusLabelRef = useRef(null);
+  const focusLabelNodeRef = useRef(null);
+  const focusLabelFrameRef = useRef(0);
   const graphRef = useRef(null);
   const onNodeOpenRef = useRef(onNodeOpen);
   const onActiveSlugChangeRef = useRef(onActiveSlugChange);
@@ -87,6 +90,52 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   onBackgroundClickRef.current = onBackgroundClick;
   activeSlugRef.current = activeSlug;
   activityDayRef.current = activityDay;
+
+  const hideFocusLabel = () => {
+    focusLabelNodeRef.current = null;
+    window.cancelAnimationFrame(focusLabelFrameRef.current);
+    focusLabelFrameRef.current = 0;
+    if (focusLabelRef.current) focusLabelRef.current.hidden = true;
+  };
+
+  const updateFocusLabelPosition = () => {
+    const forceGraph = graphRef.current;
+    const element = focusLabelRef.current;
+    const slug = focusLabelNodeRef.current;
+    if (!forceGraph || !element || !slug) return;
+    const node = getForceGraphData(forceGraph).nodes?.find((item) => item.id === slug || item.slug === slug);
+    if (!node || !Number.isFinite(node.x) || !Number.isFinite(node.y)) {
+      element.hidden = true;
+      return;
+    }
+    const point = forceGraph.graph2ScreenCoords?.(node.x, node.y);
+    const surface = containerRef.current;
+    const offsetParent = element.offsetParent;
+    const surfaceRect = surface?.getBoundingClientRect();
+    const parentRect = offsetParent?.getBoundingClientRect?.() || surfaceRect;
+    const graphWidth = Number(forceGraph.width?.()) || surfaceRect?.width || 1;
+    const graphHeight = Number(forceGraph.height?.()) || surfaceRect?.height || 1;
+    if (!point || !surfaceRect || !parentRect || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+      element.hidden = true;
+      return;
+    }
+    const scaleX = surfaceRect.width / graphWidth;
+    const scaleY = surfaceRect.height / graphHeight;
+    element.style.left = `${surfaceRect.left - parentRect.left + point.x * scaleX + 12}px`;
+    element.style.top = `${surfaceRect.top - parentRect.top + point.y * scaleY}px`;
+    element.hidden = false;
+    focusLabelFrameRef.current = window.requestAnimationFrame(updateFocusLabelPosition);
+  };
+
+  const showFocusLabel = (forceGraph, node) => {
+    const element = focusLabelRef.current;
+    if (!element || !node?.slug) return;
+    window.cancelAnimationFrame(focusLabelFrameRef.current);
+    focusLabelNodeRef.current = node.slug;
+    element.textContent = node.title || node.slug;
+    element.hidden = false;
+    updateFocusLabelPosition();
+  };
 
   useImperativeHandle(ref, () => ({
     zoomIn() {
@@ -164,11 +213,16 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
         onActiveSlugChangeRef.current?.(node.slug);
         onNodeOpenRef.current?.(node.slug);
       })
-      .onBackgroundClick(() => onBackgroundClickRef.current?.())
+      .onBackgroundClick(() => {
+        hideFocusLabel();
+        onBackgroundClickRef.current?.();
+      })
       .onNodeHover((node) => {
         const nextHoveredSlug = node?.id || null;
         if (nextHoveredSlug === hoveredSlugRef.current) return;
         hoveredSlugRef.current = nextHoveredSlug;
+        if (node) showFocusLabel(forceGraph, node);
+        else hideFocusLabel();
         updateForceGraphHighlight(
           forceGraph,
           hoveredSlugRef.current || activeSlugRef.current,
@@ -188,8 +242,10 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       forceGraph.__bigBrainDisposed = true;
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
+      hideFocusLabel();
       forceGraph._destructor?.();
       if (forceGraph.__bigBrainInitialFadeFrame) window.cancelAnimationFrame(forceGraph.__bigBrainInitialFadeFrame);
+      window.cancelAnimationFrame(focusLabelFrameRef.current);
       forceGraph.__bigBrainInitialFadeContainer = null;
       forceGraph.__bigBrainInitialFadeElement = null;
       forceGraph.__bigBrainInitialFadeFrame = 0;
@@ -293,6 +349,28 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   return (
     <div className="graph-canvas-shell force2d-shell">
       <div ref={containerRef} className="force2d-surface" aria-label="2D force-directed brain graph" />
+      <div
+        ref={focusLabelRef}
+        className="force2d-focus-label"
+        hidden
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          pointerEvents: 'none',
+          transform: 'translateY(-50%)',
+          padding: '5px 8px',
+          border: '1px solid rgba(228, 228, 231, 0.32)',
+          borderRadius: '6px',
+          background: 'rgba(12, 12, 16, 0.88)',
+          boxShadow: '0 0 18px rgba(255, 255, 255, 0.18)',
+          color: '#F4F4F5',
+          font: '600 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace',
+          whiteSpace: 'nowrap',
+          maxWidth: 'min(320px, calc(100% - 24px))',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}
+      />
     </div>
   );
 });
@@ -597,7 +675,7 @@ function drawForceGraphNode(node, context, globalScale, settings, forceGraph) {
     drawForceGraphIcon(node, context, drawRadius, settings, forceGraph, transition);
   }
 
-  const labelVisible = settings.labelStyle === 'all' || settings.labelSlugs?.has(node.slug) || emphasized;
+  const labelVisible = settings.labelSlugs?.has(node.slug) || emphasized;
   if (labelVisible) drawForceGraphNodeLabel(node, context, globalScale, drawRadius, settings, transition);
   context.restore();
 }
@@ -688,7 +766,9 @@ function getForceGraphNodeRadius(node, nodeSize, nodeSizeMode = 'default') {
 }
 
 function getForceGraphLabelSlugs(nodes, labelStyle) {
-  if (labelStyle !== 'selected') return new Set();
+  const values = Array.isArray(nodes) ? nodes : [];
+  if (labelStyle === 'all') return new Set(values.map((node) => node.slug));
+  if (labelStyle === 'off') return new Set();
   const ordered = [...(Array.isArray(nodes) ? nodes : [])]
     .sort((left, right) => (right.degree || 0) - (left.degree || 0) || String(left.slug).localeCompare(String(right.slug)))
     .slice(0, 12);

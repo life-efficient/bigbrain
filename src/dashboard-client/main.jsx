@@ -441,7 +441,7 @@ function DashboardApp() {
 
     function handlePointerDown(event) {
       const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('.sidecar-panel, .graph-wrap, .graph-focus-banner')) return;
+      if (target?.closest('.sidecar-panel, .page-image-lightbox-overlay, .graph-wrap, .graph-focus-banner, .graph-footer')) return;
       clearGraphFocus();
     }
 
@@ -940,7 +940,7 @@ function DashboardApp() {
                 setAutoRotate={setAutoRotate}
                 flowTasks={graphFlowTasks}
                 visualizerRef={visualizerRef}
-                shortcutsEnabled={!preview && !healthOpen && !settingsOpen && !menuOpen}
+                shortcutsEnabled={!healthOpen && !settingsOpen && !menuOpen}
                 activeSlug={activeGraphSlug}
                 onDomainScopeChange={setActiveDomainScope}
                 onActiveSlugChange={setActiveGraphSlug}
@@ -3013,7 +3013,7 @@ const GraphPanel = memo(function GraphPanel({
   }, [focusSlug, graph]);
 
   useEffect(() => {
-    setFocusedViewMode('network');
+    setFocusedViewMode(focusSlug ? 'subgraph' : 'network');
   }, [focusSlug]);
 
   useEffect(() => {
@@ -3109,12 +3109,10 @@ const GraphPanel = memo(function GraphPanel({
       selectColorPalette(nextGraphStyleOption(colorPaletteId, GRAPH_COLOR_PALETTE_OPTIONS));
     } else if (key === 'r' && visualizerId === 'force-graph-3d') {
       setAutoRotate((current) => !current);
-    } else if (key === 'l') {
+    } else if (key === 'l' || key === 's') {
       setLabelStyle((current) => nextGraphStyleOption(current, GRAPH_LABEL_STYLES));
     } else if (key === 'f') {
       setFlowVisible((current) => !current);
-    } else if (key === 's') {
-      setNodeSizeMode((current) => nextGraphStyleOption(current, GRAPH_NODE_SIZE_MODES));
     } else {
       return;
     }
@@ -3183,32 +3181,18 @@ const GraphPanel = memo(function GraphPanel({
                   : `${focusedNetworkStats.direct} direct · ${focusedNetworkStats.extended} second-hop · ${FOCUSED_NETWORK_MAX_HOPS} hops`}
             </small>
           </div>
-          <div className="graph-focus-mode-toggle" role="group" aria-label="Focused view">
-            <button
-              type="button"
-              className={`graph-focus-mode-button ${focusedViewMode === 'network' ? 'active' : ''}`}
-              aria-pressed={focusedViewMode === 'network'}
-              onClick={() => setFocusedViewMode('network')}
-            >
-              Network
-            </button>
-            <button
-              type="button"
-              className={`graph-focus-mode-button ${focusedViewMode === 'timeline' ? 'active' : ''}`}
-              aria-pressed={focusedViewMode === 'timeline'}
-              onClick={() => setFocusedViewMode('timeline')}
-            >
-              Timeline
-            </button>
-            <button
-              type="button"
-              className={`graph-focus-mode-button ${focusedViewMode === 'subgraph' ? 'active' : ''}`}
-              aria-pressed={focusedViewMode === 'subgraph'}
-              onClick={() => setFocusedViewMode('subgraph')}
-            >
-              Subgraph <kbd>T</kbd>
-            </button>
-          </div>
+          <button
+            type="button"
+            className="graph-focus-mode-toggle"
+            aria-label={`Cycle focused view, currently ${FOCUSED_VIEW_LABELS[focusedViewMode]}`}
+            aria-keyshortcuts="T"
+            title="Cycle focused view (T)"
+            onClick={() => setFocusedViewMode((current) => nextFocusedViewMode(current))}
+          >
+            <span>View</span>
+            <strong>{FOCUSED_VIEW_LABELS[focusedViewMode].replace(/^Focused /, '')}</strong>
+            <kbd>T</kbd>
+          </button>
           <button type="button" className="graph-focus-close" onClick={onLineageClose}>
             Full graph
           </button>
@@ -3239,7 +3223,7 @@ const GraphPanel = memo(function GraphPanel({
                 arcStyle={arcStyle}
                 arcAnimation={arcAnimation}
                 layoutStyle={layoutStyle}
-                labelStyle="all"
+                labelStyle={labelStyle}
                 colorMode={colorMode}
                 typeColors={typeColors}
                 autoRotate={autoRotate}
@@ -3475,7 +3459,6 @@ const GraphPanel = memo(function GraphPanel({
                 />
                 <GraphStyleOptionGroup
                   label="Size scaling"
-                  shortcut="s"
                   value={nodeSizeMode}
                   options={GRAPH_NODE_SIZE_MODES}
                   onSelect={setNodeSizeMode}
@@ -3494,7 +3477,7 @@ const GraphPanel = memo(function GraphPanel({
                 />
                 <GraphStyleOptionGroup
                   label="Labels"
-                  shortcut="l"
+                  shortcut="s"
                   value={labelStyle}
                   options={GRAPH_LABEL_STYLES}
                   onSelect={setLabelStyle}
