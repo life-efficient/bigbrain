@@ -723,6 +723,19 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.doesNotMatch(visualizer, /requestAnimationFrame\(\(\) => forceGraph\.zoomToFit/);
 });
 
+test('3D force teardown leaves transient particle groups for the graph destructor', async () => {
+  const forceGraph = await fs.readFile(
+    new URL('../../src/dashboard-client/graph/force-graph-3d-visualizer.jsx', import.meta.url),
+    'utf8',
+  );
+  const cleanup = forceGraph.match(/function cleanupForceGraphTransientParticles[\s\S]*?\n}\n\nfunction startForceGraphInitialFade/)?.[0] || '';
+
+  assert.match(cleanup, /disposeForceGraphNodeChildren\(singlePhotonsObj\)/);
+  assert.match(cleanup, /delete link\.__singleHopPhotonsObj/);
+  assert.doesNotMatch(cleanup, /singlePhotonsObj\.parent\.remove/);
+  assert.match(forceGraph, /cleanupForceGraphTransientParticles\(forceGraph\);\s*forceGraph\._destructor\?\.\(\);/);
+});
+
 test('force graphs refit after late canvas sizing and async first data', async () => {
   const sources = await Promise.all([
     'force-graph-2d-visualizer.jsx',

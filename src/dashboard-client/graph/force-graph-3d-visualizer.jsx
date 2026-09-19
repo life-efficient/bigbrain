@@ -523,7 +523,10 @@ function cleanupForceGraphTransientParticles(forceGraph) {
   for (const link of links) {
     const singlePhotonsObj = link?.__singleHopPhotonsObj;
     if (!singlePhotonsObj) continue;
-    if (singlePhotonsObj.parent) singlePhotonsObj.parent.remove(singlePhotonsObj);
+    // Leave the particle group attached until 3d-force-graph runs its own
+    // link-mapper teardown. Its remove callback also detaches this group and
+    // assumes it still has a parent. Detaching it here first makes that
+    // callback throw "Cannot read properties of null (reading 'remove')".
     disposeForceGraphNodeChildren(singlePhotonsObj);
     delete link.__singleHopPhotonsObj;
   }
