@@ -565,7 +565,8 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /FOCUSED_VIEW_MODES = \['network', 'timeline', 'subgraph'\]/);
   assert.match(main, /focusedViewMode === 'subgraph'/);
   const focusedSubgraphRender = main.match(/focusedViewMode === 'subgraph' \? \([\s\S]*?\/\>\s*\)\s*:\s*\(/)?.[0] || '';
-  assert.match(focusedSubgraphRender, /labelStyle=\{labelStyle\}/);
+  assert.match(focusedSubgraphRender, /labelStyle="all"/);
+  assert.match(main, /key="full-graph"[\s\S]*?labelStyle=\{labelStyle\}/);
   assert.match(focusedSubgraphRender, /activeSlug=\{activeSlug\}/);
   assert.doesNotMatch(focusedSubgraphRender, /onBackgroundClick=\{onLineageClose\}/);
   assert.match(main, /setFocusedViewMode\(focusSlug \? 'subgraph' : 'network'\)/);
@@ -711,6 +712,7 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.doesNotMatch(visualizer, /visual\.createLabel/);
   assert.match(visualizer, /sprite\.material\.sizeAttenuation = true/);
   assert.match(visualizer, /context\.measureText\(value\)\.width/);
+  assert.match(visualizer, /const label = labelBaseVisible[\s\S]*?if \(label\) group\.add\(label\)/);
   assert.match(visualizer, /canvas\.height = Math\.max\(32, Math\.ceil\(height \* scale\)\);\n  context\.clearRect[\s\S]*context\.font =/);
   assert.match(visualizer, /sprite\.scale\.set\(label \? canvas\.width \/ scale/);
   assert.match(visualizer, /\.nodeLabel\(\(node\) => buildNodeTooltip\(node, settingsRef\.current\.colorMode\)\)/);

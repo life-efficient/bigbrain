@@ -765,6 +765,7 @@ function createForceGraphNodeObject(node, settings, existingGroup = null) {
   const label = labelBaseVisible
     ? createForceGraphNodeLabel(node, settings, radius)
     : null;
+  if (label) group.add(label);
   group.userData = { nodeSlug: node.slug };
   node.__bigBrainVisual = {
     group,
