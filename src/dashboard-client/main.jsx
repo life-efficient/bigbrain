@@ -2759,6 +2759,7 @@ const GraphPanel = memo(function GraphPanel({
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
   const [activityMode, setActivityMode] = useState('bars');
   const [focusedViewMode, setFocusedViewMode] = useState('network');
+  const wasFocusedRef = useRef(false);
   const [selectedPageTypes, setSelectedPageTypes] = useState([]);
   const [selectedDomains, setSelectedDomains] = useState([]);
   const styleMenuRef = useRef(null);
@@ -2931,6 +2932,12 @@ const GraphPanel = memo(function GraphPanel({
   useEffect(() => {
     setFocusedViewMode(focusSlug ? 'subgraph' : 'network');
   }, [focusSlug]);
+
+  useEffect(() => {
+    if (focusSlug && focusedViewMode === 'subgraph') setLabelStyle('all');
+    else if (!focusSlug && wasFocusedRef.current) setLabelStyle('off');
+    wasFocusedRef.current = Boolean(focusSlug);
+  }, [focusSlug, focusedViewMode, setLabelStyle]);
 
   useEffect(() => {
     if (!focusSlug) return undefined;
@@ -3153,7 +3160,7 @@ const GraphPanel = memo(function GraphPanel({
                 arcStyle={arcStyle}
                 arcAnimation={arcAnimation}
                 layoutStyle={layoutStyle}
-                labelStyle="all"
+                labelStyle={labelStyle}
                 colorMode={colorMode}
                 typeColors={typeColors}
                 autoRotate={autoRotate}

@@ -14,6 +14,7 @@ import {
 } from './graph-transition.js';
 import { prepareForceGraphData } from './force-graph-data.js';
 import { getForceGraphNodeFocusCamera, getForceGraphNodeWorldPosition } from './force-graph-3d-camera.js';
+import { layoutGraphScreenLabels } from './screen-label-layout.js';
 import { getGraphNodeConnectionScale, getGraphNodeSizeScale } from './node-sizes.js';
 import { useGraphTheme } from './visualizer-core.jsx';
 
@@ -29,6 +30,23 @@ const GRAPH_UPDATE_COOLDOWN_TICKS = 120;
 const GRAPH_UPDATE_COOLDOWN_TIME = 1400;
 const FORCE_GRAPH_ICON_TEXTURE_CACHE = new Map();
 let FORCE_GRAPH_GLOW_TEXTURE = null;
+const FORCE_GRAPH_SCREEN_LABEL_STYLE = {
+  position: 'absolute',
+  zIndex: 9,
+  pointerEvents: 'none',
+  transform: 'translateY(-50%)',
+  padding: '5px 8px',
+  border: '1px solid rgba(228, 228, 231, 0.32)',
+  borderRadius: '6px',
+  background: 'rgba(12, 12, 16, 0.88)',
+  boxShadow: '0 0 18px rgba(255, 255, 255, 0.18)',
+  color: '#F4F4F5',
+  font: '600 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace',
+  whiteSpace: 'nowrap',
+  maxWidth: 'min(320px, calc(100% - 24px))',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+};
 
 export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer({
   graph,
@@ -54,7 +72,8 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   const containerRef = useRef(null);
   const focusLabelRef = useRef(null);
   const focusLabelNodeRef = useRef(null);
-  const focusLabelFrameRef = useRef(0);
+  const screenLabelsRef = useRef(new Map());
+  const screenLabelFrameRef = useRef(0);
   const graphRef = useRef(null);
   const rotationFrameRef = useRef(0);
   const rotationLastTimeRef = useRef(0);
@@ -70,6 +89,9 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   const hoveredSlugRef = useRef(null);
   const activityDayRef = useRef(activityDay);
   const labelSlugs = useMemo(() => getForceGraphLabelSlugs(graph?.nodes, labelStyle), [graph?.nodes, labelStyle]);
+  const screenLabelNodes = useMemo(() => (
+    (Array.isArray(graph?.nodes) ? graph.nodes : []).filter((node) => labelSlugs.has(node.slug))
+  ), [graph?.nodes, labelSlugs]);
 
   settingsRef.current = { nodeShape, nodeFill, nodeIcon, nodeSize, nodeSizeMode, arcStyle, arcAnimation, labelStyle, colorMode, typeColors, theme, labelSlugs, activeSlug };
   onNodeOpenRef.current = onNodeOpen;
@@ -80,41 +102,70 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
 
   const hideFocusLabel = () => {
     focusLabelNodeRef.current = null;
-    window.cancelAnimationFrame(focusLabelFrameRef.current);
-    focusLabelFrameRef.current = 0;
     if (focusLabelRef.current) focusLabelRef.current.hidden = true;
   };
 
-  const updateFocusLabelPosition = () => {
+  const updateScreenLabelPositions = () => {
+    screenLabelFrameRef.current = 0;
+    if (!screenLabelsRef.current.size && !focusLabelNodeRef.current) return;
     const forceGraph = graphRef.current;
-    const element = focusLabelRef.current;
-    const slug = focusLabelNodeRef.current;
-    if (!forceGraph || !element || !slug) return;
-    const node = getForceGraphData(forceGraph).nodes?.find((item) => item.id === slug || item.slug === slug);
-    if (!node || !Number.isFinite(node.x) || !Number.isFinite(node.y) || !Number.isFinite(node.z)) {
-      element.hidden = true;
-      return;
+    if (forceGraph) {
+      const nodes = new Map((getForceGraphData(forceGraph).nodes || []).map((node) => [node.slug, node]));
+      const focusSlug = focusLabelNodeRef.current;
+      const labels = focusSlug && focusLabelRef.current
+        ? [[focusSlug, focusLabelRef.current], ...screenLabelsRef.current]
+        : [...screenLabelsRef.current];
+      const width = containerRef.current?.clientWidth || 0;
+      const height = containerRef.current?.clientHeight || 0;
+      const projected = [];
+      for (const [slug, element] of labels) {
+        if (slug === focusSlug && element !== focusLabelRef.current) {
+          element.hidden = true;
+          continue;
+        }
+        const node = nodes.get(slug);
+        const world = node && isForceGraphNodeVisibleAtActivityDay(node, activityDayRef.current)
+          ? getForceGraphNodeWorldPosition(forceGraph, node)
+          : null;
+        const point = world && forceGraph.graph2ScreenCoords?.(world.x, world.y, world.z);
+        if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)
+          || point.x < 0 || point.y < 0 || point.x > width || point.y > height) {
+          element.hidden = true;
+          continue;
+        }
+        element.hidden = false;
+        projected.push({
+          slug,
+          element,
+          x: point.x,
+          y: point.y,
+          width: element.offsetWidth,
+          height: element.offsetHeight,
+          focus: element === focusLabelRef.current,
+        });
+      }
+      const elements = new Map(projected.map(({ slug, element }) => [slug, element]));
+      for (const position of layoutGraphScreenLabels(projected, { width, height })) {
+        const element = elements.get(position.slug);
+        element.style.left = `${position.left}px`;
+        element.style.top = `${position.top}px`;
+      }
     }
-    const world = getForceGraphNodeWorldPosition(forceGraph, node);
-    const point = world && forceGraph.graph2ScreenCoords?.(world.x, world.y, world.z);
-    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
-      element.hidden = true;
-      return;
+    if (graphRef.current) screenLabelFrameRef.current = window.requestAnimationFrame(updateScreenLabelPositions);
+  };
+
+  const startScreenLabelPositions = () => {
+    if (!screenLabelFrameRef.current) {
+      screenLabelFrameRef.current = window.requestAnimationFrame(updateScreenLabelPositions);
     }
-    element.style.left = `${point.x + 12}px`;
-    element.style.top = `${point.y}px`;
-    element.hidden = false;
-    focusLabelFrameRef.current = window.requestAnimationFrame(updateFocusLabelPosition);
   };
 
   const showFocusLabel = (forceGraph, node) => {
     const element = focusLabelRef.current;
     if (!element || !node?.slug) return;
-    window.cancelAnimationFrame(focusLabelFrameRef.current);
     focusLabelNodeRef.current = node.slug;
     element.textContent = node.title || node.slug;
-    element.hidden = false;
-    updateFocusLabelPosition();
+    startScreenLabelPositions();
   };
 
   useImperativeHandle(ref, () => ({
@@ -233,6 +284,7 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       });
 
     syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
+    startScreenLabelPositions();
 
     const controls = forceGraph.controls?.();
     if (controls) controls.zoomToCursor = true;
@@ -252,6 +304,8 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       resizeObserver?.disconnect();
       window.removeEventListener('resize', resize);
       hideFocusLabel();
+      window.cancelAnimationFrame(screenLabelFrameRef.current);
+      screenLabelFrameRef.current = 0;
       cancelArcAnimation(forceGraph);
       cancelGraphTransitionLoop(forceGraph);
       cancelScheduledForceGraphFit(forceGraph);
@@ -297,6 +351,10 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
     if (!forceGraph) return;
     syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
   }, [graph]);
+
+  useEffect(() => {
+    if (screenLabelNodes.length) startScreenLabelPositions();
+  }, [screenLabelNodes]);
 
   useEffect(() => {
     const forceGraph = graphRef.current;
@@ -395,28 +453,27 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   return (
     <div className="graph-canvas-shell force3d-shell">
       <div ref={containerRef} className="force3d-surface" aria-label="3D force-directed brain graph" />
+      {screenLabelNodes.map((node) => (
+        <div
+          key={node.slug}
+          ref={(element) => {
+            if (element) screenLabelsRef.current.set(node.slug, element);
+            else screenLabelsRef.current.delete(node.slug);
+          }}
+          className="force3d-node-label"
+          hidden
+          aria-hidden="true"
+          style={FORCE_GRAPH_SCREEN_LABEL_STYLE}
+        >
+          {node.title || node.slug}
+        </div>
+      ))}
       <div
         ref={focusLabelRef}
         className="force3d-focus-label"
         hidden
         aria-hidden="true"
-        style={{
-          position: 'absolute',
-          zIndex: 9,
-          pointerEvents: 'none',
-          transform: 'translateY(-50%)',
-          padding: '5px 8px',
-          border: '1px solid rgba(228, 228, 231, 0.32)',
-          borderRadius: '6px',
-          background: 'rgba(12, 12, 16, 0.88)',
-          boxShadow: '0 0 18px rgba(255, 255, 255, 0.18)',
-          color: '#F4F4F5',
-          font: '600 11px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace',
-          whiteSpace: 'nowrap',
-          maxWidth: 'min(320px, calc(100% - 24px))',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-        }}
+        style={FORCE_GRAPH_SCREEN_LABEL_STYLE}
       />
     </div>
   );
@@ -709,7 +766,6 @@ function syncForceGraphNodeState(node, highlightedNodes) {
   if (!visual) return;
   const emphasized = highlightedNodes.has(node.id);
   visual.group.scale.setScalar(graphTransitionProgress(node));
-  if (visual.label) visual.label.visible = visual.labelBaseVisible;
   if (visual.glow) visual.glow.visible = emphasized;
 }
 
@@ -761,16 +817,9 @@ function createForceGraphNodeObject(node, settings, existingGroup = null) {
     group.add(createForceGraphIconSprite(node.type, settings.nodeIcon, iconColor, radius));
   }
 
-  const labelBaseVisible = settings.labelSlugs?.has(node.slug);
-  const label = labelBaseVisible
-    ? createForceGraphNodeLabel(node, settings, radius)
-    : null;
-  if (label) group.add(label);
   group.userData = { nodeSlug: node.slug };
   node.__bigBrainVisual = {
     group,
-    label,
-    labelBaseVisible,
     glow,
   };
   syncForceGraphNodeState(node, new Set());
@@ -833,52 +882,11 @@ function disposeForceGraphObject(object) {
   }
 }
 
-function createForceGraphNodeLabel(node, settings, radius) {
-  const labelWidth = Math.min(180, Math.max(34, String(node.title || node.slug).length * 4.8 + 6));
-  const label = createForceGraphTextSprite(node.title || node.slug, settings.theme.graphLabel, labelWidth, 8.5, true);
-  label.position.set(radius * 1.75, radius * 0.85, 0);
-  return label;
-}
-
 function createNodeGeometry(shape, radius) {
   if (shape === 'diamond') return new THREE.OctahedronGeometry(radius * 1.35, 0);
   if (shape === 'hex') return new THREE.CylinderGeometry(radius * 1.1, radius * 1.1, radius * 1.7, 6, 1);
   if (shape === 'pixel') return new THREE.BoxGeometry(radius * 1.9, radius * 1.9, radius * 1.9);
   return new THREE.SphereGeometry(radius, 12, 8);
-}
-
-function createForceGraphTextSprite(text, color, width, height, label = false) {
-  const canvas = document.createElement('canvas');
-  const scale = label ? 2 : 4;
-  const context = canvas.getContext('2d');
-  const value = String(text).slice(0, label ? 36 : 2);
-  const fontSize = label ? 16 : 25;
-  context.font = `${label ? '600' : '800'} ${fontSize}px "SF Mono", "IBM Plex Mono", monospace`;
-  const measuredWidth = label ? context.measureText(value).width + 8 : width * scale;
-  canvas.width = Math.max(64, Math.ceil(measuredWidth));
-  canvas.height = Math.max(32, Math.ceil(height * scale));
-  context.clearRect(0, 0, canvas.width, canvas.height);
-  // Assigning canvas dimensions resets the 2D context state, including the
-  // font used for measurement. Restore it before drawing the glyphs.
-  context.font = `${label ? '600' : '800'} ${fontSize}px "SF Mono", "IBM Plex Mono", monospace`;
-  context.fillStyle = color;
-  context.textAlign = label ? 'left' : 'center';
-  context.textBaseline = 'middle';
-  context.fillText(value, label ? 2 : canvas.width / 2, canvas.height / 2);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  // Keep glyphs in a camera-facing billboard layer. This prevents the node
-  // icon and label texture from inheriting the graph's 3D perspective.
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false, depthTest: false }));
-  sprite.material.rotation = 0;
-  // Keep the label attached to the same camera-scaled billboard path as the
-  // node icon. The measured texture below preserves its natural aspect ratio.
-  sprite.material.sizeAttenuation = true;
-  sprite.renderOrder = label ? 20 : 10;
-  sprite.scale.set(label ? canvas.width / scale : width, height, 1);
-  sprite.center.set(label ? 0 : 0.5, 0.5);
-  if (label) sprite.userData.bigBrainOwnedTexture = true;
-  return sprite;
 }
 
 function createForceGraphIconSprite(type, iconStyle, color, radius) {

@@ -57,6 +57,23 @@ import {
   normalizeFocusedGraphSlug,
 } from '../../src/dashboard-client/graph/focused-network-data.js';
 import { buildFocusedSubgraphGraph } from '../../src/dashboard-client/graph/focused-subgraph-data.js';
+import { layoutGraphScreenLabels } from '../../src/dashboard-client/graph/screen-label-layout.js';
+
+test('screen-fixed graph labels keep the focus anchored and separate nearby neighbors', () => {
+  const labels = layoutGraphScreenLabels([
+    { slug: 'focus', x: 100, y: 90, width: 95, height: 24, focus: true },
+    { slug: 'neighbor-a', x: 105, y: 92, width: 95, height: 24 },
+    { slug: 'neighbor-b', x: 104, y: 94, width: 95, height: 24 },
+  ], { width: 400, height: 250 });
+  assert.deepEqual(labels[0], { slug: 'focus', left: 112, top: 90 });
+  for (let index = 0; index < labels.length; index += 1) {
+    for (let other = index + 1; other < labels.length; other += 1) {
+      const left = labels[index];
+      const right = labels[other];
+      assert.ok(Math.abs(left.top - right.top) >= 24 || Math.abs(left.left - right.left) >= 95);
+    }
+  }
+});
 
 test('responsive graph visualizers do not paint letterboxed viewBox backdrops', async () => {
   const sources = await Promise.all([
@@ -565,8 +582,10 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /FOCUSED_VIEW_MODES = \['network', 'timeline', 'subgraph'\]/);
   assert.match(main, /focusedViewMode === 'subgraph'/);
   const focusedSubgraphRender = main.match(/focusedViewMode === 'subgraph' \? \([\s\S]*?\/\>\s*\)\s*:\s*\(/)?.[0] || '';
-  assert.match(focusedSubgraphRender, /labelStyle="all"/);
+  assert.match(focusedSubgraphRender, /labelStyle=\{labelStyle\}/);
   assert.match(main, /key="full-graph"[\s\S]*?labelStyle=\{labelStyle\}/);
+  assert.match(main, /if \(focusSlug && focusedViewMode === 'subgraph'\) setLabelStyle\('all'\)/);
+  assert.match(main, /else if \(!focusSlug && wasFocusedRef\.current\) setLabelStyle\('off'\)/);
   assert.match(focusedSubgraphRender, /activeSlug=\{activeSlug\}/);
   assert.doesNotMatch(focusedSubgraphRender, /onBackgroundClick=\{onLineageClose\}/);
   assert.match(main, /setFocusedViewMode\(focusSlug \? 'subgraph' : 'network'\)/);
@@ -637,10 +656,11 @@ test('force graph label modes produce static labels for key and all modes', asyn
   for (const source of [force2d, force3d]) {
     assert.match(source, /if \(labelStyle === 'all'\) return new Set\(values\.map\(\(node\) => node\.slug\)\);/);
     assert.match(source, /if \(labelStyle === 'off'\) return new Set\(\);/);
-    assert.match(source, /settings\.labelSlugs\?\.has\(node\.slug\)/);
   }
   assert.match(force2d, /settings\.labelSlugs\?\.has\(node\.slug\) \|\| emphasized/);
-  assert.match(force3d, /const labelBaseVisible = settings\.labelSlugs\?\.has\(node\.slug\);/);
+  assert.match(force3d, /screenLabelNodes = useMemo\([\s\S]*labelSlugs\.has\(node\.slug\)/);
+  assert.match(force3d, /style=\{FORCE_GRAPH_SCREEN_LABEL_STYLE\}/);
+  assert.doesNotMatch(force3d, /createForceGraphNodeLabel/);
 });
 
 test('force graph hover tooltips stay cursor based and above canvas content', async () => {
@@ -710,11 +730,10 @@ test('3D force uses bounded settle-then-fit and optional Z-axis rotation', async
   assert.match(visualizer, /graph2ScreenCoords/);
   assert.match(visualizer, /showFocusLabel\(forceGraph, node\)/);
   assert.doesNotMatch(visualizer, /visual\.createLabel/);
-  assert.match(visualizer, /sprite\.material\.sizeAttenuation = true/);
-  assert.match(visualizer, /context\.measureText\(value\)\.width/);
-  assert.match(visualizer, /const label = labelBaseVisible[\s\S]*?if \(label\) group\.add\(label\)/);
-  assert.match(visualizer, /canvas\.height = Math\.max\(32, Math\.ceil\(height \* scale\)\);\n  context\.clearRect[\s\S]*context\.font =/);
-  assert.match(visualizer, /sprite\.scale\.set\(label \? canvas\.width \/ scale/);
+  assert.match(visualizer, /screenLabelsRef\.current/);
+  assert.match(visualizer, /updateScreenLabelPositions/);
+  assert.match(visualizer, /force3d-node-label/);
+  assert.match(visualizer, /window\.cancelAnimationFrame\(screenLabelFrameRef\.current\)/);
   assert.match(visualizer, /\.nodeLabel\(\(node\) => buildNodeTooltip\(node, settingsRef\.current\.colorMode\)\)/);
   assert.match(visualizer, /function buildNodeTooltip\(node, colorMode\)/);
   assert.match(visualizer, /settingsRef\.current\.arcAnimation,[\s\S]*Boolean\(hoveredSlugRef\.current\)/);
