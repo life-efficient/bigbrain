@@ -2760,6 +2760,7 @@ const GraphPanel = memo(function GraphPanel({
   const [activityMode, setActivityMode] = useState('bars');
   const [focusedViewMode, setFocusedViewMode] = useState('network');
   const wasFocusedRef = useRef(false);
+  const previousForceSubgraphFocusRef = useRef(null);
   const [selectedPageTypes, setSelectedPageTypes] = useState([]);
   const [selectedDomains, setSelectedDomains] = useState([]);
   const styleMenuRef = useRef(null);
@@ -2953,7 +2954,15 @@ const GraphPanel = memo(function GraphPanel({
   }, [focusSlug]);
 
   useEffect(() => {
-    if (!focusSlug || !isForceRenderer) return undefined;
+    if (!focusSlug || !isForceRenderer || focusedViewMode !== 'subgraph') {
+      previousForceSubgraphFocusRef.current = null;
+      return undefined;
+    }
+    const walking = Boolean(previousForceSubgraphFocusRef.current);
+    previousForceSubgraphFocusRef.current = focusSlug;
+    // A clicked node already animates the camera. Refitting here would snap
+    // the retained graph before its membership transition can be seen.
+    if (walking) return undefined;
     let frame = 0;
     let settleFrame = 0;
     frame = window.requestAnimationFrame(() => {
@@ -2965,7 +2974,7 @@ const GraphPanel = memo(function GraphPanel({
       window.cancelAnimationFrame(frame);
       window.cancelAnimationFrame(settleFrame);
     };
-  }, [focusSlug, isForceRenderer]);
+  }, [focusSlug, focusedViewMode, isForceRenderer]);
 
   useEffect(() => {
     if (!styleMenuOpen && !filterMenuOpen) return undefined;
@@ -3147,8 +3156,9 @@ const GraphPanel = memo(function GraphPanel({
             ) : focusedViewMode === 'subgraph' ? (
               <VisualizerComponent
                 ref={visualizerRef}
-                key={`focused-subgraph:${focusSlug}`}
+                key="focused-subgraph"
                 graph={filteredSubgraph}
+                fitOnGraphChange={isForceRenderer}
                 activityDay={null}
                 motionEvent={null}
                 onNodeOpen={onGraphNodeSelect}

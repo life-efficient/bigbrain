@@ -27,6 +27,7 @@ const FORCE_GRAPH_ICON_CACHE = new Map();
 
 export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer({
   graph,
+  fitOnGraphChange = false,
   onNodeOpen,
   nodeShape = 'orb',
   nodeFill = 'outline',
@@ -178,7 +179,9 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
       });
 
     updateForceGraphNodePointerArea(forceGraph, settingsRef.current);
-    syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
+    syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current, {
+      fitAfterUpdate: fitOnGraphChange || !forceGraph.__bigBrainInitialized,
+    });
 
     return () => {
       FORCE_GRAPH_ICON_CACHE.forEach((entry) => entry.graphs.delete(forceGraph));
@@ -200,8 +203,10 @@ export const ForceGraph2DVisualizer = forwardRef(function ForceGraph2DVisualizer
   useEffect(() => {
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
-    syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
-  }, [graph]);
+    syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current, {
+      fitAfterUpdate: fitOnGraphChange || !forceGraph.__bigBrainInitialized,
+    });
+  }, [fitOnGraphChange, graph]);
 
   useEffect(() => {
     const forceGraph = graphRef.current;

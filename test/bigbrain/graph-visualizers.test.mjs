@@ -455,6 +455,10 @@ test('force renderers focus eligible live page changes without remounting', asyn
   assert.doesNotMatch(force3d, /buildInitialGraphRevealStages|startInitialGraphReveal/);
   assert.match(force2d, /const transitioned = hadGraphData\s*\?\s*prepareGraphTransitionData/);
   assert.match(force3d, /const transitioned = hadGraphData\s*\?\s*prepareGraphTransitionData/);
+  for (const renderer of [force2d, force3d]) {
+    assert.match(renderer, /fitOnGraphChange = false/);
+    assert.match(renderer, /fitAfterUpdate: fitOnGraphChange \|\| !forceGraph\.__bigBrainInitialized/);
+  }
   assert.match(force2d, /__bigBrainInitialFadeElement/);
   assert.match(force3d, /__bigBrainInitialFadeElement/);
   assert.match(force2d, /__bigBrainInitialFadeContainer\?\.querySelector\('canvas'\)/);
@@ -601,7 +605,10 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /graph-wrap-focused/);
   assert.match(main, /event\.key\.toLowerCase\(\) !== 't'/);
   assert.match(main, /target\?\.closest\('\.sidecar-panel, \.page-image-lightbox-overlay, \.graph-wrap, \.graph-focus-banner, \.graph-footer'\)/);
-  assert.match(main, /key=\{`focused-subgraph:\$\{focusSlug\}`\}/);
+  assert.match(main, /key="focused-subgraph"/);
+  assert.doesNotMatch(main, /key=\{`focused-subgraph:\$\{focusSlug\}`\}/);
+  assert.match(main, /if \(walking\) return undefined;/);
+  assert.match(focusedSubgraphRender, /fitOnGraphChange=\{isForceRenderer\}/);
   assert.match(main, /key="full-graph"/);
   assert.match(main, /timeline_updates/);
   assert.match(main, /const focusSlug = normalizeFocusedGraphSlug\(lineage\?\.slug\);[\s\S]*\.filter\(\(update\) => normalizeFocusedGraphSlug\(update\?\.page\?\.slug\) === focusSlug\)/);

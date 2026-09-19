@@ -50,6 +50,7 @@ const FORCE_GRAPH_SCREEN_LABEL_STYLE = {
 
 export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer({
   graph,
+  fitOnGraphChange = false,
   onNodeOpen,
   nodeShape = 'orb',
   nodeFill = 'outline',
@@ -283,7 +284,9 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
         );
       });
 
-    syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
+    syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current, {
+      fitAfterUpdate: fitOnGraphChange || !forceGraph.__bigBrainInitialized,
+    });
     startScreenLabelPositions();
 
     const controls = forceGraph.controls?.();
@@ -349,8 +352,10 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
   useEffect(() => {
     const forceGraph = graphRef.current;
     if (!forceGraph) return;
-    syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current);
-  }, [graph]);
+    syncForceGraphData(forceGraph, graph, settingsRef.current, activeSlugRef.current, {
+      fitAfterUpdate: fitOnGraphChange || !forceGraph.__bigBrainInitialized,
+    });
+  }, [fitOnGraphChange, graph]);
 
   useEffect(() => {
     if (screenLabelNodes.length) startScreenLabelPositions();
