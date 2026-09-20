@@ -15,6 +15,7 @@ import {
   getPagesBySlugs,
   listPageProvenance,
   getSharedGroup,
+  listSharedGroups,
   listMcpAuditLog,
   listPages,
   openDatabase,
@@ -2428,12 +2429,27 @@ export async function buildRecentsPayload(
   }
   const requestedLimit = Number.parseInt(requestUrl.searchParams.get('limit') || '80', 10);
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(250, requestedLimit)) : 80;
+  const requestedCollection = requestUrl.searchParams.get('collection')?.trim() || null;
+  const sharedGroups = await listSharedGroups(db);
   const viewedAt = await dashboardPageViews(db);
   const pagePaths = [];
   await walkRecentPagePaths(config, config.brainDir, pagePaths);
+  const availableSlugs = new Set(pagePaths.map((relativePath) => relativePath.replace(/\.md$/i, '')));
+  const collections = sharedGroups.map((group) => ({
+    id: group.slug,
+    title: group.title,
+    count: new Set(group.pages.map((page) => page.page_slug).filter((slug) => availableSlugs.has(slug))).size,
+  }));
+  const selectedCollection = requestedCollection
+    ? sharedGroups.find((group) => group.slug === requestedCollection || group.redirect_from.includes(requestedCollection))
+    : null;
+  const selectedSlugs = requestedCollection
+    ? new Set(selectedCollection?.pages.map((page) => page.page_slug) || [])
+    : null;
   const items = [];
   for (const relativePath of pagePaths) {
     const slug = relativePath.replace(/\.md$/i, '');
+    if (selectedSlugs && !selectedSlugs.has(slug)) continue;
     let parsed;
     let stats;
     try {
@@ -2482,7 +2498,15 @@ export async function buildRecentsPayload(
     || (left.image?.path || '').localeCompare(right.image?.path || ''));
   return {
     items: visible.slice(0, limit),
-    meta: { activity, kind, limit, total_count: visible.length, surface: dashboardSurface },
+    collections,
+    meta: {
+      activity,
+      kind,
+      limit,
+      total_count: visible.length,
+      collection: selectedCollection?.slug || requestedCollection,
+      surface: dashboardSurface,
+    },
   };
 }
 
