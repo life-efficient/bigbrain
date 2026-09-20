@@ -81,7 +81,7 @@ import {
   privatePageRouteFromPath,
 } from './page-links.js';
 import { recordDashboardError } from './error-reporting.js';
-import { appendUniqueRecentItems } from './stream-pagination.js';
+import { appendUniqueRecentItems, createBottomReachGate } from './stream-pagination.js';
 
 class DashboardErrorBoundary extends React.Component {
   constructor(props) {
@@ -2348,17 +2348,31 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   const [imageViewerIndex, setImageViewerIndex] = useState(null);
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const [result, setResult] = useState({ status: 'loading', items: [], collections: [], sourceTypes: [], meta: null, error: '' });
+  const [result, setResult] = useState({ status: 'loading', items: [], collections: [], sourceTypes: [], sourceCounts: [], meta: null, error: '' });
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState('');
   const collectionMenuRef = useRef(null);
+  const scrollRef = useRef(null);
+  const bottomReachGateRef = useRef(createBottomReachGate());
+  const scrollIntentRef = useRef({ at: 0, pointerDown: false });
   const moreControllerRef = useRef(null);
+  const completedOffsetsRef = useRef(new Set());
   const requestVersionRef = useRef(0);
 
   useEffect(() => {
     setImageViewerIndex(null);
     setSelectedSourceTypes(null);
   }, [activity, kind, collection]);
+
+  useEffect(() => {
+    const endPointerScroll = () => { scrollIntentRef.current.pointerDown = false; };
+    window.addEventListener('pointerup', endPointerScroll);
+    window.addEventListener('pointercancel', endPointerScroll);
+    return () => {
+      window.removeEventListener('pointerup', endPointerScroll);
+      window.removeEventListener('pointercancel', endPointerScroll);
+    };
+  }, []);
 
   useEffect(() => {
     if (!collectionMenuOpen) return undefined;
@@ -2378,16 +2392,20 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
 
   useEffect(() => {
     requestVersionRef.current += 1;
+    completedOffsetsRef.current = new Set();
+    bottomReachGateRef.current = createBottomReachGate();
+    scrollIntentRef.current = { at: 0, pointerDown: false };
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
     moreControllerRef.current?.abort();
     moreControllerRef.current = null;
     setLoadingMore(false);
     setMoreError('');
     if (demoMode) {
-      setResult({ status: 'ready', items: [], collections: [], sourceTypes: [], meta: null, error: '' });
+      setResult({ status: 'ready', items: [], collections: [], sourceTypes: [], sourceCounts: [], meta: null, error: '' });
       return undefined;
     }
     const controller = new AbortController();
-    setResult((current) => ({ ...current, status: 'loading', items: [], sourceTypes: [], meta: null, error: '' }));
+    setResult((current) => ({ ...current, status: 'loading', items: [], sourceTypes: [], sourceCounts: [], meta: null, error: '' }));
     const params = new URLSearchParams({ activity, kind, limit: String(STREAM_PAGE_SIZE), offset: '0' });
     if (collection) params.set('collection', collection);
     fetchJson(`/api/recents?${params}`, { signal: controller.signal })
@@ -2396,6 +2414,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
         items: Array.isArray(data.items) ? data.items : [],
         collections: Array.isArray(data.collections) ? data.collections : [],
         sourceTypes: Array.isArray(data.source_types) ? data.source_types : [],
+        sourceCounts: Array.isArray(data.source_counts) ? data.source_counts : [],
         meta: data.meta || null,
         error: '',
       }))
@@ -2405,10 +2424,27 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
     return () => controller.abort();
   }, [activity, kind, collection, demoMode, refreshVersion]);
 
+  useLayoutEffect(() => {
+    if (scrollRef.current) bottomReachGateRef.current.observe(scrollRef.current);
+  }, [result.status, result.items.length, kind, activity, collection]);
+
+  function markScrollIntent() {
+    scrollIntentRef.current.at = Date.now();
+  }
+
+  function handleStreamScroll(event) {
+    const intent = scrollIntentRef.current;
+    const intentional = intent.pointerDown || Date.now() - intent.at < 1200;
+    if (bottomReachGateRef.current.onScroll(event.currentTarget, intentional)) {
+      intent.at = 0;
+      if (!moreError) loadMore();
+    }
+  }
+
   function loadMore() {
     if (result.status !== 'ready' || !result.meta?.has_more || loadingMore || moreControllerRef.current) return;
     const nextOffset = result.meta.next_offset;
-    if (!Number.isInteger(nextOffset)) return;
+    if (!Number.isInteger(nextOffset) || completedOffsetsRef.current.has(nextOffset)) return;
     const requestVersion = requestVersionRef.current;
     const controller = new AbortController();
     moreControllerRef.current = controller;
@@ -2419,11 +2455,15 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
     fetchJson(`/api/recents?${params}`, { signal: controller.signal })
       .then((data) => {
         if (controller.signal.aborted || requestVersionRef.current !== requestVersion) return;
+        completedOffsetsRef.current.add(nextOffset);
         setResult((current) => ({
           ...current,
           items: appendUniqueRecentItems(current.items, Array.isArray(data.items) ? data.items : [], kind),
           sourceTypes: Array.isArray(data.source_types) ? data.source_types : current.sourceTypes,
-          meta: data.meta || current.meta,
+          sourceCounts: Array.isArray(data.source_counts) ? data.source_counts : current.sourceCounts,
+          meta: data.meta?.has_more && (!Number.isInteger(data.meta.next_offset) || data.meta.next_offset <= nextOffset)
+            ? { ...data.meta, has_more: false, next_offset: null }
+            : data.meta || { ...current.meta, has_more: false, next_offset: null },
         }));
       })
       .catch((error) => {
@@ -2454,14 +2494,8 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
     const type = String(item.source_type || '').trim().toLowerCase();
     return knownSourceTypes.has(type) ? type : 'unknown';
   }
-  const sourceCounts = new Map();
-  if (kind === 'pages') {
-    for (const item of result.items) {
-      const type = sourceTypeForItem(item);
-      sourceCounts.set(type, (sourceCounts.get(type) || 0) + 1);
-    }
-  }
-  const sourceTypes = canonicalSourceTypes.map(({ type, label }) => [type, sourceCounts.get(type) || 0, label])
+  const sourceCounts = new Map(result.sourceCounts.map(({ type, count }) => [type, count]));
+  const sourceTypes = canonicalSourceTypes.map(({ type, label }) => [type, sourceCounts.get(type) ?? null, label])
     .sort((left, right) => right[1] - left[1]
     || left[2].localeCompare(right[2]));
   const allSourcesSelected = selectedSourceTypes === null;
@@ -2558,7 +2592,19 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
           </div>
         </div>
       </div>
-      <div className="recents-scroll" aria-live="polite">
+      <div
+        className="recents-scroll"
+        ref={scrollRef}
+        tabIndex={0}
+        onScroll={handleStreamScroll}
+        onWheel={(event) => { if (event.deltaY > 0) markScrollIntent(); }}
+        onTouchMove={markScrollIntent}
+        onKeyDown={(event) => { if (['ArrowDown', 'PageDown', 'End', ' '].includes(event.key)) markScrollIntent(); }}
+        onPointerDown={() => { scrollIntentRef.current.pointerDown = true; }}
+        onPointerUp={() => { scrollIntentRef.current.pointerDown = false; }}
+        onPointerCancel={() => { scrollIntentRef.current.pointerDown = false; }}
+        aria-live="polite"
+      >
         {result.status === 'loading' ? <div className={kind === 'images' ? 'recents-loading recents-loading-gallery' : 'recents-loading recents-loading-pages'} aria-label="Loading Stream">{Array.from({ length: kind === 'images' ? 8 : 5 }, (_, index) => <span key={index} />)}</div> : null}
         {result.status === 'error' ? (
           <div className="recents-state recents-error" role="alert">
@@ -2575,9 +2621,9 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
             </button>
             <div className="recents-source-strip">
               {sourceTypes.map(([type, count, label]) => (
-                <button key={type} type="button" className={`recents-source-pill recents-source-pill-${type.replaceAll('_', '-')} ${allSourcesSelected || selectedSourceTypes.has(type) ? 'active' : ''} ${count ? '' : 'empty'}`} aria-pressed={allSourcesSelected || selectedSourceTypes.has(type)} onClick={() => toggleSourceType(type)}>
+                <button key={type} type="button" className={`recents-source-pill recents-source-pill-${type.replaceAll('_', '-')} ${allSourcesSelected || selectedSourceTypes.has(type) ? 'active' : ''} ${count === 0 ? 'empty' : ''}`} aria-pressed={allSourcesSelected || selectedSourceTypes.has(type)} onClick={() => toggleSourceType(type)}>
                   <span className="recents-source-pill-icon" aria-hidden="true"><GraphFlowSourceIcon source={{ type, label }} /></span>
-                  <span>{label}</span><small>{count}</small>
+                  <span>{label}</span>{count !== null ? <small>{count}</small> : null}
                 </button>
               ))}
             </div>

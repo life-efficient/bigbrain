@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 
-import { appendUniqueRecentItems } from '../../src/dashboard-client/stream-pagination.js';
+import { appendUniqueRecentItems, createBottomReachGate } from '../../src/dashboard-client/stream-pagination.js';
 
 const clientUrl = new URL('../../src/dashboard-client/main.jsx', import.meta.url);
 
@@ -61,6 +61,30 @@ test('Stream deduplicates URL-only images at page boundaries', () => {
   assert.deepEqual(merged.map((item) => item.image.url), ['/api/media/one', '/api/media/two']);
 });
 
+test('bottom reach loads once and cannot chain while the viewport stays parked there', () => {
+  const gate = createBottomReachGate(100);
+  gate.observe({ scrollTop: 0, clientHeight: 400, scrollHeight: 1000 });
+  assert.equal(gate.onScroll({ scrollTop: 510, clientHeight: 400, scrollHeight: 1000 }, true), true);
+  assert.equal(gate.onScroll({ scrollTop: 520, clientHeight: 400, scrollHeight: 1000 }, true), false);
+
+  // Appending a page moves the bottom away. A layout or scroll-anchoring event
+  // can return the viewport to the bottom, but it is not a new user reach.
+  gate.observe({ scrollTop: 520, clientHeight: 400, scrollHeight: 1600 });
+  assert.equal(gate.onScroll({ scrollTop: 1110, clientHeight: 400, scrollHeight: 1600 }, false), false);
+  assert.equal(gate.onScroll({ scrollTop: 1120, clientHeight: 400, scrollHeight: 1600 }, false), false);
+  assert.equal(gate.onScroll({ scrollTop: 1120, clientHeight: 400, scrollHeight: 1600 }, true), false);
+
+  // Only leaving and intentionally re-entering the threshold re-arms it.
+  assert.equal(gate.onScroll({ scrollTop: 800, clientHeight: 400, scrollHeight: 1600 }, false), false);
+  assert.equal(gate.onScroll({ scrollTop: 1110, clientHeight: 400, scrollHeight: 1600 }, true), true);
+});
+
+test('a list that fits the viewport does not auto-fetch every cursor', () => {
+  const gate = createBottomReachGate();
+  gate.observe({ scrollTop: 0, clientHeight: 700, scrollHeight: 300 });
+  assert.equal(gate.onScroll({ scrollTop: 0, clientHeight: 700, scrollHeight: 300 }, true), false);
+});
+
 test('Stream requests successive offsets and appends the next response rather than replacing the first', async () => {
   const panel = await panelSource();
 
@@ -91,6 +115,9 @@ test('Stream exposes continuation, loading, and finished states', async () => {
   assert.match(panel, /has_more/);
   assert.match(panel, /No more|You.re all caught up|End of (?:Stream|results)/i);
   assert.match(panel, /disabled=\{/);
+  assert.match(panel, /onScroll=\{handleStreamScroll\}/);
+  assert.match(panel, /completedOffsetsRef\.current\.has\(nextOffset\)/);
+  assert.match(panel, /bottomReachGateRef\.current\.onScroll\(event\.currentTarget, intentional\)/);
 });
 
 test('Stream source choices come from the API taxonomy rather than a client-side list', async () => {

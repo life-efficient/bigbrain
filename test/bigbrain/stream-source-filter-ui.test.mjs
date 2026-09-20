@@ -20,11 +20,15 @@ async function sources() {
 test('Stream renders the API canonical source taxonomy, including zero-count choices', async () => {
   const { panel, client, dashboard } = await sources();
 
-  assert.match(dashboard, /source_types:\s*Object\.entries\(SOURCE_TYPE_DEFINITIONS\)\.map\(/);
+  assert.match(dashboard, /const sourceTypes = Object\.entries\(SOURCE_TYPE_DEFINITIONS\)/);
+  assert.match(dashboard, /source_types:\s*sourceTypes/);
+  assert.match(dashboard, /source_counts:\s*sourceTypes\.map\(/);
   assert.match(panel, /sourceTypes:\s*Array\.isArray\(data\.source_types\)\s*\?\s*data\.source_types\s*:\s*\[\]/);
+  assert.match(panel, /sourceCounts:\s*Array\.isArray\(data\.source_counts\)\s*\?\s*data\.source_counts\s*:\s*\[\]/);
   assert.match(panel, /const canonicalSourceTypes = result\.sourceTypes\.filter\(/);
-  assert.match(panel, /const sourceCounts = new Map\(\)/);
-  assert.match(panel, /const sourceTypes = canonicalSourceTypes\.map\(\(\{ type, label \}\) => \[type, sourceCounts\.get\(type\) \|\| 0, label\]\)/);
+  assert.match(panel, /const sourceCounts = new Map\(result\.sourceCounts\.map\(/);
+  assert.doesNotMatch(panel, /for \(const item of result\.items\)\s*\{\s*const type = sourceTypeForItem/, 'counts must not come from the loaded client page');
+  assert.match(panel, /const sourceTypes = canonicalSourceTypes\.map\(\(\{ type, label \}\) => \[type, sourceCounts\.get\(type\) \?\? null, label\]\)/);
   assert.match(panel, /sourceTypes\.map\(\(\[type, count, label\]\) => \(/);
   assert.doesNotMatch(client, /\bSTREAM_SOURCE_TYPES\b/, 'client must not maintain a competing source list');
   assert.doesNotMatch(panel, /\b(?:calendar|slack):/, 'Stream must not add noncanonical source aliases');
@@ -38,7 +42,7 @@ test('Stream source buttons support multi-select and a fixed leading icon-only a
   assert.match(filter, /role="group" aria-label="Filter Stream pages by source"/);
   assert.match(filter, /aria-pressed=\{allSourcesSelected \|\| selectedSourceTypes\.has\(type\)\}/);
   assert.match(filter, /<GraphFlowSourceIcon source=\{\{ type, label \}\}/);
-  assert.match(filter, /<span>\{label\}<\/span><small>\{count\}<\/small>/);
+  assert.match(filter, /<span>\{label\}<\/span>\{count !== null \? <small>\{count\}<\/small> : null\}/);
   assert.match(filter, /recents-source-toggle-all/);
   assert.match(filter, /aria-label=\{allSourcesSelected \? 'Deselect all sources' : 'Select all sources'\}/);
   assert.match(filter, /aria-pressed=\{allSourcesSelected\}/);
@@ -63,6 +67,9 @@ test('Stream source pills scroll independently of the leading toggle and stay ke
   const toggleRule = dashboard.match(/\.recents-source-toggle-all\s*\{([^}]*)\}/)?.[1] || '';
 
   assert.match(filterRule, /display:\s*flex/);
+  assert.match(filterRule, /width:\s*100%/, 'source selector spans the Stream content area');
+  assert.doesNotMatch(filterRule, /width:\s*min\(760px/, 'only the page list should use the reading-width limit');
+  assert.match(filterRule, /min-width:\s*0/, 'selector must shrink with the panel');
   assert.doesNotMatch(filterRule, /overflow-x:\s*auto/, 'outer row must not scroll or clip its leading toggle');
   assert.match(stripRule, /flex:\s*1/);
   assert.match(stripRule, /min-width:\s*0/, 'scroll strip must shrink within a narrow viewport');
