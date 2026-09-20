@@ -119,6 +119,23 @@ export async function runHealthCheck(config, {
       });
     }
 
+    if (requiresPageSummary(config, parsed)) {
+      const summary = typeof parsed.frontmatter?.summary === 'string'
+        ? parsed.frontmatter.summary.trim()
+        : '';
+      if (!summary) {
+        await insertHealthFinding(db, {
+          findingType: 'missing_page_summary',
+          severity: severityForFinding('missing_page_summary'),
+          pageSlug: page.slug,
+          details: {
+            expected_field: 'summary',
+            message: 'Canonical Brain pages require a nonblank summary frontmatter field.',
+          },
+        });
+      }
+    }
+
     if (pageSchemaRegistry.status === 'valid') {
       pageSchemaStatus.pages_evaluated += 1;
       const compliance = pageSchemaComplianceIssues(pageSchemaRegistry.registry, {
@@ -403,6 +420,7 @@ function severityForFinding(findingType) {
   if (findingType === 'page_schema_registry_missing') return 'medium';
   if (findingType === 'schema_required_field_missing' || findingType === 'schema_field_type_mismatch' || findingType === 'schema_field_invalid_enum' || findingType === 'unknown_page_schema') return 'medium';
   if (findingType === 'schema_default_missing') return 'low';
+  if (findingType === 'missing_page_summary') return 'medium';
   if (findingType === 'missing_frontmatter' || findingType === 'missing_separator' || findingType === 'invalid_timeline' || findingType === 'duplicate_timeline' || findingType === 'unregistered_domain' || findingType === 'invalid_domain_membership') return 'medium';
   if (findingType === 'duplicate_domain_membership') return 'low';
   if (findingType === 'missing_meeting_heading' || findingType === 'invalid_meeting_prep_heading' || findingType === 'invalid_meeting_prep_structure') return 'medium';
@@ -411,6 +429,19 @@ function severityForFinding(findingType) {
   if (findingType === 'missing_filing_rules') return 'medium';
   if (findingType === 'missing_source_attribution') return 'medium';
   return 'low';
+}
+
+function requiresPageSummary(config, parsed) {
+  if (isAttachmentSidecarSlug(parsed.slug)) return false;
+  const parts = String(parsed.slug || '').split('/').filter(Boolean);
+  if (parts.length < 2) return false;
+  const collection = parts[0];
+  const canonicalCollections = Array.isArray(config?.schemaDirs)
+    ? config.schemaDirs
+    : Array.isArray(config?.schema_dirs)
+      ? config.schema_dirs
+      : [];
+  return canonicalCollections.includes(collection);
 }
 
 function createPageSchemaStatus(loaded) {

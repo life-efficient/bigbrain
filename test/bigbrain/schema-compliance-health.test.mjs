@@ -91,6 +91,77 @@ Current state.
   }
 });
 
+test('health requires a first-class summary for canonical pages but excludes attachment and taxonomy records', async () => {
+  const fixture = await createFixture('bigbrain-summary-health-');
+  try {
+    await writePage(fixture.brainHome, 'organizations/with-summary.md', `---
+title: With summary
+summary: A concise description of the organization.
+---
+# With summary
+
+Detailed page body.
+
+---
+
+## Timeline
+
+- **2026-09-20** | Created.
+`);
+    await writePage(fixture.brainHome, 'organizations/without-summary.md', `---
+title: Without summary
+---
+# Without summary
+
+Detailed page body.
+
+---
+
+## Timeline
+
+- **2026-09-20** | Created.
+`);
+    await writePage(fixture.brainHome, 'organizations/.raw/evidence.md', `---
+title: Attached evidence
+---
+# Attached evidence
+
+Preserved attachment extraction.
+
+---
+
+## Timeline
+
+- **2026-09-20** | Captured.
+`);
+    await writePage(fixture.brainHome, 'taxonomy/organization-types.md', `---
+title: Organization types
+---
+# Organization types
+
+Internal taxonomy documentation.
+
+---
+
+## Timeline
+
+- **2026-09-20** | Created.
+`);
+
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const report = await runHealthCheck(config, isolatedHealthOptions(fixture));
+    const summaryFindings = report.findings
+      .filter((finding) => finding.finding_type === 'missing_page_summary');
+
+    assert.deepEqual(summaryFindings.map((finding) => finding.page_slug), ['organizations/without-summary']);
+    assert.equal(summaryFindings[0].severity, 'medium');
+    assert.equal(summaryFindings[0].details.expected_field, 'summary');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function createFixture(prefix) {
   const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
   const brainHome = path.join(rootDir, 'brain');
