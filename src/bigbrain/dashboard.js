@@ -1887,28 +1887,57 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .health-item.medium { border-color: rgba(188,123,77,0.35); }
       .card-copy { margin-top: 8px; line-height: 1.5; color: var(--ink); }
       .schema { white-space: pre-wrap; font-size: 12px; line-height: 1.5; max-height: 360px; overflow: auto; }
-      .recents-panel { display: flex; flex-direction: column; min-width: 0; height: 100%; border: 1px solid var(--line); background: var(--panel); overflow: hidden; }
-      .recents-head { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding: 22px 24px; border-bottom: 1px solid var(--line); }
-      .recents-head h1 { margin: 0; font-size: 25px; line-height: 1.2; }
-      .recents-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
-      .recents-filters { display: flex; flex-wrap: wrap; gap: 10px; }
-      .recents-filters label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; font-weight: 700; }
-      .recents-filters select { min-width: 124px; min-height: 36px; padding: 7px 32px 7px 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
-      .recents-filters select:focus-visible, .recents-item:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
-      .recents-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 18px 24px 36px; }
-      .recents-list { display: grid; gap: 7px; max-width: 960px; }
-      .recents-item { min-width: 0; width: 100%; display: flex; align-items: center; gap: 13px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); text-align: left; cursor: pointer; }
-      .recents-item:hover, .recents-item.selected { border-color: var(--line-strong); background: var(--surface-muted); }
-      .recents-page-glyph { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 7px; background: var(--surface-muted); color: var(--muted); font-size: 21px; }
-      .recents-item-copy { min-width: 0; display: grid; gap: 4px; }
+      .recents-panel { display: flex; flex-direction: column; min-width: 0; height: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow: hidden; }
+      .recents-head { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding: 25px 30px 20px; }
+      .recents-head-copy { min-width: 0; }
+      .recents-eyebrow { display: block; margin-bottom: 7px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: 0.16em; }
+      .recents-head h1 { margin: 0; font-size: 29px; line-height: 1.08; letter-spacing: -0.035em; }
+      .recents-head p { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
+      .recents-kind-switch { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-muted); }
+      .recents-kind-switch button { min-height: 33px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+      .recents-kind-switch button.active { background: var(--surface-strong); color: var(--ink); box-shadow: 0 1px 6px rgba(0,0,0,0.16); }
+      .recents-toolbar { min-height: 53px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 30px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+      .recents-activity-switch { display: flex; align-self: stretch; align-items: stretch; gap: 24px; }
+      .recents-activity-switch button { position: relative; padding: 0 1px; border: 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+      .recents-activity-switch button.active { color: var(--ink); }
+      .recents-activity-switch button.active::after { content: ''; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; border-radius: 2px; background: var(--ink); }
+      .recents-kind-switch button:hover, .recents-activity-switch button:hover { color: var(--ink); }
+      .recents-kind-switch button:focus-visible, .recents-activity-switch button:focus-visible, .recents-item:focus-visible, .recents-retry:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+      .recents-count { color: var(--muted); font-size: 11px; white-space: nowrap; }
+      .recents-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 24px 30px 40px; }
+      .recents-groups { max-width: 1080px; display: grid; gap: 29px; }
+      .recents-group h2 { margin: 0 0 12px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+      .recents-list { display: grid; gap: 6px; }
+      .recents-item { min-width: 0; width: 100%; display: flex; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid transparent; border-radius: 9px; background: var(--surface); color: var(--ink); text-align: left; cursor: pointer; transition: border-color 140ms ease, background 140ms ease, transform 140ms ease; }
+      .recents-item:hover { border-color: var(--line-strong); background: var(--surface-muted); }
+      .recents-item.selected { border-color: var(--line-strong); background: var(--surface-muted); }
+      .recents-page-glyph { width: 37px; height: 37px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--muted); font-size: 20px; }
+      .recents-item-copy { min-width: 0; flex: 1; display: grid; gap: 4px; }
       .recents-item-copy strong, .recents-item-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .recents-item-copy strong { font-size: 13px; }
-      .recents-item-copy span, .recents-item-copy small { color: var(--muted); font-size: 11px; }
-      .recents-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); align-content: start; gap: 14px; }
-      .recents-gallery .recents-item { display: grid; align-content: start; gap: 9px; padding: 7px; }
-      .recents-gallery .recents-item-copy { padding: 2px 4px 5px; }
-      .recents-thumbnail { display: grid; place-items: center; width: 100%; aspect-ratio: 1; overflow: hidden; background: var(--surface-muted); }
+      .recents-item-copy strong { font-size: 13px; font-weight: 720; }
+      .recents-item-copy span, .recents-item-time { color: var(--muted); font-size: 11px; }
+      .recents-item-time { flex: 0 0 auto; padding-left: 10px; white-space: nowrap; }
+      .recents-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); align-content: start; gap: 13px; }
+      .recents-gallery .recents-item { display: grid; align-content: start; gap: 0; padding: 5px; overflow: hidden; }
+      .recents-gallery .recents-item:hover { transform: translateY(-2px); }
+      .recents-gallery .recents-item-copy { padding: 10px 8px 8px; }
+      .recents-gallery .recents-item-copy strong { font-size: 12px; }
+      .recents-thumbnail { display: grid; place-items: center; width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: 6px; background: var(--surface-muted); }
       .recents-thumbnail img { width: 100%; height: 100%; object-fit: cover; }
+      .recents-state { width: min(390px, 100%); margin: min(12vh, 100px) auto 0; padding: 24px; text-align: center; }
+      .recents-state-icon { width: 46px; height: 46px; display: grid; place-items: center; margin: 0 auto 16px; border: 1px solid var(--line-strong); border-radius: 13px; background: var(--surface); color: var(--muted); font-size: 25px; font-weight: 600; }
+      .recents-state h2 { margin: 0; font-size: 17px; letter-spacing: -0.02em; }
+      .recents-state p { margin: 9px auto 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+      .recents-error .recents-state-icon { color: #fda4af; border-color: rgba(253,164,175,0.24); background: rgba(253,164,175,0.08); }
+      .recents-retry { min-height: 36px; margin-top: 20px; padding: 0 17px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface-strong); color: var(--ink); font-size: 12px; font-weight: 750; cursor: pointer; }
+      .recents-retry:hover { background: var(--surface-muted); }
+      .recents-loading { display: grid; gap: 8px; max-width: 1080px; }
+      .recents-loading span { display: block; height: 63px; border-radius: 9px; background: var(--surface); opacity: 0.7; animation: recents-pulse 1.6s ease-in-out infinite alternate; }
+      .recents-loading span:nth-child(2n) { opacity: 0.48; }
+      .recents-loading-gallery { grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 13px; }
+      .recents-loading-gallery span { height: auto; aspect-ratio: 0.8; }
+      @keyframes recents-pulse { from { opacity: 0.42; } to { opacity: 0.8; } }
+      @media (prefers-reduced-motion: reduce) { .recents-item, .recents-loading span { animation: none; transition: none; } }
       .explorer-shell { --explorer-tree-width: 310px; height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(220px, var(--explorer-tree-width)) 8px minmax(0, 1fr); border: 1px solid var(--line); background: var(--panel); overflow: hidden; }
       .explorer-tree { min-height: 0; overflow: auto; background: color-mix(in srgb, var(--panel) 92%, #000 8%); padding: 8px 0 12px; }
       .explorer-resizer { min-height: 0; cursor: col-resize; border-left: 1px solid var(--line); border-right: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 86%, #000 14%); position: relative; }
@@ -2113,6 +2142,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .dashboard-search { width: min(100%, 280px); min-width: 0; }
         .graph-focus-banner { grid-template-columns: minmax(0, 1fr) auto; }
         .graph-focus-mode-toggle { grid-column: 1 / -1; justify-self: start; }
+        .recents-head { padding: 20px 18px 17px; }
+        .recents-toolbar { padding: 0 18px; }
+        .recents-scroll { padding: 18px 18px 30px; }
       }
       @media (max-width: 640px) {
         .sidecar-shell { left: 0; width: 100vw; }
@@ -2120,6 +2152,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .view-recents.preview-open main { padding-right: 16px; }
         .view-recents .sidecar-shell { position: fixed; width: 100vw; }
         .recents-head, .recents-scroll { padding-left: 14px; padding-right: 14px; }
+        .recents-toolbar { padding-right: 14px; padding-left: 14px; }
+        .recents-activity-switch { gap: 18px; }
+        .recents-item-time { display: none; }
         .recents-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
         .analytics-head { align-items: flex-start; flex-direction: column; }
         .analytics-metrics { grid-template-columns: 1fr; }

@@ -2214,72 +2214,108 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   }, [activity, kind, demoMode, refreshVersion]);
 
   const timeField = activity === 'added' ? 'created_at' : activity === 'viewed' ? 'viewed_at' : 'updated_at';
-  const emptyLabel = demoMode
-    ? 'Recent activity is hidden in demo mode.'
+  const timestampFor = (item) => kind === 'images' && activity === 'updated'
+    ? item.image?.updated_at || item[timeField]
+    : item[timeField];
+  const groups = [];
+  for (const item of result.items) {
+    const label = recentDateGroupLabel(timestampFor(item));
+    const group = groups.at(-1);
+    if (group?.label === label) group.items.push(item);
+    else groups.push({ label, items: [item] });
+  }
+  const errorIsMissingRoute = result.error.includes('failed with 404');
+  const emptyTitle = demoMode ? 'Recents is off in demo mode' : activity === 'viewed' ? 'Nothing viewed yet' : `No ${kind} to show`;
+  const emptyCopy = demoMode
+    ? 'Turn off demo mode to see activity from this brain.'
     : activity === 'viewed'
-      ? `No recently viewed ${kind} yet. Open a page to start this history.`
-      : `No recently ${activity} ${kind} yet.`;
+      ? 'Pages you open in BigBrain will appear here.'
+      : kind === 'images'
+        ? 'Images attached to pages will appear here when available.'
+        : 'New and changed pages will appear here when available.';
 
   return (
     <section className="recents-panel" aria-label="Recent activity">
       <div className="recents-head">
-        <div>
+        <div className="recents-head-copy">
+          <span className="recents-eyebrow">YOUR BRAIN</span>
           <h1>Recents</h1>
-          <p>Browse recent pages and images in this brain.</p>
+          <p>Pick up where you left off.</p>
         </div>
-        <div className="recents-filters">
-          <label>Activity
-            <select value={activity} onChange={(event) => setActivity(event.target.value)}>
-              <option value="updated">Updated</option>
-              <option value="added">Added</option>
-              <option value="viewed">Viewed</option>
-            </select>
-          </label>
-          <label>Show
-            <select value={kind} onChange={(event) => setKind(event.target.value)}>
-              <option value="pages">Pages</option>
-              <option value="images">Images</option>
-            </select>
-          </label>
+        <div className="recents-kind-switch" role="group" aria-label="Content type">
+          {[['pages', 'Pages'], ['images', 'Images']].map(([value, label]) => (
+            <button key={value} type="button" className={kind === value ? 'active' : ''} aria-pressed={kind === value} onClick={() => setKind(value)}>{label}</button>
+          ))}
         </div>
       </div>
+      <div className="recents-toolbar">
+        <div className="recents-activity-switch" role="group" aria-label="Sort recent activity">
+          {[['updated', 'Updated'], ['added', 'Added'], ['viewed', 'Viewed']].map(([value, label]) => (
+            <button key={value} type="button" className={activity === value ? 'active' : ''} aria-pressed={activity === value} onClick={() => setActivity(value)}>{label}</button>
+          ))}
+        </div>
+        {result.status === 'ready' && result.items.length ? <span className="recents-count">{result.items.length} {kind === 'images' ? (result.items.length === 1 ? 'image' : 'images') : (result.items.length === 1 ? 'page' : 'pages')}</span> : null}
+      </div>
       <div className="recents-scroll" aria-live="polite">
-        {result.status === 'loading' ? <div className="empty-copy">Loading recents…</div> : null}
-        {result.status === 'error' ? <div className="empty-copy">Unable to load recents: {result.error}</div> : null}
-        {result.status === 'ready' && !result.items.length ? <div className="empty-copy">{emptyLabel}</div> : null}
+        {result.status === 'loading' ? <div className={kind === 'images' ? 'recents-loading recents-loading-gallery' : 'recents-loading'} aria-label="Loading recents">{Array.from({ length: kind === 'images' ? 8 : 5 }, (_, index) => <span key={index} />)}</div> : null}
+        {result.status === 'error' ? (
+          <div className="recents-state recents-error" role="alert">
+            <span className="recents-state-icon" aria-hidden="true">!</span>
+            <h2>Recents is unavailable</h2>
+            <p>{errorIsMissingRoute ? 'This dashboard is running an older BigBrain service. Restart BigBrain to load Recents.' : 'We couldn’t load recent activity. Check the connection and try again.'}</p>
+            <button type="button" className="recents-retry" onClick={() => setRefreshVersion((version) => version + 1)}>Try again</button>
+          </div>
+        ) : null}
+        {result.status === 'ready' && !result.items.length ? (
+          <div className="recents-state">
+            <span className="recents-state-icon" aria-hidden="true">{kind === 'images' ? '▧' : '▤'}</span>
+            <h2>{emptyTitle}</h2>
+            <p>{emptyCopy}</p>
+          </div>
+        ) : null}
         {result.status === 'ready' && result.items.length ? (
-          <div className={kind === 'images' ? 'recents-gallery' : 'recents-list'}>
-            {result.items.map((item, index) => {
-              const timestamp = kind === 'images' && activity === 'updated'
-                ? item.image?.updated_at || item[timeField]
-                : item[timeField];
-              return (
-                <button
-                  key={kind === 'images' ? `${item.slug}:${item.image?.path || index}` : item.slug}
-                  type="button"
-                  className={`recents-item ${selectedSlug === item.slug ? 'selected' : ''}`}
-                  onClick={async () => {
-                    await onOpenPage(item.slug);
-                    if (activity === 'viewed') setRefreshVersion((version) => version + 1);
-                  }}
-                  aria-label={kind === 'images' ? `Open ${item.title || labelFromSlug(item.slug)}, image ${index + 1}` : undefined}
-                >
-                  {kind === 'images' ? (
-                    <span className="recents-thumbnail"><img src={item.image?.url} alt={item.image?.alt || ''} loading="lazy" /></span>
-                  ) : <span className="recents-page-glyph" aria-hidden="true">▤</span>}
-                  <span className="recents-item-copy">
-                    <strong>{item.title || labelFromSlug(item.slug)}</strong>
-                    <span>{kind === 'images' ? item.image?.caption || item.image?.alt || item.slug : item.slug}</span>
-                    <small>{formatRelativeTime(timestamp)}</small>
-                  </span>
-                </button>
-              );
-            })}
+          <div className="recents-groups">
+            {groups.map((group) => <div className="recents-group" key={group.label}>
+              <h2>{group.label}</h2>
+              <div className={kind === 'images' ? 'recents-gallery' : 'recents-list'}>
+                {group.items.map((item, index) => (
+                  <button
+                    key={kind === 'images' ? `${item.slug}:${item.image?.path || index}` : item.slug}
+                    type="button"
+                    className={`recents-item ${selectedSlug === item.slug ? 'selected' : ''}`}
+                    onClick={async () => {
+                      await onOpenPage(item.slug);
+                      if (activity === 'viewed') setRefreshVersion((version) => version + 1);
+                    }}
+                    aria-label={kind === 'images' ? `Open image from ${item.title || labelFromSlug(item.slug)}` : undefined}
+                  >
+                    {kind === 'images' ? (
+                      <span className="recents-thumbnail"><img src={item.image?.url} alt={item.image?.alt || ''} loading="lazy" /></span>
+                    ) : <span className="recents-page-glyph" aria-hidden="true">▤</span>}
+                    <span className="recents-item-copy">
+                      <strong>{item.title || labelFromSlug(item.slug)}</strong>
+                      <span>{kind === 'images' ? item.image?.caption || item.image?.alt || item.slug : item.slug}</span>
+                    </span>
+                    {kind === 'pages' ? <span className="recents-item-time">{formatRelativeTime(timestampFor(item))}</span> : null}
+                  </button>
+                ))}
+              </div>
+            </div>)}
           </div>
         ) : null}
       </div>
     </section>
   );
+}
+
+function recentDateGroupLabel(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Earlier';
+  const now = new Date();
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  if (day === new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()) return 'Today';
+  if (day === new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1).getTime()) return 'Yesterday';
+  return new Intl.DateTimeFormat(undefined, { month: 'long', day: 'numeric', year: date.getFullYear() === now.getFullYear() ? undefined : 'numeric' }).format(date);
 }
 
 function ExplorerRecentList({ files, selectedPath, onOpenFile }) {
