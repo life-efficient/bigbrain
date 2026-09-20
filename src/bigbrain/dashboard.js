@@ -66,6 +66,7 @@ import {
   publicRawMimeTypeForPath,
 } from './public-raw-policy.js';
 import { runtimeMetadata } from './runtime-metadata.js';
+import { SOURCE_TYPE_DEFINITIONS } from './source-taxonomy.js';
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(moduleDir, '..', '..');
@@ -2507,6 +2508,8 @@ export async function buildRecentsPayload(
   }
   const requestedLimit = Number.parseInt(requestUrl.searchParams.get('limit') || '80', 10);
   const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(250, requestedLimit)) : 80;
+  const requestedOffset = Number.parseInt(requestUrl.searchParams.get('offset') || '0', 10);
+  const offset = Number.isFinite(requestedOffset) ? Math.max(0, requestedOffset) : 0;
   const requestedCollection = requestUrl.searchParams.get('collection')?.trim() || null;
   const sharedGroups = await listSharedGroups(db);
   const viewedAt = await dashboardPageViews(db);
@@ -2593,7 +2596,7 @@ export async function buildRecentsPayload(
   visible.sort((left, right) => Date.parse(dateFor(right)) - Date.parse(dateFor(left))
     || left.slug.localeCompare(right.slug)
     || (left.image?.path || '').localeCompare(right.image?.path || ''));
-  const selectedItems = visible.slice(0, limit);
+  const selectedItems = visible.slice(offset, offset + limit);
   const missingSourceSlugs = [...new Set(selectedItems.filter((item) => !item.source_type).map((item) => item.slug))];
   if (missingSourceSlugs.length) {
     const provenanceRows = await listPageProvenance(db, { pageSlugs: missingSourceSlugs, limit: 1000 });
@@ -2613,11 +2616,15 @@ export async function buildRecentsPayload(
   return {
     items: selectedItems,
     collections,
+    source_types: Object.entries(SOURCE_TYPE_DEFINITIONS).map(([type, definition]) => ({ type, label: definition.label })),
     meta: {
       activity,
       kind,
       limit,
+      offset,
       total_count: visible.length,
+      has_more: offset + selectedItems.length < visible.length,
+      next_offset: offset + selectedItems.length < visible.length ? offset + selectedItems.length : null,
       collection: selectedCollection?.slug || requestedCollection,
       surface: dashboardSurface,
     },
