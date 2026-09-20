@@ -505,6 +505,38 @@ test('force graph arc modes keep grow line-only and shoot beam-driven', async ()
   assert.match(force3d, /hexToRgba\(/);
 });
 
+test('3D focused arcs keep thin line geometry before and after hover', async () => {
+  const source = await fs.readFile(
+    new URL('../../src/dashboard-client/graph/force-graph-3d-visualizer.jsx', import.meta.url),
+    'utf8',
+  );
+  const widthFunction = source.match(/function getForceGraphLinkWidth\([^]*?\n\}/)?.[0];
+  assert.ok(widthFunction, '3D link width helper exists');
+  const getWidth = new Function(
+    'graphTransitionProgress',
+    'arcAnimationProgress',
+    `${widthFunction}\nreturn getForceGraphLinkWidth;`,
+  )(() => 1, (graph) => graph.__bigBrainArcAnimation.progress);
+
+  const link = { source: 'focus', target: 'neighbor' };
+  const highlightedLinks = new Set([link]);
+  for (const progress of [0, 0.5, 1]) {
+    const graph = { __bigBrainArcAnimation: { mode: 'shoot', progress } };
+    assert.equal(getWidth(link, highlightedLinks, graph), 0, `focused width at progress ${progress}`);
+  }
+  assert.equal(getWidth(link, new Set(), {}), 0, 'unfocused links use the same thin geometry');
+  assert.equal(
+    source.match(/\.linkWidth\(\(link\) => getForceGraphLinkWidth\(/g)?.length,
+    2,
+    'initial setup and highlight refresh both use the thin-line width helper',
+  );
+  assert.equal(
+    source.match(/\.linkColor\(\(link\) => getForceGraphLinkColor\(/g)?.length,
+    2,
+    'focused links retain their separate color transition',
+  );
+});
+
 test('unchanged graph refreshes do not restart vis network stabilization', async () => {
   const graph = {
     nodes: [{ slug: 'projects/jarvis', updated_at: '2026-08-22T10:00:00Z', degree: 1 }],

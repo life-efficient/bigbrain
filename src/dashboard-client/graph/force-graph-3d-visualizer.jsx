@@ -240,8 +240,8 @@ export const ForceGraph3DVisualizer = forwardRef(function ForceGraph3DVisualizer
       .linkCurvature(() => getForceGraphLinkCurvature(settingsRef.current.arcStyle))
       .linkColor((link) => getForceGraphLinkColor(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkOpacity(1)
-      // Keep the dense background as GPU lines. Use thicker cylinders only for
-      // the focused neighborhood, where the extra geometry is visible.
+      // Keep every arc as a GPU line. Focus changes its color and opacity,
+      // including during the grow and shoot animations.
       .linkWidth((link) => getForceGraphLinkWidth(link, getForceGraphHighlightLinks(forceGraph), forceGraph))
       .linkResolution(3)
       .linkDirectionalParticles((link) => shouldShowParticles(link, getForceGraphData(forceGraph).nodes.length, getForceGraphHighlightLinks(forceGraph), forceGraph))
@@ -995,11 +995,11 @@ function getForceGraphLinkColor(link, highlightedLinks, forceGraph) {
   return hexToRgba(DEFAULT_LINK_COLOR, 0.2 * transition);
 }
 
-function getForceGraphLinkWidth(link, highlightedLinks, forceGraph) {
-  const transition = graphTransitionProgress(link);
-  if (!highlightedLinks.has(link)) return 0;
-  if (forceGraph?.__bigBrainArcAnimation?.mode === 'instant') return 0;
-  return (arcAnimationProgress(forceGraph, link) >= 0.18 ? 1.5 : 0) * transition;
+function getForceGraphLinkWidth() {
+  // The 3D library turns any positive width into a world-space cylinder.
+  // Hover starts at zero width and animates the line material, so a focused
+  // click must keep that same line geometry from its first frame onward.
+  return 0;
 }
 
 function updateForceGraphAnimatedLinks(forceGraph, links) {
