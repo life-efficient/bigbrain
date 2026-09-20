@@ -12,6 +12,7 @@ test('Recents shows a collection selector and sends the selection to its API', a
   assert.match(panel, /aria-label="Collections"/);
   assert.match(panel, /selectedCollection\?\.title \|\| collection \|\| 'All collections'/);
   assert.match(panel, /<span>All collections<\/span>/);
+  assert.match(panel, /result\.status === 'ready' && !result\.collections\.length \? <p className="recents-collection-empty" role="note">No saved collections in this brain yet\.<\/p>/);
   assert.match(panel, /result\.collections\.map\(\(entry\) => \(/);
   assert.match(panel, /role="menuitemradio" aria-checked=\{collection === entry\.id\}/);
   assert.match(panel, /if \(collection\) params\.set\('collection', collection\)/);

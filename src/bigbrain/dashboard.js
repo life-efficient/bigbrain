@@ -1913,6 +1913,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .recents-collection-trigger span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .recents-collection-chevron { color: var(--muted); font-size: 16px; line-height: 1; }
       .graph-filter-menu.recents-collection-menu { top: calc(100% + 8px); right: 0; bottom: auto; min-width: max(220px, 100%); max-width: min(320px, calc(100vw - 40px)); max-height: min(50vh, 360px); }
+      .recents-collection-empty { margin: 3px 4px 2px; padding: 10px 8px 3px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.45; }
       .recents-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 24px 30px 40px; }
       .recents-groups { display: grid; gap: 29px; }
       .recents-groups-pages { width: min(760px, 100%); margin-inline: auto; }

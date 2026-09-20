@@ -2308,6 +2308,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
                 <button type="button" className={`menu-item ${!collection ? 'selected' : ''}`} role="menuitemradio" aria-checked={!collection} onClick={() => { setCollection(''); setCollectionMenuOpen(false); }}>
                   <span>All collections</span><span className="menu-item-check" aria-hidden="true">{!collection ? '✓' : ''}</span>
                 </button>
+                {result.status === 'ready' && !result.collections.length ? <p className="recents-collection-empty" role="note">No saved collections in this brain yet.</p> : null}
                 {result.collections.map((entry) => (
                   <button key={entry.id} type="button" className={`menu-item ${collection === entry.id ? 'selected' : ''}`} role="menuitemradio" aria-checked={collection === entry.id} onClick={() => { setCollection(entry.id); setCollectionMenuOpen(false); }}>
                     <span>{entry.title}</span><span className="menu-item-check" aria-hidden="true">{collection === entry.id ? '✓' : ''}</span>
