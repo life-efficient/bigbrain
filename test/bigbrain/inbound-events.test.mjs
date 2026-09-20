@@ -629,11 +629,15 @@ test('Granola completion webhook is normalized, processed, filed, and deduplicat
   const processor = new InboundEventProcessor({ rssLedgerPrepare: async () => {}, rssLedgerReader: async () => null,
     registryStore: registry,
     inboxStore: inbox,
+    granolaLedgerReader: async (id) => {
+      assert.equal(id, 'not_test_1');
+      return { decision_state: 'verified', selected_brain_id: 'brain_personal', destination_verification_ref: 'verified-meeting' };
+    },
     executorFactory: async () => ({ execute: async ({ event }) => {
       executions.push(event);
-      return { execution_id: 'granola-exec-1', thread_id: 'granola-thread-1', outcome: { status: 'filed', capture_mode: 'full', reason: 'completed meeting', destinations: [{ brain_id: 'brain_personal', writes: [] }] } };
+      return { execution_id: 'granola-exec-1', thread_id: 'granola-thread-1', response_text: '1 meeting ingested' };
     } }),
-    filingBroker: { file: async () => ({ status: 'filed', destinations: [] }) },
+    filingBroker: { file: async () => { throw new Error('Granola writes belong to the ingestion task'); } },
   });
   const secret = `whsec_${Buffer.from('test-signing-secret').toString('base64')}`;
   const server = new InboundWebhookServer({ registryStore: registry, inboxStore: inbox, port: 0, secretResolver: () => secret, onAccepted: (deliveryId) => processor.process(deliveryId) });
@@ -654,12 +658,42 @@ test('Granola completion webhook is normalized, processed, filed, and deduplicat
     assert.equal(executions[0].type, 'granola.meeting.completed');
     assert.equal(executions[0].payload.granola_id, 'not_test_1');
     assert.equal(executions[0].payload.event_type, 'note.generated');
-    assert.equal(filed.outcome.filing.status, 'filed');
+    assert.equal(filed.outcome.status, 'filed');
+    assert.deepEqual(filed.ingestion_result, { ingested: true, capture: 'full', reason: 'Granola route verified after destination read-back.' });
     assert.equal((await inbox.list()).length, 1);
   } finally {
     await server.close();
     await fs.rm(paths.root, { recursive: true, force: true });
   }
+});
+
+test('Granola task text cannot mark an event filed without a verified route', async (t) => {
+  const cases = [
+    ['missing route', null],
+    ['failed route', { decision_state: 'failed', selected_brain_id: 'brain_personal', destination_verification_ref: null }],
+    ['route in another Brain', { decision_state: 'verified', selected_brain_id: 'other_brain', destination_verification_ref: 'verified-meeting' }],
+    ['route without read-back reference', { decision_state: 'verified', selected_brain_id: 'brain_personal', destination_verification_ref: null }],
+  ];
+  for (const [name, route] of cases) await t.test(name, async () => {
+    const paths = await fixture();
+    try {
+      const listener = normalizeListener({ id: 'granola', provider: 'granola', type: 'webhook', brain_ids: ['brain_personal'] });
+      const registry = new EventRegistryStore({ filePath: paths.registryPath, runtimeId: 'client-1' });
+      await registry.save({ brains: [{ id: 'brain_personal', name: 'Personal' }], listeners: [listener] });
+      const inbox = new EventInboxStore({ filePath: paths.inboxPath });
+      const queued = await inbox.enqueue({ event_id: 'granola:meeting', listener_id: 'granola', type: 'granola.meeting.completed', payload: { granola_id: 'not_test_1' }, allowed_brain_ids: ['brain_personal'] }, { clientId: 'client-1' });
+      const processor = new InboundEventProcessor({ registryStore: registry, inboxStore: inbox,
+        executorFactory: async () => ({ execute: async () => ({ mode: 'app_thread', execution_id: 'turn-1', thread_id: 'thread-1', response_text: '0 meetings ingested\n\nIssues\nRouting ledger preflight failed.' }) }),
+        granolaLedgerReader: async (id) => { assert.equal(id, 'not_test_1'); return route; },
+        filingBroker: { file: async () => { throw new Error('No writes should be brokered'); } },
+      });
+      const processed = await processor.process(queued.event.delivery_id);
+      assert.equal(processed.state, 'quarantined');
+      assert.equal(processed.thread_status, 'error');
+      assert.equal(processed.thread_id, 'thread-1');
+      assert.equal(processed.ingestion_result, null);
+    } finally { await fs.rm(paths.root, { recursive: true, force: true }); }
+  });
 });
 
 test('webhook event type filters acknowledge unsupported events without enqueueing', async () => {

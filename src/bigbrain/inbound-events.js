@@ -1,7 +1,9 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 
 import { CodexAppThreadExecutor, CodexCliExecutor, isSubstackRssEvent, normalizeCodexOutcome } from './codex-event-executor.js';
 import { openSubstackLedger } from './substack-ledger.js';
@@ -10,6 +12,7 @@ import { DEFAULT_RSS_POLL_LIMIT, RssCollector } from './rss-events.js';
 import { InboundWebhookServer } from './webhook-events.js';
 import { normalizeSourceType } from './source-taxonomy.js';
 import { DEFAULT_COLLECTIONS } from './page-ops.js';
+import { defaultRoutingLedgerPath, ROUTING_LEDGER_SCHEMA_VERSION } from './routing-ledger.js';
 
 export { RssCollector } from './rss-events.js';
 export { InboundWebhookServer, configuredWebhookEventType } from './webhook-events.js';
@@ -764,12 +767,13 @@ export class EventInboxStore {
 }
 
 export class InboundEventProcessor {
-  constructor({ registryStore, inboxStore, executorFactory, filingBroker = null, substackLedgerReader = readSubstackLedgerPost, rssLedgerReader = readRssLedgerPost, rssLedgerPrepare = prepareRssLedgerPost, logger = console, now = () => new Date() } = {}) {
+  constructor({ registryStore, inboxStore, executorFactory, filingBroker = null, granolaLedgerReader = readGranolaLedgerRoute, substackLedgerReader = readSubstackLedgerPost, rssLedgerReader = readRssLedgerPost, rssLedgerPrepare = prepareRssLedgerPost, logger = console, now = () => new Date() } = {}) {
     if (!registryStore || !inboxStore) throw new Error('Inbound event processor requires registryStore and inboxStore.');
     this.registryStore = registryStore;
     this.inboxStore = inboxStore;
     this.executorFactory = executorFactory;
     this.filingBroker = filingBroker;
+    this.granolaLedgerReader = granolaLedgerReader;
     this.substackLedgerReader = substackLedgerReader;
     this.rssLedgerReader = rssLedgerReader;
     this.rssLedgerPrepare = rssLedgerPrepare;
@@ -863,6 +867,30 @@ export class InboundEventProcessor {
         ? normalizeCodexOutcome(execution.outcome, { defaultBrainId: processingEvent.allowed_brain_ids?.length === 1 ? processingEvent.allowed_brain_ids[0] : null })
         : null;
       const executionMeta = executionMetadata(execution);
+      if (listener.provider === 'granola' || processingEvent.type === 'granola.meeting.completed') {
+        const sourceItemId = processingEvent.payload?.granola_id;
+        let route;
+        try { route = sourceItemId ? await this.granolaLedgerReader(sourceItemId) : null; } catch (error) {
+          return this.inboxStore.fail(deliveryId, `Granola route verification unavailable: ${error.message}`, {
+            quarantine: true, executionId: execution?.execution_id, threadId: execution?.thread_id, executionMeta,
+          });
+        }
+        const allowedIds = allowedDestinations.map((brain) => brain.id || brain.brain_id);
+        if (route?.decision_state !== 'verified' || !route.destination_verification_ref || !allowedIds.includes(route.selected_brain_id)) {
+          return this.inboxStore.fail(deliveryId, 'Granola task finished without a verified route in an allowed Brain. Review the task before retrying.', {
+            quarantine: true, executionId: execution?.execution_id, threadId: execution?.thread_id, executionMeta,
+          });
+        }
+        const verifiedOutcome = {
+          status: 'filed', capture_mode: 'full', reason: 'Granola route verified after destination read-back.',
+          destinations: [{ brain_id: route.selected_brain_id }],
+        };
+        return this.inboxStore.complete(deliveryId, {
+          state: 'filed', outcome: verifiedOutcome, ingestionResult: ingestionResultForOutcome(verifiedOutcome),
+          executionId: execution?.execution_id, threadId: execution?.thread_id, executionMeta,
+          retainRaw: listener.capture_policy.retain_raw,
+        });
+      }
       if (!execution?.outcome) {
         return this.inboxStore.complete(deliveryId, {
           state: 'filed',
@@ -1009,6 +1037,19 @@ function readRssLedgerPost(url) {
   try { return ledger.post(url); } finally { ledger.close(); }
 }
 
+function readGranolaLedgerRoute(sourceItemId) {
+  const ledgerPath = defaultRoutingLedgerPath();
+  if (!existsSync(ledgerPath)) return null;
+  const db = new DatabaseSync(ledgerPath, { readOnly: true });
+  try {
+    if (Number(db.prepare('PRAGMA user_version').get().user_version) !== ROUTING_LEDGER_SCHEMA_VERSION) {
+      throw new Error('Unsupported routing ledger schema version.');
+    }
+    return db.prepare('SELECT decision_state, selected_brain_id, destination_verification_ref FROM routes WHERE source = ? AND source_item_id = ?')
+      .get('granola', sourceItemId) || null;
+  } finally { db.close(); }
+}
+
 function prepareRssLedgerPost(event, listener) {
   const ledger = openRssLedger();
   try {
@@ -1070,6 +1111,7 @@ export class InboundEventRuntime {
     fetchImpl = globalThis.fetch,
     executorFactory = null,
     filingBroker = null,
+    granolaLedgerReader = readGranolaLedgerRoute,
     rssLedgerReader = readRssLedgerPost,
     rssLedgerPrepare = prepareRssLedgerPost,
     credentialResolver = resolveCredentialRef,
@@ -1097,7 +1139,7 @@ export class InboundEventRuntime {
         return new SimpleMcpHttpClient({ url: brain.mcp_url, fetchImpl, credentialRef: brain.credential_ref, credentialResolver });
       },
     });
-    this.processor = new InboundEventProcessor({ registryStore: this.registryStore, inboxStore: this.inboxStore, executorFactory: this.executorFactory, filingBroker: this.filingBroker, rssLedgerReader, rssLedgerPrepare, logger, now });
+    this.processor = new InboundEventProcessor({ registryStore: this.registryStore, inboxStore: this.inboxStore, executorFactory: this.executorFactory, filingBroker: this.filingBroker, granolaLedgerReader, rssLedgerReader, rssLedgerPrepare, logger, now });
     this.executionQueue = new InboundExecutionQueue({ processor: this.processor, maxConcurrency: maxExecutionConcurrency, maxPending: maxPendingExecutions, logger });
     this.rssTimer = null;
     this.rssCycleRunning = false;
