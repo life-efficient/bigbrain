@@ -937,7 +937,7 @@ test('arc-based node sizing makes area proportional and keeps isolated nodes vis
 test('icon nodes cover built-in schema types and use stable custom fallbacks', async () => {
   const canonicalTypes = [
     'people', 'organizations', 'deals', 'projects', 'ideas', 'meetings',
-    'tasks', 'concepts', 'components', 'products', 'processes', 'writing', 'protocol', 'archive',
+    'tasks', 'concepts', 'frameworks', 'components', 'products', 'processes', 'writing', 'protocol', 'archive',
   ];
   for (const type of canonicalTypes) {
     assert.equal(typeof GRAPH_TYPE_ICON_NAMES[type], 'string');

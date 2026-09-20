@@ -24,6 +24,7 @@ export const CANONICAL_SCHEMA_DIRS = [
   'meetings',
   'tasks',
   'concepts',
+  'frameworks',
   'components',
   'products',
   'processes',

@@ -9,6 +9,7 @@ export const GRAPH_TYPE_ICON_NAMES = {
   meetings: 'CalendarDays',
   tasks: 'ListChecks',
   concepts: 'BrainCircuit',
+  frameworks: 'Compass',
   components: 'Box',
   products: 'Shapes',
   processes: 'Workflow',

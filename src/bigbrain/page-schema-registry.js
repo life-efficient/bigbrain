@@ -20,7 +20,8 @@ const DEFAULT_SCHEMA_DESCRIPTIONS = {
   ideas: 'Canonical pages for unbuilt possibilities.',
   meetings: 'Canonical pages for meetings, preparation, and decisions.',
   tasks: 'Assignable work items with task-specific frontmatter.',
-  concepts: 'Canonical pages for reusable mental models and frameworks.',
+  concepts: 'Canonical pages for individual ideas, mechanisms, definitions, and phenomena.',
+  frameworks: 'Canonical pages for structured models used to analyze, decide, or organize knowledge.',
   components: 'Canonical pages for technical or physical components.',
   products: 'Canonical pages for named commercial offerings.',
   processes: 'Canonical pages for repeatable operating processes.',
@@ -40,8 +41,21 @@ const fieldDefinitionSchema = z.object({
 const pageSchemaDefinitionSchema = z.object({
   path_prefix: z.string().trim().min(1).optional(),
   fields: z.record(z.string(), fieldDefinitionSchema).default({}),
+  additional_properties: z.boolean().optional(),
   description: z.string().trim().min(1).optional(),
 }).passthrough();
+
+const PAGE_SCHEMA_RESERVED_FIELDS = new Set([
+  'title',
+  'created',
+  'page_schema',
+  'domains',
+  'images',
+  'visibility',
+  'public',
+  'public_raw_files',
+  'redirect_from',
+]);
 
 export const pageSchemaRegistrySchema = z.object({
   schema_version: z.literal(PAGE_SCHEMA_REGISTRY_VERSION),
@@ -88,6 +102,7 @@ export function defaultPageSchemaRegistry() {
     schemas: Object.fromEntries(CANONICAL_SCHEMA_DIRS.map((collection) => [collection, {
       path_prefix: collection,
       description: DEFAULT_SCHEMA_DESCRIPTIONS[collection] || `Canonical pages under ${collection}/.`,
+      additional_properties: !['articles', 'tasks'].includes(collection),
       fields: collection === 'tasks' ? defaultTaskFields() : collection === 'articles' ? defaultArticleFields() : {},
     }])),
   };
@@ -105,6 +120,48 @@ function defaultArticleFields() {
       required: true,
       description: 'Canonical article URL used for source provenance.',
     },
+    source_kind: { type: 'string', required: true, description: 'Source channel such as online-article, substack, newsletter, or rss.' },
+    raw_file: { type: 'string', description: 'Relative path to the preserved source artifact.' },
+    raw_mime_type: { type: 'string', description: 'MIME type of the preserved source artifact.' },
+    retrieved: { type: 'string', description: 'Date or timestamp when the source was retrieved.' },
+    publisher: { description: 'Publisher name.' },
+    author: { description: 'Author name or names as supplied by the source.' },
+    authors: { type: 'array', description: 'Author names when represented as an ordered list.' },
+    publication: { description: 'Publication or newsletter name.' },
+    publication_url: { type: 'string' },
+    publication_key: { type: 'string' },
+    post_key: { type: 'string' },
+    published: { description: 'Legacy or source-specific publication value.' },
+    published_period: { type: 'string' },
+    source_feed: { type: 'string' },
+    feed_url: { type: 'string' },
+    rss_id: { type: 'string' },
+    rss_guid: { type: 'string' },
+    canonical_url: { type: 'string' },
+    source_updated: { type: 'string' },
+    retrieval_method: { type: 'string' },
+    filing_outcome: { type: 'string' },
+    fetch_status: { type: 'string' },
+    podcast_url: { type: 'string' },
+    podcast_duration_seconds: { description: 'Duration supplied by the source or transcript provider.' },
+    transcript_available: { type: 'boolean' },
+    relevance_rationale: { type: 'string' },
+    retrieval_status: { type: 'string' },
+    ingestion_status: { type: 'string' },
+    verified_at: { type: 'string' },
+    preview_only: { type: 'boolean' },
+    transport_url: { type: 'string' },
+    raw_format: { type: 'string' },
+    post_id: { description: 'Source-provider post identifier.' },
+    capture_method: { type: 'string' },
+    source_guidance_available: { type: 'boolean' },
+    ingest_outcome: { type: 'string' },
+    publication_id: { type: 'string' },
+    author_basis: { type: 'string' },
+    publisher_post_id: { type: 'string' },
+    raw_bytes: { description: 'Size of the preserved source artifact in bytes.' },
+    transport: { type: 'string' },
+    tags: { type: 'array' },
   };
 }
 
@@ -249,7 +306,23 @@ export function pageSchemaComplianceIssues(registry, { pagePath, frontmatter = {
   if (!resolved) return { schema: null, issues: [] };
 
   const issues = [];
-  for (const [field, definition] of Object.entries(resolved.schema.fields || {})) {
+  const schemaFields = resolved.schema.fields || {};
+  const additionalProperties = resolved.schema.additional_properties;
+  const strictFields = additionalProperties === false
+    || (additionalProperties === undefined && Object.keys(schemaFields).length > 0);
+  if (strictFields) {
+    for (const field of Object.keys(normalizedFrontmatter)) {
+      if (PAGE_SCHEMA_RESERVED_FIELDS.has(field) || Object.prototype.hasOwnProperty.call(schemaFields, field)) continue;
+      issues.push({
+        type: 'schema_field_unknown',
+        details: {
+          field,
+          message: `Frontmatter field ${field} is not declared by schema ${resolved.id}.`,
+        },
+      });
+    }
+  }
+  for (const [field, definition] of Object.entries(schemaFields)) {
     const present = Object.prototype.hasOwnProperty.call(normalizedFrontmatter, field);
     if (!present) {
       if (Object.prototype.hasOwnProperty.call(definition, 'default')) {
@@ -302,6 +375,27 @@ export function pageSchemaComplianceIssues(registry, { pagePath, frontmatter = {
     },
     issues,
   };
+}
+
+export async function assertPageSchemaCompliance(config, { pagePath, frontmatter = {} } = {}) {
+  const loaded = await loadPageSchemaRegistry(config);
+  if (loaded.status === 'missing') {
+    throw new Error(`Page schema registry is missing: ${PAGE_SCHEMA_REGISTRY_FILENAME}. Initialize or register the Brain schema registry first.`);
+  }
+  if (!loaded.valid) throw new Error(`Page schema registry is invalid: ${loaded.errors.join('; ')}`);
+  const compliance = pageSchemaComplianceIssues(loaded.registry, { pagePath, frontmatter });
+  if (!compliance.issues.length) return compliance;
+  const schemaLabel = compliance.schema?.id || 'declared page schema';
+  const messages = compliance.issues.map((issue) => {
+    if (issue.type === 'schema_field_unknown') return `field ${issue.details.field} is not declared`;
+    if (issue.type === 'schema_required_field_missing') return `required field ${issue.details.field} is missing`;
+    if (issue.type === 'schema_field_type_mismatch') return `field ${issue.details.field} must be ${issue.details.expected_type}`;
+    if (issue.type === 'schema_field_invalid_enum') return `field ${issue.details.field} has a value outside the declared enum`;
+    if (issue.type === 'schema_default_missing') return `field ${issue.details.field} is missing its declared default`;
+    if (issue.type === 'unknown_page_schema') return issue.details.message;
+    return issue.details?.message || issue.type;
+  });
+  throw new Error(`Page ${pagePath} does not comply with schema ${schemaLabel}: ${messages.join('; ')}.`);
 }
 
 function missingRegistryResult(config) {

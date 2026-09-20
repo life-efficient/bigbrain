@@ -10,7 +10,8 @@ const FOLDER_RULES = [
   ['ideas', 'Unbuilt possibilities that are not yet active projects.'],
   ['meetings', 'Specific meetings, calls, prep, transcripts, decisions, and action-item context.'],
   ['tasks', 'One page per assignable task, with member-backed assignees and task metadata.'],
-  ['concepts', 'Reusable mental models, frameworks, and general strategy.'],
+  ['concepts', 'Individual ideas, mechanisms, definitions, and phenomena.'],
+  ['frameworks', 'Structured models used to analyze, decide, or organize knowledge.'],
   ['components', 'One page per physical or technical system component that participates in a larger architecture.'],
   ['products', 'One page per named commercial product, platform, or service offering.'],
   ['processes', 'One page per repeatable development, delivery, commissioning, or operating process.'],
@@ -26,8 +27,8 @@ export function schemaDescription() {
     page_shape: [
       'YAML frontmatter',
       'Title',
-      'One concise opening compiled-truth paragraph',
-      'Additional current-context sections; assignable work belongs in tasks/',
+      'A required concise summary field: the page’s standalone takeaway',
+      'Detailed current-state body; assignable work belongs in tasks/',
       'Optional ordered image attachments are stored as page metadata and point to existing image files under collection/.raw/',
       '--- followed by ## Timeline',
       'Append-only structured timeline / evidence log',
@@ -72,7 +73,8 @@ export function schemaDescription() {
       ordering: 'entries render newest occurred_at first; equal timestamps retain stable input order',
     },
     notes: [
-      'Compiled truth lives above --- and gets rewritten as understanding changes.',
+      'summary is a first-class frontmatter field, rendered separately and indexed alongside the body. It must not be duplicated in the body.',
+      'The detailed current-state body lives above --- and gets rewritten as understanding changes.',
       'Timeline lives below --- and is append-only evidence.',
       'New timeline entries require per-entry source provenance with event_id, source_type, source_label, and source_message; legacy entries remain readable for repair and migration.',
       'Source attribution belongs to the timeline entry that it caused, not to mutable page-level source frontmatter.',
@@ -216,7 +218,8 @@ export function recommendFolderForInput(input) {
   if (/\bcomponent\b|transformer|switchgear|substation|generator|chiller|liquid cooling|accelerator|hbm|fiber optic|network fabric/.test(lower)) return recommendation('components', text, 'the primary subject is one physical or technical infrastructure component');
   if (/\bproduct\b|\bplatform\b|gb200|nvl72/.test(lower)) return recommendation('products', text, 'the primary subject is a named commercial product, platform, or service offering');
   if (/protocol|preference|operating instruction|how to|how-to|playbook for me|calendar organization|personal rule|operating rule/.test(lower)) return recommendation('protocol', text, 'the item reads like an operating preference, repeatable process, or protocol');
-  if (/framework|mental model|thesis|playbook|strategy|concept/.test(lower)) return recommendation('concepts', text, 'the primary subject is a reusable concept or framework');
+  if (/framework|mental model|thesis|decision model|analysis model/.test(lower)) return recommendation('frameworks', text, 'the primary subject is a structured model used to analyze or decide');
+  if (/\bconcept\b|definition|mechanism|phenomenon/.test(lower)) return recommendation('concepts', text, 'the primary subject is an individual idea, mechanism, definition, or phenomenon');
   if (/idea|possibility|someday|explore/.test(lower)) return recommendation('ideas', text, 'the item sounds like an unbuilt possibility');
   if (/task|todo|to-do|follow[- ]?up|next action|action item|blocked|waiting/.test(lower)) return recommendation('tasks', text, 'the item reads like assignable work');
   if (/project|build|launch|roadmap|implementation/.test(lower)) return recommendation('projects', text, 'the item sounds like an active execution track');
