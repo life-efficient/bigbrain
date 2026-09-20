@@ -1276,6 +1276,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-flow-card-source-assistant-chat { color: #a78bfa; }
       .graph-flow-card-source-gmail { color: #f28b82; }
       .graph-flow-card-source-whatsapp { color: #5bd48b; }
+      .graph-flow-card-source-substack { color: #d7c49e; }
+      .graph-flow-card-source-youtube { color: #ff6b6b; }
       .graph-flow-card-source-slack { color: #c084fc; }
       .graph-flow-card-source-google-calendar, .graph-flow-card-source-calendar { color: #7dd3fc; }
       .graph-flow-card-source-granola { color: #f5c26b; }
@@ -1943,14 +1945,32 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-filter-menu.recents-collection-menu { top: calc(100% + 8px); right: 0; bottom: auto; min-width: max(220px, 100%); max-width: min(320px, calc(100vw - 40px)); max-height: min(50vh, 360px); }
       .recents-collection-empty { margin: 3px 4px 2px; padding: 10px 8px 3px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.45; }
       .recents-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 24px 30px 40px; }
-      .recents-source-filter { width: min(760px, 100%); min-width: 0; display: flex; align-items: center; gap: 7px; margin: 0 auto 24px; padding: 1px 1px 9px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; -webkit-overflow-scrolling: touch; }
-      .recents-source-pill { flex: 0 0 auto; min-height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; transition: border-color 140ms ease, background 140ms ease, color 140ms ease; }
-      .recents-source-pill:hover { border-color: var(--line-strong); color: var(--ink); }
-      .recents-source-pill.active { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent-strong) 13%, var(--surface)); color: var(--ink); }
-      .recents-source-pill:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
-      .recents-source-pill-icon { width: 16px; height: 16px; flex: 0 0 auto; display: grid; place-items: center; }
-      .recents-source-pill-icon .graph-flow-card-source { width: 16px; height: 16px; border: 0; border-radius: 0; background: none; }
-      .recents-source-pill small { color: var(--muted); font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
+      .recents-source-filter { width: min(760px, 100%); min-width: 0; display: flex; align-items: center; gap: 5px; margin: 0 auto 22px; padding: 1px 1px 8px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; -webkit-overflow-scrolling: touch; }
+      .recents-source-pill { --source-accent: var(--accent-strong); flex: 0 0 auto; min-height: 27px; display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 10px; font-weight: 700; white-space: nowrap; cursor: pointer; transition: border-color 140ms ease, background 140ms ease, color 140ms ease, opacity 140ms ease; }
+      .recents-source-pill:hover { border-color: color-mix(in srgb, var(--source-accent) 55%, var(--line)); color: var(--ink); }
+      .recents-source-pill.active { border-color: color-mix(in srgb, var(--source-accent) 40%, var(--line)); background: color-mix(in srgb, var(--source-accent) 8%, var(--surface)); color: var(--ink); }
+      .recents-source-pill:not(.active) .recents-source-pill-icon { opacity: 0.45; }
+      .recents-source-pill.empty { opacity: 0.68; }
+      .recents-source-pill.empty:hover, .recents-source-pill.empty:focus-visible { opacity: 1; }
+      .recents-source-pill:focus-visible, .recents-source-toggle-all:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+      .recents-source-pill-icon { width: 14px; height: 14px; flex: 0 0 auto; display: grid; place-items: center; }
+      .recents-source-pill-icon .graph-flow-card-source { width: 14px; height: 14px; border: 0; border-radius: 0; background: none; }
+      .recents-source-pill-icon svg { width: 13px; height: 13px; }
+      .recents-source-pill small { color: var(--muted); font-size: 9px; font-weight: 700; font-variant-numeric: tabular-nums; }
+      .recents-source-pill-assistant-chat { --source-accent: #a78bfa; }
+      .recents-source-pill-whatsapp { --source-accent: #5bd48b; }
+      .recents-source-pill-gmail { --source-accent: #f28b82; }
+      .recents-source-pill-substack { --source-accent: #d7c49e; }
+      .recents-source-pill-youtube { --source-accent: #ff6b6b; }
+      .recents-source-pill-google-calendar, .recents-source-pill-calendar { --source-accent: #7dd3fc; }
+      .recents-source-pill-granola { --source-accent: #f5c26b; }
+      .recents-source-pill-rss { --source-accent: #fb923c; }
+      .recents-source-pill-webhook { --source-accent: #94a3b8; }
+      .recents-source-pill-cli { --source-accent: #67e8f9; }
+      .recents-source-pill-direct-edit { --source-accent: #fda4af; }
+      .recents-source-pill-slack { --source-accent: #c084fc; }
+      .recents-source-pill-unknown { --source-accent: #a1a1aa; }
+      .recents-source-toggle-all { position: sticky; right: 0; z-index: 1; width: 27px; justify-content: center; margin-left: auto; padding: 0; border-color: var(--line-strong); box-shadow: -8px 0 12px var(--panel); }
       .recents-groups { display: grid; gap: 29px; }
       .recents-groups-pages { width: min(760px, 100%); margin-inline: auto; }
       .recents-group h2 { margin: 0 0 12px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }

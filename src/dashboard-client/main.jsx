@@ -12,9 +12,12 @@ import {
   MessagesSquare,
   Rss,
   Slack,
+  Square,
+  SquareCheckBig,
   Terminal,
   UserRound,
   Webhook,
+  Youtube,
 } from 'lucide-react';
 
 import {
@@ -2334,11 +2337,16 @@ function streamSourceText(item) {
   return item.source_message || item.source_label || 'Source not recorded';
 }
 
+const STREAM_SOURCE_TYPES = [
+  'assistant_chat', 'whatsapp', 'gmail', 'substack', 'youtube', 'google_calendar',
+  'calendar', 'granola', 'rss', 'webhook', 'cli', 'direct_edit', 'slack', 'unknown',
+];
+
 function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   const [activity, setActivity] = useState('updated');
   const [kind, setKind] = useState('pages');
   const [collection, setCollection] = useState('');
-  const [sourceFilter, setSourceFilter] = useState('');
+  const [selectedSourceTypes, setSelectedSourceTypes] = useState(null);
   const [imageViewerIndex, setImageViewerIndex] = useState(null);
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
@@ -2347,7 +2355,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
 
   useEffect(() => {
     setImageViewerIndex(null);
-    setSourceFilter('');
+    setSelectedSourceTypes(null);
   }, [activity, kind, collection]);
 
   useEffect(() => {
@@ -2407,12 +2415,25 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
       sourceCounts.set(type, (sourceCounts.get(type) || 0) + 1);
     }
   }
-  const sourceTypes = [...sourceCounts].sort((left, right) => right[1] - left[1]
+  const sourceTypes = STREAM_SOURCE_TYPES.map((type) => [type, sourceCounts.get(type) || 0])
+    .sort((left, right) => right[1] - left[1]
     || graphFlowSourceLabel(left[0]).localeCompare(graphFlowSourceLabel(right[0])));
-  const activeSourceFilter = sourceCounts.has(sourceFilter) ? sourceFilter : '';
+  const allSourcesSelected = selectedSourceTypes === null;
+  function toggleSourceType(type) {
+    setSelectedSourceTypes((current) => {
+      const next = current === null
+        ? new Set(STREAM_SOURCE_TYPES.filter((sourceType) => sourceType !== type))
+        : new Set(current);
+      if (current !== null) {
+        if (next.has(type)) next.delete(type);
+        else next.add(type);
+      }
+      return next.size === STREAM_SOURCE_TYPES.length ? null : next;
+    });
+  }
   const visibleItems = kind === 'images'
     ? galleryItems
-    : result.items.filter((item) => !activeSourceFilter || graphFlowSourceType(item.source_type) === activeSourceFilter);
+    : result.items.filter((item) => allSourcesSelected || selectedSourceTypes.has(graphFlowSourceType(item.source_type)));
   const groups = [];
   for (const item of visibleItems) {
     const label = recentDateGroupLabel(timestampFor(item));
@@ -2499,24 +2520,24 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
             <button type="button" className="recents-retry" onClick={() => setRefreshVersion((version) => version + 1)}>Try again</button>
           </div>
         ) : null}
-        {result.status === 'ready' && kind === 'pages' && result.items.length ? (
+        {result.status === 'ready' && kind === 'pages' ? (
           <div className="recents-source-filter" role="group" aria-label="Filter Stream pages by source">
-            <button type="button" className={`recents-source-pill ${!activeSourceFilter ? 'active' : ''}`} aria-pressed={!activeSourceFilter} onClick={() => setSourceFilter('')}>
-              <span>All sources</span><small>{result.items.length}</small>
-            </button>
             {sourceTypes.map(([type, count]) => (
-              <button key={type} type="button" className={`recents-source-pill ${activeSourceFilter === type ? 'active' : ''}`} aria-pressed={activeSourceFilter === type} onClick={() => setSourceFilter(type)}>
+              <button key={type} type="button" className={`recents-source-pill recents-source-pill-${type.replaceAll('_', '-')} ${allSourcesSelected || selectedSourceTypes.has(type) ? 'active' : ''} ${count ? '' : 'empty'}`} aria-pressed={allSourcesSelected || selectedSourceTypes.has(type)} onClick={() => toggleSourceType(type)}>
                 <span className="recents-source-pill-icon" aria-hidden="true"><GraphFlowSourceIcon source={{ type }} /></span>
                 <span>{graphFlowSourceLabel(type)}</span><small>{count}</small>
               </button>
             ))}
+            <button type="button" className={`recents-source-pill recents-source-toggle-all ${allSourcesSelected ? 'active' : ''}`} aria-label={allSourcesSelected ? 'Deselect all sources' : 'Select all sources'} title={allSourcesSelected ? 'Deselect all sources' : 'Select all sources'} aria-pressed={allSourcesSelected} onClick={() => setSelectedSourceTypes(allSourcesSelected ? new Set() : null)}>
+              {allSourcesSelected ? <SquareCheckBig size={14} aria-hidden="true" /> : <Square size={14} aria-hidden="true" />}
+            </button>
           </div>
         ) : null}
         {result.status === 'ready' && !visibleItems.length ? (
           <div className="recents-state">
             <span className="recents-state-icon" aria-hidden="true">{kind === 'images' ? '▧' : '▤'}</span>
-            <h2>{emptyTitle}</h2>
-            <p>{emptyCopy}</p>
+            <h2>{kind === 'pages' && selectedSourceTypes?.size === 0 && result.items.length ? 'No sources selected' : emptyTitle}</h2>
+            <p>{kind === 'pages' && selectedSourceTypes?.size === 0 && result.items.length ? 'Select a source above or use the control at the end of the row to show all.' : emptyCopy}</p>
           </div>
         ) : null}
         {result.status === 'ready' && visibleItems.length ? (
@@ -2962,6 +2983,7 @@ const GRAPH_FLOW_SOURCE_ICONS = {
   whatsapp: MessageCircle,
   gmail: Mail,
   substack: BookOpen,
+  youtube: Youtube,
   google_calendar: CalendarDays,
   calendar: CalendarDays,
   granola: AudioLines,
@@ -2978,6 +3000,7 @@ const GRAPH_FLOW_SOURCE_LABELS = {
   whatsapp: 'WhatsApp',
   gmail: 'Gmail',
   substack: 'Substack',
+  youtube: 'YouTube',
   google_calendar: 'Google Calendar',
   calendar: 'Calendar',
   granola: 'Granola',
