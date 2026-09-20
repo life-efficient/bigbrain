@@ -81,6 +81,7 @@ import {
   privatePageRouteFromPath,
 } from './page-links.js';
 import { recordDashboardError } from './error-reporting.js';
+import { appendUniqueRecentItems } from './stream-pagination.js';
 
 class DashboardErrorBoundary extends React.Component {
   constructor(props) {
@@ -2337,10 +2338,7 @@ function streamSourceText(item) {
   return item.source_message || item.source_label || 'Source not recorded';
 }
 
-const STREAM_SOURCE_TYPES = [
-  'assistant_chat', 'whatsapp', 'gmail', 'substack', 'youtube', 'google_calendar',
-  'calendar', 'granola', 'rss', 'webhook', 'cli', 'direct_edit', 'slack', 'unknown',
-];
+const STREAM_PAGE_SIZE = 80;
 
 function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   const [activity, setActivity] = useState('updated');
@@ -2350,8 +2348,12 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   const [imageViewerIndex, setImageViewerIndex] = useState(null);
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const [result, setResult] = useState({ status: 'loading', items: [], collections: [], error: '' });
+  const [result, setResult] = useState({ status: 'loading', items: [], collections: [], sourceTypes: [], meta: null, error: '' });
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [moreError, setMoreError] = useState('');
   const collectionMenuRef = useRef(null);
+  const moreControllerRef = useRef(null);
+  const requestVersionRef = useRef(0);
 
   useEffect(() => {
     setImageViewerIndex(null);
@@ -2375,19 +2377,26 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   }, [collectionMenuOpen]);
 
   useEffect(() => {
+    requestVersionRef.current += 1;
+    moreControllerRef.current?.abort();
+    moreControllerRef.current = null;
+    setLoadingMore(false);
+    setMoreError('');
     if (demoMode) {
-      setResult({ status: 'ready', items: [], collections: [], error: '' });
+      setResult({ status: 'ready', items: [], collections: [], sourceTypes: [], meta: null, error: '' });
       return undefined;
     }
     const controller = new AbortController();
-    setResult((current) => ({ ...current, status: 'loading', items: [], error: '' }));
-    const params = new URLSearchParams({ activity, kind });
+    setResult((current) => ({ ...current, status: 'loading', items: [], sourceTypes: [], meta: null, error: '' }));
+    const params = new URLSearchParams({ activity, kind, limit: String(STREAM_PAGE_SIZE), offset: '0' });
     if (collection) params.set('collection', collection);
     fetchJson(`/api/recents?${params}`, { signal: controller.signal })
       .then((data) => setResult({
         status: 'ready',
         items: Array.isArray(data.items) ? data.items : [],
         collections: Array.isArray(data.collections) ? data.collections : [],
+        sourceTypes: Array.isArray(data.source_types) ? data.source_types : [],
+        meta: data.meta || null,
         error: '',
       }))
       .catch((error) => {
@@ -2395,6 +2404,37 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
       });
     return () => controller.abort();
   }, [activity, kind, collection, demoMode, refreshVersion]);
+
+  function loadMore() {
+    if (result.status !== 'ready' || !result.meta?.has_more || loadingMore || moreControllerRef.current) return;
+    const nextOffset = result.meta.next_offset;
+    if (!Number.isInteger(nextOffset)) return;
+    const requestVersion = requestVersionRef.current;
+    const controller = new AbortController();
+    moreControllerRef.current = controller;
+    setLoadingMore(true);
+    setMoreError('');
+    const params = new URLSearchParams({ activity, kind, limit: String(STREAM_PAGE_SIZE), offset: String(nextOffset) });
+    if (collection) params.set('collection', collection);
+    fetchJson(`/api/recents?${params}`, { signal: controller.signal })
+      .then((data) => {
+        if (controller.signal.aborted || requestVersionRef.current !== requestVersion) return;
+        setResult((current) => ({
+          ...current,
+          items: appendUniqueRecentItems(current.items, Array.isArray(data.items) ? data.items : [], kind),
+          sourceTypes: Array.isArray(data.source_types) ? data.source_types : current.sourceTypes,
+          meta: data.meta || current.meta,
+        }));
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted && requestVersionRef.current === requestVersion) setMoreError(error.message || String(error));
+      })
+      .finally(() => {
+        if (moreControllerRef.current !== controller) return;
+        moreControllerRef.current = null;
+        setLoadingMore(false);
+      });
+  }
 
   const timeField = activity === 'added' ? 'created_at' : activity === 'viewed' ? 'viewed_at' : 'updated_at';
   const timestampFor = (item) => kind === 'images' && activity === 'updated'
@@ -2408,32 +2448,38 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
     source: item.title || (item.image.source?.startsWith('http') ? '' : item.image.source) || labelFromSlug(item.slug),
   }));
   const galleryIndexByItem = new Map(galleryItems.map((item, index) => [item, index]));
+  const canonicalSourceTypes = result.sourceTypes.filter((entry) => entry?.type && entry?.label);
+  const knownSourceTypes = new Set(canonicalSourceTypes.map((entry) => entry.type));
+  function sourceTypeForItem(item) {
+    const type = String(item.source_type || '').trim().toLowerCase();
+    return knownSourceTypes.has(type) ? type : 'unknown';
+  }
   const sourceCounts = new Map();
   if (kind === 'pages') {
     for (const item of result.items) {
-      const type = graphFlowSourceType(item.source_type);
+      const type = sourceTypeForItem(item);
       sourceCounts.set(type, (sourceCounts.get(type) || 0) + 1);
     }
   }
-  const sourceTypes = STREAM_SOURCE_TYPES.map((type) => [type, sourceCounts.get(type) || 0])
+  const sourceTypes = canonicalSourceTypes.map(({ type, label }) => [type, sourceCounts.get(type) || 0, label])
     .sort((left, right) => right[1] - left[1]
-    || graphFlowSourceLabel(left[0]).localeCompare(graphFlowSourceLabel(right[0])));
+    || left[2].localeCompare(right[2]));
   const allSourcesSelected = selectedSourceTypes === null;
   function toggleSourceType(type) {
     setSelectedSourceTypes((current) => {
       const next = current === null
-        ? new Set(STREAM_SOURCE_TYPES.filter((sourceType) => sourceType !== type))
+        ? new Set(sourceTypes.map(([sourceType]) => sourceType).filter((sourceType) => sourceType !== type))
         : new Set(current);
       if (current !== null) {
         if (next.has(type)) next.delete(type);
         else next.add(type);
       }
-      return next.size === STREAM_SOURCE_TYPES.length ? null : next;
+      return next.size === sourceTypes.length ? null : next;
     });
   }
   const visibleItems = kind === 'images'
     ? galleryItems
-    : result.items.filter((item) => allSourcesSelected || selectedSourceTypes.has(graphFlowSourceType(item.source_type)));
+    : result.items.filter((item) => allSourcesSelected || selectedSourceTypes.has(sourceTypeForItem(item)));
   const groups = [];
   for (const item of visibleItems) {
     const label = recentDateGroupLabel(timestampFor(item));
@@ -2462,6 +2508,8 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
         : kind === 'images'
           ? 'Images attached to pages will appear here when available.'
           : 'New and changed pages will appear here when available.';
+  const noSourcesSelected = kind === 'pages' && selectedSourceTypes?.size === 0 && result.items.length > 0;
+  const noSourceMatches = kind === 'pages' && !allSourcesSelected && !noSourcesSelected && result.items.length > 0 && !visibleItems.length;
 
   return (
     <section className="recents-panel" aria-label="Stream">
@@ -2520,26 +2568,26 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
             <button type="button" className="recents-retry" onClick={() => setRefreshVersion((version) => version + 1)}>Try again</button>
           </div>
         ) : null}
-        {result.status === 'ready' && kind === 'pages' ? (
+        {result.status === 'ready' && kind === 'pages' && sourceTypes.length ? (
           <div className="recents-source-filter" role="group" aria-label="Filter Stream pages by source">
             <button type="button" className={`recents-source-pill recents-source-toggle-all ${allSourcesSelected ? 'active' : ''}`} aria-label={allSourcesSelected ? 'Deselect all sources' : 'Select all sources'} title={allSourcesSelected ? 'Deselect all sources' : 'Select all sources'} aria-pressed={allSourcesSelected} onClick={() => setSelectedSourceTypes(allSourcesSelected ? new Set() : null)}>
               {allSourcesSelected ? <SquareCheckBig size={14} aria-hidden="true" /> : <Square size={14} aria-hidden="true" />}
             </button>
             <div className="recents-source-strip">
-              {sourceTypes.map(([type, count]) => (
+              {sourceTypes.map(([type, count, label]) => (
                 <button key={type} type="button" className={`recents-source-pill recents-source-pill-${type.replaceAll('_', '-')} ${allSourcesSelected || selectedSourceTypes.has(type) ? 'active' : ''} ${count ? '' : 'empty'}`} aria-pressed={allSourcesSelected || selectedSourceTypes.has(type)} onClick={() => toggleSourceType(type)}>
-                  <span className="recents-source-pill-icon" aria-hidden="true"><GraphFlowSourceIcon source={{ type }} /></span>
-                  <span>{graphFlowSourceLabel(type)}</span><small>{count}</small>
+                  <span className="recents-source-pill-icon" aria-hidden="true"><GraphFlowSourceIcon source={{ type, label }} /></span>
+                  <span>{label}</span><small>{count}</small>
                 </button>
               ))}
             </div>
           </div>
         ) : null}
         {result.status === 'ready' && !visibleItems.length ? (
-          <div className="recents-state">
+          <div className={`recents-state ${result.meta?.has_more ? 'recents-state-filtered' : ''}`}>
             <span className="recents-state-icon" aria-hidden="true">{kind === 'images' ? '▧' : '▤'}</span>
-            <h2>{kind === 'pages' && selectedSourceTypes?.size === 0 && result.items.length ? 'No sources selected' : emptyTitle}</h2>
-            <p>{kind === 'pages' && selectedSourceTypes?.size === 0 && result.items.length ? 'Select a source above or use the control at the beginning of the row to show all.' : emptyCopy}</p>
+            <h2>{noSourcesSelected ? 'No sources selected' : noSourceMatches ? result.meta?.has_more ? 'No matching pages loaded yet' : 'No pages from selected sources' : emptyTitle}</h2>
+            <p>{noSourcesSelected ? 'Select a source above or use the control at the beginning of the row to show all.' : noSourceMatches ? result.meta?.has_more ? 'Load more to check older activity, or choose another source.' : 'Choose another source to see more of this Stream.' : emptyCopy}</p>
           </div>
         ) : null}
         {result.status === 'ready' && visibleItems.length ? (
@@ -2587,6 +2635,18 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
             </div>)}
           </div>
         ) : null}
+        {result.status === 'ready' && result.items.length && result.meta ? (
+          <div className={`recents-continuation ${kind === 'pages' ? 'recents-continuation-pages' : ''}`}>
+            <span>{result.items.length} of {result.meta.total_count} {kind} loaded</span>
+            {moreError ? <p role="alert">Couldn’t load more. Your current items are still here.</p> : null}
+            {result.meta.has_more ? (
+              <button type="button" className="recents-load-more" onClick={loadMore} disabled={loadingMore}>
+                {loadingMore ? 'Loading more…' : moreError ? 'Try again' : `Load more ${kind}`}
+              </button>
+            ) : <strong>End of Stream</strong>}
+          </div>
+        ) : null}
+        {result.status === 'ready' && result.items.length && !result.meta ? <p className="recents-continuation recents-continuation-warning" role="status">This BigBrain service cannot load beyond the first batch. Restart BigBrain to continue.</p> : null}
       </div>
       <PageImageLightbox
         images={galleryImages}

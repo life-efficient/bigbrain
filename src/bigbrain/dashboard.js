@@ -1998,12 +1998,22 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .recents-thumbnail { display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; border-radius: inherit; background: var(--surface-muted); }
       .recents-thumbnail img { display: block; width: 100%; height: 100%; object-fit: cover; }
       .recents-state { width: min(390px, 100%); margin: min(12vh, 100px) auto 0; padding: 24px; text-align: center; }
+      .recents-state-filtered { margin-top: 28px; }
       .recents-state-icon { width: 46px; height: 46px; display: grid; place-items: center; margin: 0 auto 16px; border: 1px solid var(--line-strong); border-radius: 13px; background: var(--surface); color: var(--muted); font-size: 25px; font-weight: 600; }
       .recents-state h2 { margin: 0; font-size: 17px; letter-spacing: -0.02em; }
       .recents-state p { margin: 9px auto 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
       .recents-error .recents-state-icon { color: #fda4af; border-color: rgba(253,164,175,0.24); background: rgba(253,164,175,0.08); }
       .recents-retry { min-height: 36px; margin-top: 20px; padding: 0 17px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface-strong); color: var(--ink); font-size: 12px; font-weight: 750; cursor: pointer; }
       .recents-retry:hover { background: var(--surface-muted); }
+      .recents-continuation { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 10px; margin: 28px auto 0; padding: 16px 0 4px; border-top: 1px solid var(--line); color: var(--muted); font-size: 11px; }
+      .recents-continuation-pages { width: min(760px, 100%); }
+      .recents-continuation strong { color: var(--muted); font-weight: 650; }
+      .recents-continuation p { width: 100%; margin: 0; color: #fda4af; text-align: center; }
+      .recents-load-more { min-height: 30px; padding: 0 11px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface); color: var(--ink); font-size: 11px; font-weight: 700; cursor: pointer; }
+      .recents-load-more:hover:not(:disabled) { background: var(--surface-muted); }
+      .recents-load-more:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+      .recents-load-more:disabled { opacity: 0.55; cursor: wait; }
+      .recents-continuation-warning { color: #fda4af; }
       .recents-loading { display: grid; gap: 8px; }
       .recents-loading-pages { width: min(760px, 100%); margin-inline: auto; }
       .recents-loading span { display: block; height: 63px; border-radius: 9px; background: var(--surface); opacity: 0.7; animation: recents-pulse 1.6s ease-in-out infinite alternate; }
