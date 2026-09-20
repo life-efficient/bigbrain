@@ -17,20 +17,17 @@ async function sources() {
   };
 }
 
-test('Stream offers its first-class provenance sources even when their current count is zero', async () => {
-  const { panel, client } = await sources();
-  const choices = client.match(/const STREAM_SOURCE_TYPES\s*=\s*\[([\s\S]*?)\];/)?.[1];
+test('Stream renders the API canonical source taxonomy, including zero-count choices', async () => {
+  const { panel, client, dashboard } = await sources();
 
-  assert.ok(choices, 'Stream should have a stable, first-class source list');
-  for (const source of ['whatsapp', 'substack', 'youtube']) {
-    assert.match(choices, new RegExp(`['"]${source}['"]`));
-  }
+  assert.match(dashboard, /source_types:\s*Object\.entries\(SOURCE_TYPE_DEFINITIONS\)\.map\(/);
+  assert.match(panel, /sourceTypes:\s*Array\.isArray\(data\.source_types\)\s*\?\s*data\.source_types\s*:\s*\[\]/);
+  assert.match(panel, /const canonicalSourceTypes = result\.sourceTypes\.filter\(/);
   assert.match(panel, /const sourceCounts = new Map\(\)/);
-  assert.match(panel, /graphFlowSourceType\(item\.source_type\)/);
-  assert.match(panel, /const sourceTypes = STREAM_SOURCE_TYPES\.map\(/);
-  assert.match(panel, /sourceTypes\.map\(\(\[type, count\]\) => \(/);
-  assert.match(client, /youtube:\s*'YouTube'/);
-  assert.match(client, /youtube:\s*Youtube/);
+  assert.match(panel, /const sourceTypes = canonicalSourceTypes\.map\(\(\{ type, label \}\) => \[type, sourceCounts\.get\(type\) \|\| 0, label\]\)/);
+  assert.match(panel, /sourceTypes\.map\(\(\[type, count, label\]\) => \(/);
+  assert.doesNotMatch(client, /\bSTREAM_SOURCE_TYPES\b/, 'client must not maintain a competing source list');
+  assert.doesNotMatch(panel, /\b(?:calendar|slack):/, 'Stream must not add noncanonical source aliases');
 });
 
 test('Stream source buttons support multi-select and a fixed leading icon-only all/none toggle', async () => {
@@ -40,20 +37,20 @@ test('Stream source buttons support multi-select and a fixed leading icon-only a
   assert.match(panel, /const \[selectedSourceTypes, setSelectedSourceTypes\] = useState\(null\)/);
   assert.match(filter, /role="group" aria-label="Filter Stream pages by source"/);
   assert.match(filter, /aria-pressed=\{allSourcesSelected \|\| selectedSourceTypes\.has\(type\)\}/);
-  assert.match(filter, /<GraphFlowSourceIcon source=\{\{ type \}\}/);
-  assert.match(filter, /graphFlowSourceLabel\(type\)/);
+  assert.match(filter, /<GraphFlowSourceIcon source=\{\{ type, label \}\}/);
+  assert.match(filter, /<span>\{label\}<\/span><small>\{count\}<\/small>/);
   assert.match(filter, /recents-source-toggle-all/);
   assert.match(filter, /aria-label=\{allSourcesSelected \? 'Deselect all sources' : 'Select all sources'\}/);
   assert.match(filter, /aria-pressed=\{allSourcesSelected\}/);
   assert.match(filter, /onClick=\{\(\) => setSelectedSourceTypes\(allSourcesSelected \? new Set\(\) : null\)\}/);
   assert.match(filter, /allSourcesSelected \? <SquareCheckBig[^>]*> : <Square[^>]*>/);
   assert.match(filter, /className="recents-source-filter"[^>]*>\s*<button[^>]*recents-source-toggle-all/);
-  assert.match(filter, /<div className="recents-source-strip">\s*\{sourceTypes\.map\(/);
+  assert.match(filter, /<div className="recents-source-strip">\s*\{sourceTypes\.map\(\(\[type, count, label\]\)/);
   assert.ok(filter.indexOf('recents-source-toggle-all') < filter.indexOf('recents-source-strip'), 'all/none control must precede the scrolling source strip');
   assert.ok(filter.indexOf('recents-source-strip') < filter.indexOf('sourceTypes.map('), 'source choices belong inside the scrolling strip');
   assert.doesNotMatch(filter, />All sources<|<span>All sources<|<small>\{result\.items\.length\}<\/small>/);
   assert.match(panel, /setSelectedSourceTypes\(/);
-  assert.match(panel, /const next = current === null\s*\? new Set\(STREAM_SOURCE_TYPES\.filter\(\(sourceType\) => sourceType !== type\)\)/);
+  assert.match(panel, /const next = current === null\s*\? new Set\(sourceTypes\.map\(\(\[sourceType\]\) => sourceType\)\.filter\(\(sourceType\) => sourceType !== type\)\)/);
   assert.match(panel, /result\.items\.filter\(/);
   assert.match(panel, /No sources selected/);
   assert.doesNotMatch(panel.slice(panel.indexOf('const params = new URLSearchParams'), panel.indexOf('const timeField')), /params\.set\('source/);
@@ -70,6 +67,7 @@ test('Stream source pills scroll independently of the leading toggle and stay ke
   assert.match(stripRule, /flex:\s*1/);
   assert.match(stripRule, /min-width:\s*0/, 'scroll strip must shrink within a narrow viewport');
   assert.match(stripRule, /overflow-x:\s*auto/, 'only source pills should scroll horizontally');
+  assert.match(stripRule, /mask-image:\s*linear-gradient\(to right, transparent, #000/, 'scroll strip should fade its clipped edges');
   assert.match(toggleRule, /flex:\s*0\s+0\s+(?:auto|[0-9]+px)/, 'toggle must keep its width when the strip shrinks');
   assert.doesNotMatch(toggleRule, /position:\s*(?:sticky|absolute|fixed)|box-shadow:/, 'toggle must not overlay source pills');
   assert.match(dashboard, /\.recents-source-pill\s*\{[^}]*padding:\s*0\s+[0-9]+px/);
