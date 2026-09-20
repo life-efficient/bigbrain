@@ -121,7 +121,19 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
   const skill = listener?.skill || defaultSkillForEvent(event, listener);
   const payload = selectPromptPayload(event?.payload, listener, event);
   if (isGranolaMeeting) {
-    return `Ingest the Granola meeting with ID ${payload?.granola_id || '(missing ID)'} using $${skill.replace(/^\$/, '')}.`;
+    const source = event?.payload || {};
+    const noteId = source.granola_id || payload?.granola_id || '(missing ID)';
+    const matchContext = Object.fromEntries(Object.entries({
+      occurred_at: source.occurred_at || event?.occurred_at,
+      title: source.title,
+      note_url: source.note_url,
+    }).filter(([, value]) => value));
+    return [
+      `Ingest the Granola meeting with ID ${noteId} using $${skill.replace(/^\$/, '')}.`,
+      '',
+      'The webhook ID is the source item key for the routing ledger. Granola detail tools may require a different UUID. First try the note URL and exact ID; if the detail tool rejects the ID, list meetings near the event time and use the title only to confirm one unambiguous match. Use that UUID to retrieve the note while preserving the webhook ID for ledger tracking. Stop if the match is ambiguous.',
+      Object.keys(matchContext).length ? `Matching context: ${JSON.stringify(matchContext)}` : null,
+    ].filter(Boolean).join('\n');
   }
   if (isSubstackRssEvent(event, listener)) {
     return buildRssPrompt({ event, listener, skill, sourceDescription });
