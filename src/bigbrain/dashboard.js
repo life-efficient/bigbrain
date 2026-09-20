@@ -2451,21 +2451,6 @@ export async function buildRecentsPayload(
   const pagePaths = [];
   await walkRecentPagePaths(config, config.brainDir, pagePaths);
   const availableSlugs = new Set(pagePaths.map((relativePath) => relativePath.replace(/\.md$/i, '')));
-  const folderMembers = new Map();
-  for (const slug of availableSlugs) {
-    const folder = slug.split('/', 1)[0];
-    if (folder === slug) continue;
-    if (!folderMembers.has(folder)) folderMembers.set(folder, new Set());
-    folderMembers.get(folder).add(slug);
-  }
-  const folderCollections = [...folderMembers.entries()]
-    .sort(([left], [right]) => left.localeCompare(right))
-    .map(([folder, slugs]) => ({
-      id: `folder:${folder}`,
-      title: folder.replace(/[-_]+/g, ' ').replace(/^./, (letter) => letter.toUpperCase()),
-      count: slugs.size,
-      source: 'folder',
-    }));
   const curatedCollections = sharedGroups.map((group) => ({
     id: group.slug,
     title: group.title,
@@ -2473,32 +2458,23 @@ export async function buildRecentsPayload(
     source: 'curated',
   }));
   const titleCounts = new Map();
-  const sourceTitleCounts = new Map();
-  for (const collection of [...folderCollections, ...curatedCollections]) {
+  for (const collection of curatedCollections) {
     const key = collection.title.toLocaleLowerCase();
     titleCounts.set(key, (titleCounts.get(key) || 0) + 1);
-    const sourceKey = `${collection.source}:${key}`;
-    sourceTitleCounts.set(sourceKey, (sourceTitleCounts.get(sourceKey) || 0) + 1);
   }
-  const collections = [...folderCollections, ...curatedCollections].map((collection) => {
+  const collections = curatedCollections.map((collection) => {
     const titleKey = collection.title.toLocaleLowerCase();
     if (titleCounts.get(titleKey) === 1) return collection;
-    const sourceLabel = collection.source === 'folder' ? 'Brain collection' : 'Saved collection';
-    const duplicateSource = sourceTitleCounts.get(`${collection.source}:${titleKey}`) > 1;
-    const uniqueName = collection.source === 'folder' ? collection.id.slice('folder:'.length) : collection.id;
     return {
       ...collection,
-      title: `${collection.title} (${sourceLabel}${duplicateSource ? `: ${uniqueName}` : ''})`,
+      title: `${collection.title} (${collection.id})`,
     };
   });
-  const selectedFolder = requestedCollection?.startsWith('folder:')
-    ? folderMembers.get(requestedCollection.slice('folder:'.length))
-    : null;
   const selectedCollection = requestedCollection
     ? sharedGroups.find((group) => group.slug === requestedCollection || group.redirect_from.includes(requestedCollection))
     : null;
   const selectedSlugs = requestedCollection
-    ? selectedFolder || new Set(selectedCollection?.pages.map((page) => page.page_slug) || [])
+    ? new Set(selectedCollection?.pages.map((page) => page.page_slug) || [])
     : null;
   const items = [];
   for (const relativePath of pagePaths) {
