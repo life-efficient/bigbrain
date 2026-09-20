@@ -345,7 +345,9 @@ export async function createDashboardRequestHandler(config, {
         return json(res, await updateDashboardPageVisibility(config, db, req, actor, { dashboardSurface: resolvedDashboardSurface }));
       }
       if (requestUrl.pathname === '/api/preview') {
-        return json(res, await buildPreviewPayload(config, db, requestUrl, { dashboardSurface: resolvedDashboardSurface }));
+        const page = await buildPreviewPayload(config, db, requestUrl, { dashboardSurface: resolvedDashboardSurface });
+        await recordDashboardPageView(db, page.slug);
+        return json(res, page, { noStore: true });
       }
       if (requestUrl.pathname === '/api/public/page') {
         if (req.method !== 'GET') {
@@ -384,7 +386,11 @@ export async function createDashboardRequestHandler(config, {
         return json(res, await buildExplorerRecentPayload(config, requestUrl, { dashboardSurface: resolvedDashboardSurface }));
       }
       if (requestUrl.pathname === '/api/explorer/file') {
-        return json(res, await buildExplorerFilePayload(config, requestUrl, { dashboardSurface: resolvedDashboardSurface }));
+        const file = await buildExplorerFilePayload(config, requestUrl, { dashboardSurface: resolvedDashboardSurface });
+        if (file.kind === 'markdown' && /\.md$/i.test(file.path) && !file.path.split('/').includes('.raw')) {
+          await recordDashboardPageView(db, file.path.replace(/\.md$/i, ''));
+        }
+        return json(res, file, { noStore: true });
       }
       if (requestUrl.pathname === '/api/explorer/blob') return serveExplorerBlob(config, res, requestUrl);
       res.writeHead(404);
