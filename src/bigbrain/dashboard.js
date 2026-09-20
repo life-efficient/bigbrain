@@ -632,8 +632,11 @@ function normalizeDashboardBasePath(basePath) {
 }
 
 function isDashboardAppPath(pathname, basePath) {
-  if (!basePath) return pathname === '/' || pathname === '/index.html' || pathname === '/graph-lab';
-  return pathname === basePath || pathname === `${basePath}/` || pathname === `${basePath}/index.html`;
+  const rootPaths = !basePath
+    ? ['/', '/index.html', '/graph-lab']
+    : [basePath, `${basePath}/`, `${basePath}/index.html`];
+  return rootPaths.includes(pathname)
+    || ['graph', 'stream', 'explorer', 'tasks', 'analytics'].some((route) => pathname === `${basePath}/${route}`);
 }
 
 function canonicalPageRouteBasePath(pathname, basePath) {
@@ -844,6 +847,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       }
       .view-chip { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 10px 14px; font-size: 13px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.04); display: inline-flex; align-items: center; gap: 8px; }
       .view-chip.active { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.08); }
+      .view-chip:disabled { opacity: 0.38; cursor: default; box-shadow: none; }
+      .history-nav { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; }
+      .history-nav .view-chip { width: 34px; height: 34px; padding: 0; justify-content: center; font-size: 18px; }
       .pill { padding: 8px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(15,23,42,0.04); font-size: 13px; }
       .view-chip-count { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-muted); color: var(--ink); font-size: 12px; font-weight: 600; }
       .view-chip.active .view-chip-count { background: rgba(255,255,255,0.1); }

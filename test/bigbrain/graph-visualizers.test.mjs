@@ -702,7 +702,7 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /nextFocusedViewMode/);
   assert.match(main, /graph-wrap-focused/);
   assert.match(main, /event\.key\.toLowerCase\(\) !== 't'/);
-  assert.match(main, /target\?\.closest\('\.sidecar-panel, \.page-image-lightbox-overlay, \.graph-wrap, \.graph-focus-banner, \.graph-footer'\)/);
+  assert.match(main, /target\?\.closest\('\.sidecar-panel, \.page-image-lightbox-overlay, \.graph-wrap, \.graph-focus-banner, \.graph-footer, \.recents-panel'\)/);
   assert.match(main, /key="focused-subgraph"/);
   assert.doesNotMatch(main, /key=\{`focused-subgraph:\$\{focusSlug\}`\}/);
   assert.match(main, /if \(walking\) return undefined;/);
@@ -716,7 +716,7 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(focusedData, /incomingByTarget/);
   assert.match(focusedData, /network_at: lineageAt \|\| sourceNode\?\.created_at/);
   assert.match(focusedData, /sourceHop >= targetHop/);
-  assert.match(main, /closest\('\.sidecar-panel, \.page-image-lightbox-overlay, \.graph-wrap, \.graph-focus-banner, \.graph-footer'\)/);
+  assert.match(main, /closest\('\.sidecar-panel, \.page-image-lightbox-overlay, \.graph-wrap, \.graph-focus-banner, \.graph-footer, \.recents-panel'\)/);
   assert.doesNotMatch(focusedViews, /Related pages by update order/);
   assert.match(focusedViews, /NETWORK_HOP_COLUMN_GAP = 320/);
   assert.match(focusedViews, /scroll\.scrollLeft = Math\.max/);

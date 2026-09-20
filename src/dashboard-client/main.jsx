@@ -78,6 +78,7 @@ import {
   privatePageRouteFromPath,
 } from './page-links.js';
 import { recordDashboardError } from './error-reporting.js';
+import { dashboardNavigationFromUrl, dashboardNavigationHref, updateDashboardNavigation } from './navigation.js';
 
 class DashboardErrorBoundary extends React.Component {
   constructor(props) {
@@ -193,9 +194,50 @@ function loadGraphPreferences() {
 }
 
 function DashboardApp() {
+  const dashboardBasePath = document.body?.dataset?.dashboardBasePath || '';
+  const [navigation, setNavigation] = useState(() => dashboardNavigationFromUrl(window.location.href, dashboardBasePath));
+  const navigationRef = useRef(navigation);
+  navigationRef.current = navigation;
+  const historyEndRef = useRef(0);
+  const historyEndKey = `bigbrain:history-end:${dashboardBasePath}`;
+  const [historyPosition, setHistoryPosition] = useState({ index: 0, end: 0 });
+  const loadedNavigationRef = useRef(null);
+  function navigate(patch) {
+    const next = updateDashboardNavigation(navigationRef.current, patch);
+    const href = dashboardNavigationHref(next, dashboardBasePath);
+    const currentHref = `${window.location.pathname}${window.location.search}`;
+    if (href === currentHref) return;
+    const index = (window.history.state?.bigbrainNavigationIndex ?? 0) + 1;
+    window.history.pushState({ ...window.history.state, bigbrainNavigationIndex: index }, '', href);
+    historyEndRef.current = index;
+    try { window.sessionStorage.setItem(historyEndKey, String(index)); } catch { /* Browser storage may be unavailable. */ }
+    setHistoryPosition({ index, end: index });
+    navigationRef.current = next;
+    setNavigation(next);
+  }
+  useEffect(() => {
+    const initial = dashboardNavigationHref(navigationRef.current, dashboardBasePath);
+    const index = Number.isInteger(window.history.state?.bigbrainNavigationIndex) ? window.history.state.bigbrainNavigationIndex : 0;
+    let savedEnd = index;
+    try { savedEnd = Number(window.sessionStorage.getItem(historyEndKey)) || index; } catch { /* Browser storage may be unavailable. */ }
+    historyEndRef.current = Math.max(index, savedEnd);
+    window.history.replaceState({ ...window.history.state, bigbrainNavigationIndex: index }, '', initial);
+    setHistoryPosition({ index, end: historyEndRef.current });
+    function onPopState(event) {
+      const next = dashboardNavigationFromUrl(window.location.href, dashboardBasePath);
+      const nextIndex = Number.isInteger(event.state?.bigbrainNavigationIndex) ? event.state.bigbrainNavigationIndex : 0;
+      historyEndRef.current = Math.max(historyEndRef.current, nextIndex);
+      navigationRef.current = next;
+      setNavigation(next);
+      setHistoryPosition({ index: nextIndex, end: historyEndRef.current });
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [dashboardBasePath, historyEndKey]);
   const savedGraphPreferences = useMemo(() => loadGraphPreferences(), []);
   const [state, setState] = useState({ status: 'loading', error: null, data: null });
-  const [view, setView] = useState('graph');
+  const view = navigation.view;
+  const setView = (nextView) => navigate({ view: nextView });
   const [visualizerId, setVisualizerId] = useState(savedGraphPreferences.visualizerId);
   const [nodeShape, setNodeShape] = useState(savedGraphPreferences.nodeShape);
   const [nodeFill, setNodeFill] = useState(savedGraphPreferences.nodeFill);
@@ -216,7 +258,7 @@ function DashboardApp() {
   const [themeMode, setThemeMode] = useState('auto');
   const [prefersDark, setPrefersDark] = useState(false);
   const [preview, setPreview] = useState(null);
-  const [activeDomainScope, setActiveDomainScope] = useState([]);
+  const activeDomainScope = navigation.domain ? [navigation.domain] : [];
   const [activeGraphSlug, setActiveGraphSlug] = useState(null);
   const [lineage, setLineage] = useState(null);
   const [graphMotion, setGraphMotion] = useState(null);
@@ -241,12 +283,16 @@ function DashboardApp() {
   demoSeedRef.current = demoSeed;
   const filesystemExplorerEnabled = state.data?.about?.capabilities?.filesystem_explorer === true;
 
-  const clearGraphFocus = useEffectEvent(() => {
+  const resetGraphFocus = useEffectEvent(() => {
     previewRequestRef.current += 1;
     lineageRequestRef.current += 1;
     setLineage(null);
     setActiveGraphSlug(null);
     setPreview(null);
+  });
+  const clearGraphFocus = useEffectEvent(() => {
+    navigate({ slug: null, focus: false, image: null });
+    resetGraphFocus();
   });
 
   useEffect(() => {
@@ -547,8 +593,10 @@ function DashboardApp() {
     demoMode ? buildDemoExplorer(state.data?.explorer, demoSeed) : state.data?.explorer
   ), [demoMode, demoSeed, state.data?.explorer]);
 
-  const handleGraphNodeOpen = useEffectEvent(async (slug) => {
+  const handleGraphNodeOpen = useEffectEvent(async (slug, record = true) => {
     if (!slug) return;
+    loadedNavigationRef.current = `${navigationRef.current.view}|${slug}|false`;
+    if (record) navigate({ slug, focus: false, image: null });
     const requestId = previewRequestRef.current + 1;
     previewRequestRef.current = requestId;
     lineageRequestRef.current += 1;
@@ -577,8 +625,10 @@ function DashboardApp() {
     }
   });
 
-  const handleGraphNodeSelect = useEffectEvent(async (slug) => {
+  const handleGraphNodeSelect = useEffectEvent(async (slug, record = true) => {
     if (!slug) return;
+    loadedNavigationRef.current = `graph|${slug}|true`;
+    if (record) navigate({ view: 'graph', slug, focus: true, image: null });
     const previewRequestId = previewRequestRef.current + 1;
     const focusRequestId = lineageRequestRef.current + 1;
     previewRequestRef.current = previewRequestId;
@@ -638,12 +688,27 @@ function DashboardApp() {
 
   const focusGraphNode = useEffectEvent((slug) => {
     if (!slug) return;
-    setView('graph');
     handleGraphNodeSelect(slug);
   });
 
+  useEffect(() => {
+    const key = `${navigation.view}|${navigation.slug || ''}|${navigation.focus}`;
+    if (loadedNavigationRef.current === key) return;
+    loadedNavigationRef.current = key;
+    if (navigation.slug) {
+      if (navigation.view === 'graph' && navigation.focus) handleGraphNodeSelect(navigation.slug, false);
+      else handleGraphNodeOpen(navigation.slug, false);
+    } else {
+      resetGraphFocus();
+    }
+  }, [navigation.view, navigation.slug, navigation.focus]);
+
   function handleDemoModeChange(nextDemoMode) {
     demoModeRef.current = nextDemoMode;
+    const nextNavigation = updateDashboardNavigation(navigationRef.current, { slug: null, focus: false, image: null });
+    window.history.replaceState(window.history.state, '', dashboardNavigationHref(nextNavigation, dashboardBasePath));
+    navigationRef.current = nextNavigation;
+    setNavigation(nextNavigation);
     previewRequestRef.current += 1;
     lineageRequestRef.current += 1;
     setPreview(null);
@@ -668,6 +733,10 @@ function DashboardApp() {
       setAnalytics({ status: 'error', data: null, error: error instanceof Error ? error.message : String(error) });
     }
   });
+
+  useEffect(() => {
+    if (view === 'analytics' && analytics.status === 'idle') openAnalytics();
+  }, [view, analytics.status]);
 
   const changePageVisibility = useEffectEvent(async (slug, visibility) => {
     if (!slug || demoModeRef.current) return;
@@ -732,6 +801,10 @@ function DashboardApp() {
       if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setActiveGraphSlug(data.slug || null);
       setPreview({ status: 'ready', href, sourceSlug, ...data });
+      if (data.slug) {
+        loadedNavigationRef.current = `${navigationRef.current.view}|${data.slug}|false`;
+        navigate({ slug: data.slug, focus: false });
+      }
     } catch (error) {
       if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setPreview({
@@ -790,6 +863,10 @@ function DashboardApp() {
                   <kbd className="view-chip-kbd">{item.shortcut}</kbd>
                 </button>
               ))}
+              <div className="history-nav" role="group" aria-label="Browser navigation">
+                <button type="button" className="view-chip" aria-label="Back" title="Back" disabled={historyPosition.index <= 0} onClick={() => window.history.back()}>←</button>
+                <button type="button" className="view-chip" aria-label="Forward" title="Forward" disabled={historyPosition.index >= historyPosition.end} onClick={() => window.history.forward()}>→</button>
+              </div>
               <DashboardSearch nodes={searchableNodes} onSelectPage={focusGraphNode} />
             </div>
             <div className="topline-actions">
@@ -949,7 +1026,10 @@ function DashboardApp() {
                 visualizerRef={visualizerRef}
                 shortcutsEnabled={!healthOpen && !settingsOpen && !menuOpen}
                 activeSlug={activeGraphSlug}
-                onDomainScopeChange={setActiveDomainScope}
+                selectedDomains={activeDomainScope}
+                onDomainScopeChange={(domains) => navigate({ domain: domains[0] || '' })}
+                selectedCollectionId={navigation.collection || null}
+                onCollectionChange={(collection) => navigate({ collection: collection || '' })}
                 onActiveSlugChange={setActiveGraphSlug}
                 onNodeOpen={handleGraphNodeOpen}
                 onGraphNodeSelect={handleGraphNodeSelect}
@@ -967,7 +1047,10 @@ function DashboardApp() {
             ) : null}
 
             {view === 'recents' ? (
-              <RecentsPanel onOpenPage={handleGraphNodeOpen} selectedSlug={preview?.slug} demoMode={demoMode} />
+              <RecentsPanel onOpenPage={handleGraphNodeOpen} selectedSlug={preview?.slug} demoMode={demoMode}
+                activity={navigation.activity} kind={navigation.kind} collection={navigation.collection}
+                selectedImage={navigation.image}
+                onNavigationChange={navigate} />
             ) : null}
 
             {content}
@@ -2334,19 +2417,11 @@ function streamSourceText(item) {
   return item.source_message || item.source_label || 'Source not recorded';
 }
 
-function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
-  const [activity, setActivity] = useState('updated');
-  const [kind, setKind] = useState('pages');
-  const [collection, setCollection] = useState('');
-  const [imageViewerIndex, setImageViewerIndex] = useState(null);
+function RecentsPanel({ onOpenPage, selectedSlug, demoMode, activity, kind, collection, selectedImage, onNavigationChange }) {
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [result, setResult] = useState({ status: 'loading', items: [], collections: [], error: '' });
   const collectionMenuRef = useRef(null);
-
-  useEffect(() => {
-    setImageViewerIndex(null);
-  }, [activity, kind, collection]);
 
   useEffect(() => {
     if (!collectionMenuOpen) return undefined;
@@ -2397,6 +2472,9 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
     alt_text: item.image.alt_text || item.image.alt || '',
     source: item.title || (item.image.source?.startsWith('http') ? '' : item.image.source) || labelFromSlug(item.slug),
   }));
+  const imageKey = (image) => image?.path || image?.url || null;
+  const matchingImageIndex = selectedImage ? galleryImages.findIndex((image) => imageKey(image) === selectedImage) : -1;
+  const imageViewerIndex = matchingImageIndex >= 0 ? matchingImageIndex : null;
   const galleryIndexByItem = new Map(galleryItems.map((item, index) => [item, index]));
   const visibleItems = kind === 'images' ? galleryItems : result.items;
   const groups = [];
@@ -2439,12 +2517,12 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
         <div className="recents-controls">
           <div className="recents-activity-switch" role="group" aria-label="Stream activity">
             {[['updated', 'Updated'], ['viewed', 'Viewed'], ['added', 'Added']].map(([value, label]) => (
-              <button key={value} type="button" className={activity === value ? 'active' : ''} aria-pressed={activity === value} onClick={() => setActivity(value)}>{label}</button>
+              <button key={value} type="button" className={activity === value ? 'active' : ''} aria-pressed={activity === value} onClick={() => onNavigationChange({ activity: value })}>{label}</button>
             ))}
           </div>
           <div className="recents-kind-switch" role="group" aria-label="Content type">
             {[['pages', 'Pages'], ['images', 'Images']].map(([value, label]) => (
-              <button key={value} type="button" className={kind === value ? 'active' : ''} aria-pressed={kind === value} onClick={() => setKind(value)}>{label}</button>
+              <button key={value} type="button" className={kind === value ? 'active' : ''} aria-pressed={kind === value} onClick={() => onNavigationChange({ kind: value })}>{label}</button>
             ))}
           </div>
           <div className="recents-collection-shell" ref={collectionMenuRef}>
@@ -2461,12 +2539,12 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
             </button>
             {collectionMenuOpen ? (
               <div className="graph-filter-menu recents-collection-menu" role="menu" aria-label="Collections">
-                <button type="button" className={`menu-item ${!collection ? 'selected' : ''}`} role="menuitemradio" aria-checked={!collection} onClick={() => { setCollection(''); setCollectionMenuOpen(false); }}>
+                <button type="button" className={`menu-item ${!collection ? 'selected' : ''}`} role="menuitemradio" aria-checked={!collection} onClick={() => { onNavigationChange({ collection: '' }); setCollectionMenuOpen(false); }}>
                   <span>All collections</span><span className="menu-item-check" aria-hidden="true">{!collection ? '✓' : ''}</span>
                 </button>
                 {result.status === 'ready' && !result.collections.length ? <p className="recents-collection-empty" role="note">No saved collections in this brain yet.</p> : null}
                 {result.collections.map((entry) => (
-                  <button key={entry.id} type="button" className={`menu-item ${collection === entry.id ? 'selected' : ''}`} role="menuitemradio" aria-checked={collection === entry.id} onClick={() => { setCollection(entry.id); setCollectionMenuOpen(false); }}>
+                  <button key={entry.id} type="button" className={`menu-item ${collection === entry.id ? 'selected' : ''}`} role="menuitemradio" aria-checked={collection === entry.id} onClick={() => { onNavigationChange({ collection: entry.id }); setCollectionMenuOpen(false); }}>
                     <span>{entry.title}</span><span className="menu-item-check" aria-hidden="true">{collection === entry.id ? '✓' : ''}</span>
                   </button>
                 ))}
@@ -2504,7 +2582,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
                     className={`recents-item ${kind === 'pages' && selectedSlug === item.slug ? 'selected' : ''}`}
                     onClick={async () => {
                       if (kind === 'images') {
-                        setImageViewerIndex(galleryIndexByItem.get(item) ?? null);
+                        onNavigationChange({ image: imageKey(item.image) });
                         return;
                       }
                       await onOpenPage(item.slug);
@@ -2541,10 +2619,9 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
       <PageImageLightbox
         images={galleryImages}
         activeIndex={imageViewerIndex}
-        onClose={() => setImageViewerIndex(null)}
-        onIndexChange={setImageViewerIndex}
+        onClose={() => onNavigationChange({ image: null })}
+        onIndexChange={(index) => onNavigationChange({ image: imageKey(galleryImages[index]) })}
         onOpenPage={async (slug) => {
-          setImageViewerIndex(null);
           await onOpenPage(slug);
           if (activity === 'viewed') setRefreshVersion((version) => version + 1);
         }}
@@ -3117,7 +3194,10 @@ const GraphPanel = memo(function GraphPanel({
   visualizerRef,
   shortcutsEnabled,
   activeSlug,
+  selectedDomains,
   onDomainScopeChange,
+  selectedCollectionId,
+  onCollectionChange,
   onActiveSlugChange,
   onNodeOpen,
   onGraphNodeSelect,
@@ -3133,8 +3213,6 @@ const GraphPanel = memo(function GraphPanel({
   const wasFocusedRef = useRef(false);
   const previousForceSubgraphFocusRef = useRef(null);
   const [selectedPageTypes, setSelectedPageTypes] = useState([]);
-  const [selectedDomains, setSelectedDomains] = useState([]);
-  const [selectedCollectionId, setSelectedCollectionId] = useState(null);
   const styleMenuRef = useRef(null);
   const filterMenuRef = useRef(null);
   const domainMenuRef = useRef(null);
@@ -3204,9 +3282,6 @@ const GraphPanel = memo(function GraphPanel({
   const selectedTypeSet = useMemo(() => new Set(selectedPageTypes), [selectedPageTypes]);
   const selectedDomainSet = useMemo(() => new Set(selectedDomains), [selectedDomains]);
 
-  useEffect(() => {
-    onDomainScopeChange?.(selectedDomains);
-  }, [onDomainScopeChange, selectedDomains]);
   const filteredGraph = useMemo(() => {
     const nodes = selectedPageTypes.length || selectedDomains.length || selectedCollectionSlugs !== null
       ? activityFilteredNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet, selectedCollectionSlugs))
@@ -3414,7 +3489,7 @@ const GraphPanel = memo(function GraphPanel({
     if (document.querySelector('[role="dialog"], [role="listbox"], .graph-flow-source-filter-menu')) return;
     const key = event.key.toLowerCase();
     if (key === 'd') {
-      setSelectedDomains((current) => nextGraphDomainFilter(current, domains));
+      onDomainScopeChange(nextGraphDomainFilter(selectedDomains, domains));
     } else if (key === 'c') {
       setColorMode((current) => nextGraphStyleOption(current, GRAPH_COLOR_MODES));
     } else if (key === 'p') {
@@ -3683,9 +3758,9 @@ const GraphPanel = memo(function GraphPanel({
               </button>
               {domainMenuOpen ? (
                 <div className="graph-filter-menu graph-scope-menu" role="menu" aria-label="Domain scope">
-                  <button type="button" className={`menu-item ${selectedDomains.length === 0 ? 'selected' : ''}`} role="menuitemradio" aria-checked={selectedDomains.length === 0} onClick={() => { setSelectedDomains([]); setDomainMenuOpen(false); }}><span>All domains</span><span className="menu-item-check" aria-hidden="true">{selectedDomains.length === 0 ? '✓' : ''}</span></button>
+                  <button type="button" className={`menu-item ${selectedDomains.length === 0 ? 'selected' : ''}`} role="menuitemradio" aria-checked={selectedDomains.length === 0} onClick={() => { onDomainScopeChange([]); setDomainMenuOpen(false); }}><span>All domains</span><span className="menu-item-check" aria-hidden="true">{selectedDomains.length === 0 ? '✓' : ''}</span></button>
                   {domains.map((domain) => (
-                    <button key={domain} type="button" className={`menu-item ${selectedDomainSet.has(domain) ? 'selected' : ''}`} role="menuitemradio" aria-checked={selectedDomainSet.has(domain)} onClick={() => { setSelectedDomains([domain]); setDomainMenuOpen(false); }}>
+                    <button key={domain} type="button" className={`menu-item ${selectedDomainSet.has(domain) ? 'selected' : ''}`} role="menuitemradio" aria-checked={selectedDomainSet.has(domain)} onClick={() => { onDomainScopeChange([domain]); setDomainMenuOpen(false); }}>
                       <span>{domainLabels.get(domain) || domain}</span><span className="menu-item-check" aria-hidden="true">{selectedDomainSet.has(domain) ? '✓' : ''}</span>
                     </button>
                   ))}
@@ -3709,9 +3784,9 @@ const GraphPanel = memo(function GraphPanel({
               </button>
               {collectionMenuOpen ? (
                 <div className="graph-filter-menu graph-scope-menu" role="menu" aria-label="Collection scope">
-                  <button type="button" className={`menu-item ${selectedCollectionId === null ? 'selected' : ''}`} role="menuitemradio" aria-checked={selectedCollectionId === null} onClick={() => { setSelectedCollectionId(null); setCollectionMenuOpen(false); }}><span>All collections</span><span className="menu-item-check" aria-hidden="true">{selectedCollectionId === null ? '✓' : ''}</span></button>
+                  <button type="button" className={`menu-item ${selectedCollectionId === null ? 'selected' : ''}`} role="menuitemradio" aria-checked={selectedCollectionId === null} onClick={() => { onCollectionChange(null); setCollectionMenuOpen(false); }}><span>All collections</span><span className="menu-item-check" aria-hidden="true">{selectedCollectionId === null ? '✓' : ''}</span></button>
                   {collections.map((collection) => (
-                    <button key={collection.id} type="button" className={`menu-item ${selectedCollectionId === collection.id ? 'selected' : ''}`} role="menuitemradio" aria-checked={selectedCollectionId === collection.id} onClick={() => { setSelectedCollectionId(collection.id); setCollectionMenuOpen(false); }}>
+                    <button key={collection.id} type="button" className={`menu-item ${selectedCollectionId === collection.id ? 'selected' : ''}`} role="menuitemradio" aria-checked={selectedCollectionId === collection.id} onClick={() => { onCollectionChange(collection.id); setCollectionMenuOpen(false); }}>
                       <span>{collection.title}</span><span className="menu-item-check" aria-hidden="true">{selectedCollectionId === collection.id ? '✓' : ''}</span>
                     </button>
                   ))}

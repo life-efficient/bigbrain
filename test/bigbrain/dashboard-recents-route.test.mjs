@@ -40,6 +40,11 @@ images: [{"path":"people/.raw/alice.png","caption":"Portrait"}]
       assert.equal(payload.meta.kind, kind);
       assert.equal(payload.items[0].slug, 'people/alice');
     }
+    for (const route of ['/graph?domain=ai-infrastructure', '/stream?kind=images&image=people%2F.raw%2Falice.png']) {
+      const response = await fetch(`${baseUrl}${route}`);
+      assert.equal(response.status, 200, `${route} should open directly`);
+      assert.match(response.headers.get('content-type') || '', /text\/html/);
+    }
   } finally {
     await server?.close();
     await fs.rm(rootDir, { recursive: true, force: true });
