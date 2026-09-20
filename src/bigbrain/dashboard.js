@@ -1888,24 +1888,20 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .card-copy { margin-top: 8px; line-height: 1.5; color: var(--ink); }
       .schema { white-space: pre-wrap; font-size: 12px; line-height: 1.5; max-height: 360px; overflow: auto; }
       .recents-panel { display: flex; flex-direction: column; min-width: 0; height: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow: hidden; }
-      .recents-head { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding: 25px 30px 20px; }
+      .recents-head { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding: 25px 30px 20px; border-bottom: 1px solid var(--line); }
       .recents-head-copy { min-width: 0; }
       .recents-eyebrow { display: block; margin-bottom: 7px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: 0.16em; }
       .recents-head h1 { margin: 0; font-size: 29px; line-height: 1.08; letter-spacing: -0.035em; }
       .recents-head p { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
-      .recents-kind-switch { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-muted); }
-      .recents-kind-switch button { min-height: 33px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
-      .recents-kind-switch button.active { background: var(--surface-strong); color: var(--ink); box-shadow: 0 1px 6px rgba(0,0,0,0.16); }
-      .recents-toolbar { min-height: 53px; display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: 0 30px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-      .recents-activity-switch { display: flex; align-self: stretch; align-items: stretch; gap: 24px; }
-      .recents-activity-switch button { position: relative; padding: 0 1px; border: 0; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
-      .recents-activity-switch button.active { color: var(--ink); }
-      .recents-activity-switch button.active::after { content: ''; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; border-radius: 2px; background: var(--ink); }
+      .recents-controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+      .recents-kind-switch, .recents-activity-switch { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-muted); }
+      .recents-kind-switch button, .recents-activity-switch button { min-height: 33px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
+      .recents-kind-switch button.active, .recents-activity-switch button.active { background: var(--surface-strong); color: var(--ink); box-shadow: 0 1px 6px rgba(0,0,0,0.16); }
       .recents-kind-switch button:hover, .recents-activity-switch button:hover { color: var(--ink); }
       .recents-kind-switch button:focus-visible, .recents-activity-switch button:focus-visible, .recents-item:focus-visible, .recents-retry:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
-      .recents-count { color: var(--muted); font-size: 11px; white-space: nowrap; }
       .recents-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 24px 30px 40px; }
-      .recents-groups { max-width: 1080px; display: grid; gap: 29px; }
+      .recents-groups { display: grid; gap: 29px; }
+      .recents-groups-pages { width: min(760px, 100%); margin-inline: auto; }
       .recents-group h2 { margin: 0 0 12px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
       .recents-list { display: grid; gap: 6px; }
       .recents-item { min-width: 0; width: 100%; display: flex; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid transparent; border-radius: 9px; background: var(--surface); color: var(--ink); text-align: left; cursor: pointer; transition: border-color 140ms ease, background 140ms ease, transform 140ms ease; }
@@ -1931,7 +1927,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .recents-error .recents-state-icon { color: #fda4af; border-color: rgba(253,164,175,0.24); background: rgba(253,164,175,0.08); }
       .recents-retry { min-height: 36px; margin-top: 20px; padding: 0 17px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface-strong); color: var(--ink); font-size: 12px; font-weight: 750; cursor: pointer; }
       .recents-retry:hover { background: var(--surface-muted); }
-      .recents-loading { display: grid; gap: 8px; max-width: 1080px; }
+      .recents-loading { display: grid; gap: 8px; }
+      .recents-loading-pages { width: min(760px, 100%); margin-inline: auto; }
       .recents-loading span { display: block; height: 63px; border-radius: 9px; background: var(--surface); opacity: 0.7; animation: recents-pulse 1.6s ease-in-out infinite alternate; }
       .recents-loading span:nth-child(2n) { opacity: 0.48; }
       .recents-loading-gallery { grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); gap: 13px; }
@@ -2143,7 +2140,6 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .graph-focus-banner { grid-template-columns: minmax(0, 1fr) auto; }
         .graph-focus-mode-toggle { grid-column: 1 / -1; justify-self: start; }
         .recents-head { padding: 20px 18px 17px; }
-        .recents-toolbar { padding: 0 18px; }
         .recents-scroll { padding: 18px 18px 30px; }
       }
       @media (max-width: 640px) {
@@ -2152,8 +2148,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .view-recents.preview-open main { padding-right: 16px; }
         .view-recents .sidecar-shell { position: fixed; width: 100vw; }
         .recents-head, .recents-scroll { padding-left: 14px; padding-right: 14px; }
-        .recents-toolbar { padding-right: 14px; padding-left: 14px; }
-        .recents-activity-switch { gap: 18px; }
+        .recents-controls { justify-content: flex-start; gap: 8px; }
+        .recents-activity-switch button, .recents-kind-switch button { padding: 0 10px; }
         .recents-item-time { display: none; }
         .recents-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
         .analytics-head { align-items: flex-start; flex-direction: column; }

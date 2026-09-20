@@ -2242,22 +2242,21 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
           <h1>Recents</h1>
           <p>Pick up where you left off.</p>
         </div>
-        <div className="recents-kind-switch" role="group" aria-label="Content type">
-          {[['pages', 'Pages'], ['images', 'Images']].map(([value, label]) => (
-            <button key={value} type="button" className={kind === value ? 'active' : ''} aria-pressed={kind === value} onClick={() => setKind(value)}>{label}</button>
-          ))}
+        <div className="recents-controls">
+          <div className="recents-activity-switch" role="group" aria-label="Sort recent activity">
+            {[['updated', 'Updated'], ['viewed', 'Viewed'], ['added', 'Added']].map(([value, label]) => (
+              <button key={value} type="button" className={activity === value ? 'active' : ''} aria-pressed={activity === value} onClick={() => setActivity(value)}>{label}</button>
+            ))}
+          </div>
+          <div className="recents-kind-switch" role="group" aria-label="Content type">
+            {[['pages', 'Pages'], ['images', 'Images']].map(([value, label]) => (
+              <button key={value} type="button" className={kind === value ? 'active' : ''} aria-pressed={kind === value} onClick={() => setKind(value)}>{label}</button>
+            ))}
+          </div>
         </div>
-      </div>
-      <div className="recents-toolbar">
-        <div className="recents-activity-switch" role="group" aria-label="Sort recent activity">
-          {[['updated', 'Updated'], ['added', 'Added'], ['viewed', 'Viewed']].map(([value, label]) => (
-            <button key={value} type="button" className={activity === value ? 'active' : ''} aria-pressed={activity === value} onClick={() => setActivity(value)}>{label}</button>
-          ))}
-        </div>
-        {result.status === 'ready' && result.items.length ? <span className="recents-count">{result.items.length} {kind === 'images' ? (result.items.length === 1 ? 'image' : 'images') : (result.items.length === 1 ? 'page' : 'pages')}</span> : null}
       </div>
       <div className="recents-scroll" aria-live="polite">
-        {result.status === 'loading' ? <div className={kind === 'images' ? 'recents-loading recents-loading-gallery' : 'recents-loading'} aria-label="Loading recents">{Array.from({ length: kind === 'images' ? 8 : 5 }, (_, index) => <span key={index} />)}</div> : null}
+        {result.status === 'loading' ? <div className={kind === 'images' ? 'recents-loading recents-loading-gallery' : 'recents-loading recents-loading-pages'} aria-label="Loading recents">{Array.from({ length: kind === 'images' ? 8 : 5 }, (_, index) => <span key={index} />)}</div> : null}
         {result.status === 'error' ? (
           <div className="recents-state recents-error" role="alert">
             <span className="recents-state-icon" aria-hidden="true">!</span>
@@ -2274,7 +2273,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
           </div>
         ) : null}
         {result.status === 'ready' && result.items.length ? (
-          <div className="recents-groups">
+          <div className={`recents-groups ${kind === 'pages' ? 'recents-groups-pages' : ''}`}>
             {groups.map((group) => <div className="recents-group" key={group.label}>
               <h2>{group.label}</h2>
               <div className={kind === 'images' ? 'recents-gallery' : 'recents-list'}>
