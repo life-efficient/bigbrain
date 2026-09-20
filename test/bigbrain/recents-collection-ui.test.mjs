@@ -8,6 +8,7 @@ test('Recents shows a collection selector and sends the selection to its API', a
 
   assert.match(panel, /className="recents-collection-shell"/);
   assert.match(panel, /aria-haspopup="menu"/);
+  assert.match(panel, /aria-label=\{`Collection: \$\{selectedCollection\?\.title \|\| collection \|\| 'All collections'\}`\}/);
   assert.match(panel, /aria-label="Collections"/);
   assert.match(panel, /selectedCollection\?\.title \|\| collection \|\| 'All collections'/);
   assert.match(panel, /<span>All collections<\/span>/);

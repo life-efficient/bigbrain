@@ -2294,7 +2294,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
             <button
               type="button"
               className={`recents-collection-trigger ${collectionMenuOpen ? 'active' : ''}`}
-              aria-label="Collection"
+              aria-label={`Collection: ${selectedCollection?.title || collection || 'All collections'}`}
               aria-haspopup="menu"
               aria-expanded={collectionMenuOpen}
               onClick={() => setCollectionMenuOpen((open) => !open)}
