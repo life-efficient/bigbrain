@@ -1158,8 +1158,14 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .section-head { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 14px; }
       .section-subtle { font-size: 13px; margin-top: 2px; }
       .graph-footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 14px; }
-      .graph-stats { display: flex; flex-wrap: wrap; gap: 14px; color: var(--muted); font-size: 12px; font-weight: 400; }
+      .graph-stats { display: flex; align-items: center; flex-wrap: nowrap; gap: 10px; color: var(--muted); font-size: 12px; font-weight: 400; white-space: nowrap; }
       .graph-stat strong { color: var(--ink); font-weight: 500; }
+      .graph-scope-menu-shell { position: relative; }
+      .graph-scope-trigger { display: inline-flex; align-items: center; gap: 6px; max-width: min(220px, 20vw); min-height: 32px; padding: 6px 10px; white-space: nowrap; }
+      .graph-scope-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+      .graph-scope-trigger:focus-visible { outline: 2px solid var(--line-strong); outline-offset: 2px; }
+      .graph-filter-menu.graph-scope-menu { right: 0; left: auto; min-width: 220px; max-height: min(50vh, 360px); }
+      .graph-scope-empty { padding: 9px 10px; color: var(--muted); font-size: 12px; }
       .graph-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-wrap: nowrap; margin-left: auto; }
       .graph-wrap { height: 520px; overflow: hidden; position: relative; border-radius: 18px; background: transparent; border: 1px solid rgba(148,163,184,0.18); }
       .graph-wrap-expanded { flex: 1; min-height: 0; height: auto; }
@@ -2144,6 +2150,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .analytics-grid { grid-template-columns: 1fr; }
       }
       @media (max-width: 760px) {
+        .graph-footer, .graph-stats { flex-wrap: wrap; }
+        .graph-scope-trigger { max-width: min(220px, 42vw); }
         .dashboard-search { width: min(100%, 280px); min-width: 0; }
         .graph-focus-banner { grid-template-columns: minmax(0, 1fr) auto; }
         .graph-focus-mode-toggle { grid-column: 1 / -1; justify-self: start; }
@@ -3573,6 +3581,13 @@ export async function buildGraphPayload(db, config = null) {
   }))).sort((a, b) => b.degree - a.degree || a.slug.localeCompare(b.slug));
 
   const allowed = new Set(candidateNodes.map((node) => node.slug));
+  const collectionDefinitions = (await listSharedGroups(db))
+    .map((group) => ({
+      id: group.slug,
+      title: group.title,
+      page_slugs: [...new Set(group.pages.map((page) => page.page_slug).filter((slug) => allowed.has(slug)))],
+    }))
+    .sort((left, right) => left.title.localeCompare(right.title) || left.id.localeCompare(right.id));
   const legacyProvenanceRows = await listPageProvenance(db, { pageSlugs: [...allowed], limit: 200 });
   const timelineRows = timelineProvenanceRows(graphPages);
   const timelineKeys = new Set(timelineRows.map((row) => `${row.page_slug}:${row.event_id}`));
@@ -3599,6 +3614,7 @@ export async function buildGraphPayload(db, config = null) {
       edge_count: edges.length,
       input_count: inputs.length,
       domain_definitions: domainDefinitions,
+      collection_definitions: collectionDefinitions,
     },
     activity: history.activity,
     inputs,

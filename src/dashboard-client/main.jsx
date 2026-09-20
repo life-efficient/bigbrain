@@ -57,6 +57,7 @@ import {
 import { buildFocusedSubgraphGraph } from './graph/focused-subgraph-data.js';
 import { deriveGraphMotion, graphPayloadsEqual } from './graph/live-graph.js';
 import { nextGraphDomainFilter, nextGraphStyleOption } from './graph/style-shortcuts.js';
+import { graphNodeDomains, graphNodeMatchesFilters } from './graph/scope.js';
 import { PlaybooksController } from './playbooks/shell.jsx';
 import {
   buildDemoExplorer,
@@ -2879,17 +2880,6 @@ function isLineActivityMode(mode) {
   return mode.endsWith('-line') || mode === 'line';
 }
 
-function graphNodeDomains(node) {
-  return Array.isArray(node?.domains) ? node.domains : [];
-}
-
-function graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet) {
-  if (!node) return false;
-  const matchesType = selectedTypeSet.size === 0 || selectedTypeSet.has(node.type);
-  const matchesDomain = selectedDomainSet.size === 0 || graphNodeDomains(node).some((domain) => selectedDomainSet.has(domain));
-  return matchesType && matchesDomain;
-}
-
 function activityPointX(index, length) {
   if (length <= 1) return 50;
   return (index / (length - 1)) * 100;
@@ -2953,14 +2943,19 @@ const GraphPanel = memo(function GraphPanel({
 }) {
   const [styleMenuOpen, setStyleMenuOpen] = useState(false);
   const [filterMenuOpen, setFilterMenuOpen] = useState(false);
+  const [domainMenuOpen, setDomainMenuOpen] = useState(false);
+  const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
   const [activityMode, setActivityMode] = useState('bars');
   const [focusedViewMode, setFocusedViewMode] = useState('network');
   const wasFocusedRef = useRef(false);
   const previousForceSubgraphFocusRef = useRef(null);
   const [selectedPageTypes, setSelectedPageTypes] = useState([]);
   const [selectedDomains, setSelectedDomains] = useState([]);
+  const [selectedCollectionId, setSelectedCollectionId] = useState(null);
   const styleMenuRef = useRef(null);
   const filterMenuRef = useRef(null);
+  const domainMenuRef = useRef(null);
+  const collectionMenuRef = useRef(null);
   const activityPlotRef = useRef(null);
   const activityDraggingRef = useRef(false);
   const visualizer = graphVisualizers.find((item) => item.id === visualizerId) || graphVisualizers[0];
@@ -3018,6 +3013,11 @@ const GraphPanel = memo(function GraphPanel({
       .filter((domain) => domain?.id)
       .map((domain) => [domain.id, domain.name || domain.id]),
   ), [graph?.meta?.domain_definitions]);
+  const collections = Array.isArray(graph?.meta?.collection_definitions) ? graph.meta.collection_definitions : [];
+  const selectedCollection = collections.find((collection) => collection.id === selectedCollectionId);
+  const selectedCollectionSlugs = useMemo(() => (
+    selectedCollectionId ? new Set(selectedCollection?.page_slugs || []) : null
+  ), [selectedCollectionId, selectedCollection]);
   const selectedTypeSet = useMemo(() => new Set(selectedPageTypes), [selectedPageTypes]);
   const selectedDomainSet = useMemo(() => new Set(selectedDomains), [selectedDomains]);
 
@@ -3025,8 +3025,8 @@ const GraphPanel = memo(function GraphPanel({
     onDomainScopeChange?.(selectedDomains);
   }, [onDomainScopeChange, selectedDomains]);
   const filteredGraph = useMemo(() => {
-    const nodes = selectedPageTypes.length || selectedDomains.length
-      ? activityFilteredNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet))
+    const nodes = selectedPageTypes.length || selectedDomains.length || selectedCollectionSlugs !== null
+      ? activityFilteredNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet, selectedCollectionSlugs))
       : activityFilteredNodes;
     const slugs = new Set(nodes.map((node) => node.slug));
     const edges = (Array.isArray(activeGraph?.edges) ? activeGraph.edges : []).filter((edge) => {
@@ -3043,12 +3043,12 @@ const GraphPanel = memo(function GraphPanel({
         edge_count: edges.length,
       },
     };
-  }, [activeGraph, activityFilteredNodes, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet]);
+  }, [activeGraph, activityFilteredNodes, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet, selectedCollectionSlugs]);
   const filteredSubgraph = useMemo(() => {
     if (!focusSlug) return focusedSubgraph;
     const sourceNodes = Array.isArray(focusedSubgraph?.nodes) ? focusedSubgraph.nodes : [];
-    const nodes = selectedPageTypes.length || selectedDomains.length
-      ? sourceNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet))
+    const nodes = selectedPageTypes.length || selectedDomains.length || selectedCollectionSlugs !== null
+      ? sourceNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet, selectedCollectionSlugs))
       : sourceNodes;
     const slugs = new Set(nodes.map((node) => node.slug));
     const edges = (Array.isArray(focusedSubgraph?.edges) ? focusedSubgraph.edges : []).filter((edge) => {
@@ -3064,12 +3064,12 @@ const GraphPanel = memo(function GraphPanel({
         edge_count: edges.length,
       },
     };
-  }, [focusSlug, focusedSubgraph, graph?.meta, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet]);
+  }, [focusSlug, focusedSubgraph, graph?.meta, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet, selectedCollectionSlugs]);
   const forceGraph = useMemo(() => {
     const forceSourceGraph = focusSlug ? focusGraph : graph;
     const forceSourceNodes = activityFilteredNodes;
-    const nodes = selectedPageTypes.length || selectedDomains.length
-      ? forceSourceNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet))
+    const nodes = selectedPageTypes.length || selectedDomains.length || selectedCollectionSlugs !== null
+      ? forceSourceNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet, selectedCollectionSlugs))
       : forceSourceNodes;
     const slugs = new Set(nodes.map((node) => node.slug));
     const edges = (Array.isArray(forceSourceGraph?.edges) ? forceSourceGraph.edges : []).filter((edge) => {
@@ -3085,7 +3085,7 @@ const GraphPanel = memo(function GraphPanel({
         edge_count: edges.length,
       },
     };
-  }, [activityFilteredNodes, focusGraph, focusSlug, graph, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet]);
+  }, [activityFilteredNodes, focusGraph, focusSlug, graph, selectedDomains.length, selectedDomainSet, selectedPageTypes.length, selectedTypeSet, selectedCollectionSlugs]);
   const recentNodes = useMemo(() => {
     const nodes = Array.isArray(filteredGraph?.nodes) ? filteredGraph.nodes : [];
     return [...nodes]
@@ -3099,12 +3099,13 @@ const GraphPanel = memo(function GraphPanel({
       : (Array.isArray(filteredGraph?.inputs) ? filteredGraph.inputs : [])
         .map((item) => ({ ...item, target_pages: graphFlowInputTargets(item) }))
         .filter((item) => (
-          selectedTypeSet.size === 0 && selectedDomainSet.size === 0
+          selectedTypeSet.size === 0 && selectedDomainSet.size === 0 && selectedCollectionSlugs === null
             ? true
             : item.target_pages.some((target) => graphNodeMatchesFilters(
               filteredGraph.nodes?.find((node) => node.slug === target.slug),
               selectedTypeSet,
               selectedDomainSet,
+              selectedCollectionSlugs,
             ))
         ))
         .sort((left, right) => {
@@ -3112,7 +3113,7 @@ const GraphPanel = memo(function GraphPanel({
           const rightTime = graphFlowInputTimestamp(right);
           return rightTime - leftTime || String(right.event_id || '').localeCompare(String(left.event_id || ''));
         })
-  ), [demoMode, demoSeed, filteredGraph, recentNodes, selectedDomainSet, selectedTypeSet]);
+  ), [demoMode, demoSeed, filteredGraph, recentNodes, selectedDomainSet, selectedTypeSet, selectedCollectionSlugs]);
   const activitySeries = useMemo(() => buildActivitySeries(activityBuckets), [activityBuckets]);
   const focusedTimelineUpdates = useMemo(() => buildFocusedTimelineUpdates(lineage, filteredGraph), [filteredGraph, lineage]);
   const activityValueKey = isCumulativeActivityMode(activityMode) ? 'cumulative' : 'count';
@@ -3173,7 +3174,7 @@ const GraphPanel = memo(function GraphPanel({
   }, [focusSlug, focusedViewMode, isForceRenderer]);
 
   useEffect(() => {
-    if (!styleMenuOpen && !filterMenuOpen) return undefined;
+    if (!styleMenuOpen && !filterMenuOpen && !domainMenuOpen && !collectionMenuOpen) return undefined;
 
     function handlePointerDown(event) {
       if (styleMenuRef.current && !styleMenuRef.current.contains(event.target)) {
@@ -3182,12 +3183,20 @@ const GraphPanel = memo(function GraphPanel({
       if (filterMenuRef.current && !filterMenuRef.current.contains(event.target)) {
         setFilterMenuOpen(false);
       }
+      if (domainMenuRef.current && !domainMenuRef.current.contains(event.target)) {
+        setDomainMenuOpen(false);
+      }
+      if (collectionMenuRef.current && !collectionMenuRef.current.contains(event.target)) {
+        setCollectionMenuOpen(false);
+      }
     }
 
     function handleEscape(event) {
       if (event.key === 'Escape') {
         setStyleMenuOpen(false);
         setFilterMenuOpen(false);
+        setDomainMenuOpen(false);
+        setCollectionMenuOpen(false);
       }
     }
 
@@ -3197,21 +3206,13 @@ const GraphPanel = memo(function GraphPanel({
       window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('keydown', handleEscape);
     };
-  }, [styleMenuOpen, filterMenuOpen]);
+  }, [styleMenuOpen, filterMenuOpen, domainMenuOpen, collectionMenuOpen]);
 
   function togglePageType(type) {
     setSelectedPageTypes((current) => (
       current.includes(type)
         ? current.filter((item) => item !== type)
         : [...current, type]
-    ));
-  }
-
-  function toggleDomain(domain) {
-    setSelectedDomains((current) => (
-      current.includes(domain)
-        ? current.filter((item) => item !== domain)
-        : [...current, domain]
     ));
   }
 
@@ -3481,9 +3482,60 @@ const GraphPanel = memo(function GraphPanel({
           <div className="graph-stats">
             <span className="graph-stat"><strong>{Number.isFinite(filteredGraph?.meta?.page_count) ? filteredGraph.meta.page_count : 0}</strong> pages</span>
             <span className="graph-stat"><strong>{Number.isFinite(filteredGraph?.meta?.edge_count) ? filteredGraph.meta.edge_count : 0}</strong> edges</span>
-            <span className="graph-stat" aria-live="polite">
-              {selectedDomains.length ? selectedDomains.map((domain) => domainLabels.get(domain) || domain).join(', ') : 'All domains'}
-            </span>
+            <div className="graph-scope-menu-shell" ref={domainMenuRef}>
+              <button
+                type="button"
+                className={`graph-button graph-scope-trigger ${domainMenuOpen ? 'graph-button-active' : ''}`}
+                aria-haspopup="menu"
+                aria-expanded={domainMenuOpen}
+                onClick={() => {
+                  setCollectionMenuOpen(false);
+                  setFilterMenuOpen(false);
+                  setStyleMenuOpen(false);
+                  setDomainMenuOpen((open) => !open);
+                }}
+              >
+                <span className="graph-scope-label">{selectedDomains.length ? domainLabels.get(selectedDomains[0]) || selectedDomains[0] : 'All domains'}</span>
+                <kbd className="settings-shortcut">D</kbd>
+              </button>
+              {domainMenuOpen ? (
+                <div className="graph-filter-menu graph-scope-menu" role="menu" aria-label="Domain scope">
+                  <button type="button" className={`menu-item ${selectedDomains.length === 0 ? 'selected' : ''}`} role="menuitemradio" aria-checked={selectedDomains.length === 0} onClick={() => { setSelectedDomains([]); setDomainMenuOpen(false); }}><span>All domains</span><span className="menu-item-check" aria-hidden="true">{selectedDomains.length === 0 ? '✓' : ''}</span></button>
+                  {domains.map((domain) => (
+                    <button key={domain} type="button" className={`menu-item ${selectedDomainSet.has(domain) ? 'selected' : ''}`} role="menuitemradio" aria-checked={selectedDomainSet.has(domain)} onClick={() => { setSelectedDomains([domain]); setDomainMenuOpen(false); }}>
+                      <span>{domainLabels.get(domain) || domain}</span><span className="menu-item-check" aria-hidden="true">{selectedDomainSet.has(domain) ? '✓' : ''}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+            <div className="graph-scope-menu-shell" ref={collectionMenuRef}>
+              <button
+                type="button"
+                className={`graph-button graph-scope-trigger ${collectionMenuOpen ? 'graph-button-active' : ''}`}
+                aria-haspopup="menu"
+                aria-expanded={collectionMenuOpen}
+                onClick={() => {
+                  setDomainMenuOpen(false);
+                  setFilterMenuOpen(false);
+                  setStyleMenuOpen(false);
+                  setCollectionMenuOpen((open) => !open);
+                }}
+              >
+                <span className="graph-scope-label">{selectedCollection?.title || 'All collections'}</span>
+              </button>
+              {collectionMenuOpen ? (
+                <div className="graph-filter-menu graph-scope-menu" role="menu" aria-label="Collection scope">
+                  <button type="button" className={`menu-item ${selectedCollectionId === null ? 'selected' : ''}`} role="menuitemradio" aria-checked={selectedCollectionId === null} onClick={() => { setSelectedCollectionId(null); setCollectionMenuOpen(false); }}><span>All collections</span><span className="menu-item-check" aria-hidden="true">{selectedCollectionId === null ? '✓' : ''}</span></button>
+                  {collections.map((collection) => (
+                    <button key={collection.id} type="button" className={`menu-item ${selectedCollectionId === collection.id ? 'selected' : ''}`} role="menuitemradio" aria-checked={selectedCollectionId === collection.id} onClick={() => { setSelectedCollectionId(collection.id); setCollectionMenuOpen(false); }}>
+                      <span>{collection.title}</span><span className="menu-item-check" aria-hidden="true">{selectedCollectionId === collection.id ? '✓' : ''}</span>
+                    </button>
+                  ))}
+                  {collections.length === 0 ? <div className="graph-scope-empty" aria-disabled="true">No collections yet</div> : null}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
         <div className="graph-toolbar">
@@ -3492,7 +3544,7 @@ const GraphPanel = memo(function GraphPanel({
               type="button"
               className={`icon-button graph-icon-button ${filterMenuOpen ? 'graph-button-active' : ''}`}
               aria-label="Filter graph"
-              title="Filter graph (D cycles domains)"
+              title="Filter page types"
               aria-expanded={filterMenuOpen}
               onClick={() => {
                 setStyleMenuOpen(false);
@@ -3526,32 +3578,6 @@ const GraphPanel = memo(function GraphPanel({
                     >
                       <span>{type}</span>
                       <span className="menu-item-check" aria-hidden="true">{selectedTypeSet.has(type) ? '✓' : ''}</span>
-                    </button>
-                  ))}
-                </div>
-                <div className="graph-filter-group">
-                  <span className="graph-filter-group-label">Domains <kbd className="settings-shortcut">D</kbd></span>
-                  <button
-                    type="button"
-                    className={`menu-item ${selectedDomains.length === 0 ? 'selected' : ''}`}
-                    onClick={() => setSelectedDomains([])}
-                    role="menuitemcheckbox"
-                    aria-checked={selectedDomains.length === 0}
-                  >
-                    <span>All domains</span>
-                    <span className="menu-item-check" aria-hidden="true">{selectedDomains.length === 0 ? '✓' : ''}</span>
-                  </button>
-                  {domains.map((domain) => (
-                    <button
-                      key={domain}
-                      type="button"
-                      className={`menu-item ${selectedDomainSet.has(domain) ? 'selected' : ''}`}
-                      onClick={() => toggleDomain(domain)}
-                      role="menuitemcheckbox"
-                      aria-checked={selectedDomainSet.has(domain)}
-                    >
-                      <span>{domainLabels.get(domain) || domain}</span>
-                      <span className="menu-item-check" aria-hidden="true">{selectedDomainSet.has(domain) ? '✓' : ''}</span>
                     </button>
                   ))}
                 </div>
@@ -3685,10 +3711,12 @@ const GraphPanel = memo(function GraphPanel({
                 <button
                   key={control}
                   type="button"
-                  className="graph-button"
+                  className="icon-button graph-icon-button"
+                  aria-label={control === 'resetView' ? 'Fit graph to view' : GRAPH_CONTROL_LABELS[control] || control}
+                  title={control === 'resetView' ? 'Fit graph to view' : GRAPH_CONTROL_LABELS[control] || control}
                   onClick={() => visualizerRef.current?.[control]?.()}
                 >
-                  {GRAPH_CONTROL_LABELS[control] || control}
+                  {control === 'resetView' ? <FitViewIcon /> : GRAPH_CONTROL_LABELS[control] || control}
                 </button>
               ))}
             </div>
@@ -4146,6 +4174,15 @@ function FilterIcon() {
         strokeWidth="2"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function FitViewIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="settings-icon">
+      <path d="M9 4H4v5m11-5h5v5m0 6v5h-5M4 15v5h5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="8" y="8" width="8" height="8" rx="1" fill="none" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }

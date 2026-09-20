@@ -206,6 +206,42 @@ test('dashboard graph nodes expose normalized domains from indexed frontmatter',
   }
 });
 
+test('dashboard graph exposes custom collections with graph-visible member slugs', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-graph-collections-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'index.md', '# Index\n');
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', '# Alice\n');
+    await writeMarkdown(fixture.brainHome, 'projects/relay.md', '# Relay\n');
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await syncBrain({ config, apiKey: null });
+    const db = await openDatabase(config);
+
+    const collection = await upsertSharedGroup(db, {
+      slug: 'project-people',
+      title: 'Project People',
+      visibility: 'internal',
+      pages: ['index', 'people/alice', 'projects/relay'],
+    });
+    await upsertSharedGroup(db, {
+      slug: 'alpha',
+      title: 'Alpha',
+      pages: ['people/alice'],
+    });
+
+    const graph = await buildGraphPayload(db, config);
+
+    assert.deepEqual(graph.meta.collection_definitions, [
+      { id: 'alpha', title: 'Alpha', page_slugs: ['people/alice'] },
+      { id: 'project-people', title: 'Project People', page_slugs: ['people/alice', 'projects/relay'] },
+    ]);
+    assert.equal(collection.visibility, 'internal');
+    assert.deepEqual(collection.pages.map((page) => page.page_slug), ['index', 'people/alice', 'projects/relay']);
+    await db.close?.();
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('dashboard graph recent timestamps reflect current markdown file edits', async () => {
   const fixture = await createFixture('bigbrain-dashboard-graph-mtime-');
   try {
