@@ -164,3 +164,14 @@ Expected:
 - Positive: "Reconcile my Substack subscriptions, add missing RSS feeds, and backfill five missed posts" selects this skill.
 - Negative: "Draft a post for my Substack publication" does not select ingestion.
 - Ambiguous neighbor: "Ingest this newsletter article from a custom domain" requires verifying publisher identity; choose this adapter for Substack and generic source-article for another publisher.
+
+## Promotional footer inside a substantive post
+
+Prompt: "Ingest this followed Substack post" where the canonical body ends with "Enjoying this newsletter? Become a paid subscriber", a WhatsApp channel join link, and a sponsorship contact email.
+
+Expected:
+
+- Perform the normal shared-ledger preflight and relevance review for the whole post; the footer does not make the post ineligible.
+- Retain the substantive article prose in order, with an optional Fact Sheet only if supported by the readable article.
+- Omit the self-contained subscription, channel, and sponsorship footer from the indexed reading copy; record the omitted block and keep any archived source bytes unedited.
+- Read back the cleaned page and any raw artifact before completing the shared post record.

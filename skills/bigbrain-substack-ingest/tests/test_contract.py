@@ -62,5 +62,9 @@ assert "articles/.raw/" in SKILL
 assert "published_date" in AGENT
 assert "article_url" in AGENT
 assert "without changing Gmail" in AGENT
+assert "reading-copy-cleanup.md" in SKILL
+assert "Enjoying this newsletter?" in SKILL
+assert "sponsorship" in AGENT
+assert "Promotional footer inside a substantive post" in CASES
 
 print("bigbrain-substack-ingest contract checks passed")
