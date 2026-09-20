@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: YouTube Ingest"
   short_description: "Preserve YouTube chapters, transcript, and useful facts"
-  default_prompt: "Use $bigbrain-youtube-ingest to preserve exact YouTube metadata and chapters, retain complete transcript support, and create a verified chronological BigBrain source record. Add a near-top Fact Sheet only for substantial, attributed facts supported by the transcript."
+  default_prompt: "Use $bigbrain-youtube-ingest to preserve exact YouTube metadata and chapters, redact sponsor reads with timestamped coverage notes, and create a verified chronological BigBrain source record. Add a near-top Fact Sheet only for substantial, attributed facts supported by the transcript."

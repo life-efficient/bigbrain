@@ -12,7 +12,7 @@ Preserve time-based media and create a comprehensive, readable account of what t
 - Read and follow [the shared ingestion completeness checklist](../bigbrain-ingest/references/ingestion-completeness.md) before any Brain write, including when this skill is invoked directly. Complete that checklist before declaring ingestion complete.
 - Read live `filing_rules` before choosing a destination or writing.
 - Deduplicate by stable source ID, exact title, proposed path, and direct reads of plausible matches.
-- Preserve the complete timestamped transcript when one is available or can reasonably be produced.
+- Preserve the complete timestamped transcript when one is available or can reasonably be produced, subject to the YouTube sponsor-read redaction rule below.
 - Store the transcript under the owning collection's flat `.raw/` path with exactly one same-basename Markdown sidecar.
 - For YouTube, preserve the exact video title and channel as source metadata, then derive the sidecar title and normalized basename from them.
 - When YouTube provides chapters, preserve every chapter label and its order as the sidecar's primary section structure.
@@ -40,6 +40,7 @@ For every YouTube transcript ingest:
 - If the YouTube description contains a `Timestamps:` or `Chapters:` block, parse its timestamp and label pairs before drafting the exposition.
 - Use one primary heading for every parsed chapter, preserving the exact label and source order. Agent-authored headings may appear only as subordinate headings beneath the source chapter.
 - A `## Fact Sheet` may appear before the first chapter as an editorial preface; it is not a chapter heading and must not change the validated chapter heading sequence.
+- Apply the YouTube skill's sponsor-read rule before filing the transcript: remove promotional reads only, insert timestamped placeholders, and disclose the redacted ranges in the sidecar coverage note. Parse chapters from the exact retrieved description before redacting promotional copy and links in the saved description. Preserve substantive editorial material and every published chapter label, including sponsor-labelled chapters.
 - If no chapters are present, label the sidecar metadata with `chapter_source: none` and make any fallback chronology visibly agent-authored.
 
 ## Source Exposition Standard
@@ -70,7 +71,7 @@ Keep the exposition observational. It may explain how one part leads to the next
    - Anti-patterns: creating from semantic-search absence, duplicate pages for one source, reading only snippets, overwriting a same-ID conflict
 3. Retrieve complete source support:
    - prefer published manual captions, then published automatic captions, then a clearly labelled local transcription
-   - preserve the complete available transcript and record coverage, method, diarization status, and accuracy caveats
+   - preserve the complete available substantive transcript and record coverage, method, diarization status, and accuracy caveats; for YouTube, apply the sponsor-read exception above and record each redacted range
    - retain source metadata and any user-highlighted passages or interpretations
    - parse the YouTube description's chapter block with `parseYouTubeChapters` before prose synthesis
    - Anti-patterns: excerpt-only capture, calling a partial transcript complete, presenting machine captions as human-verified, treating chapters as optional context

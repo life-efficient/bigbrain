@@ -10,8 +10,9 @@ Ingest one YouTube source with exact platform provenance, complete transcript su
 ## Contract Checklist
 
 - Use `bigbrain-media-ingest` as the shared execution contract for filing rules, completeness, canonical reconciliation, raw artifacts, sidecars, and read-back.
-- Preserve exact `youtube_title`, `channel`, `youtube_id`, URL, description, publication date, duration, and available chapters before drafting.
-- Treat captions as source support, not silently human-verified transcript text; record coverage, retrieval method, diarization, and accuracy caveats.
+- Retrieve exact `youtube_title`, `channel`, `youtube_id`, URL, description, publication date, duration, and available chapters before drafting. Preserve source identity and chapters in the saved record; redact promotional description copy when filing it.
+- Treat captions as source support, not silently human-verified transcript text; record coverage, retrieval method, diarization, accuracy caveats, and sponsor-read redactions.
+- Redact paid sponsor and ad reads from the saved transcript and sidecar. Leave timestamped placeholders and a brief coverage note with the removed ranges; retain all substantive editorial content and every published chapter label.
 - Follow the shared media skill's [Fact Sheet standard](../bigbrain-ingest/references/fact-sheet.md): add a near-top `## Fact Sheet` only for substantial attributed facts supported by the verified transcript; preserve the source chapter sequence.
 - Do not write when exact title, channel, or stable ID cannot be verified.
 
@@ -28,10 +29,14 @@ Ingest one YouTube source with exact platform provenance, complete transcript su
 3. Retrieve and preserve the source:
    - Prefer published manual captions, then published automatic captions, then a clearly labelled transcription when reasonably available.
    - Parse and preserve every published chapter label and its source order.
+   - Parse chapters from the full retrieved description first. In the saved description, replace sponsor offers, tracking links, and promotional copy with a brief `[Sponsor promotion redacted]` note while retaining non-promotional context and the timestamp block.
+   - Identify paid sponsor and ad reads by their promotional function, including host-read ads, pre-rolls, mid-rolls, and calls to visit, subscribe to, or buy from an advertiser. Redact only those spans from the transcript to be filed. Replace each span with a timestamped `[Sponsor read redacted]` placeholder; list its start and end time in the sidecar coverage note. Approximate boundaries must be labelled approximate.
+   - Keep editorial discussion, interview answers, material disclosures, and facts needed to understand the argument even when they mention a brand. If a sponsor read shares a chapter with substantive discussion, remove only the promotional portion. Keep the published chapter heading, including a sponsor-labelled heading, and note the redaction below it when appropriate.
    - Delegate the shared media-ingest workflow for raw transcript storage, chronological sidecar prose, canonical entity reconciliation, and verification.
-   - Anti-patterns: excerpt-only capture, merged chapters, calling partial coverage complete, analytical rewriting of the source.
+   - Anti-patterns: excerpt-only capture, merged chapters, calling partial coverage complete, analytical rewriting of the source, deleting whole mixed-content chapters, silently omitting ad spans.
 4. Verify completion:
    - Read back the sidecar, raw transcript, metadata, chapter structure, and any canonical updates through the owning Brain.
+   - Check that each sponsor-read range has a transcript placeholder and sidecar coverage note, and that no ad copy remains in the sidecar or saved transcript.
    - Confirm the sidecar title and basename derive from the exact video title and channel, and that the YouTube ID is present for provenance and deduplication.
    - Anti-patterns: trusting a write response, skipping raw-artifact verification, reporting completion with unresolved metadata or coverage gaps.
 
@@ -44,6 +49,7 @@ Use the shared media-ingest implementation and its `validateYouTubeMetadata`, `b
 - Do not file a YouTube source as generic media when the YouTube adapter applies.
 - Do not treat a transcript generated from captions as human-verified.
 - Do not create a source page without the raw transcript or a clearly documented retrieval gap.
+- Do not save a second unredacted ad copy artifact as a workaround; the source URL and redaction ranges provide provenance.
 - Do not create concept pages for every topic mentioned; reconcile only durable, independently reusable knowledge.
 
 ## Output
