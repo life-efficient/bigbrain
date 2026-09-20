@@ -1929,12 +1929,12 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .recents-item-copy span, .recents-item-time { color: var(--muted); font-size: 11px; }
       .recents-item-time { flex: 0 0 auto; padding-left: 10px; white-space: nowrap; }
       .recents-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); align-content: start; gap: 13px; }
-      .recents-gallery .recents-item { display: grid; align-content: start; gap: 0; padding: 5px; overflow: hidden; }
+      .recents-gallery .recents-item { position: relative; display: block; aspect-ratio: 1; padding: 0; overflow: hidden; }
       .recents-gallery .recents-item:hover { transform: translateY(-2px); }
-      .recents-gallery .recents-item-copy { padding: 10px 8px 8px; }
-      .recents-gallery .recents-item-copy strong { font-size: 12px; }
-      .recents-thumbnail { display: grid; place-items: center; width: 100%; aspect-ratio: 1; overflow: hidden; border-radius: 6px; background: var(--surface-muted); }
-      .recents-thumbnail img { width: 100%; height: 100%; object-fit: cover; }
+      .recents-gallery .recents-item-copy { display: none; }
+      .recents-gallery .recents-thumbnail { position: absolute; inset: 0; }
+      .recents-thumbnail { display: grid; place-items: center; width: 100%; height: 100%; overflow: hidden; border-radius: inherit; background: var(--surface-muted); }
+      .recents-thumbnail img { display: block; width: 100%; height: 100%; object-fit: cover; }
       .recents-state { width: min(390px, 100%); margin: min(12vh, 100px) auto 0; padding: 24px; text-align: center; }
       .recents-state-icon { width: 46px; height: 46px; display: grid; place-items: center; margin: 0 auto 16px; border: 1px solid var(--line-strong); border-radius: 13px; background: var(--surface); color: var(--muted); font-size: 25px; font-weight: 600; }
       .recents-state h2 { margin: 0; font-size: 17px; letter-spacing: -0.02em; }
