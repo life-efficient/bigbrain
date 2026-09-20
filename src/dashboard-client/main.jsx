@@ -708,7 +708,7 @@ function DashboardApp() {
   const views = [
     { id: 'graph', label: 'Graph', shortcut: 'G' },
     ...(filesystemExplorerEnabled ? [{ id: 'explorer', label: 'Explorer', shortcut: 'E' }] : []),
-    { id: 'recents', label: 'Recents', shortcut: 'R' },
+    { id: 'recents', label: 'Stream', shortcut: 'R' },
   ];
 
   async function openPreview({ href, sourceSlug }) {
@@ -2263,7 +2263,7 @@ function ExplorerPanel({ explorer, demoMode, demoSeed }) {
           <div className="explorer-view-toggle" role="group" aria-label="Explorer view">
             {[
               ['folders', 'Folders'],
-              ['recents', 'Recents'],
+              ['recents', 'Recent files'],
             ].map(([id, label]) => (
               <button
                 key={id}
@@ -2391,7 +2391,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   const selectedCollection = result.collections.find((entry) => entry.id === collection);
   const collectionName = selectedCollection?.title || 'this collection';
   const emptyTitle = demoMode
-    ? 'Recents is off in demo mode'
+    ? 'Stream is off in demo mode'
     : collection
       ? activity === 'viewed' ? `Nothing viewed in ${collectionName}` : `No ${kind} in ${collectionName}`
       : activity === 'viewed' ? 'Nothing viewed yet' : `No ${kind} to show`;
@@ -2410,15 +2410,15 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
           : 'New and changed pages will appear here when available.';
 
   return (
-    <section className="recents-panel" aria-label="Recent activity">
+    <section className="recents-panel" aria-label="Stream">
       <div className="recents-head">
         <div className="recents-head-copy">
           <span className="recents-eyebrow">YOUR BRAIN</span>
-          <h1>Recents</h1>
+          <h1>Stream</h1>
           <p>Pick up where you left off.</p>
         </div>
         <div className="recents-controls">
-          <div className="recents-activity-switch" role="group" aria-label="Sort recent activity">
+          <div className="recents-activity-switch" role="group" aria-label="Stream activity">
             {[['updated', 'Updated'], ['viewed', 'Viewed'], ['added', 'Added']].map(([value, label]) => (
               <button key={value} type="button" className={activity === value ? 'active' : ''} aria-pressed={activity === value} onClick={() => setActivity(value)}>{label}</button>
             ))}
@@ -2457,12 +2457,12 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
         </div>
       </div>
       <div className="recents-scroll" aria-live="polite">
-        {result.status === 'loading' ? <div className={kind === 'images' ? 'recents-loading recents-loading-gallery' : 'recents-loading recents-loading-pages'} aria-label="Loading recents">{Array.from({ length: kind === 'images' ? 8 : 5 }, (_, index) => <span key={index} />)}</div> : null}
+        {result.status === 'loading' ? <div className={kind === 'images' ? 'recents-loading recents-loading-gallery' : 'recents-loading recents-loading-pages'} aria-label="Loading Stream">{Array.from({ length: kind === 'images' ? 8 : 5 }, (_, index) => <span key={index} />)}</div> : null}
         {result.status === 'error' ? (
           <div className="recents-state recents-error" role="alert">
             <span className="recents-state-icon" aria-hidden="true">!</span>
-            <h2>Recents is unavailable</h2>
-            <p>{errorIsMissingRoute ? 'This dashboard is running an older BigBrain service. Restart BigBrain to load Recents.' : 'We couldn’t load recent activity. Check the connection and try again.'}</p>
+            <h2>Stream is unavailable</h2>
+            <p>{errorIsMissingRoute ? 'This dashboard is running an older BigBrain service. Restart BigBrain to load Stream.' : 'We couldn’t load recent activity. Check the connection and try again.'}</p>
             <button type="button" className="recents-retry" onClick={() => setRefreshVersion((version) => version + 1)}>Try again</button>
           </div>
         ) : null}

@@ -2468,7 +2468,7 @@ export async function buildRecentsPayload(
   const activity = requestUrl.searchParams.get('activity') || 'updated';
   const kind = requestUrl.searchParams.get('kind') || 'pages';
   if (!['updated', 'added', 'viewed'].includes(activity) || !['pages', 'images'].includes(kind)) {
-    const error = new Error('Recents requires activity=updated|added|viewed and kind=pages|images.');
+    const error = new Error('Stream requires activity=updated|added|viewed and kind=pages|images.');
     error.statusCode = 400;
     throw error;
   }
