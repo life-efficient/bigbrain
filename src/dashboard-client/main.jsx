@@ -2196,10 +2196,15 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   const [activity, setActivity] = useState('updated');
   const [kind, setKind] = useState('pages');
   const [collection, setCollection] = useState('');
+  const [imageViewerIndex, setImageViewerIndex] = useState(null);
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [result, setResult] = useState({ status: 'loading', items: [], collections: [], error: '' });
   const collectionMenuRef = useRef(null);
+
+  useEffect(() => {
+    setImageViewerIndex(null);
+  }, [activity, kind, collection]);
 
   useEffect(() => {
     if (!collectionMenuOpen) return undefined;
@@ -2243,8 +2248,16 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   const timestampFor = (item) => kind === 'images' && activity === 'updated'
     ? item.image?.updated_at || item[timeField]
     : item[timeField];
+  const galleryItems = kind === 'images' ? result.items.filter((item) => item.image?.url) : [];
+  const galleryImages = galleryItems.map((item) => ({
+    ...item.image,
+    alt_text: item.image.alt_text || item.image.alt || '',
+    source: item.image.source || item.title || labelFromSlug(item.slug),
+  }));
+  const galleryIndexByItem = new Map(galleryItems.map((item, index) => [item, index]));
+  const visibleItems = kind === 'images' ? galleryItems : result.items;
   const groups = [];
-  for (const item of result.items) {
+  for (const item of visibleItems) {
     const label = recentDateGroupLabel(timestampFor(item));
     const group = groups.at(-1);
     if (group?.label === label) group.items.push(item);
@@ -2329,14 +2342,14 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
             <button type="button" className="recents-retry" onClick={() => setRefreshVersion((version) => version + 1)}>Try again</button>
           </div>
         ) : null}
-        {result.status === 'ready' && !result.items.length ? (
+        {result.status === 'ready' && !visibleItems.length ? (
           <div className="recents-state">
             <span className="recents-state-icon" aria-hidden="true">{kind === 'images' ? '▧' : '▤'}</span>
             <h2>{emptyTitle}</h2>
             <p>{emptyCopy}</p>
           </div>
         ) : null}
-        {result.status === 'ready' && result.items.length ? (
+        {result.status === 'ready' && visibleItems.length ? (
           <div className={`recents-groups ${kind === 'pages' ? 'recents-groups-pages' : ''}`}>
             {groups.map((group) => <div className="recents-group" key={group.label}>
               <h2>{group.label}</h2>
@@ -2345,21 +2358,29 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
                   <button
                     key={kind === 'images' ? `${item.slug}:${item.image?.path || index}` : item.slug}
                     type="button"
-                    className={`recents-item ${selectedSlug === item.slug ? 'selected' : ''}`}
+                    className={`recents-item ${kind === 'pages' && selectedSlug === item.slug ? 'selected' : ''}`}
                     onClick={async () => {
+                      if (kind === 'images') {
+                        setImageViewerIndex(galleryIndexByItem.get(item) ?? null);
+                        return;
+                      }
                       await onOpenPage(item.slug);
                       if (activity === 'viewed') setRefreshVersion((version) => version + 1);
                     }}
-                    aria-label={kind === 'images' ? `Open image from ${item.title || labelFromSlug(item.slug)}` : undefined}
+                    aria-label={kind === 'images' ? `Open image ${(galleryIndexByItem.get(item) ?? 0) + 1} of ${galleryItems.length}: ${item.image?.caption || item.image?.alt || item.title || labelFromSlug(item.slug)}` : undefined}
                   >
                     {kind === 'images' ? (
-                      <span className="recents-thumbnail"><img src={item.image?.url} alt={item.image?.alt || ''} loading="lazy" /></span>
-                    ) : <span className="recents-page-glyph" aria-hidden="true">▤</span>}
-                    <span className="recents-item-copy">
-                      <strong>{item.title || labelFromSlug(item.slug)}</strong>
-                      <span>{kind === 'images' ? item.image?.caption || item.image?.alt || item.slug : item.slug}</span>
-                    </span>
-                    {kind === 'pages' ? <span className="recents-item-time">{formatRelativeTime(timestampFor(item))}</span> : null}
+                      <span className="recents-thumbnail"><img src={item.image?.url} alt="" loading="lazy" /></span>
+                    ) : (
+                      <>
+                        <span className="recents-page-glyph" aria-hidden="true">▤</span>
+                        <span className="recents-item-copy">
+                          <strong>{item.title || labelFromSlug(item.slug)}</strong>
+                          <span>{item.slug}</span>
+                        </span>
+                        <span className="recents-item-time">{formatRelativeTime(timestampFor(item))}</span>
+                      </>
+                    )}
                   </button>
                 ))}
               </div>
@@ -2367,6 +2388,12 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
           </div>
         ) : null}
       </div>
+      <PageImageLightbox
+        images={galleryImages}
+        activeIndex={imageViewerIndex}
+        onClose={() => setImageViewerIndex(null)}
+        onIndexChange={setImageViewerIndex}
+      />
     </section>
   );
 }
