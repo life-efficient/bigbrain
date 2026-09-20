@@ -31,6 +31,15 @@ test('Recents exposes collections and filters pages and images by collection mem
     const config = await loadConfig({ configPath });
     await syncBrain({ config, apiKey: null });
     db = await openDatabase(config);
+    const query = (suffix = '') => new URL(`/api/recents?activity=updated&kind=pages${suffix}`, 'http://127.0.0.1');
+    const foldersOnly = await buildRecentsPayload(config, db, query());
+    assert.deepEqual(foldersOnly.collections, [
+      { id: 'folder:people', title: 'People', count: 2, source: 'folder' },
+      { id: 'folder:projects', title: 'Projects', count: 1, source: 'folder' },
+    ]);
+    assert.deepEqual((await buildRecentsPayload(config, db, query('&collection=folder:people'))).items.map((item) => item.slug).sort(), ['people/alice', 'people/bob']);
+    assert.deepEqual((await buildRecentsPayload(config, db, query('&collection=folder:unknown'))).items, []);
+
     await upsertSharedGroup(db, {
       slug: 'people',
       title: 'People',
@@ -44,14 +53,15 @@ test('Recents exposes collections and filters pages and images by collection mem
       visibility: 'public',
       pages: [{ page_slug: 'projects/relay' }],
     });
-    const query = (suffix = '') => new URL(`/api/recents?activity=updated&kind=pages${suffix}`, 'http://127.0.0.1');
-
     const all = await buildRecentsPayload(config, db, query());
     assert.deepEqual(new Set(all.items.map((item) => item.slug)), new Set(['people/alice', 'people/bob', 'projects/relay']));
     assert.deepEqual(all.collections, [
-      { id: 'people', title: 'People', count: 2 },
-      { id: 'projects', title: 'Projects', count: 1 },
+      { id: 'folder:people', title: 'People (Brain folder)', count: 2, source: 'folder' },
+      { id: 'folder:projects', title: 'Projects (Brain folder)', count: 1, source: 'folder' },
+      { id: 'people', title: 'People (Saved collection)', count: 2, source: 'curated' },
+      { id: 'projects', title: 'Projects (Saved collection)', count: 1, source: 'curated' },
     ]);
+    assert.doesNotMatch(JSON.stringify(all.collections), /\bgroup\b/i);
     assert.equal(all.meta.collection, null);
 
     const people = await buildRecentsPayload(config, db, query('&collection=people'));
@@ -71,6 +81,16 @@ test('Recents exposes collections and filters pages and images by collection mem
     assert.deepEqual(missing.items, []);
     assert.equal(missing.meta.collection, 'does-not-exist');
     assert.deepEqual(missing.collections, all.collections);
+
+    await upsertSharedGroup(db, {
+      slug: 'other-people',
+      title: 'People',
+      pages: [{ page_slug: 'people/alice' }],
+    });
+    const duplicateTitles = (await buildRecentsPayload(config, db, query())).collections;
+    assert.equal(duplicateTitles.find(({ id }) => id === 'folder:people').title, 'People (Brain folder)');
+    assert.equal(duplicateTitles.find(({ id }) => id === 'people').title, 'People (Saved collection: people)');
+    assert.equal(duplicateTitles.find(({ id }) => id === 'other-people').title, 'People (Saved collection: other-people)');
   } finally {
     db?.raw.close();
     await fs.rm(rootDir, { recursive: true, force: true });
