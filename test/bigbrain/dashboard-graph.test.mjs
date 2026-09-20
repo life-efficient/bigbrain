@@ -10,6 +10,7 @@ import { createBrainDomain } from '../../src/bigbrain/domains.js';
 import {
   buildExplorerFilePayload,
   buildExplorerRecentPayload,
+  buildRecentsPayload,
   buildExplorerTreePayload,
   buildGraphPayload,
   buildGraphLineagePayload,
@@ -20,6 +21,7 @@ import {
   buildPublicRawFilePayload,
   buildSharedGroupPayload,
   buildSharedRawFilePayload,
+  recordDashboardPageView,
 } from '../../src/bigbrain/dashboard.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
@@ -655,6 +657,58 @@ test('dashboard explorer recents lists files by latest edit time', async () => {
     ]);
     assert.equal(recents.meta.total_file_count, 3);
     assert.equal(recents.meta.limit, 2);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('recents sorts pages and attached images by update, addition, and dashboard view', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-recents-');
+  try {
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
+title: Alice
+created_at: 2026-01-01
+images: [{"path":"people/.raw/alice.png","caption":"Alice portrait"}]
+---
+# Alice
+`);
+    await writeMarkdown(fixture.brainHome, 'projects/relay.md', `---
+title: Relay
+created_at: 2026-01-03
+images: [{"path":"projects/.raw/relay.png","caption":"Relay sketch"}]
+---
+# Relay
+`);
+    await writeFile(fixture.brainHome, 'people/.raw/alice.png', Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    await writeFile(fixture.brainHome, 'projects/.raw/relay.png', Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+    await writeMarkdown(fixture.brainHome, 'people/.raw/private.md', '# Raw sidecar');
+    const aliceUpdated = new Date('2026-01-05T00:00:00Z');
+    const relayUpdated = new Date('2026-01-04T00:00:00Z');
+    await fs.utimes(path.join(fixture.brainHome, 'people/alice.md'), aliceUpdated, aliceUpdated);
+    await fs.utimes(path.join(fixture.brainHome, 'projects/relay.md'), relayUpdated, relayUpdated);
+    await fs.utimes(path.join(fixture.brainHome, 'people/.raw/alice.png'), relayUpdated, relayUpdated);
+    await fs.utimes(path.join(fixture.brainHome, 'projects/.raw/relay.png'), aliceUpdated, aliceUpdated);
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const db = await openDatabase(config);
+    const query = (activity, kind) => new URL(`/api/recents?activity=${activity}&kind=${kind}`, 'http://127.0.0.1');
+
+    const updated = await buildRecentsPayload(config, db, query('updated', 'pages'));
+    assert.deepEqual(updated.items.map((item) => item.slug), ['people/alice', 'projects/relay']);
+    assert.equal(updated.items[0].title, 'Alice');
+    const added = await buildRecentsPayload(config, db, query('added', 'pages'));
+    assert.deepEqual(added.items.map((item) => item.slug), ['projects/relay', 'people/alice']);
+    const gallery = await buildRecentsPayload(config, db, query('updated', 'images'));
+    assert.deepEqual(gallery.items.map((item) => item.image.path), ['projects/.raw/relay.png', 'people/.raw/alice.png']);
+    assert.equal(gallery.items[0].slug, 'projects/relay');
+    assert.match(gallery.items[0].image.url, /api\/explorer\/blob/);
+
+    assert.deepEqual((await buildRecentsPayload(config, db, query('viewed', 'pages'))).items, []);
+    await recordDashboardPageView(db, 'people/alice', { now: new Date('2026-01-06T00:00:00Z') });
+    await recordDashboardPageView(db, 'projects/relay', { now: new Date('2026-01-07T00:00:00Z') });
+    const viewed = await buildRecentsPayload(config, db, query('viewed', 'pages'));
+    assert.deepEqual(viewed.items.map((item) => item.slug), ['projects/relay', 'people/alice']);
+    assert.equal(viewed.items[0].viewed_at, '2026-01-07T00:00:00.000Z');
+    db.raw.close();
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

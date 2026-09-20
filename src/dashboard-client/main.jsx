@@ -442,7 +442,7 @@ function DashboardApp() {
 
     function handlePointerDown(event) {
       const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('.sidecar-panel, .page-image-lightbox-overlay, .graph-wrap, .graph-focus-banner, .graph-footer')) return;
+      if (target?.closest('.sidecar-panel, .page-image-lightbox-overlay, .graph-wrap, .graph-focus-banner, .graph-footer, .recents-panel')) return;
       clearGraphFocus();
     }
 
@@ -497,6 +497,9 @@ function DashboardApp() {
       } else if (key === 'e' && filesystemExplorerEnabled) {
         event.preventDefault();
         setView('explorer');
+      } else if (key === 'r') {
+        event.preventDefault();
+        setView('recents');
       } else if (key === 'd' && event.shiftKey) {
         event.preventDefault();
         handleDemoModeChange(!demoModeRef.current);
@@ -704,6 +707,7 @@ function DashboardApp() {
   const views = [
     { id: 'graph', label: 'Graph', shortcut: 'G' },
     ...(filesystemExplorerEnabled ? [{ id: 'explorer', label: 'Explorer', shortcut: 'E' }] : []),
+    { id: 'recents', label: 'Recents', shortcut: 'R' },
   ];
 
   async function openPreview({ href, sourceSlug }) {
@@ -873,7 +877,7 @@ function DashboardApp() {
             </div>
           </div>
 
-          <div className={`view-stage ${view === 'graph' || view === 'explorer' ? 'view-stage-graph' : 'view-stage-list'}`}>
+          <div className={`view-stage ${view === 'graph' || view === 'explorer' || view === 'recents' ? 'view-stage-graph' : 'view-stage-list'}`}>
             {view === 'tasks' ? (
               <div className="list-page-card standalone-list-region">
                 <AssigneeFilter members={members} value={assigneeFilter} onChange={handleAssigneeFilterChange} disabled={assigneeLoading} />
@@ -958,6 +962,10 @@ function DashboardApp() {
                 demoMode={demoMode}
                 demoSeed={demoSeed}
               />
+            ) : null}
+
+            {view === 'recents' ? (
+              <RecentsPanel onOpenPage={handleGraphNodeOpen} selectedSlug={preview?.slug} demoMode={demoMode} />
             ) : null}
 
             {content}
@@ -2179,6 +2187,97 @@ function ExplorerPanel({ explorer, demoMode, demoSeed }) {
         fileState={fileState}
         onRelativeLinkClick={openExplorerLink}
       />
+    </section>
+  );
+}
+
+function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
+  const [activity, setActivity] = useState('updated');
+  const [kind, setKind] = useState('pages');
+  const [refreshVersion, setRefreshVersion] = useState(0);
+  const [result, setResult] = useState({ status: 'loading', items: [], error: '' });
+
+  useEffect(() => {
+    if (demoMode) {
+      setResult({ status: 'ready', items: [], error: '' });
+      return undefined;
+    }
+    const controller = new AbortController();
+    setResult({ status: 'loading', items: [], error: '' });
+    const params = new URLSearchParams({ activity, kind });
+    fetchJson(`/api/recents?${params}`, { signal: controller.signal })
+      .then((data) => setResult({ status: 'ready', items: Array.isArray(data.items) ? data.items : [], error: '' }))
+      .catch((error) => {
+        if (!controller.signal.aborted) setResult({ status: 'error', items: [], error: error.message || String(error) });
+      });
+    return () => controller.abort();
+  }, [activity, kind, demoMode, refreshVersion]);
+
+  const timeField = activity === 'added' ? 'created_at' : activity === 'viewed' ? 'viewed_at' : 'updated_at';
+  const emptyLabel = demoMode
+    ? 'Recent activity is hidden in demo mode.'
+    : activity === 'viewed'
+      ? `No recently viewed ${kind} yet. Open a page to start this history.`
+      : `No recently ${activity} ${kind} yet.`;
+
+  return (
+    <section className="recents-panel" aria-label="Recent activity">
+      <div className="recents-head">
+        <div>
+          <h1>Recents</h1>
+          <p>Browse recent pages and images in this brain.</p>
+        </div>
+        <div className="recents-filters">
+          <label>Activity
+            <select value={activity} onChange={(event) => setActivity(event.target.value)}>
+              <option value="updated">Updated</option>
+              <option value="added">Added</option>
+              <option value="viewed">Viewed</option>
+            </select>
+          </label>
+          <label>Show
+            <select value={kind} onChange={(event) => setKind(event.target.value)}>
+              <option value="pages">Pages</option>
+              <option value="images">Images</option>
+            </select>
+          </label>
+        </div>
+      </div>
+      <div className="recents-scroll" aria-live="polite">
+        {result.status === 'loading' ? <div className="empty-copy">Loading recents…</div> : null}
+        {result.status === 'error' ? <div className="empty-copy">Unable to load recents: {result.error}</div> : null}
+        {result.status === 'ready' && !result.items.length ? <div className="empty-copy">{emptyLabel}</div> : null}
+        {result.status === 'ready' && result.items.length ? (
+          <div className={kind === 'images' ? 'recents-gallery' : 'recents-list'}>
+            {result.items.map((item, index) => {
+              const timestamp = kind === 'images' && activity === 'updated'
+                ? item.image?.updated_at || item[timeField]
+                : item[timeField];
+              return (
+                <button
+                  key={kind === 'images' ? `${item.slug}:${item.image?.path || index}` : item.slug}
+                  type="button"
+                  className={`recents-item ${selectedSlug === item.slug ? 'selected' : ''}`}
+                  onClick={async () => {
+                    await onOpenPage(item.slug);
+                    if (activity === 'viewed') setRefreshVersion((version) => version + 1);
+                  }}
+                  aria-label={kind === 'images' ? `Open ${item.title || labelFromSlug(item.slug)}, image ${index + 1}` : undefined}
+                >
+                  {kind === 'images' ? (
+                    <span className="recents-thumbnail"><img src={item.image?.url} alt={item.image?.alt || ''} loading="lazy" /></span>
+                  ) : <span className="recents-page-glyph" aria-hidden="true">▤</span>}
+                  <span className="recents-item-copy">
+                    <strong>{item.title || labelFromSlug(item.slug)}</strong>
+                    <span>{kind === 'images' ? item.image?.caption || item.image?.alt || item.slug : item.slug}</span>
+                    <small>{formatRelativeTime(timestamp)}</small>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
     </section>
   );
 }

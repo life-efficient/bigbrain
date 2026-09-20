@@ -20,6 +20,7 @@ import {
   openDatabase,
 } from './db.js';
 import { loadDomainRegistry, normalizeDomainId } from './domains.js';
+import { isExcludedPath, matchesIncludeGlobs, shouldSkipSystemPath } from './file-selection.js';
 import { runHealthCheck } from './health.js';
 import { authenticatedBrainAbout, isBrainProfileDocument, loadBrainProfile } from './brain-profile.js';
 import { PAGE_SCHEMA_REGISTRY_FILENAME } from './page-schema-registry.js';
@@ -303,6 +304,9 @@ export async function createDashboardRequestHandler(config, {
       }
       if (requestUrl.pathname === '/api/tasks') return json(res, await buildTasksPayload(config, db, requestUrl, { actor }));
       if (requestUrl.pathname === '/api/recent') return json(res, await buildRecentPayload(db));
+      if (requestUrl.pathname === '/api/recents') {
+        return json(res, await buildRecentsPayload(config, db, requestUrl, { dashboardSurface: resolvedDashboardSurface }), { noStore: true });
+      }
       if (requestUrl.pathname === '/api/graph/events') return streamGraphEvents(db, res);
       if (requestUrl.pathname === '/api/graph') return json(res, await buildGraphPayload(db, config), { noStore: true });
       if (requestUrl.pathname === '/api/graph/lineage') {
@@ -333,7 +337,9 @@ export async function createDashboardRequestHandler(config, {
         return json(res, await handleComprehensionRequest(config, db, req, actor), { noStore: true });
       }
       if (requestUrl.pathname === '/api/page') {
-        return json(res, await buildPagePayload(config, db, requestUrl, { dashboardSurface: resolvedDashboardSurface }));
+        const page = await buildPagePayload(config, db, requestUrl, { dashboardSurface: resolvedDashboardSurface });
+        await recordDashboardPageView(db, page.slug);
+        return json(res, page, { noStore: true });
       }
       if (requestUrl.pathname === '/api/page/visibility') {
         return json(res, await updateDashboardPageVisibility(config, db, req, actor, { dashboardSurface: resolvedDashboardSurface }));
@@ -1875,6 +1881,28 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .health-item.medium { border-color: rgba(188,123,77,0.35); }
       .card-copy { margin-top: 8px; line-height: 1.5; color: var(--ink); }
       .schema { white-space: pre-wrap; font-size: 12px; line-height: 1.5; max-height: 360px; overflow: auto; }
+      .recents-panel { display: flex; flex-direction: column; min-width: 0; height: 100%; border: 1px solid var(--line); background: var(--panel); overflow: hidden; }
+      .recents-head { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding: 22px 24px; border-bottom: 1px solid var(--line); }
+      .recents-head h1 { margin: 0; font-size: 25px; line-height: 1.2; }
+      .recents-head p { margin: 5px 0 0; color: var(--muted); font-size: 12px; }
+      .recents-filters { display: flex; flex-wrap: wrap; gap: 10px; }
+      .recents-filters label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; font-weight: 700; }
+      .recents-filters select { min-width: 124px; min-height: 36px; padding: 7px 32px 7px 10px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--surface); color: var(--ink); font: inherit; font-size: 13px; cursor: pointer; }
+      .recents-filters select:focus-visible, .recents-item:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+      .recents-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 18px 24px 36px; }
+      .recents-list { display: grid; gap: 7px; max-width: 960px; }
+      .recents-item { min-width: 0; width: 100%; display: flex; align-items: center; gap: 13px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); text-align: left; cursor: pointer; }
+      .recents-item:hover, .recents-item.selected { border-color: var(--line-strong); background: var(--surface-muted); }
+      .recents-page-glyph { width: 38px; height: 38px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 7px; background: var(--surface-muted); color: var(--muted); font-size: 21px; }
+      .recents-item-copy { min-width: 0; display: grid; gap: 4px; }
+      .recents-item-copy strong, .recents-item-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .recents-item-copy strong { font-size: 13px; }
+      .recents-item-copy span, .recents-item-copy small { color: var(--muted); font-size: 11px; }
+      .recents-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); align-content: start; gap: 14px; }
+      .recents-gallery .recents-item { display: grid; align-content: start; gap: 9px; padding: 7px; }
+      .recents-gallery .recents-item-copy { padding: 2px 4px 5px; }
+      .recents-thumbnail { display: grid; place-items: center; width: 100%; aspect-ratio: 1; overflow: hidden; background: var(--surface-muted); }
+      .recents-thumbnail img { width: 100%; height: 100%; object-fit: cover; }
       .explorer-shell { --explorer-tree-width: 310px; height: 100%; min-height: 0; display: grid; grid-template-columns: minmax(220px, var(--explorer-tree-width)) 8px minmax(0, 1fr); border: 1px solid var(--line); background: var(--panel); overflow: hidden; }
       .explorer-tree { min-height: 0; overflow: auto; background: color-mix(in srgb, var(--panel) 92%, #000 8%); padding: 8px 0 12px; }
       .explorer-resizer { min-height: 0; cursor: col-resize; border-left: 1px solid var(--line); border-right: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 86%, #000 14%); position: relative; }
@@ -2069,6 +2097,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .page-shell.preview-open { --sidecar-width: 0px; }
         .sidecar-shell { position: fixed; top: 0; right: 0; bottom: 0; left: auto; width: min(560px, 92vw); height: 100vh; padding: 0; z-index: 10; }
         .sidecar-panel { border-left: 1px solid var(--line); border-top: 0; border-radius: 0; }
+        .view-recents.preview-open { --sidecar-width: min(560px, 48vw); }
+        .view-recents.preview-open main { padding-right: calc(16px + var(--sidecar-width)); }
+        .view-recents .sidecar-shell { position: absolute; width: min(560px, 48vw); }
         .sidecar-link-grid { grid-template-columns: 1fr; }
         .analytics-grid { grid-template-columns: 1fr; }
       }
@@ -2079,6 +2110,11 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       }
       @media (max-width: 640px) {
         .sidecar-shell { left: 0; width: 100vw; }
+        .view-recents.preview-open { --sidecar-width: 0px; }
+        .view-recents.preview-open main { padding-right: 16px; }
+        .view-recents .sidecar-shell { position: fixed; width: 100vw; }
+        .recents-head, .recents-scroll { padding-left: 14px; padding-right: 14px; }
+        .recents-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
         .analytics-head { align-items: flex-start; flex-direction: column; }
         .analytics-metrics { grid-template-columns: 1fr; }
         .analytics-event { align-items: flex-start; flex-direction: column; }
@@ -2338,6 +2374,124 @@ export async function buildExplorerTreePayload(config, { dashboardSurface = 'loc
       ...(dashboardSurface === 'local' ? { root_path: config.brainDir } : {}),
     },
   };
+}
+
+export async function buildRecentsPayload(
+  config,
+  db,
+  requestUrl = new URL('http://127.0.0.1'),
+  { dashboardSurface = 'local' } = {},
+) {
+  const activity = requestUrl.searchParams.get('activity') || 'updated';
+  const kind = requestUrl.searchParams.get('kind') || 'pages';
+  if (!['updated', 'added', 'viewed'].includes(activity) || !['pages', 'images'].includes(kind)) {
+    const error = new Error('Recents requires activity=updated|added|viewed and kind=pages|images.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const requestedLimit = Number.parseInt(requestUrl.searchParams.get('limit') || '80', 10);
+  const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(250, requestedLimit)) : 80;
+  const viewedAt = await dashboardPageViews(db);
+  const pagePaths = [];
+  await walkRecentPagePaths(config, config.brainDir, pagePaths);
+  const items = [];
+  for (const relativePath of pagePaths) {
+    const slug = relativePath.replace(/\.md$/i, '');
+    let parsed;
+    let stats;
+    try {
+      [parsed, stats] = await Promise.all([
+        fs.readFile(safeExplorerPath(config.brainDir, relativePath), 'utf8').then((raw) => parseMarkdownPage(raw, slug)),
+        fs.stat(safeExplorerPath(config.brainDir, relativePath)),
+      ]);
+    } catch {
+      continue;
+    }
+    const metadataCreatedAt = parsed.frontmatter.created_at || parsed.frontmatter.created || null;
+    const createdAt = validIsoTimestamp(metadataCreatedAt) || stats.birthtime.toISOString();
+    const parent = {
+      slug,
+      title: parsed.title || path.posix.basename(relativePath),
+      path: relativePath,
+      updated_at: stats.mtime.toISOString(),
+      created_at: createdAt,
+      viewed_at: viewedAt.get(slug) || null,
+    };
+    if (kind === 'pages') {
+      items.push(parent);
+      continue;
+    }
+    if (dashboardSurface !== 'local') continue;
+    const images = await buildPageImagesPayload(config, parsed.frontmatter.images, { sourceSlug: slug });
+    for (const image of images) {
+      if (!image.mime_type.startsWith('image/')) continue;
+      items.push({
+        ...parent,
+        image: {
+          ...image,
+          alt: image.alt || image.caption || image.filename,
+        },
+      });
+    }
+  }
+  const visible = activity === 'viewed' ? items.filter((item) => item.viewed_at) : items;
+  const dateFor = (item) => activity === 'viewed'
+    ? item.viewed_at
+    : activity === 'added'
+      ? item.created_at
+      : item.image?.updated_at || item.updated_at;
+  visible.sort((left, right) => Date.parse(dateFor(right)) - Date.parse(dateFor(left))
+    || left.slug.localeCompare(right.slug)
+    || (left.image?.path || '').localeCompare(right.image?.path || ''));
+  return {
+    items: visible.slice(0, limit),
+    meta: { activity, kind, limit, total_count: visible.length, surface: dashboardSurface },
+  };
+}
+
+async function walkRecentPagePaths(config, current, pages) {
+  const entries = await fs.readdir(current, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(current, entry.name);
+    const relativePath = path.relative(config.brainDir, fullPath).split(path.sep).join('/');
+    if (entry.name.startsWith('.') || entry.name === 'node_modules' || shouldSkipSystemPath(relativePath)) continue;
+    if (entry.isDirectory()) {
+      await walkRecentPagePaths(config, fullPath, pages);
+    } else if (entry.isFile() && /\.md$/i.test(entry.name)) {
+      if (!matchesIncludeGlobs(relativePath, config.includeGlobs)
+        || isExcludedPath(fullPath, relativePath, config.excludeGlobs, config.tasksFile)) continue;
+      if (relativePath === 'BRAIN.md') {
+        const raw = await fs.readFile(fullPath, 'utf8');
+        if (isBrainProfileDocument(raw)) continue;
+      }
+      pages.push(relativePath);
+    }
+  }
+}
+
+export async function recordDashboardPageView(db, slug, { now = new Date() } = {}) {
+  if (db.backend === 'postgres') {
+    await db.query(
+      "INSERT INTO activity_log (page_slug, activity_type, timestamp, details_json) VALUES ($1, 'dashboard_view', $2, '{}'::jsonb)",
+      [slug, now.toISOString()],
+    );
+    return;
+  }
+  db.raw.prepare("INSERT INTO activity_log (page_slug, activity_type, timestamp, details_json) VALUES (?, 'dashboard_view', ?, '{}')")
+    .run(slug, now.toISOString());
+}
+
+async function dashboardPageViews(db) {
+  const rows = db.backend === 'postgres'
+    ? (await db.query("SELECT page_slug, MAX(timestamp) AS viewed_at FROM activity_log WHERE activity_type = 'dashboard_view' GROUP BY page_slug")).rows
+    : db.raw.prepare("SELECT page_slug, MAX(timestamp) AS viewed_at FROM activity_log WHERE activity_type = 'dashboard_view' GROUP BY page_slug").all();
+  return new Map(rows.map((row) => [row.page_slug, new Date(row.viewed_at).toISOString()]));
+}
+
+function validIsoTimestamp(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
 }
 
 export async function buildExplorerRecentPayload(
