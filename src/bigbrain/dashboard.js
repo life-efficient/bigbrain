@@ -1943,6 +1943,14 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-filter-menu.recents-collection-menu { top: calc(100% + 8px); right: 0; bottom: auto; min-width: max(220px, 100%); max-width: min(320px, calc(100vw - 40px)); max-height: min(50vh, 360px); }
       .recents-collection-empty { margin: 3px 4px 2px; padding: 10px 8px 3px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.45; }
       .recents-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 24px 30px 40px; }
+      .recents-source-filter { width: min(760px, 100%); min-width: 0; display: flex; align-items: center; gap: 7px; margin: 0 auto 24px; padding: 1px 1px 9px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; -webkit-overflow-scrolling: touch; }
+      .recents-source-pill { flex: 0 0 auto; min-height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0 11px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; white-space: nowrap; cursor: pointer; transition: border-color 140ms ease, background 140ms ease, color 140ms ease; }
+      .recents-source-pill:hover { border-color: var(--line-strong); color: var(--ink); }
+      .recents-source-pill.active { border-color: var(--accent-strong); background: color-mix(in srgb, var(--accent-strong) 13%, var(--surface)); color: var(--ink); }
+      .recents-source-pill:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+      .recents-source-pill-icon { width: 16px; height: 16px; flex: 0 0 auto; display: grid; place-items: center; }
+      .recents-source-pill-icon .graph-flow-card-source { width: 16px; height: 16px; border: 0; border-radius: 0; background: none; }
+      .recents-source-pill small { color: var(--muted); font-size: 10px; font-weight: 700; font-variant-numeric: tabular-nums; }
       .recents-groups { display: grid; gap: 29px; }
       .recents-groups-pages { width: min(760px, 100%); margin-inline: auto; }
       .recents-group h2 { margin: 0 0 12px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }

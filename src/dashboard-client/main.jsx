@@ -2338,6 +2338,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   const [activity, setActivity] = useState('updated');
   const [kind, setKind] = useState('pages');
   const [collection, setCollection] = useState('');
+  const [sourceFilter, setSourceFilter] = useState('');
   const [imageViewerIndex, setImageViewerIndex] = useState(null);
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
@@ -2346,6 +2347,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
 
   useEffect(() => {
     setImageViewerIndex(null);
+    setSourceFilter('');
   }, [activity, kind, collection]);
 
   useEffect(() => {
@@ -2398,7 +2400,19 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
     source: item.title || (item.image.source?.startsWith('http') ? '' : item.image.source) || labelFromSlug(item.slug),
   }));
   const galleryIndexByItem = new Map(galleryItems.map((item, index) => [item, index]));
-  const visibleItems = kind === 'images' ? galleryItems : result.items;
+  const sourceCounts = new Map();
+  if (kind === 'pages') {
+    for (const item of result.items) {
+      const type = graphFlowSourceType(item.source_type);
+      sourceCounts.set(type, (sourceCounts.get(type) || 0) + 1);
+    }
+  }
+  const sourceTypes = [...sourceCounts].sort((left, right) => right[1] - left[1]
+    || graphFlowSourceLabel(left[0]).localeCompare(graphFlowSourceLabel(right[0])));
+  const activeSourceFilter = sourceCounts.has(sourceFilter) ? sourceFilter : '';
+  const visibleItems = kind === 'images'
+    ? galleryItems
+    : result.items.filter((item) => !activeSourceFilter || graphFlowSourceType(item.source_type) === activeSourceFilter);
   const groups = [];
   for (const item of visibleItems) {
     const label = recentDateGroupLabel(timestampFor(item));
@@ -2483,6 +2497,19 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
             <h2>Stream is unavailable</h2>
             <p>{errorIsMissingRoute ? 'This dashboard is running an older BigBrain service. Restart BigBrain to load Stream.' : 'We couldn’t load recent activity. Check the connection and try again.'}</p>
             <button type="button" className="recents-retry" onClick={() => setRefreshVersion((version) => version + 1)}>Try again</button>
+          </div>
+        ) : null}
+        {result.status === 'ready' && kind === 'pages' && result.items.length ? (
+          <div className="recents-source-filter" role="group" aria-label="Filter Stream pages by source">
+            <button type="button" className={`recents-source-pill ${!activeSourceFilter ? 'active' : ''}`} aria-pressed={!activeSourceFilter} onClick={() => setSourceFilter('')}>
+              <span>All sources</span><small>{result.items.length}</small>
+            </button>
+            {sourceTypes.map(([type, count]) => (
+              <button key={type} type="button" className={`recents-source-pill ${activeSourceFilter === type ? 'active' : ''}`} aria-pressed={activeSourceFilter === type} onClick={() => setSourceFilter(type)}>
+                <span className="recents-source-pill-icon" aria-hidden="true"><GraphFlowSourceIcon source={{ type }} /></span>
+                <span>{graphFlowSourceLabel(type)}</span><small>{count}</small>
+              </button>
+            ))}
           </div>
         ) : null}
         {result.status === 'ready' && !visibleItems.length ? (
