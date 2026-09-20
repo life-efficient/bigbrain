@@ -37,6 +37,7 @@ test('Granola event prompt preserves the webhook ID and matching context for UUI
   }, { provider: 'granola', skill: 'bigbrain-granola-ingest', prompt_payload_fields: ['event_type', 'granola_id'] });
   assert.match(prompt, /Ingest the Granola meeting with ID not_123 using \$bigbrain-granola-ingest/);
   assert.match(prompt, /source item key for the routing ledger/);
+  assert.match(prompt, /Completion time alone does not prove identity/);
   assert.match(prompt, /2026-09-20T08:15:00Z/);
   assert.match(prompt, /Planning/);
   assert.match(prompt, /https:\/\/notes\.granola\.ai\/note\/abc/);

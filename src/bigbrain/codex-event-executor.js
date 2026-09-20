@@ -131,7 +131,7 @@ export function buildEventPrompt(event, listener, { allowedDestinations = [] } =
     return [
       `Ingest the Granola meeting with ID ${noteId} using $${skill.replace(/^\$/, '')}.`,
       '',
-      'The webhook ID is the source item key for the routing ledger. Granola detail tools may require a different UUID. First try the note URL and exact ID; if the detail tool rejects the ID, list meetings near the event time and use the title only to confirm one unambiguous match. Use that UUID to retrieve the note while preserving the webhook ID for ledger tracking. Stop if the match is ambiguous.',
+      'The webhook ID is the source item key for the routing ledger. Granola detail tools may require a different UUID. First try the note URL and exact ID. If the detail tool rejects the ID, use the note URL or title plus event time to confirm one unambiguous UUID from a narrow meeting list. Completion time alone does not prove identity. Use the confirmed UUID to retrieve the note while preserving the webhook ID for ledger tracking. Stop if identity cannot be confirmed.',
       Object.keys(matchContext).length ? `Matching context: ${JSON.stringify(matchContext)}` : null,
     ].filter(Boolean).join('\n');
   }
