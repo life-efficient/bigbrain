@@ -207,6 +207,25 @@ test('Substack app tasks receive concise skill instructions at developer priorit
   assert.match(calls.find(call => call.method === 'turn/start').params.input[0].text, /Ingest this article using/);
 });
 
+test('Granola app tasks can write the machine routing ledger inside the workspace sandbox', async () => {
+  const calls = [];
+  const executor = new CodexAppThreadExecutor({
+    env: { HOME: '/example/home', BIGBRAIN_ROUTING_LEDGER_PATH: '/machine/state/routing-ledger.sqlite' },
+    clientFactory: async () => ({
+      notifications: [],
+      request: async (method, params) => {
+        calls.push({ method, params });
+        return method === 'thread/start' ? { thread: { id: 'granola-thread' } } : { id: 'granola-turn' };
+      },
+      close: async () => {},
+    }),
+  });
+  await executor.execute({ event: { type: 'granola.meeting.completed', payload: { granola_id: 'note-id' } }, listener: { provider: 'granola' } });
+  const start = calls.find((call) => call.method === 'thread/start').params;
+  assert.equal(start.sandbox, 'workspace-write');
+  assert.deepEqual(start.config, { sandbox_workspace_write: { writable_roots: ['/machine/state'] } });
+});
+
 test('thread title prioritizes configured title, then payload title, then safe fallback', () => {
   assert.equal(resolveThreadTitle({ type: 'granola.meeting.completed', payload: { title: 'Board meeting' } }, { provider: 'granola', codex_thread_title: 'Configured fallback' }), 'Configured fallback');
   assert.equal(resolveThreadTitle({ type: 'granola.meeting.completed', payload: { title: 'Board meeting' } }, { provider: 'granola' }), 'Board meeting');

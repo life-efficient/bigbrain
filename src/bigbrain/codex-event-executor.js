@@ -1,6 +1,8 @@
 import { spawn } from 'node:child_process';
 import { execFile } from 'node:child_process';
+import path from 'node:path';
 import { promisify } from 'node:util';
+import { defaultRoutingLedgerPath } from './routing-ledger.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -330,6 +332,9 @@ export class CodexAppThreadExecutor {
         // client still closes after each turn.
         ephemeral: false,
         sandbox: 'workspace-write',
+        ...((listener?.provider === 'granola' || event?.type === 'granola.meeting.completed')
+          ? { config: { sandbox_workspace_write: { writable_roots: [path.dirname(defaultRoutingLedgerPath(this.env))] } } }
+          : {}),
         ...(listener?.codex_model ? { model: listener.codex_model } : {}),
         developerInstructions: [
           BACKGROUND_EVENT_TOOL_INSTRUCTIONS,
