@@ -1537,7 +1537,7 @@ function SharedGroupApp() {
     let cancelled = false;
     async function load() {
       try {
-        if (!slug) throw new Error('Shared group not found.');
+        if (!slug) throw new Error('Shared collection not found.');
         const params = new URLSearchParams({ slug });
         const group = await fetchJson(`/api/shared/group?${params.toString()}`);
         if (group.redirect_to && window.location.pathname !== group.redirect_to) {
@@ -1545,7 +1545,7 @@ function SharedGroupApp() {
         }
         if (!cancelled) setState({ status: 'ready', error: null, group });
       } catch (error) {
-        if (!cancelled) setState({ status: 'error', error: 'Shared group not found.', group: null });
+        if (!cancelled) setState({ status: 'error', error: 'Shared collection not found.', group: null });
       }
     }
     load();
@@ -1558,7 +1558,7 @@ function SharedGroupApp() {
     return (
       <main className="public-main">
         <article className="public-document">
-          <div className="empty-copy">Loading shared group…</div>
+          <div className="empty-copy">Loading shared collection…</div>
         </article>
       </main>
     );
@@ -1568,7 +1568,7 @@ function SharedGroupApp() {
     return (
       <main className="public-main">
         <article className="public-document">
-          <h1>Shared group not found</h1>
+          <h1>Shared collection not found</h1>
           <p className="empty-copy">{state.error}</p>
         </article>
       </main>
