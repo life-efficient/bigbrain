@@ -90,6 +90,29 @@ make only evidence-supported canonical updates, label the capture as preview
 only, read the saved state back, and record `source_partial` with watermark
 advancement. The result must not be described as a full article ingestion.
 
+## Should clean newsletter boilerplate without losing the article
+
+An otherwise relevant article ends with “Enjoying this newsletter?”, an appeal
+to become a paid subscriber, a WhatsApp-channel join link, and a sponsorship
+contact address. Its opening and middle sections contain substantive analysis.
+
+Expected behavior: retain the analysis verbatim and in order in the indexed
+article; remove those bounded promotional blocks and their links or contact
+details from the reading copy; record the omitted block types and locations in
+provenance; keep the unchanged publisher source bytes separately when available
+and permitted; verify the saved copy against the source. The cleanup alone does
+not change the relevance decision, and a substantive promotional post is not
+discarded solely because it contains promotional language.
+
+If only a substantive preview is accessible, remove only promotional blocks
+within that preview, label it preview only, and retain the original access
+boundary. A preview containing only promotional calls to action is not
+substantive enough to file.
+
+Keep sponsorship or conflict disclosures that affect interpretation, and keep
+article-relevant links. If a call to action is inseparable from meaningful
+content, retain the paragraph and note the ambiguity.
+
 ## Should trigger review
 
 An item appears relevant but its canonical source is unavailable, empty, thin,
