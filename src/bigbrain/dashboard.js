@@ -13,6 +13,7 @@ import {
   getMcpAuditAnalytics,
   getOutgoingLinks,
   getPagesBySlugs,
+  latestPageProvenanceSources,
   listPageProvenance,
   getSharedGroup,
   listSharedGroups,
@@ -2606,27 +2607,27 @@ export async function buildRecentsPayload(
   visible.sort((left, right) => Date.parse(dateFor(right)) - Date.parse(dateFor(left))
     || left.slug.localeCompare(right.slug)
     || (left.image?.path || '').localeCompare(right.image?.path || ''));
-  const selectedItems = visible.slice(offset, offset + limit);
-  const missingSourceSlugs = [...new Set(selectedItems.filter((item) => !item.source_type).map((item) => item.slug))];
-  if (missingSourceSlugs.length) {
-    const provenanceRows = await listPageProvenance(db, { pageSlugs: missingSourceSlugs, limit: 1000 });
-    const latestBySlug = new Map();
-    for (const row of provenanceRows) {
-      if (!latestBySlug.has(row.page_slug)) latestBySlug.set(row.page_slug, row);
-    }
-    for (const item of selectedItems) {
-      if (item.source_type) continue;
-      const source = latestBySlug.get(item.slug);
-      if (!source) continue;
-      item.source_type = source.source_type || null;
-      item.source_label = source.source_label || null;
-      item.source_message = source.source_message || source.source_label || null;
-    }
+  const latestSourceBySlug = new Map((await latestPageProvenanceSources(db))
+    .map((source) => [source.page_slug, source]));
+  for (const item of visible) {
+    const source = latestSourceBySlug.get(item.slug);
+    if (!source) continue;
+    item.source_type = source.source_type || null;
+    item.source_label = source.source_label || null;
+    item.source_message = source.source_message || source.source_label || null;
   }
+  const sourceTypes = Object.entries(SOURCE_TYPE_DEFINITIONS)
+    .map(([type, definition]) => ({ type, label: definition.label }));
+  const distinctSlugsBySource = new Map(sourceTypes.map(({ type }) => [type, new Set()]));
+  for (const item of visible) {
+    distinctSlugsBySource.get(item.source_type)?.add(item.slug);
+  }
+  const selectedItems = visible.slice(offset, offset + limit);
   return {
     items: selectedItems,
     collections,
-    source_types: Object.entries(SOURCE_TYPE_DEFINITIONS).map(([type, definition]) => ({ type, label: definition.label })),
+    source_types: sourceTypes,
+    source_counts: sourceTypes.map(({ type }) => ({ type, count: distinctSlugsBySource.get(type).size })),
     meta: {
       activity,
       kind,

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
-import { openDatabase, upsertSharedGroup } from '../../src/bigbrain/db.js';
+import { openDatabase, upsertPageProvenance, upsertSharedGroup } from '../../src/bigbrain/db.js';
 import { buildRecentsPayload, recordDashboardPageView } from '../../src/bigbrain/dashboard.js';
 import { SOURCE_TYPE_DEFINITIONS } from '../../src/bigbrain/source-taxonomy.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
@@ -26,15 +26,37 @@ test('Stream paginates pages and images after activity and collection filtering'
       const pagePath = path.join(brainHome, 'projects', `page-${index}.md`);
       const imagePath = path.join(brainHome, 'projects', '.raw', `page-${index}.png`);
       await fs.mkdir(path.dirname(imagePath), { recursive: true });
-      await fs.writeFile(pagePath, `---\ntitle: Page ${index}\ncreated_at: 2026-01-0${7 - index}\nimages: [{"path":"projects/.raw/page-${index}.png"}]\n---\n# Page ${index}\n`);
+      const images = [{ path: `projects/.raw/page-${index}.png` }];
+      if (index === 1) images.push({ path: 'projects/.raw/page-1-extra.png' });
+      await fs.writeFile(pagePath, `---\ntitle: Page ${index}\ncreated_at: 2026-01-0${7 - index}\nimages: ${JSON.stringify(images)}\n---\n# Page ${index}\n`);
       await fs.writeFile(imagePath, Buffer.from([0x89, 0x50, 0x4e, 0x47]));
+      if (index === 1) await fs.writeFile(path.join(brainHome, 'projects', '.raw', 'page-1-extra.png'), Buffer.from([0x89, 0x50, 0x4e, 0x47]));
       const modified = new Date(`2026-02-0${index}T00:00:00Z`);
       await fs.utimes(pagePath, modified, modified);
       await fs.utimes(imagePath, modified, modified);
+      if (index === 1) await fs.utimes(path.join(brainHome, 'projects', '.raw', 'page-1-extra.png'), modified, modified);
     }
     const config = await loadConfig({ configPath: init.configPath });
     await syncBrain({ config, apiKey: null });
     db = await openDatabase(config);
+    for (const [index, sourceType] of [[1, 'rss'], [2, 'rss'], [3, 'gmail'], [4, 'rss'], [6, 'substack']]) {
+      await upsertPageProvenance(db, {
+        page_slug: `projects/page-${index}`,
+        event_id: `source:${index}:first`,
+        source_type: sourceType,
+        source_label: sourceType,
+        received_at: '2026-03-01T00:00:00Z',
+        commit_message: `Record source for page ${index}`,
+      });
+    }
+    await upsertPageProvenance(db, {
+      page_slug: 'projects/page-4',
+      event_id: 'source:4:latest',
+      source_type: 'gmail',
+      source_label: 'Gmail latest',
+      received_at: '2026-03-02T00:00:00Z',
+      commit_message: 'Record latest source for page 4',
+    });
     await upsertSharedGroup(db, {
       slug: 'selected-pages',
       title: 'Selected Pages',
@@ -60,23 +82,40 @@ test('Stream paginates pages and images after activity and collection filtering'
     assert.equal(first.meta.total_count, 6);
     assert.deepEqual(first.source_types, Object.entries(SOURCE_TYPE_DEFINITIONS)
       .map(([type, definition]) => ({ type, label: definition.label })));
+    assert.deepEqual(first.source_counts.filter(({ count }) => count), [
+      { type: 'gmail', count: 2 },
+      { type: 'substack', count: 1 },
+      { type: 'rss', count: 2 },
+    ]);
+    assert.deepEqual(first.source_counts, second.source_counts);
+    assert.deepEqual(first.items.map(({ source_type }) => source_type), ['substack', null]);
 
     const added = await buildRecentsPayload(config, db, query({ activity: 'added', kind: 'pages', offset: 2 }));
     assert.deepEqual(added.items.map((item) => item.slug), ['projects/page-3', 'projects/page-4']);
     const viewed = await buildRecentsPayload(config, db, query({ activity: 'viewed', kind: 'pages', offset: 2 }));
     assert.deepEqual(viewed.items.map((item) => item.slug), ['projects/page-2']);
     assert.deepEqual([viewed.meta.total_count, viewed.meta.has_more, viewed.meta.next_offset], [3, false, null]);
+    assert.deepEqual(viewed.source_counts.filter(({ count }) => count), [
+      { type: 'gmail', count: 1 },
+      { type: 'substack', count: 1 },
+      { type: 'rss', count: 1 },
+    ]);
     const collected = await buildRecentsPayload(config, db, query({
       activity: 'updated', kind: 'pages', collection: 'selected-pages', offset: 2,
     }));
     assert.deepEqual(collected.items.map((item) => item.slug), ['projects/page-3', 'projects/page-2']);
     assert.deepEqual([collected.meta.total_count, collected.meta.has_more, collected.meta.next_offset], [4, false, null]);
+    assert.deepEqual(collected.source_counts.filter(({ count }) => count), [
+      { type: 'gmail', count: 2 },
+      { type: 'rss', count: 1 },
+    ]);
 
     const images = await buildRecentsPayload(config, db, query({ activity: 'updated', kind: 'images', offset: 2 }));
     assert.deepEqual(images.items.map((item) => item.image.path), [
       'projects/.raw/page-4.png', 'projects/.raw/page-3.png',
     ]);
-    assert.deepEqual([images.meta.total_count, images.meta.has_more, images.meta.next_offset], [6, true, 4]);
+    assert.deepEqual([images.meta.total_count, images.meta.has_more, images.meta.next_offset], [7, true, 4]);
+    assert.deepEqual(images.source_counts.filter(({ count }) => count), first.source_counts.filter(({ count }) => count));
     const pastEnd = await buildRecentsPayload(config, db, query({ activity: 'updated', kind: 'pages', offset: 100 }));
     assert.deepEqual(pastEnd.items, []);
     assert.deepEqual([pastEnd.meta.has_more, pastEnd.meta.next_offset], [false, null]);

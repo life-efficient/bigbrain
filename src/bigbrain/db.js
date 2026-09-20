@@ -1019,6 +1019,20 @@ export async function listPageProvenance(db, { pageSlugs = null, eventId = null,
   return unwrapSqlite(db).prepare(`SELECT id, page_slug, event_id, origin_id, listener_id, source_type, source_label, source_message, source_icon, source_url, occurred_at, received_at, codex_execution_id, codex_thread_id, raw_ref, outcome, significance, commit_message, created_at FROM page_provenance ${clauses.length ? `WHERE ${clauses.join(' AND ')}` : ''} ORDER BY received_at DESC, id DESC LIMIT ?`).all(...params);
 }
 
+export async function latestPageProvenanceSources(db) {
+  const columns = 'page_slug, source_type, source_label, source_message, received_at';
+  if (db.backend === 'postgres') {
+    const result = await db.query(`SELECT DISTINCT ON (page_slug) ${columns}
+      FROM page_provenance ORDER BY page_slug, received_at DESC, id DESC`);
+    return result.rows;
+  }
+  return unwrapSqlite(db).prepare(`SELECT ${columns} FROM (
+    SELECT ${columns}, ROW_NUMBER() OVER (
+      PARTITION BY page_slug ORDER BY received_at DESC, id DESC
+    ) AS recency_rank FROM page_provenance
+  ) WHERE recency_rank = 1`).all();
+}
+
 function normalizeProvenance(value) {
   if (!value || typeof value !== 'object') throw new Error('Provenance must be an object.');
   const pageSlug = String(value.page_slug || value.path || '').trim().replace(/\.md$/i, '');
