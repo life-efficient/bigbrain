@@ -14,7 +14,7 @@ Review one canonical web article through BigBrain's single shared relevance and 
 - This skill is the sole article relevance and filing owner for RSS, Substack, email-delivered article notifications, and direct web URLs. Transport adapters must not create competing relevance rules.
 - Accepted online articles, Substack posts, newsletters, and RSS-delivered publications file as first-class Markdown pages under the owning Brain's `articles/` collection. Preserve original HTML, PDFs, or other source bytes only as optional archival evidence under `articles/.raw/`.
 - Apply the shared decision contract in `references/relevance-gate.md` before any source or page write.
-- Read and follow [the shared ingestion completeness checklist](../bigbrain-ingest/references/ingestion-completeness.md) before writing and again before declaring completion, including when this skill is invoked directly. It owns canonical entity coverage, creation and updates, deduplication, links, and saved-state verification for every accepted article.
+- Read and follow [the shared ingestion completeness checklist](../bigbrain-ingest/references/ingestion-completeness.md) before writing and again before declaring completion, including when this skill is invoked directly. For articles, source capture and same-Brain read-back determine ingestion completion. Canonical entity creation and enrichment are separate work; verify any such changes actually made, but do not hold an article open for exhaustive entity coverage.
 - When a registered source provides guidance, treat it as the source-specific inclusion and exclusion policy. It expresses why the source is followed and what should be prioritized or ignored.
 - Do not apply one global content taxonomy across different sources. Source guidance may legitimately differ by publication, including how it treats company news, regulation, startup ideas, research, or promotion.
 - Require either a clear match to the registered source guidance or a named, current user anchor: an active project, task, question, learning topic, tracked entity with live significance, or explicitly requested enrichment topic.
@@ -66,12 +66,12 @@ Review one canonical web article through BigBrain's single shared relevance and 
 
 3. Choose the filing outcome:
    - `ignored`: no Brain page or raw source; retain only the transport's reviewed-outcome record. This is the required outcome when the item does not match the registered source guidance or a named user anchor, even if the user asked to ingest the item.
-   - For an accepted article, read the shared ingestion completeness checklist and compare the article with existing coverage before filing.
-   - `source_only`: preserve the source and create its indexed sidecar when the article has durable value and no canonical page change is needed. Establish and verify the required source links.
-   - `source_and_update`: preserve the source and create or update canonical pages when the article adds durable knowledge to the Brain.
+   - For an accepted article, read the shared ingestion completeness checklist and check for an existing verified copy before filing.
+   - `source_only`: preserve the source and create its indexed article when the article has durable value and no canonical page change was made. Verify the article and any links actually added.
+   - `source_and_update`: preserve the source and create or update at least one canonical page when it adds durable knowledge to the Brain. Verify every changed page.
    - For a relevant substantive partial preview, preserve exactly the accessible source and create the indexed sidecar and only those canonical updates supported by the visible material. Record `source_partial` with the missing-content boundary and keep the capture explicitly incomplete; do not use a full retained outcome.
-   - A relevance decision accepts or rejects the article; it must not become a second filter that silently excludes entities from an accepted article.
-   - Anti-patterns: choosing `source_only` before checking canonical coverage, manufacturing updates to already complete pages, making a source page the compiled truth for an entity, writing before the outcome is selected.
+   - A relevance decision accepts or rejects the article. Preserve the complete accessible source even when some mentioned entities receive no separate page.
+   - Anti-patterns: calling an unsaved article ingested, manufacturing updates to already complete pages, making a source page the compiled truth for an entity, writing before the outcome is selected.
 
 4. Build the article page:
    - Follow the active Brain `filing_rules` for the `articles/` collection and `articles/.raw/` path.
@@ -80,20 +80,20 @@ Review one canonical web article through BigBrain's single shared relevance and 
    - The indexed Markdown article page must contain the article title and faithful publisher body. Keep publication metadata in frontmatter. Do not prepend BigBrain summaries, relevance notes, source sections, or internal links to the article body. The writer-managed timeline may follow the standard `---` separator.
    - Preserve original source bytes in `.raw/` when useful for audit or rendering, but do not rely on raw files for searchability. Keep derived synthesis and canonical links on their own appropriate pages rather than altering the source article.
    - When capture is partial, include a prominent `Preview only` or equivalent note in the sidecar and provenance, identify where access stopped, and scope all facts and entity links to the readable portion. Never imply that the unseen remainder was reviewed.
-   - Apply the shared checklist's source-to-entity links, using only relationships and identity supported by the article.
+   - Link canonical pages actually resolved or updated when the article supports the relationship. Do not require a page or link for every name before completing article ingestion.
    - Anti-patterns: storing the only complete source in an unindexed raw file, replacing publisher text with an AI rewrite, omitting source links, using an unstructured summary as an article page, filing raw files directly in entity directories.
 
 5. Complete and verify the ingestion:
-   - Execute the shared ingestion completeness checklist for canonical page reconciliation and saved-state verification, then check it again before reporting completion.
+   - Execute the shared ingestion completeness checklist's article capture and saved-state verification, then check it again before reporting completion. Treat further canonical page enrichment as separate work.
    - Keep the article sidecar source-specific and use `$bigbrain-page` for canonical subjects.
-   - For a generic RSS claim owned by this call, complete shared `rss/ledger` state only after same-Brain read-back, using the verification envelope in `references/rss-ledger.md`, then read the post and feed status back. Record irrelevant articles as reviewed `ignored` without content writes; record unresolved retrieval or coverage as `needs_review` with a concrete reason and no watermark advance. Return evidence to a claiming Substack adapter instead of completing twice.
-   - Reconcile the final outcome with verified writes. Do not report `source_only` when canonical pages needed creation or updates, or completion while coverage gaps remain.
+   - For a generic RSS claim owned by this call, complete shared `rss/ledger` state only after same-Brain article read-back, using the verification envelope in `references/rss-ledger.md`, then read the post and feed status back. Record irrelevant articles as reviewed `ignored` without content writes; record unresolved source identity, capture, or verification as `needs_review` with a concrete reason and no watermark advance. Return evidence to a claiming Substack adapter instead of completing twice.
+   - Reconcile the final outcome with verified writes. Use `source_only` when the article alone was verified and `source_and_update` when at least one canonical change was also verified. Report unfinished entity enrichment as a separate follow-up, not an article coverage gap.
    - For a relevant partial preview, read back every saved artifact and supported canonical update, then complete the shared record as `source_partial` with the saved paths and access limitation. Verify that the RSS, Substack, or Gmail watermark advanced based on that verified partial ingestion. A successful partial capture is not full ingestion.
-   - Anti-patterns: treating a linked name as a created or updated entity page, leaving new entity facts only in the sidecar, declaring success without completing the shared checklist.
+   - Anti-patterns: treating a linked name as a created or updated entity page, claiming an unverified entity update, declaring success without reading back the article, leaving a verified article outstanding solely for entity enrichment.
 
 ## Article Page Template
 
-Use this shape for the indexed source sidecar, adapting the owning collection and links to the active Brain:
+Use this shape for the indexed article, adapting metadata to the owning Brain. The body placeholder represents the exact accessible publisher text, not a summary:
 
 ```markdown
 ---
@@ -110,22 +110,7 @@ source_kind: online-article
 
 # Article title
 
-## Summary
-
-Neutral summary of the source.
-
-## Compiled Truth
-
-What this establishes for the Brain, with uncertainty and attribution preserved.
-
-## Related Pages
-
-- [Author](../../people/author.md)
-  - [Primary subject](../../organizations/subject.md)
-
-## Source
-
-[Read the original article](https://example.com/article)
+[Faithful publisher article body or clearly marked substantive preview]
 
 ---
 
@@ -148,7 +133,7 @@ What this establishes for the Brain, with uncertainty and attribution preserved.
 - Treating a saved partial preview as a complete article or omitting its explicit partial-capture note.
 - Rewriting a strong author's prose into an AI-authored substitute.
 - Creating a raw artifact for an item that failed the digest-value test.
-- Skipping secondary entities or manufacturing factual changes when existing coverage is sufficient.
+- Omitting secondary content from the saved article or manufacturing factual changes when existing coverage is sufficient.
 - Using source pages as replacements for canonical entity pages.
 - Reporting `filed` when the source was unavailable or the page was not read back.
 - Fetching an RSS article before shared preflight, using polling cursors as ingestion proof, or treating a high watermark as permission to skip older holes.

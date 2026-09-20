@@ -61,12 +61,12 @@ For MCP, the table's Command is `operation`, and JSON input is `input`. The CLI 
     "verifiedAt": "2026-09-14T09:00:00Z",
     "brainId": "live-owning-brain-id",
     "paths": ["collection/post.md", "collection/.raw/post.html", "organizations/subject.md"],
-    "evidence": "Same-Brain MCP read-back verified full source, sidecar, canonical entity coverage, links, and provenance."
+    "evidence": "Same-Brain MCP read-back verified the full indexed article, provenance, and the canonical page actually updated."
   }
 }
 ```
 
-Use real paths and evidence from this run. A historic prose log is not verification. When migrating an exact existing post, directly verify its source/artifact and entity coverage first, claim it, then record `verified_noop` with that evidence. Do not re-fetch an already terminal shared record simply to establish the same outcome again. If its stored verification is incomplete or invalid, reopen with a reason and verify the missing state.
+Use real paths and evidence from this run. A historic prose log is not verification. When migrating an exact existing post, directly verify its indexed article, required source artifact, provenance, and any canonical updates claimed, then record `verified_noop` with that evidence. Exhaustive entity page coverage is separate work and is not required to complete article ingestion. Do not re-fetch an already terminal shared record simply to establish the same outcome again. If its stored verification is incomplete or invalid, reopen with a reason and verify the missing state.
 
 `ignored` requires the actual relevance rationale and a verification envelope with `readBack: true`, `verifiedAt`, `brainId`, `paths: []`, and nonempty `evidence` describing the canonical identity and relevance review. Here `readBack` attests that review, not a content mutation. It creates no content and does not move retained watermarks. `needs_review` leaves an explicit hole and no watermark change. When a substantive preview is retained, use `source_partial` with nonempty saved paths and verification of the partial raw artifact, sidecar, and any scoped canonical updates. `source_partial` advances the retained watermarks while preserving the access boundary. The low watermark is the earliest retained verified post and the high watermark is the latest. They expand over verified retained posts; they do not claim contiguous coverage. Always combine them with per-post records and unresolved holes.
 
