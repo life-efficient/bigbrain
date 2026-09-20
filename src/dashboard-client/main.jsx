@@ -2615,7 +2615,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
           </div>
         ) : null}
         {result.status === 'ready' && kind === 'pages' && sourceTypes.length ? (
-          <div className="recents-source-filter" role="group" aria-label="Filter Stream pages by source">
+          <div className="recents-source-filter" style={{ width: '100%', maxWidth: 'none', boxSizing: 'border-box', marginInline: 0 }} role="group" aria-label="Filter Stream pages by source">
             <button type="button" className={`recents-source-pill recents-source-toggle-all ${allSourcesSelected ? 'active' : ''}`} aria-label={allSourcesSelected ? 'Deselect all sources' : 'Select all sources'} title={allSourcesSelected ? 'Deselect all sources' : 'Select all sources'} aria-pressed={allSourcesSelected} onClick={() => setSelectedSourceTypes(allSourcesSelected ? new Set() : null)}>
               {allSourcesSelected ? <SquareCheckBig size={14} aria-hidden="true" /> : <Square size={14} aria-hidden="true" />}
             </button>

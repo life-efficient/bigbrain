@@ -40,6 +40,7 @@ test('Stream source buttons support multi-select and a fixed leading icon-only a
 
   assert.match(panel, /const \[selectedSourceTypes, setSelectedSourceTypes\] = useState\(null\)/);
   assert.match(filter, /role="group" aria-label="Filter Stream pages by source"/);
+  assert.match(filter, /style=\{\{ width: '100%', maxWidth: 'none'/, 'hot-reloaded client keeps the selector full width without a desktop restart');
   assert.match(filter, /aria-pressed=\{allSourcesSelected \|\| selectedSourceTypes\.has\(type\)\}/);
   assert.match(filter, /<GraphFlowSourceIcon source=\{\{ type, label \}\}/);
   assert.match(filter, /<span>\{label\}<\/span>\{count !== null \? <small>\{count\}<\/small> : null\}/);
