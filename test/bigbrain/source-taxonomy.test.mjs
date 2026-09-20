@@ -7,6 +7,8 @@ import {
   TIMELINE_SIGNIFICANCE_VALUES,
   mutationMetadataSchema,
   parseMutationMetadata,
+  normalizeSourceType,
+  sourceTypeLabel,
   sourceTypeSchema,
   timelineSignificanceSchema,
 } from '../../src/bigbrain/source-taxonomy.js';
@@ -17,6 +19,7 @@ test('source taxonomy has semantic descriptions for every source type', () => {
     'whatsapp',
     'gmail',
     'substack',
+    'youtube',
     'google_calendar',
     'granola',
     'rss',
@@ -29,6 +32,12 @@ test('source taxonomy has semantic descriptions for every source type', () => {
     assert.equal(sourceTypeSchema.parse(sourceType), sourceType);
     assert.match(SOURCE_TYPE_DEFINITIONS[sourceType].description, /\S/);
   }
+});
+
+test('YouTube is a first-class source with a human label', () => {
+  assert.equal(sourceTypeLabel('youtube'), 'YouTube');
+  assert.equal(normalizeSourceType(' YouTube '), 'youtube');
+  assert.equal(sourceTypeSchema.parse('youtube'), 'youtube');
 });
 
 test('source taxonomy distinguishes assistant chat, CLI, direct edit, and unknown', () => {

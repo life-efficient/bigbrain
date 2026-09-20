@@ -22,6 +22,10 @@ export const SOURCE_TYPE_DEFINITIONS = Object.freeze({
     label: 'Substack',
     description: 'A post or publication event received from Substack.',
   },
+  youtube: {
+    label: 'YouTube',
+    description: 'A YouTube video, channel, or transcript event.',
+  },
   google_calendar: {
     label: 'Google Calendar',
     description: 'A calendar event or calendar-triggered event received from Google Calendar.',
