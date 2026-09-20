@@ -46,6 +46,7 @@ import {
   migrateGraphPreferences,
 } from './graph/registry.jsx';
 import { GRAPH_THEME_MODES, resolveThemeMode } from './graph/theme.js';
+import { PageTypeIcon } from './graph/graph-type-icon.jsx';
 import { GraphThemeProvider } from './graph/visualizer-core.jsx';
 import { GraphDesignLabApp } from './graph/graph-design-lab.jsx';
 import { FocusedNetworkVisualizer, FocusedTimelineView } from './graph/focused-views.jsx';
@@ -2315,6 +2316,24 @@ function ExplorerPanel({ explorer, demoMode, demoSeed }) {
   );
 }
 
+const STREAM_PAGE_TYPE_LABELS = {
+  articles: 'Article', deliverables: 'Deliverable',
+  people: 'Person', organizations: 'Organization', companies: 'Company', deals: 'Deal',
+  projects: 'Project', ideas: 'Idea', meetings: 'Meeting', tasks: 'Task',
+  concepts: 'Concept', components: 'Component', products: 'Product', processes: 'Process',
+  writing: 'Writing', protocol: 'Protocol', archive: 'Archive', sources: 'Source',
+  inbox: 'Inbox', ops: 'Operations', health: 'Health', dreams: 'Dream',
+  'personal-protocol': 'Personal protocol', 'dream-cycle-summaries': 'Dream cycle summary',
+};
+
+function streamPageTypeLabel(type) {
+  return STREAM_PAGE_TYPE_LABELS[String(type || '').trim().toLowerCase()] || 'Unknown type';
+}
+
+function streamSourceText(item) {
+  return item.source_message || item.source_label || 'Source not recorded';
+}
+
 function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   const [activity, setActivity] = useState('updated');
   const [kind, setKind] = useState('pages');
@@ -2491,16 +2510,23 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
                       await onOpenPage(item.slug);
                       if (activity === 'viewed') setRefreshVersion((version) => version + 1);
                     }}
-                    aria-label={kind === 'images' ? `Open image ${(galleryIndexByItem.get(item) ?? 0) + 1} of ${galleryItems.length}: ${item.image?.caption || item.image?.alt || item.title || labelFromSlug(item.slug)}` : undefined}
+                    aria-label={kind === 'images'
+                      ? `Open image ${(galleryIndexByItem.get(item) ?? 0) + 1} of ${galleryItems.length}: ${item.image?.caption || item.image?.alt || item.title || labelFromSlug(item.slug)}`
+                      : `Open ${streamPageTypeLabel(item.type)} page: ${item.title || labelFromSlug(item.slug)}. Source: ${streamSourceText(item)}`}
                   >
                     {kind === 'images' ? (
                       <span className="recents-thumbnail"><img src={item.image?.url} alt="" loading="lazy" /></span>
                     ) : (
                       <>
-                        <span className="recents-page-glyph" aria-hidden="true">▤</span>
+                        <span className="recents-page-glyph" role="img" aria-label={`${streamPageTypeLabel(item.type)} page`}>
+                          <PageTypeIcon type={item.type} />
+                        </span>
                         <span className="recents-item-copy">
                           <strong>{item.title || labelFromSlug(item.slug)}</strong>
-                          <span>{item.slug}</span>
+                          <span className="recents-item-source" title={streamSourceText(item)} aria-label={`Source: ${streamSourceText(item)}`}>
+                            <span className="recents-item-source-icon" aria-hidden="true"><GraphFlowSourceIcon source={{ type: item.source_type, label: item.source_label }} /></span>
+                            <span className="recents-item-source-text">{streamSourceText(item)}</span>
+                          </span>
                         </span>
                         <span className="recents-item-time">{formatRelativeTime(timestampFor(item))}</span>
                       </>

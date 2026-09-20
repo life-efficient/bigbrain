@@ -26,7 +26,7 @@ import {
   Workflow,
 } from 'lucide-react';
 
-import { getGraphTypeIconName } from './type-icons.js';
+import { GRAPH_TYPE_ICON_NAMES, getGraphTypeIconName } from './type-icons.js';
 
 const ICONS = {
   Archive,
@@ -54,6 +54,14 @@ const ICONS = {
   UserRound,
   Workflow,
 };
+
+export function PageTypeIcon({ type, size = 20 }) {
+  const normalizedType = String(type || '').trim().toLowerCase();
+  const Icon = GRAPH_TYPE_ICON_NAMES[normalizedType]
+    ? ICONS[getGraphTypeIconName(normalizedType)]
+    : Shapes;
+  return <Icon size={size} strokeWidth={1.9} aria-hidden="true" />;
+}
 
 export function GraphTypeIcon({ node, color, emphasized = false, background, nodeFill = 'outline', iconStyle = 'outline' }) {
   if (iconStyle === 'none') return null;

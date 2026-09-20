@@ -1950,11 +1950,15 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .recents-item { min-width: 0; width: 100%; display: flex; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid transparent; border-radius: 9px; background: var(--surface); color: var(--ink); text-align: left; cursor: pointer; transition: border-color 140ms ease, background 140ms ease, transform 140ms ease; }
       .recents-item:hover { border-color: var(--line-strong); background: var(--surface-muted); }
       .recents-item.selected { border-color: var(--line-strong); background: var(--surface-muted); }
-      .recents-page-glyph { width: 37px; height: 37px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--muted); font-size: 20px; }
+      .recents-page-glyph { width: 37px; height: 37px; flex: 0 0 auto; display: grid; place-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--muted); }
       .recents-item-copy { min-width: 0; flex: 1; display: grid; gap: 4px; }
-      .recents-item-copy strong, .recents-item-copy span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .recents-item-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .recents-item-copy strong { font-size: 13px; font-weight: 720; }
-      .recents-item-copy span, .recents-item-time { color: var(--muted); font-size: 11px; }
+      .recents-item-source { display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
+      .recents-item-source-icon { display: grid; flex: 0 0 auto; place-items: center; }
+      .recents-item-source-icon .graph-flow-card-source { width: 16px; height: 16px; border: 0; border-radius: 0; background: none; }
+      .recents-item-source-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .recents-item-time { color: var(--muted); font-size: 11px; }
       .recents-item-time { flex: 0 0 auto; padding-left: 10px; white-space: nowrap; }
       .recents-gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(158px, 1fr)); align-content: start; gap: 13px; }
       .recents-gallery .recents-item { position: relative; display: block; aspect-ratio: 1; padding: 0; overflow: hidden; }
@@ -2521,10 +2525,15 @@ export async function buildRecentsPayload(
     }
     const metadataCreatedAt = parsed.frontmatter.created_at || parsed.frontmatter.created || null;
     const createdAt = validIsoTimestamp(metadataCreatedAt) || stats.birthtime.toISOString();
+    const timelineSource = parsed.timeline_entries.find((entry) => entry.provenance?.source_type)?.provenance;
     const parent = {
       slug,
+      type: parsed.type,
       title: parsed.title || path.posix.basename(relativePath),
       path: relativePath,
+      source_type: timelineSource?.source_type || null,
+      source_label: timelineSource?.source_label || null,
+      source_message: timelineSource?.source_message || timelineSource?.source_label || null,
       updated_at: stats.mtime.toISOString(),
       created_at: createdAt,
       viewed_at: viewedAt.get(slug) || null,
@@ -2555,8 +2564,25 @@ export async function buildRecentsPayload(
   visible.sort((left, right) => Date.parse(dateFor(right)) - Date.parse(dateFor(left))
     || left.slug.localeCompare(right.slug)
     || (left.image?.path || '').localeCompare(right.image?.path || ''));
+  const selectedItems = visible.slice(0, limit);
+  const missingSourceSlugs = [...new Set(selectedItems.filter((item) => !item.source_type).map((item) => item.slug))];
+  if (missingSourceSlugs.length) {
+    const provenanceRows = await listPageProvenance(db, { pageSlugs: missingSourceSlugs, limit: 1000 });
+    const latestBySlug = new Map();
+    for (const row of provenanceRows) {
+      if (!latestBySlug.has(row.page_slug)) latestBySlug.set(row.page_slug, row);
+    }
+    for (const item of selectedItems) {
+      if (item.source_type) continue;
+      const source = latestBySlug.get(item.slug);
+      if (!source) continue;
+      item.source_type = source.source_type || null;
+      item.source_label = source.source_label || null;
+      item.source_message = source.source_message || source.source_label || null;
+    }
+  }
   return {
-    items: visible.slice(0, limit),
+    items: selectedItems,
     collections,
     meta: {
       activity,
