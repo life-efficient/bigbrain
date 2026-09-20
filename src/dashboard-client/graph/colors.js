@@ -1,4 +1,4 @@
-export const TYPE_ORDER = ['people', 'organizations', 'deals', 'projects', 'ideas', 'meetings', 'tasks', 'concepts', 'components', 'products', 'processes', 'writing', 'protocol', 'archive', 'companies', 'personal-protocol', 'sources', 'ops', 'inbox'];
+export const TYPE_ORDER = ['people', 'organizations', 'deals', 'projects', 'ideas', 'meetings', 'tasks', 'concepts', 'components', 'products', 'processes', 'writing', 'protocol', 'archive', 'articles', 'videos', 'companies', 'personal-protocol', 'sources', 'ops', 'inbox'];
 
 const SOFT_PALETTE = {
   people: '#8ECAE6',
@@ -16,6 +16,8 @@ const SOFT_PALETTE = {
   writing: '#F6D7A7',
   protocol: '#CDECCF',
   archive: '#C4C4C4',
+  articles: '#9EB7D6',
+  videos: '#F2A3A3',
   'personal-protocol': '#CDECCF',
   sources: '#A7D8F0',
   ops: '#CDECCF',

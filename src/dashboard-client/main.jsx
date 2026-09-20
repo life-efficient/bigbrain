@@ -2322,6 +2322,7 @@ function ExplorerPanel({ explorer, demoMode, demoSeed }) {
 
 const STREAM_PAGE_TYPE_LABELS = {
   articles: 'Article', deliverables: 'Deliverable',
+  videos: 'Video',
   people: 'Person', organizations: 'Organization', companies: 'Company', deals: 'Deal',
   projects: 'Project', ideas: 'Idea', meetings: 'Meeting', tasks: 'Task',
   concepts: 'Concept', components: 'Component', products: 'Product', processes: 'Process',

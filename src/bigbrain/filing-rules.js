@@ -8,6 +8,7 @@ const DEFAULT_RULES = {
   organizations: 'One page per institution, government body, university, vendor, company, advisory group, or other organization.',
   companies: 'One page per company or organization.',
   meetings: 'Specific meetings, calls, meeting prep, and transcripts.',
+  videos: 'Externally published videos. Keep a first-class readable video page with its canonical URL and source metadata; preserve the transcript as a linked raw artifact, not as the primary page body.',
   deals: 'Transactions, acquisitions, raises, investments, mandates, opportunities, diligence, valuation, buyer/investor processes, and deal-owned artifacts.',
   projects: 'Active execution tracks and workstreams.',
   ideas: 'Unbuilt possibilities that are not yet active projects.',

@@ -13,6 +13,7 @@ const SCHEMA_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const FIELD_TYPES = ['string', 'number', 'boolean', 'array', 'object'];
 const DEFAULT_SCHEMA_DESCRIPTIONS = {
   articles: 'Published online articles, Substack posts, newsletters, and other durable source publications.',
+  videos: 'Canonical pages for externally published videos, with a readable account and preserved source transcript.',
   people: 'Canonical pages for people and relationship context.',
   organizations: 'Canonical pages for organizations and institutions.',
   deals: 'Canonical pages for transactions and deal work.',
@@ -102,8 +103,14 @@ export function defaultPageSchemaRegistry() {
     schemas: Object.fromEntries(CANONICAL_SCHEMA_DIRS.map((collection) => [collection, {
       path_prefix: collection,
       description: DEFAULT_SCHEMA_DESCRIPTIONS[collection] || `Canonical pages under ${collection}/.`,
-      additional_properties: !['articles', 'tasks'].includes(collection),
-      fields: collection === 'tasks' ? defaultTaskFields() : collection === 'articles' ? defaultArticleFields() : {},
+      additional_properties: !['articles', 'tasks', 'videos'].includes(collection),
+      fields: collection === 'tasks'
+        ? defaultTaskFields()
+        : collection === 'articles'
+          ? defaultArticleFields()
+          : collection === 'videos'
+            ? defaultVideoFields()
+            : {},
     }])),
   };
 }
@@ -161,6 +168,32 @@ function defaultArticleFields() {
     publisher_post_id: { type: 'string' },
     raw_bytes: { description: 'Size of the preserved source artifact in bytes.' },
     transport: { type: 'string' },
+    tags: { type: 'array' },
+  };
+}
+
+function defaultVideoFields() {
+  return {
+    video_url: {
+      type: 'string',
+      required: true,
+      description: 'Canonical public video URL used for source provenance and playback.',
+    },
+    source_kind: {
+      type: 'string',
+      required: true,
+      description: 'Video platform or source channel, such as youtube.',
+    },
+    channel: { type: 'string', description: 'Publishing channel or creator.' },
+    channel_url: { type: 'string', description: 'Canonical publishing channel URL.' },
+    published_date: { type: 'string', description: 'Publisher publication timestamp in ISO 8601 format.' },
+    duration_seconds: { type: 'number', description: 'Published video duration in seconds.' },
+    thumbnail_url: { type: 'string', description: 'Public thumbnail URL for the video.' },
+    transcript_available: { type: 'boolean', description: 'Whether a transcript was retrieved for this video.' },
+    transcript_raw_file: { type: 'string', description: 'Relative path to the preserved verbatim transcript artifact.' },
+    retrieved: { type: 'string', description: 'Date or timestamp when the video source was retrieved.' },
+    source_video_id: { type: 'string', description: 'Platform-specific video identifier.' },
+    raw_file: { type: 'string', description: 'Relative path to another preserved source artifact, when applicable.' },
     tags: { type: 'array' },
   };
 }

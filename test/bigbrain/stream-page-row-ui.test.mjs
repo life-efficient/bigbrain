@@ -15,6 +15,7 @@ test('Stream page rows use the shared page-type icon mapping, not a generic or p
   assert.equal(getGraphTypeIconName('people'), 'UserRound');
   assert.equal(getGraphTypeIconName('meetings'), 'CalendarDays');
   assert.equal(getGraphTypeIconName('tasks'), 'ListChecks');
+  assert.equal(getGraphTypeIconName('videos'), 'Clapperboard');
   assert.equal(typeof getGraphTypeIconName('unregistered-type'), 'string');
   assert.match(client, /import\s*\{\s*PageTypeIcon\s*\}\s*from '\.\/graph\/graph-type-icon\.jsx'/);
   assert.match(icon, /export function PageTypeIcon\(\{ type, size = 20 \}\)/);
@@ -27,6 +28,7 @@ test('Stream page rows use the shared page-type icon mapping, not a generic or p
   assert.match(panel, /<PageTypeIcon type=\{item\.type\}/);
   assert.doesNotMatch(panel, /recents-page-glyph[^>]*>▤<\/span>/);
   assert.match(panel, /streamPageTypeLabel\(item\.type\)/);
+  assert.match(client, /videos:\s*'Video'/);
 });
 
 test('Stream page subtitle shows a labeled provenance source instead of the page slug', async () => {

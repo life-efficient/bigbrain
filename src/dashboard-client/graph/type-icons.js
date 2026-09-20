@@ -1,5 +1,6 @@
 export const GRAPH_TYPE_ICON_NAMES = {
   articles: 'BookOpen',
+  videos: 'Clapperboard',
   deliverables: 'Box',
   people: 'UserRound',
   organizations: 'Building2',

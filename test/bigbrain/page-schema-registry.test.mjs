@@ -32,6 +32,11 @@ test('new Brains receive an editable default page schema registry', async () => 
     assert.equal(article.id, 'articles');
     assert.equal(article.schema.fields.published_date.required, true);
     assert.equal(article.schema.fields.article_url.required, true);
+    const video = resolvePageSchema(loaded.registry, { pagePath: 'videos/market-structure.md' });
+    assert.equal(video.id, 'videos');
+    assert.equal(video.schema.fields.video_url.required, true);
+    assert.equal(video.schema.fields.source_kind.required, true);
+    assert.equal(video.schema.fields.transcript_raw_file.type, 'string');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

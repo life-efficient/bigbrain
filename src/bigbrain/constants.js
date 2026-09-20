@@ -32,6 +32,7 @@ export const CANONICAL_SCHEMA_DIRS = [
   'protocol',
   'archive',
   'articles',
+  'videos',
 ];
 
 export const LEGACY_SCHEMA_DIRS = [
