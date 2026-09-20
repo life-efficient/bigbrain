@@ -2522,22 +2522,24 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
         ) : null}
         {result.status === 'ready' && kind === 'pages' ? (
           <div className="recents-source-filter" role="group" aria-label="Filter Stream pages by source">
-            {sourceTypes.map(([type, count]) => (
-              <button key={type} type="button" className={`recents-source-pill recents-source-pill-${type.replaceAll('_', '-')} ${allSourcesSelected || selectedSourceTypes.has(type) ? 'active' : ''} ${count ? '' : 'empty'}`} aria-pressed={allSourcesSelected || selectedSourceTypes.has(type)} onClick={() => toggleSourceType(type)}>
-                <span className="recents-source-pill-icon" aria-hidden="true"><GraphFlowSourceIcon source={{ type }} /></span>
-                <span>{graphFlowSourceLabel(type)}</span><small>{count}</small>
-              </button>
-            ))}
             <button type="button" className={`recents-source-pill recents-source-toggle-all ${allSourcesSelected ? 'active' : ''}`} aria-label={allSourcesSelected ? 'Deselect all sources' : 'Select all sources'} title={allSourcesSelected ? 'Deselect all sources' : 'Select all sources'} aria-pressed={allSourcesSelected} onClick={() => setSelectedSourceTypes(allSourcesSelected ? new Set() : null)}>
               {allSourcesSelected ? <SquareCheckBig size={14} aria-hidden="true" /> : <Square size={14} aria-hidden="true" />}
             </button>
+            <div className="recents-source-strip">
+              {sourceTypes.map(([type, count]) => (
+                <button key={type} type="button" className={`recents-source-pill recents-source-pill-${type.replaceAll('_', '-')} ${allSourcesSelected || selectedSourceTypes.has(type) ? 'active' : ''} ${count ? '' : 'empty'}`} aria-pressed={allSourcesSelected || selectedSourceTypes.has(type)} onClick={() => toggleSourceType(type)}>
+                  <span className="recents-source-pill-icon" aria-hidden="true"><GraphFlowSourceIcon source={{ type }} /></span>
+                  <span>{graphFlowSourceLabel(type)}</span><small>{count}</small>
+                </button>
+              ))}
+            </div>
           </div>
         ) : null}
         {result.status === 'ready' && !visibleItems.length ? (
           <div className="recents-state">
             <span className="recents-state-icon" aria-hidden="true">{kind === 'images' ? '▧' : '▤'}</span>
             <h2>{kind === 'pages' && selectedSourceTypes?.size === 0 && result.items.length ? 'No sources selected' : emptyTitle}</h2>
-            <p>{kind === 'pages' && selectedSourceTypes?.size === 0 && result.items.length ? 'Select a source above or use the control at the end of the row to show all.' : emptyCopy}</p>
+            <p>{kind === 'pages' && selectedSourceTypes?.size === 0 && result.items.length ? 'Select a source above or use the control at the beginning of the row to show all.' : emptyCopy}</p>
           </div>
         ) : null}
         {result.status === 'ready' && visibleItems.length ? (

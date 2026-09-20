@@ -1945,7 +1945,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-filter-menu.recents-collection-menu { top: calc(100% + 8px); right: 0; bottom: auto; min-width: max(220px, 100%); max-width: min(320px, calc(100vw - 40px)); max-height: min(50vh, 360px); }
       .recents-collection-empty { margin: 3px 4px 2px; padding: 10px 8px 3px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.45; }
       .recents-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 24px 30px 40px; }
-      .recents-source-filter { width: min(760px, 100%); min-width: 0; display: flex; align-items: center; gap: 5px; margin: 0 auto 22px; padding: 1px 1px 8px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; -webkit-overflow-scrolling: touch; }
+      .recents-source-filter { width: min(760px, 100%); min-width: 0; display: flex; align-items: flex-start; gap: 5px; margin: 0 auto 22px; }
+      .recents-source-strip { min-width: 0; flex: 1; display: flex; align-items: center; gap: 5px; padding: 1px 1px 8px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; -webkit-overflow-scrolling: touch; }
       .recents-source-pill { --source-accent: var(--accent-strong); flex: 0 0 auto; min-height: 27px; display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 10px; font-weight: 700; white-space: nowrap; cursor: pointer; transition: border-color 140ms ease, background 140ms ease, color 140ms ease, opacity 140ms ease; }
       .recents-source-pill:hover { border-color: color-mix(in srgb, var(--source-accent) 55%, var(--line)); color: var(--ink); }
       .recents-source-pill.active { border-color: color-mix(in srgb, var(--source-accent) 40%, var(--line)); background: color-mix(in srgb, var(--source-accent) 8%, var(--surface)); color: var(--ink); }
@@ -1970,7 +1971,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .recents-source-pill-direct-edit { --source-accent: #fda4af; }
       .recents-source-pill-slack { --source-accent: #c084fc; }
       .recents-source-pill-unknown { --source-accent: #a1a1aa; }
-      .recents-source-toggle-all { position: sticky; right: 0; z-index: 1; width: 27px; justify-content: center; margin-left: auto; padding: 0; border-color: var(--line-strong); box-shadow: -8px 0 12px var(--panel); }
+      .recents-source-toggle-all { flex: 0 0 27px; width: 27px; justify-content: center; margin-top: 1px; padding: 0; border-color: var(--line-strong); }
       .recents-groups { display: grid; gap: 29px; }
       .recents-groups-pages { width: min(760px, 100%); margin-inline: auto; }
       .recents-group h2 { margin: 0 0 12px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
