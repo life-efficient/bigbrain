@@ -1430,6 +1430,129 @@ function PageImageCarousel({ images, compact = false }) {
   );
 }
 
+function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpenPage }) {
+  const items = Array.isArray(images) ? images.filter((image) => image?.url) : [];
+  const closeButtonRef = useRef(null);
+  const activeIndexRef = useRef(activeIndex);
+  const onCloseRef = useRef(onClose);
+  const onIndexChangeRef = useRef(onIndexChange);
+  const safeActiveIndex = Math.min(Math.max(Number.isInteger(activeIndex) ? activeIndex : 0, 0), Math.max(items.length - 1, 0));
+  const isOpen = items.length > 0 && Number.isInteger(activeIndex);
+
+  activeIndexRef.current = safeActiveIndex;
+  onCloseRef.current = onClose;
+  onIndexChangeRef.current = onIndexChange;
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+    const previouslyFocused = document.activeElement;
+    const previousBodyOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    closeButtonRef.current?.focus();
+
+    function handleKeyDown(event) {
+      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current?.();
+        return;
+      }
+      if (items.length < 2) return;
+      if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const currentIndex = activeIndexRef.current;
+      const nextIndex = event.key === 'ArrowLeft'
+        ? currentIndex - 1
+        : event.key === 'ArrowRight'
+          ? currentIndex + 1
+          : event.key === 'Home'
+            ? 0
+            : items.length - 1;
+      onIndexChangeRef.current?.((nextIndex + items.length) % items.length);
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = previousBodyOverflow;
+      if (previouslyFocused instanceof HTMLElement && previouslyFocused.isConnected) previouslyFocused.focus();
+    };
+  }, [isOpen, items.length]);
+
+  if (!isOpen) return null;
+
+  const activeItem = items[safeActiveIndex];
+  const activeLabel = activeItem.caption || activeItem.alt_text || activeItem.filename || `Attached image ${safeActiveIndex + 1}`;
+
+  function moveTo(index) {
+    if (items.length < 2) return;
+    onIndexChange?.((index + items.length) % items.length);
+  }
+
+  return (
+    <div
+      className="page-image-lightbox-overlay"
+      role="dialog"
+      aria-modal="true"
+      aria-label={`Image viewer: ${activeLabel}`}
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose?.();
+      }}
+    >
+      <div className="page-image-lightbox" onClick={(event) => event.stopPropagation()}>
+        <div className="page-image-lightbox-head">
+          <span aria-live="polite">Image {safeActiveIndex + 1} of {items.length}</span>
+          <button
+            ref={closeButtonRef}
+            className="page-image-lightbox-close"
+            type="button"
+            aria-label="Close image viewer"
+            onClick={onClose}
+          >
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <div className="page-image-lightbox-stage">
+          <div className="page-image-lightbox-nav-slot">{items.length > 1 ? (
+            <button
+              className="page-image-lightbox-control page-image-lightbox-control-previous"
+              type="button"
+              aria-label="Previous image"
+              onClick={() => moveTo(safeActiveIndex - 1)}
+            >
+              <span aria-hidden="true">‹</span>
+            </button>
+          ) : null}</div>
+          <div className="page-image-lightbox-image"><img src={activeItem.url} alt={activeItem.alt_text || activeLabel} /></div>
+          <div className="page-image-lightbox-nav-slot">{items.length > 1 ? (
+            <button
+              className="page-image-lightbox-control page-image-lightbox-control-next"
+              type="button"
+              aria-label="Next image"
+              onClick={() => moveTo(safeActiveIndex + 1)}
+            >
+              <span aria-hidden="true">›</span>
+            </button>
+          ) : null}</div>
+        </div>
+        <div className="page-image-lightbox-caption" aria-live="polite">
+          <div className="page-image-lightbox-caption-copy">
+            <strong>{activeItem.caption || activeLabel}</strong>
+            {activeItem.timestamp || activeItem.source ? (
+              <small>{[activeItem.timestamp, activeItem.source].filter(Boolean).join(' · ')}</small>
+            ) : null}
+          </div>
+          {onOpenPage && activeItem.page_slug ? (
+            <button type="button" className="page-image-lightbox-open-page" onClick={() => onOpenPage(activeItem.page_slug)}>
+              Open page <span aria-hidden="true">↗</span>
+            </button>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PrivatePageBackLink() {
   return (
     <a
@@ -2251,8 +2374,9 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   const galleryItems = kind === 'images' ? result.items.filter((item) => item.image?.url) : [];
   const galleryImages = galleryItems.map((item) => ({
     ...item.image,
+    page_slug: item.slug,
     alt_text: item.image.alt_text || item.image.alt || '',
-    source: item.image.source || item.title || labelFromSlug(item.slug),
+    source: item.title || (item.image.source?.startsWith('http') ? '' : item.image.source) || labelFromSlug(item.slug),
   }));
   const galleryIndexByItem = new Map(galleryItems.map((item, index) => [item, index]));
   const visibleItems = kind === 'images' ? galleryItems : result.items;
@@ -2393,6 +2517,11 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
         activeIndex={imageViewerIndex}
         onClose={() => setImageViewerIndex(null)}
         onIndexChange={setImageViewerIndex}
+        onOpenPage={async (slug) => {
+          setImageViewerIndex(null);
+          await onOpenPage(slug);
+          if (activity === 'viewed') setRefreshVersion((version) => version + 1);
+        }}
       />
     </section>
   );
