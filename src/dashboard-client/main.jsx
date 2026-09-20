@@ -2194,24 +2194,31 @@ function ExplorerPanel({ explorer, demoMode, demoSeed }) {
 function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   const [activity, setActivity] = useState('updated');
   const [kind, setKind] = useState('pages');
+  const [collection, setCollection] = useState('');
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const [result, setResult] = useState({ status: 'loading', items: [], error: '' });
+  const [result, setResult] = useState({ status: 'loading', items: [], collections: [], error: '' });
 
   useEffect(() => {
     if (demoMode) {
-      setResult({ status: 'ready', items: [], error: '' });
+      setResult({ status: 'ready', items: [], collections: [], error: '' });
       return undefined;
     }
     const controller = new AbortController();
-    setResult({ status: 'loading', items: [], error: '' });
+    setResult((current) => ({ ...current, status: 'loading', items: [], error: '' }));
     const params = new URLSearchParams({ activity, kind });
+    if (collection) params.set('collection', collection);
     fetchJson(`/api/recents?${params}`, { signal: controller.signal })
-      .then((data) => setResult({ status: 'ready', items: Array.isArray(data.items) ? data.items : [], error: '' }))
+      .then((data) => setResult({
+        status: 'ready',
+        items: Array.isArray(data.items) ? data.items : [],
+        collections: Array.isArray(data.collections) ? data.collections : [],
+        error: '',
+      }))
       .catch((error) => {
-        if (!controller.signal.aborted) setResult({ status: 'error', items: [], error: error.message || String(error) });
+        if (!controller.signal.aborted) setResult((current) => ({ ...current, status: 'error', items: [], error: error.message || String(error) }));
       });
     return () => controller.abort();
-  }, [activity, kind, demoMode, refreshVersion]);
+  }, [activity, kind, collection, demoMode, refreshVersion]);
 
   const timeField = activity === 'added' ? 'created_at' : activity === 'viewed' ? 'viewed_at' : 'updated_at';
   const timestampFor = (item) => kind === 'images' && activity === 'updated'
@@ -2225,14 +2232,22 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
     else groups.push({ label, items: [item] });
   }
   const errorIsMissingRoute = result.error.includes('failed with 404');
-  const emptyTitle = demoMode ? 'Recents is off in demo mode' : activity === 'viewed' ? 'Nothing viewed yet' : `No ${kind} to show`;
+  const selectedCollection = result.collections.find((entry) => entry.id === collection);
+  const collectionName = selectedCollection?.title || 'this collection';
+  const emptyTitle = demoMode
+    ? 'Recents is off in demo mode'
+    : collection
+      ? activity === 'viewed' ? `Nothing viewed in ${collectionName}` : `No ${kind} in ${collectionName}`
+      : activity === 'viewed' ? 'Nothing viewed yet' : `No ${kind} to show`;
   const emptyCopy = demoMode
     ? 'Turn off demo mode to see activity from this brain.'
-    : activity === 'viewed'
-      ? 'Pages you open in BigBrain will appear here.'
-      : kind === 'images'
-        ? 'Images attached to pages will appear here when available.'
-        : 'New and changed pages will appear here when available.';
+    : collection
+      ? activity === 'viewed' ? 'Pages you open from this collection will appear here.' : 'Try another collection or choose All pages.'
+      : activity === 'viewed'
+        ? 'Pages you open in BigBrain will appear here.'
+        : kind === 'images'
+          ? 'Images attached to pages will appear here when available.'
+          : 'New and changed pages will appear here when available.';
 
   return (
     <section className="recents-panel" aria-label="Recent activity">
@@ -2256,6 +2271,16 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
         </div>
       </div>
       <div className="recents-scroll" aria-live="polite">
+        <div className={`recents-collection-bar ${kind === 'pages' ? 'recents-collection-bar-pages' : ''}`}>
+          <label className="recents-collection-filter">
+            <span>Collection</span>
+            <select value={collection} onChange={(event) => setCollection(event.target.value)}>
+              <option value="">All pages</option>
+              {collection && !selectedCollection ? <option value={collection}>{collection}</option> : null}
+              {result.collections.map((entry) => <option key={entry.id} value={entry.id}>{entry.title}</option>)}
+            </select>
+          </label>
+        </div>
         {result.status === 'loading' ? <div className={kind === 'images' ? 'recents-loading recents-loading-gallery' : 'recents-loading recents-loading-pages'} aria-label="Loading recents">{Array.from({ length: kind === 'images' ? 8 : 5 }, (_, index) => <span key={index} />)}</div> : null}
         {result.status === 'error' ? (
           <div className="recents-state recents-error" role="alert">

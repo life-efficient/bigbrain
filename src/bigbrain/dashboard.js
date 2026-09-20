@@ -1901,6 +1901,12 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .recents-kind-switch button:hover, .recents-activity-switch button:hover { color: var(--ink); }
       .recents-kind-switch button:focus-visible, .recents-activity-switch button:focus-visible, .recents-item:focus-visible, .recents-retry:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
       .recents-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 24px 30px 40px; }
+      .recents-collection-bar { display: flex; justify-content: flex-end; margin-bottom: 20px; }
+      .recents-collection-bar-pages { width: min(760px, 100%); margin-inline: auto; }
+      .recents-collection-filter { display: grid; gap: 7px; min-width: min(240px, 100%); color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+      .recents-collection-filter select { width: 100%; min-height: 37px; padding: 0 30px 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; font-weight: 700; letter-spacing: normal; text-transform: none; cursor: pointer; }
+      .recents-collection-filter select:hover { border-color: var(--accent-strong); }
+      .recents-collection-filter select:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
       .recents-groups { display: grid; gap: 29px; }
       .recents-groups-pages { width: min(760px, 100%); margin-inline: auto; }
       .recents-group h2 { margin: 0 0 12px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -2150,6 +2156,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .view-recents .sidecar-shell { position: fixed; width: 100vw; }
         .recents-head, .recents-scroll { padding-left: 14px; padding-right: 14px; }
         .recents-controls { justify-content: flex-start; gap: 8px; }
+        .recents-collection-bar { justify-content: flex-start; }
         .recents-activity-switch button, .recents-kind-switch button { padding: 0 10px; }
         .recents-item-time { display: none; }
         .recents-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
