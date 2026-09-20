@@ -1927,11 +1927,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .card-copy { margin-top: 8px; line-height: 1.5; color: var(--ink); }
       .schema { white-space: pre-wrap; font-size: 12px; line-height: 1.5; max-height: 360px; overflow: auto; }
       .recents-panel { display: flex; flex-direction: column; min-width: 0; height: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow: hidden; }
-      .recents-head { position: relative; z-index: 2; display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding: 25px 30px 20px; border-bottom: 1px solid var(--line); }
+      .recents-head { position: relative; z-index: 2; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding: 18px 30px; border-bottom: 1px solid var(--line); }
       .recents-head-copy { min-width: 0; }
-      .recents-eyebrow { display: block; margin-bottom: 7px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: 0.16em; }
       .recents-head h1 { margin: 0; font-size: 29px; line-height: 1.08; letter-spacing: -0.035em; }
-      .recents-head p { margin: 7px 0 0; color: var(--muted); font-size: 13px; }
       .recents-controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
       .recents-kind-switch, .recents-activity-switch { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-muted); }
       .recents-kind-switch button, .recents-activity-switch button { min-height: 33px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
@@ -1947,8 +1945,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-filter-menu.recents-collection-menu { top: calc(100% + 8px); right: 0; bottom: auto; min-width: max(220px, 100%); max-width: min(320px, calc(100vw - 40px)); max-height: min(50vh, 360px); }
       .recents-collection-empty { margin: 3px 4px 2px; padding: 10px 8px 3px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.45; }
       .recents-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 24px 30px 40px; }
-      .recents-source-filter { width: 100%; max-width: none; min-width: 0; box-sizing: border-box; display: flex; align-items: flex-start; gap: 5px; margin: 0 0 22px; }
-      .recents-source-strip { min-width: 0; flex: 1; display: flex; align-items: center; gap: 5px; padding: 1px 1px 8px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; -webkit-overflow-scrolling: touch; -webkit-mask-image: linear-gradient(to right, transparent, #000 10px, #000 calc(100% - 12px), transparent); mask-image: linear-gradient(to right, transparent, #000 10px, #000 calc(100% - 12px), transparent); }
+      .recents-source-filter { width: 100%; max-width: none; min-width: 0; box-sizing: border-box; display: flex; align-items: flex-start; justify-content: center; gap: 5px; margin: 0 0 22px; }
+      .recents-source-strip { min-width: 0; flex: 0 1 auto; width: max-content; max-width: calc(100% - 32px); display: flex; align-items: center; gap: 5px; padding: 1px 1px 8px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; -webkit-overflow-scrolling: touch; -webkit-mask-image: linear-gradient(to right, transparent, #000 10px, #000 calc(100% - 12px), transparent); mask-image: linear-gradient(to right, transparent, #000 10px, #000 calc(100% - 12px), transparent); }
       .recents-source-pill { --source-accent: var(--accent-strong); flex: 0 0 auto; min-height: 27px; display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 10px; font-weight: 700; white-space: nowrap; cursor: pointer; transition: border-color 140ms ease, background 140ms ease, color 140ms ease, opacity 140ms ease; }
       .recents-source-pill:hover { border-color: color-mix(in srgb, var(--source-accent) 55%, var(--line)); color: var(--ink); }
       .recents-source-pill.active { border-color: color-mix(in srgb, var(--source-accent) 40%, var(--line)); background: color-mix(in srgb, var(--source-accent) 8%, var(--surface)); color: var(--ink); }

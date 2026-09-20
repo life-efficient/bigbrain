@@ -81,7 +81,7 @@ import {
   privatePageRouteFromPath,
 } from './page-links.js';
 import { recordDashboardError } from './error-reporting.js';
-import { appendUniqueRecentItems, createBottomReachGate } from './stream-pagination.js';
+import { appendUniqueRecentItems, createBottomReachGate, orderStreamSourceTypes } from './stream-pagination.js';
 
 class DashboardErrorBoundary extends React.Component {
   constructor(props) {
@@ -2496,9 +2496,8 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
     return knownSourceTypes.has(type) ? type : 'unknown';
   }
   const sourceCounts = new Map(result.sourceCounts.map(({ type, count }) => [type, count]));
-  const sourceTypes = canonicalSourceTypes.map(({ type, label }) => [type, sourceCounts.get(type) ?? null, label])
-    .sort((left, right) => right[1] - left[1]
-    || left[2].localeCompare(right[2]));
+  const sourceTypes = orderStreamSourceTypes(canonicalSourceTypes
+    .map(({ type, label }) => [type, sourceCounts.get(type) ?? null, label]));
   const allSourcesSelected = selectedSourceTypes === null;
   function toggleSourceType(type) {
     setSelectedSourceTypes((current) => {
@@ -2548,11 +2547,9 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
 
   return (
     <section className="recents-panel" aria-label="Stream">
-      <div className="recents-head">
+      <div className="recents-head" style={{ alignItems: 'center', paddingBlock: 18 }}>
         <div className="recents-head-copy">
-          <span className="recents-eyebrow">YOUR BRAIN</span>
           <h1>Stream</h1>
-          <p>Pick up where you left off.</p>
         </div>
         <div className="recents-controls">
           <div className="recents-activity-switch" role="group" aria-label="Stream activity">
@@ -2616,11 +2613,11 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
           </div>
         ) : null}
         {result.status === 'ready' && kind === 'pages' && sourceTypes.length ? (
-          <div className="recents-source-filter" style={{ width: '100%', maxWidth: 'none', boxSizing: 'border-box', marginInline: 0 }} role="group" aria-label="Filter Stream pages by source">
+          <div className="recents-source-filter" style={{ width: '100%', maxWidth: 'none', boxSizing: 'border-box', marginInline: 0, justifyContent: 'center' }} role="group" aria-label="Filter Stream pages by source">
             <button type="button" className={`recents-source-pill recents-source-toggle-all ${allSourcesSelected ? 'active' : ''}`} aria-label={allSourcesSelected ? 'Deselect all sources' : 'Select all sources'} title={allSourcesSelected ? 'Deselect all sources' : 'Select all sources'} aria-pressed={allSourcesSelected} onClick={() => setSelectedSourceTypes(allSourcesSelected ? new Set() : null)}>
               {allSourcesSelected ? <SquareCheckBig size={14} aria-hidden="true" /> : <Square size={14} aria-hidden="true" />}
             </button>
-            <div className="recents-source-strip">
+            <div className="recents-source-strip" style={{ flex: '0 1 auto', width: 'max-content', maxWidth: 'calc(100% - 32px)' }}>
               {sourceTypes.map(([type, count, label]) => (
                 <button key={type} type="button" className={`recents-source-pill recents-source-pill-${type.replaceAll('_', '-')} ${allSourcesSelected || selectedSourceTypes.has(type) ? 'active' : ''} ${count === 0 ? 'empty' : ''}`} aria-pressed={allSourcesSelected || selectedSourceTypes.has(type)} onClick={() => toggleSourceType(type)}>
                   <span className="recents-source-pill-icon" aria-hidden="true"><GraphFlowSourceIcon source={{ type, label }} /></span>
