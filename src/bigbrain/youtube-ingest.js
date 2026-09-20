@@ -12,7 +12,7 @@ const PLACEHOLDER_METADATA = new Set([
   'untitled',
 ]);
 
-const TIMESTAMP_LINE = /^\s*((?:(\d{1,2}):)?(\d{1,2}):(\d{2}))\s*[-–—]\s*(.+?)\s*$/u;
+const TIMESTAMP_LINE = /^\s*((?:(\d{1,2}):)?(\d{1,2}):(\d{2}))(?:\s*[-–—]\s*|\s+)(.+?)\s*$/u;
 const TIMESTAMP_HEADER = /^\s*(?:timestamps?|chapters?)\s*:?\s*$/iu;
 
 export function validateYouTubeMetadata(metadata = {}) {

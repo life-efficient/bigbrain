@@ -88,6 +88,15 @@ test('YouTube chapter parsing preserves exact labels and chronological order', (
   assert.equal(chapters[12].heading, '01:00:26 - Jensen, Nvidia & the Central Bank of AI');
 });
 
+test('YouTube chapter parsing accepts timestamp blocks without separators', () => {
+  const chapters = parseYouTubeChapters('Timestamps:\n0:00 Intro\n7:55 Anthropic and OpenAI Valuations\n1:19:02 Geopolitics, Personal Safety, and the AI Horizon\n\nPresented by a sponsor');
+  assert.deepEqual(chapters.map(({ heading, startSeconds }) => ({ heading, startSeconds })), [
+    { heading: '0:00 - Intro', startSeconds: 0 },
+    { heading: '7:55 - Anthropic and OpenAI Valuations', startSeconds: 475 },
+    { heading: '1:19:02 - Geopolitics, Personal Safety, and the AI Horizon', startSeconds: 4742 },
+  ]);
+});
+
 test('sidecar validation requires one exact primary heading per YouTube chapter', () => {
   const identity = buildYouTubeIdentity(metadata);
   const headings = parseYouTubeChapters(description).map((chapter) => `### ${chapter.heading}`).join('\n\n');
