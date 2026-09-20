@@ -562,17 +562,15 @@ function getForceGraphHighlightLinks(forceGraph) {
 }
 
 function updateForceGraphNodePointerArea(forceGraph, settings) {
-  forceGraph.nodePointerAreaPaint(settings.nodeSizeMode === 'connections'
-    ? (node, color, context) => {
-      if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
-      const radius = getForceGraphNodeRadius(node, settings.nodeSize, settings.nodeSizeMode);
-      context.save();
-      traceNodeShape(context, settings.nodeShape, node.x, node.y, radius);
-      context.fillStyle = color;
-      context.fill();
-      context.restore();
-    }
-    : null);
+  forceGraph.nodePointerAreaPaint((node, color, context) => {
+    if (!Number.isFinite(node.x) || !Number.isFinite(node.y)) return;
+    const radius = getForceGraphNodeRadius(node, settings.nodeSize, settings.nodeSizeMode);
+    context.save();
+    traceNodeShape(context, settings.nodeShape, node.x, node.y, radius);
+    context.fillStyle = color;
+    context.fill();
+    context.restore();
+  });
 }
 
 function drawForceGraphNode(node, context, globalScale, settings, forceGraph) {
@@ -686,9 +684,7 @@ function traceNodeShape(context, shape, x, y, radius) {
 
 function getForceGraphNodeRadius(node, nodeSize, nodeSizeMode = 'default') {
   const sizeScale = getGraphNodeSizeScale(nodeSize);
-  const baseRadius = nodeSizeMode === 'connections'
-    ? 2.7 + 0.52
-    : 2.7 + Math.sqrt(Math.max(1, Number(node.degree) || 1)) * 0.52;
+  const baseRadius = 2.7 + 0.52;
   return baseRadius * (0.72 + sizeScale * 0.22) * getGraphNodeConnectionScale(node, nodeSizeMode);
 }
 

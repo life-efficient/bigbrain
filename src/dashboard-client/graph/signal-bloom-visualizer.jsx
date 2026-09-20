@@ -49,11 +49,9 @@ export const SignalBloomVisualizer = forwardRef(function SignalBloomVisualizer({
   const [isDragging, setIsDragging] = useState(false);
   const laidOut = useMemo(() => {
     const layout = buildSignalBloomLayout(graph);
-    if (nodeSizeMode === 'connections') {
-      layout.nodes.forEach((node) => {
-        node.radius = getNodeRadius(1) * getGraphNodeConnectionScale(node, nodeSizeMode);
-      });
-    }
+    layout.nodes.forEach((node) => {
+      node.radius = getNodeRadius(1) * getGraphNodeConnectionScale(node, nodeSizeMode);
+    });
     return layout;
   }, [graph, nodeSizeMode]);
   const viewportBounds = { minScale: 0.35, maxScale: 4 };

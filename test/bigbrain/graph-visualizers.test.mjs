@@ -46,6 +46,7 @@ import {
 import { prepareForceGraphData } from '../../src/dashboard-client/graph/force-graph-data.js';
 import {
   GRAPH_NODE_SIZES,
+  GRAPH_NODE_SIZE_MODES,
   getGraphNodeConnectionScale,
   getGraphNodeScreenScale,
   getGraphNodeSizeScale,
@@ -176,6 +177,70 @@ test('focused subgraph includes outgoing links and incoming backlinks for the se
   assert.deepEqual(backlinkOnly.edges.map((edge) => `${edge.source}:${edge.target}`), [
     'projects/incoming:people/focus',
   ]);
+});
+
+test('focused subgraph size scaling is uniform off and follows displayed arc counts on', async () => {
+  const subgraph = buildFocusedSubgraphGraph({
+    nodes: [
+      { slug: 'focus', degree: 20 },
+      { slug: 'neighbor-a', degree: 30 },
+      { slug: 'neighbor-b', degree: 40 },
+    ],
+    edges: [
+      { source: 'focus', target: 'neighbor-a' },
+      { source: 'focus', target: 'neighbor-b' },
+    ],
+  }, {
+    page: { slug: 'focus', title: 'Focus' },
+    outgoing: [{ to_slug: 'neighbor-a' }, { to_slug: 'neighbor-b' }],
+    backlinks: [],
+    link_events: [],
+  }, 'focus');
+  const normalized = normalizeGraph(subgraph);
+  const focus = normalized.nodes.find((node) => node.slug === 'focus');
+  const neighbor = normalized.nodes.find((node) => node.slug === 'neighbor-a');
+
+  assert.deepEqual(GRAPH_NODE_SIZE_MODES.map(({ id, label }) => [id, label]), [
+    ['default', 'Off'],
+    ['connections', 'By arc count'],
+  ]);
+  assert.equal(getGraphNodeConnectionScale(focus, 'default'), 1);
+  assert.equal(getGraphNodeConnectionScale(neighbor, 'default'), 1);
+  assert.equal(getGraphNodeConnectionScale(focus, 'connections'), Math.sqrt(2));
+  assert.equal(getGraphNodeConnectionScale(neighbor, 'connections'), 1);
+
+  for (const renderer of ['force-graph-2d-visualizer.jsx', 'force-graph-3d-visualizer.jsx']) {
+    const source = await fs.readFile(new URL(`../../src/dashboard-client/graph/${renderer}`, import.meta.url), 'utf8');
+    const radiusFunction = source.match(/function getForceGraphNodeRadius\([^]*?\n\}/)?.[0];
+    assert.ok(radiusFunction, `${renderer} has a radius helper`);
+    const getRadius = new Function(
+      'getGraphNodeSizeScale',
+      'getGraphNodeConnectionScale',
+      `${radiusFunction}\nreturn getForceGraphNodeRadius;`,
+    )(getGraphNodeSizeScale, getGraphNodeConnectionScale);
+    assert.equal(getRadius(focus, 'small', 'default'), getRadius(neighbor, 'small', 'default'), `${renderer} off`);
+    assert.ok(getRadius(focus, 'small', 'connections') > getRadius(neighbor, 'small', 'connections'), `${renderer} on`);
+  }
+  for (const renderer of ['composable-graph-visualizer.jsx', 'signal-bloom-visualizer.jsx']) {
+    const source = await fs.readFile(new URL(`../../src/dashboard-client/graph/${renderer}`, import.meta.url), 'utf8');
+    assert.match(source, /layout\.nodes\.forEach\(\(node\) => \{\s*node\.radius = getNodeRadius\(1\) \* getGraphNodeConnectionScale\(node, nodeSizeMode\)/);
+  }
+});
+
+test('graph style size scaling is clickable and has an S shortcut in both graph views', async () => {
+  const main = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
+  const sizeScalingGroup = main.match(/<GraphStyleOptionGroup\s+label="Size scaling"[\s\S]*?\/>/)?.[0] || '';
+  const focusedSubgraphRender = main.match(/focusedViewMode === 'subgraph' \? \([\s\S]*?\/\>\s*\)\s*:\s*\(/)?.[0] || '';
+
+  assert.match(sizeScalingGroup, /value=\{nodeSizeMode\}/);
+  assert.match(sizeScalingGroup, /options=\{GRAPH_NODE_SIZE_MODES\}/);
+  assert.match(sizeScalingGroup, /onSelect=\{setNodeSizeMode\}/);
+  assert.doesNotMatch(sizeScalingGroup, /disabled=/);
+  assert.match(sizeScalingGroup, /shortcut="s"/);
+  assert.match(focusedSubgraphRender, /nodeSizeMode=\{nodeSizeMode\}/);
+  assert.match(main, /key="full-graph"[\s\S]*?nodeSizeMode=\{nodeSizeMode\}/);
+  assert.match(main, /\} else if \(key === 's'\) \{\s*setNodeSizeMode\(\(current\) => nextGraphStyleOption\(current, GRAPH_NODE_SIZE_MODES\)\)/);
+  assert.match(main, /\} else if \(key === 'l'\) \{\s*setLabelStyle/);
 });
 
 test('spacious and signal bloom use larger node and cluster labels without changing the custom baseline', async () => {
@@ -628,7 +693,6 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.match(main, /setFocusedViewMode\(focusSlug \? 'subgraph' : 'network'\)/);
   assert.match(main, /shortcutsEnabled=\{!healthOpen && !settingsOpen && !menuOpen\}/);
   assert.match(main, /\} else if \(key === 'l'\) \{\s*setLabelStyle/);
-  assert.doesNotMatch(main, /key === 's'/);
   assert.match(main, /className="graph-focus-mode-toggle"/);
   assert.match(main, /className=\{`graph-focus-mode-button/);
   assert.match(main, /<kbd className="settings-shortcut">T<\/kbd>/);

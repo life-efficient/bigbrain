@@ -5,7 +5,7 @@ export const GRAPH_NODE_SIZES = [
 ];
 
 export const GRAPH_NODE_SIZE_MODES = [
-  { id: 'default', label: 'Default' },
+  { id: 'default', label: 'Off' },
   { id: 'connections', label: 'By arc count' },
 ];
 

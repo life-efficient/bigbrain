@@ -3175,6 +3175,8 @@ const GraphPanel = memo(function GraphPanel({
       selectColorPalette(nextGraphStyleOption(colorPaletteId, GRAPH_COLOR_PALETTE_OPTIONS));
     } else if (key === 'r' && visualizerId === 'force-graph-3d') {
       setAutoRotate((current) => !current);
+    } else if (key === 's') {
+      setNodeSizeMode((current) => nextGraphStyleOption(current, GRAPH_NODE_SIZE_MODES));
     } else if (key === 'l') {
       setLabelStyle((current) => nextGraphStyleOption(current, GRAPH_LABEL_STYLES));
     } else if (key === 'f') {
@@ -3540,6 +3542,7 @@ const GraphPanel = memo(function GraphPanel({
                 />
                 <GraphStyleOptionGroup
                   label="Size scaling"
+                  shortcut="s"
                   value={nodeSizeMode}
                   options={GRAPH_NODE_SIZE_MODES}
                   onSelect={setNodeSizeMode}

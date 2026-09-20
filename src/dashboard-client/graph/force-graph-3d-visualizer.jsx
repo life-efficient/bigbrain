@@ -917,9 +917,7 @@ function createForceGraphIconSprite(type, iconStyle, color, radius) {
 
 function getForceGraphNodeRadius(node, nodeSize, nodeSizeMode = 'default') {
   const sizeScale = getGraphNodeSizeScale(nodeSize);
-  const baseRadius = nodeSizeMode === 'connections'
-    ? 1.9 + 0.42
-    : 1.9 + Math.sqrt(Math.max(1, Number(node.degree) || 1)) * 0.42;
+  const baseRadius = 1.9 + 0.42;
   return baseRadius * (0.72 + sizeScale * 0.22) * getGraphNodeConnectionScale(node, nodeSizeMode);
 }
 

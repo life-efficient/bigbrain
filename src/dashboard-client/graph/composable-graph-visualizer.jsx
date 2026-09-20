@@ -62,11 +62,9 @@ export const ComposableGraphVisualizer = forwardRef(function ComposableGraphVisu
   const buildLayout = LAYOUT_BUILDERS[layoutStyle] || buildJarvisLayout;
   const laidOut = useMemo(() => {
     const layout = buildLayout(graph);
-    if (nodeSizeMode === 'connections') {
-      layout.nodes.forEach((node) => {
-        node.radius = getNodeRadius(1) * getGraphNodeConnectionScale(node, nodeSizeMode);
-      });
-    }
+    layout.nodes.forEach((node) => {
+      node.radius = getNodeRadius(1) * getGraphNodeConnectionScale(node, nodeSizeMode);
+    });
     return layout;
   }, [buildLayout, graph, nodeSizeMode]);
   const viewportBounds = { minScale: minScale ?? 0.42, maxScale: maxScale ?? 3.4 };
