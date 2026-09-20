@@ -1889,7 +1889,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .card-copy { margin-top: 8px; line-height: 1.5; color: var(--ink); }
       .schema { white-space: pre-wrap; font-size: 12px; line-height: 1.5; max-height: 360px; overflow: auto; }
       .recents-panel { display: flex; flex-direction: column; min-width: 0; height: 100%; border: 1px solid var(--line); border-radius: 12px; background: var(--panel); overflow: hidden; }
-      .recents-head { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding: 25px 30px 20px; border-bottom: 1px solid var(--line); }
+      .recents-head { position: relative; z-index: 2; display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 18px; padding: 25px 30px 20px; border-bottom: 1px solid var(--line); }
       .recents-head-copy { min-width: 0; }
       .recents-eyebrow { display: block; margin-bottom: 7px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: 0.16em; }
       .recents-head h1 { margin: 0; font-size: 29px; line-height: 1.08; letter-spacing: -0.035em; }
@@ -1900,13 +1900,14 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .recents-kind-switch button.active, .recents-activity-switch button.active { background: var(--surface-strong); color: var(--ink); box-shadow: 0 1px 6px rgba(0,0,0,0.16); }
       .recents-kind-switch button:hover, .recents-activity-switch button:hover { color: var(--ink); }
       .recents-kind-switch button:focus-visible, .recents-activity-switch button:focus-visible, .recents-item:focus-visible, .recents-retry:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+      .recents-collection-shell { position: relative; }
+      .recents-collection-trigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 172px; max-width: min(250px, 36vw); min-height: 41px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-muted); color: var(--ink); font-size: 12px; font-weight: 700; cursor: pointer; }
+      .recents-collection-trigger:hover, .recents-collection-trigger.active { border-color: var(--line-strong); background: var(--surface); }
+      .recents-collection-trigger:focus-visible, .recents-collection-menu .menu-item:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+      .recents-collection-trigger span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .recents-collection-chevron { color: var(--muted); font-size: 16px; line-height: 1; }
+      .graph-filter-menu.recents-collection-menu { top: calc(100% + 8px); right: 0; bottom: auto; min-width: max(220px, 100%); max-width: min(320px, calc(100vw - 40px)); max-height: min(50vh, 360px); }
       .recents-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 24px 30px 40px; }
-      .recents-collection-bar { display: flex; justify-content: flex-end; margin-bottom: 20px; }
-      .recents-collection-bar-pages { width: min(760px, 100%); margin-inline: auto; }
-      .recents-collection-filter { display: grid; gap: 7px; min-width: min(240px, 100%); color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
-      .recents-collection-filter select { width: 100%; min-height: 37px; padding: 0 30px 0 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 12px; font-weight: 700; letter-spacing: normal; text-transform: none; cursor: pointer; }
-      .recents-collection-filter select:hover { border-color: var(--accent-strong); }
-      .recents-collection-filter select:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
       .recents-groups { display: grid; gap: 29px; }
       .recents-groups-pages { width: min(760px, 100%); margin-inline: auto; }
       .recents-group h2 { margin: 0 0 12px; color: var(--muted); font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -2156,7 +2157,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .view-recents .sidecar-shell { position: fixed; width: 100vw; }
         .recents-head, .recents-scroll { padding-left: 14px; padding-right: 14px; }
         .recents-controls { justify-content: flex-start; gap: 8px; }
-        .recents-collection-bar { justify-content: flex-start; }
+        .recents-collection-trigger { max-width: min(250px, calc(100vw - 56px)); }
         .recents-activity-switch button, .recents-kind-switch button { padding: 0 10px; }
         .recents-item-time { display: none; }
         .recents-gallery { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -2474,7 +2475,7 @@ export async function buildRecentsPayload(
   const collections = [...folderCollections, ...curatedCollections].map((collection) => {
     const titleKey = collection.title.toLocaleLowerCase();
     if (titleCounts.get(titleKey) === 1) return collection;
-    const sourceLabel = collection.source === 'folder' ? 'Brain folder' : 'Saved collection';
+    const sourceLabel = collection.source === 'folder' ? 'Brain collection' : 'Saved collection';
     const duplicateSource = sourceTitleCounts.get(`${collection.source}:${titleKey}`) > 1;
     const uniqueName = collection.source === 'folder' ? collection.id.slice('folder:'.length) : collection.id;
     return {

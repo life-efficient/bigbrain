@@ -6,10 +6,14 @@ test('Recents shows a collection selector and sends the selection to its API', a
   const client = await fs.readFile(new URL('../../src/dashboard-client/main.jsx', import.meta.url), 'utf8');
   const panel = client.slice(client.indexOf('function RecentsPanel('), client.indexOf('function recentDateGroupLabel('));
 
-  assert.match(panel, /<span>Collection<\/span>/);
-  assert.match(panel, /<option value="">All pages<\/option>/);
-  assert.match(panel, /result\.collections\.map\(\(entry\) => <option key=\{entry\.id\} value=\{entry\.id\}>\{entry\.title\}<\/option>\)/);
+  assert.match(panel, /className="recents-collection-shell"/);
+  assert.match(panel, /aria-haspopup="menu"/);
+  assert.match(panel, /aria-label="Collections"/);
+  assert.match(panel, /selectedCollection\?\.title \|\| collection \|\| 'All collections'/);
+  assert.match(panel, /<span>All collections<\/span>/);
+  assert.match(panel, /result\.collections\.map\(\(entry\) => \(/);
+  assert.match(panel, /role="menuitemradio" aria-checked=\{collection === entry\.id\}/);
   assert.match(panel, /if \(collection\) params\.set\('collection', collection\)/);
   assert.match(panel, /No \$\{kind\} in \$\{collectionName\}/);
-  assert.match(panel, /Try another collection or choose All pages\./);
+  assert.match(panel, /Try another collection or choose All collections\./);
 });

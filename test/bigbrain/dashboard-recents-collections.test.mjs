@@ -56,8 +56,8 @@ test('Recents exposes collections and filters pages and images by collection mem
     const all = await buildRecentsPayload(config, db, query());
     assert.deepEqual(new Set(all.items.map((item) => item.slug)), new Set(['people/alice', 'people/bob', 'projects/relay']));
     assert.deepEqual(all.collections, [
-      { id: 'folder:people', title: 'People (Brain folder)', count: 2, source: 'folder' },
-      { id: 'folder:projects', title: 'Projects (Brain folder)', count: 1, source: 'folder' },
+      { id: 'folder:people', title: 'People (Brain collection)', count: 2, source: 'folder' },
+      { id: 'folder:projects', title: 'Projects (Brain collection)', count: 1, source: 'folder' },
       { id: 'people', title: 'People (Saved collection)', count: 2, source: 'curated' },
       { id: 'projects', title: 'Projects (Saved collection)', count: 1, source: 'curated' },
     ]);
@@ -88,7 +88,7 @@ test('Recents exposes collections and filters pages and images by collection mem
       pages: [{ page_slug: 'people/alice' }],
     });
     const duplicateTitles = (await buildRecentsPayload(config, db, query())).collections;
-    assert.equal(duplicateTitles.find(({ id }) => id === 'folder:people').title, 'People (Brain folder)');
+    assert.equal(duplicateTitles.find(({ id }) => id === 'folder:people').title, 'People (Brain collection)');
     assert.equal(duplicateTitles.find(({ id }) => id === 'people').title, 'People (Saved collection: people)');
     assert.equal(duplicateTitles.find(({ id }) => id === 'other-people').title, 'People (Saved collection: other-people)');
   } finally {

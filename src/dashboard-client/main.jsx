@@ -2195,8 +2195,26 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   const [activity, setActivity] = useState('updated');
   const [kind, setKind] = useState('pages');
   const [collection, setCollection] = useState('');
+  const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [result, setResult] = useState({ status: 'loading', items: [], collections: [], error: '' });
+  const collectionMenuRef = useRef(null);
+
+  useEffect(() => {
+    if (!collectionMenuOpen) return undefined;
+    function handlePointerDown(event) {
+      if (!collectionMenuRef.current?.contains(event.target)) setCollectionMenuOpen(false);
+    }
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') setCollectionMenuOpen(false);
+    }
+    window.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [collectionMenuOpen]);
 
   useEffect(() => {
     if (demoMode) {
@@ -2242,7 +2260,11 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
   const emptyCopy = demoMode
     ? 'Turn off demo mode to see activity from this brain.'
     : collection
-      ? activity === 'viewed' ? 'Pages you open from this collection will appear here.' : 'Try another collection or choose All pages.'
+      ? activity === 'viewed'
+        ? kind === 'images'
+          ? 'Images attached to pages you open from this collection will appear here.'
+          : 'Pages you open from this collection will appear here.'
+        : 'Try another collection or choose All collections.'
       : activity === 'viewed'
         ? 'Pages you open in BigBrain will appear here.'
         : kind === 'images'
@@ -2268,19 +2290,34 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
               <button key={value} type="button" className={kind === value ? 'active' : ''} aria-pressed={kind === value} onClick={() => setKind(value)}>{label}</button>
             ))}
           </div>
+          <div className="recents-collection-shell" ref={collectionMenuRef}>
+            <button
+              type="button"
+              className={`recents-collection-trigger ${collectionMenuOpen ? 'active' : ''}`}
+              aria-label="Collection"
+              aria-haspopup="menu"
+              aria-expanded={collectionMenuOpen}
+              onClick={() => setCollectionMenuOpen((open) => !open)}
+            >
+              <span>{selectedCollection?.title || collection || 'All collections'}</span>
+              <span className="recents-collection-chevron" aria-hidden="true">⌄</span>
+            </button>
+            {collectionMenuOpen ? (
+              <div className="graph-filter-menu recents-collection-menu" role="menu" aria-label="Collections">
+                <button type="button" className={`menu-item ${!collection ? 'selected' : ''}`} role="menuitemradio" aria-checked={!collection} onClick={() => { setCollection(''); setCollectionMenuOpen(false); }}>
+                  <span>All collections</span><span className="menu-item-check" aria-hidden="true">{!collection ? '✓' : ''}</span>
+                </button>
+                {result.collections.map((entry) => (
+                  <button key={entry.id} type="button" className={`menu-item ${collection === entry.id ? 'selected' : ''}`} role="menuitemradio" aria-checked={collection === entry.id} onClick={() => { setCollection(entry.id); setCollectionMenuOpen(false); }}>
+                    <span>{entry.title}</span><span className="menu-item-check" aria-hidden="true">{collection === entry.id ? '✓' : ''}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+          </div>
         </div>
       </div>
       <div className="recents-scroll" aria-live="polite">
-        <div className={`recents-collection-bar ${kind === 'pages' ? 'recents-collection-bar-pages' : ''}`}>
-          <label className="recents-collection-filter">
-            <span>Collection</span>
-            <select value={collection} onChange={(event) => setCollection(event.target.value)}>
-              <option value="">All pages</option>
-              {collection && !selectedCollection ? <option value={collection}>{collection}</option> : null}
-              {result.collections.map((entry) => <option key={entry.id} value={entry.id}>{entry.title}</option>)}
-            </select>
-          </label>
-        </div>
         {result.status === 'loading' ? <div className={kind === 'images' ? 'recents-loading recents-loading-gallery' : 'recents-loading recents-loading-pages'} aria-label="Loading recents">{Array.from({ length: kind === 'images' ? 8 : 5 }, (_, index) => <span key={index} />)}</div> : null}
         {result.status === 'error' ? (
           <div className="recents-state recents-error" role="alert">
