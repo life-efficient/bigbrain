@@ -26,7 +26,7 @@ Review one canonical web article through BigBrain's single shared relevance and 
 - Subscriber-only or other access limits are an access constraint, not a relevance decision. Never bypass a paywall or treat a feed description, email preview, search snippet, or notification body as the article. If the canonical page confirms the article and exposes a substantive preview before the block, apply the normal relevance gate to what is actually readable and retain that portion as a partial capture when it passes. Mark the raw artifact, sidecar, and provenance as preview-only, record the access boundary, use `source_partial`, and advance the verified watermark after same-Brain read-back. If the readable material is empty, thin, mismatched, or insufficient to support the relevance decision, complete the semantic result as `needs_review` with a reason and no source or Brain content; this is not a runtime execution error.
 - For RSS-triggered ingestion, use any available documented browser or article-retrieval tool to visit and verify the canonical page. Prefer the in-Codex browser (`iab`) when available, but do not block ingestion when another supported browser or retrieval path is available. Never open Finder, TextEdit, Terminal UI, an editor, a file-open dialog, or browser `file://` URLs to inspect local workflow files or state. If every supported retrieval path fails, retain the unresolved state internally and explain the access problem in natural prose.
 - Keep the source text faithful to the publisher; never replace it with an AI rewrite.
-- Create one indexed Markdown article page whose body is the faithful complete publisher text when full content is accessible. Keep provenance in frontmatter and optional raw evidence; do not alter the publisher prose with summaries or internal links.
+- Create one indexed Markdown article page containing the faithful complete publisher text when full content is accessible. Keep provenance in frontmatter and optional raw evidence; do not alter the publisher prose. Apply [the Fact Sheet standard](../bigbrain-ingest/references/fact-sheet.md) as a clearly separated editorial preface when substantial facts qualify.
 - Route canonical page creation and updates through `$bigbrain-page`; keep the article sidecar source-specific.
 - For generic RSS work, `rss/workflow` (`rss_workflow` alias) supplies this skill and its required reference text through MCP, and `rss/ledger` (`rss_ledger` alias) supplies shared state. Read [the RSS ledger contract](references/rss-ledger.md). For Substack work, `substack/workflow` supplies the adapter workflow and `substack/ledger` supplies the same shared article state. Never open TextEdit, Finder, Terminal UI, another desktop editor, or browser `file://` URLs for local skill or ledger access. If required instructions cannot be read through MCP or a real file-reading tool, stop before retrieval or writes and return the setup gap to the caller.
 - Every registered RSS feed owns verified low/high ingestion watermarks in the RSS configuration area, backed by shared per-article records. Low means the earliest retained verified post; high means the latest. Neither proves contiguous coverage. Polling cursors, queued events, ignored posts, and unresolved holes never establish retained coverage. A verified `source_partial` record is retained coverage with an explicit partial-capture note.
@@ -77,18 +77,18 @@ Review one canonical web article through BigBrain's single shared relevance and 
    - Follow the active Brain `filing_rules` for the `articles/` collection and `articles/.raw/` path.
    - Use a collision-safe raw filename and stable article path derived from the source identity.
    - Preserve transport metadata without letting it determine relevance. Use `source_type: rss` for RSS and `source_type: substack` for Substack.
-   - The indexed Markdown article page must contain the article title and faithful publisher body. Keep publication metadata in frontmatter. Do not prepend BigBrain summaries, relevance notes, source sections, or internal links to the article body. The writer-managed timeline may follow the standard `---` separator.
+   - The indexed Markdown article page must contain the article title and faithful publisher body. Keep publication metadata in frontmatter. When facts qualify under the linked Fact Sheet standard, place `## Fact Sheet` with concise attributed bullets after the title and before a clearly marked publisher-text section. Keep the source text verbatim and in order. Otherwise begin directly with the publisher body. Do not add a general BigBrain summary, relevance note, or internal links to the publisher text. The writer-managed timeline may follow the standard `---` separator.
    - Preserve original source bytes in `.raw/` when useful for audit or rendering, but do not rely on raw files for searchability. Keep derived synthesis and canonical links on their own appropriate pages rather than altering the source article.
    - When capture is partial, include a prominent `Preview only` or equivalent note in the sidecar and provenance, identify where access stopped, and scope all facts and entity links to the readable portion. Never imply that the unseen remainder was reviewed.
    - Link canonical pages actually resolved or updated when the article supports the relationship. Do not require a page or link for every name before completing article ingestion.
-   - Anti-patterns: storing the only complete source in an unindexed raw file, replacing publisher text with an AI rewrite, omitting source links, using an unstructured summary as an article page, filing raw files directly in entity directories.
+   - Anti-patterns: storing the only complete source in an unindexed raw file, replacing publisher text with an AI rewrite, omitting source links, treating a source claim as independently verified, filling a Fact Sheet with trivia, filing raw files directly in entity directories.
 
 5. Complete and verify the ingestion:
    - Execute the shared ingestion completeness checklist's article capture and saved-state verification, then check it again before reporting completion. Treat further canonical page enrichment as separate work.
    - Keep the article sidecar source-specific and use `$bigbrain-page` for canonical subjects.
    - For a generic RSS claim owned by this call, complete shared `rss/ledger` state only after same-Brain article read-back, using the verification envelope in `references/rss-ledger.md`, then read the post and feed status back. Record irrelevant articles as reviewed `ignored` without content writes; record unresolved source identity, capture, or verification as `needs_review` with a concrete reason and no watermark advance. Return evidence to a claiming Substack adapter instead of completing twice.
    - Reconcile the final outcome with verified writes. Use `source_only` when the article alone was verified and `source_and_update` when at least one canonical change was also verified. Report unfinished entity enrichment as a separate follow-up, not an article coverage gap.
-   - For a relevant partial preview, read back every saved artifact and supported canonical update, then complete the shared record as `source_partial` with the saved paths and access limitation. Verify that the RSS, Substack, or Gmail watermark advanced based on that verified partial ingestion. A successful partial capture is not full ingestion.
+   - For a relevant partial preview, read back every saved artifact and supported canonical update, then complete the shared record as `source_partial` with the saved paths and access limitation. Verify that any Fact Sheet bullet is supported by the readable preview and keeps its limitation visible. Verify that the RSS, Substack, or Gmail watermark advanced based on that verified partial ingestion. A successful partial capture is not full ingestion.
    - Anti-patterns: treating a linked name as a created or updated entity page, claiming an unverified entity update, declaring success without reading back the article, leaving a verified article outstanding solely for entity enrichment.
 
 ## Article Page Template
@@ -109,6 +109,12 @@ source_kind: online-article
 ---
 
 # Article title
+
+## Fact Sheet
+
+- [Only when substantial: attributed, contextual, source-supported recall fact. Omit this whole section otherwise.]
+
+## Publisher text
 
 [Faithful publisher article body or clearly marked substantive preview]
 

@@ -12,6 +12,7 @@ Ingest one podcast episode with feed-aware provenance, complete transcript suppo
 - Use `bigbrain-media-ingest` as the shared execution contract for filing rules, completeness, canonical reconciliation, raw artifacts, sidecars, and read-back.
 - Preserve the exact episode title, show name, publisher, canonical episode URL, RSS GUID or stable episode ID, publication date, duration, description, and speakers when available.
 - Prefer an official publisher transcript; otherwise use clearly labelled transcription of supplied or legally accessible audio and record coverage and accuracy caveats.
+- Follow the shared media skill's [Fact Sheet standard](../bigbrain-ingest/references/fact-sheet.md) for substantial attributed facts supported by the verified transcript; omit the section when none qualify.
 - Do not write when the episode identity or source content cannot be verified.
 
 ## Workflow

@@ -12,6 +12,7 @@ Ingest one YouTube source with exact platform provenance, complete transcript su
 - Use `bigbrain-media-ingest` as the shared execution contract for filing rules, completeness, canonical reconciliation, raw artifacts, sidecars, and read-back.
 - Preserve exact `youtube_title`, `channel`, `youtube_id`, URL, description, publication date, duration, and available chapters before drafting.
 - Treat captions as source support, not silently human-verified transcript text; record coverage, retrieval method, diarization, and accuracy caveats.
+- Follow the shared media skill's [Fact Sheet standard](../bigbrain-ingest/references/fact-sheet.md): add a near-top `## Fact Sheet` only for substantial attributed facts supported by the verified transcript; preserve the source chapter sequence.
 - Do not write when exact title, channel, or stable ID cannot be verified.
 
 ## Workflow

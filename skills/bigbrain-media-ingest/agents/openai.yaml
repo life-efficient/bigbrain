@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Media Ingest"
-  short_description: "Preserve exact media metadata, chapters, and chronology"
-  default_prompt: "Use $bigbrain-media-ingest to preserve exact source metadata and published chapters, validate them before writing, retain the complete transcript, and create a comprehensive chronological prose exposition in BigBrain."
+  short_description: "Preserve media metadata, chapters, chronology, and facts"
+  default_prompt: "Use $bigbrain-media-ingest to preserve exact source metadata and published chapters, validate them before writing, retain the complete transcript, and create a comprehensive chronological prose exposition in BigBrain. Include a near-top Fact Sheet only when the source contains substantial, attributed recall-worthy facts."

@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Document Ingest"
-  short_description: "Turn a document into the right canonical page plus preserved raw support"
-  default_prompt: "Use $bigbrain-document-ingest to file document-derived knowledge by primary subject, preserve raw attachments under the filing_rules path, and complete the shared ingestion checklist for canonical subjects, entities, source links, and read-back."
+  short_description: "File document knowledge and preserve recall-worthy facts"
+  default_prompt: "Use $bigbrain-document-ingest to file document-derived knowledge by primary subject, preserve raw attachments under the filing_rules path, and complete the shared ingestion checklist for canonical subjects, entities, source links, and read-back. Add a near-top Fact Sheet only for substantial, attributed facts supported by the document."

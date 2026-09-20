@@ -20,6 +20,7 @@ Preserve time-based media and create a comprehensive, readable account of what t
 - Make the sidecar a comprehensive chronological prose exposition, not a condensed thematic summary or an analytical rewrite.
 - Write as a third-person observer taking detailed, readable meeting minutes: preserve the source's sequence, substance, reported facts, definitions, examples, evidence, counterarguments, qualifications, and key short quotes without forcing them into a rigid schema.
 - Attribute claims to the source and distinguish what the source reports from independently verified facts. Do not add an unlabelled agent take.
+- Apply [the Fact Sheet standard](../bigbrain-ingest/references/fact-sheet.md) to the verified transcript. When substantial recall-worthy facts qualify, put a short attributed `## Fact Sheet` near the top of the sidecar, before the chronological account; omit it otherwise.
 - Reconcile canonical subjects and every identifiable mentioned entity using the shared checklist and `$bigbrain-page`; keep the source sidecar on its specialized shape.
 - Rely on the owning Brain MCP for automatic propagation and backup, and independently read back the sidecar, raw transcript, and canonical updates. Run manual sync or maintenance only if verification identifies a failed side effect that requires repair.
 
@@ -38,6 +39,7 @@ For every YouTube transcript ingest:
 - If live metadata cannot resolve the exact title or channel, stop before writing. Do not invent either value.
 - If the YouTube description contains a `Timestamps:` or `Chapters:` block, parse its timestamp and label pairs before drafting the exposition.
 - Use one primary heading for every parsed chapter, preserving the exact label and source order. Agent-authored headings may appear only as subordinate headings beneath the source chapter.
+- A `## Fact Sheet` may appear before the first chapter as an editorial preface; it is not a chapter heading and must not change the validated chapter heading sequence.
 - If no chapters are present, label the sidecar metadata with `chapter_source: none` and make any fallback chronology visibly agent-authored.
 
 ## Source Exposition Standard
@@ -74,12 +76,12 @@ Keep the exposition observational. It may explain how one part leads to the next
    - Anti-patterns: excerpt-only capture, calling a partial transcript complete, presenting machine captions as human-verified, treating chapters as optional context
 4. Write the raw transcript and chronological sidecar:
    - upload the transcript to `<collection>/.raw/<basename>.<ext>` and create the sole same-basename sidecar
-   - write a faithful chronological exposition using the Source Exposition Standard
+   - write a faithful chronological exposition using the Source Exposition Standard, preceded by the optional Fact Sheet only when the linked standard's threshold is met
    - when chapters exist, use `chapter.heading` values as the primary section headings and place the detailed prose under the corresponding source section
    - when chapters do not exist, set `chapter_source: none` and label fallback headings as agent-authored chronology
    - preserve source claims as attributed claims and integrate concise key quotes only where their wording materially matters
    - link the sidecar to its raw transcript and any directly relevant existing pages
-   - Anti-patterns: condensed thematic summary, rigid fact ledger or glossary schema, merged or renamed source chapters, agent-authored thesis replacing the source, long transcript copy in the Markdown page
+   - Anti-patterns: condensed thematic summary, rigid fact ledger or glossary schema, merged or renamed source chapters, agent-authored thesis replacing the source, long transcript copy in the Markdown page, fact bullets without source location or qualification
 5. Reconcile canonical coverage:
    - Apply the shared checklist to the complete transcript and source sidecar, using `$bigbrain-page` for canonical creation and updates.
    - Keep the chronological source exposition on the sidecar and supported reusable knowledge on its canonical subject page.
