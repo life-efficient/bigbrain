@@ -3175,7 +3175,7 @@ const GraphPanel = memo(function GraphPanel({
       selectColorPalette(nextGraphStyleOption(colorPaletteId, GRAPH_COLOR_PALETTE_OPTIONS));
     } else if (key === 'r' && visualizerId === 'force-graph-3d') {
       setAutoRotate((current) => !current);
-    } else if (key === 'l' || key === 's') {
+    } else if (key === 'l') {
       setLabelStyle((current) => nextGraphStyleOption(current, GRAPH_LABEL_STYLES));
     } else if (key === 'f') {
       setFlowVisible((current) => !current);
@@ -3558,7 +3558,7 @@ const GraphPanel = memo(function GraphPanel({
                 />
                 <GraphStyleOptionGroup
                   label="Labels"
-                  shortcut="s"
+                  shortcut="l"
                   value={labelStyle}
                   options={GRAPH_LABEL_STYLES}
                   onSelect={setLabelStyle}

@@ -551,6 +551,7 @@ test('graph label and node controls remain available in the graph style menu', a
   const arcAnimationGroup = main.match(/<GraphStyleOptionGroup\s+label="Arc animation"[\s\S]*?\/>/)?.[0] || '';
 
   assert.match(labelsGroup, /options=\{GRAPH_LABEL_STYLES\}/);
+  assert.match(labelsGroup, /shortcut="l"/);
   assert.doesNotMatch(labelsGroup, /disabled=/);
   assert.match(nodeShapeGroup, /options=\{GRAPH_NODE_SHAPES\}/);
   assert.match(nodeFillGroup, /options=\{GRAPH_NODE_FILLS\}/);
@@ -594,7 +595,8 @@ test('graph label and node controls remain available in the graph style menu', a
   assert.doesNotMatch(focusedSubgraphRender, /onBackgroundClick=\{onLineageClose\}/);
   assert.match(main, /setFocusedViewMode\(focusSlug \? 'subgraph' : 'network'\)/);
   assert.match(main, /shortcutsEnabled=\{!healthOpen && !settingsOpen && !menuOpen\}/);
-  assert.match(main, /key === 'l' \|\| key === 's'/);
+  assert.match(main, /\} else if \(key === 'l'\) \{\s*setLabelStyle/);
+  assert.doesNotMatch(main, /key === 's'/);
   assert.match(main, /className="graph-focus-mode-toggle"/);
   assert.match(main, /className=\{`graph-focus-mode-button/);
   assert.match(main, /<kbd className="settings-shortcut">T<\/kbd>/);
