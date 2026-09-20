@@ -110,11 +110,13 @@ test('Stream resets pagination when activity, content type, or collection change
 test('Stream exposes continuation, loading, and finished states', async () => {
   const panel = await panelSource();
 
-  assert.match(panel, /Load more/);
+  assert.doesNotMatch(panel, /Load more (?:pages|images)|`Load more \$\{kind\}`/);
+  assert.match(panel, /Scroll for more/);
   assert.match(panel, /Loading more/);
   assert.match(panel, /has_more/);
   assert.match(panel, /No more|You.re all caught up|End of (?:Stream|results)/i);
-  assert.match(panel, /disabled=\{/);
+  assert.match(panel, /moreError \? \(/, 'the retry button is shown only after an error');
+  assert.match(panel, /onClick=\{loadMore\}>Try again/, 'failed pages remain retryable');
   assert.match(panel, /onScroll=\{handleStreamScroll\}/);
   assert.match(panel, /completedOffsetsRef\.current\.has\(nextOffset\)/);
   assert.match(panel, /bottomReachGateRef\.current\.onScroll\(event\.currentTarget, intentional\)/);

@@ -2633,7 +2633,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
           <div className={`recents-state ${result.meta?.has_more ? 'recents-state-filtered' : ''}`}>
             <span className="recents-state-icon" aria-hidden="true">{kind === 'images' ? '▧' : '▤'}</span>
             <h2>{noSourcesSelected ? 'No sources selected' : noSourceMatches ? result.meta?.has_more ? 'No matching pages loaded yet' : 'No pages from selected sources' : emptyTitle}</h2>
-            <p>{noSourcesSelected ? 'Select a source above or use the control at the beginning of the row to show all.' : noSourceMatches ? result.meta?.has_more ? 'Load more to check older activity, or choose another source.' : 'Choose another source to see more of this Stream.' : emptyCopy}</p>
+            <p>{noSourcesSelected ? 'Select a source above or use the control at the beginning of the row to show all.' : noSourceMatches ? result.meta?.has_more ? 'Scroll for older activity, or choose another source.' : 'Choose another source to see more of this Stream.' : emptyCopy}</p>
           </div>
         ) : null}
         {result.status === 'ready' && visibleItems.length ? (
@@ -2685,11 +2685,9 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode }) {
           <div className={`recents-continuation ${kind === 'pages' ? 'recents-continuation-pages' : ''}`}>
             <span>{result.items.length} of {result.meta.total_count} {kind} loaded</span>
             {moreError ? <p role="alert">Couldn’t load more. Your current items are still here.</p> : null}
-            {result.meta.has_more ? (
-              <button type="button" className="recents-load-more" onClick={loadMore} disabled={loadingMore}>
-                {loadingMore ? 'Loading more…' : moreError ? 'Try again' : `Load more ${kind}`}
-              </button>
-            ) : <strong>End of Stream</strong>}
+            {result.meta.has_more ? moreError ? (
+              <button type="button" className="recents-load-more" onClick={loadMore}>Try again</button>
+            ) : <strong>{loadingMore ? 'Loading more…' : 'Scroll for more'}</strong> : <strong>End of Stream</strong>}
           </div>
         ) : null}
         {result.status === 'ready' && result.items.length && !result.meta ? <p className="recents-continuation recents-continuation-warning" role="status">This BigBrain service cannot load beyond the first batch. Restart BigBrain to continue.</p> : null}
