@@ -5,6 +5,103 @@ actions` section for agents maintaining device and server installations.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-21
+
+### Added
+
+- Added a Brain-local page schema registry with MCP tools to inspect,
+  bootstrap, register, update, and delete schema definitions, plus health
+  checks for schema compliance and first-class page summaries.
+- Added first-class `frameworks`, `articles`, and `videos` collections,
+  multi-image page attachments, article capture, and dedicated page, search,
+  Substack, podcast, YouTube, email-management, and ingestion skills.
+- Added the Stream dashboard with source and collection filters, attached-image
+  browsing, complete source counts, and bounded infinite pagination.
+- Added Comprehension and Keep in Touch playbooks with private overlay state,
+  bounded reviews, resumable cursors, and dashboard surfaces.
+- Added one shared verified RSS and Substack ingestion ledger with atomic
+  claims, retryable outcomes, explicit partial captures, scoped read-back
+  evidence, and per-feed retained-coverage bounds.
+
+### Changed
+
+- Search now embeds and returns complete ranked page evidence for harness-side
+  synthesis, overlaps lexical and semantic retrieval, and applies bounded
+  reranking to complete page content.
+- New structured timeline entries require source provenance. Task and page
+  mutations now share the canonical page writer and reject storage-oriented
+  timeline prose.
+- Canonical pages now support a first-class `summary` stored in frontmatter and
+  rendered separately from their detailed body. Health reports missing
+  summaries as maintenance findings.
+- Background event workers now recover orphaned claims and queue backpressure,
+  isolate native computer use, and expose only the MCP and browser capabilities
+  required by ingestion work.
+- Focused graph navigation, labels, source flow, node controls, lifecycle
+  handling, and page reading views have been substantially refined.
+
+### Fixed
+
+- Fixed hosted browser OAuth onboarding and remote dashboard capability
+  handling.
+- Fixed graph focus after rotation, transient particle teardown, label overlap,
+  and focused-network recovery.
+- Fixed RSS retry visibility, verified completion checks, and Granola route
+  verification so queue or worker prose cannot falsely prove ingestion.
+
+### Removed
+
+- Removed the MCP natural-language `query` answer tool. Use `search` for
+  complete evidence and let the calling harness synthesize the answer. The CLI
+  `query` compatibility command remains retrieval-only.
+- Removed the standalone conversation-ingest skill. Conversation capture is now
+  part of the general ingestion workflow.
+
+### Agent update actions
+
+- This is a major upgrade. Before updating, back up the Brain directory,
+  runtime database, `~/.config/bigbrain`, and the machine-local RSS/Substack
+  ledger. Existing schema-v1 databases are migrated to embedding schema v2 on
+  first use; rollback to an older runtime is not supported after migration.
+- Source installs: update to `v1.0.0`, run `npm install`, `npm link`, and
+  `npm run build:dashboard`, then restart the desktop, dashboard, MCP, event
+  ingestor, and RSS services.
+- Existing Brain configs do not automatically gain new schema directories.
+  Merge `frameworks`, `articles`, and `videos` into `schema_dirs` without
+  overwriting local configuration. Bootstrap the page schema registry, review
+  it, and commit `page-schemas.yaml` before enforcing custom schemas.
+- Run a full `bigbrain sync --json` with the deployment's embedding credentials
+  configured so complete-page embeddings are generated. Then run
+  `bigbrain health --json` and resolve missing page summaries, strict-schema
+  findings, and legacy task fields. Only exact blank legacy `assignees` or
+  `source` strings may be normalized automatically to empty arrays; review all
+  other values manually.
+- Refresh active bundled skills and remove any active
+  `bigbrain-conversation-ingest` copy. Review the new email-ingest,
+  Keep in Touch, and Substack-reconciliation automations before activating
+  them, and preserve local schedules, targets, and customizations.
+- Server and container deployments must persist the Brain, database, OAuth
+  state, and the shared ledger path configured by
+  `BIGBRAIN_SUBSTACK_LEDGER_PATH`. Never reconstruct verified article outcomes
+  from feed cursors or prose logs.
+- MCP clients must replace `query` calls with `search`. Structured timeline
+  writers must provide complete provenance with `event_id`, `source_type`,
+  `source_label`, and `source_message` for every new entry.
+- Verify `/live`, `/ready`, the reported runtime version, authenticated
+  `tools/list`, `search`, page schema tools, RSS/Substack ledger status,
+  Comprehension and Keep in Touch playbooks, `bigbrain sync --json`,
+  `bigbrain health --json`, and `npm test` after deployment.
+
+### Verification
+
+- Local-data compatibility audit passed with the required major-version and
+  migration actions above. Legacy timeline entries remain readable, task enum
+  values are unchanged, and shared ledger migrations preserve existing rows.
+- Full test suite passed: 678 tests passed, 7 skipped because
+  `TEST_DATABASE_URL` is not configured, and 0 failed.
+- Dashboard production build and standalone MCP bundle verification passed as
+  release gates before tagging.
+
 ## [0.28.0] - 2026-09-03
 
 ### Added
