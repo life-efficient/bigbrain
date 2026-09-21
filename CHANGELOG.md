@@ -5,6 +5,8 @@ actions` section for agents maintaining device and server installations.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-09-21
+
 ### Fixed
 
 - Restored page writes for registered legacy Brains that do not yet have a
@@ -20,6 +22,10 @@ actions` section for agents maintaining device and server installations.
   service creates or advances the Brain-local page schema registry when safe.
   Do not copy a registry between Brains. Review `schemas/list`, then verify one
   normal page create and read-back through that Brain's MCP.
+- Source installations should update to `v1.0.1`, run `npm install` and
+  `npm link`, then restart only source-managed local services. Server-managed
+  deployments should promote the immutable `v1.0.1` image and verify `/ready`
+  plus authenticated `tools/list` after rollout.
 
 ### Verification
 
@@ -27,6 +33,9 @@ actions` section for agents maintaining device and server installations.
   including missing-registry writes by a non-admin creator, additive custom
   categories, idempotence, invalid-registry rejection, and future-version
   no-rewrite coverage.
+- Full test suite passed: 683 tests passed, 7 PostgreSQL integration tests were
+  skipped because `TEST_DATABASE_URL` was not configured, and 0 failed.
+- Dashboard production build and standalone MCP bundle verification passed.
 
 ## [1.0.0] - 2026-09-21
 
