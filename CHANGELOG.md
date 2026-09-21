@@ -33,7 +33,7 @@ actions` section for agents maintaining device and server installations.
   including missing-registry writes by a non-admin creator, additive custom
   categories, idempotence, invalid-registry rejection, and future-version
   no-rewrite coverage.
-- Full test suite passed: 683 tests passed, 7 PostgreSQL integration tests were
+- Full test suite passed: 684 tests passed, 7 PostgreSQL integration tests were
   skipped because `TEST_DATABASE_URL` was not configured, and 0 failed.
 - Dashboard production build and standalone MCP bundle verification passed.
 
