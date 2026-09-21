@@ -862,6 +862,17 @@ test('3D force teardown leaves transient particle groups for the graph destructo
   assert.match(forceGraph, /cleanupForceGraphTransientParticles\(forceGraph\);\s*forceGraph\._destructor\?\.\(\);/);
 });
 
+test('dashboard build guards three-force-graph particle teardown without patching node_modules', async () => {
+  const buildScript = await fs.readFile(
+    new URL('../../scripts/build-dashboard-client.mjs', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(buildScript, /three-forcegraph-particle-teardown-guard/);
+  assert.match(buildScript, /singlePhotonsObj\.parent\?\.remove\(singlePhotonsObj\)/);
+  assert.match(buildScript, /Expected three-forcegraph particle teardown was not found/);
+});
+
 test('force graphs refit after late canvas sizing and async first data', async () => {
   const sources = await Promise.all([
     'force-graph-2d-visualizer.jsx',
