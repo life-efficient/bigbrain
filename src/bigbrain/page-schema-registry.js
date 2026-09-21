@@ -282,7 +282,7 @@ export async function bootstrapPageSchemaRegistry(config, { overwrite = false } 
   if (loaded.status === 'invalid' && !overwrite) {
     throw new Error(`Page schema registry is invalid: ${loaded.errors.join('; ')}`);
   }
-  await writePageSchemaRegistry(config, defaultPageSchemaRegistry());
+  await writePageSchemaRegistry(config, defaultPageSchemaRegistry({ schemaDirs: config.schemaDirs }));
   return loadPageSchemaRegistry(config, { allowMissing: false });
 }
 

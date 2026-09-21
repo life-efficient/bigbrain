@@ -64,6 +64,24 @@ test('page schema registry remains optional for existing Brains until explicitly
   }
 });
 
+test('explicit bootstrap includes Brain-local configured categories', async () => {
+  const fixture = await createFixture('bigbrain-page-schema-local-bootstrap-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    config.schemaDirs = ['meetings', 'programme-notes'];
+    await fs.rm(path.join(fixture.brainHome, PAGE_SCHEMA_REGISTRY_FILENAME));
+
+    const bootstrapped = await bootstrapPageSchemaRegistry(config);
+    assert.equal(bootstrapped.registry.defaults_version, PAGE_SCHEMA_DEFAULTS_VERSION);
+    assert.equal(bootstrapped.registry.schemas.meetings.path_prefix, 'meetings');
+    assert.equal(bootstrapped.registry.schemas['programme-notes'].path_prefix, 'programme-notes');
+    assert.equal(bootstrapped.registry.schemas['programme-notes'].additional_properties, true);
+    assert.equal(bootstrapped.registry.schemas.tasks, undefined);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('page schema registry migration is additive, Brain-local, and idempotent', async () => {
   const fixture = await createFixture('bigbrain-page-schema-migration-');
   try {
