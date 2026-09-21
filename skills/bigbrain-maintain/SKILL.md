@@ -1,19 +1,6 @@
 ---
-name: "BigBrain: Maintain"
-version: 1.0.0
-description: |
-  Check a BigBrain for problems, fix the obvious ones that BigBrain already
-  knows how to fix, and clearly report anything that still needs manual follow-up.
-triggers:
-  - "run BigBrain maintenance"
-  - "run BigBrain nightly maintenance"
-  - "maintain BigBrain"
-  - "check BigBrain health and fix what you can"
-  - "run the health check and address issues"
-  - "address BigBrain unresolved items"
-tools:
-  - shell
-mutating: true
+name: bigbrain-maintain
+description: Check a BigBrain for deterministic health issues and a small judgment-based sample of page quality. Use for maintenance, health checks, nightly checkups, or auditing whether pages and summaries remain reader-facing, standalone, and well-structured. Do not use for a full content rewrite, a one-off page edit, or exhaustive editorial review.
 ---
 
 # BigBrain: Maintain
@@ -26,7 +13,7 @@ For recurring nightly maintenance, reporting unresolved items is not enough.
 The agent must first attempt safe, bounded remediation for findings that have a
 deterministic fix path, then report only what remains.
 
-## Contract
+## Contract Checklist
 
 This skill guarantees:
 - Start with the live `bigbrain health --json` report
@@ -42,6 +29,8 @@ This skill guarantees:
 - Exit cleanly when no findings remain
 - Stop clearly when the remaining issues need manual page edits or a product
   change
+- On each maintenance pass, assess a random sample of up to ten canonical pages
+  against qualitative reader-facing standards and record the sample and findings
 
 ## What it can fix
 
@@ -141,6 +130,22 @@ Use only these built-in repair paths unless the user asks for deeper edits:
    - A maintenance pass must never leave an aggregate event-failure message
      without the delivery ID, listener, exact error, and proposed resolution.
 
+6. Qualitative page-quality sample:
+   - Randomly select up to ten canonical pages after deterministic health checks.
+     Exclude raw sidecars, system taxonomy, and pages already selected in the
+     immediately preceding maintenance pass when that history is available.
+   - Judge each page, rather than pretending these are mechanically verifiable:
+     its Summary describes the substantive topic and takeaway rather than Brain
+     mechanics; the body works as a standalone, Pareto-style one-pager; the
+     explanation is internally structured, non-overlapping, and collectively
+     covers the important ground for its stated scope; and it does not spend
+     reader space explaining storage, transcripts, indexing, or rendering.
+   - Record the sampled paths, pass or follow-up result, and one concise reason
+     for every follow-up. Apply only obvious, narrow fixes during the pass;
+     queue judgment-heavy rewrites rather than silently rewriting the sample.
+   - Treat recurring patterns as a maintenance-rule or page-template issue and
+     improve that upstream guidance after evidence from more than one page.
+
 ## When to stop
 
 Do not keep digging once one of these is true:
@@ -151,10 +156,11 @@ Do not keep digging once one of these is true:
 - The issue points to unrelated repo work or new feature work rather than a
   maintenance fix
 
-## Steps
+## Workflow
 
 1. Run the health check:
    - `node ./bin/bigbrain.js health --json`
+   - Anti-patterns: sampling pages before checking deterministic health, treating a stale index as a content-quality finding
 2. Classify findings:
    - no findings -> exit cleanly
    - likely index freshness problem -> `sync`, then re-run health
@@ -169,22 +175,30 @@ Do not keep digging once one of these is true:
      the owning MCP, then re-run health
    - blank-string array schema mismatch -> normalize to an empty array through
      the owning MCP, then re-run health
+   - after deterministic checks -> run the qualitative page-quality sample and
+     record findings separately from health failures
+   - Anti-patterns: treating editorial judgment as a deterministic failure, sampling raw sidecars or system taxonomy, silently rewriting ambiguous content
 3. After a successful remediation:
    - run `node ./bin/bigbrain.js sync --json`
    - commit the intentional fix
    - re-run `node ./bin/bigbrain.js health --json`
    - push if the repository is clean and the branch has commits ahead of the
      remote
+   - Anti-patterns: committing unrelated worktree changes, pushing before sync and final health
 4. Stop after one bounded remediation loop unless the next action is still
    deterministic and lower risk than leaving the issue open
+   - Anti-patterns: mass-rewriting pages, turning a maintenance pass into an exhaustive editorial project
 5. Report:
    - initial findings
    - remediation attempted
    - final findings
    - sync, commit, and push status for remediation changes
    - whether the pass exited cleanly or stopped with explicit follow-up needed
+   - qualitative sample size, sampled page paths, themes found, and any pages
+     queued for editorial follow-up
+   - Anti-patterns: reporting a qualitative pass as exhaustive, omitting the sampled paths or rationale
 
-## Guardrails
+## Anti-Patterns
 
 - Prefer the runtime commands over ad hoc filesystem walks when they answer the
   question directly
@@ -204,3 +218,12 @@ Do not keep digging once one of these is true:
 - Never leave inbound event failures as an unexplained backlog. Every failed or
   quarantined delivery must have an evidence-backed classification and
   proposed next action.
+- Do not treat qualitative sampling as a health failure or claim it is
+  exhaustive. Do not mass-rewrite sampled pages or infer that an individual
+  editorial judgment applies to every page.
+
+## Output
+
+Report deterministic health findings and remediation separately from the
+qualitative sample. Include the sampled page paths, each follow-up rationale,
+recurring themes, and only the narrow remediation actually completed.

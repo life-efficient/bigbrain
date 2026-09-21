@@ -42,14 +42,19 @@ Research notes about a company leader. No direct relationship or contact.
     await syncBrain({ config, apiKey: null });
     const db = await openDatabase(config);
 
-    const first = await buildKeepInTouchReviewPayload(config, db, { asOf: '2026-08-28T08:00:00.000Z' });
+    const first = await buildKeepInTouchReviewPayload(config, db, {
+      asOf: '2026-08-28T08:00:00.000Z',
+      limit: 1,
+    });
     assert.equal(first.review.status, 'ready');
-    assert.deepEqual(first.review.candidates.map((page) => page.page_slug), ['people/alice', 'people/research-subject']);
+    assert.equal(first.review.limit, 1);
+    assert.deepEqual(first.review.candidates.map((page) => page.page_slug), ['people/alice']);
     assert.equal(first.review.candidates[0].registry, null);
 
     const recorded = await recordKeepInTouchReview(config, db, {
       review_id: first.review.review_id,
       as_of: first.review.as_of,
+      limit: first.review.limit,
       cursor_before: first.review.cursor_before,
       decisions: [
         {
@@ -59,22 +64,15 @@ Research notes about a company leader. No direct relationship or contact.
           evidence: ['Alice messaged me about the new project.'],
           confidence: 'high',
         },
-        {
-          page_slug: 'people/research-subject',
-          outcome: 'no_change',
-          reason: 'The page is research about a person without evidence of a direct relationship or contact.',
-          evidence: ['Research notes about a company leader.'],
-          confidence: 'high',
-        },
       ],
     });
     assert.equal(recorded.review.status, 'recorded');
     assert.deepEqual(recorded.review.summary, {
-      scanned: 2,
+      scanned: 1,
       added: 1,
       frequency_changed: 0,
       due: 0,
-      no_change: 1,
+      no_change: 0,
       needs_review: 0,
       due_now: 1,
       overdue: 0,
@@ -85,6 +83,7 @@ Research notes about a company leader. No direct relationship or contact.
     const repeated = await recordKeepInTouchReview(config, db, {
       review_id: first.review.review_id,
       as_of: first.review.as_of,
+      limit: first.review.limit,
       cursor_before: first.review.cursor_before,
       decisions: [],
     });
@@ -96,22 +95,46 @@ Research notes about a company leader. No direct relationship or contact.
       recordType: 'cursor',
       scopeKey: 'daily-review',
     });
-    assert.deepEqual(cursor.data, { updated_at: first.review.cursor_after.updated_at, page_slug: 'people/research-subject' });
+    assert.deepEqual(cursor.data, { updated_at: first.review.cursor_after.updated_at, page_slug: 'people/alice' });
     const queue = await buildKeepInTouchPayload(config, db, { now: new Date('2026-08-28T08:00:00.000Z') });
     assert.equal(queue.records[0].frequency_days, 7);
     assert.equal(queue.records[0].cadence_days, 7);
     assert.equal(queue.records[0].next_due_at, '2026-08-28T08:00:00.000Z');
 
+    const backfill = await buildKeepInTouchReviewPayload(config, db, {
+      asOf: '2026-08-28T08:00:00.000Z',
+      limit: 1,
+    });
+    assert.deepEqual(backfill.review.candidates.map((page) => page.page_slug), ['people/research-subject']);
+    const backfilled = await recordKeepInTouchReview(config, db, {
+      review_id: backfill.review.review_id,
+      as_of: backfill.review.as_of,
+      limit: backfill.review.limit,
+      cursor_before: backfill.review.cursor_before,
+      decisions: [{
+        page_slug: 'people/research-subject',
+        outcome: 'no_change',
+        reason: 'The page is research about a person without evidence of a direct relationship or contact.',
+        evidence: ['Research notes about a company leader.'],
+        confidence: 'high',
+      }],
+    });
+    assert.equal(backfilled.review.summary.no_change, 1);
+
     await fs.appendFile(alicePath, '\nA later page update says we should reconnect soon.\n', 'utf8');
     const secondUpdate = new Date('2026-08-29T08:00:00.000Z');
     await fs.utimes(alicePath, secondUpdate, secondUpdate);
     await syncBrain({ config, apiKey: null });
-    const second = await buildKeepInTouchReviewPayload(config, db, { asOf: '2026-08-30T08:00:00.000Z' });
+    const second = await buildKeepInTouchReviewPayload(config, db, {
+      asOf: '2026-08-30T08:00:00.000Z',
+      limit: 1,
+    });
     assert.deepEqual(second.review.candidates.map((page) => page.page_slug), ['people/alice']);
     assert.equal(second.review.candidates[0].registry.frequency_days, 7);
     const changed = await recordKeepInTouchReview(config, db, {
       review_id: second.review.review_id,
       as_of: second.review.as_of,
+      limit: second.review.limit,
       cursor_before: second.review.cursor_before,
       decisions: [{
         page_slug: 'people/alice',

@@ -59,7 +59,11 @@ This skill guarantees:
      steps and continue at step 12
 2. For **Run BigBrain on this device**, ask whether the user wants to back up
    the brain to GitHub:
-   - default to yes
+   - present **Run locally with GitHub backup** as the recommended and preferred
+     choice, and make it the default path when the user has not expressed a
+     preference
+   - present **Run locally without GitHub backup** as available but not
+     recommended
    - include this exact warning in the question: `STRONGLY RECOMMENDED: everything in your brain could be lost if you delete the folder or lose access to your device`
    - if the user declines, mention the risk once in the final summary
 3. Resolve the target brain home:

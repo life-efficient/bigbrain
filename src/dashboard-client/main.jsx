@@ -747,6 +747,13 @@ function DashboardApp() {
     }
   }
 
+  function openRawFile({ href, sourceSlug }) {
+    const rawPath = resolveMetadataTarget(sourceSlug, href);
+    if (!isMetadataRawFile(rawPath)) return;
+    const rawHref = `/api/explorer/blob?path=${encodeURIComponent(rawPath)}`;
+    window.open(rawHref, '_blank', 'noopener,noreferrer');
+  }
+
   function handlePreviewCardKeyDown(event, callback) {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
@@ -985,6 +992,7 @@ function DashboardApp() {
           preview={preview}
           onClose={clearGraphFocus}
           onRelativeLinkClick={openPreview}
+          onRawLinkClick={openRawFile}
           onPageOpen={openPageBySlug}
           onVisibilityChange={changePageVisibility}
         />
@@ -1150,56 +1158,6 @@ function AnalyticsPanel({ analytics }) {
   );
 }
 
-function PlaybookLauncher({
-  brainName,
-  keepInTouchEnabled,
-  onEnable,
-  onDisable,
-  onOpen,
-  comprehensionEnabled,
-  onEnableComprehension,
-  onDisableComprehension,
-  onOpenComprehension,
-}) {
-  return (
-    <div className="playbooks-dropdown" role="menu">
-      <div className="playbooks-dropdown-head">
-        <strong>Playbooks</strong>
-        <span className="meta">{brainName || 'Selected Brain'}</span>
-      </div>
-      <div className="playbook-launcher-item">
-        <div className="playbook-launcher-copy">
-          <strong>Keep in Touch</strong>
-          <span>Track deliberate follow-ups without changing person pages.</span>
-        </div>
-        {keepInTouchEnabled ? (
-          <div className="playbook-launcher-actions">
-            <button type="button" className="settings-link selected" onClick={onOpen}>Open <span className="meta">K</span></button>
-            <button type="button" className="playbook-text-button" onClick={onDisable}>Disable</button>
-          </div>
-        ) : (
-          <button type="button" className="settings-link" onClick={onEnable}>Enable</button>
-        )}
-      </div>
-      <div className="playbook-launcher-item">
-        <div className="playbook-launcher-copy">
-          <strong>Comprehension</strong>
-          <span>Build durable understanding from important Brain pages.</span>
-        </div>
-        {comprehensionEnabled ? (
-          <div className="playbook-launcher-actions">
-            <button type="button" className="settings-link selected" onClick={onOpenComprehension}>Open <span className="meta">C</span></button>
-            <button type="button" className="playbook-text-button" onClick={onDisableComprehension}>Disable</button>
-          </div>
-        ) : (
-          <button type="button" className="settings-link" onClick={onEnableComprehension}>Enable</button>
-        )}
-      </div>
-      <div className="playbooks-dropdown-foot">Playbooks are enabled separately for each Brain.</div>
-    </div>
-  );
-}
-
 function MetricCard({ label, value, compact = false }) {
   return <div className="metric-card"><span className="settings-label">{label}</span><strong className={compact ? 'compact' : ''}>{value}</strong></div>;
 }
@@ -1216,6 +1174,7 @@ function formatAnalyticsTime(value) {
 
 function PrivatePageApp({ route }) {
   const [state, setState] = useState({ status: 'loading', error: null, page: null });
+  const [imageViewerIndex, setImageViewerIndex] = useState(null);
 
   useEffect(() => {
     function handleKeyDown(event) {
@@ -1264,6 +1223,10 @@ function PrivatePageApp({ route }) {
     };
   }, [route.slug]);
 
+  useEffect(() => {
+    setImageViewerIndex(null);
+  }, [route.slug]);
+
   if (state.status === 'loading') {
     return (
       <main className="public-main">
@@ -1301,21 +1264,34 @@ function PrivatePageApp({ route }) {
           </div>
           <PrivatePageBackLink />
         </header>
-        <PageImageCarousel images={state.page.images} />
+        <PageImageCarousel images={state.page.images} onImageOpen={setImageViewerIndex} />
+        <PageSummary summary={state.page.summary} />
         <MarkdownDocument
           markdown={state.page.markdown}
           sourceSlug={state.page.slug}
           images={state.page.images}
+          onImageClick={setImageViewerIndex}
           onRelativeLinkClick={openPrivatePageLink}
           shouldHandleRelativeLink={(href) => Boolean(privatePageHref(href, state.page.slug))}
           emptyLabel="This page is empty."
         />
       </article>
+      <PageImageLightbox
+        images={state.page.images}
+        activeIndex={imageViewerIndex}
+        onClose={() => setImageViewerIndex(null)}
+        onIndexChange={setImageViewerIndex}
+      />
     </main>
   );
 }
 
-function PageImageCarousel({ images, compact = false }) {
+function PageSummary({ summary }) {
+  if (!summary) return null;
+  return <p className="page-summary">{summary}</p>;
+}
+
+function PageImageCarousel({ images, compact = false, onImageOpen }) {
   const items = Array.isArray(images) ? images.filter((image) => image?.url) : [];
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -1332,9 +1308,16 @@ function PageImageCarousel({ images, compact = false }) {
           {items.map((image, index) => {
             const label = image.caption || image.alt_text || image.filename || `Attached image ${index + 1}`;
             return (
-              <a className="page-image-strip-item" href={image.url} target="_blank" rel="noreferrer" role="listitem" key={`${image.path}:${index}`}>
-                <img src={image.url} alt={image.alt_text || label} loading={index < 4 ? 'eager' : 'lazy'} />
-              </a>
+              <div className="page-image-strip-item" role="listitem" key={`${image.path}:${index}`}>
+                <button
+                  className="page-image-strip-button"
+                  type="button"
+                  aria-label={`Open attached image ${index + 1}: ${label}`}
+                  onClick={() => onImageOpen?.(index)}
+                >
+                  <img src={image.url} alt={image.alt_text || label} loading={index < 4 ? 'eager' : 'lazy'} />
+                </button>
+              </div>
             );
           })}
         </div>
@@ -1392,9 +1375,14 @@ function PageImageCarousel({ images, compact = false }) {
               <span aria-hidden="true">‹</span>
             </button>
           ) : null}
-          <a className="page-image-link" href={activeItem.url} target="_blank" rel="noreferrer">
+          <button
+            className="page-image-link"
+            type="button"
+            aria-label={`Open attached image ${safeActiveIndex + 1}: ${activeLabel}`}
+            onClick={() => onImageOpen?.(safeActiveIndex)}
+          >
             <img src={activeItem.url} alt={activeItem.alt_text || activeLabel} loading="eager" />
-          </a>
+          </button>
           {items.length > 1 ? (
             <button
               className="page-image-control page-image-control-next"
@@ -1572,6 +1560,7 @@ function PrivatePageBackLink() {
 function PublicPageApp() {
   const [state, setState] = useState({ status: 'loading', error: null, page: null });
   const [rawFileView, setRawFileView] = useState('list');
+  const [imageViewerIndex, setImageViewerIndex] = useState(null);
   const slug = useMemo(() => publicSlugFromPath(window.location.pathname), []);
 
   useEffect(() => {
@@ -1595,6 +1584,10 @@ function PublicPageApp() {
     return () => {
       cancelled = true;
     };
+  }, [slug]);
+
+  useEffect(() => {
+    setImageViewerIndex(null);
   }, [slug]);
 
   if (state.status === 'loading') {
@@ -1646,14 +1639,22 @@ function PublicPageApp() {
             </div>
           ) : null}
         </header>
-        <PageImageCarousel images={state.page.images} />
+        <PageImageCarousel images={state.page.images} onImageOpen={setImageViewerIndex} />
+        <PageSummary summary={state.page.summary} />
         <MarkdownDocument
           markdown={state.page.markdown}
           sourceSlug={state.page.slug}
           images={state.page.images}
+          onImageClick={setImageViewerIndex}
           emptyLabel="This public page is empty."
         />
       </article>
+      <PageImageLightbox
+        images={state.page.images}
+        activeIndex={imageViewerIndex}
+        onClose={() => setImageViewerIndex(null)}
+        onIndexChange={setImageViewerIndex}
+      />
     </main>
   );
 }
@@ -2003,7 +2004,7 @@ function AssigneePills({ assignees, invalidAssignees }) {
   );
 }
 
-function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisibilityChange }) {
+function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, onPageOpen, onVisibilityChange }) {
   const type = preview?.type || preview?.slug?.split('/')[0] || 'page';
   const isArticle = type === 'articles';
   const updatedLabel = formatDateTime(preview?.updated_at);
@@ -2017,6 +2018,11 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
   const visibilityBusy = preview?.visibility_status === 'saving';
   const publicUrl = preview?.slug ? `${window.location.origin}/public/${preview.slug}` : '';
   const [copiedPublicLink, setCopiedPublicLink] = useState(false);
+  const [imageViewerIndex, setImageViewerIndex] = useState(null);
+
+  useEffect(() => {
+    setImageViewerIndex(null);
+  }, [preview?.slug]);
 
   async function changeVisibility(nextVisibility) {
     if (!canChangeVisibility || visibilityBusy) return;
@@ -2039,8 +2045,9 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
   }
 
   return (
-    <aside className="sidecar-shell" aria-hidden={!preview}>
-      <div className="sidecar-panel">
+    <>
+      <aside className="sidecar-shell" aria-hidden={!preview}>
+        <div className="sidecar-panel">
         <div className="sidecar-head">
           <div className="sidecar-title-row">
             <div className="sidecar-title-copy">
@@ -2052,7 +2059,6 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
               {preview?.title ? <h1 className="sidecar-page-title">{preview.title}</h1> : null}
               <div className="sidecar-path-row">
                 {pathLabel ? <span className="meta">{pathLabel}</span> : null}
-                <PageMetadata frontmatter={preview?.frontmatter} />
               </div>
             </div>
             <div className="sidecar-actions">
@@ -2087,42 +2093,157 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onPageOpen, onVisi
           {preview?.status === 'error' && <div className="empty-copy">{preview.message}</div>}
           {preview?.status === 'ready' ? (
             <>
-              <PageImageCarousel images={preview.images} compact />
-              <div className={`sidecar-document ${hasLinks ? 'has-link-sections' : ''}`}>
-                <MarkdownDocument
-                  markdown={stripLeadingMarkdownHeading(
-                    isArticle ? stripManagedArticleTimeline(preview.markdown) : preview.markdown,
-                    preview.title,
-                  )}
-                  sourceSlug={preview.slug}
-                  images={preview.images}
-                  onRelativeLinkClick={onRelativeLinkClick}
-                  emptyLabel="This file is empty."
-                />
-              </div>
+              <PageContentPreview
+                markdown={preview.body || preview.markdown}
+                title={preview.title}
+                summary={preview.summary}
+                timelineEntries={preview.timeline_entries}
+                sourceSlug={preview.slug}
+                frontmatter={preview.frontmatter}
+                images={preview.images}
+                onImageOpen={setImageViewerIndex}
+                onRelativeLinkClick={onRelativeLinkClick}
+                onRawLinkClick={onRawLinkClick}
+                bodyClassName={`sidecar-document ${hasLinks ? 'has-link-sections' : ''}`}
+                emptyLabel="This file is empty."
+              />
               <PageLinkSection title="Links out" links={outgoing} onPageOpen={onPageOpen} />
               <PageLinkSection title="Backlinks" links={backlinks} onPageOpen={onPageOpen} />
             </>
           ) : null}
         </div>
-      </div>
-    </aside>
+        </div>
+      </aside>
+      <PageImageLightbox
+        images={preview?.images}
+        activeIndex={imageViewerIndex}
+        onClose={() => setImageViewerIndex(null)}
+        onIndexChange={setImageViewerIndex}
+      />
+    </>
   );
 }
 
-function PageMetadata({ frontmatter }) {
-  const entries = Object.entries(frontmatter || {}).filter(([, value]) => value !== null && value !== undefined && String(value).trim() !== '');
+function PageContentPreview({
+  markdown,
+  title,
+  summary,
+  timelineEntries,
+  sourceSlug,
+  frontmatter,
+  images,
+  onImageOpen,
+  onRelativeLinkClick,
+  onRawLinkClick,
+  bodyClassName = '',
+  className = '',
+  emptyLabel = '',
+}) {
+  const contentClassName = ['page-content-preview', className].filter(Boolean).join(' ');
+  const documentClassName = ['page-content-document', bodyClassName].filter(Boolean).join(' ');
+  const pageMarkdown = stripLeadingMarkdownHeading(
+    markdown,
+    title,
+  );
+
+  return (
+    <div className={contentClassName}>
+      <PageImageCarousel images={images} compact onImageOpen={onImageOpen} />
+      <PageMetadata
+        frontmatter={frontmatter}
+        sourceSlug={sourceSlug}
+        onRelativeLinkClick={onRelativeLinkClick}
+      />
+      <PageSummaryCard summary={summary} />
+      <section className={`page-body-section ${documentClassName}`} aria-label="Body">
+        <span className="page-section-label">Body</span>
+        <MarkdownDocument
+          markdown={pageMarkdown}
+          sourceSlug={sourceSlug}
+          images={images}
+          onImageClick={onImageOpen}
+          onRelativeLinkClick={onRelativeLinkClick}
+          onRawLinkClick={onRawLinkClick}
+          emptyLabel={emptyLabel}
+        />
+      </section>
+      <PageTimelineCard entries={timelineEntries} />
+    </div>
+  );
+}
+
+function PageSummaryCard({ summary }) {
+  if (!summary) return null;
+  return (
+    <section className="page-summary-card" aria-label="Summary">
+      <span className="page-section-label">Summary</span>
+      <p>{summary}</p>
+    </section>
+  );
+}
+
+function PageTimelineCard({ entries }) {
+  const items = Array.isArray(entries) ? entries : [];
+  return (
+    <section className="page-timeline-card" aria-label="Timeline">
+      <span className="page-section-label">Timeline</span>
+      {items.length ? (
+        <ol className="page-timeline-list">
+          {items.map((entry, index) => {
+            const provenance = entry?.provenance || {};
+            const sourceType = graphFlowSourceType(provenance.source_type);
+            const sourceLabel = provenance.source_label || graphFlowSourceLabel(sourceType);
+            const sourceMessage = provenance.source_message || null;
+            const occurredAt = entry?.occurred_at || entry?.occurred_label || '';
+            return (
+              <li className="page-timeline-item" key={entry?.entry_id || `${occurredAt}:${index}`}>
+                <div className="page-timeline-item-meta">
+                  <GraphFlowSourceIcon source={{ type: sourceType, label: sourceLabel }} />
+                  {occurredAt ? <time dateTime={entry?.occurred_at || undefined}>{formatTimelineDate(occurredAt)}</time> : null}
+                  <span className="page-timeline-source-label">{sourceLabel}</span>
+                </div>
+                <p className="page-timeline-description">{entry?.text}</p>
+                {sourceMessage && sourceMessage !== entry?.text ? (
+                  <p className="page-timeline-source-message">{sourceMessage}</p>
+                ) : null}
+              </li>
+            );
+          })}
+        </ol>
+      ) : <p className="page-timeline-empty">No recorded updates yet.</p>}
+    </section>
+  );
+}
+
+function formatTimelineDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return new Intl.DateTimeFormat(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  }).format(date);
+}
+
+function PageMetadata({ frontmatter, sourceSlug, onRelativeLinkClick }) {
+  const entries = Object.entries(frontmatter || {})
+    .filter(([key, value]) => key !== 'summary' && hasMetadataValue(value));
   if (!entries.length) return null;
   return (
     <details className="sidecar-metadata">
-      <summary>
-        Metadata
-      </summary>
+      <summary>Metadata</summary>
       <dl className="sidecar-metadata-records">
         {entries.map(([key, value]) => (
           <div key={key}>
-            <dt>{key.replace(/_/g, ' ')}</dt>
-            <dd>{formatMetadataValue(key, value)}</dd>
+            <dt>{formatMetadataKey(key)}</dt>
+            <dd>
+              <MetadataValue
+                keyName={key}
+                value={value}
+                sourceSlug={sourceSlug}
+                onRelativeLinkClick={onRelativeLinkClick}
+              />
+            </dd>
           </div>
         ))}
       </dl>
@@ -2130,9 +2251,207 @@ function PageMetadata({ frontmatter }) {
   );
 }
 
-function formatMetadataValue(key, value) {
-  if (key === 'images' && Array.isArray(value)) return `${value.length} attached ${value.length === 1 ? 'image' : 'images'}`;
-  return Array.isArray(value) || (value && typeof value === 'object') ? JSON.stringify(value) : String(value);
+function MetadataValue({ keyName, value, sourceSlug, onRelativeLinkClick }) {
+  if (Array.isArray(value)) {
+    if (!value.length) return <span className="sidecar-metadata-empty">None</span>;
+    return (
+      <ul className="sidecar-metadata-list">
+        {value.map((item, index) => (
+          <li key={`${keyName}:${index}`}>
+            <MetadataValue
+              keyName={keyName}
+              value={item}
+              sourceSlug={sourceSlug}
+              onRelativeLinkClick={onRelativeLinkClick}
+            />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value).filter(([, item]) => hasMetadataValue(item));
+    if (!entries.length) return <span className="sidecar-metadata-empty">None</span>;
+    return (
+      <dl className="sidecar-metadata-object">
+        {entries.map(([key, item]) => (
+          <div key={key}>
+            <dt>{formatMetadataKey(key)}</dt>
+            <dd>
+              <MetadataValue
+                keyName={key}
+                value={item}
+                sourceSlug={sourceSlug}
+                onRelativeLinkClick={onRelativeLinkClick}
+              />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+
+  const text = formatMetadataScalar(value);
+  const link = typeof value === 'string' ? describeMetadataLink(value, sourceSlug, keyName) : null;
+  if (!link) {
+    return keyName === 'status'
+      ? <span className="sidecar-metadata-status" title={text.toLowerCase() === 'approved' ? 'Workflow state. Approved means reviewed and cleared for use; visibility is separate.' : 'Workflow state for this page.'}>{text}</span>
+      : <span>{text}</span>;
+  }
+
+  return (
+    <MetadataLink
+      value={text}
+      link={link}
+      sourceSlug={sourceSlug}
+      onRelativeLinkClick={onRelativeLinkClick}
+    />
+  );
+}
+
+function MetadataLink({ value, link, sourceSlug, onRelativeLinkClick }) {
+  if (link.kind === 'page' && onRelativeLinkClick) {
+    return (
+      <a
+        href={link.target}
+        className="sidecar-metadata-link"
+        onClick={(event) => {
+          event.preventDefault();
+          onRelativeLinkClick({ href: link.target, sourceSlug });
+        }}
+      >
+        {value}
+      </a>
+    );
+  }
+
+  return (
+    <a
+      href={link.href}
+      className="sidecar-metadata-link"
+      target={link.newTab ? '_blank' : undefined}
+      rel={link.newTab ? 'noreferrer' : undefined}
+    >
+      {value}
+    </a>
+  );
+}
+
+function hasMetadataValue(value) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return value.trim() !== '';
+  if (Array.isArray(value)) return value.length > 0;
+  if (value && typeof value === 'object') return Object.keys(value).length > 0;
+  return true;
+}
+
+function formatMetadataKey(key) {
+  return String(key || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatMetadataScalar(value) {
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  return String(value);
+}
+
+function describeMetadataLink(value, sourceSlug, keyName) {
+  const target = String(value || '').trim();
+  if (!target || !looksLikeMetadataLink(target, keyName)) return null;
+  if (/^(?:https?:|mailto:)/i.test(target)) {
+    return { kind: 'external', href: target, newTab: true };
+  }
+  if (target.startsWith('/')) {
+    return { kind: 'internal', href: target };
+  }
+
+  const resolvedTarget = resolveMetadataTarget(sourceSlug, target);
+  if (!resolvedTarget) return null;
+  if (isMetadataRawFile(resolvedTarget)) {
+    return {
+      kind: 'raw',
+      href: `/api/explorer/blob?path=${encodeURIComponent(resolvedTarget)}`,
+      newTab: true,
+    };
+  }
+  return { kind: 'page', target };
+}
+
+function looksLikeMetadataLink(value, keyName) {
+  if (/^(?:https?:|mailto:)/i.test(value) || /^\.{0,2}\//.test(value) || value.startsWith('/')) return true;
+  if (!/^[a-z0-9_-]+\/[a-z0-9_./-]+(?:#.*)?$/i.test(value)) return false;
+  const firstSegment = value.split('/')[0].toLowerCase();
+  return METADATA_PAGE_COLLECTIONS.has(firstSegment)
+    || isMetadataRawFile(value)
+    || METADATA_LINK_KEYS.has(String(keyName || '').toLowerCase());
+}
+
+const METADATA_PAGE_COLLECTIONS = new Set([
+  'articles',
+  'concepts',
+  'deals',
+  'ideas',
+  'meetings',
+  'organizations',
+  'people',
+  'processes',
+  'products',
+  'projects',
+  'protocol',
+  'tasks',
+  'tools',
+  'videos',
+  'writing',
+]);
+
+const METADATA_LINK_KEYS = new Set([
+  'article',
+  'article_url',
+  'attachment',
+  'attachments',
+  'canonical_url',
+  'file',
+  'files',
+  'link',
+  'links',
+  'page',
+  'pages',
+  'public_url',
+  'public_url_path',
+  'raw_file',
+  'raw_files',
+  'related',
+  'related_pages',
+  'source',
+  'source_url',
+  'sources',
+  'url',
+]);
+
+function resolveMetadataTarget(sourceSlug, target) {
+  const targetPath = target.split('#')[0].trim().replace(/^\/+/, '');
+  if (!targetPath) return '';
+  if (/^[a-z0-9_-]+\/[a-z0-9_./-]+$/i.test(targetPath)) return targetPath;
+  const baseParts = String(sourceSlug || '').split('/').slice(0, -1);
+  const parts = [...baseParts, ...targetPath.split('/')];
+  const resolved = [];
+  for (const part of parts) {
+    if (!part || part === '.') continue;
+    if (part === '..') {
+      if (!resolved.length) return '';
+      resolved.pop();
+      continue;
+    }
+    resolved.push(part);
+  }
+  return resolved.join('/');
+}
+
+function isMetadataRawFile(target) {
+  return target.split('/').includes('.raw')
+    || (/\.[a-z0-9]+$/i.test(target) && !/\.md$/i.test(target));
 }
 
 function PageLinkSection({ title, links, onPageOpen }) {
@@ -2785,6 +3104,7 @@ function ExplorerTreeNode({ node, depth, openPaths, selectedPath, onToggle, onOp
 function ExplorerViewer({ fileState, onRelativeLinkClick }) {
   const file = fileState.file;
   const [copiedPath, setCopiedPath] = useState(false);
+  const [imageViewerIndex, setImageViewerIndex] = useState(null);
   const copyResetTimerRef = useRef(null);
   useEffect(() => {
     setCopiedPath(false);
@@ -2798,6 +3118,9 @@ function ExplorerViewer({ fileState, onRelativeLinkClick }) {
         copyResetTimerRef.current = null;
       }
     };
+  }, [file?.path]);
+  useEffect(() => {
+    setImageViewerIndex(null);
   }, [file?.path]);
   async function copyFilePath() {
     if (!file?.path) return;
@@ -2834,141 +3157,121 @@ function ExplorerViewer({ fileState, onRelativeLinkClick }) {
       </div>
     );
   }
-  const sourceSlug = file.path?.endsWith('.md') ? file.path.replace(/\.md$/i, '') : '';
   return (
-    <div className="explorer-viewer">
-      <div className="explorer-viewer-head">
-        <strong>{file.name || file.path}</strong>
-        <div className="explorer-viewer-path-row">
-          <span className="meta">{file.path}</span>
-          <div className="explorer-viewer-actions" aria-label="File actions">
-            <button
-              type="button"
-              className={`icon-button explorer-header-button ${copiedPath ? 'copied' : ''}`}
-              onClick={copyFilePath}
-              aria-label="Copy file path"
-              title={copiedPath ? 'Copied' : 'Copy file path'}
-            >
-              <CopyIcon />
-            </button>
-            {file.blob_url ? (
-              <a
-                className="icon-button explorer-header-button"
-                href={file.blob_url}
-                download={file.name || ''}
-                aria-label="Download file"
-                title="Download file"
+    <>
+      <div className="explorer-viewer">
+        <div className="explorer-viewer-head">
+          <strong>{file.name || file.path}</strong>
+          <div className="explorer-viewer-path-row">
+            <span className="meta">{file.path}</span>
+            <div className="explorer-viewer-actions" aria-label="File actions">
+              <button
+                type="button"
+                className={`icon-button explorer-header-button ${copiedPath ? 'copied' : ''}`}
+                onClick={copyFilePath}
+                aria-label="Copy file path"
+                title={copiedPath ? 'Copied' : 'Copy file path'}
               >
-                <DownloadIcon />
-              </a>
-            ) : null}
+                <CopyIcon />
+              </button>
+              {file.blob_url ? (
+                <a
+                  className="icon-button explorer-header-button"
+                  href={file.blob_url}
+                  download={file.name || ''}
+                  aria-label="Download file"
+                  title="Download file"
+                >
+                  <DownloadIcon />
+                </a>
+              ) : null}
+            </div>
           </div>
         </div>
-      </div>
-      <div className="explorer-viewer-body">
-        {file.kind === 'markdown' ? (
-          <ExplorerMarkdownPreview
-            markdown={file.text || ''}
-            sourceSlug={sourceSlug}
-            onRelativeLinkClick={({ href }) => onRelativeLinkClick?.({ href, sourcePath: file.path })}
-            emptyLabel="This file is empty."
-          />
-        ) : null}
-        {file.kind === 'text' ? (
-          <pre className="explorer-text-preview">{file.text || ''}</pre>
-        ) : null}
-        {file.kind === 'image' ? (
-          <div className="explorer-media-frame">
-            <img src={file.blob_url} alt={file.name || file.path} />
-          </div>
-        ) : null}
-        {file.kind === 'pdf' ? (
-          <iframe className="explorer-pdf-frame" title={file.name || file.path} src={file.blob_url} />
-        ) : null}
-        {file.kind === 'presentation' ? (
-          <div className="explorer-document-preview">
-            <div className="explorer-document-icon">PPT</div>
-            <div className="explorer-document-copy">
-              <h3>Presentation file</h3>
-              <p>Inline slide rendering is not available in the explorer yet. Open or download the presentation to view the slides.</p>
-              <p>{formatFileSize(file.size)} · {file.mime_type}</p>
+        <div className="explorer-viewer-body">
+          {file.kind === 'markdown' ? (
+            <ExplorerMarkdownPreview
+              file={file}
+              onImageOpen={setImageViewerIndex}
+              onRelativeLinkClick={({ href }) => onRelativeLinkClick?.({ href, sourcePath: file.path })}
+              emptyLabel="This file is empty."
+            />
+          ) : null}
+          {file.kind === 'text' ? (
+            <pre className="explorer-text-preview">{file.text || ''}</pre>
+          ) : null}
+          {file.kind === 'image' ? (
+            <div className="explorer-media-frame">
+              <img src={file.blob_url} alt={file.name || file.path} />
             </div>
-            <a className="graph-button explorer-open-blob" href={file.blob_url} target="_blank" rel="noreferrer">Open presentation</a>
-          </div>
-        ) : null}
-        {file.kind === 'unsupported' ? (
-          <div className="explorer-unsupported">
-            <div className="empty-copy">{file.reason || 'No inline preview is available for this file type.'}</div>
-            <a className="graph-button explorer-open-blob" href={file.blob_url} target="_blank" rel="noreferrer">Open file</a>
-          </div>
-        ) : null}
+          ) : null}
+          {file.kind === 'pdf' ? (
+            <iframe className="explorer-pdf-frame" title={file.name || file.path} src={file.blob_url} />
+          ) : null}
+          {file.kind === 'presentation' ? (
+            <div className="explorer-document-preview">
+              <div className="explorer-document-icon">PPT</div>
+              <div className="explorer-document-copy">
+                <h3>Presentation file</h3>
+                <p>Inline slide rendering is not available in the explorer yet. Open or download the presentation to view the slides.</p>
+                <p>{formatFileSize(file.size)} · {file.mime_type}</p>
+              </div>
+              <a className="graph-button explorer-open-blob" href={file.blob_url} target="_blank" rel="noreferrer">Open presentation</a>
+            </div>
+          ) : null}
+          {file.kind === 'unsupported' ? (
+            <div className="explorer-unsupported">
+              <div className="empty-copy">{file.reason || 'No inline preview is available for this file type.'}</div>
+              <a className="graph-button explorer-open-blob" href={file.blob_url} target="_blank" rel="noreferrer">Open file</a>
+            </div>
+          ) : null}
+        </div>
       </div>
-    </div>
+      <PageImageLightbox
+        images={file.images}
+        activeIndex={imageViewerIndex}
+        onClose={() => setImageViewerIndex(null)}
+        onIndexChange={setImageViewerIndex}
+      />
+    </>
   );
 }
 
-function ExplorerMarkdownPreview({ markdown, sourceSlug, onRelativeLinkClick, emptyLabel }) {
-  const parsed = useMemo(() => splitMarkdownFrontmatter(markdown), [markdown]);
-  if (!markdown?.trim()) {
-    return emptyLabel ? <div className="empty-copy">{emptyLabel}</div> : null;
-  }
+function ExplorerMarkdownPreview({ file, onImageOpen, onRelativeLinkClick, emptyLabel }) {
+  const sourceSlug = file.path?.replace(/\.(?:md|markdown)$/i, '') || '';
+  const fallback = useMemo(() => splitMarkdownFrontmatter(file.text || ''), [file.text]);
+  const markdown = typeof file.markdown === 'string' ? file.markdown : fallback.body;
   return (
-    <div className="explorer-markdown-preview">
-      {parsed.frontmatter ? (
-        <details className="explorer-frontmatter">
-          <summary>
-            <span className="explorer-frontmatter-title">Frontmatter</span>
-            <span className="explorer-frontmatter-meta">{parsed.lineCount} {parsed.lineCount === 1 ? 'line' : 'lines'}</span>
-            {parsed.summaryFields.map((field) => (
-              <span className="explorer-frontmatter-chip" key={field.key}>
-                <span>{field.key}</span>
-                <strong>{field.value}</strong>
-              </span>
-            ))}
-          </summary>
-          <pre>{parsed.frontmatter}</pre>
-        </details>
-      ) : null}
-      <MarkdownDocument
-        markdown={parsed.body}
-        sourceSlug={sourceSlug}
-        onRelativeLinkClick={onRelativeLinkClick}
-        emptyLabel={emptyLabel}
-      />
-    </div>
+    <PageContentPreview
+      markdown={markdown}
+      title={file.title || ''}
+      type={file.type || sourceSlug.split('/')[0]}
+      sourceSlug={sourceSlug}
+      frontmatter={file.frontmatter}
+      images={file.images}
+      onImageOpen={onImageOpen}
+      onRelativeLinkClick={onRelativeLinkClick}
+      className="explorer-page-preview"
+      emptyLabel={emptyLabel}
+    />
   );
 }
 
 function splitMarkdownFrontmatter(markdown) {
   const text = typeof markdown === 'string' ? markdown : '';
   if (!text.startsWith('---\n')) {
-    return { body: text, frontmatter: '', lineCount: 0, summaryFields: [] };
+    return { body: text, frontmatter: '' };
   }
   const end = text.indexOf('\n---', 4);
   if (end < 0) {
-    return { body: text, frontmatter: '', lineCount: 0, summaryFields: [] };
+    return { body: text, frontmatter: '' };
   }
   const frontmatter = text.slice(4, end).trim();
   const bodyStart = text[end + 4] === '\n' ? end + 5 : end + 4;
   return {
     body: text.slice(bodyStart).replace(/^\n+/, ''),
     frontmatter,
-    lineCount: frontmatter ? frontmatter.split('\n').length : 0,
-    summaryFields: summarizeFrontmatter(frontmatter),
   };
-}
-
-function summarizeFrontmatter(frontmatter) {
-  const parsed = new Map();
-  for (const line of frontmatter.split('\n')) {
-    const match = line.match(/^([A-Za-z0-9_-]+):\s*(.+?)\s*$/);
-    if (!match) continue;
-    parsed.set(match[1], match[2].replace(/^['"]|['"]$/g, ''));
-  }
-  return ['type', 'status', 'priority', 'created']
-    .filter((key) => parsed.has(key))
-    .map((key) => ({ key, value: parsed.get(key) }))
-    .slice(0, 4);
 }
 
 async function copyTextToClipboard(value) {
@@ -4560,10 +4863,6 @@ function stripLeadingMarkdownHeading(markdown, title) {
   const expected = String(title || '').trim();
   if (!expected) return markdown;
   return String(markdown || '').replace(new RegExp(`^\\s*#\\s+${escapeRegExp(expected)}\\s*(?:\\n|$)`, 'i'), '').trim();
-}
-
-function stripManagedArticleTimeline(markdown) {
-  return String(markdown || '').replace(/\n{2,}## Timeline\s*[\s\S]*$/i, '').trim();
 }
 
 function escapeRegExp(value) {

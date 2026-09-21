@@ -581,6 +581,7 @@ test('dashboard page payload includes file explorer metadata and nearby links', 
     await writeMarkdown(fixture.brainHome, 'people/alice.md', [
       '---',
       'title: Alice Example',
+      'summary: Alice works on Relay, with a detailed operational record below.',
       '---',
       '# Alice Example',
       '',
@@ -609,8 +610,8 @@ test('dashboard page payload includes file explorer metadata and nearby links', 
     assert.equal(payload.path, 'people/alice.md');
     assert.equal(payload.visibility, 'internal');
     assert.equal(payload.public_url, null);
-    assert.match(payload.summary, /Works on/);
-    assert.match(payload.summary, /second sentence should also remain visible/);
+    assert.match(payload.summary, /Alice works on Relay/);
+    assert.match(payload.markdown, /second sentence should also remain visible/);
     assert.equal(payload.frontmatter.title, 'Alice Example');
     assert.equal(payload.links.outgoing.some((link) => link.slug === 'projects/relay'), true);
     assert.equal(payload.links.backlinks.some((link) => link.slug === 'projects/relay'), true);
@@ -624,7 +625,7 @@ test('dashboard explorer includes raw folders and classifies obvious file previe
   const fixture = await createFixture('bigbrain-dashboard-explorer-');
   try {
     await writeMarkdown(fixture.brainHome, 'BRAIN.md', '# Existing Brain Notes\n\nKeep this visible.\n');
-    await writeMarkdown(fixture.brainHome, 'people/alice.md', '# Alice\n\nHas files.\n');
+    await writeMarkdown(fixture.brainHome, 'people/alice.md', '---\ntitle: Alice Example\nstatus: open\nimages: [{"path":"sources/.raw/chart.png","caption":"Chart"}]\n---\n\n# Alice\n\nHas files.\n');
     await writeFile(fixture.brainHome, 'sources/.raw/deck.pdf', Buffer.from('%PDF-1.4\n%%EOF\n', 'utf8'));
     await writeFile(fixture.brainHome, 'sources/.raw/slides.pptx', Buffer.from('PK\x03\x04fake pptx fixture', 'binary'));
     await writeFile(fixture.brainHome, 'sources/.raw/chart.png', Buffer.from([0x89, 0x50, 0x4e, 0x47]));
@@ -649,6 +650,12 @@ test('dashboard explorer includes raw folders and classifies obvious file previe
     );
     assert.equal(markdown.kind, 'markdown');
     assert.match(markdown.text, /# Alice/);
+    assert.equal(markdown.title, 'Alice Example');
+    assert.equal(markdown.frontmatter.status, 'open');
+    assert.match(markdown.markdown, /Has files/);
+    assert.deepEqual(markdown.images.map((image) => ({ path: image.path, caption: image.caption })), [
+      { path: 'sources/.raw/chart.png', caption: 'Chart' },
+    ]);
 
     const image = await buildExplorerFilePayload(
       config,

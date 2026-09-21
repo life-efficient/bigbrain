@@ -94,6 +94,29 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
   }
 });
 
+test('page ops rejects frontmatter fields not declared by a strict page schema', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-schema-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await assert.rejects(() => createBrainPage({
+      config,
+      pagePath: 'articles/invalid-capture',
+      title: 'Invalid capture',
+      compiledTruth: 'Invalid capture should never be written.',
+      timelineEntry: 'Attempted invalid capture.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
+      frontmatter: {
+        published_date: '2026-09-17',
+        article_url: 'https://example.test/article',
+        archival_sha256: 'not-allowed',
+      },
+    }), /archival_sha256 is not declared/);
+    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'articles/invalid-capture.md')), { code: 'ENOENT' });
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('page ops store multiple image attachments and support append or replace', async () => {
   const fixture = await createFixture('bigbrain-page-ops-images-');
   try {

@@ -48,3 +48,8 @@ states.
 - Render the installed version as quiet persistent header text. Use the product
   blue only when the same compact control represents an available download,
   active progress, or restart-ready update.
+
+## Page Content Previews
+
+- Use one shared page content preview for the sidecar and Explorer. Surface-specific headers and file actions may differ, but the attachment strip, metadata disclosure, and rendered Markdown body must remain the same.
+- Metadata disclosures are normal in-flow content. Keep the readable field/value layout from the sidecar, and never render the expanded content as a terminal block, raw YAML dump, menu, or absolute-positioned overlay.

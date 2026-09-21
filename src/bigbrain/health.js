@@ -418,7 +418,7 @@ function severityForFinding(findingType) {
   if (findingType === 'invalid_domain_registry') return 'high';
   if (findingType === 'invalid_page_schema_registry') return 'high';
   if (findingType === 'page_schema_registry_missing') return 'medium';
-  if (findingType === 'schema_required_field_missing' || findingType === 'schema_field_type_mismatch' || findingType === 'schema_field_invalid_enum' || findingType === 'unknown_page_schema') return 'medium';
+  if (findingType === 'schema_required_field_missing' || findingType === 'schema_field_type_mismatch' || findingType === 'schema_field_invalid_enum' || findingType === 'schema_field_unknown' || findingType === 'unknown_page_schema') return 'medium';
   if (findingType === 'schema_default_missing') return 'low';
   if (findingType === 'missing_page_summary') return 'medium';
   if (findingType === 'missing_frontmatter' || findingType === 'missing_separator' || findingType === 'invalid_timeline' || findingType === 'duplicate_timeline' || findingType === 'unregistered_domain' || findingType === 'invalid_domain_membership') return 'medium';

@@ -5,6 +5,7 @@ import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
 import { assertRegisteredPageDomains } from './domains.js';
 import { parseMarkdownPage } from './markdown.js';
 import { assertSafePublicRawPath, isSafePublicRawPath } from './public-raw-policy.js';
+import { assertPageSchemaCompliance } from './page-schema-registry.js';
 import { appendTimelineEntries, formatTimelineEntries } from './timeline.js';
 import { validatePageShape } from './schema.js';
 
@@ -113,7 +114,9 @@ export async function readBrainPage({ config, pagePath }) {
     type: parsed.type,
     frontmatter: parsed.frontmatter,
     frontmatter_raw: parts.frontmatterRaw,
+    summary: parsed.summary,
     body: parsed.compiledTruth,
+    // Kept as a backwards-compatible alias while callers move to `body`.
     compiled_truth: parsed.compiledTruth,
     timeline: parsed.timeline,
     timeline_entries: parsed.timeline_entries,
@@ -135,6 +138,7 @@ export async function quickPageHealthCheck({ config, pagePath }) {
     assertions: {
       frontmatter: parsed.hasFrontmatter,
       title: Boolean(parsed.title),
+      summary: Boolean(parsed.summary),
       compiled_truth: Boolean(parsed.compiledTruth.trim()),
       timeline_boundary: parsed.hasSeparator,
       timeline_evidence: Boolean(timelineEvidence),
@@ -151,6 +155,7 @@ export async function createBrainPage({
   title,
   compiledTruth = undefined,
   body = undefined,
+  summary = undefined,
   timelineEntry,
   timelineEntries = null,
   timelineProvenance = null,
@@ -169,6 +174,9 @@ export async function createBrainPage({
   const now = new Date().toISOString();
   const timelineInput = withTimelineProvenance(timelineEntries ?? timelineEntry, timelineProvenance);
   const suppliedFrontmatter = frontmatter || {};
+  if (summary !== undefined && suppliedFrontmatter.summary !== undefined && String(summary).trim() !== String(suppliedFrontmatter.summary).trim()) {
+    throw new Error('Page summary must match frontmatter.summary when both are provided.');
+  }
   if (domains !== undefined && suppliedFrontmatter.domains !== undefined && !sameDomainMembership(domains, suppliedFrontmatter.domains)) {
     throw new Error('Page domains must match frontmatter.domains when both are provided.');
   }
@@ -185,8 +193,11 @@ export async function createBrainPage({
     created: now.slice(0, 10),
     ...omitReservedFrontmatter(suppliedFrontmatter),
   };
+  const suppliedSummary = summary !== undefined ? summary : suppliedFrontmatter.summary;
+  if (suppliedSummary !== undefined) metadata.summary = normalizePageSummary(suppliedSummary);
   if (normalizedDomains !== undefined) metadata.domains = normalizedDomains;
   if (normalizedImages !== undefined) metadata.images = normalizedImages;
+  await assertPageSchemaCompliance(config, { pagePath: relative, frontmatter: metadata });
   const markdown = renderPageMarkdown({
     frontmatterRaw: renderFrontmatter(metadata),
     title: metadata.title,
@@ -385,12 +396,12 @@ export async function listRawFiles({
   return normalizedLimit === null ? entries : entries.slice(0, normalizedLimit);
 }
 
-export async function updateBrainPage({ config, pagePath, compiledTruth = undefined, body = undefined, timelineEntry, timelineEntries = null, timelineProvenance = null, timelineSignificance = null, frontmatterValues = {} }) {
+export async function updateBrainPage({ config, pagePath, compiledTruth = undefined, body = undefined, summary = undefined, timelineEntry, timelineEntries = null, timelineProvenance = null, timelineSignificance = null, frontmatterValues = {} }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
-  const currentBody = requireNonEmpty(compiledTruth ?? body, 'compiled_truth');
-  assertWritablePageBody(currentBody);
   const existing = await readBrainPage({ config, pagePath: relative });
+  const currentBody = compiledTruth ?? body ?? existing.body;
+  assertWritablePageBody(currentBody);
   const now = new Date().toISOString();
   const timelineInput = withTimelineProvenance(timelineEntries ?? timelineEntry, timelineProvenance);
   const nextTimeline = appendTimelineEntries(existing.timeline, timelineInput, {
@@ -399,12 +410,21 @@ export async function updateBrainPage({ config, pagePath, compiledTruth = undefi
     requireProvenance: true,
   });
   const nextFrontmatterValues = { ...(frontmatterValues || {}) };
+  if (summary !== undefined && nextFrontmatterValues.summary !== undefined && String(summary).trim() !== String(nextFrontmatterValues.summary).trim()) {
+    throw new Error('Page summary must match frontmatter.summary when both are provided.');
+  }
+  if (summary !== undefined) nextFrontmatterValues.summary = normalizePageSummary(summary);
+  if (nextFrontmatterValues.summary !== undefined) nextFrontmatterValues.summary = normalizePageSummary(nextFrontmatterValues.summary);
   if (Object.prototype.hasOwnProperty.call(nextFrontmatterValues, 'domains')) {
     nextFrontmatterValues.domains = await assertRegisteredPageDomains(config, nextFrontmatterValues.domains);
   }
   if (Object.prototype.hasOwnProperty.call(nextFrontmatterValues, 'images')) {
     nextFrontmatterValues.images = await normalizePageImages({ config, images: nextFrontmatterValues.images });
   }
+  await assertPageSchemaCompliance(config, {
+    pagePath: relative,
+    frontmatter: { ...existing.frontmatter, ...nextFrontmatterValues },
+  });
   let frontmatterRaw = existing.frontmatter_raw;
   for (const [key, value] of Object.entries(nextFrontmatterValues)) {
     if (!PROVENANCE_FRONTMATTER_KEYS.has(key)) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
@@ -784,6 +804,15 @@ function renderFrontmatter(frontmatter) {
     .filter(([, value]) => value !== undefined && value !== null)
     .map(([key, value]) => `${key}: ${formatYamlValue(value)}`)
     .join('\n');
+}
+
+function normalizePageSummary(value) {
+  const summary = String(value || '').replace(/\s+/g, ' ').trim();
+  if (!summary) throw new Error('summary must be a non-empty string.');
+  if (/^#{1,6}\s/m.test(summary) || /(?:^|\n)---(?:\n|$)/.test(summary)) {
+    throw new Error('summary must be plain summary text, not Markdown structure.');
+  }
+  return summary;
 }
 
 function omitReservedFrontmatter(frontmatter) {

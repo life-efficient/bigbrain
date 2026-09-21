@@ -254,6 +254,13 @@ export function buildDemoExplorerFile(filePath, fallback = {}, seed = 'demo') {
     size: text.length,
     mime_type: isMarkdown ? 'text/markdown' : 'text/plain',
     text,
+    ...(isMarkdown ? {
+      title: preview.title,
+      type: preview.type,
+      frontmatter: { title: preview.title, type: preview.type, demo: true },
+      markdown: preview.markdown,
+      images: [],
+    } : {}),
     blob_url: null,
   };
 }

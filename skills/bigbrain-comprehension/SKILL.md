@@ -1,6 +1,6 @@
 ---
 name: bigbrain-comprehension
-description: Run an evidence-based Comprehension session over BigBrain pages using user guidance and durable iterative summaries.
+description: Use for a BigBrain Comprehension session when the user says “let’s do comprehension,” asks to be tested or quizzed, asks the agent to lead a learning conversation, or wants help building understanding of a topic in BigBrain. Teach, test, remediate, and persist progress in the Comprehension overlay. Do not use for a simple fact lookup, passive summary, or general research.
 ---
 
 Run a focused, evidence-based Comprehension session over important BigBrain pages and persist the evolving summary in the Comprehension playbook overlay.
@@ -39,6 +39,8 @@ Run a focused, evidence-based Comprehension session over important BigBrain page
 
 4. Teach, grill, remediate, and retest one primary question at a time.
    - Diagnose from the source, then explain only what is needed before asking the next question.
+   - When the user asks the agent to lead the conversation, begin each turn with a compact, source-grounded teaching segment that advances the current gap, then ask one primary question. Do not hand course selection back to the learner or open with a bare test question.
+   - Let the learner finish an answer before correcting, extending, or moving to the next question, unless they explicitly ask to be interrupted.
    - Test all five dimensions when applicable: facts and figures; vocabulary and definitions; narrative and source structure; interpretation and integration; transfer and analogy.
    - After a miss, remediate from the source, ask the learner to restate or apply the idea, and retest the changed understanding later.
    - Keep the original source exposition authoritative. Distinguish source claims from interpretation and mark uncertainty rather than smoothing it over.

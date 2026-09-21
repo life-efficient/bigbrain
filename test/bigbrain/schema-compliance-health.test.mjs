@@ -41,6 +41,7 @@ Current state.
 title: Invalid record
 stage: retired
 rank: urgent
+unexpected: true
 ---
 # Invalid record
 
@@ -72,6 +73,7 @@ Current state.
       ['notes/explicit-unknown', 'unknown_page_schema', null],
       ['records/default-needed', 'schema_required_field_missing', 'owner'],
       ['records/invalid', 'schema_field_invalid_enum', 'stage'],
+      ['records/invalid', 'schema_field_unknown', 'unexpected'],
       ['records/invalid', 'schema_required_field_missing', 'owner'],
       ['records/invalid', 'schema_field_type_mismatch', 'rank'],
       ['records/default-needed', 'schema_default_missing', 'stage'],
@@ -80,7 +82,7 @@ Current state.
     assert.equal(report.page_schema_registry.status, 'valid');
     assert.equal(report.page_schema_registry.schema_count, 1);
     assert.equal(report.page_schema_registry.pages_with_schema, 2);
-    assert.equal(report.page_schema_registry.violation_count, 6);
+    assert.equal(report.page_schema_registry.violation_count, 7);
 
     await fs.rm(path.join(fixture.brainHome, 'page-schemas.yaml'));
     const missingRegistry = await runHealthCheck(config, isolatedHealthOptions(fixture));

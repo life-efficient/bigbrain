@@ -22,9 +22,16 @@ const REVIEW_SCOPE_PREFIX = 'run:';
 const REVIEW_OUTCOMES = Object.freeze(['added', 'frequency_changed', 'due', 'no_change', 'needs_review']);
 const REVIEW_CONFIDENCE = new Set(['low', 'medium', 'high']);
 const PAGE_QUERY_LIMIT = 100;
+export const KEEP_IN_TOUCH_DEFAULT_REVIEW_LIMIT = 20;
+export const KEEP_IN_TOUCH_MAX_REVIEW_LIMIT = 100;
 
-export async function buildKeepInTouchReviewPayload(config, db, { actor = null, asOf = new Date() } = {}) {
+export async function buildKeepInTouchReviewPayload(config, db, {
+  actor = null,
+  asOf = new Date(),
+  limit = KEEP_IN_TOUCH_DEFAULT_REVIEW_LIMIT,
+} = {}) {
   const normalizedAsOf = normalizeTimestamp(asOf, 'as_of');
+  const normalizedLimit = normalizeReviewLimit(limit);
   const settings = await getSettings(db, actor);
   const cursorBefore = await getCursor(db, actor);
   if (!settings.enabled) {
@@ -41,6 +48,7 @@ export async function buildKeepInTouchReviewPayload(config, db, { actor = null, 
         paused: true,
         review_id: null,
         as_of: normalizedAsOf,
+        limit: normalizedLimit,
         cursor_before: cursorBefore,
         candidates: [],
         summary: emptySummary(),
@@ -48,10 +56,14 @@ export async function buildKeepInTouchReviewPayload(config, db, { actor = null, 
     };
   }
 
-  const candidates = await listReviewCandidates(db, { asOf: normalizedAsOf, cursorBefore });
+  const candidates = await listReviewCandidates(db, {
+    asOf: normalizedAsOf,
+    cursorBefore,
+    limit: normalizedLimit,
+  });
   const queue = await buildKeepInTouchPayload(config, db, { actor, now: new Date(normalizedAsOf) });
   const currentBySlug = new Map(queue.records.map((record) => [record.page_slug, record]));
-  const reviewId = reviewIdFor({ asOf: normalizedAsOf, cursorBefore });
+  const reviewId = reviewIdFor({ asOf: normalizedAsOf, cursorBefore, limit: normalizedLimit });
   return {
     playbook: queue.playbook,
     brain: queue.brain,
@@ -60,6 +72,7 @@ export async function buildKeepInTouchReviewPayload(config, db, { actor = null, 
       paused: false,
       review_id: reviewId,
       as_of: normalizedAsOf,
+      limit: normalizedLimit,
       cursor_before: cursorBefore,
       cursor_after: cursorAfter(candidates, cursorBefore),
       candidates: candidates.map((page) => ({
@@ -81,9 +94,10 @@ export async function buildKeepInTouchReviewPayload(config, db, { actor = null, 
 
 export async function recordKeepInTouchReview(config, db, input, { actor = null, now = new Date() } = {}) {
   const normalizedAsOf = normalizeTimestamp(input?.as_of, 'as_of');
+  const normalizedLimit = normalizeReviewLimit(input?.limit);
   const cursorBefore = normalizeCursor(input?.cursor_before);
   const reviewId = requireText(input?.review_id, 'review_id');
-  if (reviewId !== reviewIdFor({ asOf: normalizedAsOf, cursorBefore })) {
+  if (reviewId !== reviewIdFor({ asOf: normalizedAsOf, cursorBefore, limit: normalizedLimit })) {
     throw new Error('Keep in Touch review_id does not match as_of and cursor_before.');
   }
 
@@ -101,7 +115,11 @@ export async function recordKeepInTouchReview(config, db, input, { actor = null,
     if (!settings.enabled) throw new Error('Keep in Touch is disabled; the review was not recorded.');
     const currentCursor = await getCursor(transactionDb, actor);
     assertSameCursor(currentCursor, cursorBefore);
-    const candidates = await listReviewCandidates(transactionDb, { asOf: normalizedAsOf, cursorBefore });
+    const candidates = await listReviewCandidates(transactionDb, {
+      asOf: normalizedAsOf,
+      cursorBefore,
+      limit: normalizedLimit,
+    });
     const decisions = normalizeDecisions(input?.decisions, candidates, normalizedAsOf);
     const records = await listAllPersonRecords(transactionDb, ownerKey);
     const recordsBySlug = new Map(records.map((record) => [pageSlugFromScope(record.scope_key), record]));
@@ -171,6 +189,7 @@ export async function recordKeepInTouchReview(config, db, input, { actor = null,
         paused: false,
         review_id: reviewId,
         as_of: normalizedAsOf,
+        limit: normalizedLimit,
         cursor_before: cursorBefore,
         cursor_after: nextCursor,
         recorded_at: normalizeTimestamp(now, 'recorded_at'),
@@ -193,6 +212,7 @@ export async function recordKeepInTouchReview(config, db, input, { actor = null,
       data: {
         review_id: reviewId,
         as_of: normalizedAsOf,
+        limit: normalizedLimit,
         cursor_before: cursorBefore,
         cursor_after: nextCursor,
         decisions: applied,
@@ -229,7 +249,7 @@ async function getCursor(db, actor) {
   return normalizeCursor(record.data);
 }
 
-async function listReviewCandidates(db, { asOf, cursorBefore }) {
+async function listReviewCandidates(db, { asOf, cursorBefore, limit }) {
   const filters = [
     { field: 'updated_at', operator: 'lte', value: asOf, value_type: 'timestamp' },
   ];
@@ -238,7 +258,7 @@ async function listReviewCandidates(db, { asOf, cursorBefore }) {
   }
   const pages = [];
   let cursor = 0;
-  while (true) {
+  while (pages.length < limit) {
     const result = await queryPagesByFrontmatter({
       db,
       type: 'people',
@@ -252,11 +272,11 @@ async function listReviewCandidates(db, { asOf, cursorBefore }) {
       includeTotal: true,
       asOf,
     });
-    pages.push(...result.pages);
+    pages.push(...result.pages.filter((page) => isAfterCursor(page, cursorBefore)));
     if (result.next_cursor === null) break;
     cursor = result.next_cursor;
   }
-  return pages.filter((page) => isAfterCursor(page, cursorBefore));
+  return pages.slice(0, limit);
 }
 
 async function listAllPersonRecords(db, ownerKey) {
@@ -330,6 +350,16 @@ function normalizeFrequency(value, pageSlug) {
   const number = Number(value);
   if (!KEEP_IN_TOUCH_FREQUENCIES_DAYS.includes(number)) {
     throw new Error(`Keep in Touch frequency for ${pageSlug} must be one of: ${KEEP_IN_TOUCH_FREQUENCIES_DAYS.join(', ')} days.`);
+  }
+  return number;
+}
+
+function normalizeReviewLimit(value) {
+  const number = value === null || value === undefined || value === ''
+    ? KEEP_IN_TOUCH_DEFAULT_REVIEW_LIMIT
+    : Number(value);
+  if (!Number.isSafeInteger(number) || number < 1 || number > KEEP_IN_TOUCH_MAX_REVIEW_LIMIT) {
+    throw new Error(`Keep in Touch review limit must be an integer from 1 to ${KEEP_IN_TOUCH_MAX_REVIEW_LIMIT}.`);
   }
   return number;
 }
@@ -413,9 +443,9 @@ function assertSameCursor(left, right) {
   }
 }
 
-function reviewIdFor({ asOf, cursorBefore }) {
+function reviewIdFor({ asOf, cursorBefore, limit }) {
   const cursorPart = cursorBefore ? `${cursorBefore.updated_at}:${cursorBefore.page_slug}` : 'start';
-  return `daily-${compactId(asOf)}-${compactId(cursorPart)}`.slice(0, 240);
+  return `daily-${compactId(asOf)}-limit-${limit}-${compactId(cursorPart)}`.slice(0, 240);
 }
 
 function reviewScopeKey(reviewId) {

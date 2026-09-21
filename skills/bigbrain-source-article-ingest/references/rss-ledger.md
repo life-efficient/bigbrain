@@ -39,6 +39,8 @@ Use JSON objects directly, with camelCase input fields. This example reads one f
 
 Status returns `feeds` with `feed_id`, `feed_url`, `title`, `provider`, `filed_low_watermark`, `filed_high_watermark`, and `outstanding_count`. Post records include the stored outcome, `published_at`, and verification. Use the returned structured fields, not prose interpretations.
 
+Feeds without verified retained records show unset values for both watermarks. The low watermark is the earliest retained verified post; the high watermark is the latest. These bounds do not prove contiguous coverage, including holes below the high watermark. Keep removed or excluded feeds excluded from completeness claims.
+
 Keep tokens and internal IDs out of user-facing output. A success response alone does not prove a claim was acquired or an article was ingested. Follow `nextOffset` using the same original filters plus `offset` until the relevant result set is exhausted; use `limit` for bounded reads. Never infer completeness from one page of results.
 
 ## Required ordering and verification
@@ -71,7 +73,7 @@ A retained completion has this shape:
 }
 ```
 
-All retained outcomes require nonempty `paths`, `evidence`, a valid `verifiedAt`, `readBack: true`, and the allowed owning `brainId`. When recording existing historical coverage, directly read back the exact article's saved source and any canonical updates claimed before completing as `verified_noop`. Old automation prose or feed publication dates do not prove retained coverage.
+All retained outcomes require nonempty `paths`, `evidence`, a valid `verifiedAt`, `readBack: true`, and the allowed owning `brainId`. When recording existing historical coverage, read back the exact article's saved source and canonical coverage before completing as `verified_noop`. Old automation prose or feed publication dates do not prove retained coverage.
 
 `ignored` requires the actual relevance reason and the same verification envelope, with `paths: []` permitted and `evidence` describing the canonical identity and relevance review. In this case `readBack` attests the review, not a content write. It creates no Brain content and does not move retained watermarks. `needs_review` preserves an explicit outstanding hole and does not move those watermarks. When a substantive preview was retained, use `source_partial`; its verification must include nonempty saved paths and confirm that the raw artifact, sidecar, and any scoped canonical updates were read back. This establishes retained coverage with an explicit partial-capture note.
 

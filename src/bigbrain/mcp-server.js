@@ -810,6 +810,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         pagePath: args.path,
         title: args.title,
         compiledTruth: args.compiled_truth ?? args.body,
+        summary: args.summary,
         timelineEntry: timelineForMutation(args, actor),
         timelineSignificance: args.significance,
         frontmatter: args.frontmatter || {},
@@ -944,6 +945,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         config,
         pagePath: args.path,
         compiledTruth: args.compiled_truth ?? args.body,
+        summary: args.summary,
         timelineEntry: timelineForMutation(args, actor),
         timelineSignificance: args.significance,
         frontmatterValues: updatePageFrontmatterValues(args),
@@ -992,6 +994,9 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'maintenance/sync':
     case 'maintenance_sync':
       return toolJson(await syncAndPersist(config));
+    case 'maintenance/sample_page_quality':
+    case 'maintenance_sample_page_quality':
+      return toolJson(await sampleCanonicalPagesForQualityAudit(config, args.sample_size));
     case 'maintenance/git_backup':
     case 'maintenance_git_backup':
       return toolJson(await backupGitChanges(config, args.commit_message));
@@ -1096,6 +1101,33 @@ function updatePageFrontmatterValues(args) {
   return {
     ...frontmatter,
     ...(args.domains === undefined ? {} : { domains: args.domains }),
+  };
+}
+
+async function sampleCanonicalPagesForQualityAudit(config, requestedSampleSize = 10) {
+  const sampleSize = Math.max(1, Math.min(20, Number(requestedSampleSize) || 10));
+  const entries = await listBrainPath({ config, recursive: true, orderBy: 'alphanumeric' });
+  const candidates = entries.filter((entry) => {
+    const pagePath = String(entry.path || '');
+    return pagePath.endsWith('.md')
+      && !pagePath.includes('/.raw/')
+      && !pagePath.startsWith('.bigbrain/')
+      && !pagePath.startsWith('system/')
+      && !pagePath.startsWith('taxonomy/');
+  });
+  for (let index = candidates.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [candidates[index], candidates[swapIndex]] = [candidates[swapIndex], candidates[index]];
+  }
+  return {
+    requested_sample_size: sampleSize,
+    sampled_pages: candidates.slice(0, sampleSize).map(({ path: pagePath, title, type }) => ({ path: pagePath, title, type })),
+    rubric: [
+      'Summary states the substantive subject and takeaway, not Brain or page mechanics.',
+      'Body works as a standalone Pareto-style one-pager for the stated scope.',
+      'Explanation is internally structured, non-overlapping, and covers the important ground for the stated scope.',
+    ],
+    exclusions: ['raw sidecars', 'system pages', 'taxonomy pages'],
   };
 }
 
@@ -2225,15 +2257,16 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'create_page',
-      description: 'Create a markdown brain page. compiled_truth is the current content rendered above the writer-managed separator; the writer adds the single timeline boundary and timeline entry classified by significance, then returns a quick read-back page health check.',
+      description: 'Create a markdown brain page. summary is a substantive reader-facing takeaway, stored once in frontmatter and rendered separately from the detailed body. It must explain the page subject, core argument, or current state, not the Brain’s storage or page mechanics. The writer owns the timeline boundary and timeline entry.',
       inputSchema: {
         type: 'object',
         properties: {
           ...mutationProperties(),
           path: { type: 'string' },
           title: { type: 'string' },
-          compiled_truth: { type: 'string', description: 'Current page content rendered above the separator, including the opening compiled-truth paragraph and any current-context sections. Do not include the separator or ## Timeline; the writer owns them.' },
-          body: { type: 'string', description: 'Legacy alias for compiled_truth. Use compiled_truth for new calls.' },
+          summary: { type: 'string', description: 'Substantive 1–3 sentence takeaway. State the page subject, core argument, or current state and what a reader will learn. Do not mention the Brain or page architecture, transcripts, raw artifacts, timelines, provenance, source storage, indexing, or rendering.' },
+          compiled_truth: { type: 'string', description: 'Legacy alias for body. Use body for new calls.' },
+          body: { type: 'string', description: 'Detailed subject-matter content, written as a standalone document for a reader. Do not refer to the Brain, page architecture, storage, indexing, raw artifacts, transcripts, or rendering. Do not include the separator or ## Timeline; the writer owns them.' },
           ...timelineInputProperties(),
           significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this timeline update on the owning page: patch, minor, or major.' },
           domains: domainField,
@@ -2360,14 +2393,15 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'update_page',
-      description: 'Replace the current compiled_truth zone of a markdown brain page and append one writer-managed timeline entry classified by significance. Returns a quick read-back page health check.',
+      description: 'Replace an existing page’s detailed body and optionally its first-class summary, then append one writer-managed timeline entry. Any summary must be a substantive reader-facing takeaway, not an explanation of Brain or page mechanics. Returns a quick read-back page health check.',
       inputSchema: {
         type: 'object',
         properties: {
           ...mutationProperties(),
           path: { type: 'string' },
-          compiled_truth: { type: 'string', description: 'Replacement current content rendered above the separator, including the opening compiled-truth paragraph and any current-context sections. Do not include the separator or ## Timeline; the writer owns them.' },
-          body: { type: 'string', description: 'Legacy alias for compiled_truth. Use compiled_truth for new calls.' },
+          summary: { type: 'string', description: 'Optional replacement substantive 1–3 sentence takeaway. State the page subject, core argument, or current state and what a reader will learn. Do not mention the Brain or page architecture, transcripts, raw artifacts, timelines, provenance, source storage, indexing, or rendering.' },
+          compiled_truth: { type: 'string', description: 'Legacy alias for body. Use body for new calls.' },
+          body: { type: 'string', description: 'Replacement detailed subject-matter content, written as a standalone document for a reader. Do not refer to the Brain, page architecture, storage, indexing, raw artifacts, transcripts, or rendering. Do not include the separator or ## Timeline; the writer owns them.' },
           ...timelineInputProperties(),
           significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this timeline update on the owning page: patch, minor, or major.' },
           domains: domainField,
@@ -2375,7 +2409,7 @@ function toolDefinitions(config = null) {
         },
         required: ['path', 'significance', ...mutationRequired()],
         allOf: [
-          { anyOf: pageContentInputRequirements() },
+          { anyOf: updatePageContentInputRequirements() },
           { anyOf: timelineInputRequirements() },
         ],
       },
@@ -2416,6 +2450,26 @@ function toolDefinitions(config = null) {
       name: 'audit/export',
       description: 'Export one bounded page of MCP audit records as NDJSON. Requires brain:admin.',
       inputSchema: auditAccessSchema(),
+    },
+    {
+      name: 'maintenance/sample_page_quality',
+      description: 'Select a random sample of canonical pages for judgment-based maintenance. Read and assess the returned pages against this rubric: Summary states the substantive subject and takeaway, not Brain or page mechanics; body works as a standalone Pareto-style one-pager; the explanation is internally structured, non-overlapping, and covers the important ground for its stated scope. This tool selects candidates only: the caller must make and record the editorial judgment.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sample_size: { type: 'integer', minimum: 1, maximum: 20, default: 10, description: 'Number of canonical pages to sample. Defaults to 10.' },
+        },
+      },
+    },
+    {
+      name: 'maintenance_sample_page_quality',
+      description: 'Alias for maintenance/sample_page_quality for clients that do not support slash tool names.',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          sample_size: { type: 'integer', minimum: 1, maximum: 20, default: 10 },
+        },
+      },
     },
     {
       name: 'maintenance/sync',
@@ -2672,6 +2726,8 @@ const TOOL_POLICIES = {
   maintenance_git_backup: { layer: 'git_backup', scopes: ['brain:git-backup'] },
   'maintenance/sync': { layer: 'maintenance', scopes: ['brain:maintenance'] },
   maintenance_sync: { layer: 'maintenance', scopes: ['brain:maintenance'] },
+  'maintenance/sample_page_quality': { layer: 'maintenance', scopes: ['brain:maintenance'] },
+  maintenance_sample_page_quality: { layer: 'maintenance', scopes: ['brain:maintenance'] },
   'audit/list': { layer: 'admin', scopes: ['brain:admin'] },
   audit_list: { layer: 'admin', scopes: ['brain:admin'] },
   'audit/export': { layer: 'admin', scopes: ['brain:admin'] },
@@ -2947,6 +3003,7 @@ function pageSchemaWriteSchema() {
         properties: {
           path_prefix: { type: 'string', description: 'Optional relative collection path such as tasks or decisions.' },
           description: { type: 'string', description: 'Human-readable purpose and usage guidance.' },
+          additional_properties: { type: 'boolean', description: 'Whether frontmatter keys not declared in fields are allowed. Omit for legacy behavior: schemas with declared fields are strict, empty schemas remain open.' },
           fields: {
             type: 'object',
             description: 'Map of frontmatter field names to field definitions.',
@@ -3410,7 +3467,7 @@ function timelineInputProperties() {
   return {
     timeline_entry: {
       type: 'string',
-      description: 'Backward-compatible shorthand for one concise, subject-first timeline entry. Omit the current user\'s name when authorship is implicit; keep source wording in provenance.source_message. New callers may use timeline for structured entries.',
+      description: 'Backward-compatible shorthand for one concise, subject-first timeline entry. Record the substantive development, not document storage, ingestion, or page mechanics. Omit the current user\'s name when authorship is implicit; keep source wording in provenance.source_message. New callers may use timeline for structured entries.',
     },
     timeline: {
       type: 'array',
@@ -3430,7 +3487,7 @@ function timelineEntrySchema() {
       timestamp: { type: 'string', format: 'date-time', description: 'Compatibility alias for occurred_at.' },
       date: { type: 'string', format: 'date', description: 'Compatibility alias for a date-only occurred_at value.' },
       recorded_at: { type: 'string', format: 'date-time', description: 'When BigBrain recorded the entry. Defaults to the actual write time.' },
-      text: { type: 'string', description: 'Concise, subject-first summary of the durable page change. Omit the current user\'s name when authorship is implicit; keep source wording and approval context in provenance.source_message.' },
+      text: { type: 'string', description: 'Concise, subject-first statement of the durable substantive development. Do not describe document storage, ingestion, or page mechanics. Omit the current user\'s name when authorship is implicit; keep source wording and approval context in provenance.source_message.' },
       provenance: {
         type: 'object',
         description: 'Required source provenance for this specific timeline entry. It records the event and source that caused the page change.',
@@ -3461,6 +3518,15 @@ function pageContentInputRequirements() {
   return [
     { required: ['compiled_truth'] },
     { required: ['body'] },
+  ];
+}
+
+function updatePageContentInputRequirements() {
+  return [
+    ...pageContentInputRequirements(),
+    { required: ['summary'] },
+    { required: ['frontmatter'] },
+    { required: ['domains'] },
   ];
 }
 

@@ -298,11 +298,11 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.deepEqual(createPageTool.inputSchema.properties.significance.enum, ['patch', 'minor', 'major']);
     assert.match(createPageTool.inputSchema.properties.timeline_entry.description, /subject-first/);
     assert.match(createPageTool.inputSchema.properties.timeline.items.properties.text.description, /current user's name/);
-    assert.match(createPageTool.inputSchema.properties.compiled_truth.description, /compiled-truth/);
-    assert.match(updatePageTool.inputSchema.properties.compiled_truth.description, /compiled-truth/);
+    assert.match(createPageTool.inputSchema.properties.compiled_truth.description, /Legacy alias for body/);
+    assert.match(updatePageTool.inputSchema.properties.compiled_truth.description, /Legacy alias for body/);
     assert.match(updatePageTool.inputSchema.properties.frontmatter.description, /arbitrary page metadata/);
-    assert.match(createPageTool.inputSchema.properties.body.description, /Legacy alias/);
-    assert.match(updatePageTool.inputSchema.properties.body.description, /Legacy alias/);
+    assert.match(createPageTool.inputSchema.properties.body.description, /Detailed subject-matter content/);
+    assert.match(updatePageTool.inputSchema.properties.body.description, /Replacement detailed subject-matter content/);
     assert.equal(createPageTool.inputSchema.required.includes('significance'), true);
     assert.equal(updatePageTool.inputSchema.required.includes('significance'), true);
     assert.deepEqual(createPageTool.inputSchema.properties.timeline.items.required, ['text', 'provenance']);

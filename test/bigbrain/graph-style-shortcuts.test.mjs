@@ -8,7 +8,7 @@ test('labels use L only as their graph shortcut', async () => {
   const labelsGroup = main.match(/<GraphStyleOptionGroup\s+label="Labels"[\s\S]*?\/>/)?.[0] || '';
   assert.match(labelsGroup, /shortcut="l"/);
   assert.match(main, /\} else if \(key === 'l'\) \{\s*setLabelStyle/);
-  assert.doesNotMatch(main, /key === 's'/);
+  assert.doesNotMatch(main, /key === 's'\) \{\s*setLabelStyle/);
 });
 
 test('style cycles follow menu order, wrap, and recover stale preferences', () => {

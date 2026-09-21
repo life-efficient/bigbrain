@@ -719,6 +719,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .public-document { width: min(820px, 100%); margin: 0 auto; display: grid; gap: 22px; }
       .public-document.shared-group-document { width: min(1040px, 100%); }
       .public-document-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+      .page-summary { margin: 18px 0; max-width: 78ch; color: var(--muted); font-size: 1.04rem; line-height: 1.6; }
       .private-document-head { align-items: flex-start; flex-wrap: wrap; }
       .private-page-back-link { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font-size: 13px; font-weight: 650; text-decoration: none; white-space: nowrap; }
       .private-page-back-link:hover { border-color: var(--line-strong); background: var(--surface-muted); }
@@ -768,7 +769,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .page-image-carousel { display: grid; gap: 12px; min-width: 0; padding: 14px; border: 1px solid var(--line); border-radius: 0; background: var(--card); box-shadow: var(--shadow-soft); }
       .page-image-carousel:focus-visible { outline: 3px solid rgba(138,180,255,0.42); outline-offset: 3px; }
       .page-image-stage { position: relative; display: grid; place-items: center; min-height: 240px; overflow: hidden; border-radius: 0; background: var(--surface-muted); }
-      .page-image-link { display: grid; place-items: center; width: 100%; height: min(62vh, 580px); background: var(--surface-muted); }
+      .page-image-link { display: grid; place-items: center; width: 100%; height: min(62vh, 580px); padding: 0; border: 0; background: var(--surface-muted); cursor: zoom-in; }
       .page-image-link:focus-visible { outline: 3px solid rgba(138,180,255,0.42); outline-offset: -3px; }
       .page-image-link img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center; }
       .page-image-control { position: absolute; z-index: 1; top: 50%; display: grid; place-items: center; width: 38px; height: 38px; transform: translateY(-50%); border: 1px solid rgba(255,255,255,0.25); border-radius: 999px; background: rgba(15,23,42,0.7); color: #fff; cursor: pointer; font-size: 34px; line-height: 1; }
@@ -2064,19 +2065,25 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .explorer-viewer-head .meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .explorer-viewer-body { min-height: 0; overflow: auto; padding: 18px 20px; }
       .explorer-viewer-body .markdown-shell { max-width: 920px; }
-      .explorer-markdown-preview { display: grid; gap: 16px; max-width: 920px; }
-      .explorer-frontmatter { border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--surface) 72%, transparent); overflow: hidden; }
-      .explorer-frontmatter summary { min-height: 36px; padding: 6px 10px; display: flex; align-items: center; flex-wrap: wrap; gap: 7px; color: var(--muted); cursor: pointer; list-style: none; user-select: none; }
-      .explorer-frontmatter summary::-webkit-details-marker { display: none; }
-      .explorer-frontmatter summary::before { content: "›"; width: 14px; color: var(--muted); font-size: 15px; line-height: 1; transition: transform 140ms ease; }
-      .explorer-frontmatter[open] summary::before { transform: rotate(90deg); }
-      .explorer-frontmatter-title { color: var(--ink); font-size: 12px; font-weight: 750; }
-      .explorer-frontmatter-meta { font-size: 11px; }
-      .explorer-frontmatter-chip { max-width: min(210px, 100%); min-height: 22px; display: inline-flex; align-items: center; gap: 5px; padding: 3px 7px; border-radius: 999px; border: 1px solid var(--line); background: rgba(255,255,255,0.04); color: var(--muted); font-size: 11px; }
-      .explorer-frontmatter-chip span,
-      .explorer-frontmatter-chip strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .explorer-frontmatter-chip strong { color: var(--ink); font-weight: 650; }
-      .explorer-frontmatter pre { margin: 0; max-height: 260px; overflow: auto; border-top: 1px solid var(--line); background: var(--pre-bg); color: var(--pre-ink); padding: 10px 12px; font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-word; }
+      .page-content-preview { display: grid; gap: 16px; min-width: 0; }
+      .page-content-preview .page-image-carousel { min-width: 0; }
+      .page-section-label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; }
+      .page-summary-card,
+      .page-timeline-card { min-width: 0; padding: 13px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+      .page-summary-card p { max-width: 76ch; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+      .page-body-section { min-width: 0; border-top: 1px solid var(--line); padding-top: 18px; }
+      .page-body-section .tailwind-prose { font-size: 15px; line-height: 1.75; }
+      .page-body-section .markdown-shell img { display: block; width: 100%; height: auto; max-width: 100%; max-height: none; margin: 18px 0; border-radius: 0; }
+      .page-timeline-list { display: grid; gap: 13px; margin: 0; padding: 0; list-style: none; }
+      .page-timeline-item { min-width: 0; padding-top: 12px; border-top: 1px solid var(--line); }
+      .page-timeline-item:first-child { padding-top: 0; border-top: 0; }
+      .page-timeline-item-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; color: var(--muted); font: 10px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; }
+      .page-timeline-item-meta .graph-flow-card-source { width: 22px; height: 22px; flex: 0 0 auto; }
+      .page-timeline-source-label { color: var(--muted); }
+      .page-timeline-description { margin: 7px 0 0; color: var(--ink); font-size: 13px; font-weight: 650; line-height: 1.48; }
+      .page-timeline-source-message { margin: 5px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+      .page-timeline-empty { margin: 0; color: var(--muted); font-size: 12px; }
+      .explorer-page-preview { max-width: 920px; }
       .explorer-text-preview { margin: 0; min-height: 100%; white-space: pre-wrap; word-break: break-word; background: transparent; color: var(--ink); font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; }
       .explorer-media-frame { height: 100%; min-height: 0; display: grid; place-items: center; }
       .explorer-media-frame img { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
@@ -2154,16 +2161,26 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .sidecar-summary .tailwind-prose p:empty { display: none; }
       .sidecar-summary .tailwind-prose p:has(> br.ProseMirror-trailingBreak:only-child) { display: none; }
       .sidecar-summary .tailwind-prose > *:last-child { margin-bottom: 0; }
-      .sidecar-metadata { position: relative; }
+      .sidecar-metadata { min-width: 0; }
       .sidecar-metadata summary { display: inline-flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 12px; list-style: none; }
       .sidecar-metadata summary::-webkit-details-marker { display: none; }
       .sidecar-metadata summary::before { content: "›"; display: inline-block; font-size: 15px; line-height: 1; transition: transform 140ms ease; }
       .sidecar-metadata[open] summary::before { transform: rotate(90deg); }
-      .sidecar-metadata-records { position: absolute; z-index: 4; top: calc(100% + 8px); left: 0; width: min(380px, calc(100vw - 56px)); margin: 0; padding: 10px 12px; border: 1px solid var(--line); background: var(--panel); box-shadow: var(--shadow-soft); }
-      .sidecar-metadata-records > div { display: grid; grid-template-columns: minmax(92px, 0.35fr) minmax(0, 1fr); gap: 10px; padding: 5px 0; border-bottom: 1px solid var(--line); font-size: 12px; line-height: 1.4; }
+      .sidecar-metadata-records { margin: 10px 0 0; padding-top: 2px; border-top: 1px solid var(--line); }
+      .sidecar-metadata-records > div { display: grid; grid-template-columns: minmax(112px, 0.35fr) minmax(0, 1fr); gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: 12px; line-height: 1.45; }
       .sidecar-metadata-records > div:last-child { border-bottom: 0; }
       .sidecar-metadata-records dt { color: var(--muted); text-transform: capitalize; }
       .sidecar-metadata-records dd { min-width: 0; margin: 0; color: var(--ink); overflow-wrap: anywhere; }
+      .sidecar-metadata-list { display: grid; gap: 4px; margin: 0; padding-left: 18px; }
+      .sidecar-metadata-list li { padding-left: 2px; }
+      .sidecar-metadata-object { display: grid; gap: 5px; margin: 0; }
+      .sidecar-metadata-object > div { display: grid; grid-template-columns: minmax(90px, 0.42fr) minmax(0, 1fr); gap: 8px; }
+      .sidecar-metadata-object dt { color: var(--muted); }
+      .sidecar-metadata-object dd { margin: 0; }
+      .sidecar-metadata-link { color: var(--accent-strong); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 0.18em; }
+      .sidecar-metadata-link:hover { color: var(--ink); }
+      .sidecar-metadata-status { display: inline-flex; align-items: center; min-height: 22px; padding: 3px 8px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); color: var(--ink); font-size: 11px; font-weight: 700; text-transform: capitalize; }
+      .sidecar-metadata-empty { color: var(--muted); font-style: italic; }
       .sidecar-summary .tailwind-prose h1,
       .sidecar-summary .tailwind-prose h2,
       .sidecar-summary .tailwind-prose h3,
@@ -2729,7 +2746,21 @@ export async function buildExplorerFilePayload(config, requestUrl, { dashboardSu
     if (stats.size > 1024 * 1024) {
       return { ...payload, kind: 'unsupported', reason: 'Text preview is limited to files under 1 MB.' };
     }
-    return { ...payload, text: await fs.readFile(fullPath, 'utf8') };
+    const text = await fs.readFile(fullPath, 'utf8');
+    if (kind !== 'markdown') return { ...payload, text };
+    const sourceSlug = relativePath.replace(/\.(?:md|markdown)$/i, '');
+    const parsed = parseMarkdownPage(text, sourceSlug);
+    return {
+      ...payload,
+      title: parsed.title,
+      type: parsed.type,
+      frontmatter: parsed.frontmatter,
+      markdown: parsed.bodyContentMarkdown,
+      images: dashboardSurface === 'local'
+        ? await buildPageImagesPayload(config, parsed.frontmatter.images, { sourceSlug })
+        : [],
+      text,
+    };
   }
   return payload;
 }
@@ -2825,7 +2856,7 @@ export async function buildPublicPagePayload(config, requestUrl) {
     slug: canonicalSlug,
     redirect_to: canonicalSlug !== slug ? `/public/${canonicalSlug}` : null,
     title: page.parsed.title,
-    summary: extractPageReaderSummary(page.parsed, markdown),
+    summary: page.parsed.summary || extractPageReaderSummary(page.parsed, markdown),
     markdown,
     images: await buildPageImagesPayload(config, page.parsed.frontmatter.images, {
       sourceSlug: canonicalSlug,
@@ -2996,8 +3027,8 @@ async function buildPagePayloadForSlug(config, db, slug, { domainScope = [], das
     ])
     : [outgoingMarkdown, backlinksMarkdown];
   const markdown = domainScope.length
-    ? await sanitizeDomainMarkdown({ config, markdown: parsed.bodyContentMarkdown, sourceSlug: pageSlug, domainScope })
-    : parsed.bodyContentMarkdown;
+    ? await sanitizeDomainMarkdown({ config, markdown: parsed.compiledTruth, sourceSlug: pageSlug, domainScope })
+    : parsed.compiledTruth;
   const remoteDashboard = dashboardSurface === 'remote';
   const relativePath = path.relative(config.brainDir, fullPath);
   let pageUrlPath = null;
@@ -3015,10 +3046,12 @@ async function buildPagePayloadForSlug(config, db, slug, { domainScope = [], das
     path: remoteDashboard ? pageSlug : relativePath,
     visibility: pageVisibility(parsed.frontmatter),
     public_url: pageVisibility(parsed.frontmatter) === 'public' ? `/public/${slug}` : null,
-    summary: extractPageReaderSummary(parsed),
+    summary: parsed.summary || null,
     ...(remoteDashboard ? {} : { frontmatter: parsed.frontmatter }),
     images: remoteDashboard ? [] : await buildPageImagesPayload(config, parsed.frontmatter.images, { sourceSlug: pageSlug }),
     markdown,
+    body: markdown,
+    timeline_entries: parsed.timeline_entries,
     updated_at: stat.mtime.toISOString(),
     domain_scope: domainScope.length ? domainScope : null,
     links: {

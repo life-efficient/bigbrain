@@ -44,7 +44,11 @@ export function parseMarkdownPage(markdown, slug) {
     timelineHeadingCount: body.match(TIMELINE_HEADING_PATTERN)?.length || 0,
     bodyMarkdown: markdown,
     bodyText: stripMarkdown(body),
-    summary: extractSummary(compiledTruth),
+    // `summary` is deliberately a first-class metadata field.  It is not
+    // inferred from the body: a preview extracted from prose is useful as a
+    // legacy fallback for search, but it is not the page's authored takeaway.
+    summary: normalizeSummary(frontmatter.summary),
+    legacySummary: extractSummary(compiledTruth),
   };
 }
 
@@ -177,6 +181,11 @@ function extractTitle(frontmatter, body, slug) {
 
 function extractSummary(compiledTruth) {
   return compiledTruth.split('\n').map((line) => line.trim()).find(Boolean) || '';
+}
+
+function normalizeSummary(value) {
+  if (typeof value !== 'string') return '';
+  return value.replace(/\s+/g, ' ').trim();
 }
 
 function stripMarkdown(value) {

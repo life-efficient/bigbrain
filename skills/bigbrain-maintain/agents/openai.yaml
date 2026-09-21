@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Maintain"
-  short_description: "Check BigBrain, attempt safe fixes, and report what remains"
-  default_prompt: "Use BigBrain: Maintain to check BigBrain, attempt safe bounded fixes for health findings, re-run health, and report anything that still needs manual follow-up."
+  short_description: "Run health checks plus a small reader-facing page-quality sample"
+  default_prompt: "Use $bigbrain-maintain to run deterministic health checks, attempt safe bounded fixes, then assess a random sample of canonical pages for reader-facing summaries and standalone one-page quality."
