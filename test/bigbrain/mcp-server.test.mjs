@@ -1304,6 +1304,7 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
 
   let running;
   try {
+    await fs.rm(path.join(fixture.brainHome, 'page-schemas.yaml'));
     const config = await loadConfig({ configPath: fixture.configPath });
     running = await startMcpServer({
       config,
@@ -1368,6 +1369,7 @@ test('MCP OAuth scopes filter hosted tools by policy layer', async () => {
     assert.equal(createTools.includes('set_page_visibility'), false);
     assert.equal(createTools.includes('update_raw_file'), false);
     assert.equal(createTools.includes('maintenance/git_backup'), false);
+    assert.equal(createTools.includes('schemas/bootstrap'), false);
     const created = await rpc(running.url, 'tools/call', {
       name: 'create_page',
       arguments: {
@@ -2698,7 +2700,7 @@ test('MCP domain registry and page membership stay separate while schemas follow
   }
 });
 
-test('MCP page schema registry can be bootstrapped and curated per Brain', async () => {
+test('MCP startup migrates a missing page schema registry before it is curated', async () => {
   const fixture = await createFixture('bigbrain-mcp-page-schemas-');
   let running;
   try {
@@ -2713,12 +2715,14 @@ test('MCP page schema registry can be bootstrapped and curated per Brain', async
       gitBackupEnabled: false,
     });
 
-    const missing = await rpc(running.url, 'tools/call', { name: 'schemas/list', arguments: {} }, 'secret');
-    assert.match(missing.error.message, /Initialize or register/);
+    const migrated = await rpc(running.url, 'tools/call', { name: 'schemas/list', arguments: {} }, 'secret');
+    assert.equal(migrated.error, undefined, migrated.error?.message);
+    assert.ok(migrated.result.structuredContent.schemas.some((schema) => schema.id === 'tasks'));
+    assert.equal(migrated.result.structuredContent.schemas.find((schema) => schema.id === 'tasks').additional_properties, true);
 
     const bootstrapped = await rpc(running.url, 'tools/call', { name: 'schemas/bootstrap', arguments: {} }, 'secret');
     assert.equal(bootstrapped.error, undefined, bootstrapped.error?.message);
-    assert.equal(bootstrapped.result.structuredContent.initialized, true);
+    assert.equal(bootstrapped.result.structuredContent.initialized, false);
     assert.ok(bootstrapped.result.structuredContent.registry.schemas.tasks);
 
     const registered = await rpc(running.url, 'tools/call', {

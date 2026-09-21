@@ -5,6 +5,29 @@ actions` section for agents maintaining device and server installations.
 
 ## [Unreleased]
 
+### Fixed
+
+- Restored page writes for registered legacy Brains that do not yet have a
+  `page-schemas.yaml` registry. Owning MCP services now apply an atomic,
+  versioned, additive compatibility migration before serving requests. The
+  migration derives permissive categories from each Brain's `schema_dirs`,
+  preserves Brain-local definitions, and never rewrites invalid or newer
+  registries.
+
+### Agent update actions
+
+- Restart each owning MCP service after installing this update. On startup the
+  service creates or advances the Brain-local page schema registry when safe.
+  Do not copy a registry between Brains. Review `schemas/list`, then verify one
+  normal page create and read-back through that Brain's MCP.
+
+### Verification
+
+- Focused page schema, page operation, hosted runtime, and MCP tests pass,
+  including missing-registry writes by a non-admin creator, additive custom
+  categories, idempotence, invalid-registry rejection, and future-version
+  no-rewrite coverage.
+
 ## [1.0.0] - 2026-09-21
 
 ### Added

@@ -10,6 +10,8 @@ import {
   deletePageSchema,
   getPageSchema,
   loadPageSchemaRegistry,
+  migratePageSchemaRegistry,
+  PAGE_SCHEMA_DEFAULTS_VERSION,
   PAGE_SCHEMA_REGISTRY_FILENAME,
   registerPageSchema,
   resolvePageSchema,
@@ -57,6 +59,80 @@ test('page schema registry remains optional for existing Brains until explicitly
     const bootstrapped = await bootstrapPageSchemaRegistry(config);
     assert.equal(bootstrapped.status, 'valid');
     assert.equal(resolvePageSchema(bootstrapped.registry, { pagePath: 'people/alice.md' }).id, 'people');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page schema registry migration is additive, Brain-local, and idempotent', async () => {
+  const fixture = await createFixture('bigbrain-page-schema-migration-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    config.schemaDirs = ['meetings', 'programme-notes'];
+    await fs.writeFile(path.join(fixture.brainHome, PAGE_SCHEMA_REGISTRY_FILENAME), `schema_version: 1
+schemas:
+  meetings:
+    path_prefix: meetings
+    additional_properties: false
+    fields:
+      chair:
+        type: string
+`, 'utf8');
+
+    const first = await migratePageSchemaRegistry(config);
+    assert.equal(first.migration.changed, true);
+    assert.equal(first.registry.defaults_version, PAGE_SCHEMA_DEFAULTS_VERSION);
+    assert.deepEqual(first.registry.schemas.meetings.fields, { chair: { type: 'string' } });
+    assert.equal(first.registry.schemas.meetings.additional_properties, false);
+    assert.equal(first.registry.schemas['programme-notes'].path_prefix, 'programme-notes');
+    assert.equal(first.registry.schemas['programme-notes'].additional_properties, true);
+    assert.deepEqual(first.registry.schemas['programme-notes'].fields, {});
+
+    const afterFirst = await fs.readFile(path.join(fixture.brainHome, PAGE_SCHEMA_REGISTRY_FILENAME), 'utf8');
+    const second = await migratePageSchemaRegistry(config);
+    const afterSecond = await fs.readFile(path.join(fixture.brainHome, PAGE_SCHEMA_REGISTRY_FILENAME), 'utf8');
+    assert.equal(second.migration.changed, false);
+    assert.equal(afterSecond, afterFirst);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('missing legacy registry migrates to permissive configured schemas', async () => {
+  const fixture = await createFixture('bigbrain-page-schema-compatible-bootstrap-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    config.schemaDirs = ['meetings', 'local-evidence'];
+    await fs.rm(path.join(fixture.brainHome, PAGE_SCHEMA_REGISTRY_FILENAME));
+
+    const migrated = await migratePageSchemaRegistry(config);
+    assert.equal(migrated.migration.created, true);
+    assert.equal(migrated.registry.defaults_version, PAGE_SCHEMA_DEFAULTS_VERSION);
+    assert.equal(migrated.registry.schemas.meetings.additional_properties, true);
+    assert.deepEqual(migrated.registry.schemas.meetings.fields, {});
+    assert.equal(migrated.registry.schemas['local-evidence'].path_prefix, 'local-evidence');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('newer page schema defaults are never downgraded or rewritten', async () => {
+  const fixture = await createFixture('bigbrain-page-schema-future-defaults-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const registryPath = path.join(fixture.brainHome, PAGE_SCHEMA_REGISTRY_FILENAME);
+    const futureRegistry = `schema_version: 1
+defaults_version: ${PAGE_SCHEMA_DEFAULTS_VERSION + 1}
+schemas:
+  local-record:
+    path_prefix: local-records
+    additional_properties: true
+    fields: {}
+`;
+    await fs.writeFile(registryPath, futureRegistry, 'utf8');
+
+    await assert.rejects(() => migratePageSchemaRegistry(config), /newer than this runtime supports/);
+    assert.equal(await fs.readFile(registryPath, 'utf8'), futureRegistry);
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

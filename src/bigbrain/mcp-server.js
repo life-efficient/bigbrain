@@ -27,6 +27,7 @@ import {
   getPageSchema,
   listPageSchemas,
   loadPageSchemaRegistry,
+  migratePageSchemaRegistry,
   registerPageSchema,
   updatePageSchema,
 } from './page-schema-registry.js';
@@ -157,6 +158,9 @@ export async function startMcpServer({
   gitBackupIntervalMs = Number(process.env.BIGBRAIN_MCP_GIT_BACKUP_INTERVAL_MS || 300000),
 } = {}) {
   assertToolPolicyComplete(config);
+  await migratePageSchemaRegistry(config).catch((error) => {
+    console.error(`BigBrain page schema migration needs attention: ${error.message}`);
+  });
   if (!authConfig.tokenStore) authConfig.tokenStore = await createMcpAuthStore(config, authConfig);
   let memberDb = null;
   if (authRoutesEnabled(authConfig) && !authConfig.memberLookup) {

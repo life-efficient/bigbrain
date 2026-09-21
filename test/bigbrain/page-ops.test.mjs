@@ -94,6 +94,67 @@ test('page ops create and update brain pages with frontmatter, body, and timelin
   }
 });
 
+test('page ops keep legacy Brains writable until a page schema registry is migrated', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-legacy-schema-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const registryPath = path.join(fixture.brainHome, 'page-schemas.yaml');
+    await fs.rm(registryPath);
+
+    const created = await createBrainPage({
+      config,
+      pagePath: 'meetings/schema-migration-check',
+      title: 'Schema migration check',
+      compiledTruth: 'A normal meeting page remains writable before registry migration.',
+      timelineEntry: 'Created while the legacy Brain had no page schema registry.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
+    });
+    assert.equal(created.path, 'meetings/schema-migration-check.md');
+
+    const updated = await updateBrainPage({
+      config,
+      pagePath: 'meetings/schema-migration-check',
+      compiledTruth: 'The normal meeting page can also be updated before registry migration.',
+      timelineEntry: 'Updated while the legacy Brain had no page schema registry.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
+    });
+    assert.match(updated.body, /can also be updated/);
+    await assert.rejects(() => fs.stat(registryPath), { code: 'ENOENT' });
+
+    await assert.rejects(() => createBrainPage({
+      config,
+      pagePath: 'meetings/explicit-schema-without-registry',
+      title: 'Explicit schema without registry',
+      compiledTruth: 'An explicit schema still requires a registry.',
+      timelineEntry: 'Attempted an explicit schema without a registry.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
+      frontmatter: { page_schema: 'meetings' },
+    }), /unknown page_schema: meetings/);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page ops fail closed when an existing page schema registry is invalid', async () => {
+  const fixture = await createFixture('bigbrain-page-ops-invalid-schema-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await fs.writeFile(path.join(fixture.brainHome, 'page-schemas.yaml'), 'schema_version: 1\nschemas: [invalid]\n', 'utf8');
+
+    await assert.rejects(() => createBrainPage({
+      config,
+      pagePath: 'meetings/invalid-registry-check',
+      title: 'Invalid registry check',
+      compiledTruth: 'This page must not be written.',
+      timelineEntry: 'Attempted a write with an invalid registry.',
+      timelineProvenance: TEST_TIMELINE_PROVENANCE,
+    }), /Page schema registry is invalid/);
+    await assert.rejects(() => fs.stat(path.join(fixture.brainHome, 'meetings', 'invalid-registry-check.md')), { code: 'ENOENT' });
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 test('page ops rejects frontmatter fields not declared by a strict page schema', async () => {
   const fixture = await createFixture('bigbrain-page-ops-schema-');
   try {

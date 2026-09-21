@@ -8,6 +8,7 @@ import { CANONICAL_SCHEMA_DIRS } from './constants.js';
 
 export const PAGE_SCHEMA_REGISTRY_FILENAME = 'page-schemas.yaml';
 export const PAGE_SCHEMA_REGISTRY_VERSION = 1;
+export const PAGE_SCHEMA_DEFAULTS_VERSION = 1;
 
 const SCHEMA_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const FIELD_TYPES = ['string', 'number', 'boolean', 'array', 'object'];
@@ -60,8 +61,9 @@ const PAGE_SCHEMA_RESERVED_FIELDS = new Set([
 
 export const pageSchemaRegistrySchema = z.object({
   schema_version: z.literal(PAGE_SCHEMA_REGISTRY_VERSION),
+  defaults_version: z.number().int().nonnegative().optional(),
   schemas: z.record(z.string(), pageSchemaDefinitionSchema),
-}).superRefine((value, context) => {
+}).passthrough().superRefine((value, context) => {
   const prefixes = new Map();
   for (const [id, schema] of Object.entries(value.schemas)) {
     if (!SCHEMA_ID_PATTERN.test(id)) {
@@ -97,21 +99,45 @@ export function pageSchemaRegistryPath(config) {
   return path.join(config.brainDir, PAGE_SCHEMA_REGISTRY_FILENAME);
 }
 
-export function defaultPageSchemaRegistry() {
+export function defaultPageSchemaRegistry({ schemaDirs = CANONICAL_SCHEMA_DIRS, compatibility = false } = {}) {
+  const schemas = {};
+  for (const collection of schemaDirs) {
+    const prefix = normalizePathPrefix(collection);
+    if (!prefix) continue;
+    const id = schemaIdForPathPrefix(prefix, Object.keys(schemas));
+    const isBuiltIn = CANONICAL_SCHEMA_DIRS.includes(prefix);
+    schemas[id] = compatibility || !isBuiltIn
+      ? compatiblePageSchema(prefix)
+      : defaultPageSchema(prefix);
+  }
   return {
     schema_version: PAGE_SCHEMA_REGISTRY_VERSION,
-    schemas: Object.fromEntries(CANONICAL_SCHEMA_DIRS.map((collection) => [collection, {
-      path_prefix: collection,
-      description: DEFAULT_SCHEMA_DESCRIPTIONS[collection] || `Canonical pages under ${collection}/.`,
-      additional_properties: !['articles', 'tasks', 'videos'].includes(collection),
-      fields: collection === 'tasks'
-        ? defaultTaskFields()
-        : collection === 'articles'
-          ? defaultArticleFields()
-          : collection === 'videos'
-            ? defaultVideoFields()
-            : {},
-    }])),
+    defaults_version: PAGE_SCHEMA_DEFAULTS_VERSION,
+    schemas,
+  };
+}
+
+function defaultPageSchema(collection) {
+  return {
+    path_prefix: collection,
+    description: DEFAULT_SCHEMA_DESCRIPTIONS[collection] || `Canonical pages under ${collection}/.`,
+    additional_properties: !['articles', 'tasks', 'videos'].includes(collection),
+    fields: collection === 'tasks'
+      ? defaultTaskFields()
+      : collection === 'articles'
+        ? defaultArticleFields()
+        : collection === 'videos'
+          ? defaultVideoFields()
+          : {},
+  };
+}
+
+function compatiblePageSchema(collection) {
+  return {
+    path_prefix: collection,
+    description: DEFAULT_SCHEMA_DESCRIPTIONS[collection] || `Brain-local pages under ${collection}/.`,
+    additional_properties: true,
+    fields: {},
   };
 }
 
@@ -200,6 +226,54 @@ function defaultVideoFields() {
 
 export async function ensurePageSchemaRegistry(config) {
   return bootstrapPageSchemaRegistry(config);
+}
+
+export async function migratePageSchemaRegistry(config) {
+  const loaded = await loadPageSchemaRegistry(config);
+  if (loaded.status === 'invalid') {
+    throw new Error(`Page schema registry is invalid: ${loaded.errors.join('; ')}`);
+  }
+
+  if (loaded.status === 'missing') {
+    const registry = defaultPageSchemaRegistry({ schemaDirs: config.schemaDirs, compatibility: true });
+    await writePageSchemaRegistry(config, registry);
+    return {
+      ...(await loadPageSchemaRegistry(config, { allowMissing: false })),
+      migration: { created: true, changed: true, from_defaults_version: 0, to_defaults_version: PAGE_SCHEMA_DEFAULTS_VERSION, added: Object.keys(registry.schemas) },
+    };
+  }
+
+  const registry = structuredClone(loaded.registry);
+  const fromVersion = registry.defaults_version || 0;
+  if (fromVersion > PAGE_SCHEMA_DEFAULTS_VERSION) {
+    throw new Error(`Page schema defaults version ${fromVersion} is newer than this runtime supports (${PAGE_SCHEMA_DEFAULTS_VERSION}).`);
+  }
+  const added = [];
+  let nextVersion = fromVersion;
+  while (nextVersion < PAGE_SCHEMA_DEFAULTS_VERSION) {
+    nextVersion += 1;
+    applyPageSchemaDefaultsMigration(registry, config, nextVersion, added);
+  }
+  registry.defaults_version = nextVersion;
+  const changed = added.length > 0 || fromVersion !== nextVersion;
+  if (changed) await writePageSchemaRegistry(config, registry);
+  return {
+    ...(changed ? await loadPageSchemaRegistry(config, { allowMissing: false }) : loaded),
+    migration: { created: false, changed, from_defaults_version: fromVersion, to_defaults_version: PAGE_SCHEMA_DEFAULTS_VERSION, added },
+  };
+}
+
+function applyPageSchemaDefaultsMigration(registry, config, version, added) {
+  if (version !== 1) throw new Error(`Missing page schema defaults migration for version ${version}.`);
+  const existingPrefixes = new Set(Object.values(registry.schemas).map((schema) => normalizePathPrefix(schema.path_prefix)).filter(Boolean));
+  for (const collection of config.schemaDirs || []) {
+    const prefix = normalizePathPrefix(collection);
+    if (!prefix || existingPrefixes.has(prefix)) continue;
+    const id = schemaIdForPathPrefix(prefix, Object.keys(registry.schemas));
+    registry.schemas[id] = compatiblePageSchema(prefix);
+    existingPrefixes.add(prefix);
+    added.push(id);
+  }
 }
 
 export async function bootstrapPageSchemaRegistry(config, { overwrite = false } = {}) {
@@ -413,7 +487,11 @@ export function pageSchemaComplianceIssues(registry, { pagePath, frontmatter = {
 export async function assertPageSchemaCompliance(config, { pagePath, frontmatter = {} } = {}) {
   const loaded = await loadPageSchemaRegistry(config);
   if (loaded.status === 'missing') {
-    throw new Error(`Page schema registry is missing: ${PAGE_SCHEMA_REGISTRY_FILENAME}. Initialize or register the Brain schema registry first.`);
+    const explicitId = typeof frontmatter?.page_schema === 'string' ? frontmatter.page_schema.trim() : '';
+    if (explicitId) {
+      throw new Error(`Page declares unknown page_schema: ${explicitId}. Initialize or register the Brain schema registry first.`);
+    }
+    return { schema: null, issues: [], compatibility_mode: true };
   }
   if (!loaded.valid) throw new Error(`Page schema registry is invalid: ${loaded.errors.join('; ')}`);
   const compliance = pageSchemaComplianceIssues(loaded.registry, { pagePath, frontmatter });
@@ -480,6 +558,18 @@ function normalizeSchemaId(value) {
   const normalized = String(value || '').trim();
   if (!SCHEMA_ID_PATTERN.test(normalized)) throw new Error('Schema ID must be a lowercase hyphenated slug.');
   return normalized;
+}
+
+function schemaIdForPathPrefix(prefix, existingIds = []) {
+  const base = prefix
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'pages';
+  const existing = new Set(existingIds);
+  if (!existing.has(base)) return base;
+  let suffix = 2;
+  while (existing.has(`${base}-${suffix}`)) suffix += 1;
+  return `${base}-${suffix}`;
 }
 
 function invalidRegistryResult(config, error) {
