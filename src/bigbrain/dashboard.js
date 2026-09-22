@@ -2135,10 +2135,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .tailwind-prose td { border: 1px solid rgba(31,26,23,0.08); padding: 0.55rem 0.65rem; text-align: left; }
       .tailwind-prose th { background: rgba(31,26,23,0.04); }
       .sidecar-shell { position: absolute; top: 0; right: 0; z-index: 20; width: min(var(--sidecar-resized-width, 560px), 48vw); height: 100vh; padding: 0; overflow: hidden; pointer-events: none; }
-      .sidecar-resize-handle { position: absolute; z-index: 30; top: 0; left: -2px; width: 4px; height: 100%; padding: 0; border: 0; outline: 0; box-shadow: none; appearance: none; background: transparent !important; cursor: col-resize; touch-action: none; pointer-events: none; }
+      .sidecar-resize-handle { position: absolute; z-index: 30; top: 0; left: -1px; width: 2px; height: 100%; padding: 0; border: 0; outline: 0; box-shadow: none; appearance: none; background: transparent !important; cursor: col-resize; touch-action: none; pointer-events: none; }
       .preview-open .sidecar-resize-handle { pointer-events: auto; }
       .sidecar-resizing, .sidecar-resizing * { cursor: col-resize !important; user-select: none !important; }
-      .sidecar-panel { height: 100%; overflow: auto; opacity: 0; transform: translateX(100%); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; background: var(--panel); border-left: 1px solid var(--line); box-shadow: -24px 0 54px rgba(15,23,42,0.10); backdrop-filter: blur(18px); padding: 0; will-change: transform, opacity; }
+      .sidecar-panel { height: 100%; overflow: auto; opacity: 0; transform: translateX(100%); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; background: var(--panel); box-shadow: -24px 0 54px rgba(15,23,42,0.10); backdrop-filter: blur(18px); padding: 0; will-change: transform, opacity; }
       .preview-open .sidecar-shell { pointer-events: auto; }
       .preview-open .sidecar-panel { opacity: 1; transform: translateX(0); pointer-events: auto; }
       .sidecar-head { position: sticky; top: 0; z-index: 2; display: grid; gap: 14px; padding: 26px 28px 18px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(18px); }
@@ -2234,7 +2234,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .topline-actions { justify-self: end; }
         .page-shell.preview-open { --sidecar-width: 0px; }
         .sidecar-shell { position: fixed; top: 0; right: 0; bottom: 0; left: auto; width: min(var(--sidecar-resized-width, 560px), 92vw); height: 100vh; padding: 0; z-index: 10; }
-        .sidecar-panel { border-left: 1px solid var(--line); border-top: 0; border-radius: 0; }
+        .sidecar-panel { border-top: 0; border-radius: 0; }
         .view-recents.preview-open { --sidecar-width: var(--sidecar-resized-width, min(560px, 48vw)); }
         .view-recents.preview-open main { padding-right: calc(16px + var(--sidecar-width)); }
         .view-recents .sidecar-shell { position: absolute; width: min(var(--sidecar-resized-width, 560px), 48vw); }

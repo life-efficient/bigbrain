@@ -3888,6 +3888,7 @@ const GraphPanel = memo(function GraphPanel({
   const activityValueKey = isCumulativeActivityMode(activityMode) ? 'cumulative' : 'count';
   const activityMaxValue = useMemo(() => Math.max(...activitySeries.map((item) => item[activityValueKey]), 1), [activitySeries, activityValueKey]);
   const isForceRenderer = visualizerId === 'force-graph-3d' || visualizerId === 'force-graph-2d';
+  const effectiveLabelStyle = focusSlug ? labelStyle : 'off';
   const visibleControls = Array.isArray(visualizer.controls)
     ? visualizer.controls.filter((control) => control === 'resetView')
     : [];
@@ -4138,7 +4139,7 @@ const GraphPanel = memo(function GraphPanel({
                 arcStyle={arcStyle}
                 arcAnimation={arcAnimation}
                 layoutStyle={layoutStyle}
-                labelStyle={labelStyle}
+                labelStyle={effectiveLabelStyle}
                 colorMode={colorMode}
                 typeColors={typeColors}
                 autoRotate={autoRotate}
@@ -4170,7 +4171,7 @@ const GraphPanel = memo(function GraphPanel({
               arcStyle={arcStyle}
               arcAnimation={arcAnimation}
               layoutStyle={layoutStyle}
-              labelStyle={labelStyle}
+              labelStyle={effectiveLabelStyle}
               colorMode={colorMode}
               typeColors={typeColors}
               autoRotate={autoRotate}
