@@ -909,8 +909,8 @@ function DashboardApp() {
           <div className="topline">
             <div className="topline-brand">
               <div className="history-nav" role="group" aria-label="Browser navigation">
-                <button type="button" className="history-button" aria-label="Back" title="Back" disabled={historyPosition.index <= 0} onClick={() => window.history.back()}><ArrowLeft size={16} strokeWidth={2} aria-hidden="true" /></button>
-                <button type="button" className="history-button" aria-label="Forward" title="Forward" disabled={historyPosition.index >= historyPosition.end} onClick={() => window.history.forward()}><ArrowRight size={16} strokeWidth={2} aria-hidden="true" /></button>
+                <IconButton aria-label="Back" title="Back" disabled={historyPosition.index <= 0} onClick={() => window.history.back()}><ArrowLeft size={16} strokeWidth={2} aria-hidden="true" /></IconButton>
+                <IconButton aria-label="Forward" title="Forward" disabled={historyPosition.index >= historyPosition.end} onClick={() => window.history.forward()}><ArrowRight size={16} strokeWidth={2} aria-hidden="true" /></IconButton>
               </div>
             </div>
             <div className="view-nav view-nav-header">
@@ -2169,6 +2169,10 @@ function AssigneePills({ assignees, invalidAssignees }) {
   );
 }
 
+function IconButton({ className = '', children, ...props }) {
+  return <button type="button" className={`icon-button-ghost ${className}`.trim()} {...props}>{children}</button>;
+}
+
 function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, onPageOpen, onVisibilityChange, onResizeStart }) {
   const pathLabel = preview?.path || preview?.slug || preview?.href || '';
   const outgoing = Array.isArray(preview?.links?.outgoing) ? preview.links.outgoing : [];
@@ -2238,9 +2242,9 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, on
                   )}
                 </>
               ) : null}
-              <button type="button" className="sidecar-close-button" onClick={onClose} aria-label="Close page preview" title="Close">
+              <IconButton className="sidecar-close-button" onClick={onClose} aria-label="Close page preview" title="Close">
                 <X size={18} strokeWidth={1.8} aria-hidden="true" />
-              </button>
+              </IconButton>
             </div>
           </div>
           {preview?.visibility_status === 'error' ? <div className="sidecar-error">{preview.visibility_error}</div> : null}
@@ -3169,16 +3173,13 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
               </div>
             ) : null}
           </div>
-          <button
-            type="button"
+          <IconButton
             className={`recents-filter-reset ${filtersActive ? 'active' : ''}`}
             aria-label="Reset Stream filters"
             title="Reset filters"
             disabled={!filtersActive}
             onClick={resetStreamFilters}
-          >
-            ×
-          </button>
+          ><X size={17} strokeWidth={1.8} aria-hidden="true" /></IconButton>
         </div>
       </div>
       <div

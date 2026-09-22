@@ -857,6 +857,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .history-button { width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; line-height: 1; cursor: pointer; }
       .history-button:hover:not(:disabled), .history-button:focus-visible:not(:disabled) { background: transparent; color: var(--ink); }
       .history-button:disabled { opacity: 0.32; cursor: pointer; }
+      .icon-button-ghost { width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: transparent !important; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; line-height: 1; cursor: pointer; box-shadow: none !important; }
+      .icon-button-ghost:hover:not(:disabled), .icon-button-ghost:focus-visible:not(:disabled) { background: transparent !important; color: var(--ink); }
+      .icon-button-ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .icon-button-ghost:disabled { opacity: 0.32; cursor: pointer; }
       .pill { padding: 8px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(15,23,42,0.04); font-size: 13px; }
       .view-chip-count { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-muted); color: var(--ink); font-size: 12px; font-weight: 600; }
       .view-chip.active .view-chip-count { background: rgba(255,255,255,0.1); }
@@ -1952,9 +1956,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .recents-collection-trigger:hover, .recents-collection-trigger.active { border-color: var(--line-strong); background: var(--surface); }
       .recents-collection-trigger:focus-visible, .recents-collection-menu .menu-item:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
       .recents-collection-trigger span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .recents-filter-reset { width: 41px; height: 41px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 9px; background: transparent; color: var(--muted); line-height: 1; cursor: pointer; }
+      .recents-filter-reset { width: 41px; height: 41px; flex: 0 0 auto; border-radius: 9px; }
       .recents-filter-reset.active { color: var(--ink); }
-      .recents-filter-reset:hover:not(:disabled), .recents-filter-reset:focus-visible:not(:disabled) { background: var(--surface-muted); color: var(--ink); outline: none; }
+      .recents-filter-reset:hover:not(:disabled), .recents-filter-reset:focus-visible:not(:disabled) { background: transparent !important; color: var(--ink); outline: none; }
       .recents-filter-reset:disabled { opacity: 0.32; cursor: default; }
       .recents-collection-chevron { color: var(--muted); font-size: 16px; line-height: 1; }
       .graph-filter-menu.recents-collection-menu { top: calc(100% + 8px); right: 0; bottom: auto; min-width: max(220px, 100%); max-width: min(320px, calc(100vw - 40px)); max-height: min(50vh, 360px); }
@@ -2165,9 +2169,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .sidecar-path-row > .meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .sidecar-title-copy h2 { margin: 0; font-size: 25px; line-height: 1.12; overflow-wrap: anywhere; }
       .sidecar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
-      .sidecar-close-button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
-      .sidecar-close-button:hover { color: var(--ink); background: transparent; }
-      .sidecar-close-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+      .sidecar-close-button { width: 30px; height: 30px; }
       .sidecar-meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
       .sidecar-chip { display: inline-flex; align-items: center; min-height: 25px; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; }
       .sidecar-chip.strong { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.08); }
