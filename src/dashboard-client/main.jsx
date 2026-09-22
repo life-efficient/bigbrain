@@ -1132,9 +1132,14 @@ function DashboardApp() {
 function DashboardSearch({ nodes, onSelectPage }) {
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
   const shellRef = useRef(null);
   const inputRef = useRef(null);
   const results = useMemo(() => searchGraphNodes(nodes, query), [nodes, query]);
+
+  useEffect(() => {
+    setFocusedIndex((current) => (current >= 0 && current < results.length ? current : -1));
+  }, [results.length, query]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -1173,7 +1178,23 @@ function DashboardSearch({ nodes, onSelectPage }) {
 
   function handleSubmit(event) {
     event.preventDefault();
-    selectResult(results[0]);
+    selectResult(results[focusedIndex] || results[0]);
+  }
+
+  function handleInputKeyDown(event) {
+    if (!query.trim() || !results.length) return;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      setOpen(true);
+      setFocusedIndex((current) => (current + 1) % results.length);
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      setOpen(true);
+      setFocusedIndex((current) => (current <= 0 ? results.length - 1 : current - 1));
+    } else if (event.key === 'Enter' && focusedIndex >= 0) {
+      event.preventDefault();
+      selectResult(results[focusedIndex]);
+    }
   }
 
   return (
@@ -1187,8 +1208,10 @@ function DashboardSearch({ nodes, onSelectPage }) {
           value={query}
           placeholder="Search"
           aria-label="Search"
-          aria-controls="dashboard-search-results"
-          aria-expanded={open && Boolean(query.trim())}
+            aria-controls="dashboard-search-results"
+            aria-expanded={open && Boolean(query.trim())}
+          aria-activedescendant={focusedIndex >= 0 ? `dashboard-search-result-${focusedIndex}` : undefined}
+          onKeyDown={handleInputKeyDown}
           onFocus={() => setOpen(true)}
           onChange={(event) => {
             setQuery(event.target.value);
@@ -1211,12 +1234,15 @@ function DashboardSearch({ nodes, onSelectPage }) {
       </form>
       {open && query.trim() ? (
         <div id="dashboard-search-results" className="dashboard-search-results" role="listbox" aria-label="Search results">
-          {results.length ? results.map((node) => (
+          {results.length ? results.map((node, index) => (
             <button
               key={node.slug}
               type="button"
-              className="dashboard-search-result"
+              id={`dashboard-search-result-${index}`}
+              className={`dashboard-search-result ${focusedIndex === index ? 'focused' : ''}`}
               role="option"
+              aria-selected={focusedIndex === index}
+              onMouseEnter={() => setFocusedIndex(index)}
               onClick={() => selectResult(node)}
             >
               <strong className="dashboard-search-result-title">{node.title || labelFromSlug(node.slug)}</strong>
@@ -2335,15 +2361,18 @@ function PageTimelineCard({ entries }) {
             const occurredAt = entry?.occurred_at || entry?.occurred_label || '';
             return (
               <li className="page-timeline-item" key={entry?.entry_id || `${occurredAt}:${index}`}>
-                <div className="page-timeline-item-meta">
-                  <GraphFlowSourceIcon source={{ type: sourceType, label: sourceLabel }} />
-                  {occurredAt ? <time dateTime={entry?.occurred_at || undefined}>{formatTimelineDate(occurredAt)}</time> : null}
-                  <span className="page-timeline-source-label">{sourceLabel}</span>
+                <span className="page-timeline-node" aria-hidden="true" />
+                <div className="page-timeline-item-card">
+                  <div className="page-timeline-item-meta">
+                    <GraphFlowSourceIcon source={{ type: sourceType, label: sourceLabel }} />
+                    {occurredAt ? <time dateTime={entry?.occurred_at || undefined}>{formatTimelineDate(occurredAt)}</time> : null}
+                    <span className="page-timeline-source-label">{sourceLabel}</span>
+                  </div>
+                  <p className="page-timeline-description">{entry?.text}</p>
+                  {sourceMessage && sourceMessage !== entry?.text ? (
+                    <p className="page-timeline-source-message">{sourceMessage}</p>
+                  ) : null}
                 </div>
-                <p className="page-timeline-description">{entry?.text}</p>
-                {sourceMessage && sourceMessage !== entry?.text ? (
-                  <p className="page-timeline-source-message">{sourceMessage}</p>
-                ) : null}
               </li>
             );
           })}
