@@ -19,6 +19,7 @@ import {
   Terminal,
   UserRound,
   Webhook,
+  X,
   Youtube,
 } from 'lucide-react';
 
@@ -1228,7 +1229,7 @@ function DashboardSearch({ nodes, onSelectPage }) {
               inputRef.current?.focus();
             }}
           >
-            ×
+            <X size={16} strokeWidth={2} aria-hidden="true" />
           </button>
         ) : null}
       </form>
@@ -2832,7 +2833,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
   const [kind, setKind] = useState('pages');
   const [collection, setCollection] = useState('');
   const [domain, setDomain] = useState('');
-  const [pageType, setPageType] = useState('');
+  const [pageTypes, setPageTypes] = useState([]);
   const [selectedSourceTypes, setSelectedSourceTypes] = useState(null);
   const [imageViewerIndex, setImageViewerIndex] = useState(null);
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
@@ -2855,7 +2856,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
   useEffect(() => {
     setImageViewerIndex(null);
     setSelectedSourceTypes(null);
-  }, [activity, kind, collection, domain, pageType]);
+  }, [activity, kind, collection, domain, pageTypes.join('|')]);
 
   useEffect(() => {
     const endPointerScroll = () => { scrollIntentRef.current.pointerDown = false; };
@@ -2925,7 +2926,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
     const params = new URLSearchParams({ activity, kind, limit: String(STREAM_PAGE_SIZE), offset: '0' });
     if (collection) params.set('collection', collection);
     if (domain) params.set('domain', domain);
-    if (pageType) params.set('page_type', pageType);
+    if (pageTypes.length) params.set('page_type', pageTypes.join(','));
     fetchJson(`/api/recents?${params}`, { signal: controller.signal })
       .then((data) => setResult({
         status: 'ready',
@@ -2942,11 +2943,11 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
         if (!controller.signal.aborted) setResult((current) => ({ ...current, status: 'error', items: [], error: error.message || String(error) }));
       });
     return () => controller.abort();
-  }, [activity, kind, collection, domain, pageType, demoMode, refreshVersion]);
+  }, [activity, kind, collection, domain, pageTypes, demoMode, refreshVersion]);
 
   useLayoutEffect(() => {
     if (scrollRef.current) bottomReachGateRef.current.observe(scrollRef.current);
-  }, [result.status, result.items.length, kind, activity, collection, domain, pageType]);
+  }, [result.status, result.items.length, kind, activity, collection, domain, pageTypes]);
 
   function markScrollIntent() {
     scrollIntentRef.current.at = Date.now();
@@ -2973,7 +2974,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
     const params = new URLSearchParams({ activity, kind, limit: String(STREAM_PAGE_SIZE), offset: String(nextOffset) });
     if (collection) params.set('collection', collection);
     if (domain) params.set('domain', domain);
-    if (pageType) params.set('page_type', pageType);
+    if (pageTypes.length) params.set('page_type', pageTypes.join(','));
     fetchJson(`/api/recents?${params}`, { signal: controller.signal })
       .then((data) => {
         if (controller.signal.aborted || requestVersionRef.current !== requestVersion) return;
@@ -3034,11 +3035,11 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
       return next.size === sourceTypes.length ? null : next;
     });
   }
-  const filtersActive = Boolean(collection || domain || pageType);
+  const filtersActive = Boolean(collection || domain || pageTypes.length);
   function resetStreamFilters() {
     setCollection('');
     setDomain('');
-    setPageType('');
+    setPageTypes([]);
     setCollectionMenuOpen(false);
     setDomainMenuOpen(false);
     setPageTypeMenuOpen(false);
@@ -3056,7 +3057,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
   const errorIsMissingRoute = result.error.includes('failed with 404');
   const selectedCollection = result.collections.find((entry) => entry.id === collection);
   const selectedDomain = result.domainDefinitions.find((entry) => entry.id === domain);
-  const selectedPageType = result.pageTypeDefinitions.find((entry) => entry.type === pageType);
+  const selectedPageTypes = result.pageTypeDefinitions.filter((entry) => pageTypes.includes(entry.type));
   const collectionName = selectedCollection?.title || 'this collection';
   const emptyTitle = demoMode
     ? 'Stream is off in demo mode'
@@ -3153,22 +3154,22 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
             <button
               type="button"
               className={`recents-collection-trigger ${pageTypeMenuOpen ? 'active' : ''}`}
-              aria-label={`Page type: ${selectedPageType ? streamPageTypeLabel(selectedPageType.type) : 'All page types'}`}
+              aria-label={`Page type: ${selectedPageTypes.length ? selectedPageTypes.map((entry) => streamPageTypeLabel(entry.type)).join(', ') : 'All page types'}`}
               aria-haspopup="menu"
               aria-expanded={pageTypeMenuOpen}
               onClick={() => { setCollectionMenuOpen(false); setDomainMenuOpen(false); setPageTypeMenuOpen((open) => !open); }}
             >
-              <span>{selectedPageType ? streamPageTypeLabel(selectedPageType.type) : 'All page types'}</span>
+              <span>{selectedPageTypes.length ? `${selectedPageTypes.length} page type${selectedPageTypes.length === 1 ? '' : 's'}` : 'All page types'}</span>
               <span className="recents-collection-chevron" aria-hidden="true">⌄</span>
             </button>
             {pageTypeMenuOpen ? (
               <div className="graph-filter-menu recents-collection-menu" role="menu" aria-label="Page types">
-                <button type="button" className={`menu-item ${!pageType ? 'selected' : ''}`} role="menuitemradio" aria-checked={!pageType} onClick={() => { setPageType(''); setPageTypeMenuOpen(false); }}>
-                  <span>All page types</span><span className="menu-item-check" aria-hidden="true">{!pageType ? '✓' : ''}</span>
+                <button type="button" className={`menu-item ${!pageTypes.length ? 'selected' : ''}`} role="menuitemcheckbox" aria-checked={!pageTypes.length} onClick={() => setPageTypes([])}>
+                  <span>All page types</span><span className="menu-item-check" aria-hidden="true">{!pageTypes.length ? '✓' : ''}</span>
                 </button>
                 {result.pageTypeDefinitions.map((entry) => (
-                  <button key={entry.type} type="button" className={`menu-item ${pageType === entry.type ? 'selected' : ''}`} role="menuitemradio" aria-checked={pageType === entry.type} onClick={() => { setPageType(entry.type); setPageTypeMenuOpen(false); }}>
-                    <span>{streamPageTypeLabel(entry.type)}</span><span className="menu-item-check" aria-hidden="true">{pageType === entry.type ? '✓' : ''}</span>
+                  <button key={entry.type} type="button" className={`menu-item ${pageTypes.includes(entry.type) ? 'selected' : ''}`} role="menuitemcheckbox" aria-checked={pageTypes.includes(entry.type)} onClick={() => setPageTypes((current) => current.includes(entry.type) ? current.filter((type) => type !== entry.type) : [...current, entry.type])}>
+                    <span>{streamPageTypeLabel(entry.type)}</span><span className="menu-item-check" aria-hidden="true">{pageTypes.includes(entry.type) ? '✓' : ''}</span>
                   </button>
                 ))}
                 {result.status === 'ready' && !result.pageTypeDefinitions.length ? <p className="recents-collection-empty" role="note">No page types are available in this brain yet.</p> : null}

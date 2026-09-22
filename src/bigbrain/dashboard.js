@@ -1952,9 +1952,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .recents-collection-trigger:hover, .recents-collection-trigger.active { border-color: var(--line-strong); background: var(--surface); }
       .recents-collection-trigger:focus-visible, .recents-collection-menu .menu-item:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
       .recents-collection-trigger span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .recents-filter-reset { width: 28px; height: 28px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; }
+      .recents-filter-reset { width: 41px; height: 41px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 9px; background: transparent; color: var(--muted); line-height: 1; cursor: pointer; }
       .recents-filter-reset.active { color: var(--ink); }
-      .recents-filter-reset:hover:not(:disabled), .recents-filter-reset:focus-visible:not(:disabled) { border-color: var(--line); background: var(--surface-muted); outline: none; }
+      .recents-filter-reset:hover:not(:disabled), .recents-filter-reset:focus-visible:not(:disabled) { background: var(--surface-muted); color: var(--ink); outline: none; }
       .recents-filter-reset:disabled { opacity: 0.32; cursor: default; }
       .recents-collection-chevron { color: var(--muted); font-size: 16px; line-height: 1; }
       .graph-filter-menu.recents-collection-menu { top: calc(100% + 8px); right: 0; bottom: auto; min-width: max(220px, 100%); max-width: min(320px, calc(100vw - 40px)); max-height: min(50vh, 360px); }
@@ -2557,9 +2557,9 @@ export async function buildRecentsPayload(
   const offset = Number.isFinite(requestedOffset) ? Math.max(0, requestedOffset) : 0;
   const requestedCollection = requestUrl.searchParams.get('collection')?.trim() || null;
   const rawPageType = requestUrl.searchParams.get('page_type')?.trim().toLowerCase() || '';
-  const requestedPageType = rawPageType && rawPageType !== 'all' && rawPageType !== 'all-types' && rawPageType !== 'all_page_types'
-    ? rawPageType
-    : null;
+  const requestedPageTypes = rawPageType && !['all', 'all-types', 'all_page_types'].includes(rawPageType)
+    ? rawPageType.split(',').map((value) => value.trim()).filter(Boolean)
+    : [];
   const domainScope = await resolveDomainScope(config, requestUrl);
   const loadedDomainRegistry = await loadDomainRegistry(config);
   const domainDefinitions = loadedDomainRegistry.valid
@@ -2619,7 +2619,7 @@ export async function buildRecentsPayload(
       continue;
     }
     const pageType = String(parsed.type || inferredPageType).trim().toLowerCase() || inferredPageType;
-    if (requestedPageType && pageType !== requestedPageType) continue;
+    if (requestedPageTypes.length && !requestedPageTypes.includes(pageType)) continue;
     if (domainScope.length && !pageMatchesDomainScope(parsed.frontmatter, domainScope)) continue;
     const metadataCreatedAt = parsed.frontmatter.created_at || parsed.frontmatter.created || null;
     const createdAt = validIsoTimestamp(metadataCreatedAt) || stats.birthtime.toISOString();
@@ -2698,7 +2698,7 @@ export async function buildRecentsPayload(
       next_offset: offset + selectedItems.length < visible.length ? offset + selectedItems.length : null,
       collection: selectedCollection?.slug || requestedCollection,
       domains: domainScope,
-      page_type: requestedPageType,
+      page_type: requestedPageTypes.length ? requestedPageTypes.join(',') : null,
       surface: dashboardSurface,
     },
   };
