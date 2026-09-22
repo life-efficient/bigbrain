@@ -852,9 +852,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .view-chip.active { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.08); }
       .view-chip:disabled { opacity: 0.38; cursor: default; box-shadow: none; }
       .history-nav { display: inline-flex; align-items: center; gap: 2px; }
-      .history-button { width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; cursor: pointer; opacity: 0.8; }
-      .history-button:hover:not(:disabled), .history-button:focus-visible:not(:disabled) { background: var(--surface-muted); color: var(--ink); }
-      .history-button:disabled { opacity: 0.3; cursor: default; }
+      .history-button { width: 32px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; line-height: 1; cursor: pointer; box-shadow: 0 4px 12px rgba(15,23,42,0.08); }
+      .history-button:hover:not(:disabled), .history-button:focus-visible:not(:disabled) { background: var(--surface-strong); border-color: var(--line-strong); }
+      .history-button:disabled { opacity: 0.38; cursor: default; box-shadow: none; }
       .pill { padding: 8px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(15,23,42,0.04); font-size: 13px; }
       .view-chip-count { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-muted); color: var(--ink); font-size: 12px; font-weight: 600; }
       .view-chip.active .view-chip-count { background: rgba(255,255,255,0.1); }

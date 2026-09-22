@@ -2,6 +2,8 @@ import React, { memo, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRe
 import { createRoot } from 'react-dom/client';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import {
+  ArrowLeft,
+  ArrowRight,
   AudioLines,
   BookOpen,
   CalendarDays,
@@ -912,8 +914,8 @@ function DashboardApp() {
             <div className="topline-actions">
               {demoMode ? <span className="demo-mode-badge">Demo mode</span> : null}
               <div className="history-nav" role="group" aria-label="Browser navigation">
-                <button type="button" className="history-button" aria-label="Back" title="Back" disabled={historyPosition.index <= 0} onClick={() => window.history.back()}>←</button>
-                <button type="button" className="history-button" aria-label="Forward" title="Forward" disabled={historyPosition.index >= historyPosition.end} onClick={() => window.history.forward()}>→</button>
+                <button type="button" className="history-button" aria-label="Back" title="Back" disabled={historyPosition.index <= 0} onClick={() => window.history.back()}><ArrowLeft size={16} strokeWidth={2} aria-hidden="true" /></button>
+                <button type="button" className="history-button" aria-label="Forward" title="Forward" disabled={historyPosition.index >= historyPosition.end} onClick={() => window.history.forward()}><ArrowRight size={16} strokeWidth={2} aria-hidden="true" /></button>
               </div>
               {menu}
               <div className="settings-menu" ref={settingsMenuRef}>
