@@ -1026,7 +1026,7 @@ function DashboardApp() {
             ) : null}
 
             {view === 'recents' ? (
-              <RecentsPanel onOpenPage={handleGraphNodeOpen} selectedSlug={preview?.slug} demoMode={demoMode} shortcutsEnabled={!healthOpen && !settingsOpen && !menuOpen} />
+              <RecentsPanel onOpenPage={handleGraphNodeOpen} selectedSlug={preview?.slug} demoMode={demoMode} typeColors={typeColors} shortcutsEnabled={!healthOpen && !settingsOpen && !menuOpen} />
             ) : null}
 
             {content}
@@ -2710,7 +2710,7 @@ function streamSourceText(item) {
 
 const STREAM_PAGE_SIZE = 80;
 
-function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = true }) {
+function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcutsEnabled = true }) {
   const [activity, setActivity] = useState('updated');
   const [kind, setKind] = useState('pages');
   const [collection, setCollection] = useState('');
@@ -3122,7 +3122,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = t
                     ) : (
                       <>
                         <span className="recents-page-glyph" role="img" aria-label={`${streamPageTypeLabel(item.type)} page`}>
-                          <PageTypeIcon type={item.type} />
+                          <PageTypeIcon type={item.type} color={typeColors?.[item.type] || 'currentColor'} />
                         </span>
                         <span className="recents-item-copy">
                           <strong>{item.title || labelFromSlug(item.slug)}</strong>
