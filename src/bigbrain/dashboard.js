@@ -831,7 +831,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
       p { color: var(--muted); margin: 0; }
       .desktop-drag-strip { display: none; }
-      .topline { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 16px; margin-bottom: 18px; -webkit-app-region: no-drag; user-select: none; }
+      .topline { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 16px; margin-bottom: 18px; padding-top: 12px; -webkit-app-region: no-drag; user-select: none; }
       .topline-brand { display: flex; align-items: center; justify-self: start; min-width: 0; width: 100%; }
       .topline-actions { display: flex; align-items: center; gap: 12px; justify-self: end; }
       .demo-mode-badge { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px solid rgba(0,255,102,0.28); border-radius: 999px; background: rgba(0,255,102,0.08); color: var(--ink); font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
@@ -851,8 +851,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .view-chip { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 10px 14px; font-size: 13px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.04); display: inline-flex; align-items: center; gap: 8px; }
       .view-chip.active { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.08); }
       .view-chip:disabled { opacity: 0.38; cursor: default; box-shadow: none; }
-      .history-nav { display: inline-flex; align-items: center; gap: 4px; margin-left: 4px; }
-      .history-nav .view-chip { width: 34px; height: 34px; padding: 0; justify-content: center; font-size: 18px; }
+      .history-nav { display: inline-flex; align-items: center; gap: 2px; }
+      .history-button { width: 30px; height: 30px; padding: 0; border: 0; border-radius: 8px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; cursor: pointer; opacity: 0.8; }
+      .history-button:hover:not(:disabled), .history-button:focus-visible:not(:disabled) { background: var(--surface-muted); color: var(--ink); }
+      .history-button:disabled { opacity: 0.3; cursor: default; }
       .pill { padding: 8px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(15,23,42,0.04); font-size: 13px; }
       .view-chip-count { min-width: 22px; height: 22px; padding: 0 7px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; background: var(--surface-muted); color: var(--ink); font-size: 12px; font-weight: 600; }
       .view-chip.active .view-chip-count { background: rgba(255,255,255,0.1); }
@@ -2144,7 +2146,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .sidecar-resize-handle { position: absolute; z-index: 30; top: 0; left: -1px; width: 2px; height: 100%; padding: 0; border: 0; outline: 0; box-shadow: none; appearance: none; background: transparent !important; cursor: col-resize; touch-action: none; pointer-events: none; }
       .preview-open .sidecar-resize-handle { pointer-events: auto; }
       .sidecar-resizing, .sidecar-resizing * { cursor: col-resize !important; user-select: none !important; }
-      .sidecar-panel { height: 100%; overflow: auto; opacity: 0; transform: translateX(100%); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; background: var(--panel); backdrop-filter: blur(18px); padding: 0; will-change: transform, opacity; }
+      .sidecar-panel { height: 100%; overflow: auto; opacity: 0; transform: translateX(100%); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; background: var(--panel); border-left: 1px solid var(--line); backdrop-filter: blur(18px); padding: 0; will-change: transform, opacity; }
       .preview-open .sidecar-shell { pointer-events: auto; }
       .preview-open .sidecar-panel { opacity: 1; transform: translateX(0); pointer-events: auto; }
       .sidecar-head { position: sticky; top: 0; z-index: 2; display: grid; gap: 14px; padding: 26px 28px 18px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(18px); }

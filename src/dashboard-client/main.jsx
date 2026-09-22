@@ -907,14 +907,14 @@ function DashboardApp() {
                   <kbd className="view-chip-kbd">{item.shortcut}</kbd>
                 </button>
               ))}
-              <div className="history-nav" role="group" aria-label="Browser navigation">
-                <button type="button" className="view-chip" aria-label="Back" title="Back" disabled={historyPosition.index <= 0} onClick={() => window.history.back()}>←</button>
-                <button type="button" className="view-chip" aria-label="Forward" title="Forward" disabled={historyPosition.index >= historyPosition.end} onClick={() => window.history.forward()}>→</button>
-              </div>
               <DashboardSearch nodes={searchableNodes} onSelectPage={focusGraphNode} />
             </div>
             <div className="topline-actions">
               {demoMode ? <span className="demo-mode-badge">Demo mode</span> : null}
+              <div className="history-nav" role="group" aria-label="Browser navigation">
+                <button type="button" className="history-button" aria-label="Back" title="Back" disabled={historyPosition.index <= 0} onClick={() => window.history.back()}>←</button>
+                <button type="button" className="history-button" aria-label="Forward" title="Forward" disabled={historyPosition.index >= historyPosition.end} onClick={() => window.history.forward()}>→</button>
+              </div>
               {menu}
               <div className="settings-menu" ref={settingsMenuRef}>
                 <button
