@@ -288,6 +288,7 @@ function DashboardApp() {
   function startSidecarResize(event) {
     if (event.button !== 0) return;
     event.preventDefault();
+    event.currentTarget?.setPointerCapture?.(event.pointerId);
     sidecarResizeRef.current = { x: event.clientX, width: sidecarWidth };
     setSidecarResizing(true);
   }
@@ -2095,7 +2096,7 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, on
   return (
     <>
       <aside className="sidecar-shell" aria-hidden={!preview}>
-        <button type="button" className="sidecar-resize-handle" aria-label="Resize sidecar" onPointerDown={onResizeStart} tabIndex={preview ? 0 : -1} />
+        {preview ? <button type="button" className="sidecar-resize-handle" aria-label="Resize sidecar" onPointerDown={onResizeStart} /> : null}
         <div className="sidecar-panel">
         <div className="sidecar-head">
           <div className="sidecar-title-row">
