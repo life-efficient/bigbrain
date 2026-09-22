@@ -2088,7 +2088,6 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, on
             <div className="sidecar-title-copy">
               <div className="sidecar-meta-row">
                 <span className="sidecar-chip strong">{type}</span>
-                <span className={`sidecar-chip visibility-${visibility}`}>{isPublic ? 'Public' : 'Internal'}</span>
                 {updatedLabel ? <span className="sidecar-chip">{updatedLabel}</span> : null}
               </div>
               {preview?.title ? <h1 className="sidecar-page-title">{preview.title}</h1> : null}
@@ -2104,13 +2103,13 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, on
                       <button type="button" className="graph-button" onClick={copyPublicLink} disabled={visibilityBusy}>
                         {copiedPublicLink ? 'Copied' : 'Copy public link'}
                       </button>
-                      <button type="button" className="graph-button" onClick={() => changeVisibility('internal')} disabled={visibilityBusy}>
-                        Make internal
+                      <button type="button" className="graph-button" onClick={() => changeVisibility('internal')} disabled={visibilityBusy} title="Public. Click to make private.">
+                        Public
                       </button>
                     </>
                   ) : (
-                    <button type="button" className="graph-button" onClick={() => changeVisibility('public')} disabled={visibilityBusy}>
-                      Make public
+                    <button type="button" className="graph-button" onClick={() => changeVisibility('public')} disabled={visibilityBusy} title="Private. Click to make public.">
+                      Private
                     </button>
                   )}
                 </>

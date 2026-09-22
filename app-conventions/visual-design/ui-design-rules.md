@@ -53,3 +53,4 @@ states.
 
 - Use one shared page content preview for the sidecar and Explorer. Surface-specific headers and file actions may differ, but the attachment strip, metadata disclosure, and rendered Markdown body must remain the same.
 - Metadata disclosures are normal in-flow content. Keep the readable field/value layout from the sidecar, and never render the expanded content as a terminal block, raw YAML dump, menu, or absolute-positioned overlay.
+- Do not duplicate a page's visibility state with a passive chip beside its type. The sidecar visibility control itself shows the current state, “Private” or “Public”, and its tooltip names the action that clicking it will take.
