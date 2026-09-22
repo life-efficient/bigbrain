@@ -82,6 +82,7 @@ import {
 } from './page-links.js';
 import { recordDashboardError } from './error-reporting.js';
 import { appendUniqueRecentItems, createBottomReachGate, orderStreamSourceTypes } from './stream-pagination.js';
+import { dashboardNavigationFromUrl, dashboardNavigationHref, updateDashboardNavigation } from './navigation.js';
 
 class DashboardErrorBoundary extends React.Component {
   constructor(props) {
@@ -197,9 +198,50 @@ function loadGraphPreferences() {
 }
 
 function DashboardApp() {
+  const dashboardBasePath = document.body?.dataset?.dashboardBasePath || '';
+  const [navigation, setNavigation] = useState(() => dashboardNavigationFromUrl(window.location.href, dashboardBasePath));
+  const navigationRef = useRef(navigation);
+  navigationRef.current = navigation;
+  const historyEndRef = useRef(0);
+  const historyEndKey = `bigbrain:history-end:${dashboardBasePath}`;
+  const [historyPosition, setHistoryPosition] = useState({ index: 0, end: 0 });
+  const loadedNavigationRef = useRef(null);
+  function navigate(patch) {
+    const next = updateDashboardNavigation(navigationRef.current, patch);
+    const href = dashboardNavigationHref(next, dashboardBasePath);
+    const currentHref = `${window.location.pathname}${window.location.search}`;
+    if (href === currentHref) return;
+    const index = (window.history.state?.bigbrainNavigationIndex ?? 0) + 1;
+    window.history.pushState({ ...window.history.state, bigbrainNavigationIndex: index }, '', href);
+    historyEndRef.current = index;
+    try { window.sessionStorage.setItem(historyEndKey, String(index)); } catch { /* Browser storage may be unavailable. */ }
+    setHistoryPosition({ index, end: index });
+    navigationRef.current = next;
+    setNavigation(next);
+  }
+  useEffect(() => {
+    const initial = dashboardNavigationHref(navigationRef.current, dashboardBasePath);
+    const index = Number.isInteger(window.history.state?.bigbrainNavigationIndex) ? window.history.state.bigbrainNavigationIndex : 0;
+    let savedEnd = index;
+    try { savedEnd = Number(window.sessionStorage.getItem(historyEndKey)) || index; } catch { /* Browser storage may be unavailable. */ }
+    historyEndRef.current = Math.max(index, savedEnd);
+    window.history.replaceState({ ...window.history.state, bigbrainNavigationIndex: index }, '', initial);
+    setHistoryPosition({ index, end: historyEndRef.current });
+    function onPopState(event) {
+      const next = dashboardNavigationFromUrl(window.location.href, dashboardBasePath);
+      const nextIndex = Number.isInteger(event.state?.bigbrainNavigationIndex) ? event.state.bigbrainNavigationIndex : 0;
+      historyEndRef.current = Math.max(historyEndRef.current, nextIndex);
+      navigationRef.current = next;
+      setNavigation(next);
+      setHistoryPosition({ index: nextIndex, end: historyEndRef.current });
+    }
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [dashboardBasePath, historyEndKey]);
   const savedGraphPreferences = useMemo(() => loadGraphPreferences(), []);
   const [state, setState] = useState({ status: 'loading', error: null, data: null });
-  const [view, setView] = useState('graph');
+  const view = navigation.view;
+  const setView = (nextView) => navigate({ view: nextView });
   const [visualizerId, setVisualizerId] = useState(savedGraphPreferences.visualizerId);
   const [nodeShape, setNodeShape] = useState(savedGraphPreferences.nodeShape);
   const [nodeFill, setNodeFill] = useState(savedGraphPreferences.nodeFill);
@@ -229,7 +271,7 @@ function DashboardApp() {
     }
   });
   const [sidecarResizing, setSidecarResizing] = useState(false);
-  const [activeDomainScope, setActiveDomainScope] = useState([]);
+  const activeDomainScope = navigation.domain ? [navigation.domain] : [];
   const [activeGraphSlug, setActiveGraphSlug] = useState(null);
   const [lineage, setLineage] = useState(null);
   const [graphMotion, setGraphMotion] = useState(null);
@@ -293,12 +335,16 @@ function DashboardApp() {
     setSidecarResizing(true);
   }
 
-  const clearGraphFocus = useEffectEvent(() => {
+  const resetGraphFocus = useEffectEvent(() => {
     previewRequestRef.current += 1;
     lineageRequestRef.current += 1;
     setLineage(null);
     setActiveGraphSlug(null);
     setPreview(null);
+  });
+  const clearGraphFocus = useEffectEvent(() => {
+    navigate({ slug: null, focus: false, image: null });
+    resetGraphFocus();
   });
 
   useEffect(() => {
@@ -584,8 +630,10 @@ function DashboardApp() {
     demoMode ? buildDemoExplorer(state.data?.explorer, demoSeed) : state.data?.explorer
   ), [demoMode, demoSeed, state.data?.explorer]);
 
-  const handleGraphNodeOpen = useEffectEvent(async (slug) => {
+  const handleGraphNodeOpen = useEffectEvent(async (slug, record = true) => {
     if (!slug) return;
+    loadedNavigationRef.current = `${navigationRef.current.view}|${slug}|false`;
+    if (record) navigate({ slug, focus: false, image: null });
     const requestId = previewRequestRef.current + 1;
     previewRequestRef.current = requestId;
     lineageRequestRef.current += 1;
@@ -614,8 +662,10 @@ function DashboardApp() {
     }
   });
 
-  const handleGraphNodeSelect = useEffectEvent(async (slug) => {
+  const handleGraphNodeSelect = useEffectEvent(async (slug, record = true) => {
     if (!slug) return;
+    loadedNavigationRef.current = `graph|${slug}|true`;
+    if (record) navigate({ view: 'graph', slug, focus: true, image: null });
     const previewRequestId = previewRequestRef.current + 1;
     const focusRequestId = lineageRequestRef.current + 1;
     previewRequestRef.current = previewRequestId;
@@ -675,12 +725,27 @@ function DashboardApp() {
 
   const focusGraphNode = useEffectEvent((slug) => {
     if (!slug) return;
-    setView('graph');
     handleGraphNodeSelect(slug);
   });
 
+  useEffect(() => {
+    const key = `${navigation.view}|${navigation.slug || ''}|${navigation.focus}`;
+    if (loadedNavigationRef.current === key) return;
+    loadedNavigationRef.current = key;
+    if (navigation.slug) {
+      if (navigation.view === 'graph' && navigation.focus) handleGraphNodeSelect(navigation.slug, false);
+      else handleGraphNodeOpen(navigation.slug, false);
+    } else {
+      resetGraphFocus();
+    }
+  }, [navigation.view, navigation.slug, navigation.focus]);
+
   function handleDemoModeChange(nextDemoMode) {
     demoModeRef.current = nextDemoMode;
+    const nextNavigation = updateDashboardNavigation(navigationRef.current, { slug: null, focus: false, image: null });
+    window.history.replaceState(window.history.state, '', dashboardNavigationHref(nextNavigation, dashboardBasePath));
+    navigationRef.current = nextNavigation;
+    setNavigation(nextNavigation);
     previewRequestRef.current += 1;
     lineageRequestRef.current += 1;
     setPreview(null);
@@ -705,6 +770,10 @@ function DashboardApp() {
       setAnalytics({ status: 'error', data: null, error: error instanceof Error ? error.message : String(error) });
     }
   });
+
+  useEffect(() => {
+    if (view === 'analytics' && analytics.status === 'idle') openAnalytics();
+  }, [view, analytics.status]);
 
   const changePageVisibility = useEffectEvent(async (slug, visibility) => {
     if (!slug || demoModeRef.current) return;
@@ -769,6 +838,10 @@ function DashboardApp() {
       if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setActiveGraphSlug(data.slug || null);
       setPreview({ status: 'ready', href, sourceSlug, ...data });
+      if (data.slug) {
+        loadedNavigationRef.current = `${navigationRef.current.view}|${data.slug}|false`;
+        navigate({ slug: data.slug, focus: false });
+      }
     } catch (error) {
       if (requestId !== previewRequestRef.current || demoModeRef.current) return;
       setPreview({
@@ -834,6 +907,10 @@ function DashboardApp() {
                   <kbd className="view-chip-kbd">{item.shortcut}</kbd>
                 </button>
               ))}
+              <div className="history-nav" role="group" aria-label="Browser navigation">
+                <button type="button" className="view-chip" aria-label="Back" title="Back" disabled={historyPosition.index <= 0} onClick={() => window.history.back()}>←</button>
+                <button type="button" className="view-chip" aria-label="Forward" title="Forward" disabled={historyPosition.index >= historyPosition.end} onClick={() => window.history.forward()}>→</button>
+              </div>
               <DashboardSearch nodes={searchableNodes} onSelectPage={focusGraphNode} />
             </div>
             <div className="topline-actions">
@@ -993,7 +1070,8 @@ function DashboardApp() {
                 visualizerRef={visualizerRef}
                 shortcutsEnabled={!healthOpen && !settingsOpen && !menuOpen}
                 activeSlug={activeGraphSlug}
-                onDomainScopeChange={setActiveDomainScope}
+                initialDomains={activeDomainScope}
+                onDomainScopeChange={(domains) => navigate({ domain: domains[0] || '' })}
                 onActiveSlugChange={setActiveGraphSlug}
                 onNodeOpen={handleGraphNodeOpen}
                 onGraphNodeSelect={handleGraphNodeSelect}
@@ -3702,6 +3780,7 @@ const GraphPanel = memo(function GraphPanel({
   visualizerRef,
   shortcutsEnabled,
   activeSlug,
+  initialDomains = [],
   onDomainScopeChange,
   onActiveSlugChange,
   onNodeOpen,
@@ -3718,7 +3797,7 @@ const GraphPanel = memo(function GraphPanel({
   const wasFocusedRef = useRef(false);
   const previousForceSubgraphFocusRef = useRef(null);
   const [selectedPageTypes, setSelectedPageTypes] = useState([]);
-  const [selectedDomains, setSelectedDomains] = useState([]);
+  const [selectedDomains, setSelectedDomains] = useState(initialDomains);
   const [selectedCollectionId, setSelectedCollectionId] = useState(null);
   const styleMenuRef = useRef(null);
   const filterMenuRef = useRef(null);
@@ -3790,8 +3869,13 @@ const GraphPanel = memo(function GraphPanel({
   const selectedDomainSet = useMemo(() => new Set(selectedDomains), [selectedDomains]);
 
   useEffect(() => {
+    setSelectedDomains((current) => current.join('|') === initialDomains.join('|') ? current : initialDomains);
+  }, [initialDomains]);
+
+  useEffect(() => {
     onDomainScopeChange?.(selectedDomains);
   }, [onDomainScopeChange, selectedDomains]);
+
   const filteredGraph = useMemo(() => {
     const nodes = selectedPageTypes.length || selectedDomains.length || selectedCollectionSlugs !== null
       ? activityFilteredNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet, selectedCollectionSlugs))
