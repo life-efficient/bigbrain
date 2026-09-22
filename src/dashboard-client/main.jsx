@@ -830,7 +830,7 @@ function DashboardApp() {
     >
       {({ menu, content, menuOpen }) => (
         <GraphThemeProvider resolvedTheme={resolvedTheme}>
-      <div className={`page-shell theme-${resolvedTheme} view-${view} ${preview ? 'preview-open' : ''} ${sidecarResizing ? 'sidecar-resizing' : ''}`} style={{ '--sidecar-width': preview ? `${sidecarWidth}px` : '0px' }} data-theme-mode={themeMode}>
+      <div className={`page-shell theme-${resolvedTheme} view-${view} ${preview ? 'preview-open' : ''} ${sidecarResizing ? 'sidecar-resizing' : ''}`} style={{ '--sidecar-resized-width': preview ? `${sidecarWidth}px` : undefined }} data-theme-mode={themeMode}>
         <main>
           <div className="desktop-drag-strip" aria-hidden="true" />
           <div className="topline">
