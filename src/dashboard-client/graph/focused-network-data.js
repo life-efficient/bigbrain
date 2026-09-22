@@ -53,11 +53,15 @@ export function buildFocusedNetworkGraph(graph, lineage, focusSlug, maxHops = FO
   }
   const allEdges = [...edgeByDirection.values()];
   const incomingByTarget = new Map();
+  const outgoingBySource = new Map();
   for (const edge of allEdges) {
     if (!incomingByTarget.has(edge.target)) incomingByTarget.set(edge.target, []);
     incomingByTarget.get(edge.target).push(edge.source);
+    if (!outgoingBySource.has(edge.source)) outgoingBySource.set(edge.source, []);
+    outgoingBySource.get(edge.source).push(edge.target);
   }
   for (const neighbors of incomingByTarget.values()) neighbors.sort((left, right) => left.localeCompare(right));
+  for (const neighbors of outgoingBySource.values()) neighbors.sort((left, right) => left.localeCompare(right));
   const hops = new Map([[normalizedFocusSlug, 0]]);
   const parentBySlug = new Map();
   const queue = [normalizedFocusSlug];
@@ -66,6 +70,12 @@ export function buildFocusedNetworkGraph(graph, lineage, focusSlug, maxHops = FO
     const currentHop = hops.get(current);
     if (currentHop >= maxHops) continue;
     for (const neighbor of incomingByTarget.get(current) || []) {
+      if (neighbor === normalizedFocusSlug || hops.has(neighbor)) continue;
+      hops.set(neighbor, currentHop + 1);
+      parentBySlug.set(neighbor, current);
+      queue.push(neighbor);
+    }
+    for (const neighbor of outgoingBySource.get(current) || []) {
       if (neighbor === normalizedFocusSlug || hops.has(neighbor)) continue;
       hops.set(neighbor, currentHop + 1);
       parentBySlug.set(neighbor, current);
@@ -124,7 +134,7 @@ export function buildFocusedNetworkGraph(graph, lineage, focusSlug, maxHops = FO
     if (!nodeIds.has(edge.source) || !nodeIds.has(edge.target)) return false;
     const sourceHop = hops.get(edge.source);
     const targetHop = hops.get(edge.target);
-    return Number.isFinite(sourceHop) && Number.isFinite(targetHop) && sourceHop >= targetHop;
+    return Number.isFinite(sourceHop) && Number.isFinite(targetHop) && Math.abs(sourceHop - targetHop) === 1;
   });
   return {
     ...graph,

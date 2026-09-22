@@ -3957,6 +3957,10 @@ const GraphPanel = memo(function GraphPanel({
     const nodes = selectedPageTypes.length || selectedDomains.length || selectedCollectionSlugs !== null
       ? sourceNodes.filter((node) => graphNodeMatchesFilters(node, selectedTypeSet, selectedDomainSet, selectedCollectionSlugs))
       : sourceNodes;
+    if (focusSlug && nodes.every((node) => node.slug !== focusSlug)) {
+      const focusedNode = sourceNodes.find((node) => node.slug === focusSlug);
+      if (focusedNode) nodes.unshift(focusedNode);
+    }
     const slugs = new Set(nodes.map((node) => node.slug));
     const edges = (Array.isArray(focusedSubgraph?.edges) ? focusedSubgraph.edges : []).filter((edge) => {
       return slugs.has(edge.source) && slugs.has(edge.target);

@@ -83,7 +83,7 @@ export const FocusedNetworkVisualizer = memo(function FocusedNetworkVisualizer({
           style={{ width: `${layout.width}px`, height: `${layout.height}px` }}
           viewBox={`0 0 ${layout.width} ${layout.height}`}
           role="img"
-          aria-label="Pages leading into the focused page, arranged by graph distance"
+          aria-label="Connected pages around the focused page, arranged by graph distance"
         >
           <defs>
             <marker id={markerId} markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto" markerUnits="strokeWidth">
