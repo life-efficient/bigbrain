@@ -240,6 +240,17 @@ function DashboardApp() {
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, [dashboardBasePath, historyEndKey]);
+  useEffect(() => {
+    function handleHistoryShortcut(event) {
+      if (event.defaultPrevented || event.repeat || event.isComposing || !event.metaKey || event.ctrlKey || event.altKey || event.shiftKey || isTypingTarget(event.target)) return;
+      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+      event.preventDefault();
+      if (event.key === 'ArrowLeft') window.history.back();
+      else window.history.forward();
+    }
+    window.addEventListener('keydown', handleHistoryShortcut);
+    return () => window.removeEventListener('keydown', handleHistoryShortcut);
+  }, []);
   const savedGraphPreferences = useMemo(() => loadGraphPreferences(), []);
   const [state, setState] = useState({ status: 'loading', error: null, data: null });
   const view = navigation.view;
