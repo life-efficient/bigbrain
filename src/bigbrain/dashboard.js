@@ -2537,6 +2537,13 @@ export async function buildRecentsPayload(
   const requestedOffset = Number.parseInt(requestUrl.searchParams.get('offset') || '0', 10);
   const offset = Number.isFinite(requestedOffset) ? Math.max(0, requestedOffset) : 0;
   const requestedCollection = requestUrl.searchParams.get('collection')?.trim() || null;
+  const domainScope = await resolveDomainScope(config, requestUrl);
+  const loadedDomainRegistry = await loadDomainRegistry(config);
+  const domainDefinitions = loadedDomainRegistry.valid
+    ? Object.entries(loadedDomainRegistry.registry.domains)
+      .map(([id, definition]) => ({ id, name: definition.name || id }))
+      .sort((left, right) => left.name.localeCompare(right.name) || left.id.localeCompare(right.id))
+    : [];
   const sharedGroups = await listSharedGroups(db);
   const viewedAt = await dashboardPageViews(db);
   const pagePaths = [];
@@ -2581,6 +2588,7 @@ export async function buildRecentsPayload(
     } catch {
       continue;
     }
+    if (domainScope.length && !pageMatchesDomainScope(parsed.frontmatter, domainScope)) continue;
     const metadataCreatedAt = parsed.frontmatter.created_at || parsed.frontmatter.created || null;
     const createdAt = validIsoTimestamp(metadataCreatedAt) || stats.birthtime.toISOString();
     const timelineSource = parsed.timeline_entries.find((entry) => entry.provenance?.source_type)?.provenance;
@@ -2643,6 +2651,7 @@ export async function buildRecentsPayload(
     collections,
     source_types: sourceTypes,
     source_counts: sourceTypes.map(({ type }) => ({ type, count: distinctSlugsBySource.get(type).size })),
+    domain_definitions: domainDefinitions,
     meta: {
       activity,
       kind,
@@ -2652,6 +2661,7 @@ export async function buildRecentsPayload(
       has_more: offset + selectedItems.length < visible.length,
       next_offset: offset + selectedItems.length < visible.length ? offset + selectedItems.length : null,
       collection: selectedCollection?.slug || requestedCollection,
+      domains: domainScope,
       surface: dashboardSurface,
     },
   };
