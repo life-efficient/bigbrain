@@ -2170,9 +2170,6 @@ function AssigneePills({ assignees, invalidAssignees }) {
 }
 
 function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, onPageOpen, onVisibilityChange, onResizeStart }) {
-  const type = preview?.type || preview?.slug?.split('/')[0] || 'page';
-  const isArticle = type === 'articles';
-  const updatedLabel = formatDateTime(preview?.updated_at);
   const pathLabel = preview?.path || preview?.slug || preview?.href || '';
   const outgoing = Array.isArray(preview?.links?.outgoing) ? preview.links.outgoing : [];
   const backlinks = Array.isArray(preview?.links?.backlinks) ? preview.links.backlinks : [];
@@ -2217,10 +2214,6 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, on
         <div className="sidecar-head">
           <div className="sidecar-title-row">
             <div className="sidecar-title-copy">
-              <div className="sidecar-meta-row">
-                <span className="sidecar-chip strong">{type}</span>
-                {updatedLabel ? <span className="sidecar-chip">{updatedLabel}</span> : null}
-              </div>
               {preview?.title ? <h1 className="sidecar-page-title">{preview.title}</h1> : null}
               <div className="sidecar-path-row">
                 {pathLabel ? <span className="meta">{pathLabel}</span> : null}
@@ -2245,8 +2238,8 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, on
                   )}
                 </>
               ) : null}
-              <button type="button" className="graph-button" onClick={onClose}>
-                Close
+              <button type="button" className="sidecar-close-button" onClick={onClose} aria-label="Close page preview" title="Close">
+                <X size={18} strokeWidth={1.8} aria-hidden="true" />
               </button>
             </div>
           </div>

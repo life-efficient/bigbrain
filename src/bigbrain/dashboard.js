@@ -2165,6 +2165,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .sidecar-path-row > .meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .sidecar-title-copy h2 { margin: 0; font-size: 25px; line-height: 1.12; overflow-wrap: anywhere; }
       .sidecar-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+      .sidecar-close-button { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
+      .sidecar-close-button:hover { color: var(--ink); background: transparent; }
+      .sidecar-close-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       .sidecar-meta-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
       .sidecar-chip { display: inline-flex; align-items: center; min-height: 25px; padding: 4px 9px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--muted); font-size: 11px; font-weight: 700; }
       .sidecar-chip.strong { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.08); }
