@@ -2135,7 +2135,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .tailwind-prose td { border: 1px solid rgba(31,26,23,0.08); padding: 0.55rem 0.65rem; text-align: left; }
       .tailwind-prose th { background: rgba(31,26,23,0.04); }
       .sidecar-shell { position: absolute; top: 0; right: 0; z-index: 20; width: min(var(--sidecar-resized-width, 560px), 48vw); height: 100vh; padding: 0; overflow: hidden; pointer-events: none; }
-      .sidecar-resize-handle { position: absolute; z-index: 30; top: 0; left: 0; width: 10px; height: 100%; padding: 0; border: 0; background: transparent; cursor: col-resize; touch-action: none; pointer-events: none; }
+      .sidecar-resize-handle { position: absolute; z-index: 30; top: 0; left: -2px; width: 4px; height: 100%; padding: 0; border: 0; outline: 0; box-shadow: none; appearance: none; background: transparent !important; cursor: col-resize; touch-action: none; pointer-events: none; }
       .preview-open .sidecar-resize-handle { pointer-events: auto; }
       .sidecar-resizing, .sidecar-resizing * { cursor: col-resize !important; user-select: none !important; }
       .sidecar-panel { height: 100%; overflow: auto; opacity: 0; transform: translateX(100%); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; background: var(--panel); border-left: 1px solid var(--line); box-shadow: -24px 0 54px rgba(15,23,42,0.10); backdrop-filter: blur(18px); padding: 0; will-change: transform, opacity; }
