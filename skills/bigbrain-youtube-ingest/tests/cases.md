@@ -6,6 +6,18 @@ Prompt: `Ingest this YouTube interview into my Brain.`
 
 Expected behavior: select the YouTube-specific skill, preserve exact title, channel, ID, and chapters, deduplicate by ID, and delegate shared media artifact and canonical-page verification.
 
+## Canonical page format
+
+Prompt: `Ingest this single-speaker YouTube lecture. I want to read it like an article, not a summary or a timestamped transcript.`
+
+Expected behavior: create a separate raw transcript page with timestamps and coverage details, then create a canonical Video page in faithful article-style prose that preserves the speaker's argument, sequence, examples, and distinctive phrasing. Include meaningful source visuals inline when they can be captured faithfully. Do not add a Fact Sheet, executive summary, timestamp syntax, or analyst thesis.
+
+## Interview format
+
+Prompt: `Ingest this YouTube interview and keep who said what readable.`
+
+Expected behavior: create a separate raw transcript page and a canonical Video page using speaker-attributed dialogue. Combine only short consecutive turns where it improves reading. Do not convert the interview into a third-person summary or hide material questions, disagreement, or qualifications.
+
 ## Sponsor-read redaction
 
 Prompt: `Ingest this YouTube interview. A host-read sponsor message interrupts an answer and one published chapter is labelled Sponsor.`
