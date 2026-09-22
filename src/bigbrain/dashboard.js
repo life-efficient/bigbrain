@@ -2138,7 +2138,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .sidecar-resize-handle { position: absolute; z-index: 30; top: 0; left: -1px; width: 2px; height: 100%; padding: 0; border: 0; outline: 0; box-shadow: none; appearance: none; background: transparent !important; cursor: col-resize; touch-action: none; pointer-events: none; }
       .preview-open .sidecar-resize-handle { pointer-events: auto; }
       .sidecar-resizing, .sidecar-resizing * { cursor: col-resize !important; user-select: none !important; }
-      .sidecar-panel { height: 100%; overflow: auto; opacity: 0; transform: translateX(100%); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; background: var(--panel); box-shadow: -24px 0 54px rgba(15,23,42,0.10); backdrop-filter: blur(18px); padding: 0; will-change: transform, opacity; }
+      .sidecar-panel { height: 100%; overflow: auto; opacity: 0; transform: translateX(100%); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; background: var(--panel); backdrop-filter: blur(18px); padding: 0; will-change: transform, opacity; }
       .preview-open .sidecar-shell { pointer-events: auto; }
       .preview-open .sidecar-panel { opacity: 1; transform: translateX(0); pointer-events: auto; }
       .sidecar-head { position: sticky; top: 0; z-index: 2; display: grid; gap: 14px; padding: 26px 28px 18px; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--panel) 94%, transparent); backdrop-filter: blur(18px); }

@@ -2081,7 +2081,7 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, on
   return (
     <>
       <aside className="sidecar-shell" aria-hidden={!preview}>
-        {preview ? <button type="button" className="sidecar-resize-handle" aria-label="Resize sidecar" onPointerDown={onResizeStart} /> : null}
+        {preview ? <button type="button" tabIndex={-1} className="sidecar-resize-handle" aria-label="Resize sidecar" onPointerDown={onResizeStart} /> : null}
         <div className="sidecar-panel">
         <div className="sidecar-head">
           <div className="sidecar-title-row">
