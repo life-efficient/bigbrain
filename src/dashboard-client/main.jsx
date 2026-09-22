@@ -3044,12 +3044,16 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
   const visibleItems = kind === 'images'
     ? galleryItems
     : result.items.filter((item) => allSourcesSelected || selectedSourceTypes.has(sourceTypeForItem(item)));
-  const groups = [];
-  for (const item of visibleItems) {
-    const label = recentDateGroupLabel(timestampFor(item));
-    const group = groups.at(-1);
-    if (group?.label === label) group.items.push(item);
-    else groups.push({ label, items: [item] });
+  const groups = kind === 'images'
+    ? [{ label: null, items: visibleItems }]
+    : [];
+  if (kind === 'pages') {
+    for (const item of visibleItems) {
+      const label = recentDateGroupLabel(timestampFor(item));
+      const group = groups.at(-1);
+      if (group?.label === label) group.items.push(item);
+      else groups.push({ label, items: [item] });
+    }
   }
   const errorIsMissingRoute = result.error.includes('failed with 404');
   const selectedCollection = result.collections.find((entry) => entry.id === collection);
@@ -3228,8 +3232,8 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
         ) : null}
         {result.status === 'ready' && visibleItems.length ? (
           <div className={`recents-groups ${kind === 'pages' ? 'recents-groups-pages' : ''}`}>
-            {groups.map((group) => <div className="recents-group" key={group.label}>
-              <h2>{group.label}</h2>
+            {groups.map((group) => <div className="recents-group" key={group.label || 'images-all'}>
+              {group.label ? <h2>{group.label}</h2> : null}
               <div className={kind === 'images' ? 'recents-gallery' : 'recents-list'}>
                 {group.items.map((item, index) => (
                   <button
