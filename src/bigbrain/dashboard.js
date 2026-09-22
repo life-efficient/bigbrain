@@ -857,8 +857,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .history-button { width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; line-height: 1; cursor: pointer; }
       .history-button:hover:not(:disabled), .history-button:focus-visible:not(:disabled) { background: transparent; color: var(--ink); }
       .history-button:disabled { opacity: 0.32; cursor: pointer; }
-      .icon-button-ghost { width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: transparent !important; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; line-height: 1; cursor: pointer; box-shadow: none !important; }
-      .icon-button-ghost:hover:not(:disabled), .icon-button-ghost:focus-visible:not(:disabled) { background: transparent !important; color: var(--ink); }
+      .icon-button-ghost { appearance: none; -webkit-appearance: none; width: 30px; height: 30px; padding: 0; border: 0 !important; border-radius: 7px; background: none !important; background-image: none !important; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; line-height: 1; cursor: pointer; box-shadow: none !important; }
+      .icon-button-ghost:hover:not(:disabled), .icon-button-ghost:focus-visible:not(:disabled) { border: 0 !important; background: none !important; background-image: none !important; color: var(--ink); }
       .icon-button-ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
       .icon-button-ghost:disabled { opacity: 0.32; cursor: pointer; }
       .pill { padding: 8px 12px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 8px 24px rgba(15,23,42,0.04); font-size: 13px; }
