@@ -913,11 +913,13 @@ function DashboardApp() {
             </div>
             <div className="topline-actions">
               {demoMode ? <span className="demo-mode-badge">Demo mode</span> : null}
-              <div className="history-nav" role="group" aria-label="Browser navigation">
-                <button type="button" className="history-button" aria-label="Back" title="Back" disabled={historyPosition.index <= 0} onClick={() => window.history.back()}><ArrowLeft size={16} strokeWidth={2} aria-hidden="true" /></button>
-                <button type="button" className="history-button" aria-label="Forward" title="Forward" disabled={historyPosition.index >= historyPosition.end} onClick={() => window.history.forward()}><ArrowRight size={16} strokeWidth={2} aria-hidden="true" /></button>
+              <div className="brain-selector-group">
+                <div className="history-nav" role="group" aria-label="Browser navigation">
+                  <button type="button" className="history-button" aria-label="Back" title="Back" disabled={historyPosition.index <= 0} onClick={() => window.history.back()}><ArrowLeft size={16} strokeWidth={2} aria-hidden="true" /></button>
+                  <button type="button" className="history-button" aria-label="Forward" title="Forward" disabled={historyPosition.index >= historyPosition.end} onClick={() => window.history.forward()}><ArrowRight size={16} strokeWidth={2} aria-hidden="true" /></button>
+                </div>
+                {menu}
               </div>
-              {menu}
               <div className="settings-menu" ref={settingsMenuRef}>
                 <button
                   type="button"
@@ -1140,6 +1142,18 @@ function DashboardSearch({ nodes, onSelectPage }) {
     };
   }, [open]);
 
+  useEffect(() => {
+    function focusSearch(event) {
+      if (event.key !== '/' || event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return;
+      const target = event.target;
+      if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target?.isContentEditable) return;
+      event.preventDefault();
+      inputRef.current?.focus();
+    }
+    window.addEventListener('keydown', focusSearch);
+    return () => window.removeEventListener('keydown', focusSearch);
+  }, []);
+
   function selectResult(node) {
     if (!node?.slug) return;
     setOpen(false);
@@ -1161,8 +1175,8 @@ function DashboardSearch({ nodes, onSelectPage }) {
           className="dashboard-search-input"
           type="search"
           value={query}
-          placeholder="Search pages"
-          aria-label="Search pages"
+          placeholder="Search"
+          aria-label="Search"
           aria-controls="dashboard-search-results"
           aria-expanded={open && Boolean(query.trim())}
           onFocus={() => setOpen(true)}
