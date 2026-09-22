@@ -70,6 +70,9 @@ test('Stream paginates pages and images after activity and collection filtering'
 
     const query = (params) => new URL(`/api/recents?${new URLSearchParams({ limit: '2', ...params })}`, 'http://127.0.0.1');
     const first = await buildRecentsPayload(config, db, query({ activity: 'updated', kind: 'pages' }));
+    const allPageTypes = await buildRecentsPayload(config, db, query({ activity: 'updated', kind: 'pages', page_type: 'all' }));
+    assert.equal(allPageTypes.meta.total_count, first.meta.total_count);
+    assert.deepEqual(allPageTypes.items.map((item) => item.slug), first.items.map((item) => item.slug));
     const second = await buildRecentsPayload(config, db, query({ activity: 'updated', kind: 'pages', offset: first.meta.next_offset }));
     const third = await buildRecentsPayload(config, db, query({ activity: 'updated', kind: 'pages', offset: second.meta.next_offset }));
     assert.deepEqual([first, second, third].flatMap((page) => page.items.map((item) => item.slug)), [

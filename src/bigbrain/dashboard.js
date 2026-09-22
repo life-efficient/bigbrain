@@ -2541,7 +2541,10 @@ export async function buildRecentsPayload(
   const requestedOffset = Number.parseInt(requestUrl.searchParams.get('offset') || '0', 10);
   const offset = Number.isFinite(requestedOffset) ? Math.max(0, requestedOffset) : 0;
   const requestedCollection = requestUrl.searchParams.get('collection')?.trim() || null;
-  const requestedPageType = requestUrl.searchParams.get('page_type')?.trim().toLowerCase() || null;
+  const rawPageType = requestUrl.searchParams.get('page_type')?.trim().toLowerCase() || '';
+  const requestedPageType = rawPageType && rawPageType !== 'all' && rawPageType !== 'all-types' && rawPageType !== 'all_page_types'
+    ? rawPageType
+    : null;
   const domainScope = await resolveDomainScope(config, requestUrl);
   const loadedDomainRegistry = await loadDomainRegistry(config);
   const domainDefinitions = loadedDomainRegistry.valid
