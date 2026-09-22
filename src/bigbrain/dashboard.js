@@ -2587,6 +2587,12 @@ export async function buildRecentsPayload(
   const pageTypeCounts = new Map();
   for (const relativePath of pagePaths) {
     const slug = relativePath.replace(/\.md$/i, '');
+    // Build the filter vocabulary from the canonical path as well as parsed
+    // content. This keeps the menu complete when an older or malformed page
+    // cannot be parsed, and means meetings remain discoverable even when they
+    // are not in the first visible activity batch.
+    const inferredPageType = slug.split('/')[0] || 'unknown';
+    pageTypeCounts.set(inferredPageType, (pageTypeCounts.get(inferredPageType) || 0) + 1);
     if (selectedSlugs && !selectedSlugs.has(slug)) continue;
     let parsed;
     let stats;
@@ -2598,8 +2604,7 @@ export async function buildRecentsPayload(
     } catch {
       continue;
     }
-    const pageType = String(parsed.type || '').trim().toLowerCase();
-    pageTypeCounts.set(pageType, (pageTypeCounts.get(pageType) || 0) + 1);
+    const pageType = String(parsed.type || inferredPageType).trim().toLowerCase() || inferredPageType;
     if (requestedPageType && pageType !== requestedPageType) continue;
     if (domainScope.length && !pageMatchesDomainScope(parsed.frontmatter, domainScope)) continue;
     const metadataCreatedAt = parsed.frontmatter.created_at || parsed.frontmatter.created || null;

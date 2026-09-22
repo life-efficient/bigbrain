@@ -3122,7 +3122,9 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
                     ) : (
                       <>
                         <span className="recents-page-glyph" role="img" aria-label={`${streamPageTypeLabel(item.type)} page`}>
-                          <PageTypeIcon type={item.type} color={typeColors?.[item.type] || 'currentColor'} />
+                          <span style={{ color: typeColors?.[item.type] || 'currentColor', display: 'inline-flex' }}>
+                            <PageTypeIcon type={item.type} />
+                          </span>
                         </span>
                         <span className="recents-item-copy">
                           <strong>{item.title || labelFromSlug(item.slug)}</strong>

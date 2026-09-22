@@ -57,12 +57,12 @@ const ICONS = {
   Workflow,
 };
 
-export function PageTypeIcon({ type, size = 20, color = 'currentColor' }) {
+export function PageTypeIcon({ type, size = 20 }) {
   const normalizedType = String(type || '').trim().toLowerCase();
   const Icon = GRAPH_TYPE_ICON_NAMES[normalizedType]
     ? ICONS[getGraphTypeIconName(normalizedType)]
     : Shapes;
-  return <Icon size={size} color={color} strokeWidth={1.9} aria-hidden="true" />;
+  return <Icon size={size} strokeWidth={1.9} aria-hidden="true" />;
 }
 
 export function GraphTypeIcon({ node, color, emphasized = false, background, nodeFill = 'outline', iconStyle = 'outline' }) {
