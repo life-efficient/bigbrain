@@ -492,21 +492,6 @@ function DashboardApp() {
   }, [clearGraphFocus, healthOpen, lineage, preview]);
 
   useEffect(() => {
-    if (!preview) return undefined;
-
-    function handlePointerDown(event) {
-      const target = event.target instanceof Element ? event.target : null;
-      if (target?.closest('.sidecar-panel, .page-image-lightbox-overlay, .graph-wrap, .graph-focus-banner, .graph-footer, .recents-panel')) return;
-      clearGraphFocus();
-    }
-
-    window.addEventListener('pointerdown', handlePointerDown);
-    return () => {
-      window.removeEventListener('pointerdown', handlePointerDown);
-    };
-  }, [clearGraphFocus, preview]);
-
-  useEffect(() => {
     if (!lineage) return undefined;
 
     function handleEscape(event) {
