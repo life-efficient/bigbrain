@@ -834,7 +834,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .topline { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 16px; margin-bottom: 18px; padding-top: 12px; -webkit-app-region: no-drag; user-select: none; }
       .topline-brand { display: flex; align-items: center; justify-self: start; min-width: 0; width: 100%; }
       .topline-actions { display: flex; align-items: center; gap: 12px; justify-self: end; }
-      .brain-selector-group { display: inline-flex; align-items: center; gap: 4px; }
+      .topline-brand .history-nav { margin-right: 4px; }
       .demo-mode-badge { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px solid rgba(0,255,102,0.28); border-radius: 999px; background: rgba(0,255,102,0.08); color: var(--ink); font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
       .view-nav { display: flex; gap: 10px; flex-wrap: wrap; }
       .view-nav-header { justify-content: center; justify-self: center; }

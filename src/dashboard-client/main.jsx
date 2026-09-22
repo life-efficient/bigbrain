@@ -895,7 +895,12 @@ function DashboardApp() {
         <main>
           <div className="desktop-drag-strip" aria-hidden="true" />
           <div className="topline">
-            <div className="topline-brand" aria-hidden="true" />
+            <div className="topline-brand">
+              <div className="history-nav" role="group" aria-label="Browser navigation">
+                <button type="button" className="history-button" aria-label="Back" title="Back" disabled={historyPosition.index <= 0} onClick={() => window.history.back()}><ArrowLeft size={16} strokeWidth={2} aria-hidden="true" /></button>
+                <button type="button" className="history-button" aria-label="Forward" title="Forward" disabled={historyPosition.index >= historyPosition.end} onClick={() => window.history.forward()}><ArrowRight size={16} strokeWidth={2} aria-hidden="true" /></button>
+              </div>
+            </div>
             <div className="view-nav view-nav-header">
               {views.map((item) => (
                 <button
@@ -913,13 +918,7 @@ function DashboardApp() {
             </div>
             <div className="topline-actions">
               {demoMode ? <span className="demo-mode-badge">Demo mode</span> : null}
-              <div className="brain-selector-group">
-                <div className="history-nav" role="group" aria-label="Browser navigation">
-                  <button type="button" className="history-button" aria-label="Back" title="Back" disabled={historyPosition.index <= 0} onClick={() => window.history.back()}><ArrowLeft size={16} strokeWidth={2} aria-hidden="true" /></button>
-                  <button type="button" className="history-button" aria-label="Forward" title="Forward" disabled={historyPosition.index >= historyPosition.end} onClick={() => window.history.forward()}><ArrowRight size={16} strokeWidth={2} aria-hidden="true" /></button>
-                </div>
-                {menu}
-              </div>
+              {menu}
               <div className="settings-menu" ref={settingsMenuRef}>
                 <button
                   type="button"
