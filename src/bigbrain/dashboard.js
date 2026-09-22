@@ -713,7 +713,6 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       }
       #root { height: 100vh; overflow: hidden; }
       .page-shell { --sidecar-width: 0px; position: relative; height: 100vh; overflow: hidden; background: var(--bg); color: var(--ink); }
-      .page-shell.preview-open { --sidecar-width: min(560px, 48vw); }
       main { min-width: 0; max-width: none; height: 100vh; margin: 0; padding: 20px calc(20px + var(--sidecar-width)) 16px 20px; width: 100%; overflow: hidden; display: flex; flex-direction: column; transition: padding-right 240ms ease; }
       .public-main { min-height: 100vh; height: 100vh; overflow: auto; display: block; padding: 42px 22px 64px; background: var(--bg); color: var(--ink); }
       .public-document { width: min(820px, 100%); margin: 0 auto; display: grid; gap: 22px; }
@@ -2134,7 +2133,12 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .tailwind-prose th,
       .tailwind-prose td { border: 1px solid rgba(31,26,23,0.08); padding: 0.55rem 0.65rem; text-align: left; }
       .tailwind-prose th { background: rgba(31,26,23,0.04); }
-      .sidecar-shell { position: absolute; top: 0; right: 0; width: min(560px, 48vw); height: 100vh; padding: 0; overflow: hidden; pointer-events: none; }
+      .sidecar-shell { position: absolute; top: 0; right: 0; width: min(var(--sidecar-width), 70vw); height: 100vh; padding: 0; overflow: hidden; pointer-events: none; }
+      .sidecar-resize-handle { position: absolute; z-index: 4; top: 0; left: -5px; width: 10px; height: 100%; padding: 0; border: 0; background: transparent; cursor: col-resize; pointer-events: none; }
+      .preview-open .sidecar-resize-handle { pointer-events: auto; }
+      .sidecar-resize-handle::after { content: ""; position: absolute; top: 0; bottom: 0; left: 4px; width: 2px; background: transparent; transition: background 140ms ease; }
+      .sidecar-resize-handle:hover::after, .sidecar-resizing .sidecar-resize-handle::after, .sidecar-resize-handle:focus-visible::after { background: var(--accent); }
+      .sidecar-resizing, .sidecar-resizing * { cursor: col-resize !important; user-select: none !important; }
       .sidecar-panel { height: 100%; overflow: auto; opacity: 0; transform: translateX(100%); pointer-events: none; transition: opacity 240ms ease, transform 240ms ease; background: var(--panel); border-left: 1px solid var(--line); box-shadow: -24px 0 54px rgba(15,23,42,0.10); backdrop-filter: blur(18px); padding: 0; will-change: transform, opacity; }
       .preview-open .sidecar-shell { pointer-events: auto; }
       .preview-open .sidecar-panel { opacity: 1; transform: translateX(0); pointer-events: auto; }
@@ -2230,11 +2234,11 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .view-nav-header { justify-self: center; justify-content: center; }
         .topline-actions { justify-self: end; }
         .page-shell.preview-open { --sidecar-width: 0px; }
-        .sidecar-shell { position: fixed; top: 0; right: 0; bottom: 0; left: auto; width: min(560px, 92vw); height: 100vh; padding: 0; z-index: 10; }
+        .sidecar-shell { position: fixed; top: 0; right: 0; bottom: 0; left: auto; width: min(var(--sidecar-width), 92vw); height: 100vh; padding: 0; z-index: 10; }
         .sidecar-panel { border-left: 1px solid var(--line); border-top: 0; border-radius: 0; }
         .view-recents.preview-open { --sidecar-width: min(560px, 48vw); }
         .view-recents.preview-open main { padding-right: calc(16px + var(--sidecar-width)); }
-        .view-recents .sidecar-shell { position: absolute; width: min(560px, 48vw); }
+        .view-recents .sidecar-shell { position: absolute; width: min(var(--sidecar-width), 48vw); }
         .sidecar-link-grid { grid-template-columns: 1fr; }
         .analytics-grid { grid-template-columns: 1fr; }
       }
@@ -2537,6 +2541,7 @@ export async function buildRecentsPayload(
   const requestedOffset = Number.parseInt(requestUrl.searchParams.get('offset') || '0', 10);
   const offset = Number.isFinite(requestedOffset) ? Math.max(0, requestedOffset) : 0;
   const requestedCollection = requestUrl.searchParams.get('collection')?.trim() || null;
+  const requestedPageType = requestUrl.searchParams.get('page_type')?.trim().toLowerCase() || null;
   const domainScope = await resolveDomainScope(config, requestUrl);
   const loadedDomainRegistry = await loadDomainRegistry(config);
   const domainDefinitions = loadedDomainRegistry.valid
@@ -2575,6 +2580,7 @@ export async function buildRecentsPayload(
     ? new Set(selectedCollection?.pages.map((page) => page.page_slug) || [])
     : null;
   const items = [];
+  const pageTypeCounts = new Map();
   for (const relativePath of pagePaths) {
     const slug = relativePath.replace(/\.md$/i, '');
     if (selectedSlugs && !selectedSlugs.has(slug)) continue;
@@ -2588,6 +2594,9 @@ export async function buildRecentsPayload(
     } catch {
       continue;
     }
+    const pageType = String(parsed.type || '').trim().toLowerCase();
+    pageTypeCounts.set(pageType, (pageTypeCounts.get(pageType) || 0) + 1);
+    if (requestedPageType && pageType !== requestedPageType) continue;
     if (domainScope.length && !pageMatchesDomainScope(parsed.frontmatter, domainScope)) continue;
     const metadataCreatedAt = parsed.frontmatter.created_at || parsed.frontmatter.created || null;
     const createdAt = validIsoTimestamp(metadataCreatedAt) || stats.birthtime.toISOString();
@@ -2641,6 +2650,9 @@ export async function buildRecentsPayload(
   }
   const sourceTypes = Object.entries(SOURCE_TYPE_DEFINITIONS)
     .map(([type, definition]) => ({ type, label: definition.label }));
+  const pageTypeDefinitions = [...pageTypeCounts.entries()]
+    .map(([type, count]) => ({ type, label: type || 'Unknown', count }))
+    .sort((left, right) => left.label.localeCompare(right.label) || left.type.localeCompare(right.type));
   const distinctSlugsBySource = new Map(sourceTypes.map(({ type }) => [type, new Set()]));
   for (const item of visible) {
     distinctSlugsBySource.get(item.source_type)?.add(item.slug);
@@ -2651,6 +2663,7 @@ export async function buildRecentsPayload(
     collections,
     source_types: sourceTypes,
     source_counts: sourceTypes.map(({ type }) => ({ type, count: distinctSlugsBySource.get(type).size })),
+    page_type_definitions: pageTypeDefinitions,
     domain_definitions: domainDefinitions,
     meta: {
       activity,
@@ -2662,6 +2675,7 @@ export async function buildRecentsPayload(
       next_offset: offset + selectedItems.length < visible.length ? offset + selectedItems.length : null,
       collection: selectedCollection?.slug || requestedCollection,
       domains: domainScope,
+      page_type: requestedPageType,
       surface: dashboardSurface,
     },
   };

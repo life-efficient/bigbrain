@@ -220,6 +220,15 @@ function DashboardApp() {
   const [themeMode, setThemeMode] = useState('auto');
   const [prefersDark, setPrefersDark] = useState(false);
   const [preview, setPreview] = useState(null);
+  const [sidecarWidth, setSidecarWidth] = useState(() => {
+    try {
+      const saved = Number(window.localStorage.getItem('bigbrain:sidecar-width'));
+      return Number.isFinite(saved) ? Math.min(760, Math.max(360, saved)) : 560;
+    } catch {
+      return 560;
+    }
+  });
+  const [sidecarResizing, setSidecarResizing] = useState(false);
   const [activeDomainScope, setActiveDomainScope] = useState([]);
   const [activeGraphSlug, setActiveGraphSlug] = useState(null);
   const [lineage, setLineage] = useState(null);
@@ -237,6 +246,7 @@ function DashboardApp() {
   const visualizerRef = useRef(null);
   const healthMenuRef = useRef(null);
   const settingsMenuRef = useRef(null);
+  const sidecarResizeRef = useRef(null);
   const latestGraphRef = useRef(null);
   const graphMotionEligibleRef = useRef(false);
   latestGraphRef.current = state.data?.graph || latestGraphRef.current;
@@ -244,6 +254,43 @@ function DashboardApp() {
   demoModeRef.current = demoMode;
   demoSeedRef.current = demoSeed;
   const filesystemExplorerEnabled = state.data?.about?.capabilities?.filesystem_explorer === true;
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('bigbrain:sidecar-width', String(sidecarWidth));
+    } catch {
+      // Storage can be unavailable; the current width remains usable.
+    }
+  }, [sidecarWidth]);
+
+  useEffect(() => {
+    if (!sidecarResizing) return undefined;
+    const handlePointerMove = (event) => {
+      const start = sidecarResizeRef.current;
+      if (!start) return;
+      const next = start.width + (start.x - event.clientX);
+      setSidecarWidth(Math.min(760, Math.max(360, next)));
+    };
+    const stopResize = () => {
+      sidecarResizeRef.current = null;
+      setSidecarResizing(false);
+    };
+    window.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('pointerup', stopResize);
+    window.addEventListener('pointercancel', stopResize);
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', stopResize);
+      window.removeEventListener('pointercancel', stopResize);
+    };
+  }, [sidecarResizing]);
+
+  function startSidecarResize(event) {
+    if (event.button !== 0) return;
+    event.preventDefault();
+    sidecarResizeRef.current = { x: event.clientX, width: sidecarWidth };
+    setSidecarResizing(true);
+  }
 
   const clearGraphFocus = useEffectEvent(() => {
     previewRequestRef.current += 1;
@@ -783,7 +830,7 @@ function DashboardApp() {
     >
       {({ menu, content, menuOpen }) => (
         <GraphThemeProvider resolvedTheme={resolvedTheme}>
-      <div className={`page-shell theme-${resolvedTheme} view-${view} ${preview ? 'preview-open' : ''}`} data-theme-mode={themeMode}>
+      <div className={`page-shell theme-${resolvedTheme} view-${view} ${preview ? 'preview-open' : ''} ${sidecarResizing ? 'sidecar-resizing' : ''}`} style={{ '--sidecar-width': preview ? `${sidecarWidth}px` : '0px' }} data-theme-mode={themeMode}>
         <main>
           <div className="desktop-drag-strip" aria-hidden="true" />
           <div className="topline">
@@ -990,6 +1037,7 @@ function DashboardApp() {
 
         <PageSidecar
           preview={preview}
+          onResizeStart={startSidecarResize}
           onClose={clearGraphFocus}
           onRelativeLinkClick={openPreview}
           onRawLinkClick={openRawFile}
@@ -2004,7 +2052,7 @@ function AssigneePills({ assignees, invalidAssignees }) {
   );
 }
 
-function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, onPageOpen, onVisibilityChange }) {
+function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, onPageOpen, onVisibilityChange, onResizeStart }) {
   const type = preview?.type || preview?.slug?.split('/')[0] || 'page';
   const isArticle = type === 'articles';
   const updatedLabel = formatDateTime(preview?.updated_at);
@@ -2047,6 +2095,7 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, on
   return (
     <>
       <aside className="sidecar-shell" aria-hidden={!preview}>
+        <button type="button" className="sidecar-resize-handle" aria-label="Resize sidecar" onPointerDown={onResizeStart} tabIndex={preview ? 0 : -1} />
         <div className="sidecar-panel">
         <div className="sidecar-head">
           <div className="sidecar-title-row">
@@ -2665,16 +2714,19 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = t
   const [kind, setKind] = useState('pages');
   const [collection, setCollection] = useState('');
   const [domain, setDomain] = useState('');
+  const [pageType, setPageType] = useState('');
   const [selectedSourceTypes, setSelectedSourceTypes] = useState(null);
   const [imageViewerIndex, setImageViewerIndex] = useState(null);
   const [collectionMenuOpen, setCollectionMenuOpen] = useState(false);
   const [domainMenuOpen, setDomainMenuOpen] = useState(false);
+  const [pageTypeMenuOpen, setPageTypeMenuOpen] = useState(false);
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const [result, setResult] = useState({ status: 'loading', items: [], collections: [], domainDefinitions: [], sourceTypes: [], sourceCounts: [], meta: null, error: '' });
+  const [result, setResult] = useState({ status: 'loading', items: [], collections: [], domainDefinitions: [], pageTypeDefinitions: [], sourceTypes: [], sourceCounts: [], meta: null, error: '' });
   const [loadingMore, setLoadingMore] = useState(false);
   const [moreError, setMoreError] = useState('');
   const collectionMenuRef = useRef(null);
   const domainMenuRef = useRef(null);
+  const pageTypeMenuRef = useRef(null);
   const scrollRef = useRef(null);
   const bottomReachGateRef = useRef(createBottomReachGate());
   const scrollIntentRef = useRef({ at: 0, pointerDown: false });
@@ -2685,7 +2737,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = t
   useEffect(() => {
     setImageViewerIndex(null);
     setSelectedSourceTypes(null);
-  }, [activity, kind, collection, domain]);
+  }, [activity, kind, collection, domain, pageType]);
 
   useEffect(() => {
     const endPointerScroll = () => { scrollIntentRef.current.pointerDown = false; };
@@ -2698,15 +2750,17 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = t
   }, []);
 
   useEffect(() => {
-    if (!collectionMenuOpen && !domainMenuOpen) return undefined;
+    if (!collectionMenuOpen && !domainMenuOpen && !pageTypeMenuOpen) return undefined;
     function handlePointerDown(event) {
       if (!collectionMenuRef.current?.contains(event.target)) setCollectionMenuOpen(false);
       if (!domainMenuRef.current?.contains(event.target)) setDomainMenuOpen(false);
+      if (!pageTypeMenuRef.current?.contains(event.target)) setPageTypeMenuOpen(false);
     }
     function handleKeyDown(event) {
       if (event.key === 'Escape') {
         setCollectionMenuOpen(false);
         setDomainMenuOpen(false);
+        setPageTypeMenuOpen(false);
       }
     }
     window.addEventListener('pointerdown', handlePointerDown);
@@ -2715,7 +2769,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = t
       window.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [collectionMenuOpen, domainMenuOpen]);
+  }, [collectionMenuOpen, domainMenuOpen, pageTypeMenuOpen]);
 
   useEffect(() => {
     if (!shortcutsEnabled) return undefined;
@@ -2745,20 +2799,22 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = t
     setLoadingMore(false);
     setMoreError('');
     if (demoMode) {
-      setResult({ status: 'ready', items: [], collections: [], domainDefinitions: [], sourceTypes: [], sourceCounts: [], meta: null, error: '' });
+      setResult({ status: 'ready', items: [], collections: [], domainDefinitions: [], pageTypeDefinitions: [], sourceTypes: [], sourceCounts: [], meta: null, error: '' });
       return undefined;
     }
     const controller = new AbortController();
-    setResult((current) => ({ ...current, status: 'loading', items: [], sourceTypes: [], sourceCounts: [], domainDefinitions: [], meta: null, error: '' }));
+    setResult((current) => ({ ...current, status: 'loading', items: [], sourceTypes: [], sourceCounts: [], domainDefinitions: [], pageTypeDefinitions: [], meta: null, error: '' }));
     const params = new URLSearchParams({ activity, kind, limit: String(STREAM_PAGE_SIZE), offset: '0' });
     if (collection) params.set('collection', collection);
     if (domain) params.set('domain', domain);
+    if (pageType) params.set('page_type', pageType);
     fetchJson(`/api/recents?${params}`, { signal: controller.signal })
       .then((data) => setResult({
         status: 'ready',
         items: Array.isArray(data.items) ? data.items : [],
         collections: Array.isArray(data.collections) ? data.collections : [],
         domainDefinitions: Array.isArray(data.domain_definitions) ? data.domain_definitions : [],
+        pageTypeDefinitions: Array.isArray(data.page_type_definitions) ? data.page_type_definitions : [],
         sourceTypes: Array.isArray(data.source_types) ? data.source_types : [],
         sourceCounts: Array.isArray(data.source_counts) ? data.source_counts : [],
         meta: data.meta || null,
@@ -2768,11 +2824,11 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = t
         if (!controller.signal.aborted) setResult((current) => ({ ...current, status: 'error', items: [], error: error.message || String(error) }));
       });
     return () => controller.abort();
-  }, [activity, kind, collection, domain, demoMode, refreshVersion]);
+  }, [activity, kind, collection, domain, pageType, demoMode, refreshVersion]);
 
   useLayoutEffect(() => {
     if (scrollRef.current) bottomReachGateRef.current.observe(scrollRef.current);
-  }, [result.status, result.items.length, kind, activity, collection, domain]);
+  }, [result.status, result.items.length, kind, activity, collection, domain, pageType]);
 
   function markScrollIntent() {
     scrollIntentRef.current.at = Date.now();
@@ -2799,6 +2855,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = t
     const params = new URLSearchParams({ activity, kind, limit: String(STREAM_PAGE_SIZE), offset: String(nextOffset) });
     if (collection) params.set('collection', collection);
     if (domain) params.set('domain', domain);
+    if (pageType) params.set('page_type', pageType);
     fetchJson(`/api/recents?${params}`, { signal: controller.signal })
       .then((data) => {
         if (controller.signal.aborted || requestVersionRef.current !== requestVersion) return;
@@ -2809,6 +2866,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = t
           sourceTypes: Array.isArray(data.source_types) ? data.source_types : current.sourceTypes,
           sourceCounts: Array.isArray(data.source_counts) ? data.source_counts : current.sourceCounts,
           domainDefinitions: Array.isArray(data.domain_definitions) ? data.domain_definitions : current.domainDefinitions,
+          pageTypeDefinitions: Array.isArray(data.page_type_definitions) ? data.page_type_definitions : current.pageTypeDefinitions,
           meta: data.meta?.has_more && (!Number.isInteger(data.meta.next_offset) || data.meta.next_offset <= nextOffset)
             ? { ...data.meta, has_more: false, next_offset: null }
             : data.meta || { ...current.meta, has_more: false, next_offset: null },
@@ -2871,6 +2929,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = t
   const errorIsMissingRoute = result.error.includes('failed with 404');
   const selectedCollection = result.collections.find((entry) => entry.id === collection);
   const selectedDomain = result.domainDefinitions.find((entry) => entry.id === domain);
+  const selectedPageType = result.pageTypeDefinitions.find((entry) => entry.type === pageType);
   const collectionName = selectedCollection?.title || 'this collection';
   const emptyTitle = demoMode
     ? 'Stream is off in demo mode'
@@ -2917,7 +2976,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = t
               aria-label={`Collection: ${selectedCollection?.title || collection || 'All collections'}`}
               aria-haspopup="menu"
               aria-expanded={collectionMenuOpen}
-              onClick={() => { setDomainMenuOpen(false); setCollectionMenuOpen((open) => !open); }}
+              onClick={() => { setDomainMenuOpen(false); setPageTypeMenuOpen(false); setCollectionMenuOpen((open) => !open); }}
             >
               <span>{selectedCollection?.title || collection || 'All collections'}</span>
               <span className="recents-collection-chevron" aria-hidden="true">⌄</span>
@@ -2943,7 +3002,7 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = t
               aria-label={`Domain: ${selectedDomain?.name || domain || 'All domains'}`}
               aria-haspopup="menu"
               aria-expanded={domainMenuOpen}
-              onClick={() => { setCollectionMenuOpen(false); setDomainMenuOpen((open) => !open); }}
+              onClick={() => { setCollectionMenuOpen(false); setPageTypeMenuOpen(false); setDomainMenuOpen((open) => !open); }}
             >
               <span>{selectedDomain?.name || domain || 'All domains'}</span>
               <kbd className="settings-shortcut">D</kbd>
@@ -2960,6 +3019,32 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, shortcutsEnabled = t
                   </button>
                 ))}
                 {result.status === 'ready' && !result.domainDefinitions.length ? <p className="recents-collection-empty" role="note">No domains are registered in this brain yet.</p> : null}
+              </div>
+            ) : null}
+          </div>
+          <div className="recents-collection-shell" ref={pageTypeMenuRef}>
+            <button
+              type="button"
+              className={`recents-collection-trigger ${pageTypeMenuOpen ? 'active' : ''}`}
+              aria-label={`Page type: ${selectedPageType ? streamPageTypeLabel(selectedPageType.type) : 'All page types'}`}
+              aria-haspopup="menu"
+              aria-expanded={pageTypeMenuOpen}
+              onClick={() => { setCollectionMenuOpen(false); setDomainMenuOpen(false); setPageTypeMenuOpen((open) => !open); }}
+            >
+              <span>{selectedPageType ? streamPageTypeLabel(selectedPageType.type) : 'All page types'}</span>
+              <span className="recents-collection-chevron" aria-hidden="true">⌄</span>
+            </button>
+            {pageTypeMenuOpen ? (
+              <div className="graph-filter-menu recents-collection-menu" role="menu" aria-label="Page types">
+                <button type="button" className={`menu-item ${!pageType ? 'selected' : ''}`} role="menuitemradio" aria-checked={!pageType} onClick={() => { setPageType(''); setPageTypeMenuOpen(false); }}>
+                  <span>All page types</span><span className="menu-item-check" aria-hidden="true">{!pageType ? '✓' : ''}</span>
+                </button>
+                {result.pageTypeDefinitions.map((entry) => (
+                  <button key={entry.type} type="button" className={`menu-item ${pageType === entry.type ? 'selected' : ''}`} role="menuitemradio" aria-checked={pageType === entry.type} onClick={() => { setPageType(entry.type); setPageTypeMenuOpen(false); }}>
+                    <span>{streamPageTypeLabel(entry.type)}</span><span className="menu-item-check" aria-hidden="true">{pageType === entry.type ? '✓' : ''}</span>
+                  </button>
+                ))}
+                {result.status === 'ready' && !result.pageTypeDefinitions.length ? <p className="recents-collection-empty" role="note">No page types are available in this brain yet.</p> : null}
               </div>
             ) : null}
           </div>

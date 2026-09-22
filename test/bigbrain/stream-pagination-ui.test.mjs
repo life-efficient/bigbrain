@@ -99,7 +99,7 @@ test('Stream requests successive offsets and appends the next response rather th
 test('Stream resets pagination when activity, content type, collection, or domain changes', async () => {
   const panel = await panelSource();
 
-  assert.match(panel, /\[activity, kind, collection, domain\]/);
+  assert.match(panel, /\[activity, kind, collection, domain, pageType\]/);
   assert.match(panel, /status:\s*'loading',\s*items:\s*\[\]/);
   assert.match(panel, /offset:\s*'0'/);
   const continuation = panel.slice(panel.indexOf('function loadMore()'), panel.indexOf('const timeField'));
