@@ -3034,6 +3034,15 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
       return next.size === sourceTypes.length ? null : next;
     });
   }
+  const filtersActive = Boolean(collection || domain || pageType);
+  function resetStreamFilters() {
+    setCollection('');
+    setDomain('');
+    setPageType('');
+    setCollectionMenuOpen(false);
+    setDomainMenuOpen(false);
+    setPageTypeMenuOpen(false);
+  }
   const visibleItems = kind === 'images'
     ? galleryItems
     : result.items.filter((item) => allSourcesSelected || selectedSourceTypes.has(sourceTypeForItem(item)));
@@ -3166,6 +3175,16 @@ function RecentsPanel({ onOpenPage, selectedSlug, demoMode, typeColors, shortcut
               </div>
             ) : null}
           </div>
+          <button
+            type="button"
+            className={`recents-filter-reset ${filtersActive ? 'active' : ''}`}
+            aria-label="Reset Stream filters"
+            title="Reset filters"
+            disabled={!filtersActive}
+            onClick={resetStreamFilters}
+          >
+            ×
+          </button>
         </div>
       </div>
       <div

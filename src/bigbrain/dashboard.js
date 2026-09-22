@@ -1952,6 +1952,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .recents-collection-trigger:hover, .recents-collection-trigger.active { border-color: var(--line-strong); background: var(--surface); }
       .recents-collection-trigger:focus-visible, .recents-collection-menu .menu-item:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
       .recents-collection-trigger span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .recents-filter-reset { width: 28px; height: 28px; flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--muted); font-size: 18px; line-height: 1; cursor: pointer; }
+      .recents-filter-reset.active { color: var(--ink); }
+      .recents-filter-reset:hover:not(:disabled), .recents-filter-reset:focus-visible:not(:disabled) { border-color: var(--line); background: var(--surface-muted); outline: none; }
+      .recents-filter-reset:disabled { opacity: 0.32; cursor: default; }
       .recents-collection-chevron { color: var(--muted); font-size: 16px; line-height: 1; }
       .graph-filter-menu.recents-collection-menu { top: calc(100% + 8px); right: 0; bottom: auto; min-width: max(220px, 100%); max-width: min(320px, calc(100vw - 40px)); max-height: min(50vh, 360px); }
       .recents-collection-empty { margin: 3px 4px 2px; padding: 10px 8px 3px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.45; }
