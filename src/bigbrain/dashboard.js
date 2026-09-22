@@ -831,7 +831,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
       p { color: var(--muted); margin: 0; }
       .desktop-drag-strip { display: none; }
-      .topline { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 16px; margin-bottom: 18px; padding-top: 12px; -webkit-app-region: no-drag; user-select: none; }
+      .topline { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 16px; margin-bottom: 18px; padding-top: 20px; -webkit-app-region: no-drag; user-select: none; }
       .topline-brand { display: flex; align-items: center; justify-self: start; min-width: 0; width: 100%; }
       .topline-actions { display: flex; align-items: center; gap: 12px; justify-self: end; }
       .topline-brand .history-nav { margin-right: 4px; }
@@ -841,6 +841,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .view-nav, .view-chip, .dashboard-search, .dashboard-search-form, .dashboard-search-results, .topline-actions, .topline-actions > *, .settings-button, .health-button, .settings-dropdown, .health-dropdown { -webkit-app-region: no-drag; }
       html.bigbrain-desktop .desktop-drag-strip { display: block; position: absolute; z-index: 20; top: 0; left: 74px; right: 14px; height: 14px; -webkit-app-region: drag; }
       html.bigbrain-desktop .topline { grid-template-columns: minmax(190px, 1fr) auto minmax(190px, 1fr); padding-left: 60px; }
+      html.bigbrain-desktop .topline-brand .history-nav { margin-left: -60px; }
       @media (max-width: 820px) {
         html.bigbrain-desktop .topline { grid-template-columns: minmax(150px, 1fr) auto minmax(150px, 1fr); gap: 8px; padding-left: 58px; }
         html.bigbrain-desktop .view-nav, html.bigbrain-desktop .topline-actions { gap: 8px; }
