@@ -792,8 +792,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .page-image-strip-button { display: block; height: 108px; padding: 0; border: 0; background: transparent; cursor: zoom-in; }
       .page-image-strip-button:focus-visible { outline: 3px solid rgba(138,180,255,0.42); outline-offset: 3px; }
       .page-image-strip-button img { display: block; width: auto; height: 108px; max-width: 240px; object-fit: cover; border-radius: 0; }
-      .page-image-lightbox-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 32px; background: rgba(8,11,18,0.74); backdrop-filter: blur(10px); }
-      .page-image-lightbox { position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 14px; width: min(1120px, 100%); height: min(850px, 100%); min-height: 0; padding: 20px; border: 0; border-radius: 18px; background: var(--panel); box-shadow: 0 28px 90px rgba(0,0,0,0.32); }
+      .page-image-lightbox-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgba(8,11,18,0.74); backdrop-filter: blur(10px); }
+      .page-image-lightbox { position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 14px; width: 100%; height: 100%; min-height: 0; padding: 20px; border: 0; border-radius: 18px; background: var(--panel); box-shadow: 0 28px 90px rgba(0,0,0,0.32); }
       .page-image-lightbox-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; color: var(--muted); font-size: 13px; }
       .page-image-lightbox-close { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); cursor: pointer; font-size: 24px; line-height: 1; }
       .page-image-lightbox-close:hover { border-color: var(--line-strong); background: var(--surface-muted); }

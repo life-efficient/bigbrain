@@ -22,6 +22,7 @@ test('shared image lightbox keeps navigation outside image pixels in a rounded b
   const stageCss = rule(dashboard, '.page-image-lightbox-stage');
   const controlCss = rule(dashboard, '.page-image-lightbox-control');
   const modalCss = rule(dashboard, '.page-image-lightbox');
+  const overlayCss = rule(dashboard, '.page-image-lightbox-overlay');
 
   assert.match(stage, /page-image-lightbox-control-previous[\s\S]*<img[\s\S]*page-image-lightbox-control-next/);
   assert.match(stageCss, /display:\s*grid/);
@@ -29,6 +30,9 @@ test('shared image lightbox keeps navigation outside image pixels in a rounded b
   assert.doesNotMatch(controlCss, /position:\s*absolute/);
   assert.match(modalCss, /border:\s*(?:0|none)\s*;/);
   assert.match(modalCss, /border-radius:\s*(?!0(?:px|rem)?\s*;)[^;]+;/);
+  assert.match(modalCss, /width:\s*100%/);
+  assert.match(modalCss, /height:\s*100%/);
+  assert.match(overlayCss, /padding:\s*20px/);
   assert.match(rule(dashboard, '.page-image-lightbox-stage img'), /object-fit:\s*contain/);
 });
 
