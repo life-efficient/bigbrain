@@ -30,9 +30,9 @@ test('shared image lightbox keeps navigation outside image pixels in a rounded b
   assert.doesNotMatch(controlCss, /position:\s*absolute/);
   assert.match(modalCss, /border:\s*(?:0|none)\s*;/);
   assert.match(modalCss, /border-radius:\s*(?!0(?:px|rem)?\s*;)[^;]+;/);
-  assert.match(modalCss, /width:\s*100%/);
-  assert.match(modalCss, /height:\s*100%/);
-  assert.match(overlayCss, /padding:\s*20px/);
+  assert.match(modalCss, /width:\s*calc\(100vw - 16px\)/);
+  assert.match(modalCss, /height:\s*calc\(100vh - 16px\)/);
+  assert.match(overlayCss, /padding:\s*8px/);
   assert.match(rule(dashboard, '.page-image-lightbox-stage img'), /object-fit:\s*contain/);
 });
 
@@ -62,10 +62,11 @@ test('shared lightbox zooms on Command-scroll and pans zoomed images with ordina
   const lightbox = client.slice(client.indexOf('function PageImageLightbox('), client.indexOf('function PrivatePageBackLink('));
 
   assert.match(lightbox, /const \[zoom, setZoom\] = useState\(1\)/);
-  assert.match(lightbox, /if \(!event\.metaKey\) return;/);
+  assert.match(lightbox, /if \(event\.metaKey\) \{/);
   assert.match(lightbox, /event\.preventDefault\(\)/);
   assert.match(lightbox, /Math\.min\(5, Math\.max\(1,/);
   assert.match(lightbox, /onWheel=\{handleImageWheel\}/);
+  assert.match(lightbox, /event\.currentTarget\.scrollBy\(\{ left: event\.deltaX, top: event\.deltaY \}\)/);
   assert.match(lightbox, /page-image-lightbox-image-canvas/);
   assert.match(rule(dashboard, '.page-image-lightbox-image'), /overflow:\s*auto/);
   assert.match(rule(dashboard, '.page-image-lightbox-image-canvas'), /min-width:\s*100%/);

@@ -1660,10 +1660,15 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
   }
 
   function handleImageWheel(event) {
-    if (!event.metaKey) return;
+    if (event.metaKey) {
+      event.preventDefault();
+      const nextZoom = Math.min(5, Math.max(1, zoom * Math.exp(-event.deltaY * 0.005)));
+      setZoom(nextZoom);
+      return;
+    }
+    if (zoom <= 1) return;
     event.preventDefault();
-    const nextZoom = Math.min(5, Math.max(1, zoom * Math.exp(-event.deltaY * 0.005)));
-    setZoom(nextZoom);
+    event.currentTarget.scrollBy({ left: event.deltaX, top: event.deltaY });
   }
 
   return (
