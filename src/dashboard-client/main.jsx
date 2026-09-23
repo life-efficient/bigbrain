@@ -1599,6 +1599,8 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
   const onIndexChangeRef = useRef(onIndexChange);
   const [zoom, setZoom] = useState(1);
   const [isPanning, setIsPanning] = useState(false);
+  const [compareIndex, setCompareIndex] = useState(null);
+  const [comparePickerOpen, setComparePickerOpen] = useState(false);
   const safeActiveIndex = Math.min(Math.max(Number.isInteger(activeIndex) ? activeIndex : 0, 0), Math.max(items.length - 1, 0));
   const isOpen = items.length > 0 && Number.isInteger(activeIndex);
   const activeImageUrl = items[safeActiveIndex]?.url;
@@ -1648,12 +1650,18 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
     imagePanRef.current = null;
     zoomAnchorRef.current = null;
     setIsPanning(false);
+    setCompareIndex(null);
+    setComparePickerOpen(false);
     const viewport = imageViewportRef.current;
     if (viewport) {
       viewport.scrollLeft = 0;
       viewport.scrollTop = 0;
     }
   }, [activeImageUrl, isOpen]);
+
+  useEffect(() => {
+    if (compareIndex === safeActiveIndex) setCompareIndex(null);
+  }, [compareIndex, safeActiveIndex]);
 
   useLayoutEffect(() => {
     const anchor = zoomAnchorRef.current;
@@ -1667,6 +1675,7 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
 
   const activeItem = items[safeActiveIndex];
   const activeLabel = activeItem.caption || activeItem.alt_text || activeItem.filename || `Attached image ${safeActiveIndex + 1}`;
+  const comparisonItem = Number.isInteger(compareIndex) ? items[compareIndex] : null;
 
   function moveTo(index) {
     if (items.length < 2) return;
@@ -1741,17 +1750,30 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
       <div className="page-image-lightbox" onClick={(event) => event.stopPropagation()}>
         <div className="page-image-lightbox-head">
           <span aria-live="polite">Image {safeActiveIndex + 1} of {items.length}</span>
-          <button
-            ref={closeButtonRef}
-            className="page-image-lightbox-close"
-            type="button"
-            aria-label="Close image viewer"
-            onClick={onClose}
-          >
-            <span aria-hidden="true">×</span>
-          </button>
+          <div className="page-image-lightbox-actions">
+            {items.length > 1 ? (
+              <button
+                className="page-image-lightbox-compare"
+                type="button"
+                aria-expanded={comparePickerOpen}
+                aria-controls="page-image-lightbox-compare-picker"
+                onClick={() => setComparePickerOpen((open) => !open)}
+              >
+                Compare
+              </button>
+            ) : null}
+            <button
+              ref={closeButtonRef}
+              className="page-image-lightbox-close"
+              type="button"
+              aria-label="Close image viewer"
+              onClick={onClose}
+            >
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
         </div>
-        <div className="page-image-lightbox-stage">
+        <div className={`page-image-lightbox-stage${comparisonItem ? ' is-comparing' : ''}`}>
           <div className="page-image-lightbox-nav-slot">{items.length > 1 ? (
             <button
               className="page-image-lightbox-control page-image-lightbox-control-previous"
@@ -1776,6 +1798,12 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
               <img src={activeItem.url} alt={activeItem.alt_text || activeLabel} draggable="false" />
             </div>
           </div>
+          {comparisonItem ? (
+            <ComparisonImageViewport
+              item={comparisonItem}
+              label={comparisonItem.caption || comparisonItem.alt_text || comparisonItem.filename || `Attached image ${compareIndex + 1}`}
+            />
+          ) : null}
           <div className="page-image-lightbox-nav-slot">{items.length > 1 ? (
             <button
               className="page-image-lightbox-control page-image-lightbox-control-next"
@@ -1787,6 +1815,35 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
             </button>
           ) : null}</div>
         </div>
+        {comparePickerOpen ? (
+          <aside id="page-image-lightbox-compare-picker" className="page-image-lightbox-compare-picker" aria-label="Choose an image to compare">
+            <div className="page-image-lightbox-compare-picker-head">
+              <strong>Compare with</strong>
+              <button type="button" aria-label="Close comparison picker" onClick={() => setComparePickerOpen(false)}>×</button>
+            </div>
+            <div className="page-image-lightbox-compare-list">
+              {items.map((image, index) => {
+                if (index === safeActiveIndex) return null;
+                const label = image.caption || image.alt_text || image.filename || `Attached image ${index + 1}`;
+                return (
+                  <button
+                    key={`${image.path || image.url}:${index}`}
+                    type="button"
+                    className={`page-image-lightbox-compare-option${index === compareIndex ? ' active' : ''}`}
+                    aria-pressed={index === compareIndex}
+                    onClick={() => {
+                      setCompareIndex(index);
+                      setComparePickerOpen(false);
+                    }}
+                  >
+                    <img src={image.url} alt="" />
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </aside>
+        ) : null}
         <div className="page-image-lightbox-caption" aria-live="polite">
           <div className="page-image-lightbox-caption-copy">
             <strong>{activeItem.caption || activeLabel}</strong>
@@ -1800,6 +1857,100 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
             </button>
           ) : null}
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ComparisonImageViewport({ item, label }) {
+  const viewportRef = useRef(null);
+  const panRef = useRef(null);
+  const zoomAnchorRef = useRef(null);
+  const [zoom, setZoom] = useState(1);
+  const [isPanning, setIsPanning] = useState(false);
+
+  useEffect(() => {
+    setZoom(1);
+    panRef.current = null;
+    zoomAnchorRef.current = null;
+    setIsPanning(false);
+    const viewport = viewportRef.current;
+    if (viewport) {
+      viewport.scrollLeft = 0;
+      viewport.scrollTop = 0;
+    }
+  }, [item.url]);
+
+  useLayoutEffect(() => {
+    const anchor = zoomAnchorRef.current;
+    if (!anchor || anchor.zoom !== zoom) return;
+    anchor.viewport.scrollLeft = anchor.imageX * zoom - anchor.viewportX;
+    anchor.viewport.scrollTop = anchor.imageY * zoom - anchor.viewportY;
+    zoomAnchorRef.current = null;
+  }, [zoom]);
+
+  function handleWheel(event) {
+    if (event.metaKey) {
+      event.preventDefault();
+      const nextZoom = Math.min(5, Math.max(1, zoom * Math.exp(-event.deltaY * 0.005)));
+      if (nextZoom !== zoom) {
+        const viewport = event.currentTarget;
+        const bounds = viewport.getBoundingClientRect();
+        const viewportX = event.clientX - bounds.left;
+        const viewportY = event.clientY - bounds.top;
+        zoomAnchorRef.current = {
+          viewport,
+          viewportX,
+          viewportY,
+          imageX: (viewport.scrollLeft + viewportX) / zoom,
+          imageY: (viewport.scrollTop + viewportY) / zoom,
+          zoom: nextZoom,
+        };
+        setZoom(nextZoom);
+      }
+      return;
+    }
+    if (zoom <= 1) return;
+    event.preventDefault();
+    event.currentTarget.scrollBy({ left: event.deltaX, top: event.deltaY });
+  }
+
+  function handlePointerDown(event) {
+    if (zoom <= 1 || event.button !== 0) return;
+    const viewport = event.currentTarget;
+    event.preventDefault();
+    viewport.setPointerCapture(event.pointerId);
+    panRef.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, scrollLeft: viewport.scrollLeft, scrollTop: viewport.scrollTop };
+    setIsPanning(true);
+  }
+
+  function handlePointerMove(event) {
+    const pan = panRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    event.currentTarget.scrollLeft = pan.scrollLeft - (event.clientX - pan.clientX);
+    event.currentTarget.scrollTop = pan.scrollTop - (event.clientY - pan.clientY);
+  }
+
+  function handlePointerEnd(event) {
+    if (panRef.current?.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    panRef.current = null;
+    setIsPanning(false);
+  }
+
+  return (
+    <div
+      ref={viewportRef}
+      className={`page-image-lightbox-image${zoom > 1 ? ' is-zoomed' : ''}${isPanning ? ' is-panning' : ''}`}
+      onWheel={handleWheel}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerEnd}
+      onPointerCancel={handlePointerEnd}
+      aria-label={zoom > 1 ? `Zoomed comparison image: ${label}. Scroll or drag to pan.` : `Comparison image: ${label}. Hold Command and scroll to zoom.`}
+    >
+      <div className="page-image-lightbox-image-canvas" style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%` }}>
+        <img src={item.url} alt={item.alt_text || label} draggable="false" />
       </div>
     </div>
   );

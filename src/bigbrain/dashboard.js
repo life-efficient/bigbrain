@@ -795,10 +795,15 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .page-image-lightbox-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 8px; background: rgba(8,11,18,0.74); backdrop-filter: blur(10px); }
       .page-image-lightbox { position: relative; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 14px; width: calc(100vw - 16px); height: calc(100vh - 16px); max-width: none; max-height: none; min-height: 0; padding: 20px; border: 0; border-radius: 18px; background: var(--panel); box-shadow: 0 28px 90px rgba(0,0,0,0.32); }
       .page-image-lightbox-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; color: var(--muted); font-size: 13px; }
+      .page-image-lightbox-actions { display: flex; align-items: center; gap: 8px; }
       .page-image-lightbox-close { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); cursor: pointer; font-size: 24px; line-height: 1; }
       .page-image-lightbox-close:hover { border-color: var(--line-strong); background: var(--surface-muted); }
       .page-image-lightbox-close:focus-visible { outline: 3px solid rgba(138,180,255,0.62); outline-offset: 3px; }
+      .page-image-lightbox-compare { min-height: 34px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); cursor: pointer; font: inherit; font-weight: 600; }
+      .page-image-lightbox-compare:hover { border-color: var(--line-strong); background: var(--surface-muted); }
+      .page-image-lightbox-compare:focus-visible { outline: 3px solid rgba(138,180,255,0.62); outline-offset: 3px; }
       .page-image-lightbox-stage { display: grid; grid-template-columns: 48px minmax(0, 1fr) 48px; align-items: stretch; gap: 12px; min-height: 0; min-width: 0; }
+      .page-image-lightbox-stage.is-comparing { grid-template-columns: 48px minmax(0, 1fr) minmax(0, 1fr) 48px; }
       .page-image-lightbox-nav-slot { display: grid; place-items: center; min-width: 0; }
       .page-image-lightbox-image { min-width: 0; min-height: 0; overflow: auto; border-radius: 10px; background: #09090b; scrollbar-width: thin; }
       .page-image-lightbox-image.is-zoomed { cursor: grab; }
@@ -808,6 +813,16 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .page-image-lightbox-control { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); cursor: pointer; font-size: 34px; line-height: 1; }
       .page-image-lightbox-control:hover { border-color: var(--line-strong); background: var(--surface-muted); }
       .page-image-lightbox-control:focus-visible { outline: 3px solid rgba(138,180,255,0.72); outline-offset: 3px; }
+      .page-image-lightbox-compare-picker { position: absolute; z-index: 2; top: 66px; right: 20px; display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(300px, calc(100% - 40px)); max-height: min(70vh, 620px); border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: 0 20px 50px rgba(0,0,0,0.3); overflow: hidden; }
+      .page-image-lightbox-compare-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 12px 10px; border-bottom: 1px solid var(--line); }
+      .page-image-lightbox-compare-picker-head button { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; font-size: 21px; line-height: 1; }
+      .page-image-lightbox-compare-picker-head button:hover { background: var(--surface-muted); color: var(--ink); }
+      .page-image-lightbox-compare-list { display: grid; gap: 8px; overflow-y: auto; padding: 10px; }
+      .page-image-lightbox-compare-option { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 10px; width: 100%; padding: 6px; border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ink); cursor: pointer; font: inherit; text-align: left; }
+      .page-image-lightbox-compare-option:hover, .page-image-lightbox-compare-option.active { border-color: var(--line-strong); background: var(--surface-muted); }
+      .page-image-lightbox-compare-option:focus-visible { outline: 3px solid rgba(138,180,255,0.62); outline-offset: 2px; }
+      .page-image-lightbox-compare-option img { display: block; width: 64px; height: 48px; border-radius: 4px; object-fit: cover; background: #09090b; }
+      .page-image-lightbox-compare-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .page-image-lightbox-caption { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-width: 0; color: var(--ink); font-size: 14px; line-height: 1.4; }
       .page-image-lightbox-caption-copy { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
       .page-image-lightbox-caption small { color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
@@ -825,6 +840,12 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .page-image-lightbox-overlay { padding: 6px; }
         .page-image-lightbox { width: calc(100vw - 12px); height: calc(100vh - 12px); padding: 12px; border-radius: 14px; }
         .page-image-lightbox-stage { grid-template-columns: 34px minmax(0, 1fr) 34px; gap: 5px; }
+        .page-image-lightbox-stage.is-comparing { grid-template-columns: 34px minmax(0, 1fr) 34px; grid-template-rows: minmax(0, 1fr) minmax(0, 1fr); }
+        .page-image-lightbox-stage.is-comparing .page-image-lightbox-nav-slot:first-child { grid-row: 1 / span 2; }
+        .page-image-lightbox-stage.is-comparing > .page-image-lightbox-image:nth-child(2) { grid-column: 2; grid-row: 1; }
+        .page-image-lightbox-stage.is-comparing > .page-image-lightbox-image:nth-child(3) { grid-column: 2; grid-row: 2; }
+        .page-image-lightbox-stage.is-comparing .page-image-lightbox-nav-slot:last-child { grid-column: 3; grid-row: 1 / span 2; }
+        .page-image-lightbox-compare-picker { top: 58px; right: 12px; width: calc(100% - 24px); max-height: min(65vh, 520px); }
         .page-image-lightbox-control { width: 32px; height: 32px; font-size: 27px; }
         .page-image-lightbox-caption { align-items: flex-start; }
         .page-image-lightbox-open-page { padding: 7px 9px; }
