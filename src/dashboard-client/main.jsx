@@ -1592,10 +1592,13 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
   const items = Array.isArray(images) ? images.filter((image) => image?.url) : [];
   const closeButtonRef = useRef(null);
   const imageViewportRef = useRef(null);
+  const imagePanRef = useRef(null);
+  const zoomAnchorRef = useRef(null);
   const activeIndexRef = useRef(activeIndex);
   const onCloseRef = useRef(onClose);
   const onIndexChangeRef = useRef(onIndexChange);
   const [zoom, setZoom] = useState(1);
+  const [isPanning, setIsPanning] = useState(false);
   const safeActiveIndex = Math.min(Math.max(Number.isInteger(activeIndex) ? activeIndex : 0, 0), Math.max(items.length - 1, 0));
   const isOpen = items.length > 0 && Number.isInteger(activeIndex);
   const activeImageUrl = items[safeActiveIndex]?.url;
@@ -1642,12 +1645,23 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
 
   useEffect(() => {
     setZoom(1);
+    imagePanRef.current = null;
+    zoomAnchorRef.current = null;
+    setIsPanning(false);
     const viewport = imageViewportRef.current;
     if (viewport) {
       viewport.scrollLeft = 0;
       viewport.scrollTop = 0;
     }
   }, [activeImageUrl, isOpen]);
+
+  useLayoutEffect(() => {
+    const anchor = zoomAnchorRef.current;
+    if (!anchor || anchor.zoom !== zoom) return;
+    anchor.viewport.scrollLeft = anchor.imageX * zoom - anchor.viewportX;
+    anchor.viewport.scrollTop = anchor.imageY * zoom - anchor.viewportY;
+    zoomAnchorRef.current = null;
+  }, [zoom]);
 
   if (!isOpen) return null;
 
@@ -1663,12 +1677,55 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
     if (event.metaKey) {
       event.preventDefault();
       const nextZoom = Math.min(5, Math.max(1, zoom * Math.exp(-event.deltaY * 0.005)));
-      setZoom(nextZoom);
+      if (nextZoom !== zoom) {
+        const viewport = event.currentTarget;
+        const bounds = viewport.getBoundingClientRect();
+        const viewportX = event.clientX - bounds.left;
+        const viewportY = event.clientY - bounds.top;
+        zoomAnchorRef.current = {
+          viewport,
+          viewportX,
+          viewportY,
+          imageX: (viewport.scrollLeft + viewportX) / zoom,
+          imageY: (viewport.scrollTop + viewportY) / zoom,
+          zoom: nextZoom,
+        };
+        setZoom(nextZoom);
+      }
       return;
     }
     if (zoom <= 1) return;
     event.preventDefault();
     event.currentTarget.scrollBy({ left: event.deltaX, top: event.deltaY });
+  }
+
+  function handleImagePointerDown(event) {
+    if (zoom <= 1 || event.button !== 0) return;
+    const viewport = event.currentTarget;
+    event.preventDefault();
+    viewport.setPointerCapture(event.pointerId);
+    imagePanRef.current = {
+      pointerId: event.pointerId,
+      clientX: event.clientX,
+      clientY: event.clientY,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+    };
+    setIsPanning(true);
+  }
+
+  function handleImagePointerMove(event) {
+    const pan = imagePanRef.current;
+    if (!pan || pan.pointerId !== event.pointerId) return;
+    event.currentTarget.scrollLeft = pan.scrollLeft - (event.clientX - pan.clientX);
+    event.currentTarget.scrollTop = pan.scrollTop - (event.clientY - pan.clientY);
+  }
+
+  function handleImagePointerEnd(event) {
+    if (imagePanRef.current?.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    imagePanRef.current = null;
+    setIsPanning(false);
   }
 
   return (
@@ -1707,12 +1764,16 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
           ) : null}</div>
           <div
             ref={imageViewportRef}
-            className={`page-image-lightbox-image${zoom > 1 ? ' is-zoomed' : ''}`}
+            className={`page-image-lightbox-image${zoom > 1 ? ' is-zoomed' : ''}${isPanning ? ' is-panning' : ''}`}
             onWheel={handleImageWheel}
+            onPointerDown={handleImagePointerDown}
+            onPointerMove={handleImagePointerMove}
+            onPointerUp={handleImagePointerEnd}
+            onPointerCancel={handleImagePointerEnd}
             aria-label={zoom > 1 ? 'Zoomed image. Scroll to pan.' : 'Image. Hold Command and scroll to zoom.'}
           >
             <div className="page-image-lightbox-image-canvas" style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%` }}>
-              <img src={activeItem.url} alt={activeItem.alt_text || activeLabel} />
+              <img src={activeItem.url} alt={activeItem.alt_text || activeLabel} draggable="false" />
             </div>
           </div>
           <div className="page-image-lightbox-nav-slot">{items.length > 1 ? (

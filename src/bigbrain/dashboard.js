@@ -802,8 +802,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .page-image-lightbox-nav-slot { display: grid; place-items: center; min-width: 0; }
       .page-image-lightbox-image { min-width: 0; min-height: 0; overflow: auto; border-radius: 10px; background: #09090b; scrollbar-width: thin; }
       .page-image-lightbox-image.is-zoomed { cursor: grab; }
+      .page-image-lightbox-image.is-panning { cursor: grabbing; }
       .page-image-lightbox-image-canvas { min-width: 100%; min-height: 100%; }
-      .page-image-lightbox-stage img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: contain; object-position: center; }
+      .page-image-lightbox-stage img { display: block; width: 100%; height: 100%; min-height: 0; object-fit: contain; object-position: center; user-select: none; -webkit-user-drag: none; }
       .page-image-lightbox-control { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--ink); cursor: pointer; font-size: 34px; line-height: 1; }
       .page-image-lightbox-control:hover { border-color: var(--line-strong); background: var(--surface-muted); }
       .page-image-lightbox-control:focus-visible { outline: 3px solid rgba(138,180,255,0.72); outline-offset: 3px; }

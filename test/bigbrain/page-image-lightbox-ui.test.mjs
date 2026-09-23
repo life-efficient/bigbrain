@@ -65,9 +65,17 @@ test('shared lightbox zooms on Command-scroll and pans zoomed images with ordina
   assert.match(lightbox, /if \(event\.metaKey\) \{/);
   assert.match(lightbox, /event\.preventDefault\(\)/);
   assert.match(lightbox, /Math\.min\(5, Math\.max\(1,/);
+  assert.match(lightbox, /const viewportX = event\.clientX - bounds\.left/);
+  assert.match(lightbox, /imageX: \(viewport\.scrollLeft \+ viewportX\) \/ zoom/);
+  assert.match(lightbox, /anchor\.viewport\.scrollLeft = anchor\.imageX \* zoom - anchor\.viewportX/);
   assert.match(lightbox, /onWheel=\{handleImageWheel\}/);
   assert.match(lightbox, /event\.currentTarget\.scrollBy\(\{ left: event\.deltaX, top: event\.deltaY \}\)/);
+  assert.match(lightbox, /onPointerDown=\{handleImagePointerDown\}/);
+  assert.match(lightbox, /onPointerMove=\{handleImagePointerMove\}/);
+  assert.match(lightbox, /setPointerCapture\(event\.pointerId\)/);
+  assert.match(lightbox, /draggable="false"/);
   assert.match(lightbox, /page-image-lightbox-image-canvas/);
   assert.match(rule(dashboard, '.page-image-lightbox-image'), /overflow:\s*auto/);
+  assert.match(rule(dashboard, '.page-image-lightbox-image\.is-panning'), /cursor:\s*grabbing/);
   assert.match(rule(dashboard, '.page-image-lightbox-image-canvas'), /min-width:\s*100%/);
 });
