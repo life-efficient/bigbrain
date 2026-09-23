@@ -49,3 +49,20 @@ test('shared lightbox retains keyboard and labeled controls, with a Recents-only
   assert.match(recents, /const galleryImages = galleryItems\.map\(\(item\) => \(\{[\s\S]*?page_slug:\s*item\.slug/);
   assert.match(recents, /<PageImageLightbox[\s\S]*?onOpenPage=\{/);
 });
+
+test('shared lightbox zooms on Command-scroll and pans zoomed images with ordinary scrolling', async () => {
+  const [client, dashboard] = await Promise.all([
+    fs.readFile(clientUrl, 'utf8'),
+    fs.readFile(dashboardUrl, 'utf8'),
+  ]);
+  const lightbox = client.slice(client.indexOf('function PageImageLightbox('), client.indexOf('function PrivatePageBackLink('));
+
+  assert.match(lightbox, /const \[zoom, setZoom\] = useState\(1\)/);
+  assert.match(lightbox, /if \(!event\.metaKey\) return;/);
+  assert.match(lightbox, /event\.preventDefault\(\)/);
+  assert.match(lightbox, /Math\.min\(5, Math\.max\(1,/);
+  assert.match(lightbox, /onWheel=\{handleImageWheel\}/);
+  assert.match(lightbox, /page-image-lightbox-image-canvas/);
+  assert.match(rule(dashboard, '.page-image-lightbox-image'), /overflow:\s*auto/);
+  assert.match(rule(dashboard, '.page-image-lightbox-image-canvas'), /min-width:\s*100%/);
+});

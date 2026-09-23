@@ -1591,11 +1591,14 @@ function PageImageCarousel({ images, compact = false, onImageOpen }) {
 function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpenPage }) {
   const items = Array.isArray(images) ? images.filter((image) => image?.url) : [];
   const closeButtonRef = useRef(null);
+  const imageViewportRef = useRef(null);
   const activeIndexRef = useRef(activeIndex);
   const onCloseRef = useRef(onClose);
   const onIndexChangeRef = useRef(onIndexChange);
+  const [zoom, setZoom] = useState(1);
   const safeActiveIndex = Math.min(Math.max(Number.isInteger(activeIndex) ? activeIndex : 0, 0), Math.max(items.length - 1, 0));
   const isOpen = items.length > 0 && Number.isInteger(activeIndex);
+  const activeImageUrl = items[safeActiveIndex]?.url;
 
   activeIndexRef.current = safeActiveIndex;
   onCloseRef.current = onClose;
@@ -1637,6 +1640,15 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
     };
   }, [isOpen, items.length]);
 
+  useEffect(() => {
+    setZoom(1);
+    const viewport = imageViewportRef.current;
+    if (viewport) {
+      viewport.scrollLeft = 0;
+      viewport.scrollTop = 0;
+    }
+  }, [activeImageUrl, isOpen]);
+
   if (!isOpen) return null;
 
   const activeItem = items[safeActiveIndex];
@@ -1645,6 +1657,13 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
   function moveTo(index) {
     if (items.length < 2) return;
     onIndexChange?.((index + items.length) % items.length);
+  }
+
+  function handleImageWheel(event) {
+    if (!event.metaKey) return;
+    event.preventDefault();
+    const nextZoom = Math.min(5, Math.max(1, zoom * Math.exp(-event.deltaY * 0.005)));
+    setZoom(nextZoom);
   }
 
   return (
@@ -1681,7 +1700,16 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
               <span aria-hidden="true">‹</span>
             </button>
           ) : null}</div>
-          <div className="page-image-lightbox-image"><img src={activeItem.url} alt={activeItem.alt_text || activeLabel} /></div>
+          <div
+            ref={imageViewportRef}
+            className={`page-image-lightbox-image${zoom > 1 ? ' is-zoomed' : ''}`}
+            onWheel={handleImageWheel}
+            aria-label={zoom > 1 ? 'Zoomed image. Scroll to pan.' : 'Image. Hold Command and scroll to zoom.'}
+          >
+            <div className="page-image-lightbox-image-canvas" style={{ width: `${zoom * 100}%`, height: `${zoom * 100}%` }}>
+              <img src={activeItem.url} alt={activeItem.alt_text || activeLabel} />
+            </div>
+          </div>
           <div className="page-image-lightbox-nav-slot">{items.length > 1 ? (
             <button
               className="page-image-lightbox-control page-image-lightbox-control-next"
