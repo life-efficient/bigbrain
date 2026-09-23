@@ -866,9 +866,6 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
             published_date: args.published_date,
             article_url: args.article_url,
             raw_file: rawPath,
-            publisher_text_words: capture.word_count,
-            archival_sha256: capture.html_sha256,
-            transcript_sha256: capture.transcript_sha256,
             ...(args.domains ? { domains: args.domains } : {}),
           },
           domains: args.domains,
@@ -895,8 +892,6 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
           compiledTruth: replaceArticleImageLinks(capture.transcript, articleImages),
           timelineEntry: timelineForMutation(args, actor),
           frontmatterValues: {
-            publisher_text_words: capture.word_count,
-            transcript_sha256: capture.transcript_sha256,
             images: articleImages.map(({ path: imagePath, alt_text, source }) => ({ path: imagePath, alt_text, source })),
           },
         });

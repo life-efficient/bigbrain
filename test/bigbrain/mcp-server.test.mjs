@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
+import http from 'node:http';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -2777,11 +2778,83 @@ test('MCP startup migrates a missing page schema registry before it is curated',
   }
 });
 
+test('capture_article respects the live strict article schema', async () => {
+  const fixture = await createFixture('bigbrain-mcp-capture-schema-');
+  let running;
+  let publisher;
+  try {
+    const body = Array.from({ length: 120 }, (_, index) => `publisher-word-${index + 1}`).join(' ');
+    publisher = http.createServer((request, response) => {
+      response.writeHead(200, { 'content-type': 'text/html' });
+      response.end(`<html><body><div dir="auto" class="body markup"><p>${body}</p></div></body></html>`);
+    });
+    await new Promise((resolve) => publisher.listen(0, '127.0.0.1', resolve));
+    const publisherUrl = `http://127.0.0.1:${publisher.address().port}/article`;
+    const config = await loadConfig({ configPath: fixture.configPath });
+    running = await startMcpServer({
+      config,
+      host: '127.0.0.1',
+      port: 0,
+      authToken: 'secret',
+      syncIntervalMs: 0,
+      gitBackupEnabled: false,
+    });
+
+    const captured = await rpc(running.url, 'tools/call', {
+      name: 'capture_article',
+      arguments: {
+        article_url: publisherUrl,
+        title: 'Schema-compatible capture',
+        published_date: '2026-09-23',
+        source_kind: 'rss',
+        timeline_entry: 'Captured publisher article with schema-compatible metadata.',
+        commit_message: 'Capture schema-compatible article',
+        provenance: {
+          event_id: 'test:capture-article:schema-compatible',
+          source_type: 'assistant_chat',
+          source_label: 'MCP server test',
+          source_message: 'Capture a schema-compatible article.',
+        },
+      },
+    }, 'secret');
+
+    assert.equal(captured.error, undefined, captured.error?.message);
+    const page = await rpc(running.url, 'tools/call', { name: 'read', arguments: { path: 'articles/schema-compatible-capture' } }, 'secret');
+    assert.equal(page.error, undefined, page.error?.message);
+    const frontmatter = page.result.structuredContent.frontmatter;
+    assert.equal(frontmatter.raw_file, 'articles/.raw/schema-compatible-capture.html');
+    for (const field of ['publisher_text_words', 'archival_sha256', 'transcript_sha256']) {
+      assert.equal(field in frontmatter, false);
+    }
+
+    const refreshed = await rpc(running.url, 'tools/call', {
+      name: 'refresh_article_capture',
+      arguments: {
+        article_url: publisherUrl,
+        title: 'Schema-compatible capture',
+        timeline_entry: 'Refreshed publisher article with schema-compatible metadata.',
+        commit_message: 'Refresh schema-compatible article',
+        provenance: {
+          event_id: 'test:refresh-article:schema-compatible',
+          source_type: 'assistant_chat',
+          source_label: 'MCP server test',
+          source_message: 'Refresh a schema-compatible article.',
+        },
+      },
+    }, 'secret');
+    assert.equal(refreshed.error, undefined, refreshed.error?.message);
+  } finally {
+    await running?.close();
+    await new Promise((resolve) => publisher?.close(resolve) ?? resolve());
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
 async function rpc(url, method, params, token) {
   const requestParams = { ...(params || {}) };
   const callName = method === 'tools/call' ? requestParams.name : null;
   const mutationNames = new Set([
-    'tasks/create', 'tasks/update', 'create_raw_file', 'create_page', 'create_raw_file_with_page',
+    'tasks/create', 'tasks/update', 'create_raw_file', 'create_page', 'create_raw_file_with_page', 'capture_article', 'refresh_article_capture',
     'domains/create', 'domains_create', 'domains/update', 'domains_update', 'domains/delete', 'domains_delete',
     'schemas/bootstrap', 'schemas_bootstrap', 'schemas/register', 'schemas_register', 'schemas/update', 'schemas_update', 'schemas/delete', 'schemas_delete',
     'update_raw_file', 'delete_raw_file', 'rename_raw_file', 'rename_page', 'update_page',

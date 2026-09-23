@@ -16,9 +16,6 @@ export const DEFAULT_CODEX_APP_SERVER_ARGS = [
   // Background app threads must be able to answer the MCP approval handshake
   // themselves. The client auto-accepts only the source/Brain servers below.
   '--config', 'approval_policy="on-request"',
-  // Keep the normal read surface and add only the bounded RSS/Substack article
-  // workflow and capture operations needed by unattended ingestion.
-  '--config', 'mcp_servers.personal_brain.enabled_tools=["about","me","filing_rules","search","read","list","read_raw_file","list_raw_files","pages/query","create_raw_file_with_page","capture_article","create_page","create_raw_file","update_page","rss/workflow","rss_workflow","rss/ledger","rss_ledger","substack/workflow","substack_workflow","substack/ledger","substack_ledger","events/listeners","events/subscriptions","events/inbox","domains/list","domains_list","events/provenance"]',
   '--config', 'mcp_servers.node_repl.env.CUA_REPL_ENABLED_SURFACES="browser"',
   '--config', 'mcp_servers.node_repl.env.NODE_REPL_TRUSTED_SERVICES=\'{"browser":"@oai/browser-desktop/service"}\'',
   '--config', 'mcp_servers.node_repl.env.SKY_CUA_SERVICE_PATH=""',
@@ -29,27 +26,6 @@ export const DEFAULT_CODEX_APP_SERVER_ARGS = [
   '--config', 'mcp_servers.cua_repl.enabled=false',
   '--config', 'plugins."computer-use@openai-bundled".enabled=false',
   '--config', 'plugins."unified-computer-use@openai-bundled".enabled=false',
-  // The shared Codex config intentionally exposes only a conservative subset
-  // of Personal Brain tools. Background RSS ingestion needs its own narrow
-  // capability set so the app thread can complete the ledger preflight and
-  // perform the approved article capture without an interactive approval UI.
-  '--config', 'mcp_servers.personal_brain.tools."rss/workflow".approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools.rss_workflow.approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools."rss/ledger".approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools.rss_ledger.approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools."substack/workflow".approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools.substack_workflow.approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools."substack/ledger".approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools.substack_ledger.approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools."events/listeners".approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools."events/subscriptions".approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools."events/inbox".approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools."domains/list".approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools.capture_article.approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools.create_raw_file_with_page.approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools.create_page.approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools.create_raw_file.approval_mode="auto"',
-  '--config', 'mcp_servers.personal_brain.tools."events/provenance".approval_mode="auto"',
 ];
 const BACKGROUND_CUA_ENV_KEYS = [
   'NODE_REPL_JS_BANNER',
