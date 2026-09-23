@@ -817,13 +817,13 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .page-image-lightbox-compare-resizer::before { content: ''; position: absolute; inset: 0 2px; border-radius: 999px; background: var(--line); transition: background 150ms ease; }
       .page-image-lightbox-compare-resizer:hover::before, .page-image-lightbox-compare-resizer:focus-visible::before { background: var(--line-strong); }
       .page-image-lightbox-compare-resizer:focus-visible { outline: none; }
-      .page-image-lightbox-compare-picker { position: absolute; z-index: 2; top: 66px; right: 20px; display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(300px, calc(100% - 40px)); max-height: min(70vh, 620px); border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: 0 20px 50px rgba(0,0,0,0.3); overflow: hidden; }
+      .page-image-lightbox-compare-picker { position: absolute; z-index: 2; top: 66px; right: 20px; bottom: 20px; display: grid; grid-template-rows: auto minmax(0, 1fr); width: min(480px, calc(100% - 40px)); border: 1px solid var(--line); border-radius: 12px; background: var(--panel); box-shadow: 0 20px 50px rgba(0,0,0,0.3); overflow: hidden; }
       .page-image-lightbox-compare-picker { animation: page-image-lightbox-picker-in 160ms cubic-bezier(.2,.8,.2,1) both; transform-origin: top right; }
       .page-image-lightbox-compare-picker-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 12px 10px; border-bottom: 1px solid var(--line); }
       .page-image-lightbox-compare-picker-head button { width: 28px; height: 28px; padding: 0; border: 0; border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; font-size: 21px; line-height: 1; }
       .page-image-lightbox-compare-picker-head button:hover { background: var(--surface-muted); color: var(--ink); }
-      .page-image-lightbox-compare-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(82px, 1fr)); align-content: start; gap: 8px; overflow-y: auto; padding: 10px; }
-      .page-image-lightbox-compare-option { display: block; width: 100%; aspect-ratio: 1; padding: 3px; border: 1px solid transparent; border-radius: 8px; background: transparent; cursor: pointer; }
+      .page-image-lightbox-compare-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 12px; overflow-y: auto; padding: 12px; }
+      .page-image-lightbox-compare-option { display: block; width: 100%; aspect-ratio: 4 / 3; padding: 3px; border: 1px solid transparent; border-radius: 8px; background: transparent; cursor: pointer; }
       .page-image-lightbox-compare-option:hover, .page-image-lightbox-compare-option.active { border-color: var(--line-strong); background: var(--surface-muted); }
       .page-image-lightbox-compare-option:focus-visible { outline: 3px solid rgba(138,180,255,0.62); outline-offset: 2px; }
       .page-image-lightbox-compare-option img { display: block; width: 100%; height: 100%; border-radius: 4px; object-fit: cover; background: #09090b; }
@@ -852,7 +852,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .page-image-lightbox-stage.is-comparing .page-image-lightbox-compare-resizer { display: none; }
         .page-image-lightbox-stage.is-comparing > .page-image-lightbox-image:nth-child(4) { grid-column: 2; grid-row: 2; }
         .page-image-lightbox-stage.is-comparing .page-image-lightbox-nav-slot:last-child { grid-column: 3; grid-row: 1 / span 2; }
-        .page-image-lightbox-compare-picker { top: 58px; right: 12px; width: calc(100% - 24px); max-height: min(65vh, 520px); }
+        .page-image-lightbox-compare-picker { top: 58px; right: 12px; bottom: 12px; width: calc(100% - 24px); }
         .page-image-lightbox-control { width: 32px; height: 32px; font-size: 27px; }
         .page-image-lightbox-caption { align-items: flex-start; }
         .page-image-lightbox-open-page { padding: 7px 9px; }

@@ -98,8 +98,9 @@ test('shared lightbox can select another image for a side-by-side comparison', a
   assert.match(lightbox, /setPointerCapture\(event\.pointerId\)/);
   assert.match(lightbox, /--compare-primary/);
   assert.match(lightbox, /aria-label="Resize compared images"/);
-  assert.match(rule(dashboard, '.page-image-lightbox-compare-picker'), /position:\s*absolute/);
-  assert.match(rule(dashboard, '.page-image-lightbox-compare-list'), /grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(82px,\s*1fr\)\)/);
-  assert.match(rule(dashboard, '.page-image-lightbox-compare-option'), /aspect-ratio:\s*1/);
+  assert.match(rule(dashboard, '.page-image-lightbox-compare-picker'), /bottom:\s*20px/);
+  assert.match(rule(dashboard, '.page-image-lightbox-compare-picker'), /width:\s*min\(480px/);
+  assert.match(rule(dashboard, '.page-image-lightbox-compare-list'), /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
+  assert.match(rule(dashboard, '.page-image-lightbox-compare-option'), /aspect-ratio:\s*4\s*\/\s*3/);
   assert.match(dashboard, /@keyframes page-image-lightbox-picker-in/);
 });
