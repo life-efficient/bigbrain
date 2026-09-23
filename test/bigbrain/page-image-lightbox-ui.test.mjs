@@ -27,7 +27,7 @@ test('shared image lightbox keeps navigation outside image pixels in a rounded b
   assert.match(stage, /page-image-lightbox-control-previous[\s\S]*<img[\s\S]*page-image-lightbox-control-next/);
   assert.match(stageCss, /display:\s*grid/);
   assert.match(stageCss, /grid-template-columns:\s*[^;]*\b(?:auto|\d+px|\d+rem)\b[^;]*minmax\(0,\s*1fr\)[^;]*\b(?:auto|\d+px|\d+rem)\b/);
-  assert.match(rule(dashboard, '.page-image-lightbox-stage.is-comparing'), /grid-template-columns:\s*48px\s+minmax\(0,\s*1fr\)\s+minmax\(0,\s*1fr\)\s+48px/);
+  assert.match(rule(dashboard, '.page-image-lightbox-stage.is-comparing'), /grid-template-columns:\s*48px\s+minmax\(0,\s*var\(--compare-primary/);
   assert.doesNotMatch(controlCss, /position:\s*absolute/);
   assert.match(modalCss, /border:\s*(?:0|none)\s*;/);
   assert.match(modalCss, /border-radius:\s*(?!0(?:px|rem)?\s*;)[^;]+;/);
@@ -94,6 +94,12 @@ test('shared lightbox can select another image for a side-by-side comparison', a
   assert.match(lightbox, /if \(index === safeActiveIndex\) return null/);
   assert.match(lightbox, /<ComparisonImageViewport/);
   assert.match(lightbox, /page-image-lightbox-stage\$\{comparisonItem \? ' is-comparing' : ''\}/);
+  assert.match(lightbox, /className="page-image-lightbox-compare-resizer"/);
+  assert.match(lightbox, /setPointerCapture\(event\.pointerId\)/);
+  assert.match(lightbox, /--compare-primary/);
+  assert.match(lightbox, /aria-label="Resize compared images"/);
   assert.match(rule(dashboard, '.page-image-lightbox-compare-picker'), /position:\s*absolute/);
-  assert.match(rule(dashboard, '.page-image-lightbox-compare-option'), /grid-template-columns:\s*64px/);
+  assert.match(rule(dashboard, '.page-image-lightbox-compare-list'), /grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(82px,\s*1fr\)\)/);
+  assert.match(rule(dashboard, '.page-image-lightbox-compare-option'), /aspect-ratio:\s*1/);
+  assert.match(dashboard, /@keyframes page-image-lightbox-picker-in/);
 });

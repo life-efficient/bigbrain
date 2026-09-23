@@ -1594,6 +1594,7 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
   const imageViewportRef = useRef(null);
   const imagePanRef = useRef(null);
   const zoomAnchorRef = useRef(null);
+  const compareResizeRef = useRef(null);
   const activeIndexRef = useRef(activeIndex);
   const onCloseRef = useRef(onClose);
   const onIndexChangeRef = useRef(onIndexChange);
@@ -1601,6 +1602,7 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
   const [isPanning, setIsPanning] = useState(false);
   const [compareIndex, setCompareIndex] = useState(null);
   const [comparePickerOpen, setComparePickerOpen] = useState(false);
+  const [compareSplit, setCompareSplit] = useState(50);
   const safeActiveIndex = Math.min(Math.max(Number.isInteger(activeIndex) ? activeIndex : 0, 0), Math.max(items.length - 1, 0));
   const isOpen = items.length > 0 && Number.isInteger(activeIndex);
   const activeImageUrl = items[safeActiveIndex]?.url;
@@ -1652,6 +1654,7 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
     setIsPanning(false);
     setCompareIndex(null);
     setComparePickerOpen(false);
+    setCompareSplit(50);
     const viewport = imageViewportRef.current;
     if (viewport) {
       viewport.scrollLeft = 0;
@@ -1737,6 +1740,26 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
     setIsPanning(false);
   }
 
+  function handleCompareResizePointerDown(event) {
+    const stage = event.currentTarget.parentElement;
+    if (!stage || event.button !== 0) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    compareResizeRef.current = { pointerId: event.pointerId, startX: event.clientX, startSplit: compareSplit, width: stage.getBoundingClientRect().width };
+  }
+
+  function handleCompareResizePointerMove(event) {
+    const resize = compareResizeRef.current;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    setCompareSplit(Math.min(75, Math.max(25, resize.startSplit + (event.clientX - resize.startX) / resize.width * 100)));
+  }
+
+  function handleCompareResizePointerEnd(event) {
+    if (compareResizeRef.current?.pointerId !== event.pointerId) return;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+    compareResizeRef.current = null;
+  }
+
   return (
     <div
       className="page-image-lightbox-overlay"
@@ -1773,7 +1796,10 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
             </button>
           </div>
         </div>
-        <div className={`page-image-lightbox-stage${comparisonItem ? ' is-comparing' : ''}`}>
+        <div
+          className={`page-image-lightbox-stage${comparisonItem ? ' is-comparing' : ''}`}
+          style={comparisonItem ? { '--compare-primary': `${compareSplit}fr`, '--compare-secondary': `${100 - compareSplit}fr` } : undefined}
+        >
           <div className="page-image-lightbox-nav-slot">{items.length > 1 ? (
             <button
               className="page-image-lightbox-control page-image-lightbox-control-previous"
@@ -1798,6 +1824,27 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
               <img src={activeItem.url} alt={activeItem.alt_text || activeLabel} draggable="false" />
             </div>
           </div>
+          {comparisonItem ? (
+            <div
+              className="page-image-lightbox-compare-resizer"
+              role="separator"
+              aria-label="Resize compared images"
+              aria-orientation="vertical"
+              aria-valuemin={25}
+              aria-valuemax={75}
+              aria-valuenow={Math.round(compareSplit)}
+              tabIndex={0}
+              onPointerDown={handleCompareResizePointerDown}
+              onPointerMove={handleCompareResizePointerMove}
+              onPointerUp={handleCompareResizePointerEnd}
+              onPointerCancel={handleCompareResizePointerEnd}
+              onKeyDown={(event) => {
+                if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+                event.preventDefault();
+                setCompareSplit((split) => Math.min(75, Math.max(25, split + (event.key === 'ArrowLeft' ? -5 : 5))));
+              }}
+            />
+          ) : null}
           {comparisonItem ? (
             <ComparisonImageViewport
               item={comparisonItem}
@@ -1831,13 +1878,13 @@ function PageImageLightbox({ images, activeIndex, onClose, onIndexChange, onOpen
                     type="button"
                     className={`page-image-lightbox-compare-option${index === compareIndex ? ' active' : ''}`}
                     aria-pressed={index === compareIndex}
+                    aria-label={`Compare ${label}`}
                     onClick={() => {
                       setCompareIndex(index);
                       setComparePickerOpen(false);
                     }}
                   >
                     <img src={image.url} alt="" />
-                    <span>{label}</span>
                   </button>
                 );
               })}
