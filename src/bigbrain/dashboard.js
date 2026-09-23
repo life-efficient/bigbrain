@@ -854,9 +854,6 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .view-chip.active { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.08); }
       .view-chip:disabled { opacity: 0.38; cursor: default; box-shadow: none; }
       .history-nav { display: inline-flex; align-items: center; gap: 2px; }
-      .history-button { width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: transparent; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; line-height: 1; cursor: pointer; }
-      .history-button:hover:not(:disabled), .history-button:focus-visible:not(:disabled) { background: transparent; color: var(--ink); }
-      .history-button:disabled { opacity: 0.32; cursor: pointer; }
       .icon-button-ghost { appearance: none; -webkit-appearance: none; width: 30px; height: 30px; padding: 0; border: 0 !important; border-radius: 7px; background: none !important; background-image: none !important; color: var(--muted); display: inline-flex; align-items: center; justify-content: center; line-height: 1; cursor: pointer; box-shadow: none !important; }
       .icon-button-ghost:hover:not(:disabled), .icon-button-ghost:focus-visible:not(:disabled) { border: 0 !important; background: none !important; background-image: none !important; color: var(--ink); }
       .icon-button-ghost:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
