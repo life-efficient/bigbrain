@@ -2169,8 +2169,16 @@ function AssigneePills({ assignees, invalidAssignees }) {
   );
 }
 
-function IconButton({ className = '', children, ...props }) {
-  return <button type="button" className={`icon-button-ghost ${className}`.trim()} {...props}>{children}</button>;
+function IconButton({ className = '', children, style, ...props }) {
+  const ghostStyle = {
+    appearance: 'none',
+    WebkitAppearance: 'none',
+    background: 'transparent',
+    backgroundImage: 'none',
+    border: 0,
+    boxShadow: 'none',
+  };
+  return <button type="button" className={`icon-button-ghost ${className}`.trim()} style={{ ...style, ...ghostStyle }} {...props}>{children}</button>;
 }
 
 function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, onPageOpen, onVisibilityChange, onResizeStart }) {
