@@ -8,7 +8,7 @@ import { CANONICAL_SCHEMA_DIRS } from './constants.js';
 
 export const PAGE_SCHEMA_REGISTRY_FILENAME = 'page-schemas.yaml';
 export const PAGE_SCHEMA_REGISTRY_VERSION = 1;
-export const PAGE_SCHEMA_DEFAULTS_VERSION = 1;
+export const PAGE_SCHEMA_DEFAULTS_VERSION = 2;
 
 const SCHEMA_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const FIELD_TYPES = ['string', 'number', 'boolean', 'array', 'object'];
@@ -126,9 +126,20 @@ function defaultPageSchema(collection) {
       ? defaultTaskFields()
       : collection === 'articles'
         ? defaultArticleFields()
-        : collection === 'videos'
+      : collection === 'videos'
           ? defaultVideoFields()
-          : {},
+          : collection === 'people'
+            ? defaultPeopleFields()
+            : {},
+  };
+}
+
+function defaultPeopleFields() {
+  return {
+    contact_channels: {
+      type: 'array',
+      description: 'Ordered ways to contact this person. Each item has id, type, value, and optional label, primary, and verified_at fields. Common type slugs include email, phone, whatsapp, linkedin, signal, telegram, website, address, and other.',
+    },
   };
 }
 
@@ -137,7 +148,7 @@ function compatiblePageSchema(collection) {
     path_prefix: collection,
     description: DEFAULT_SCHEMA_DESCRIPTIONS[collection] || `Brain-local pages under ${collection}/.`,
     additional_properties: true,
-    fields: {},
+    fields: collection === 'people' ? defaultPeopleFields() : {},
   };
 }
 
@@ -264,16 +275,33 @@ export async function migratePageSchemaRegistry(config) {
 }
 
 function applyPageSchemaDefaultsMigration(registry, config, version, added) {
-  if (version !== 1) throw new Error(`Missing page schema defaults migration for version ${version}.`);
-  const existingPrefixes = new Set(Object.values(registry.schemas).map((schema) => normalizePathPrefix(schema.path_prefix)).filter(Boolean));
-  for (const collection of config.schemaDirs || []) {
-    const prefix = normalizePathPrefix(collection);
-    if (!prefix || existingPrefixes.has(prefix)) continue;
-    const id = schemaIdForPathPrefix(prefix, Object.keys(registry.schemas));
-    registry.schemas[id] = compatiblePageSchema(prefix);
-    existingPrefixes.add(prefix);
-    added.push(id);
+  if (version === 1) {
+    const existingPrefixes = new Set(Object.values(registry.schemas).map((schema) => normalizePathPrefix(schema.path_prefix)).filter(Boolean));
+    for (const collection of config.schemaDirs || []) {
+      const prefix = normalizePathPrefix(collection);
+      if (!prefix || existingPrefixes.has(prefix)) continue;
+      const id = schemaIdForPathPrefix(prefix, Object.keys(registry.schemas));
+      registry.schemas[id] = compatiblePageSchema(prefix);
+      existingPrefixes.add(prefix);
+      added.push(id);
+    }
+    return;
   }
+  if (version === 2) {
+    const peopleEntry = Object.entries(registry.schemas)
+      .find(([, schema]) => normalizePathPrefix(schema.path_prefix) === 'people');
+    if (!peopleEntry) return;
+    const [id, schema] = peopleEntry;
+    schema.fields ||= {};
+    if (Object.prototype.hasOwnProperty.call(schema.fields, 'contact_channels')) return;
+    if (Object.keys(schema.fields).length === 0 && schema.additional_properties === undefined) {
+      schema.additional_properties = true;
+    }
+    schema.fields.contact_channels = defaultPeopleFields().contact_channels;
+    added.push(`${id}.contact_channels`);
+    return;
+  }
+  throw new Error(`Missing page schema defaults migration for version ${version}.`);
 }
 
 export async function bootstrapPageSchemaRegistry(config, { overwrite = false } = {}) {

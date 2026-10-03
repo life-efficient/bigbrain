@@ -260,6 +260,11 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     assert.equal(listed.result.tools.some((tool) => tool.name === 'groups_list'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'groups_get'), true);
     assert.equal(listed.result.tools.some((tool) => tool.name === 'groups_upsert'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'people/contact_channels/list'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'people/contact_channels/read'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'people/contact_channels/upsert'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'people/contact_channels/remove'), true);
+    assert.equal(listed.result.tools.some((tool) => tool.name === 'people_contact_channels_upsert'), true);
     const visibilityTool = listed.result.tools.find((tool) => tool.name === 'set_page_visibility');
     assert.equal(visibilityTool.inputSchema.properties.public_raw_files.type, 'array');
     assert.match(visibilityTool.description, /absolute public_url/);
@@ -343,6 +348,48 @@ test('MCP server lists tools and writes pages through tools/call', async () => {
     }, 'secret');
     assert.equal(readPage.error, undefined, readPage.error?.message);
     assert.equal(readPage.result.structuredContent.slug, 'people/mcp-test');
+
+    const contactUpsert = await rpc(running.url, 'tools/call', {
+      name: 'people/contact_channels/upsert',
+      arguments: {
+        path: 'people/mcp-test',
+        channel: { type: 'email', value: 'Person@Example.com', label: 'work', primary: true },
+        timeline_entry: 'Added the current work email address.',
+      },
+    }, 'secret');
+    assert.equal(contactUpsert.error, undefined, contactUpsert.error?.message);
+    assert.equal(contactUpsert.result.structuredContent.channel.value, 'person@example.com');
+    assert.equal(contactUpsert.result.structuredContent.page_health.ok, true);
+    const contactId = contactUpsert.result.structuredContent.channel.id;
+
+    const contactList = await rpc(running.url, 'tools/call', {
+      name: 'people/contact_channels/list',
+      arguments: { path: 'people/mcp-test' },
+    }, 'secret');
+    assert.deepEqual(contactList.result.structuredContent.channels, [{
+      id: contactId,
+      type: 'email',
+      value: 'person@example.com',
+      label: 'work',
+      primary: true,
+    }]);
+
+    const contactRead = await rpc(running.url, 'tools/call', {
+      name: 'people/contact_channels/read',
+      arguments: { path: 'people/mcp-test', channel_id: contactId },
+    }, 'secret');
+    assert.equal(contactRead.result.structuredContent.channel.id, contactId);
+
+    const contactRemove = await rpc(running.url, 'tools/call', {
+      name: 'people/contact_channels/remove',
+      arguments: {
+        path: 'people/mcp-test',
+        channel_id: contactId,
+        timeline_entry: 'Removed the outdated work email address.',
+      },
+    }, 'secret');
+    assert.equal(contactRemove.error, undefined, contactRemove.error?.message);
+    assert.deepEqual(contactRemove.result.structuredContent.channels, []);
 
     const updated = await rpc(running.url, 'tools/call', {
       name: 'update_page',
@@ -2517,6 +2564,17 @@ test('MCP member roles manage custom roles and scope page edits by path', async 
     assert.equal(denied.error.code, -32003);
     assert.match(denied.error.message, /not allowed for role deal-editor on people\/out-of-scope/);
 
+    const contactDenied = await rpc(running.url, 'tools/call', {
+      name: 'people/contact_channels/upsert',
+      arguments: {
+        path: 'people/out-of-scope',
+        channel: { type: 'email', value: 'out-of-scope@example.com' },
+        timeline_entry: 'Attempted to add an out-of-scope contact channel.',
+      },
+    }, editorToken);
+    assert.equal(contactDenied.error.code, -32003);
+    assert.match(contactDenied.error.message, /not allowed for role deal-editor on people\/out-of-scope/);
+
     const aboutDenied = await rpc(running.url, 'tools/call', {
       name: 'about/update',
       arguments: {
@@ -2859,6 +2917,8 @@ async function rpc(url, method, params, token) {
     'schemas/bootstrap', 'schemas_bootstrap', 'schemas/register', 'schemas_register', 'schemas/update', 'schemas_update', 'schemas/delete', 'schemas_delete',
     'update_raw_file', 'delete_raw_file', 'rename_raw_file', 'rename_page', 'update_page',
     'attach_page_images',
+    'people/contact_channels/upsert', 'people_contact_channels_upsert',
+    'people/contact_channels/remove', 'people_contact_channels_remove',
     'set_page_visibility', 'maintenance/git_backup', 'maintenance_git_backup',
     'playbooks/keep-in-touch/enroll', 'playbooks_keep_in_touch_enroll',
     'playbooks/keep-in-touch/log_contact', 'playbooks_keep_in_touch_log_contact',
@@ -2884,7 +2944,11 @@ async function rpc(url, method, params, token) {
       },
     };
   }
-  if (['create_page', 'update_page', 'attach_page_images'].includes(callName) && !skipTimelineSignificance) {
+  if ([
+    'create_page', 'update_page', 'attach_page_images',
+    'people/contact_channels/upsert', 'people_contact_channels_upsert',
+    'people/contact_channels/remove', 'people_contact_channels_remove',
+  ].includes(callName) && !skipTimelineSignificance) {
     requestParams.arguments = {
       ...(requestParams.arguments || {}),
       significance: requestParams.arguments?.significance || 'minor',

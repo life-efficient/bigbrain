@@ -69,6 +69,20 @@ omitted from `tools/list`. New CLI and MCP callers should use `search`, for exam
 bigbrain search "What changed in this deal?" --mode balanced --json
 ```
 
+### People contact channels
+
+People pages can store multiple validated contact methods in the
+`contact_channels` frontmatter array. Each entry has a stable `id`, an open
+lowercase `type` such as `email`, `phone`, `whatsapp`, `linkedin`, or `signal`,
+a `value`, and optional `label`, `primary`, and `verified_at` fields.
+
+MCP clients should use `people/contact_channels/list`,
+`people/contact_channels/read`, `people/contact_channels/upsert`, and
+`people/contact_channels/remove` instead of editing this frontmatter directly. These tools validate
+addresses and numbers, keep retries idempotent, preserve page history and
+provenance, and honor page edit scopes. Existing top-level contact fields remain
+readable as `legacy_channels` until they are deliberately migrated.
+
 ### Current heuristics
 
 #### Whole-page reranking

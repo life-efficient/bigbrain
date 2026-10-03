@@ -2611,6 +2611,7 @@ function PageContentPreview({
   return (
     <div className={contentClassName}>
       <PageImageCarousel images={images} compact onImageOpen={onImageOpen} />
+      <ContactChannelsCard channels={frontmatter?.contact_channels} />
       <PageMetadata
         frontmatter={frontmatter}
         sourceSlug={sourceSlug}
@@ -2692,7 +2693,7 @@ function formatTimelineDate(value) {
 
 function PageMetadata({ frontmatter, sourceSlug, onRelativeLinkClick }) {
   const entries = Object.entries(frontmatter || {})
-    .filter(([key, value]) => key !== 'summary' && hasMetadataValue(value));
+    .filter(([key, value]) => !['summary', 'contact_channels'].includes(key) && hasMetadataValue(value));
   if (!entries.length) return null;
   return (
     <details className="sidecar-metadata">
@@ -2714,6 +2715,70 @@ function PageMetadata({ frontmatter, sourceSlug, onRelativeLinkClick }) {
       </dl>
     </details>
   );
+}
+
+function ContactChannelsCard({ channels }) {
+  const items = Array.isArray(channels)
+    ? channels.filter((channel) => channel && typeof channel === 'object' && channel.type && channel.value)
+    : [];
+  if (!items.length) return null;
+  return (
+    <section className="page-contact-card" aria-label="Contact channels">
+      <span className="page-section-label">Contact channels</span>
+      <ul className="page-contact-list">
+        {items.map((channel, index) => {
+          const link = contactChannelLink(channel.type, channel.value);
+          const value = String(channel.value);
+          return (
+            <li className="page-contact-row" key={channel.id || `${channel.type}:${value}:${index}`}>
+              <span className="page-contact-kind">{channel.label || formatMetadataKey(channel.type)}</span>
+              {link ? (
+                <a
+                  className="page-contact-value"
+                  href={link.href}
+                  target={link.newTab ? '_blank' : undefined}
+                  rel={link.newTab ? 'noreferrer' : undefined}
+                >
+                  {value}
+                </a>
+              ) : <span className="page-contact-value">{value}</span>}
+              <span className="page-contact-badges">
+                {channel.primary ? <span className="page-contact-badge">Primary</span> : null}
+                {channel.verified_at ? (
+                  <time className="page-contact-verified" dateTime={channel.verified_at}>
+                    Verified {formatTimelineDate(channel.verified_at)}
+                  </time>
+                ) : null}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+function contactChannelLink(typeValue, channelValue) {
+  const type = String(typeValue || '').trim().toLowerCase();
+  const value = String(channelValue || '').trim();
+  if (!value) return null;
+  if (type === 'email' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    return { href: `mailto:${value}`, newTab: false };
+  }
+  if (type === 'phone' && value.replace(/\D/g, '').length >= 3) {
+    return { href: `tel:${value.replace(/[^\d+]/g, '')}`, newTab: false };
+  }
+  if (type === 'whatsapp' && value.replace(/\D/g, '').length >= 3) {
+    return { href: `https://wa.me/${value.replace(/\D/g, '')}`, newTab: true };
+  }
+  if (type === 'telegram') {
+    const username = value.replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, '');
+    if (/^[a-z0-9_]{5,}$/i.test(username)) return { href: `https://t.me/${username}`, newTab: true };
+  }
+  if (['website', 'linkedin', 'signal'].includes(type) && /^https?:\/\//i.test(value)) {
+    return { href: value, newTab: true };
+  }
+  return null;
 }
 
 function MetadataValue({ keyName, value, sourceSlug, onRelativeLinkClick }) {

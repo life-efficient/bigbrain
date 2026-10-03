@@ -27,6 +27,10 @@ test('new Brains receive an editable default page schema registry', async () => 
     assert.equal(loaded.status, 'valid');
     assert.equal(loaded.valid, true);
     assert.equal(resolvePageSchema(loaded.registry, { pagePath: 'people/alice.md' }).id, 'people');
+    const person = resolvePageSchema(loaded.registry, { pagePath: 'people/alice.md' });
+    assert.equal(person.schema.fields.contact_channels.type, 'array');
+    assert.equal(person.schema.fields.contact_channels.required, undefined);
+    assert.equal(person.schema.additional_properties, true);
     const task = resolvePageSchema(loaded.registry, { pagePath: 'tasks/follow-up.md' });
     assert.equal(task.id, 'tasks');
     assert.deepEqual(task.schema.fields.status.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
@@ -39,6 +43,60 @@ test('new Brains receive an editable default page schema registry', async () => 
     assert.equal(video.schema.fields.video_url.required, true);
     assert.equal(video.schema.fields.source_kind.required, true);
     assert.equal(video.schema.fields.transcript_raw_file.type, 'string');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page schema migration adds contact channels without closing legacy people metadata', async () => {
+  const fixture = await createFixture('bigbrain-page-schema-contact-migration-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const registryPath = path.join(fixture.brainHome, PAGE_SCHEMA_REGISTRY_FILENAME);
+    await fs.writeFile(registryPath, `schema_version: 1
+defaults_version: 1
+schemas:
+  contacts:
+    path_prefix: people
+    fields: {}
+`, 'utf8');
+
+    const first = await migratePageSchemaRegistry(config);
+    assert.equal(first.registry.defaults_version, PAGE_SCHEMA_DEFAULTS_VERSION);
+    assert.equal(first.registry.schemas.contacts.fields.contact_channels.type, 'array');
+    assert.equal(first.registry.schemas.contacts.additional_properties, true);
+    const afterFirst = await fs.readFile(registryPath, 'utf8');
+    const second = await migratePageSchemaRegistry(config);
+    assert.equal(second.migration.changed, false);
+    assert.equal(await fs.readFile(registryPath, 'utf8'), afterFirst);
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page schema migration preserves custom contact fields and strict people schemas', async () => {
+  const fixture = await createFixture('bigbrain-page-schema-custom-contact-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await fs.writeFile(path.join(fixture.brainHome, PAGE_SCHEMA_REGISTRY_FILENAME), `schema_version: 1
+defaults_version: 1
+schemas:
+  custom-people:
+    path_prefix: people
+    additional_properties: false
+    fields:
+      email:
+        type: string
+      contact_channels:
+        type: object
+        description: Brain-local contact representation.
+`, 'utf8');
+
+    const migrated = await migratePageSchemaRegistry(config);
+    assert.equal(migrated.registry.schemas['custom-people'].additional_properties, false);
+    assert.equal(migrated.registry.schemas['custom-people'].fields.contact_channels.type, 'object');
+    assert.equal(migrated.registry.schemas['custom-people'].fields.contact_channels.description, 'Brain-local contact representation.');
+    assert.equal(migrated.registry.schemas['custom-people'].fields.email.type, 'string');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

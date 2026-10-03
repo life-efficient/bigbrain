@@ -2115,8 +2115,19 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .page-content-preview .page-image-carousel { min-width: 0; }
       .page-section-label { display: block; margin-bottom: 7px; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: 0.08em; text-transform: uppercase; }
       .page-summary-card,
+      .page-contact-card { min-width: 0; padding: 13px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
       .page-timeline-card { min-width: 0; padding: 13px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
       .page-summary-card p { max-width: 76ch; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
+      .page-contact-list { display: grid; gap: 9px; margin: 0; padding: 0; list-style: none; }
+      .page-contact-row { display: grid; grid-template-columns: minmax(90px, 0.35fr) minmax(0, 1fr) auto; align-items: center; gap: 10px; min-width: 0; }
+      .page-contact-kind { color: var(--muted); font-size: 12px; font-weight: 700; }
+      .page-contact-value { min-width: 0; overflow-wrap: anywhere; color: var(--ink); font-size: 13px; }
+      a.page-contact-value { color: var(--accent-strong); text-decoration: none; }
+      a.page-contact-value:hover { text-decoration: underline; }
+      .page-contact-badges { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 6px; }
+      .page-contact-badge { padding: 2px 7px; border-radius: 999px; background: rgba(125,211,252,0.14); color: var(--accent-strong); font-size: 10px; font-weight: 750; text-transform: uppercase; }
+      .page-contact-verified { color: var(--muted); font-size: 10px; }
+      @media (max-width: 640px) { .page-contact-row { grid-template-columns: 1fr; gap: 3px; } .page-contact-badges { justify-content: flex-start; } }
       .page-body-section { min-width: 0; border-top: 1px solid var(--line); padding-top: 18px; }
       .page-body-section .tailwind-prose { font-size: 15px; line-height: 1.75; }
       .page-body-section .markdown-shell img { display: block; width: 100%; height: auto; max-width: 100%; max-height: none; margin: 18px 0; border-radius: 0; }

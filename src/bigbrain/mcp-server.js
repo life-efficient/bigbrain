@@ -49,6 +49,13 @@ import {
 } from './db.js';
 import { filingRulesForBrain } from './filing-rules.js';
 import {
+  listContactChannels,
+  normalizeContactChannels,
+  readContactChannel,
+  removeContactChannel,
+  upsertContactChannel,
+} from './contact-channels.js';
+import {
   createBrainPage,
   createRawFile,
   createRawFileWithPage,
@@ -749,6 +756,38 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         config,
         authConfig,
       ));
+    case 'people/contact_channels/list':
+    case 'people_contact_channels_list':
+      return toolJson(await listContactChannels({ config, pagePath: args.path }));
+    case 'people/contact_channels/read':
+    case 'people_contact_channels_read':
+      return toolJson(await readContactChannel({ config, pagePath: args.path, channelId: args.channel_id }));
+    case 'people/contact_channels/upsert':
+    case 'people_contact_channels_upsert': {
+      const result = await upsertContactChannel({
+        config,
+        pagePath: args.path,
+        channel: args.channel,
+        timelineEntry: timelineForMutation(args, actor),
+        timelineSignificance: args.significance,
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      await recordWriteProvenance(config, result.path, { ...args.provenance, significance: args.significance }, args.commit_message);
+      return toolJson({ ...result, page_health: await quickPageHealthCheck({ config, pagePath: result.path }) });
+    }
+    case 'people/contact_channels/remove':
+    case 'people_contact_channels_remove': {
+      const result = await removeContactChannel({
+        config,
+        pagePath: args.path,
+        channelId: args.channel_id,
+        timelineEntry: timelineForMutation(args, actor),
+        timelineSignificance: args.significance,
+      });
+      await postWriteMaintenance(config, gitBackupEnabled, actor, args.commit_message);
+      await recordWriteProvenance(config, result.path, { ...args.provenance, significance: args.significance }, args.commit_message);
+      return toolJson({ ...result, page_health: await quickPageHealthCheck({ config, pagePath: result.path }) });
+    }
     case 'get_page_visibility': {
       const page = await readBrainPage({ config, pagePath: args.path });
       return toolJson(pageVisibilityToolResponse(page, config, authConfig));
@@ -809,6 +848,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
       return toolJson(rawFile);
     }
     case 'create_page': {
+      const frontmatter = normalizeCreatePageFrontmatter(args.frontmatter);
       const page = await createBrainPage({
         config,
         pagePath: args.path,
@@ -817,7 +857,7 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
         summary: args.summary,
         timelineEntry: timelineForMutation(args, actor),
         timelineSignificance: args.significance,
-        frontmatter: args.frontmatter || {},
+        frontmatter,
         domains: args.domains,
         images: args.images,
       });
@@ -1092,15 +1132,27 @@ function updatePageFrontmatterValues(args) {
   if (!frontmatter || typeof frontmatter !== 'object' || Array.isArray(frontmatter)) {
     throw new Error('update_page frontmatter must be an object.');
   }
-  const reserved = ['domains', 'visibility', 'public_raw_files', 'images'];
+  const reserved = ['domains', 'visibility', 'public_raw_files', 'images', 'contact_channels'];
   const reservedKey = reserved.find((key) => Object.prototype.hasOwnProperty.call(frontmatter, key));
   if (reservedKey) {
+    if (reservedKey === 'contact_channels') {
+      throw new Error('Use the dedicated people/contact_channels tools rather than update_page frontmatter.contact_channels.');
+    }
     throw new Error(`Use the dedicated ${reservedKey === 'domains' ? 'domains field' : `${reservedKey} tool or field`} rather than update_page frontmatter.${reservedKey}.`);
   }
   return {
     ...frontmatter,
     ...(args.domains === undefined ? {} : { domains: args.domains }),
   };
+}
+
+function normalizeCreatePageFrontmatter(value) {
+  const frontmatter = value ?? {};
+  if (!frontmatter || typeof frontmatter !== 'object' || Array.isArray(frontmatter)) {
+    throw new Error('create_page frontmatter must be an object.');
+  }
+  if (!Object.prototype.hasOwnProperty.call(frontmatter, 'contact_channels')) return frontmatter;
+  return { ...frontmatter, contact_channels: normalizeContactChannels(frontmatter.contact_channels) };
 }
 
 async function sampleCanonicalPagesForQualityAudit(config, requestedSampleSize = 10) {
@@ -2165,6 +2217,46 @@ function toolDefinitions(config = null) {
       },
     },
     {
+      name: 'people/contact_channels/list',
+      description: 'List the structured contact channels on one people page, including multiple email addresses, phone numbers, messaging accounts, social profiles, websites, addresses, and custom channel types.',
+      inputSchema: contactChannelListSchema(),
+    },
+    {
+      name: 'people_contact_channels_list',
+      description: 'Alias for people/contact_channels/list for clients that do not support slash tool names.',
+      inputSchema: contactChannelListSchema(),
+    },
+    {
+      name: 'people/contact_channels/read',
+      description: 'Read one structured contact channel by its stable ID from a people page.',
+      inputSchema: contactChannelReadSchema(),
+    },
+    {
+      name: 'people_contact_channels_read',
+      description: 'Alias for people/contact_channels/read for clients that do not support slash tool names.',
+      inputSchema: contactChannelReadSchema(),
+    },
+    {
+      name: 'people/contact_channels/upsert',
+      description: 'Create or update a validated contact channel on a people page. Repeating the same type and value is idempotent; setting primary demotes any other primary channel of that type.',
+      inputSchema: contactChannelUpsertSchema(),
+    },
+    {
+      name: 'people_contact_channels_upsert',
+      description: 'Alias for people/contact_channels/upsert for clients that do not support slash tool names.',
+      inputSchema: contactChannelUpsertSchema(),
+    },
+    {
+      name: 'people/contact_channels/remove',
+      description: 'Remove one structured contact channel by its stable ID from a people page.',
+      inputSchema: contactChannelRemoveSchema(),
+    },
+    {
+      name: 'people_contact_channels_remove',
+      description: 'Alias for people/contact_channels/remove for clients that do not support slash tool names.',
+      inputSchema: contactChannelRemoveSchema(),
+    },
+    {
       name: 'get_page_visibility',
       description: 'Return one page private viewing link and whether it is internal or public. local_url opens the connected brain through the loopback-only BigBrain desktop resolver; page_url remains protected remotely. When public, public_url is a directly shareable absolute public URL.',
       inputSchema: pageVisibilitySchema({ requireVisibility: false }),
@@ -2671,6 +2763,14 @@ const TOOL_POLICIES = {
   playbooks_comprehension_session: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   list: { layer: 'read', scopes: ['brain:read'] },
   read: { layer: 'read', scopes: ['brain:read'] },
+  'people/contact_channels/list': { layer: 'read', scopes: ['brain:read'] },
+  people_contact_channels_list: { layer: 'read', scopes: ['brain:read'] },
+  'people/contact_channels/read': { layer: 'read', scopes: ['brain:read'] },
+  people_contact_channels_read: { layer: 'read', scopes: ['brain:read'] },
+  'people/contact_channels/upsert': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  people_contact_channels_upsert: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'people/contact_channels/remove': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  people_contact_channels_remove: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   get_page_visibility: { layer: 'read', scopes: ['brain:read'] },
   groups_list: { layer: 'read', scopes: ['brain:read'] },
   groups_get: { layer: 'read', scopes: ['brain:read'] },
@@ -2756,6 +2856,10 @@ const GIT_SYNC_MUTATION_TOOLS = new Set([
   'capture_article',
   'refresh_article_capture',
   'attach_page_images',
+  'people/contact_channels/upsert',
+  'people_contact_channels_upsert',
+  'people/contact_channels/remove',
+  'people_contact_channels_remove',
   'update_raw_file',
   'delete_raw_file',
   'rename_raw_file',
@@ -2793,7 +2897,15 @@ function requireMutationMetadata(name, args) {
 }
 
 function requirePageTimelineSignificance(name, args) {
-  if (!['create_page', 'update_page', 'attach_page_images'].includes(name)) return null;
+  if (![
+    'create_page',
+    'update_page',
+    'attach_page_images',
+    'people/contact_channels/upsert',
+    'people_contact_channels_upsert',
+    'people/contact_channels/remove',
+    'people_contact_channels_remove',
+  ].includes(name)) return null;
   try {
     return timelineSignificanceSchema.parse(args?.significance);
   } catch (error) {
@@ -2909,6 +3021,10 @@ function pageEditPathsForTool(name, args) {
     case 'create_page':
     case 'update_page':
     case 'attach_page_images':
+    case 'people/contact_channels/upsert':
+    case 'people_contact_channels_upsert':
+    case 'people/contact_channels/remove':
+    case 'people_contact_channels_remove':
       return [args.path].filter(Boolean);
     case 'rename_page':
       return [args.from_path, args.to_path].filter(Boolean);
@@ -3034,6 +3150,73 @@ function pageSchemaDeleteSchema() {
       id: { type: 'string', description: 'Stable registered page schema ID to delete.' },
     },
     required: ['id', ...mutationRequired()],
+  };
+}
+
+function contactChannelListSchema() {
+  return {
+    type: 'object',
+    properties: {
+      path: { type: 'string', description: 'People page path such as people/alice.' },
+    },
+    required: ['path'],
+  };
+}
+
+function contactChannelReadSchema() {
+  return {
+    type: 'object',
+    properties: {
+      ...contactChannelListSchema().properties,
+      channel_id: { type: 'string', description: 'Stable contact channel ID returned by list or upsert.' },
+    },
+    required: ['path', 'channel_id'],
+  };
+}
+
+function contactChannelDefinitionSchema() {
+  return {
+    type: 'object',
+    additionalProperties: false,
+    properties: {
+      id: { type: 'string', description: 'Optional stable lowercase ID. Omit when creating a channel; use the existing ID when changing its value.' },
+      type: { type: 'string', description: 'Extensible lowercase type slug such as email, phone, whatsapp, linkedin, signal, telegram, website, address, or other.' },
+      value: { type: 'string', description: 'Address, number, handle, URL, or other channel value. Quote phone numbers so formatting and leading plus signs are preserved.' },
+      label: { type: 'string', description: 'Optional human label such as work, personal, or assistant.' },
+      primary: { type: 'boolean', description: 'Whether this is the primary channel for its type.' },
+      verified_at: { type: 'string', description: 'Optional ISO date or timestamp when this channel was last verified.' },
+    },
+    required: ['type', 'value'],
+  };
+}
+
+function contactChannelUpsertSchema() {
+  return {
+    type: 'object',
+    properties: {
+      ...mutationProperties(),
+      path: { type: 'string', description: 'People page path such as people/alice.' },
+      channel: contactChannelDefinitionSchema(),
+      ...timelineInputProperties(),
+      significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of this contact channel update: patch, minor, or major.' },
+    },
+    required: ['path', 'channel', 'significance', ...mutationRequired()],
+    anyOf: timelineInputRequirements(),
+  };
+}
+
+function contactChannelRemoveSchema() {
+  return {
+    type: 'object',
+    properties: {
+      ...mutationProperties(),
+      path: { type: 'string', description: 'People page path such as people/alice.' },
+      channel_id: { type: 'string', description: 'Stable contact channel ID to remove.' },
+      ...timelineInputProperties(),
+      significance: { type: 'string', enum: TIMELINE_SIGNIFICANCE_VALUES, description: 'Impact of removing this contact channel: patch, minor, or major.' },
+    },
+    required: ['path', 'channel_id', 'significance', ...mutationRequired()],
+    anyOf: timelineInputRequirements(),
   };
 }
 
