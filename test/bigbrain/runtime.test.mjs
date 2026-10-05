@@ -2036,6 +2036,8 @@ test('schema and filing guidance stay inspectable', async () => {
     assert.match(markdown, /One concise opening compiled-truth paragraph/);
     assert.match(markdown, /Write timeline text as a concise, subject-first summary/);
     assert.doesNotMatch(markdown, /Meeting Page Shape/);
+    assert.match(markdown, /Deal Page Shape/);
+    assert.match(markdown, /deal_involvement.*public_unrelated.*network_observed.*network_actionable.*active/s);
     assert.match(markdown, /Task Page Shape/);
     assert.match(markdown, /status.*open.*in_progress.*waiting.*done.*archived/s);
     assert.match(markdown, /readiness.*underspecified.*ready/s);
@@ -2054,6 +2056,7 @@ test('schema and filing guidance stay inspectable', async () => {
     const config = await loadConfig({ configPath: fixture.configPath });
     const filingRules = await filingRulesForBrain({ config });
     assert.match(filingRules.markdown, /Task Page Schema/);
+    assert.match(filingRules.markdown, /Deal Page Schema/);
     assert.match(filingRules.markdown, /## Timeline Writing/);
     assert.match(filingRules.timeline_guidance.join('\n'), /concise, subject-first summary/);
     assert.match(filingRules.timeline_guidance.join('\n'), /do not lead with the current user's name/);
@@ -2063,6 +2066,7 @@ test('schema and filing guidance stay inspectable', async () => {
     assert.deepEqual(filingRules.task_schema.frontmatter.readiness, ['underspecified', 'ready']);
     assert.deepEqual(filingRules.task_schema.frontmatter.execution_mode, ['agent', 'user', 'interactive']);
     assert.deepEqual(filingRules.task_schema.frontmatter.priority, ['p0', 'p1', 'p2', 'p3']);
+    assert.deepEqual(filingRules.deal_schema.frontmatter.deal_involvement, ['public_unrelated', 'network_observed', 'network_actionable', 'active']);
     assert.match(filingRules.task_schema.guidance.join('\n'), /readiness: underspecified/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /human-readable identifier/);
     assert.match(filingRules.task_schema.guidance.join('\n'), /status to in_progress/);

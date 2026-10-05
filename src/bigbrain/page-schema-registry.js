@@ -8,7 +8,7 @@ import { CANONICAL_SCHEMA_DIRS } from './constants.js';
 
 export const PAGE_SCHEMA_REGISTRY_FILENAME = 'page-schemas.yaml';
 export const PAGE_SCHEMA_REGISTRY_VERSION = 1;
-export const PAGE_SCHEMA_DEFAULTS_VERSION = 2;
+export const PAGE_SCHEMA_DEFAULTS_VERSION = 3;
 
 const SCHEMA_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const FIELD_TYPES = ['string', 'number', 'boolean', 'array', 'object'];
@@ -130,6 +130,8 @@ function defaultPageSchema(collection) {
           ? defaultVideoFields()
           : collection === 'people'
             ? defaultPeopleFields()
+            : collection === 'deals'
+              ? defaultDealFields()
             : {},
   };
 }
@@ -139,6 +141,16 @@ function defaultPeopleFields() {
     contact_channels: {
       type: 'array',
       description: 'Ordered ways to contact this person. Each item has id, type, value, and optional label, primary, and verified_at fields. Common type slugs include email, phone, whatsapp, linkedin, signal, telegram, website, address, and other.',
+    },
+  };
+}
+
+function defaultDealFields() {
+  return {
+    deal_involvement: {
+      type: 'string',
+      enum: ['public_unrelated', 'network_observed', 'network_actionable', 'active'],
+      description: 'Our relationship to this deal: public_unrelated for a public deal unrelated to us; network_observed when a network contact is working on it without our involvement; network_actionable when a network contact is working on it and we may be able to help; active when we are directly working on it.',
     },
   };
 }
@@ -299,6 +311,20 @@ function applyPageSchemaDefaultsMigration(registry, config, version, added) {
     }
     schema.fields.contact_channels = defaultPeopleFields().contact_channels;
     added.push(`${id}.contact_channels`);
+    return;
+  }
+  if (version === 3) {
+    const dealEntry = Object.entries(registry.schemas)
+      .find(([, schema]) => normalizePathPrefix(schema.path_prefix) === 'deals');
+    if (!dealEntry) return;
+    const [id, schema] = dealEntry;
+    schema.fields ||= {};
+    if (Object.prototype.hasOwnProperty.call(schema.fields, 'deal_involvement')) return;
+    if (Object.keys(schema.fields).length === 0 && schema.additional_properties === undefined) {
+      schema.additional_properties = true;
+    }
+    schema.fields.deal_involvement = defaultDealFields().deal_involvement;
+    added.push(`${id}.deal_involvement`);
     return;
   }
   throw new Error(`Missing page schema defaults migration for version ${version}.`);

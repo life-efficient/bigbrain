@@ -13,6 +13,7 @@ import {
   migratePageSchemaRegistry,
   PAGE_SCHEMA_DEFAULTS_VERSION,
   PAGE_SCHEMA_REGISTRY_FILENAME,
+  pageSchemaComplianceIssues,
   registerPageSchema,
   resolvePageSchema,
   updatePageSchema,
@@ -31,6 +32,9 @@ test('new Brains receive an editable default page schema registry', async () => 
     assert.equal(person.schema.fields.contact_channels.type, 'array');
     assert.equal(person.schema.fields.contact_channels.required, undefined);
     assert.equal(person.schema.additional_properties, true);
+    const deal = resolvePageSchema(loaded.registry, { pagePath: 'deals/example-transaction.md' });
+    assert.equal(deal.id, 'deals');
+    assert.deepEqual(deal.schema.fields.deal_involvement.enum, ['public_unrelated', 'network_observed', 'network_actionable', 'active']);
     const task = resolvePageSchema(loaded.registry, { pagePath: 'tasks/follow-up.md' });
     assert.equal(task.id, 'tasks');
     assert.deepEqual(task.schema.fields.status.enum, ['open', 'in_progress', 'waiting', 'done', 'archived']);
@@ -43,6 +47,37 @@ test('new Brains receive an editable default page schema registry', async () => 
     assert.equal(video.schema.fields.video_url.required, true);
     assert.equal(video.schema.fields.source_kind.required, true);
     assert.equal(video.schema.fields.transcript_raw_file.type, 'string');
+  } finally {
+    await fs.rm(fixture.rootDir, { recursive: true, force: true });
+  }
+});
+
+test('page schema migration adds deal involvement without closing legacy deal metadata', async () => {
+  const fixture = await createFixture('bigbrain-page-schema-deal-migration-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    const registryPath = path.join(fixture.brainHome, PAGE_SCHEMA_REGISTRY_FILENAME);
+    await fs.writeFile(registryPath, `schema_version: 1
+defaults_version: 2
+schemas:
+  transactions:
+    path_prefix: deals
+    fields: {}
+`, 'utf8');
+
+    const migrated = await migratePageSchemaRegistry(config);
+    const schema = migrated.registry.schemas.transactions;
+    assert.equal(schema.additional_properties, true);
+    assert.deepEqual(schema.fields.deal_involvement.enum, ['public_unrelated', 'network_observed', 'network_actionable', 'active']);
+    assert.deepEqual(pageSchemaComplianceIssues(migrated.registry, {
+      pagePath: 'deals/legacy-deal.md',
+      frontmatter: { legacy_owner: 'someone' },
+    }).issues, []);
+    const invalid = pageSchemaComplianceIssues(migrated.registry, {
+      pagePath: 'deals/invalid-deal.md',
+      frontmatter: { deal_involvement: 'network_interest' },
+    });
+    assert.equal(invalid.issues[0].type, 'schema_field_invalid_enum');
   } finally {
     await fs.rm(fixture.rootDir, { recursive: true, force: true });
   }

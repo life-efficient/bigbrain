@@ -81,6 +81,7 @@ export async function filingRulesForBrain({ config }) {
       'An append-only ## Timeline evidence log.',
     ],
     task_schema: defaultTaskSchema(),
+    deal_schema: defaultDealSchema(),
     raw_file_rules: rawFileRules,
     filing_principles: sharedGuidance.filingPrinciples.length > 0 ? sharedGuidance.filingPrinciples : [
       'File by primary subject, not by source format.',
@@ -195,6 +196,13 @@ function renderFilingRulesMarkdown({ config, sharedGuidance, collections, rawFil
     '',
   );
 
+  sections.push(
+    '## Deal Page Schema',
+    '',
+    ...renderDealSchemaMarkdownLines(defaultDealSchema()),
+    '',
+  );
+
   return sections.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
 }
 
@@ -241,6 +249,22 @@ function defaultTaskSchema() {
   };
 }
 
+function defaultDealSchema() {
+  return {
+    pattern: 'deals/<deal-slug>.md',
+    frontmatter: {
+      deal_involvement: ['public_unrelated', 'network_observed', 'network_actionable', 'active'],
+    },
+    guidance: [
+      'Set deal_involvement to public_unrelated for a public deal unrelated to us.',
+      'Set deal_involvement to network_observed when a network contact is working on the deal without our active involvement.',
+      'Set deal_involvement to network_actionable when a network contact is working on the deal and we may be able to help, for example by finding a vendor or investor.',
+      'Set deal_involvement to active when we are directly working on the deal.',
+      'This field is optional for legacy deal pages.',
+    ],
+  };
+}
+
 function renderTaskSchemaMarkdownLines(schema) {
   return [
     `- Pattern: \`${schema.pattern}\``,
@@ -253,6 +277,15 @@ function renderTaskSchemaMarkdownLines(schema) {
     '  - `assignees`: active member person slugs such as `people/hani`',
     '  - `source`: related brain slugs such as `meetings/proposal-review`',
     '  - `due`: optional `YYYY-MM-DD` date',
+    ...schema.guidance.map((item) => `- ${item}`),
+  ];
+}
+
+function renderDealSchemaMarkdownLines(schema) {
+  return [
+    `- Pattern: \`${schema.pattern}\``,
+    '- Frontmatter:',
+    `  - \`deal_involvement\`: ${schema.frontmatter.deal_involvement.map((item) => `\`${item}\``).join(', ')}`,
     ...schema.guidance.map((item) => `- ${item}`),
   ];
 }
