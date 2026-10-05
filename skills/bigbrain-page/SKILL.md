@@ -10,6 +10,7 @@ Create or update one ordinary BigBrain page from durable evidence.
 - Standard ordinary pages use YAML frontmatter, a title, current content, one writer-managed `---` followed by `## Timeline`, and an append-only evidence timeline.
 - Keep one canonical page for one primary subject. Use the filing rules and canonical folder for placement, frontmatter for mutable state and provenance, and inline links for relevant related subjects.
 - Create an entity page only when the entity has durable standalone value: it is a key organization, person, product, framework, deal, or location in the user's active work; needs its own evolving context; or connects multiple material pages. A passing mention alone is not enough.
+- Create a top-level `deals/` page only for one independently evolving actual transaction, raise, investment, mandate, acquisition, or commercial opportunity. Keep meeting prep on the canonical meeting page, and keep VDR inventories, diligence packs, teasers, models, and other deal evidence as `deals/.raw/` sidecars linked from that deal.
 - Keep incidental places, countries, planets, broad everyday concepts, and one-off named references in the owning page or article unless they meet that standalone-value test. Do not create sparse pages for obvious topics such as Earth or Mars merely because they were named.
 - Make the page the best standalone 80/20 rundown of its subject: if the reader could read only this page about the subject, they should understand what the subject is, why it matters, its current state, important context, boundaries, material relationships, and meaningful uncertainty.
 - The compiled-truth paragraph is the core understanding of the page: if the reader had only one paragraph, this is what they should read. It may be longer than a one-liner when needed. Additional current-context sections may follow it before the separator.
@@ -22,6 +23,7 @@ Create or update one ordinary BigBrain page from durable evidence.
 ## Workflow
 
 1. Find which Brain owns the page and where the page belongs. Resolve the subject, filing rules, canonical folder and path, and any existing canonical owner. Read the existing page before updating it.
+   - For a candidate deal, decide whether the evidence establishes an actual deal or only meeting prep, discussion context, or a source artifact. Search deal names, counterparties, and aliases before creating a page. Set `deal_involvement` from recorded evidence on every new actual deal page.
    - Anti-patterns: memory-only routing, fuzzy-first ownership, duplicate pages.
 
 2. Use the selected Brain's relevant MCP to create or update the page.
@@ -40,6 +42,7 @@ Create or update one ordinary BigBrain page from durable evidence.
 
 - Do not create duplicates, weak stubs, incidental entity pages, or a page-system explanation. A confidently identified entity with sparse, attributable source context is sufficient only when it passes the standalone-value test; unsupported identity or invented details are weak evidence. Do not pad a page to fill the briefing topics.
 - Do not use the canonical page as a source transcript or as the full account of a linked subject.
+- Do not create top-level deal pages for meeting prep, meeting records, VDR inventories, diligence checklists, teasers, or models.
 
 ## Output
 

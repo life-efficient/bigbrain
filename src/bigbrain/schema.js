@@ -74,7 +74,7 @@ export function schemaDescription() {
           active: 'We are directly working on the deal.',
         },
       },
-      body: 'Current deal context above --- plus append-only ## Timeline evidence log.',
+      body: 'Current deal context for one actual transaction, raise, investment, mandate, acquisition, or commercial opportunity above --- plus append-only ## Timeline evidence log. Meeting prep belongs on its meeting page; VDR inventories and other deal evidence belong in deals/.raw sidecars.',
     },
     timeline_entry: {
       occurred_at: 'YYYY-MM-DD or ISO timestamp for when the underlying event happened; defaults to now and may be overridden for historical ingestion',
@@ -155,6 +155,9 @@ export function renderSchemaMarkdown() {
     '- `network_observed` is a deal a network contact mentioned they are working on, without our active involvement.',
     '- `network_actionable` is a network deal where we may be able to help, for example by finding a vendor or investor.',
     '- `active` is a deal we are directly working on.',
+    '- Create a top-level `deals/<deal-slug>.md` only for an actual deal that needs its own evolving current state.',
+    '- Keep preparation on the relevant `meetings/<meeting-slug>.md` page and update that same page after the meeting occurs.',
+    '- Keep a VDR inventory, diligence pack, teaser, model, or other deal-owned evidence in `deals/.raw/` with one indexed sidecar linked from the canonical deal.',
     '',
     '## Raw Attachment Shape',
     '',

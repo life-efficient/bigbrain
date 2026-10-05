@@ -233,8 +233,11 @@ This is the right place for:
   under sources
 
 Prefer the owning collection whenever one is clear: for example, deal-owned
-teasers and models belong in `deals/.raw/`, and meeting transcripts belong in
-`meetings/.raw/`. Legacy or domain-specific `sources/.raw/` folders remain
+teasers, VDR inventories, diligence packs, and models belong in `deals/.raw/`,
+while meeting prep and transcripts belong on the canonical meeting page or in
+`meetings/.raw/`. A top-level `deals/*.md` page is reserved for one actual
+transaction, raise, investment, mandate, acquisition, or commercial opportunity,
+not for its preparation or evidence artifacts. Legacy or domain-specific `sources/.raw/` folders remain
 readable when an existing brain defines them. The active brain's `filing_rules`
 output is the operational source of truth for exact paths.
 Do not nest page-slug folders or any other folders inside `.raw`; use

@@ -23,6 +23,8 @@ assert "Never run manual sync" in SKILL
 assert "no Gmail action occurred" in SKILL
 assert "Substack" in SKILL
 assert "ineligible" in SKILL
+assert "Enumerate candidate transactions, raises, investments, mandates, acquisitions, and commercial opportunities" in SKILL
+assert "Do not treat an email attachment inventory or a proposed meeting agenda as an actual deal" in SKILL
 assert SKILL.count("Anti-patterns:") >= 6
 assert "## Contract Checklist" in SKILL
 assert "## Workflow" in SKILL
@@ -30,6 +32,7 @@ assert "## Anti-Patterns" in SKILL
 assert "## Output" in SKILL
 assert "$bigbrain-email-ingest" in AGENT
 assert "$bigbrain-manage-email" in AGENT
+assert "canonical deal" in AGENT
 assert "—" not in SKILL
 assert "—" not in AGENT
 

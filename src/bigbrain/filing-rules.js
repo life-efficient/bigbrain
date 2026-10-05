@@ -9,7 +9,7 @@ const DEFAULT_RULES = {
   companies: 'One page per company or organization.',
   meetings: 'Specific meetings, calls, meeting prep, and transcripts.',
   videos: 'Externally published videos. Keep a first-class readable video page with its canonical URL and source metadata; preserve the transcript as a linked raw artifact, not as the primary page body.',
-  deals: 'Transactions, acquisitions, raises, investments, mandates, opportunities, diligence, valuation, buyer/investor processes, and deal-owned artifacts.',
+  deals: 'One canonical page per distinct transaction, acquisition, raise, investment, mandate, or commercial opportunity. Meeting prep belongs on the meeting page; deal-owned VDR inventories, diligence packs, teasers, and models belong in deals/.raw sidecars linked from the canonical deal.',
   projects: 'Active execution tracks and workstreams.',
   ideas: 'Unbuilt possibilities that are not yet active projects.',
   initiatives: 'Active named workstreams or programs.',
@@ -256,10 +256,14 @@ function defaultDealSchema() {
       deal_involvement: ['public_unrelated', 'network_observed', 'network_actionable', 'active'],
     },
     guidance: [
+      'Create one top-level deal page only for an independently evolving actual transaction, raise, investment, mandate, acquisition, or commercial opportunity.',
+      'Keep meeting prep, meeting summaries, and transcripts on the canonical meetings/ page and its meetings/.raw sidecars, not as deals/*.md pages.',
+      'Keep deal-owned VDR inventories, diligence packs, checklists, teasers, and models in deals/.raw with one indexed same-basename sidecar linked from the canonical deal, not as another top-level deal page.',
       'Set deal_involvement to public_unrelated for a public deal unrelated to us.',
       'Set deal_involvement to network_observed when a network contact is working on the deal without our active involvement.',
       'Set deal_involvement to network_actionable when a network contact is working on the deal and we may be able to help, for example by finding a vendor or investor.',
       'Set deal_involvement to active when we are directly working on the deal.',
+      'Set deal_involvement on every newly created actual deal page; this field does not make a prep note or artifact a deal page.',
       'This field is optional for legacy deal pages.',
     ],
   };

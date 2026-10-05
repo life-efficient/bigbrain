@@ -94,6 +94,7 @@ Classify corrections by resulting impact. Preserve append-only history and add a
    - Read live registered Brain descriptions and choose exactly one destination.
    - Read the selected Brain's filing rules, search for canonical pages, and inspect relevant tasks before proposing changes.
    - Use stable provenance keys to prevent replay. If an exact event already exists, read it back and confirm shared-checklist coverage before returning `verified_noop`.
+   - Enumerate candidate transactions, raises, investments, mandates, acquisitions, and commercial opportunities in the thread. For each sufficiently identified actual deal, search names, counterparties, and aliases, then create or update one canonical deal page and set `deal_involvement` from evidence. Keep meeting preparation on its meeting page and attached VDRs, diligence packs, teasers, and models as owner-local `.raw/` sidecars rather than standalone deal pages.
    - Invoke `$bigbrain-action-review` before every task write. Do not turn another party's action or an unaccepted optional offer into Harry-facing work.
    - Anti-patterns: routing from stale memory, writing to multiple Brains, creating duplicate entities, replaying a generic update after an ambiguous response.
 
@@ -106,6 +107,7 @@ Classify corrections by resulting impact. Preserve append-only history and add a
 
 5. Apply the smallest canonical update:
    - Apply the shared checklist to create missing canonical entity pages, add supported new information to existing pages, and link already-covered entities without redundant updates.
+   - Do not treat an email attachment inventory or a proposed meeting agenda as an actual deal. Preserve those in the owning source or raw sidecar while reconciling any independently evolving deal it supports.
    - Keep exact wording only when it controls a commitment, approval, commercial term, deadline, confidentiality boundary, dispute, or instruction.
    - Provide `significance` and a concise `provenance.source_message` on each page mutation.
    - Apply task changes only after action review and include next actor, concrete action, purpose, dependency, approval gate when relevant, and checkable completion.

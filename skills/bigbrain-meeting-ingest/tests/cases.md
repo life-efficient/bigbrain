@@ -113,3 +113,15 @@ Expected behavior:
 - Create and link only the Harry-owned preparation task.
 - Do not assign the introduction to Harry unless he separately owns a concrete
   confirming, chasing, monitoring, or unblocking follow-up.
+# Deal placement: actual deal versus prep and VDR evidence
+
+Evidence:
+
+- A meeting identifies a distinct, named acquisition process and records current participants, stage, and a possible role for Harry.
+- The same meeting includes `## Prep` questions prepared before the call and references a protected VDR folder with a file inventory.
+
+Expected:
+
+- Search aliases and create or update one canonical `deals/<deal-slug>.md` page for the actual transaction, with evidence-backed `deal_involvement` when the schema supports it.
+- Keep the questions under `## Prep` on the canonical meeting page and preserve them when the page is updated after the call.
+- Preserve the VDR inventory as a `deals/.raw/` indexed sidecar linked from the canonical deal, not as another top-level page under `deals/`.

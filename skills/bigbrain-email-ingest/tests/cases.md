@@ -2,6 +2,20 @@
 
 Use these cases to verify that Email Ingest interprets email evidence before handing candidate actions to `$bigbrain-action-review`.
 
+## Actual deal versus attached evidence
+
+Evidence:
+
+- A human-written email identifies a named financing process, its company, and the sender's request for a possible investor route.
+- A PDF attachment is a VDR inventory and diligence pack for that process.
+
+Expected:
+
+- Search deal names and counterparties, then create or update one canonical deal page for the financing process when its identity is clear.
+- Set the deal's evidence-backed `deal_involvement` value.
+- Preserve the PDF in `deals/.raw/` with one indexed sidecar linked from the canonical deal.
+- Do not create a second top-level deal page for the inventory, diligence pack, or email thread.
+
 ## External promise in a current message
 
 Evidence:

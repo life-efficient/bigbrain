@@ -15,6 +15,7 @@ Turn one meeting transcript, summary, or set of call notes into a verified canon
 - Delegated mode accepts a resolved destination and source evidence from a calling ingestion skill, performs the per-meeting work, then returns control to that caller.
 - Delegated completion is an intermediate result. It never implies that the caller's routing, ledger, cursor, batch, or reporting lifecycle is complete.
 - One canonical meeting page is used across preparation and post-meeting updates, and existing `## Prep` content is preserved.
+- A candidate transaction is classified as an actual deal, meeting-only context, or a deal-owned artifact before any page is created. Only actual deals receive top-level `deals/` pages.
 - The meeting page contains an evidence-backed summary, decisions, actual-owner action items, and discussion context.
 - Follow the generic page-writing schema for the current page body; do not define a meeting-specific page contract.
 - Valuable raw transcripts and attachments follow live filing rules and have verified same-basename indexed sidecars.
@@ -67,10 +68,12 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
    - For every action-relevant statement, preserve the source speaker separately from the responsible actor and distinguish accepted commitments, requests, external actions, optional offers, proposals, and discussion.
    - Prefer the transcript over a generated summary or `Action Items` heading when ownership, wording, or commitment strength conflicts.
    - Mark uncertain identities, affiliations, authority, ownership, decisions, and commitments explicitly rather than resolving them by proximity or action verbs.
+   - Classify every candidate transaction as an actual deal, meeting-only preparation or context, or a deal-owned artifact. Resolve names, counterparties, and aliases against existing deal pages. Keep an ambiguous candidate on the meeting page with its uncertainty rather than inventing a deal record.
    - Review transcripts for specifically unsafe, slanderous, highly personal, or sensitive spans. Redact only the unsafe span when required and leave a clear marker.
    - Anti-patterns: conflating speaker with actor, treating a request as acceptance, converting optional help into a commitment, broad redaction, promoting a summary inference over transcript evidence
 4. Plan the canonical meeting and source artifacts.
    - Compose the current meeting page from the supported facts, chronology, decisions, discussion context, and owner-labelled actions. Preserve existing `## Prep` content when present, but do not require fixed meeting headings.
+   - Keep preparation on this meeting page and update the same page with the outcome after it occurs. Create or update one canonical deal page for each sufficiently identified actual deal and set `deal_involvement` from evidence. Store a VDR inventory, diligence pack, teaser, model, or comparable evidence as a deal-owned `.raw/` sidecar linked from that deal.
    - Send only current page content to the generic page writer. Do not include its separator, `## Timeline`, or a verbose provenance or raw-file wrapper section.
    - Record external actions with their actual owner and preserve optional offers in the most natural meeting, sidecar, deal, project, or relationship context.
    - Keep comprehensive transcript extraction and document-specific synthesis in the indexed sidecar rather than forcing raw dumps into the canonical meeting page.
@@ -113,7 +116,7 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
 
 - Treating a successful delegated meeting result as completion of the calling ingestion workflow.
 - Taking over Granola or another source adapter's discovery, routing, ledger, cursor, or batch responsibilities.
-- Creating a second meeting page when a canonical page exists.
+- Creating a second meeting page when a canonical page exists, or creating a top-level deal page for meeting prep, a meeting record, or a VDR inventory.
 - Erasing `## Prep` during the post-meeting update.
 - Conflating speaker, responsible actor, request, acceptance, external action, and optional offer.
 - Creating tasks from vague discussion, inventing entity details, or skipping identifiable people because they were only mentioned in passing.
