@@ -40,7 +40,7 @@ export function privatePageHrefFromMarkdown({ pathname, brainId, sourceSlug, hre
       resolved.pop();
       continue;
     }
-    if (!/^[a-z0-9_-]+$/i.test(part)) return null;
+    if (part !== '.raw' && !/^[a-z0-9_-]+$/i.test(part)) return null;
     resolved.push(part);
   }
   const slug = resolved.join('/');
@@ -72,5 +72,5 @@ function isMarkdownPageTarget(target) {
 function looksCanonicalSlug(value) {
   const parts = String(value || '').split('/');
   return parts.length >= 2
-    && parts.every((part) => /^[a-z0-9_-]+$/i.test(part));
+    && parts.every((part) => part === '.raw' || /^[a-z0-9_-]+$/i.test(part));
 }

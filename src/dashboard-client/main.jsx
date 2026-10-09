@@ -867,13 +867,6 @@ function DashboardApp() {
     }
   }
 
-  function openRawFile({ href, sourceSlug }) {
-    const rawPath = resolveMetadataTarget(sourceSlug, href);
-    if (!isMetadataRawFile(rawPath)) return;
-    const rawHref = `/api/explorer/blob?path=${encodeURIComponent(rawPath)}`;
-    window.open(rawHref, '_blank', 'noopener,noreferrer');
-  }
-
   function handlePreviewCardKeyDown(event, callback) {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     event.preventDefault();
@@ -1337,6 +1330,13 @@ function formatAnalyticsTime(value) {
   return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(value));
 }
 
+function openRawFile({ href, sourceSlug }) {
+  const rawPath = resolveMetadataTarget(sourceSlug, href);
+  if (!isMetadataRawFile(rawPath)) return;
+  const rawHref = `/api/explorer/blob?path=${encodeURIComponent(rawPath)}`;
+  window.open(rawHref, '_blank', 'noopener,noreferrer');
+}
+
 function PrivatePageApp({ route }) {
   const [state, setState] = useState({ status: 'loading', error: null, page: null });
   const [imageViewerIndex, setImageViewerIndex] = useState(null);
@@ -1429,16 +1429,12 @@ function PrivatePageApp({ route }) {
           </div>
           <PrivatePageBackLink />
         </header>
-        <PageImageCarousel images={state.page.images} onImageOpen={setImageViewerIndex} />
-        <PageSummary summary={state.page.summary} />
-        <MarkdownDocument
-          markdown={state.page.markdown}
-          sourceSlug={state.page.slug}
-          images={state.page.images}
-          onImageClick={setImageViewerIndex}
+        <PageDetails
+          page={state.page}
+          onImageOpen={setImageViewerIndex}
           onRelativeLinkClick={openPrivatePageLink}
-          shouldHandleRelativeLink={(href) => Boolean(privatePageHref(href, state.page.slug))}
-          emptyLabel="This page is empty."
+          onRawLinkClick={openRawFile}
+          onPageOpen={(slug) => openPrivatePageLink({ href: `${slug}.md`, sourceSlug: state.page.slug })}
         />
       </article>
       <PageImageLightbox
@@ -2475,9 +2471,6 @@ function IconButton({ className = '', children, style, ...props }) {
 
 function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, onPageOpen, onVisibilityChange, onResizeStart }) {
   const pathLabel = preview?.path || preview?.slug || preview?.href || '';
-  const outgoing = Array.isArray(preview?.links?.outgoing) ? preview.links.outgoing : [];
-  const backlinks = Array.isArray(preview?.links?.backlinks) ? preview.links.backlinks : [];
-  const hasLinks = outgoing.length || backlinks.length;
   const visibility = preview?.visibility === 'public' ? 'public' : 'internal';
   const isPublic = visibility === 'public';
   const canChangeVisibility = preview?.status === 'ready' && preview?.slug && !preview?.demo && onVisibilityChange;
@@ -2554,24 +2547,13 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, on
           {preview?.status === 'loading' && <div className="empty-copy">Loading page…</div>}
           {preview?.status === 'error' && <div className="empty-copy">{preview.message}</div>}
           {preview?.status === 'ready' ? (
-            <>
-              <PageContentPreview
-                markdown={preview.body || preview.markdown}
-                title={preview.title}
-                summary={preview.summary}
-                timelineEntries={preview.timeline_entries}
-                sourceSlug={preview.slug}
-                frontmatter={preview.frontmatter}
-                images={preview.images}
-                onImageOpen={setImageViewerIndex}
-                onRelativeLinkClick={onRelativeLinkClick}
-                onRawLinkClick={onRawLinkClick}
-                bodyClassName={`sidecar-document ${hasLinks ? 'has-link-sections' : ''}`}
-                emptyLabel="This file is empty."
-              />
-              <PageLinkSection title="Links out" links={outgoing} onPageOpen={onPageOpen} />
-              <PageLinkSection title="Backlinks" links={backlinks} onPageOpen={onPageOpen} />
-            </>
+            <PageDetails
+              page={preview}
+              onImageOpen={setImageViewerIndex}
+              onRelativeLinkClick={onRelativeLinkClick}
+              onRawLinkClick={onRawLinkClick}
+              onPageOpen={onPageOpen}
+            />
           ) : null}
         </div>
         </div>
@@ -2582,6 +2564,32 @@ function PageSidecar({ preview, onClose, onRelativeLinkClick, onRawLinkClick, on
         onClose={() => setImageViewerIndex(null)}
         onIndexChange={setImageViewerIndex}
       />
+    </>
+  );
+}
+
+// The node sidecar owns the internal page presentation, shared by direct page links.
+function PageDetails({ page, onImageOpen, onRelativeLinkClick, onRawLinkClick, onPageOpen }) {
+  const outgoing = Array.isArray(page.links?.outgoing) ? page.links.outgoing : [];
+  const backlinks = Array.isArray(page.links?.backlinks) ? page.links.backlinks : [];
+  return (
+    <>
+      <PageContentPreview
+        markdown={page.body || page.markdown}
+        title={page.title}
+        summary={page.summary}
+        timelineEntries={page.timeline_entries}
+        sourceSlug={page.slug}
+        frontmatter={page.frontmatter}
+        images={page.images}
+        onImageOpen={onImageOpen}
+        onRelativeLinkClick={onRelativeLinkClick}
+        onRawLinkClick={onRawLinkClick}
+        bodyClassName={`sidecar-document ${outgoing.length || backlinks.length ? 'has-link-sections' : ''}`}
+        emptyLabel="This file is empty."
+      />
+      <PageLinkSection title="Links out" links={outgoing} onPageOpen={onPageOpen} />
+      <PageLinkSection title="Backlinks" links={backlinks} onPageOpen={onPageOpen} />
     </>
   );
 }
@@ -2980,6 +2988,7 @@ function resolveMetadataTarget(sourceSlug, target) {
 }
 
 function isMetadataRawFile(target) {
+  if (/\.md$/i.test(target)) return false;
   return target.split('/').includes('.raw')
     || (/\.[a-z0-9]+$/i.test(target) && !/\.md$/i.test(target));
 }

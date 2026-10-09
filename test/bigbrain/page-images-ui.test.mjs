@@ -21,8 +21,10 @@ test('page image attachments render as an accessible carousel in private and pub
   assert.match(clientSource, /aria-label="Next image"/);
   assert.match(clientSource, /onImageClick=\{setImageViewerIndex\}/);
   assert.match(clientSource, /Show attached image/);
-  assert.equal((clientSource.match(/<PageImageCarousel images=\{state\.page\.images\} onImageOpen=\{setImageViewerIndex\} \/>/g) || []).length, 2);
-  assert.match(clientSource, /<PageContentPreview\s+markdown=\{preview\.body \|\| preview\.markdown\}/);
+  assert.equal((clientSource.match(/<PageImageCarousel images=\{state\.page\.images\} onImageOpen=\{setImageViewerIndex\} \/>/g) || []).length, 1);
+  assert.match(clientSource, /<PageDetails\s+page=\{preview\}/);
+  assert.match(clientSource, /<PageDetails\s+page=\{state\.page\}/);
+  assert.match(clientSource, /<PageContentPreview\s+markdown=\{page\.body \|\| page\.markdown\}/);
   assert.match(clientSource, /<PageContentPreview\s+markdown=\{markdown\}/);
   assert.match(clientSource, /className="explorer-page-preview"/);
   assert.doesNotMatch(clientSource, /explorer-frontmatter|parsed\.frontmatter/);

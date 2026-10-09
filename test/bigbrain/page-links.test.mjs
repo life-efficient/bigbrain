@@ -95,6 +95,8 @@ test('private page markdown links resolve across brain collections without hijac
   assert.equal(resolve('same-directory.md'), `/dashboard/page/${brainId}/organizations/same-directory`);
   assert.equal(resolve('./same-directory'), `/dashboard/page/${brainId}/organizations/same-directory`);
   assert.equal(resolve('people/root-slug.md'), `/dashboard/page/${brainId}/people/root-slug`);
+  assert.equal(resolve('meetings/.raw/transcript.md'), `/dashboard/page/${brainId}/meetings/.raw/transcript`);
+  assert.equal(resolve('../meetings/.raw/transcript.md'), `/dashboard/page/${brainId}/meetings/.raw/transcript`);
   assert.equal(resolve('../people/linked-page.md#timeline'), `/dashboard/page/${brainId}/people/linked-page#timeline`);
   assert.equal(
     privatePageHrefFromMarkdown({ pathname: pathname.replace('/dashboard', ''), brainId, sourceSlug, href: '../people/linked-page.md' }),

@@ -188,6 +188,7 @@ function isRelativeMarkdownHref(href) {
 
 function isRelativeRawFileHref(href) {
   const target = String(href || '').split('#')[0];
+  if (/\.md$/i.test(target)) return false;
   return target.split('/').includes('.raw')
     || (/\.[a-z0-9]+$/i.test(target) && !/\.md$/i.test(target));
 }
