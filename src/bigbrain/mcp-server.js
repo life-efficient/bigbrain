@@ -2207,7 +2207,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'read',
-      description: 'Read one markdown page from the brain. The response includes a protected page_url and a stable loopback local_url for the BigBrain desktop resolver.',
+      description: 'Read one markdown page from the brain. To show the page or its linked files in Codex or any browser, open the returned page_url, which serves the protected dashboard directly. local_url is only a launcher for the BigBrain desktop app, requires that app to be running, and does not display page content in the browser. Use the returned URLs exactly; never guess ports or publish a private page to make it viewable.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -2258,7 +2258,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'get_page_visibility',
-      description: 'Return one page private viewing link and whether it is internal or public. local_url opens the connected brain through the loopback-only BigBrain desktop resolver; page_url remains protected remotely. When public, public_url is a directly shareable absolute public URL.',
+      description: 'Return one page private viewing link and whether it is internal or public. Open page_url to view the protected dashboard and linked files in Codex or any browser. local_url only launches the BigBrain desktop app, requires that app to be running, and does not display page content in the browser. When public, public_url is a directly shareable absolute public URL. Never publish a private page merely to make it viewable.',
       inputSchema: pageVisibilitySchema({ requireVisibility: false }),
     },
     {

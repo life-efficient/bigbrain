@@ -67,12 +67,19 @@ stable loopback link:
 http://127.0.0.1:55559/page/brn_01234567-89ab-4cde-8fab-0123456789ab/organizations/acme-intralog
 ```
 
-Use the returned `local_url`; do not guess a port or brain ID. The response also
-includes `brain_id`, `page_url`, and `page_url_path`. The BigBrain desktop app
+For viewing in Codex's in-app browser or another browser, use the returned
+`page_url`. It serves the protected dashboard directly, including the page's
+linked source files, without depending on the BigBrain desktop app. Use
+`local_url` only when the user specifically wants to open the BigBrain desktop
+app. Do not guess a port or brain ID. The response also includes `brain_id` and
+`page_url_path`. The BigBrain desktop app
 owns port `55559`, listens only on `127.0.0.1`, resolves the immutable brain ID
 against its connected brains, and opens the matching private dashboard route.
 The desktop app must be running and the brain must already be connected. The
 resolver does not proxy page content or store remote credentials.
+It returns an acknowledgement after opening the desktop app, not a browser
+view of the page. If the desktop app is closed, `local_url` can fail with
+`ERR_CONNECTION_REFUSED` even while the MCP and dashboard are available.
 
 The brain ID in this route is an identity assertion against the one brain served
 by that process. It never selects a different brain or filesystem root. Missing
@@ -85,9 +92,10 @@ authentication. It is not a public-sharing link. An unauthenticated remote
 request is denied or sent through the configured OAuth flow. Agents should
 return:
 
-- `local_url` when the user wants to open the private page in their connected
-  local BigBrain desktop app
-- `page_url` when the user is authorized to view the protected server dashboard
+- `page_url` to view private pages and linked files in Codex or another browser,
+  subject to the dashboard's existing authentication
+- `local_url` only to launch the private page in the connected local BigBrain
+  desktop app
 - `public_url` only after explicit publication and only when the user asked for
   a public sharing link
 

@@ -166,6 +166,7 @@ test('MCP defaults to loopback and returns an exact clickable local URL without 
   try {
     await writeMarkdown(fixture.brainHome, 'organizations/acme-intralog.md', '# Acme Intralog\n\nCanonical MCP page body.\n');
     await writeMarkdown(fixture.brainHome, 'FILING.md', '# Brain Filing\n\nRoot MCP read remains compatible.\n');
+    await writeMarkdown(fixture.brainHome, 'meetings/.raw/dinner-transcript.md', '# Dinner transcript\n\nSaved meeting transcript.\n');
     const config = await loadConfig({ configPath: fixture.configPath });
     running = await startMcpServer({
       config,
@@ -204,6 +205,28 @@ test('MCP defaults to loopback and returns an exact clickable local URL without 
       `http://127.0.0.1:55559/page/${config.brainId}/organizations/acme-intralog`,
     );
     assert.equal((await fetch(expected)).status, 200);
+
+    const transcriptResponse = await fetch(running.url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 3,
+        method: 'tools/call',
+        params: { name: 'read', arguments: { path: 'meetings/.raw/dinner-transcript.md' } },
+      }),
+    });
+    const transcript = (await transcriptResponse.json()).result.structuredContent;
+    assert.equal(transcript.page_url, running.url.replace(
+      '/mcp', `/dashboard/page/${config.brainId}/meetings/.raw/dinner-transcript`,
+    ));
+    assert.notEqual(new URL(transcript.page_url).port, new URL(transcript.local_url).port);
+    const transcriptView = await fetch(transcript.page_url);
+    assert.equal(transcriptView.status, 200);
+    assert.match(await transcriptView.text(), /dashboard-client\.js/);
+    const transcriptPayload = await fetch(new URL('/api/page?slug=meetings%2F.raw%2Fdinner-transcript', running.url));
+    assert.equal(transcriptPayload.status, 200);
+    assert.match((await transcriptPayload.json()).markdown, /Saved meeting transcript/);
 
     const rootReadResponse = await fetch(running.url, {
       method: 'POST',
