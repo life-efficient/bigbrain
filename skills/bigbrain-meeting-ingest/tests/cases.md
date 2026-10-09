@@ -125,3 +125,68 @@ Expected:
 - Search aliases and create or update one canonical `deals/<deal-slug>.md` page for the actual transaction, with evidence-backed `deal_involvement` when the schema supports it.
 - Keep the questions under `## Prep` on the canonical meeting page and preserve them when the page is updated after the call.
 - Preserve the VDR inventory as a `deals/.raw/` indexed sidecar linked from the canonical deal, not as another top-level page under `deals/`.
+
+
+## Unrecorded dinner supplied as a recap
+
+Prompt:
+
+```text
+Save these notes from last night's dinner. It was not recorded. The attached
+file is named dinner-transcript.txt, but its contents are my post-meeting recap.
+```
+
+Expected behavior:
+
+- Classify the source as user notes regardless of the filename.
+- Save the canonical meeting and indexed summary sidecar with note provenance.
+- Create no raw transcript and do not report a missing transcript as a gap.
+
+Forbidden behavior:
+
+- Copying or renaming the recap into a raw transcript artifact.
+- Describing the recap as a verbatim transcript or recorded meeting.
+
+## Correct a recap previously filed as a transcript
+
+Prompt:
+
+```text
+This meeting was added from a note and was not recorded. Remove its mislabeled
+raw transcript while keeping the summary sidecar and meeting knowledge.
+```
+
+Expected behavior:
+
+- Preserve the supplied note evidence in the summary sidecar.
+- Remove the misleading raw artifact through owning Brain tools.
+- Repair transcript links and provenance, then read back all changed records.
+
+Forbidden behavior:
+
+- Deleting the summary sidecar or losing the source note evidence.
+- Leaving a dangling raw-transcript link or treating removal as incomplete ingest.
+
+## Actual transcript remains raw evidence
+
+Prompt:
+
+```text
+Ingest this recorded call with the full fetched speaker-attributed transcript
+and a generated summary.
+```
+
+Expected behavior:
+
+- Preserve the actual fetched transcript and its indexed sidecar.
+- Prefer actual transcript evidence when summary attribution conflicts.
+
+Forbidden behavior:
+
+- Applying the note-only branch to discard the actual transcript.
+
+## Trigger boundaries
+
+- Positive: "Save my unrecorded dinner notes" selects meeting ingestion.
+- Negative: "Find new Granola recordings" starts with Granola ingestion.
+- Adjacent: "Save this podcast transcript" selects media ingestion.

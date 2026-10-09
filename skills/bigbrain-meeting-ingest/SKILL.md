@@ -18,7 +18,8 @@ Turn one meeting transcript, summary, or set of call notes into a verified canon
 - A candidate transaction is classified as an actual deal, meeting-only context, or a deal-owned artifact before any page is created. Only actual deals receive top-level `deals/` pages.
 - The meeting page contains an evidence-backed summary, decisions, actual-owner action items, and discussion context.
 - Follow the generic page-writing schema for the current page body; do not define a meeting-specific page contract.
-- Valuable raw transcripts and attachments follow live filing rules and have verified same-basename indexed sidecars.
+- Unrecorded meetings supplied as notes or recaps have an indexed summary sidecar only, with note provenance and no raw transcript. A transcript is required only when actual transcript content is supplied or fetched.
+- Valuable actual transcripts and attachments follow live filing rules and have verified same-basename indexed sidecars.
 - Speaker, responsible actor, and commitment strength remain distinct, with transcript evidence preferred over generated-summary attribution when they conflict.
 - Candidate task changes pass through `$bigbrain-action-review`; external actions and optional offers remain useful context without becoming backlog tasks unless a member owns a concrete follow-up.
 - Supported attendee, organization, deal, project, relationship, and task updates are applied and read back through the destination Brain.
@@ -64,6 +65,7 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
    - Determine whether the meeting is new, already complete, or needs a specific repair such as a missing transcript, sidecar, participant link, or follow-on update.
    - Anti-patterns: title-only deduplication, creating a second post-meeting page, erasing preparation material, repairing without a concrete gap
 3. Interpret the meeting evidence.
+   - First classify the available evidence as an actual recording transcript, user-supplied notes or recap, or a generated summary. A transcript-like filename does not establish that a recording or transcript exists.
    - Extract attendees, date or timeframe, summary, decisions, action-relevant statements, and material discussion context.
    - For every action-relevant statement, preserve the source speaker separately from the responsible actor and distinguish accepted commitments, requests, external actions, optional offers, proposals, and discussion.
    - Prefer the transcript over a generated summary or `Action Items` heading when ownership, wording, or commitment strength conflicts.
@@ -77,8 +79,10 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
    - Send only current page content to the generic page writer. Do not include its separator, `## Timeline`, or a verbose provenance or raw-file wrapper section.
    - Record external actions with their actual owner and preserve optional offers in the most natural meeting, sidecar, deal, project, or relationship context.
    - Keep comprehensive transcript extraction and document-specific synthesis in the indexed sidecar rather than forcing raw dumps into the canonical meeting page.
-   - Store each valuable raw artifact at the path required by filing rules and create its deterministic same-basename indexed sidecar.
-   - Use the actual fetched transcript content, never a pointer, placeholder, provenance note, or generated summary as the raw transcript.
+   - For an unrecorded meeting added from notes or a recap, retain the evidence in the indexed summary sidecar and identify it as notes or a recap. Do not create a raw transcript, rename the recap as a transcript, or treat absent transcript content as a completeness gap.
+   - Store each valuable actual raw artifact at the path required by filing rules and create its deterministic same-basename indexed sidecar.
+   - Use only actual supplied or fetched transcript content as the raw transcript, never a pointer, placeholder, provenance note, user recap, or generated summary.
+   - When correcting a note-only meeting previously mislabeled as a transcript, preserve the note content in its summary sidecar, remove the misleading raw transcript through the owning Brain tools, repair its links and provenance, and read back the result.
    - Anti-patterns: fake action items, backlog tasks for uninvoked offers, raw dumps in the canonical page, orphan raw artifacts, placeholder transcripts
 5. Reconcile supported entity and task updates.
    - Apply the shared checklist to attendees and all identifiable entities mentioned in the accepted meeting evidence, including people who did not attend. Use `$bigbrain-page` for canonical reconciliation.
@@ -99,7 +103,7 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
 7. Verify the per-meeting result.
    - Complete the shared checklist before declaring this meeting complete, including in delegated mode.
    - Read back every changed meeting, sidecar, entity, deal, project, and task page through the same destination Brain.
-   - Verify each raw transcript or attachment against the source content or available size and metadata evidence.
+   - Verify each actual raw transcript or attachment against the source content or available size and metadata evidence. For a note-only meeting, verify the summary sidecar and note provenance, and confirm that no fabricated raw transcript or dangling transcript link remains.
    - Re-scan for duplicate meeting provenance, confirm canonical links and filing-rule compliance, and check that every task-backed action bullet links exactly once to the verified task path.
    - If a task is unreadable, a link is broken, or an action bullet is missing its task link, repair the affected task or source page in the same run, then read back both sides again. Repeat while a concrete repair is available; do not leave a known broken link or task-backed action unresolved.
    - If an owning Brain or source remains unavailable after repair attempts, explain the concrete failure directly in the current Codex chat with the affected paths and what was tried. Do not add a new persisted failure state or opaque handoff result for this issue.
@@ -120,6 +124,7 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
 - Erasing `## Prep` during the post-meeting update.
 - Conflating speaker, responsible actor, request, acceptance, external action, and optional offer.
 - Creating tasks from vague discussion, inventing entity details, or skipping identifiable people because they were only mentioned in passing.
+- Fabricating a raw transcript from notes or a recap, or requiring a transcript for an unrecorded meeting.
 - Reporting success before per-meeting writes and artifacts are read back.
 
 ## Output
