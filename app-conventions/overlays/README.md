@@ -67,14 +67,20 @@ an `asks` list of strings:
 
 ```yaml
 teaser_summary: >-
-  European digital infrastructure project seeking partners for phased development.
+  A European digital infrastructure site offers a phased development opportunity,
+  with an incoming partner able to shape the facility and delivery model.
 asks:
-  - Introductions to infrastructure equity investors
-  - An experienced development partner
+  - An infrastructure equity partner is needed to fund phased development.
+  - An experienced developer is needed to shape the facility and delivery plan.
 ```
 
 The Deals card previews the shared teaser summary and each ask with its own copy
-button. Each button copies the teaser summary followed by only that ask. Copy
+button. Each button copies the teaser summary followed by only that ask as prose,
+without a heading or bullet. **Copy all asks** combines the shared teaser with a
+bulleted list of all asks. Write each stored ask as a complete sentence stating
+the specific counterparty or contribution needed, without first-person questions
+or bullet prefixes. Make the teaser clear and exciting through concrete,
+evidence-backed opportunity details; do not invent claims or commitments. Copy
 requires a nonempty teaser summary and a nonempty string for the selected ask. Internal titles, internal summaries, page paths, and involvement labels
 are never substituted into the copied message. Authors must prepare anonymous
 wording in these fields; the copy action does not automatically anonymize text.

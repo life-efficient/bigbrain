@@ -150,11 +150,11 @@ function defaultDealFields() {
     asks: {
       type: 'array',
       items: { type: 'string' },
-      description: 'Optional anonymous, externally shareable requests for capital, partners, buyers, or introductions. Each string is one specific ask.',
+      description: 'Optional anonymous, externally shareable asks. Each string is one complete prose sentence stating the specific counterparty or contribution needed and its role in the opportunity. Avoid first-person questions, salutations, headings, and bullet prefixes; each ask must read naturally after the shared teaser.',
     },
     teaser_summary: {
       type: 'string',
-      description: 'Optional anonymous, externally shareable opportunity summary. Avoid company, project, and contact names and combinations of identifying details. Keep separate from the internal summary.',
+      description: 'Optional anonymous, externally shareable teaser that makes the opportunity clear and exciting through concrete, evidence-backed substance: the asset or project, its distinguishing features, and the proposed transaction or partnership. Avoid invented claims or commitments, company, project, and contact names, and combinations of identifying details. Keep separate from the internal summary.',
     },
     deal_involvement: {
       type: 'string',
