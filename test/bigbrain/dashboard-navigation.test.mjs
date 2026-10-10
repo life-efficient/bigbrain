@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { OVERLAYS } from '../../src/dashboard-client/overlays/registry.js';
 
 import {
   dashboardNavigationFromUrl,
@@ -20,6 +21,37 @@ test('dashboard routes round trip deliberate view state under local and hosted b
     const stream = { ...state, view: 'recents', focus: false, domain: '', activity: 'viewed', kind: 'images', image: 'people/.raw/alice portrait.png' };
     assert.deepEqual(dashboardNavigationFromUrl(dashboardNavigationHref(stream, base), base), stream);
   }
+});
+
+test('all registered overlays round trip through their routes and legacy root aliases', () => {
+  for (const base of ['', '/dashboard']) {
+    for (const overlay of OVERLAYS) {
+      const state = {
+        view: overlay.id, slug: 'deals/example', focus: false, image: null,
+        domain: '', collection: '', activity: 'updated', kind: 'pages',
+      };
+      const href = dashboardNavigationHref(state, base);
+      assert.equal(href, `${base}/overlays/${encodeURIComponent(overlay.id)}?page=deals%2Fexample`);
+      assert.deepEqual(dashboardNavigationFromUrl(href, base), state);
+      assert.equal(dashboardNavigationFromUrl(`${base}/?view=${encodeURIComponent(overlay.id)}`, base).view, overlay.id);
+      assert.equal(dashboardNavigationFromUrl(`${base}/index.html?view=${encodeURIComponent(overlay.id)}`, base).view, overlay.id);
+    }
+  }
+});
+
+test('overlay routing follows registry additions and rejects unregistered or malformed routes', () => {
+  const overlay = { id: 'routing-test-overlay', label: 'Temporary routing test' };
+  OVERLAYS.push(overlay);
+  try {
+    assert.equal(dashboardNavigationHref({ view: overlay.id }), '/overlays/routing-test-overlay');
+    assert.equal(dashboardNavigationFromUrl('/overlays/routing-test-overlay').view, overlay.id);
+  } finally {
+    OVERLAYS.splice(OVERLAYS.indexOf(overlay), 1);
+  }
+  for (const route of ['/overlays/unregistered', '/overlays/%', '/overlays/keep-in-touch/extra', '/outside/overlays/keep-in-touch']) {
+    assert.equal(dashboardNavigationFromUrl(route).view, 'graph');
+  }
+  assert.equal(dashboardNavigationHref({ view: 'unregistered' }), '/graph');
 });
 
 test('legacy root URLs open and new view navigation clears page selection', () => {

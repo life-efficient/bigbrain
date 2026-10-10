@@ -77,6 +77,7 @@ import {
 } from './page-ops.js';
 import { canonicalPagePath, canonicalPageUrl, isLoopbackHost, localPageUrl } from './page-links.js';
 import { queryPagesByFrontmatter } from './frontmatter-query.js';
+import { buildDealsPayload } from './overlays/deals.js';
 import {
   buildKeepInTouchDuePayload,
   enrollKeepInTouchPerson,
@@ -702,6 +703,9 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'pages/query':
     case 'pages_query':
       return toolJson(await toolPagesQuery(config, args));
+    case 'overlays/deals':
+    case 'overlays_deals':
+      return toolJson(await toolDeals(config, args));
     case 'overlays/keep-in-touch/list_due':
     case 'overlays_keep_in_touch_list_due':
       return toolJson(await toolKeepInTouchListDue(config, args, actor));
@@ -1523,6 +1527,15 @@ async function toolPagesQuery(config, args) {
   }
 }
 
+async function toolDeals(config, args) {
+  const db = await openDatabase(config);
+  try {
+    return await buildDealsPayload(config, db, args);
+  } finally {
+    await db.close?.();
+  }
+}
+
 async function toolKeepInTouchListDue(config, args, actor) {
   const db = await openDatabase(config);
   try {
@@ -2062,8 +2075,18 @@ function toolDefinitions(config = null) {
       inputSchema: pagesQuerySchema(),
     },
     {
+      name: 'overlays/deals',
+      description: 'Quickly retrieve our deals and network opportunities from the selected Brain index, with titles and summaries. Includes active, network_actionable and network_observed deals; excludes public transactions and supporting documents. Follow next_cursor to retrieve remaining results.',
+      inputSchema: dealsOverlaySchema(),
+    },
+    {
+      name: 'overlays_deals',
+      description: 'Alias for overlays/deals for clients that do not support slash tool names.',
+      inputSchema: dealsOverlaySchema(),
+    },
+    {
       name: 'overlays/keep-in-touch/list_due',
-      description: 'List people enrolled in the Keep in Touch overlay whose next touchpoint is due. This reads overlay overlay state without changing person pages.',
+      description: 'List people enrolled in the Keep in Touch overlay whose next touchpoint is due. This reads overlay state without changing person pages.',
       inputSchema: keepInTouchListDueSchema(),
     },
     {
@@ -2083,7 +2106,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'overlays/keep-in-touch/record_review',
-      description: 'Commit one complete Keep in Touch review. It stores every per-person outcome and rationale in the overlay overlay, applies additions or frequency changes, and advances the private cursor only after every candidate has a decision.',
+      description: 'Commit one complete Keep in Touch review. It stores every per-person outcome and rationale in the overlay, applies additions or frequency changes, and advances the private cursor only after every candidate has a decision.',
       inputSchema: keepInTouchRecordReviewSchema(),
     },
     {
@@ -2093,7 +2116,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'overlays/keep-in-touch/enroll',
-      description: 'Enroll one people page in the Keep in Touch overlay. State is stored in a overlay overlay, not person frontmatter.',
+      description: 'Enroll one people page in the Keep in Touch overlay. State is stored in an overlay, not person frontmatter.',
       inputSchema: keepInTouchEnrollSchema(),
     },
     {
@@ -2113,7 +2136,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'overlays/keep-in-touch/set_priority',
-      description: 'Set the Keep in Touch priority for one enrolled people page. Priority belongs to the overlay overlay.',
+      description: 'Set the Keep in Touch priority for one enrolled people page. Priority belongs to the overlay.',
       inputSchema: keepInTouchSetPrioritySchema(),
     },
     {
@@ -2123,7 +2146,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'overlays/keep-in-touch/set_frequency',
-      description: 'Set the Keep in Touch frequency for one enrolled person using the overlay overlay. The daily review uses only 3, 7, 14, 30, or 60 days.',
+      description: 'Set the Keep in Touch frequency for one enrolled person using the overlay. The daily review uses only 3, 7, 14, 30, or 60 days.',
       inputSchema: keepInTouchSetFrequencySchema(),
     },
     {
@@ -2153,7 +2176,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'overlays/comprehension',
-      description: 'Read the authenticated user\'s Comprehension guidance, recent page summaries, and prior session history. State lives in a user-scoped overlay overlay, not Brain pages or task pages.',
+      description: 'Read the authenticated user\'s Comprehension guidance, recent page summaries, and prior session history. State lives in a user-scoped overlay, not Brain pages or task pages.',
       inputSchema: comprehensionReadSchema(),
     },
     {
@@ -2163,7 +2186,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'overlays/comprehension/setup',
-      description: 'Update the authenticated user\'s natural-language Comprehension guidance. This changes only the overlay overlay.',
+      description: 'Update the authenticated user\'s natural-language Comprehension guidance. This changes only the overlay.',
       inputSchema: comprehensionSetupSchema(),
     },
     {
@@ -2686,11 +2709,25 @@ async function recordWriteProvenance(config, pagePath, provenance, commitMessage
   }
 }
 
+function dealsOverlaySchema() {
+  return {
+    type: 'object',
+    properties: {
+      limit: { type: 'integer', minimum: 1, maximum: 100, default: 100 },
+      cursor: { type: 'integer', minimum: 0, description: 'Offset returned as next_cursor.' },
+      deal_involvement: { type: 'string', enum: ['active', 'network_actionable', 'network_observed'] },
+    },
+    additionalProperties: false,
+  };
+}
+
 function EVENT_STATE_SCHEMA_VALUES() {
   return [...EVENT_STATES];
 }
 
 const TOOL_POLICIES = {
+  'overlays/deals': { layer: 'read', scopes: ['brain:read'] },
+  overlays_deals: { layer: 'read', scopes: ['brain:read'] },
   me: { layer: 'read', scopes: ['brain:read'] },
   'members/list': { layer: 'read', scopes: ['brain:read'] },
   members_list: { layer: 'read', scopes: ['brain:read'] },

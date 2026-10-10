@@ -1,3 +1,5 @@
+import { overlayById } from './overlays/registry.js';
+
 const VIEWS = new Set(['graph', 'recents', 'explorer', 'tasks', 'analytics']);
 const ROUTES = { graph: 'graph', recents: 'stream', explorer: 'explorer', tasks: 'tasks', analytics: 'analytics' };
 const ROUTE_VIEWS = Object.fromEntries(Object.entries(ROUTES).map(([view, route]) => [route, view]));
@@ -9,8 +11,9 @@ export function dashboardNavigationFromUrl(url, basePath = '') {
     ? location.pathname.slice(base.length + 1)
     : location.pathname === base ? '' : null;
   const legacyView = location.searchParams.get('view');
-  const view = ROUTE_VIEWS[relative] || (relative === '' || relative === 'index.html'
-    ? (VIEWS.has(legacyView) ? legacyView : 'graph') : 'graph');
+  const overlay = overlayViewFromRoute(relative);
+  const view = ROUTE_VIEWS[relative] || overlay || (relative === '' || relative === 'index.html'
+    ? (isKnownView(legacyView) ? legacyView : 'graph') : 'graph');
   const slug = validSlug(location.searchParams.get('page'));
   const focus = view === 'graph' && Boolean(slug) && location.searchParams.get('focus') === '1';
   const image = location.searchParams.get('image');
@@ -29,7 +32,7 @@ export function dashboardNavigationFromUrl(url, basePath = '') {
 
 export function dashboardNavigationHref(state, basePath = '') {
   const base = normalizeBasePath(basePath);
-  const view = VIEWS.has(state.view) ? state.view : 'graph';
+  const view = isKnownView(state.view) ? state.view : 'graph';
   const params = new URLSearchParams();
   if (validSlug(state.slug)) params.set('page', state.slug);
   if (view === 'graph' && state.focus && validSlug(state.slug)) params.set('focus', '1');
@@ -41,7 +44,24 @@ export function dashboardNavigationHref(state, basePath = '') {
     if (state.kind === 'images' && state.image) params.set('image', state.image);
   }
   const query = params.toString();
-  return `${base}/${ROUTES[view]}${query ? `?${query}` : ''}`;
+  const route = ROUTES[view] || `overlays/${encodeURIComponent(view)}`;
+  return `${base}/${route}${query ? `?${query}` : ''}`;
+}
+
+function isKnownView(view) {
+  return VIEWS.has(view) || Boolean(overlayById(view));
+}
+
+function overlayViewFromRoute(relative) {
+  if (typeof relative !== 'string' || !relative.startsWith('overlays/')) return null;
+  const routeId = relative.slice('overlays/'.length);
+  if (!routeId || routeId.includes('/')) return null;
+  try {
+    const id = decodeURIComponent(routeId);
+    return overlayById(id)?.id || null;
+  } catch {
+    return null;
+  }
 }
 
 export function updateDashboardNavigation(current, patch) {

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 
 import { ComprehensionPanel } from './comprehension.jsx';
+import { DealsPanel } from './deals.jsx';
 import { KeepInTouchPanel } from './keep-in-touch.jsx';
 import { OVERLAYS, overlayById } from './registry.js';
 
@@ -22,7 +23,10 @@ export function OverlaysController({
 
   useEffect(() => {
     let cancelled = false;
-    const savedOverlays = loadEnabledOverlays(brainId);
+    const savedOverlays = [...new Set([
+      ...loadEnabledOverlays(brainId),
+      ...(overlayById(activeView) ? [activeView] : []),
+    ])];
     setEnabledOverlays(savedOverlays);
     setActionError('');
 
@@ -205,6 +209,7 @@ function OverlayLauncher({
 
 function OverlayOutlet({ activeView, enabledOverlays, onOpenPage }) {
   if (!enabledOverlays.includes(activeView)) return null;
+  if (activeView === 'deals') return <DealsPanel onOpenPage={onOpenPage} />;
   if (activeView === 'keep-in-touch') return <KeepInTouchPanel onOpenPerson={onOpenPage} />;
   if (activeView === 'comprehension') return <ComprehensionPanel onOpenPage={onOpenPage} />;
   return null;

@@ -53,6 +53,7 @@ import {
   updateComprehensionSetup,
 } from './overlays/comprehension.js';
 import { getRelatedLinkHistory } from './link-history.js';
+import { buildDealsPayload } from './overlays/deals.js';
 import {
   normalizePageVisibility,
   normalizeRawPath,
@@ -327,6 +328,22 @@ export async function createDashboardRequestHandler(config, {
         return json(res, await buildHealthPayload(config, { dashboardSurface: resolvedDashboardSurface }));
       }
       if (requestUrl.pathname === '/api/analytics') return json(res, await buildAnalyticsPayload(config, db));
+      if (requestUrl.pathname === '/api/overlays/deals') {
+        if (req.method !== 'GET') {
+          res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
+          res.end(JSON.stringify({ error: 'Deals reads require GET.' }));
+          return;
+        }
+        const input = {};
+        for (const key of ['limit', 'cursor']) {
+          if (requestUrl.searchParams.has(key)) {
+            const value = requestUrl.searchParams.get(key);
+            input[key] = value.trim() ? Number(value) : Number.NaN;
+          }
+        }
+        if (requestUrl.searchParams.has('deal_involvement')) input.deal_involvement = requestUrl.searchParams.get('deal_involvement');
+        return json(res, await buildDealsPayload(config, db, input), { noStore: true });
+      }
       if (requestUrl.pathname === '/api/overlays/keep-in-touch') {
         if (req.method !== 'GET') {
           res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
@@ -640,6 +657,7 @@ function isDashboardAppPath(pathname, basePath) {
     ? ['/', '/index.html', '/graph-lab']
     : [basePath, `${basePath}/`, `${basePath}/index.html`];
   return rootPaths.includes(pathname)
+    || (pathname.startsWith(`${basePath}/overlays/`) && /^overlays\/[a-z0-9-]+$/.test(pathname.slice(`${basePath}/`.length)))
     || ['graph', 'stream', 'explorer', 'tasks', 'analytics'].some((route) => pathname === `${basePath}/${route}`);
 }
 
@@ -1040,6 +1058,13 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .overlay-due.overdue { color: #fca5a5; font-weight: 700; }
       .overlay-record-summary { max-width: 740px; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
       .comprehension-page .overlay-record-summary { max-width: 920px; overflow: visible; text-overflow: clip; white-space: pre-wrap; }
+      .deal-record { align-items: flex-start; }
+      .deal-record .overlay-record-main { width: 100%; }
+      .deal-record .overlay-record-title-row { flex-wrap: wrap; }
+      .deal-page-link { white-space: normal; overflow-wrap: anywhere; }
+      .deal-record-summary { max-width: 920px; white-space: pre-wrap; overflow: visible; text-overflow: clip; }
+      .deal-involvement { display: inline-flex; padding: 4px 8px; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); font-size: 11px; }
+      .deal-involvement.involvement-active { color: var(--accent-strong); }
       .overlay-record-actions { flex: 0 0 auto; display: flex; align-items: center; justify-content: flex-end; gap: 7px; flex-wrap: wrap; }
       .overlay-action-primary { color: var(--bg); border-color: var(--ink); background: var(--ink); font-weight: 700; }
       .overlay-action-primary:hover { background: #d4d4d8; }

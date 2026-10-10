@@ -1,5 +1,11 @@
 export const OVERLAYS = [
   {
+    id: 'deals',
+    label: 'Deals',
+    description: 'Our deals and opportunities from our network.',
+    shortcut: 'D',
+  },
+  {
     id: 'keep-in-touch',
     label: 'Keep in Touch',
     description: 'Track deliberate follow-ups without changing person pages.',

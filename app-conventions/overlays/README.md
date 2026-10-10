@@ -38,3 +38,24 @@ skill, and dashboard experience.
 4. Add the panel and enablement behavior to the shared overlay shell.
 5. Add a boundary test proving the platform dashboard does not import the
    panel, own its storage, or add its label to primary navigation.
+
+## Deals
+
+The Deals overlay is a read-only view of the selected Brain's indexed canonical
+`deals/` pages. It includes `deal_involvement` values `active`,
+`network_actionable`, and `network_observed`. Public transactions, unclassified
+pages, and source attachments are excluded. Classifications belong on actual
+deal pages, not buyer research or supporting documents.
+
+- Open the panel from Overlays or `/overlays/deals`.
+- Retrieve it through MCP `overlays/deals` (alias `overlays_deals`) or HTTP
+  `GET /api/overlays/deals`.
+- Both endpoints accept `limit` (1 to 100, default 100), `cursor` (an offset),
+  and an optional single `deal_involvement` filter.
+- Results contain `records` with `page_slug`, `title`, `summary`,
+  `deal_involvement`, and `updated_at`, plus `total` and `next_cursor`.
+  Follow `next_cursor` until null to retrieve all deals.
+- First-class summaries are returned in full. Pages without one use a bounded
+  excerpt from indexed text; the request never scans source files or calls a model.
+- This view is derived, so it requires no enrollment records or knowledge copies.
+  It is Brain-scoped and protected by the existing dashboard and MCP read access.
