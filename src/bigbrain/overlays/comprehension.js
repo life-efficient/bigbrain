@@ -3,12 +3,12 @@ import { randomUUID } from 'node:crypto';
 import { getPageRecord, listPages } from '../db.js';
 import { normalizeCanonicalPageSlug } from '../page-links.js';
 import {
-  getPlaybookRecord,
-  listPlaybookRecords,
-  upsertPlaybookRecord,
-} from '../playbook-store.js';
+  getOverlayRecord,
+  listOverlayRecords,
+  upsertOverlayRecord,
+} from '../overlay-store.js';
 
-export const COMPREHENSION_PLAYBOOK_ID = 'comprehension';
+export const COMPREHENSION_OVERLAY_ID = 'comprehension';
 export const COMPREHENSION_SCHEMA_VERSION = 1;
 export const COMPREHENSION_SETUP_RECORD_TYPE = 'setup';
 export const COMPREHENSION_SESSION_RECORD_TYPE = 'session';
@@ -18,9 +18,9 @@ export function comprehensionOwnerKey(actor = null) {
 }
 
 export async function getComprehensionSetup(db, { actor = null } = {}) {
-  const record = await getPlaybookRecord(db, {
+  const record = await getOverlayRecord(db, {
     ownerKey: comprehensionOwnerKey(actor),
-    playbookId: COMPREHENSION_PLAYBOOK_ID,
+    overlayId: COMPREHENSION_OVERLAY_ID,
     recordType: COMPREHENSION_SETUP_RECORD_TYPE,
     scopeKey: 'user',
   });
@@ -29,9 +29,9 @@ export async function getComprehensionSetup(db, { actor = null } = {}) {
 
 export async function updateComprehensionSetup(db, input, { actor = null, now = new Date() } = {}) {
   const guidance = requireGuidance(input?.guidance);
-  const record = await upsertPlaybookRecord(db, {
+  const record = await upsertOverlayRecord(db, {
     ownerKey: comprehensionOwnerKey(actor),
-    playbookId: COMPREHENSION_PLAYBOOK_ID,
+    overlayId: COMPREHENSION_OVERLAY_ID,
     recordType: COMPREHENSION_SETUP_RECORD_TYPE,
     scopeKey: 'user',
     schemaVersion: COMPREHENSION_SCHEMA_VERSION,
@@ -44,9 +44,9 @@ export async function updateComprehensionSetup(db, input, { actor = null, now = 
 export async function buildComprehensionPayload(config, db, { actor = null, limit = 50, historyLimit = 50 } = {}) {
   const [setup, sessions, pages] = await Promise.all([
     getComprehensionSetup(db, { actor }),
-    listPlaybookRecords(db, {
+    listOverlayRecords(db, {
       ownerKey: comprehensionOwnerKey(actor),
-      playbookId: COMPREHENSION_PLAYBOOK_ID,
+      overlayId: COMPREHENSION_OVERLAY_ID,
       recordType: COMPREHENSION_SESSION_RECORD_TYPE,
       limit: 500,
     }),
@@ -63,8 +63,8 @@ export async function buildComprehensionPayload(config, db, { actor = null, limi
     .sort(compareRecentSessions)
     .slice(0, normalizeLimit(limit));
   return {
-    playbook: {
-      id: COMPREHENSION_PLAYBOOK_ID,
+    overlay: {
+      id: COMPREHENSION_OVERLAY_ID,
       name: 'Comprehension',
       schema_version: COMPREHENSION_SCHEMA_VERSION,
     },
@@ -86,9 +86,9 @@ export async function buildComprehensionPayload(config, db, { actor = null, limi
 export async function getComprehensionPage(db, pageSlug, { actor = null, limit = 50 } = {}) {
   const slug = requirePageSlug(pageSlug);
   const page = await getPageRecord(db, slug);
-  const records = await listPlaybookRecords(db, {
+  const records = await listOverlayRecords(db, {
     ownerKey: comprehensionOwnerKey(actor),
-    playbookId: COMPREHENSION_PLAYBOOK_ID,
+    overlayId: COMPREHENSION_OVERLAY_ID,
     recordType: COMPREHENSION_SESSION_RECORD_TYPE,
     scopeKeyPrefix: scopeKeyForPage(slug),
     limit: 500,
@@ -116,9 +116,9 @@ export async function saveComprehensionSession(db, input, { actor = null, now = 
   if (!page) throw new Error(`Comprehension page not found: ${pageSlug}`);
   const summary = requireSummary(input?.summary);
   const sessionId = normalizeSessionId(input?.session_id) || randomUUID();
-  const record = await upsertPlaybookRecord(db, {
+  const record = await upsertOverlayRecord(db, {
     ownerKey: comprehensionOwnerKey(actor),
-    playbookId: COMPREHENSION_PLAYBOOK_ID,
+    overlayId: COMPREHENSION_OVERLAY_ID,
     recordType: COMPREHENSION_SESSION_RECORD_TYPE,
     scopeKey: `${scopeKeyForPage(pageSlug)}/${sessionId}`,
     schemaVersion: COMPREHENSION_SCHEMA_VERSION,

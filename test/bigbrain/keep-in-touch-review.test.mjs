@@ -9,12 +9,12 @@ import { openDatabase } from '../../src/bigbrain/db.js';
 import {
   buildKeepInTouchReviewPayload,
   recordKeepInTouchReview,
-} from '../../src/bigbrain/playbooks/keep-in-touch-review.js';
+} from '../../src/bigbrain/overlays/keep-in-touch-review.js';
 import {
   buildKeepInTouchPayload,
   setKeepInTouchEnabled,
-} from '../../src/bigbrain/playbooks/keep-in-touch.js';
-import { getPlaybookRecord } from '../../src/bigbrain/playbook-store.js';
+} from '../../src/bigbrain/overlays/keep-in-touch.js';
+import { getOverlayRecord } from '../../src/bigbrain/overlay-store.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
 test('Keep in Touch reviews every changed people page and advances its private cursor atomically', async () => {
@@ -89,9 +89,9 @@ Research notes about a company leader. No direct relationship or contact.
     });
     assert.deepEqual(repeated, recorded);
 
-    const cursor = await getPlaybookRecord(db, {
+    const cursor = await getOverlayRecord(db, {
       ownerKey: 'local',
-      playbookId: 'keep-in-touch',
+      overlayId: 'keep-in-touch',
       recordType: 'cursor',
       scopeKey: 'daily-review',
     });

@@ -65,7 +65,7 @@ import { buildFocusedSubgraphGraph } from './graph/focused-subgraph-data.js';
 import { deriveGraphMotion, graphPayloadsEqual } from './graph/live-graph.js';
 import { nextGraphDomainFilter, nextGraphStyleOption } from './graph/style-shortcuts.js';
 import { graphNodeDomains, graphNodeMatchesFilters } from './graph/scope.js';
-import { PlaybooksController } from './playbooks/shell.jsx';
+import { OverlaysController } from './overlays/shell.jsx';
 import {
   buildDemoExplorer,
   buildDemoExplorerFile,
@@ -883,7 +883,7 @@ function DashboardApp() {
   const searchableNodes = Array.isArray(displayGraph?.nodes) ? displayGraph.nodes : [];
 
   return (
-    <PlaybooksController
+    <OverlaysController
       brainId={about?.brain_id || 'current'}
       brainName={about?.brain_name}
       activeView={view}
@@ -1119,7 +1119,7 @@ function DashboardApp() {
       </div>
         </GraphThemeProvider>
       )}
-    </PlaybooksController>
+    </OverlaysController>
   );
 }
 

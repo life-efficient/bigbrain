@@ -18,7 +18,7 @@ Schema version: `app-conventions/v1`.
 - `app-surfaces/` for public, authenticated, admin, internal, and preview surfaces.
 - `auth-and-sessions/` for sign-in, sign-out, session, authorization, and redirects.
 - `navigation/` for sidebar, header, route, menu, tab, and deep-link behavior.
-- `playbooks/` for playbook module boundaries and the shared Playbooks entry point.
+- `overlays/` for overlay module boundaries and the shared Overlays entry point.
 - `registration/` for registration flows, admin settings, forms, cohorts, and dates.
 - `email-delivery/` for transactional email providers, sender domains, secrets, and delivery checks.
 - `visual-design/` for layout, forms, buttons, density, contrast, notifications, and responsiveness.

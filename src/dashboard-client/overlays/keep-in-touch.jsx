@@ -13,7 +13,7 @@ export function KeepInTouchPanel({ onOpenPerson }) {
   async function load() {
     setState((current) => ({ ...current, status: 'loading', error: null }));
     try {
-      const data = await fetchJson('/api/playbooks/keep-in-touch');
+      const data = await fetchJson('/api/overlays/keep-in-touch');
       setState({ status: 'ready', data, error: null });
     } catch (error) {
       setState({ status: 'error', data: null, error: error instanceof Error ? error.message : String(error) });
@@ -27,7 +27,7 @@ export function KeepInTouchPanel({ onOpenPerson }) {
   async function submitAction(action, key, body) {
     setWorkingKey(key);
     try {
-      await fetchJson(`/api/playbooks/keep-in-touch/${action}`, {
+      await fetchJson(`/api/overlays/keep-in-touch/${action}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify(body),
@@ -49,15 +49,15 @@ export function KeepInTouchPanel({ onOpenPerson }) {
   }
 
   if (state.status === 'loading') {
-    return <section className="playbook-page"><ListLoadingState label="Loading Keep in Touch" /></section>;
+    return <section className="overlay-page"><ListLoadingState label="Loading Keep in Touch" /></section>;
   }
 
   if (state.status === 'error') {
     return (
-      <section className="playbook-page">
-        <div className="playbook-error card">
+      <section className="overlay-page">
+        <div className="overlay-error card">
           <span className="eyebrow">Keep in Touch</span>
-          <h1>Playbook unavailable</h1>
+          <h1>Overlay unavailable</h1>
           <p>{state.error}</p>
           <button type="button" className="graph-button" onClick={load}>Retry</button>
         </div>
@@ -77,27 +77,27 @@ export function KeepInTouchPanel({ onOpenPerson }) {
   const overdueCount = records.filter((record) => record.is_overdue).length;
 
   return (
-    <section className="playbook-page keep-in-touch-page">
-      <div className="playbook-head">
+    <section className="overlay-page keep-in-touch-page">
+      <div className="overlay-head">
         <div>
-          <span className="eyebrow">Playbook · People</span>
+          <span className="eyebrow">Overlay · People</span>
           <h1>Keep in Touch</h1>
           <p>A small queue for relationships that deserve a deliberate next touch.</p>
         </div>
-        <button type="button" className="graph-button playbook-primary-action" onClick={() => setEnrollOpen((value) => !value)}>
+        <button type="button" className="graph-button overlay-primary-action" onClick={() => setEnrollOpen((value) => !value)}>
           {enrollOpen ? 'Close enrollment' : 'Enroll someone'}
         </button>
       </div>
 
-      <div className="playbook-metrics">
+      <div className="overlay-metrics">
         <Metric label="Due now" value={dueCount} tone={dueCount ? 'warm' : 'quiet'} />
         <Metric label="Overdue" value={overdueCount} tone={overdueCount ? 'alert' : 'quiet'} />
         <Metric label="Enrolled" value={records.length} tone="quiet" />
       </div>
 
       {enrollOpen ? (
-        <div className="playbook-enroll card">
-          <div className="playbook-section-head">
+        <div className="overlay-enroll card">
+          <div className="overlay-section-head">
             <div>
               <span className="eyebrow">Add a relationship</span>
               <h2>Choose someone from this Brain</h2>
@@ -105,7 +105,7 @@ export function KeepInTouchPanel({ onOpenPerson }) {
             <span className="meta">No page fields are changed</span>
           </div>
           <input
-            className="playbook-search"
+            className="overlay-search"
             type="search"
             value={candidateSearch}
             onChange={(event) => setCandidateSearch(event.target.value)}
@@ -113,19 +113,19 @@ export function KeepInTouchPanel({ onOpenPerson }) {
             aria-label="Search people to enroll"
             autoFocus
           />
-          <div className="playbook-candidate-list">
+          <div className="overlay-candidate-list">
             {filteredPeople.map((person) => {
               const enrolled = enrolledSlugs.has(person.slug);
               const key = `enroll:${person.slug}`;
               return (
-                <div className="playbook-candidate" key={person.slug}>
-                  <div className="playbook-candidate-copy">
+                <div className="overlay-candidate" key={person.slug}>
+                  <div className="overlay-candidate-copy">
                     <strong>{person.title || person.slug}</strong>
                     <span>{person.slug}</span>
                   </div>
                   <button
                     type="button"
-                    className="playbook-small-button"
+                    className="overlay-small-button"
                     disabled={enrolled || workingKey === key}
                     onClick={() => submitAction('enroll', key, {
                       page_slug: person.slug,
@@ -145,7 +145,7 @@ export function KeepInTouchPanel({ onOpenPerson }) {
         </div>
       ) : null}
 
-      <div className="playbook-queue-head">
+      <div className="overlay-queue-head">
         <div>
           <span className="eyebrow">Relationship queue</span>
           <h2>{records.length ? 'Your current queue' : 'Nothing enrolled yet'}</h2>
@@ -154,7 +154,7 @@ export function KeepInTouchPanel({ onOpenPerson }) {
       </div>
 
       {records.length ? (
-        <div className="playbook-record-list">
+        <div className="overlay-record-list">
           {records.map((record) => (
             <KeepInTouchRecord
               key={record.page_slug}
@@ -166,8 +166,8 @@ export function KeepInTouchPanel({ onOpenPerson }) {
           ))}
         </div>
       ) : (
-        <div className="playbook-empty card">
-          <div className="playbook-empty-mark" aria-hidden="true">↗</div>
+        <div className="overlay-empty card">
+          <div className="overlay-empty-mark" aria-hidden="true">↗</div>
           <div>
             <h2>Start with one real relationship</h2>
             <p>Enroll someone you want to follow up with. Their Keep in Touch state will live alongside the Brain, without changing their page.</p>
@@ -191,26 +191,26 @@ function KeepInTouchRecord({ record, workingKey, onOpenPerson, onAction }) {
   const priorityKey = (next) => `priority:${record.page_slug}:${next}`;
 
   return (
-    <article className={`playbook-record card ${record.is_overdue ? 'is-overdue' : record.is_due ? 'is-due' : ''}`}>
-      <div className="playbook-record-main">
-        <div className="playbook-record-title-row">
-          <button type="button" className="playbook-person-link" onClick={() => onOpenPerson?.(record.page_slug)}>
+    <article className={`overlay-record card ${record.is_overdue ? 'is-overdue' : record.is_due ? 'is-due' : ''}`}>
+      <div className="overlay-record-main">
+        <div className="overlay-record-title-row">
+          <button type="button" className="overlay-person-link" onClick={() => onOpenPerson?.(record.page_slug)}>
             {record.title || record.page_slug}
           </button>
-          <span className={`playbook-priority priority-${priority}`}>P{priority}</span>
+          <span className={`overlay-priority priority-${priority}`}>P{priority}</span>
         </div>
-        <div className="playbook-record-meta">
-          <span className={record.is_overdue ? 'playbook-due overdue' : record.is_due ? 'playbook-due due' : 'playbook-due'}>{dueLabel}</span>
+        <div className="overlay-record-meta">
+          <span className={record.is_overdue ? 'overlay-due overdue' : record.is_due ? 'overlay-due due' : 'overlay-due'}>{dueLabel}</span>
           <span>{record.stage || 'building'}</span>
           <span>Every {record.cadence_days || DEFAULT_CADENCE_DAYS}d</span>
           {record.last_contacted_at ? <span>Last touch {formatDate(record.last_contacted_at)}</span> : <span>Not contacted yet</span>}
         </div>
-        {record.summary ? <p className="playbook-record-summary">{record.summary}</p> : null}
+        {record.summary ? <p className="overlay-record-summary">{record.summary}</p> : null}
       </div>
-      <div className="playbook-record-actions">
+      <div className="overlay-record-actions">
         <button
           type="button"
-          className="graph-button playbook-action-primary"
+          className="graph-button overlay-action-primary"
           disabled={workingKey === contactKey}
           onClick={() => onAction('log-contact', contactKey, { page_slug: record.page_slug })}
         >
@@ -218,13 +218,13 @@ function KeepInTouchRecord({ record, workingKey, onOpenPerson, onAction }) {
         </button>
         <button
           type="button"
-          className="playbook-small-button"
+          className="overlay-small-button"
           disabled={workingKey === snoozeKey}
           onClick={() => onAction('snooze', snoozeKey, { page_slug: record.page_slug, days: 7 })}
         >
           {workingKey === snoozeKey ? 'Saving…' : 'Snooze 7d'}
         </button>
-        <div className="playbook-priority-picker" aria-label={`Set priority for ${record.title || record.page_slug}`}>
+        <div className="overlay-priority-picker" aria-label={`Set priority for ${record.title || record.page_slug}`}>
           {[1, 2, 3, 4, 5].map((value) => (
             <button
               key={value}
@@ -243,7 +243,7 @@ function KeepInTouchRecord({ record, workingKey, onOpenPerson, onAction }) {
 }
 
 function Metric({ label, value, tone }) {
-  return <div className={`playbook-metric tone-${tone}`}><span>{label}</span><strong>{value}</strong></div>;
+  return <div className={`overlay-metric tone-${tone}`}><span>{label}</span><strong>{value}</strong></div>;
 }
 
 function normalizePriority(value) {

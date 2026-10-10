@@ -85,19 +85,19 @@ import {
   setKeepInTouchEnabled,
   setKeepInTouchFrequency,
   snoozeKeepInTouchPerson,
-} from './playbooks/keep-in-touch.js';
+} from './overlays/keep-in-touch.js';
 import {
   KEEP_IN_TOUCH_DEFAULT_REVIEW_LIMIT,
   KEEP_IN_TOUCH_MAX_REVIEW_LIMIT,
   buildKeepInTouchReviewPayload,
   recordKeepInTouchReview,
-} from './playbooks/keep-in-touch-review.js';
+} from './overlays/keep-in-touch-review.js';
 import {
   buildComprehensionPayload,
   getComprehensionPage,
   saveComprehensionSession,
   updateComprehensionSetup,
-} from './playbooks/comprehension.js';
+} from './overlays/comprehension.js';
 import { queryBrain, searchBrain } from './search.js';
 import { syncBrain } from './sync.js';
 import {
@@ -429,7 +429,7 @@ async function handleJsonRpcMessage({ config, message, gitBackupEnabled, actor, 
 }
 
 async function callTool({ config, params, gitBackupEnabled, actor, authConfig, requestId }) {
-  const name = params.name;
+  const name = String(params.name || '').replace(/^playbooks(?=[/_])/, 'overlays');
   const args = params.arguments || {};
   try {
     assertToolAllowed(name, actor);
@@ -702,41 +702,41 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     case 'pages/query':
     case 'pages_query':
       return toolJson(await toolPagesQuery(config, args));
-    case 'playbooks/keep-in-touch/list_due':
-    case 'playbooks_keep_in_touch_list_due':
+    case 'overlays/keep-in-touch/list_due':
+    case 'overlays_keep_in_touch_list_due':
       return toolJson(await toolKeepInTouchListDue(config, args, actor));
-    case 'playbooks/keep-in-touch/review':
-    case 'playbooks_keep_in_touch_review':
+    case 'overlays/keep-in-touch/review':
+    case 'overlays_keep_in_touch_review':
       return toolJson(await toolKeepInTouchReview(config, args, actor));
-    case 'playbooks/keep-in-touch/record_review':
-    case 'playbooks_keep_in_touch_record_review':
+    case 'overlays/keep-in-touch/record_review':
+    case 'overlays_keep_in_touch_record_review':
       return toolJson(await toolKeepInTouchRecordReview(config, args, actor));
-    case 'playbooks/keep-in-touch/enroll':
-    case 'playbooks_keep_in_touch_enroll':
+    case 'overlays/keep-in-touch/enroll':
+    case 'overlays_keep_in_touch_enroll':
       return toolJson(await toolKeepInTouchMutation(config, args, actor, 'enroll'));
-    case 'playbooks/keep-in-touch/log_contact':
-    case 'playbooks_keep_in_touch_log_contact':
+    case 'overlays/keep-in-touch/log_contact':
+    case 'overlays_keep_in_touch_log_contact':
       return toolJson(await toolKeepInTouchMutation(config, args, actor, 'log-contact'));
-    case 'playbooks/keep-in-touch/set_priority':
-    case 'playbooks_keep_in_touch_set_priority':
+    case 'overlays/keep-in-touch/set_priority':
+    case 'overlays_keep_in_touch_set_priority':
       return toolJson(await toolKeepInTouchMutation(config, args, actor, 'set-priority'));
-    case 'playbooks/keep-in-touch/set_frequency':
-    case 'playbooks_keep_in_touch_set_frequency':
+    case 'overlays/keep-in-touch/set_frequency':
+    case 'overlays_keep_in_touch_set_frequency':
       return toolJson(await toolKeepInTouchMutation(config, args, actor, 'set-frequency'));
-    case 'playbooks/keep-in-touch/set_enabled':
-    case 'playbooks_keep_in_touch_set_enabled':
+    case 'overlays/keep-in-touch/set_enabled':
+    case 'overlays_keep_in_touch_set_enabled':
       return toolJson(await toolKeepInTouchMutation(config, args, actor, 'set-enabled'));
-    case 'playbooks/keep-in-touch/snooze':
-    case 'playbooks_keep_in_touch_snooze':
+    case 'overlays/keep-in-touch/snooze':
+    case 'overlays_keep_in_touch_snooze':
       return toolJson(await toolKeepInTouchMutation(config, args, actor, 'snooze'));
-    case 'playbooks/comprehension':
-    case 'playbooks_comprehension':
+    case 'overlays/comprehension':
+    case 'overlays_comprehension':
       return toolJson(await toolComprehensionGet(config, args, actor, authConfig));
-    case 'playbooks/comprehension/setup':
-    case 'playbooks_comprehension_setup':
+    case 'overlays/comprehension/setup':
+    case 'overlays_comprehension_setup':
       return toolJson(await toolComprehensionSetup(config, args, actor, authConfig));
-    case 'playbooks/comprehension/session':
-    case 'playbooks_comprehension_session':
+    case 'overlays/comprehension/session':
+    case 'overlays_comprehension_session':
       return toolJson(await toolComprehensionSession(config, args, actor, authConfig));
     case 'list':
       return toolJson(await listBrainPath({
@@ -1532,7 +1532,7 @@ async function toolKeepInTouchListDue(config, args, actor) {
     });
     const records = payload.records.filter((record) => record.is_due).slice(0, normalizeLimit(args.limit, 50));
     return {
-      playbook: payload.playbook,
+      overlay: payload.overlay,
       brain: payload.brain,
       summary: { ...payload.summary, returned: records.length },
       records,
@@ -1609,7 +1609,7 @@ async function toolComprehensionSetup(config, args, actor, authConfig) {
   try {
     const guidance = await updateComprehensionSetup(db, args, { actor });
     return {
-      playbook: { id: 'comprehension', name: 'Comprehension', schema_version: 1 },
+      overlay: { id: 'comprehension', name: 'Comprehension', schema_version: 1 },
       guidance: guidance.guidance,
     };
   } finally {
@@ -2069,123 +2069,123 @@ function toolDefinitions(config = null) {
       inputSchema: pagesQuerySchema(),
     },
     {
-      name: 'playbooks/keep-in-touch/list_due',
-      description: 'List people enrolled in the Keep in Touch playbook whose next touchpoint is due. This reads playbook overlay state without changing person pages.',
+      name: 'overlays/keep-in-touch/list_due',
+      description: 'List people enrolled in the Keep in Touch overlay whose next touchpoint is due. This reads overlay overlay state without changing person pages.',
       inputSchema: keepInTouchListDueSchema(),
     },
     {
-      name: 'playbooks_keep_in_touch_list_due',
-      description: 'Alias for playbooks/keep-in-touch/list_due for clients that do not support slash tool names.',
+      name: 'overlays_keep_in_touch_list_due',
+      description: 'Alias for overlays/keep-in-touch/list_due for clients that do not support slash tool names.',
       inputSchema: keepInTouchListDueSchema(),
     },
     {
-      name: 'playbooks/keep-in-touch/review',
-      description: 'Start a deterministic Keep in Touch review of people pages updated since the playbook cursor. This reads only page metadata and private playbook state; the caller reads each returned people page before recording decisions.',
+      name: 'overlays/keep-in-touch/review',
+      description: 'Start a deterministic Keep in Touch review of people pages updated since the overlay cursor. This reads only page metadata and private overlay state; the caller reads each returned people page before recording decisions.',
       inputSchema: keepInTouchReviewSchema(),
     },
     {
-      name: 'playbooks_keep_in_touch_review',
-      description: 'Alias for playbooks/keep-in-touch/review for clients that do not support slash tool names.',
+      name: 'overlays_keep_in_touch_review',
+      description: 'Alias for overlays/keep-in-touch/review for clients that do not support slash tool names.',
       inputSchema: keepInTouchReviewSchema(),
     },
     {
-      name: 'playbooks/keep-in-touch/record_review',
-      description: 'Commit one complete Keep in Touch review. It stores every per-person outcome and rationale in the playbook overlay, applies additions or frequency changes, and advances the private cursor only after every candidate has a decision.',
+      name: 'overlays/keep-in-touch/record_review',
+      description: 'Commit one complete Keep in Touch review. It stores every per-person outcome and rationale in the overlay overlay, applies additions or frequency changes, and advances the private cursor only after every candidate has a decision.',
       inputSchema: keepInTouchRecordReviewSchema(),
     },
     {
-      name: 'playbooks_keep_in_touch_record_review',
-      description: 'Alias for playbooks/keep-in-touch/record_review for clients that do not support slash tool names.',
+      name: 'overlays_keep_in_touch_record_review',
+      description: 'Alias for overlays/keep-in-touch/record_review for clients that do not support slash tool names.',
       inputSchema: keepInTouchRecordReviewSchema(),
     },
     {
-      name: 'playbooks/keep-in-touch/enroll',
-      description: 'Enroll one people page in the Keep in Touch playbook. State is stored in a playbook overlay, not person frontmatter.',
+      name: 'overlays/keep-in-touch/enroll',
+      description: 'Enroll one people page in the Keep in Touch overlay. State is stored in a overlay overlay, not person frontmatter.',
       inputSchema: keepInTouchEnrollSchema(),
     },
     {
-      name: 'playbooks_keep_in_touch_enroll',
-      description: 'Alias for playbooks/keep-in-touch/enroll for clients that do not support slash tool names.',
+      name: 'overlays_keep_in_touch_enroll',
+      description: 'Alias for overlays/keep-in-touch/enroll for clients that do not support slash tool names.',
       inputSchema: keepInTouchEnrollSchema(),
     },
     {
-      name: 'playbooks/keep-in-touch/log_contact',
+      name: 'overlays/keep-in-touch/log_contact',
       description: 'Record a confirmed Keep in Touch contact, update the next due timestamp, and append a timeline entry to the person page.',
       inputSchema: keepInTouchLogContactSchema(),
     },
     {
-      name: 'playbooks_keep_in_touch_log_contact',
-      description: 'Alias for playbooks/keep-in-touch/log_contact for clients that do not support slash tool names.',
+      name: 'overlays_keep_in_touch_log_contact',
+      description: 'Alias for overlays/keep-in-touch/log_contact for clients that do not support slash tool names.',
       inputSchema: keepInTouchLogContactSchema(),
     },
     {
-      name: 'playbooks/keep-in-touch/set_priority',
-      description: 'Set the Keep in Touch priority for one enrolled people page. Priority belongs to the playbook overlay.',
+      name: 'overlays/keep-in-touch/set_priority',
+      description: 'Set the Keep in Touch priority for one enrolled people page. Priority belongs to the overlay overlay.',
       inputSchema: keepInTouchSetPrioritySchema(),
     },
     {
-      name: 'playbooks_keep_in_touch_set_priority',
-      description: 'Alias for playbooks/keep-in-touch/set_priority for clients that do not support slash tool names.',
+      name: 'overlays_keep_in_touch_set_priority',
+      description: 'Alias for overlays/keep-in-touch/set_priority for clients that do not support slash tool names.',
       inputSchema: keepInTouchSetPrioritySchema(),
     },
     {
-      name: 'playbooks/keep-in-touch/set_frequency',
-      description: 'Set the Keep in Touch frequency for one enrolled person using the playbook overlay. The daily review uses only 3, 7, 14, 30, or 60 days.',
+      name: 'overlays/keep-in-touch/set_frequency',
+      description: 'Set the Keep in Touch frequency for one enrolled person using the overlay overlay. The daily review uses only 3, 7, 14, 30, or 60 days.',
       inputSchema: keepInTouchSetFrequencySchema(),
     },
     {
-      name: 'playbooks_keep_in_touch_set_frequency',
-      description: 'Alias for playbooks/keep-in-touch/set_frequency for clients that do not support slash tool names.',
+      name: 'overlays_keep_in_touch_set_frequency',
+      description: 'Alias for overlays/keep-in-touch/set_frequency for clients that do not support slash tool names.',
       inputSchema: keepInTouchSetFrequencySchema(),
     },
     {
-      name: 'playbooks/keep-in-touch/set_enabled',
+      name: 'overlays/keep-in-touch/set_enabled',
       description: 'Enable or disable Keep in Touch for the current user and Brain. Disabling makes the daily review a no-op and preserves its cursor and registry.',
       inputSchema: keepInTouchSetEnabledSchema(),
     },
     {
-      name: 'playbooks_keep_in_touch_set_enabled',
-      description: 'Alias for playbooks/keep-in-touch/set_enabled for clients that do not support slash tool names.',
+      name: 'overlays_keep_in_touch_set_enabled',
+      description: 'Alias for overlays/keep-in-touch/set_enabled for clients that do not support slash tool names.',
       inputSchema: keepInTouchSetEnabledSchema(),
     },
     {
-      name: 'playbooks/keep-in-touch/snooze',
+      name: 'overlays/keep-in-touch/snooze',
       description: 'Move one enrolled Keep in Touch person forward by a number of days without recording contact.',
       inputSchema: keepInTouchSnoozeSchema(),
     },
     {
-      name: 'playbooks_keep_in_touch_snooze',
-      description: 'Alias for playbooks/keep-in-touch/snooze for clients that do not support slash tool names.',
+      name: 'overlays_keep_in_touch_snooze',
+      description: 'Alias for overlays/keep-in-touch/snooze for clients that do not support slash tool names.',
       inputSchema: keepInTouchSnoozeSchema(),
     },
     {
-      name: 'playbooks/comprehension',
-      description: 'Read the authenticated user\'s Comprehension guidance, recent page summaries, and prior session history. State lives in a user-scoped playbook overlay, not Brain pages or task pages.',
+      name: 'overlays/comprehension',
+      description: 'Read the authenticated user\'s Comprehension guidance, recent page summaries, and prior session history. State lives in a user-scoped overlay overlay, not Brain pages or task pages.',
       inputSchema: comprehensionReadSchema(),
     },
     {
-      name: 'playbooks_comprehension',
-      description: 'Alias for playbooks/comprehension for clients that do not support slash tool names.',
+      name: 'overlays_comprehension',
+      description: 'Alias for overlays/comprehension for clients that do not support slash tool names.',
       inputSchema: comprehensionReadSchema(),
     },
     {
-      name: 'playbooks/comprehension/setup',
-      description: 'Update the authenticated user\'s natural-language Comprehension guidance. This changes only the playbook overlay.',
+      name: 'overlays/comprehension/setup',
+      description: 'Update the authenticated user\'s natural-language Comprehension guidance. This changes only the overlay overlay.',
       inputSchema: comprehensionSetupSchema(),
     },
     {
-      name: 'playbooks_comprehension_setup',
-      description: 'Alias for playbooks/comprehension/setup for clients that do not support slash tool names.',
+      name: 'overlays_comprehension_setup',
+      description: 'Alias for overlays/comprehension/setup for clients that do not support slash tool names.',
       inputSchema: comprehensionSetupSchema(),
     },
     {
-      name: 'playbooks/comprehension/session',
+      name: 'overlays/comprehension/session',
       description: 'Create or update one Comprehension session summary for a Brain page. The summary is the complete durable learning state and may be updated repeatedly while learning continues.',
       inputSchema: comprehensionSessionSchema(),
     },
     {
-      name: 'playbooks_comprehension_session',
-      description: 'Alias for playbooks/comprehension/session for clients that do not support slash tool names.',
+      name: 'overlays_comprehension_session',
+      description: 'Alias for overlays/comprehension/session for clients that do not support slash tool names.',
       inputSchema: comprehensionSessionSchema(),
     },
     {
@@ -2737,30 +2737,30 @@ const TOOL_POLICIES = {
   query: { layer: 'read', scopes: ['brain:read'] },
   'pages/query': { layer: 'read', scopes: ['brain:read'] },
   pages_query: { layer: 'read', scopes: ['brain:read'] },
-  'playbooks/keep-in-touch/list_due': { layer: 'read', scopes: ['brain:read'] },
-  playbooks_keep_in_touch_list_due: { layer: 'read', scopes: ['brain:read'] },
-  'playbooks/keep-in-touch/review': { layer: 'read', scopes: ['brain:read'] },
-  playbooks_keep_in_touch_review: { layer: 'read', scopes: ['brain:read'] },
-  'playbooks/keep-in-touch/record_review': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  playbooks_keep_in_touch_record_review: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  'playbooks/keep-in-touch/enroll': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  playbooks_keep_in_touch_enroll: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  'playbooks/keep-in-touch/log_contact': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  playbooks_keep_in_touch_log_contact: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  'playbooks/keep-in-touch/set_priority': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  playbooks_keep_in_touch_set_priority: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  'playbooks/keep-in-touch/set_frequency': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  playbooks_keep_in_touch_set_frequency: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  'playbooks/keep-in-touch/set_enabled': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  playbooks_keep_in_touch_set_enabled: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  'playbooks/keep-in-touch/snooze': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  playbooks_keep_in_touch_snooze: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  'playbooks/comprehension': { layer: 'read', scopes: ['brain:read'] },
-  playbooks_comprehension: { layer: 'read', scopes: ['brain:read'] },
-  'playbooks/comprehension/setup': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  playbooks_comprehension_setup: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  'playbooks/comprehension/session': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
-  playbooks_comprehension_session: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'overlays/keep-in-touch/list_due': { layer: 'read', scopes: ['brain:read'] },
+  overlays_keep_in_touch_list_due: { layer: 'read', scopes: ['brain:read'] },
+  'overlays/keep-in-touch/review': { layer: 'read', scopes: ['brain:read'] },
+  overlays_keep_in_touch_review: { layer: 'read', scopes: ['brain:read'] },
+  'overlays/keep-in-touch/record_review': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  overlays_keep_in_touch_record_review: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'overlays/keep-in-touch/enroll': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  overlays_keep_in_touch_enroll: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'overlays/keep-in-touch/log_contact': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  overlays_keep_in_touch_log_contact: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'overlays/keep-in-touch/set_priority': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  overlays_keep_in_touch_set_priority: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'overlays/keep-in-touch/set_frequency': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  overlays_keep_in_touch_set_frequency: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'overlays/keep-in-touch/set_enabled': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  overlays_keep_in_touch_set_enabled: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'overlays/keep-in-touch/snooze': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  overlays_keep_in_touch_snooze: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'overlays/comprehension': { layer: 'read', scopes: ['brain:read'] },
+  overlays_comprehension: { layer: 'read', scopes: ['brain:read'] },
+  'overlays/comprehension/setup': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  overlays_comprehension_setup: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  'overlays/comprehension/session': { layer: 'create', scopes: ['brain:create', 'brain:write'] },
+  overlays_comprehension_session: { layer: 'create', scopes: ['brain:create', 'brain:write'] },
   list: { layer: 'read', scopes: ['brain:read'] },
   read: { layer: 'read', scopes: ['brain:read'] },
   'people/contact_channels/list': { layer: 'read', scopes: ['brain:read'] },
@@ -2868,20 +2868,20 @@ const GIT_SYNC_MUTATION_TOOLS = new Set([
   'set_page_visibility',
   'maintenance/git_backup',
   'maintenance_git_backup',
-  'playbooks/keep-in-touch/enroll',
-  'playbooks_keep_in_touch_enroll',
-  'playbooks/keep-in-touch/log_contact',
-  'playbooks_keep_in_touch_log_contact',
-  'playbooks/keep-in-touch/set_priority',
-  'playbooks_keep_in_touch_set_priority',
-  'playbooks/keep-in-touch/set_frequency',
-  'playbooks_keep_in_touch_set_frequency',
-  'playbooks/keep-in-touch/set_enabled',
-  'playbooks_keep_in_touch_set_enabled',
-  'playbooks/keep-in-touch/record_review',
-  'playbooks_keep_in_touch_record_review',
-  'playbooks/keep-in-touch/snooze',
-  'playbooks_keep_in_touch_snooze',
+  'overlays/keep-in-touch/enroll',
+  'overlays_keep_in_touch_enroll',
+  'overlays/keep-in-touch/log_contact',
+  'overlays_keep_in_touch_log_contact',
+  'overlays/keep-in-touch/set_priority',
+  'overlays_keep_in_touch_set_priority',
+  'overlays/keep-in-touch/set_frequency',
+  'overlays_keep_in_touch_set_frequency',
+  'overlays/keep-in-touch/set_enabled',
+  'overlays_keep_in_touch_set_enabled',
+  'overlays/keep-in-touch/record_review',
+  'overlays_keep_in_touch_record_review',
+  'overlays/keep-in-touch/snooze',
+  'overlays_keep_in_touch_snooze',
 ]);
 
 function requireMutationMetadata(name, args) {
@@ -3281,7 +3281,7 @@ function keepInTouchReviewSchema() {
         minimum: 1,
         maximum: KEEP_IN_TOUCH_MAX_REVIEW_LIMIT,
         default: KEEP_IN_TOUCH_DEFAULT_REVIEW_LIMIT,
-        description: 'Maximum number of people pages to review in this run. Pages are returned oldest-first from the playbook cursor so repeated runs backfill over time.',
+        description: 'Maximum number of people pages to review in this run. Pages are returned oldest-first from the overlay cursor so repeated runs backfill over time.',
       },
     },
   };
@@ -3291,14 +3291,14 @@ function keepInTouchRecordReviewSchema() {
   return {
     type: 'object',
     properties: {
-      review_id: { type: 'string', description: 'Review identifier returned by playbooks/keep-in-touch/review.' },
+      review_id: { type: 'string', description: 'Review identifier returned by overlays/keep-in-touch/review.' },
       as_of: { type: 'string', format: 'date-time', description: 'The exact as_of timestamp returned by the review.' },
       limit: {
         type: 'integer',
         minimum: 1,
         maximum: KEEP_IN_TOUCH_MAX_REVIEW_LIMIT,
         default: KEEP_IN_TOUCH_DEFAULT_REVIEW_LIMIT,
-        description: 'The exact page limit used by the review. Pass through the value returned by playbooks/keep-in-touch/review.',
+        description: 'The exact page limit used by the review. Pass through the value returned by overlays/keep-in-touch/review.',
       },
       cursor_before: {
         type: ['object', 'null'],

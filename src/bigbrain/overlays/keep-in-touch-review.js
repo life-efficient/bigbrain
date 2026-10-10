@@ -1,15 +1,15 @@
 import { queryPagesByFrontmatter } from '../frontmatter-query.js';
 import {
-  getPlaybookRecord,
-  listPlaybookRecords,
-  upsertPlaybookRecord,
-  withPlaybookTransaction,
-} from '../playbook-store.js';
+  getOverlayRecord,
+  listOverlayRecords,
+  upsertOverlayRecord,
+  withOverlayTransaction,
+} from '../overlay-store.js';
 import {
   KEEP_IN_TOUCH_CURSOR_RECORD_TYPE,
   KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS,
   KEEP_IN_TOUCH_FREQUENCIES_DAYS,
-  KEEP_IN_TOUCH_PLAYBOOK_ID,
+  KEEP_IN_TOUCH_OVERLAY_ID,
   KEEP_IN_TOUCH_REVIEW_RECORD_TYPE,
   KEEP_IN_TOUCH_SCHEMA_VERSION,
   buildKeepInTouchPayload,
@@ -36,8 +36,8 @@ export async function buildKeepInTouchReviewPayload(config, db, {
   const cursorBefore = await getCursor(db, actor);
   if (!settings.enabled) {
     return {
-      playbook: {
-        id: KEEP_IN_TOUCH_PLAYBOOK_ID,
+      overlay: {
+        id: KEEP_IN_TOUCH_OVERLAY_ID,
         name: 'Keep in Touch',
         schema_version: KEEP_IN_TOUCH_SCHEMA_VERSION,
         enabled: false,
@@ -65,7 +65,7 @@ export async function buildKeepInTouchReviewPayload(config, db, {
   const currentBySlug = new Map(queue.records.map((record) => [record.page_slug, record]));
   const reviewId = reviewIdFor({ asOf: normalizedAsOf, cursorBefore, limit: normalizedLimit });
   return {
-    playbook: queue.playbook,
+    overlay: queue.overlay,
     brain: queue.brain,
     review: {
       status: 'ready',
@@ -101,11 +101,11 @@ export async function recordKeepInTouchReview(config, db, input, { actor = null,
     throw new Error('Keep in Touch review_id does not match as_of and cursor_before.');
   }
 
-  return withPlaybookTransaction(db, async (transactionDb) => {
+  return withOverlayTransaction(db, async (transactionDb) => {
     const ownerKey = keepInTouchOwnerKey(actor);
-    const storedReview = await getPlaybookRecord(transactionDb, {
+    const storedReview = await getOverlayRecord(transactionDb, {
       ownerKey,
-      playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
+      overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
       recordType: KEEP_IN_TOUCH_REVIEW_RECORD_TYPE,
       scopeKey: reviewScopeKey(reviewId),
     });
@@ -182,7 +182,7 @@ export async function recordKeepInTouchReview(config, db, input, { actor = null,
     const queue = await buildKeepInTouchPayload(config, transactionDb, { actor, now: new Date(normalizedAsOf) });
     const nextCursor = cursorAfter(candidates, cursorBefore);
     const result = {
-      playbook: queue.playbook,
+      overlay: queue.overlay,
       brain: queue.brain,
       review: {
         status: 'recorded',
@@ -203,9 +203,9 @@ export async function recordKeepInTouchReview(config, db, input, { actor = null,
       },
     };
 
-    await upsertPlaybookRecord(transactionDb, {
+    await upsertOverlayRecord(transactionDb, {
       ownerKey,
-      playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
+      overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
       recordType: KEEP_IN_TOUCH_REVIEW_RECORD_TYPE,
       scopeKey: reviewScopeKey(reviewId),
       schemaVersion: KEEP_IN_TOUCH_SCHEMA_VERSION,
@@ -221,9 +221,9 @@ export async function recordKeepInTouchReview(config, db, input, { actor = null,
       },
       now,
     });
-    await upsertPlaybookRecord(transactionDb, {
+    await upsertOverlayRecord(transactionDb, {
       ownerKey,
-      playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
+      overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
       recordType: KEEP_IN_TOUCH_CURSOR_RECORD_TYPE,
       scopeKey: KEEP_IN_TOUCH_CURSOR_SCOPE_KEY,
       schemaVersion: KEEP_IN_TOUCH_SCHEMA_VERSION,
@@ -239,9 +239,9 @@ async function getSettings(db, actor) {
 }
 
 async function getCursor(db, actor) {
-  const record = await getPlaybookRecord(db, {
+  const record = await getOverlayRecord(db, {
     ownerKey: keepInTouchOwnerKey(actor),
-    playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
+    overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
     recordType: KEEP_IN_TOUCH_CURSOR_RECORD_TYPE,
     scopeKey: KEEP_IN_TOUCH_CURSOR_SCOPE_KEY,
   });
@@ -283,9 +283,9 @@ async function listAllPersonRecords(db, ownerKey) {
   const records = [];
   let cursor = 0;
   while (true) {
-    const page = await listPlaybookRecords(db, {
+    const page = await listOverlayRecords(db, {
       ownerKey,
-      playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
+      overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
       recordType: 'person',
       limit: 500,
       cursor,
@@ -297,9 +297,9 @@ async function listAllPersonRecords(db, ownerKey) {
 }
 
 async function upsertPersonRecord(db, ownerKey, pageSlug, data, now) {
-  return upsertPlaybookRecord(db, {
+  return upsertOverlayRecord(db, {
     ownerKey,
-    playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
+    overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
     recordType: 'person',
     scopeKey: `page:${pageSlug}`,
     schemaVersion: KEEP_IN_TOUCH_SCHEMA_VERSION,

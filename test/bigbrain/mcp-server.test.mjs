@@ -785,7 +785,7 @@ Active deal.
   }
 });
 
-test('MCP Keep in Touch tools manage playbook overlay state without hydrating person pages', async () => {
+test('MCP Keep in Touch tools manage overlay overlay state without hydrating person pages', async () => {
   const fixture = await createFixture('bigbrain-mcp-keep-in-touch-');
   let running;
   const originalApiKey = process.env.OPENAI_API_KEY;
@@ -811,11 +811,11 @@ Active person.
     });
 
     const listed = await rpc(running.url, 'tools/list', {}, 'secret');
-    const listDue = listed.result.tools.find((tool) => tool.name === 'playbooks/keep-in-touch/list_due');
-    const review = listed.result.tools.find((tool) => tool.name === 'playbooks/keep-in-touch/review');
-    const recordReview = listed.result.tools.find((tool) => tool.name === 'playbooks/keep-in-touch/record_review');
-    const setEnabled = listed.result.tools.find((tool) => tool.name === 'playbooks/keep-in-touch/set_enabled');
-    const enroll = listed.result.tools.find((tool) => tool.name === 'playbooks/keep-in-touch/enroll');
+    const listDue = listed.result.tools.find((tool) => tool.name === 'overlays/keep-in-touch/list_due');
+    const review = listed.result.tools.find((tool) => tool.name === 'overlays/keep-in-touch/review');
+    const recordReview = listed.result.tools.find((tool) => tool.name === 'overlays/keep-in-touch/record_review');
+    const setEnabled = listed.result.tools.find((tool) => tool.name === 'overlays/keep-in-touch/set_enabled');
+    const enroll = listed.result.tools.find((tool) => tool.name === 'overlays/keep-in-touch/enroll');
     assert.ok(listDue);
     assert.ok(review);
     assert.ok(recordReview);
@@ -829,7 +829,7 @@ Active person.
     assert.deepEqual(recordReview.inputSchema.properties.decisions.items.properties.outcome.enum, ['added', 'frequency_changed', 'due', 'no_change', 'needs_review']);
 
     const enrolled = await rpc(running.url, 'tools/call', {
-      name: 'playbooks/keep-in-touch/enroll',
+      name: 'overlays/keep-in-touch/enroll',
       arguments: {
         page_slug: 'people/alice',
         priority: 2,
@@ -842,7 +842,7 @@ Active person.
     assert.equal(enrolled.result.structuredContent.summary.enrolled, 1);
 
     const due = await rpc(running.url, 'tools/call', {
-      name: 'playbooks/keep-in-touch/list_due',
+      name: 'overlays/keep-in-touch/list_due',
       arguments: { as_of: '2026-08-27T12:00:00Z' },
     }, 'secret');
     assert.equal(due.error, undefined, due.error?.message);
@@ -850,7 +850,7 @@ Active person.
     assert.equal(due.result.structuredContent.records[0].priority, 2);
 
     const contacted = await rpc(running.url, 'tools/call', {
-      name: 'playbooks/keep-in-touch/log_contact',
+      name: 'overlays/keep-in-touch/log_contact',
       arguments: { page_slug: 'people/alice', contacted_at: '2026-08-27T12:00:00Z' },
     }, 'secret');
     assert.equal(contacted.error, undefined, contacted.error?.message);
@@ -861,13 +861,13 @@ Active person.
     assert.doesNotMatch(markdown, /keep_in_touch_/);
 
     const disabled = await rpc(running.url, 'tools/call', {
-      name: 'playbooks/keep-in-touch/set_enabled',
+      name: 'overlays/keep-in-touch/set_enabled',
       arguments: { enabled: false },
     }, 'secret');
     assert.equal(disabled.error, undefined, disabled.error?.message);
-    assert.equal(disabled.result.structuredContent.playbook.enabled, false);
+    assert.equal(disabled.result.structuredContent.overlay.enabled, false);
     const paused = await rpc(running.url, 'tools/call', {
-      name: 'playbooks/keep-in-touch/review',
+      name: 'overlays/keep-in-touch/review',
       arguments: { as_of: '2026-08-27T12:00:00Z' },
     }, 'secret');
     assert.equal(paused.error, undefined, paused.error?.message);
@@ -2920,13 +2920,13 @@ async function rpc(url, method, params, token) {
     'people/contact_channels/upsert', 'people_contact_channels_upsert',
     'people/contact_channels/remove', 'people_contact_channels_remove',
     'set_page_visibility', 'maintenance/git_backup', 'maintenance_git_backup',
-    'playbooks/keep-in-touch/enroll', 'playbooks_keep_in_touch_enroll',
-    'playbooks/keep-in-touch/log_contact', 'playbooks_keep_in_touch_log_contact',
-    'playbooks/keep-in-touch/set_priority', 'playbooks_keep_in_touch_set_priority',
-    'playbooks/keep-in-touch/set_frequency', 'playbooks_keep_in_touch_set_frequency',
-    'playbooks/keep-in-touch/set_enabled', 'playbooks_keep_in_touch_set_enabled',
-    'playbooks/keep-in-touch/record_review', 'playbooks_keep_in_touch_record_review',
-    'playbooks/keep-in-touch/snooze', 'playbooks_keep_in_touch_snooze',
+    'overlays/keep-in-touch/enroll', 'overlays_keep_in_touch_enroll',
+    'overlays/keep-in-touch/log_contact', 'overlays_keep_in_touch_log_contact',
+    'overlays/keep-in-touch/set_priority', 'overlays_keep_in_touch_set_priority',
+    'overlays/keep-in-touch/set_frequency', 'overlays_keep_in_touch_set_frequency',
+    'overlays/keep-in-touch/set_enabled', 'overlays_keep_in_touch_set_enabled',
+    'overlays/keep-in-touch/record_review', 'overlays_keep_in_touch_record_review',
+    'overlays/keep-in-touch/snooze', 'overlays_keep_in_touch_snooze',
   ]);
   const skipMutationMetadata = requestParams.__withoutMutationMetadata === true;
   const skipTimelineSignificance = requestParams.__withoutTimelineSignificance === true;

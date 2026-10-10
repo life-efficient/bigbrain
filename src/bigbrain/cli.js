@@ -22,7 +22,7 @@ import { applyUpdate, checkForUpdate, renderUpdateText, updateExitCode } from '.
 import { EventInboxStore, EventRegistryStore, RssCollector, normalizeListener, normalizeSubscription, defaultEventInboxPath, defaultEventRegistryPath } from './inbound-events.js';
 import { DEFAULT_RSS_POLL_LIMIT } from './rss-events.js';
 import { BIGBRAIN_MCP_RELEASE_VERSION, BIGBRAIN_RELEASE_MANIFEST } from './release-manifest.js';
-import { buildComprehensionPayload, getComprehensionPage, updateComprehensionSetup } from './playbooks/comprehension.js';
+import { buildComprehensionPayload, getComprehensionPage, updateComprehensionSetup } from './overlays/comprehension.js';
 
 export async function runCli(argv) {
   await loadUserEnv();

@@ -1,0 +1,40 @@
+# Overlays
+
+Overlays are optional workflows layered on top of the Big Brain platform. The
+platform owns shared page, graph, identity, database, audit, and dashboard
+infrastructure. An overlay owns its workflow, overlay records, API contract,
+skill, and dashboard experience.
+
+## Boundary
+
+- Keep overlay domain logic and overlay storage under `src/bigbrain/overlays/`.
+- Keep overlay dashboard code under `src/dashboard-client/overlays/`.
+- Keep each overlay's panel in its own module. The shared overlay shell may
+  compose panels, but it must not move their workflow state into the platform
+  dashboard.
+- Keep overlay records scoped by Brain and keyed by overlay. Never add
+  overlay fields to canonical page Markdown merely to make a workflow visible.
+- Route overlay API requests through `/api/overlays/<id>/...` and keep the
+  overlay implementation responsible for its payload and mutations. The
+  dashboard server should only provide the platform routing boundary.
+
+## Navigation
+
+- Graph and Explorer are platform navigation and may appear in the primary
+  header.
+- Overlays are secondary workflows. Their only primary-shell entry point is
+  the `Overlays` button and its menu.
+- Do not append enabled overlays to the header `views` array, add overlay
+  chips, or expose a overlay shortcut as a platform navigation tab.
+- An overlay shortcut may open an enabled overlay panel, but it must be
+  registered and handled inside the overlay shell.
+
+## Adding a overlay
+
+1. Add the domain and storage implementation under `src/bigbrain/overlays/`.
+2. Add the dashboard panel under `src/dashboard-client/overlays/`.
+3. Register only metadata and overlay-owned endpoints in the overlay
+   registry.
+4. Add the panel and enablement behavior to the shared overlay shell.
+5. Add a boundary test proving the platform dashboard does not import the
+   panel, own its storage, or add its label to primary navigation.

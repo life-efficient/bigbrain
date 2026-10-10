@@ -26,19 +26,19 @@ test('MCP exposes Comprehension setup and iterative session summary tools withou
 
     const listed = await rpc(server.url, 'tools/list', {});
     const names = listed.result.tools.map((tool) => tool.name);
-    assert.ok(names.includes('playbooks/comprehension'));
-    assert.ok(names.includes('playbooks/comprehension/setup'));
-    assert.ok(names.includes('playbooks/comprehension/session'));
+    assert.ok(names.includes('overlays/comprehension'));
+    assert.ok(names.includes('overlays/comprehension/setup'));
+    assert.ok(names.includes('overlays/comprehension/session'));
 
     const setup = await rpc(server.url, 'tools/call', {
-      name: 'playbooks/comprehension/setup',
+      name: 'overlays/comprehension/setup',
       arguments: { guidance: 'Prioritise first principles and practical transfer.' },
     });
     assert.equal(setup.error, undefined, setup.error?.message);
     assert.equal(setup.result.structuredContent.guidance, 'Prioritise first principles and practical transfer.');
 
     const saved = await rpc(server.url, 'tools/call', {
-      name: 'playbooks/comprehension/session',
+      name: 'overlays/comprehension/session',
       arguments: {
         page_slug: 'concepts/systems-thinking',
         session_id: 'systems-1',
@@ -49,12 +49,31 @@ test('MCP exposes Comprehension setup and iterative session summary tools withou
     assert.equal(saved.result.structuredContent.page_slug, 'concepts/systems-thinking');
 
     const read = await rpc(server.url, 'tools/call', {
-      name: 'playbooks/comprehension',
+      name: 'overlays/comprehension',
       arguments: { page_slug: 'concepts/systems-thinking' },
     });
     assert.equal(read.error, undefined, read.error?.message);
     assert.equal(read.result.structuredContent.setup.guidance, 'Prioritise first principles and practical transfer.');
     assert.equal(read.result.structuredContent.page.latest_session.summary, saved.result.structuredContent.summary);
+
+    const legacyRead = await rpc(server.url, 'tools/call', {
+      name: 'playbooks/comprehension', arguments: { page_slug: 'concepts/systems-thinking' },
+    });
+    assert.equal(legacyRead.error, undefined, legacyRead.error?.message);
+    assert.deepEqual(legacyRead.result.structuredContent, read.result.structuredContent);
+    const legacySetup = await rpc(server.url, 'tools/call', {
+      name: 'playbooks_comprehension_setup', arguments: { guidance: 'Compatibility preserved.' },
+    });
+    assert.equal(legacySetup.error, undefined, legacySetup.error?.message);
+    assert.equal(legacySetup.result.structuredContent.guidance, 'Compatibility preserved.');
+    const rejectedLegacy = await fetch(server.url, {
+      method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer wrong-token' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: {
+        name: 'playbooks/comprehension/setup', arguments: { guidance: 'Must not write.' },
+      } }),
+    });
+    assert.equal(rejectedLegacy.status, 401);
+
   } finally {
     await server?.close();
     await fs.rm(fixture.rootDir, { recursive: true, force: true });

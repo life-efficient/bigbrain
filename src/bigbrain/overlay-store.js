@@ -2,7 +2,7 @@ const IDENTIFIER_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/@+~-]{0,254}$/;
 const DEFAULT_LIST_LIMIT = 100;
 const MAX_LIST_LIMIT = 500;
 
-export async function upsertPlaybookRecord(db, input) {
+export async function upsertOverlayRecord(db, input) {
   const key = normalizeRecordKey(input);
   const dataJson = JSON.stringify(normalizeJsonObject(input?.data, 'data'));
   const schemaVersion = normalizeSchemaVersion(input?.schemaVersion);
@@ -10,51 +10,51 @@ export async function upsertPlaybookRecord(db, input) {
 
   if (db.backend === 'postgres') {
     await db.query(`
-      INSERT INTO playbook_records (
-        owner_key, playbook_id, record_type, scope_key, data_json, schema_version, created_at, updated_at
+      INSERT INTO overlay_records (
+        owner_key, overlay_id, record_type, scope_key, data_json, schema_version, created_at, updated_at
       ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-      ON CONFLICT (owner_key, playbook_id, record_type, scope_key) DO UPDATE SET
+      ON CONFLICT (owner_key, overlay_id, record_type, scope_key) DO UPDATE SET
         data_json = EXCLUDED.data_json,
         schema_version = EXCLUDED.schema_version,
         updated_at = EXCLUDED.updated_at
-    `, [key.ownerKey, key.playbookId, key.recordType, key.scopeKey, dataJson, schemaVersion, now, now]);
+    `, [key.ownerKey, key.overlayId, key.recordType, key.scopeKey, dataJson, schemaVersion, now, now]);
   } else {
     sqlite(db).prepare(`
-      INSERT INTO playbook_records (
-        owner_key, playbook_id, record_type, scope_key, data_json, schema_version, created_at, updated_at
+      INSERT INTO overlay_records (
+        owner_key, overlay_id, record_type, scope_key, data_json, schema_version, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(owner_key, playbook_id, record_type, scope_key) DO UPDATE SET
+      ON CONFLICT(owner_key, overlay_id, record_type, scope_key) DO UPDATE SET
         data_json = excluded.data_json,
         schema_version = excluded.schema_version,
         updated_at = excluded.updated_at
-    `).run(key.ownerKey, key.playbookId, key.recordType, key.scopeKey, dataJson, schemaVersion, now, now);
+    `).run(key.ownerKey, key.overlayId, key.recordType, key.scopeKey, dataJson, schemaVersion, now, now);
   }
 
-  return getPlaybookRecord(db, key);
+  return getOverlayRecord(db, key);
 }
 
-export async function getPlaybookRecord(db, input) {
+export async function getOverlayRecord(db, input) {
   const key = normalizeRecordKey(input);
   if (db.backend === 'postgres') {
     const result = await db.query(`
-      SELECT owner_key, playbook_id, record_type, scope_key, data_json, schema_version, created_at, updated_at
-      FROM playbook_records
-      WHERE owner_key = $1 AND playbook_id = $2 AND record_type = $3 AND scope_key = $4
-    `, [key.ownerKey, key.playbookId, key.recordType, key.scopeKey]);
+      SELECT owner_key, overlay_id, record_type, scope_key, data_json, schema_version, created_at, updated_at
+      FROM overlay_records
+      WHERE owner_key = $1 AND overlay_id = $2 AND record_type = $3 AND scope_key = $4
+    `, [key.ownerKey, key.overlayId, key.recordType, key.scopeKey]);
     return normalizeRecordRow(result.rows[0]);
   }
 
   const row = sqlite(db).prepare(`
-    SELECT owner_key, playbook_id, record_type, scope_key, data_json, schema_version, created_at, updated_at
-    FROM playbook_records
-    WHERE owner_key = ? AND playbook_id = ? AND record_type = ? AND scope_key = ?
-  `).get(key.ownerKey, key.playbookId, key.recordType, key.scopeKey);
+    SELECT owner_key, overlay_id, record_type, scope_key, data_json, schema_version, created_at, updated_at
+    FROM overlay_records
+    WHERE owner_key = ? AND overlay_id = ? AND record_type = ? AND scope_key = ?
+  `).get(key.ownerKey, key.overlayId, key.recordType, key.scopeKey);
   return normalizeRecordRow(row);
 }
 
-export async function listPlaybookRecords(db, options = {}) {
+export async function listOverlayRecords(db, options = {}) {
   const ownerKey = normalizeIdentifier(options.ownerKey, 'ownerKey');
-  const playbookId = normalizeIdentifier(options.playbookId, 'playbookId');
+  const overlayId = normalizeIdentifier(options.overlayId, 'overlayId');
   const recordType = options.recordType == null ? null : normalizeIdentifier(options.recordType, 'recordType');
   const scopeKeyPrefix = options.scopeKeyPrefix == null ? null : normalizeIdentifier(options.scopeKeyPrefix, 'scopeKeyPrefix');
   const limit = normalizeListLimit(options.limit);
@@ -62,50 +62,50 @@ export async function listPlaybookRecords(db, options = {}) {
 
   if (db.backend === 'postgres') {
     const result = await db.query(`
-      SELECT owner_key, playbook_id, record_type, scope_key, data_json, schema_version, created_at, updated_at
-      FROM playbook_records
+      SELECT owner_key, overlay_id, record_type, scope_key, data_json, schema_version, created_at, updated_at
+      FROM overlay_records
       WHERE owner_key = $1
-        AND playbook_id = $2
+        AND overlay_id = $2
         AND ($3::text IS NULL OR record_type = $3)
         AND ($4::text IS NULL OR scope_key = $4 OR scope_key LIKE $4 || '/%')
       ORDER BY record_type, scope_key
       OFFSET $5
       LIMIT $6
-    `, [ownerKey, playbookId, recordType, scopeKeyPrefix, cursor, limit]);
+    `, [ownerKey, overlayId, recordType, scopeKeyPrefix, cursor, limit]);
     return result.rows.map(normalizeRecordRow);
   }
 
   return sqlite(db).prepare(`
-    SELECT owner_key, playbook_id, record_type, scope_key, data_json, schema_version, created_at, updated_at
-    FROM playbook_records
+    SELECT owner_key, overlay_id, record_type, scope_key, data_json, schema_version, created_at, updated_at
+    FROM overlay_records
     WHERE owner_key = ?
-      AND playbook_id = ?
+      AND overlay_id = ?
       AND (? IS NULL OR record_type = ?)
       AND (? IS NULL OR scope_key = ? OR scope_key LIKE ? || '/%')
     ORDER BY record_type, scope_key
     LIMIT ? OFFSET ?
-  `).all(ownerKey, playbookId, recordType, recordType, scopeKeyPrefix, scopeKeyPrefix, scopeKeyPrefix, limit, cursor)
+  `).all(ownerKey, overlayId, recordType, recordType, scopeKeyPrefix, scopeKeyPrefix, scopeKeyPrefix, limit, cursor)
     .map(normalizeRecordRow);
 }
 
-export async function deletePlaybookRecord(db, input) {
+export async function deleteOverlayRecord(db, input) {
   const key = normalizeRecordKey(input);
   if (db.backend === 'postgres') {
     const result = await db.query(`
-      DELETE FROM playbook_records
-      WHERE owner_key = $1 AND playbook_id = $2 AND record_type = $3 AND scope_key = $4
-    `, [key.ownerKey, key.playbookId, key.recordType, key.scopeKey]);
+      DELETE FROM overlay_records
+      WHERE owner_key = $1 AND overlay_id = $2 AND record_type = $3 AND scope_key = $4
+    `, [key.ownerKey, key.overlayId, key.recordType, key.scopeKey]);
     return result.rowCount > 0;
   }
 
   return sqlite(db).prepare(`
-    DELETE FROM playbook_records
-    WHERE owner_key = ? AND playbook_id = ? AND record_type = ? AND scope_key = ?
-  `).run(key.ownerKey, key.playbookId, key.recordType, key.scopeKey).changes > 0;
+    DELETE FROM overlay_records
+    WHERE owner_key = ? AND overlay_id = ? AND record_type = ? AND scope_key = ?
+  `).run(key.ownerKey, key.overlayId, key.recordType, key.scopeKey).changes > 0;
 }
 
-export async function withPlaybookTransaction(db, work) {
-  if (typeof work !== 'function') throw new Error('A playbook transaction callback is required.');
+export async function withOverlayTransaction(db, work) {
+  if (typeof work !== 'function') throw new Error('A overlay transaction callback is required.');
   if (db.backend === 'sqlite') {
     const raw = sqlite(db);
     raw.exec('BEGIN IMMEDIATE');
@@ -139,14 +139,14 @@ export async function withPlaybookTransaction(db, work) {
     }
   }
 
-  throw new Error('Unsupported database backend for playbook transaction.');
+  throw new Error('Unsupported database backend for overlay transaction.');
 }
 
 function normalizeRecordKey(input) {
-  if (!input || typeof input !== 'object') throw new Error('A playbook record key is required.');
+  if (!input || typeof input !== 'object') throw new Error('A overlay record key is required.');
   return {
     ownerKey: normalizeIdentifier(input.ownerKey, 'ownerKey'),
-    playbookId: normalizeIdentifier(input.playbookId, 'playbookId'),
+    overlayId: normalizeIdentifier(input.overlayId, 'overlayId'),
     recordType: normalizeIdentifier(input.recordType, 'recordType'),
     scopeKey: normalizeIdentifier(input.scopeKey, 'scopeKey'),
   };
@@ -215,7 +215,7 @@ function normalizeRecordRow(row) {
   if (!row) return null;
   return {
     owner_key: row.owner_key,
-    playbook_id: row.playbook_id,
+    overlay_id: row.overlay_id,
     record_type: row.record_type,
     scope_key: row.scope_key,
     data: parseJsonObject(row.data_json),
@@ -230,7 +230,7 @@ function parseJsonObject(value) {
   try {
     parsed = typeof value === 'string' ? JSON.parse(value) : value;
   } catch {
-    throw new Error('Stored playbook record data is not valid JSON.');
+    throw new Error('Stored overlay record data is not valid JSON.');
   }
   return normalizeJsonObject(parsed, 'stored data');
 }

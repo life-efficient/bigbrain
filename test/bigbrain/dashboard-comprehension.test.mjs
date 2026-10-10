@@ -7,7 +7,7 @@ import path from 'node:path';
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { openDatabase } from '../../src/bigbrain/db.js';
 import { startDashboard } from '../../src/bigbrain/dashboard.js';
-import { saveComprehensionSession } from '../../src/bigbrain/playbooks/comprehension.js';
+import { saveComprehensionSession } from '../../src/bigbrain/overlays/comprehension.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
 test('dashboard Comprehension view configures guidance and shows overlay summaries without changing pages', async () => {
@@ -30,7 +30,7 @@ test('dashboard Comprehension view configures guidance and shows overlay summari
 
     server = await startDashboard(config, { host: '127.0.0.1', port: 0 });
     const url = serverUrl(server);
-    const initial = await fetch(`${url}/api/playbooks/comprehension`).then((response) => response.json());
+    const initial = await fetch(`${url}/api/overlays/comprehension`).then((response) => response.json());
     assert.equal(initial.setup.guidance, '');
     assert.equal(initial.pages[0].page_slug, 'concepts/systems-thinking');
     assert.match(initial.pages[0].summary, /Strengths/);
@@ -47,7 +47,7 @@ test('dashboard Comprehension view configures guidance and shows overlay summari
 });
 
 async function post(baseUrl, body) {
-  const response = await fetch(`${baseUrl}/api/playbooks/comprehension`, {
+  const response = await fetch(`${baseUrl}/api/overlays/comprehension`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),

@@ -9,7 +9,7 @@ export function ComprehensionPanel({ onOpenPage }) {
   async function load() {
     setState((current) => ({ ...current, status: 'loading', error: null }));
     try {
-      const data = await fetchJson('/api/playbooks/comprehension');
+      const data = await fetchJson('/api/overlays/comprehension');
       setGuidance(data?.setup?.guidance || '');
       setState({ status: 'ready', data, error: null });
     } catch (error) {
@@ -26,7 +26,7 @@ export function ComprehensionPanel({ onOpenPage }) {
     setSaving(true);
     setSaved(false);
     try {
-      const data = await fetchJson('/api/playbooks/comprehension', {
+      const data = await fetchJson('/api/overlays/comprehension', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ guidance }),
@@ -43,15 +43,15 @@ export function ComprehensionPanel({ onOpenPage }) {
   }
 
   if (state.status === 'loading') {
-    return <section className="playbook-page"><ListLoadingState label="Loading Comprehension" /></section>;
+    return <section className="overlay-page"><ListLoadingState label="Loading Comprehension" /></section>;
   }
 
   if (state.status === 'error') {
     return (
-      <section className="playbook-page">
-        <div className="playbook-error card">
+      <section className="overlay-page">
+        <div className="overlay-error card">
           <span className="eyebrow">Comprehension</span>
-          <h1>Playbook unavailable</h1>
+          <h1>Overlay unavailable</h1>
           <p>{state.error}</p>
           <button type="button" className="graph-button" onClick={load}>Retry</button>
         </div>
@@ -61,17 +61,17 @@ export function ComprehensionPanel({ onOpenPage }) {
 
   const pages = Array.isArray(state.data?.pages) ? state.data.pages : [];
   return (
-    <section className="playbook-page comprehension-page">
-      <div className="playbook-head">
+    <section className="overlay-page comprehension-page">
+      <div className="overlay-head">
         <div>
-          <span className="eyebrow">Playbook · Learning</span>
+          <span className="eyebrow">Overlay · Learning</span>
           <h1>Comprehension</h1>
           <p>Tell the tutor what matters to you. It will choose evidence, teach, test, remediate, and keep a current summary.</p>
         </div>
       </div>
 
-      <form className="playbook-enroll card" onSubmit={saveGuidance}>
-        <div className="playbook-section-head">
+      <form className="overlay-enroll card" onSubmit={saveGuidance}>
+        <div className="overlay-section-head">
           <div>
             <span className="eyebrow">Your learning guidance</span>
             <h2>What do you want to understand?</h2>
@@ -79,22 +79,22 @@ export function ComprehensionPanel({ onOpenPage }) {
           <span className="meta">Used as judgement, not page metadata</span>
         </div>
         <textarea
-          className="playbook-guidance"
+          className="overlay-guidance"
           value={guidance}
           onChange={(event) => setGuidance(event.target.value)}
           placeholder="For example: Help me understand the ideas most relevant to building BigBrain and making better product decisions. Prefer first-principles explanations and practical transfer questions."
           rows={6}
           aria-label="Comprehension guidance"
         />
-        <div className="playbook-form-actions">
-          <button type="submit" className="graph-button playbook-action-primary" disabled={saving}>
+        <div className="overlay-form-actions">
+          <button type="submit" className="graph-button overlay-action-primary" disabled={saving}>
             {saving ? 'Saving…' : saved ? 'Saved' : 'Save guidance'}
           </button>
-          {state.error ? <span className="playbook-inline-error">{state.error}</span> : null}
+          {state.error ? <span className="overlay-inline-error">{state.error}</span> : null}
         </div>
       </form>
 
-      <div className="playbook-queue-head">
+      <div className="overlay-queue-head">
         <div>
           <span className="eyebrow">Recent source pages</span>
           <h2>{pages.length ? 'Pages used in Comprehension sessions' : 'No sessions yet'}</h2>
@@ -103,29 +103,29 @@ export function ComprehensionPanel({ onOpenPage }) {
       </div>
 
       {pages.length ? (
-        <div className="playbook-record-list">
+        <div className="overlay-record-list">
           {pages.map((page) => (
-            <article className="playbook-record card" key={`${page.page_slug}:${page.session_id}`}>
-              <div className="playbook-record-main">
-                <div className="playbook-record-title-row">
-                  <button type="button" className="playbook-person-link" onClick={() => onOpenPage?.(page.page_slug)}>
+            <article className="overlay-record card" key={`${page.page_slug}:${page.session_id}`}>
+              <div className="overlay-record-main">
+                <div className="overlay-record-title-row">
+                  <button type="button" className="overlay-person-link" onClick={() => onOpenPage?.(page.page_slug)}>
                     {page.title || page.page_slug}
                   </button>
                   {!page.page_exists ? <span className="meta">Page unavailable</span> : null}
                 </div>
-                <div className="playbook-record-meta">
+                <div className="overlay-record-meta">
                   <span>{page.page_slug}</span>
                   <span>Updated summary {formatDate(page.updated_at)}</span>
                   {page.page_updated_at ? <span>Page updated {formatDate(page.page_updated_at)}</span> : null}
                 </div>
-                <p className="playbook-record-summary">{page.summary}</p>
+                <p className="overlay-record-summary">{page.summary}</p>
               </div>
             </article>
           ))}
         </div>
       ) : (
-        <div className="playbook-empty card">
-          <div className="playbook-empty-mark" aria-hidden="true">◎</div>
+        <div className="overlay-empty card">
+          <div className="overlay-empty-mark" aria-hidden="true">◎</div>
           <div>
             <h2>Start with a question</h2>
             <p>Run the Comprehension skill from Codex or an automation. Your evolving summaries will appear here without creating task pages.</p>
@@ -151,5 +151,5 @@ async function fetchJson(url, options) {
 }
 
 function ListLoadingState({ label }) {
-  return <div className="playbook-empty card"><div className="empty-copy">{label}…</div></div>;
+  return <div className="overlay-empty card"><div className="empty-copy">{label}…</div></div>;
 }

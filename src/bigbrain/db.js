@@ -39,6 +39,7 @@ export async function closePostgresPools() {
 
 export function initializeSqliteSchema(db) {
   const raw = unwrapSqlite(db);
+  migrateLegacyOverlaySqlite(raw);
   raw.exec(`
     PRAGMA journal_mode = WAL;
     CREATE TABLE IF NOT EXISTS pages (
@@ -216,19 +217,19 @@ export function initializeSqliteSchema(db) {
       raw_files_json TEXT NOT NULL DEFAULT '[]',
       PRIMARY KEY (group_slug, page_slug)
     );
-    CREATE TABLE IF NOT EXISTS playbook_records (
+    CREATE TABLE IF NOT EXISTS overlay_records (
       owner_key TEXT NOT NULL,
-      playbook_id TEXT NOT NULL,
+      overlay_id TEXT NOT NULL,
       record_type TEXT NOT NULL,
       scope_key TEXT NOT NULL,
       data_json TEXT NOT NULL,
       schema_version INTEGER NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
-      PRIMARY KEY (owner_key, playbook_id, record_type, scope_key)
+      PRIMARY KEY (owner_key, overlay_id, record_type, scope_key)
     );
-    CREATE INDEX IF NOT EXISTS playbook_records_owner_playbook_updated_at_idx
-      ON playbook_records (owner_key, playbook_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS overlay_records_owner_overlay_updated_at_idx
+      ON overlay_records (owner_key, overlay_id, updated_at DESC);
     CREATE VIRTUAL TABLE IF NOT EXISTS pages_fts USING fts5(
       slug UNINDEXED,
       title,
@@ -247,9 +248,28 @@ export function initializeSqliteSchema(db) {
   ensureDefaultRolesSync(raw);
 }
 
+// Upgrade existing installations without rebuilding private workflow records.
+function migrateLegacyOverlaySqlite(raw) {
+  const legacy = raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'playbook_records'").get();
+  const current = raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'overlay_records'").get();
+  if (!legacy || current) return;
+  raw.exec(`BEGIN IMMEDIATE;
+    ALTER TABLE playbook_records RENAME TO overlay_records;
+    ALTER TABLE overlay_records RENAME COLUMN playbook_id TO overlay_id;
+    UPDATE overlay_records SET scope_key = 'overlay' WHERE scope_key = 'playbook';
+    COMMIT;`);
+}
+
 export async function initializePostgresSchema(db) {
   const pg = unwrapPostgres(db);
   await pg.query('CREATE EXTENSION IF NOT EXISTS vector');
+  await pg.query(`DO $$ BEGIN
+    IF to_regclass('playbook_records') IS NOT NULL AND to_regclass('overlay_records') IS NULL THEN
+      ALTER TABLE playbook_records RENAME TO overlay_records;
+      ALTER TABLE overlay_records RENAME COLUMN playbook_id TO overlay_id;
+      UPDATE overlay_records SET scope_key = 'overlay' WHERE scope_key = 'playbook';
+    END IF;
+  END $$`);
   await pg.query(`
     CREATE TABLE IF NOT EXISTS pages (
       id BIGSERIAL PRIMARY KEY,
@@ -451,21 +471,21 @@ export async function initializePostgresSchema(db) {
       raw_files_json JSONB NOT NULL DEFAULT '[]'::jsonb,
       PRIMARY KEY (group_slug, page_slug)
     );
-    CREATE TABLE IF NOT EXISTS playbook_records (
+    CREATE TABLE IF NOT EXISTS overlay_records (
       owner_key TEXT NOT NULL,
-      playbook_id TEXT NOT NULL,
+      overlay_id TEXT NOT NULL,
       record_type TEXT NOT NULL,
       scope_key TEXT NOT NULL,
       data_json JSONB NOT NULL,
       schema_version INTEGER NOT NULL,
       created_at TIMESTAMPTZ NOT NULL,
       updated_at TIMESTAMPTZ NOT NULL,
-      PRIMARY KEY (owner_key, playbook_id, record_type, scope_key)
+      PRIMARY KEY (owner_key, overlay_id, record_type, scope_key)
     );
     CREATE INDEX IF NOT EXISTS pages_slug_idx ON pages (slug);
     CREATE INDEX IF NOT EXISTS pages_type_slug_idx ON pages (type, slug);
-    CREATE INDEX IF NOT EXISTS playbook_records_owner_playbook_updated_at_idx
-      ON playbook_records (owner_key, playbook_id, updated_at DESC);
+    CREATE INDEX IF NOT EXISTS overlay_records_owner_overlay_updated_at_idx
+      ON overlay_records (owner_key, overlay_id, updated_at DESC);
     CREATE INDEX IF NOT EXISTS page_provenance_page_slug_idx ON page_provenance (page_slug);
     CREATE INDEX IF NOT EXISTS page_provenance_received_at_idx ON page_provenance (received_at DESC);
     CREATE INDEX IF NOT EXISTS page_provenance_event_id_idx ON page_provenance (event_id);

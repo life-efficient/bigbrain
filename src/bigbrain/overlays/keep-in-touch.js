@@ -1,12 +1,12 @@
 import { getPageRecord, listPages } from '../db.js';
 import {
-  getPlaybookRecord,
-  listPlaybookRecords,
-  upsertPlaybookRecord,
-} from '../playbook-store.js';
+  getOverlayRecord,
+  listOverlayRecords,
+  upsertOverlayRecord,
+} from '../overlay-store.js';
 import { normalizeCanonicalPageSlug } from '../page-links.js';
 
-export const KEEP_IN_TOUCH_PLAYBOOK_ID = 'keep-in-touch';
+export const KEEP_IN_TOUCH_OVERLAY_ID = 'keep-in-touch';
 export const KEEP_IN_TOUCH_RECORD_TYPE = 'person';
 export const KEEP_IN_TOUCH_SETTINGS_RECORD_TYPE = 'settings';
 export const KEEP_IN_TOUCH_CURSOR_RECORD_TYPE = 'cursor';
@@ -20,11 +20,11 @@ export function keepInTouchOwnerKey(actor = null) {
 }
 
 export async function getKeepInTouchSettings(db, { actor = null } = {}) {
-  const record = await getPlaybookRecord(db, {
+  const record = await getOverlayRecord(db, {
     ownerKey: keepInTouchOwnerKey(actor),
-    playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
+    overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
     recordType: KEEP_IN_TOUCH_SETTINGS_RECORD_TYPE,
-    scopeKey: 'playbook',
+    scopeKey: 'overlay',
   });
   return {
     enabled: record?.data?.enabled !== false,
@@ -34,11 +34,11 @@ export async function getKeepInTouchSettings(db, { actor = null } = {}) {
 
 export async function setKeepInTouchEnabled(config, db, input, { actor = null, now = new Date() } = {}) {
   if (typeof input?.enabled !== 'boolean') throw new Error('Keep in Touch enabled must be a boolean.');
-  await upsertPlaybookRecord(db, {
+  await upsertOverlayRecord(db, {
     ownerKey: keepInTouchOwnerKey(actor),
-    playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
+    overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
     recordType: KEEP_IN_TOUCH_SETTINGS_RECORD_TYPE,
-    scopeKey: 'playbook',
+    scopeKey: 'overlay',
     schemaVersion: KEEP_IN_TOUCH_SCHEMA_VERSION,
     data: { enabled: input.enabled },
     now,
@@ -49,9 +49,9 @@ export async function setKeepInTouchEnabled(config, db, input, { actor = null, n
 export async function buildKeepInTouchPayload(config, db, { actor = null, now = new Date() } = {}) {
   const ownerKey = keepInTouchOwnerKey(actor);
   const [records, people, settings] = await Promise.all([
-    listPlaybookRecords(db, {
+    listOverlayRecords(db, {
       ownerKey,
-      playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
+      overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
       recordType: KEEP_IN_TOUCH_RECORD_TYPE,
       limit: 500,
     }),
@@ -66,8 +66,8 @@ export async function buildKeepInTouchPayload(config, db, { actor = null, now = 
     .sort(compareKeepInTouchRecords);
   const enrolled = new Set(hydratedRecords.map((record) => record.page_slug));
   return {
-    playbook: {
-      id: KEEP_IN_TOUCH_PLAYBOOK_ID,
+    overlay: {
+      id: KEEP_IN_TOUCH_OVERLAY_ID,
       name: 'Keep in Touch',
       schema_version: KEEP_IN_TOUCH_SCHEMA_VERSION,
       enabled: settings.enabled,
@@ -170,18 +170,18 @@ export async function snoozeKeepInTouchPerson(config, db, input, { actor = null,
 }
 
 async function getRecord(db, actor, pageSlug) {
-  return getPlaybookRecord(db, {
+  return getOverlayRecord(db, {
     ownerKey: keepInTouchOwnerKey(actor),
-    playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
+    overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
     recordType: KEEP_IN_TOUCH_RECORD_TYPE,
     scopeKey: scopeKeyForPage(pageSlug),
   });
 }
 
 async function saveRecord(db, actor, pageSlug, data, now) {
-  return upsertPlaybookRecord(db, {
+  return upsertOverlayRecord(db, {
     ownerKey: keepInTouchOwnerKey(actor),
-    playbookId: KEEP_IN_TOUCH_PLAYBOOK_ID,
+    overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
     recordType: KEEP_IN_TOUCH_RECORD_TYPE,
     scopeKey: scopeKeyForPage(pageSlug),
     schemaVersion: KEEP_IN_TOUCH_SCHEMA_VERSION,

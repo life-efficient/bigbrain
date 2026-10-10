@@ -8,8 +8,8 @@ import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { startDashboard } from '../../src/bigbrain/dashboard.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 
-test('dashboard Keep in Touch playbook stores contact state in its overlay without changing the person page', async () => {
-  const fixture = await createFixture('bigbrain-dashboard-playbook-');
+test('dashboard Keep in Touch overlay stores contact state in its overlay without changing the person page', async () => {
+  const fixture = await createFixture('bigbrain-dashboard-overlay-');
   let server;
   try {
     await writeMarkdown(fixture.brainHome, 'people/alice.md', `---
@@ -25,7 +25,7 @@ Relationship context.
     server = await startDashboard(config, { host: '127.0.0.1', port: 0 });
     const url = serverUrl(server);
 
-    const empty = await fetch(`${url}/api/playbooks/keep-in-touch`).then((response) => response.json());
+    const empty = await fetch(`${url}/api/overlays/keep-in-touch`).then((response) => response.json());
     assert.equal(empty.summary.enrolled, 0);
     assert.deepEqual(empty.people.map((person) => person.slug), ['people/alice', 'people/bob']);
 
@@ -61,7 +61,7 @@ Relationship context.
 });
 
 async function post(baseUrl, action, body) {
-  const response = await fetch(`${baseUrl}/api/playbooks/keep-in-touch/${action}`, {
+  const response = await fetch(`${baseUrl}/api/overlays/keep-in-touch/${action}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(body),

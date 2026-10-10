@@ -1,11 +1,11 @@
-export const PLAYBOOKS = [
+export const OVERLAYS = [
   {
     id: 'keep-in-touch',
     label: 'Keep in Touch',
     description: 'Track deliberate follow-ups without changing person pages.',
     shortcut: 'K',
-    dataEndpoint: '/api/playbooks/keep-in-touch',
-    enabledEndpoint: '/api/playbooks/keep-in-touch/set-enabled',
+    dataEndpoint: '/api/overlays/keep-in-touch',
+    enabledEndpoint: '/api/overlays/keep-in-touch/set-enabled',
   },
   {
     id: 'comprehension',
@@ -15,6 +15,6 @@ export const PLAYBOOKS = [
   },
 ];
 
-export function playbookById(playbookId) {
-  return PLAYBOOKS.find((playbook) => playbook.id === playbookId) || null;
+export function overlayById(overlayId) {
+  return OVERLAYS.find((overlay) => overlay.id === overlayId) || null;
 }

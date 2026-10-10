@@ -6,14 +6,14 @@ import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { openDatabase } from '../../src/bigbrain/db.js';
-import { getPlaybookRecord } from '../../src/bigbrain/playbook-store.js';
+import { getOverlayRecord } from '../../src/bigbrain/overlay-store.js';
 import { syncBrain } from '../../src/bigbrain/sync.js';
 import {
   buildComprehensionPayload,
   getComprehensionPage,
   saveComprehensionSession,
   updateComprehensionSetup,
-} from '../../src/bigbrain/playbooks/comprehension.js';
+} from '../../src/bigbrain/overlays/comprehension.js';
 
 test('Comprehension stores user guidance and minimal page session summaries in the overlay', async () => {
   const fixture = await createFixture('bigbrain-comprehension-');
@@ -50,9 +50,9 @@ test('Comprehension stores user guidance and minimal page session summaries in t
     }, { actor, now: '2026-09-01T10:04:00Z' });
 
     assert.equal(first.created_at, second.created_at);
-    assert.deepEqual(Object.keys((await getPlaybookRecord(db, {
+    assert.deepEqual(Object.keys((await getOverlayRecord(db, {
       ownerKey: 'member:harry@example.com',
-      playbookId: 'comprehension',
+      overlayId: 'comprehension',
       recordType: 'session',
       scopeKey: 'page:concepts/systems-thinking/systems-1',
     })).data), ['summary']);
