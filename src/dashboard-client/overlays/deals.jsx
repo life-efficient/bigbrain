@@ -27,13 +27,15 @@ function DealAsk({ record, askIndex, ask, disabled, onEdit, onDelete }) {
   }
 
   return (
-    <div className="deal-ask" style={{ marginTop: '12px' }}>
-      <p className="deal-teaser-preview" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', userSelect: 'text' }}>{message || `Looking for: ${ask}`}</p>
+    <div className="deal-ask">
+      <p className="deal-ask-text">{ask}</p>
+      <div className="deal-ask-actions">
       <button type="button" className="graph-button" disabled={!message || copying} onClick={copy} aria-label={`Copy ask ${askIndex + 1} for WhatsApp`}>
         {copying ? 'Copying…' : 'Copy for WhatsApp'}
       </button>
       <button type="button" className="graph-button" disabled={disabled} onClick={onEdit} aria-label={`Edit ask ${askIndex + 1}`}>Edit</button>
       <button type="button" className="graph-button" disabled={disabled} onClick={onDelete} aria-label={`Delete ask ${askIndex + 1}`}>Delete</button>
+      </div>
       {feedback ? <p className="meta" role="status" aria-live="polite">{feedback}</p> : null}
     </div>
   );
@@ -93,32 +95,34 @@ function DealTeaser({ record, onSaved }) {
   }
 
   return (
-    <div className="deal-teaser" style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '12px' }}>
+    <div className="deal-teaser">
+      <div className="deal-teaser-head">
       <span className="eyebrow">Anonymous asks</span>
-      <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+      <div className="deal-teaser-actions">
         <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('summary')}>{summary ? 'Edit teaser summary' : 'Add teaser summary'}</button>
         <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('add')}>Add ask</button>
       </div>
+      </div>
+      {summary ? <p className="deal-teaser-summary">{summary}</p> : null}
       {!summary || !asks.length ? <p className="meta">{!summary && !asks.length ? 'Add an anonymous teaser summary and asks to prepare messages.' : !summary ? 'Add an anonymous teaser summary to enable copying each ask.' : 'Add at least one ask to prepare a message.'}</p> : null}
-      {!asks.length && summary ? <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{summary}</p> : null}
       {asks.map((ask, askIndex) => <DealAsk key={`${askIndex}:${ask}`} record={record} askIndex={askIndex} ask={ask}
         disabled={!!editor || saving} onEdit={() => begin('edit', askIndex)} onDelete={() => begin('delete', askIndex)} />)}
       {editor ? (
-        <form onSubmit={save} style={{ marginTop: '12px' }}>
+        <form className="deal-teaser-editor" onSubmit={save}>
           {editor.type === 'delete' ? (
             <div role="alert">
               <p>Delete this ask from the deal page?</p>
-              <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{editor.text}</p>
+              <p className="deal-ask-text">{editor.text}</p>
             </div>
           ) : (
-            <label style={{ display: 'block' }}>
+            <label className="deal-editor-label">
               {editor.type === 'summary' ? 'Shared anonymous teaser summary' : editor.type === 'add' ? 'New ask' : 'Edit ask'}
-              <textarea className="overlay-search" rows={editor.type === 'summary' ? 5 : 3} value={editor.text} disabled={saving}
+              <textarea rows={editor.type === 'summary' ? 5 : 3} value={editor.text} disabled={saving}
                 onChange={(event) => setEditor((current) => ({ ...current, text: event.target.value }))}
-                style={{ display: 'block', width: '100%', resize: 'vertical', marginTop: '8px' }} />
+                className="overlay-search deal-editor-input" />
             </label>
           )}
-          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+          <div className="deal-teaser-actions">
             <button type="submit" className="graph-button" disabled={saving || (editor.type !== 'delete' && editor.type !== 'summary' && !editor.text.trim())}>
               {saving ? 'Saving…' : editor.type === 'delete' ? 'Confirm delete' : 'Save'}
             </button>
@@ -245,7 +249,7 @@ export function DealsPanel({ onOpenPage }) {
                   </span>
                 </div>
                 {record.summary ? (
-                  <p className="overlay-record-summary deal-record-summary" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', WebkitLineClamp: 'unset', maxHeight: 'none', overflow: 'visible' }}>
+                  <p className="overlay-record-summary deal-record-summary">
                     {record.summary}
                   </p>
                 ) : <p className="overlay-record-summary deal-record-summary">No summary yet.</p>}
