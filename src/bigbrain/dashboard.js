@@ -54,7 +54,7 @@ import {
   updateComprehensionSetup,
 } from './overlays/comprehension.js';
 import { getRelatedLinkHistory } from './link-history.js';
-import { buildDealsPayload } from './overlays/deals.js';
+import { buildDealsPayload, updateDealAsks } from './overlays/deals.js';
 import {
   normalizePageVisibility,
   normalizeRawPath,
@@ -329,6 +329,13 @@ export async function createDashboardRequestHandler(config, {
         return json(res, await buildHealthPayload(config, { dashboardSurface: resolvedDashboardSurface }));
       }
       if (requestUrl.pathname === '/api/analytics') return json(res, await buildAnalyticsPayload(config, db));
+      if (requestUrl.pathname === '/api/overlays/deals/asks') {
+        if (req.method !== 'POST') throw Object.assign(new Error('Deal ask updates require POST.'), { statusCode: 405 });
+        let input;
+        try { input = await readJsonRequest(req); }
+        catch (error) { throw Object.assign(error, { statusCode: 400 }); }
+        return json(res, await updateDealAsks(config, db, input, { actor }), { noStore: true });
+      }
       if (requestUrl.pathname === '/api/overlays/deals') {
         if (req.method !== 'GET') {
           res.writeHead(405, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });

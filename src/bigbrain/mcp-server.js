@@ -1314,7 +1314,7 @@ function absolutePublicUrl(authConfig, publicUrlPath) {
   return new URL(publicUrlPath, origin).toString();
 }
 
-async function postWriteMaintenance(config, gitBackupEnabled, actor, commitMessage) {
+export async function postWriteMaintenance(config, gitBackupEnabled, actor, commitMessage) {
   await syncAndPersist(config);
   if (gitBackupEnabled && canRunGitBackup(actor)) {
     await backupGitChanges(config, commitMessage);

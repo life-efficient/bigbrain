@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { queryPagesByFrontmatter } from '../frontmatter-query.js';
 import { sqliteRawDatabase } from '../db.js';
 
@@ -75,4 +76,76 @@ async function indexedFallbacks(db, slugs) {
     ? (await db.query(sql, slugs)).rows
     : sqliteRawDatabase(db).prepare(sql).all(...slugs);
   return new Map(rows.map((row) => [row.slug, row.excerpt]));
+}
+
+export async function updateDealAsks(config, db, input, { actor = null } = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidInput('Deal ask input must be an object.');
+  if (actor?.scopes && !actor.scopes.some((scope) => ['brain:admin', 'brain:write'].includes(scope))) {
+    throw Object.assign(new Error('Deal ask editing requires write access.'), { statusCode: 403 });
+  }
+  const slug = input.page_slug;
+  if (typeof slug !== 'string' || !/^deals\/(?!.*(?:^|\/)\.{1,2}(?:\/|$))(?!.*\.raw(?:\/|$))[^\\?#]+$/.test(slug) || slug.endsWith('.md') || slug.endsWith('/')) {
+    throw invalidInput('page_slug must be a canonical deal slug.');
+  }
+  const asks = validateAsks(input.asks, 'asks');
+  const expectedAsks = validateAsks(input.expected_asks, 'expected_asks');
+  if (typeof input.expected_teaser_summary !== 'string') throw invalidInput('expected_teaser_summary is required.');
+  if (input.teaser_summary !== undefined && typeof input.teaser_summary !== 'string') throw invalidInput('teaser_summary must be a string.');
+  if ((input.teaser_summary?.length || 0) > 20000) throw invalidInput('teaser_summary is too long.');
+  const { updateBrainPage } = await import('../page-ops.js');
+  let page;
+  try {
+    const timelineText = 'Updated anonymous deal asks and teaser from dashboard.';
+    page = await updateBrainPage({ config, pagePath: slug,
+      timelineEntry: timelineText,
+      timelineSignificance: 'patch',
+      timelineProvenance: { event_id: `dashboard:deal-asks:${slug}:${randomUUID()}`,
+        source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard',
+        source_message: timelineText },
+      frontmatterValues: { asks, ...(input.teaser_summary === undefined ? {} : { teaser_summary: input.teaser_summary.trim() }) },
+      validateExisting(existing) {
+        if (existing.type !== 'deals' || !DEALS_INVOLVEMENTS.includes(existing.frontmatter.deal_involvement)) {
+          throw Object.assign(new Error('Page is not enrolled in the Deals overlay.'), { statusCode: 404 });
+        }
+        const currentAsks = normalizedAsks(existing.frontmatter.asks);
+        const currentTeaser = typeof existing.frontmatter.teaser_summary === 'string' ? existing.frontmatter.teaser_summary.trim() : '';
+        if (JSON.stringify(currentAsks) !== JSON.stringify(expectedAsks) || currentTeaser !== input.expected_teaser_summary.trim()) {
+          throw Object.assign(new Error('This deal changed since you opened it. Refresh before saving your edits.'), { statusCode: 409 });
+        }
+      },
+    });
+  } catch (error) {
+    if (error.code === 'ENOENT') error.statusCode = 404;
+    throw error;
+  }
+  // Loaded lazily because the dashboard and MCP server already depend on each other.
+  // Reuse the owning page API's index, persisted state and configured Git backup.
+  const { postWriteMaintenance } = await import('../mcp-server.js');
+  let maintenanceWarning = null;
+  try {
+    await postWriteMaintenance(config, process.env.BIGBRAIN_MCP_GIT_BACKUP === '1', actor, `Update deal asks for ${page.title}`);
+  } catch (error) {
+    maintenanceWarning = `Edits were saved to the page, but index or backup maintenance needs attention: ${error.message}`;
+  }
+  const payload = await buildDealsPayload(config, db, { limit: 100 });
+  let record = payload.records.find((item) => item.page_slug === slug);
+  for (let cursor = payload.next_cursor; !record && cursor !== null;) {
+    const batch = await buildDealsPayload(config, db, { limit: 100, cursor });
+    record = batch.records.find((item) => item.page_slug === slug);
+    cursor = batch.next_cursor;
+  }
+  record = { ...(record || { page_slug: slug, title: page.title, summary: page.summary,
+    deal_involvement: page.frontmatter.deal_involvement }),
+    asks: normalizedAsks(page.frontmatter.asks), teaser_summary: typeof page.frontmatter.teaser_summary === 'string' ? page.frontmatter.teaser_summary.trim() : '' };
+  return { record, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
+}
+
+function normalizedAsks(value) {
+  return Array.isArray(value) ? value.filter((ask) => typeof ask === 'string' && ask.trim()).map((ask) => ask.trim()) : [];
+}
+function validateAsks(value, field) {
+  if (!Array.isArray(value) || value.length > 100 || value.some((ask) => typeof ask !== 'string' || !ask.trim() || ask.length > 5000)) {
+    throw invalidInput(`${field} must be a list of up to 100 nonempty strings.`);
+  }
+  return value.map((ask) => ask.trim());
 }

@@ -396,18 +396,20 @@ export async function listRawFiles({
   return normalizedLimit === null ? entries : entries.slice(0, normalizedLimit);
 }
 
-export async function updateBrainPage({ config, pagePath, compiledTruth = undefined, body = undefined, summary = undefined, timelineEntry, timelineEntries = null, timelineProvenance = null, timelineSignificance = null, frontmatterValues = {} }) {
+export async function updateBrainPage({ config, pagePath, compiledTruth = undefined, body = undefined, summary = undefined, timelineEntry, timelineEntries = null, timelineProvenance = null, timelineSignificance = null, frontmatterValues = {}, validateExisting = null }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
-  const existing = await readBrainPage({ config, pagePath: relative });
-  const currentBody = compiledTruth ?? body ?? existing.body;
-  assertWritablePageBody(currentBody);
-  const now = new Date().toISOString();
-  const timelineInput = withTimelineProvenance(timelineEntries ?? timelineEntry, timelineProvenance);
-  const nextTimeline = appendTimelineEntries(existing.timeline, timelineInput, {
-    recordedAt: now,
-    significance: timelineSignificance,
-    requireProvenance: true,
+  return withPageWriteLock(config, relative, async () => {
+    const existing = await readBrainPage({ config, pagePath: relative });
+    if (validateExisting) await validateExisting(existing);
+    const currentBody = compiledTruth ?? body ?? existing.body;
+    assertWritablePageBody(currentBody);
+    const now = new Date().toISOString();
+    const timelineInput = withTimelineProvenance(timelineEntries ?? timelineEntry, timelineProvenance);
+    const nextTimeline = appendTimelineEntries(existing.timeline, timelineInput, {
+      recordedAt: now,
+      significance: timelineSignificance,
+      requireProvenance: true,
   });
   const nextFrontmatterValues = { ...(frontmatterValues || {}) };
   if (summary !== undefined && nextFrontmatterValues.summary !== undefined && String(summary).trim() !== String(nextFrontmatterValues.summary).trim()) {
@@ -437,6 +439,7 @@ export async function updateBrainPage({ config, pagePath, compiledTruth = undefi
   });
   await fs.writeFile(safeBrainPath(config.brainDir, relative), markdown, 'utf8');
   return readBrainPage({ config, pagePath: relative });
+  });
 }
 
 export async function updateBrainPageImages({
@@ -1197,4 +1200,23 @@ async function exists(fullPath) {
 function requireNonEmpty(value, name) {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`${name} is required.`);
   return value.trim();
+}
+
+// A filesystem lock also serializes dashboard and MCP writes in separate processes.
+async function withPageWriteLock(config, relative, callback) {
+  const lockPath = `${safeBrainPath(config.brainDir, relative)}.write-lock`;
+  const deadline = Date.now() + 10000;
+  for (;;) {
+    try {
+      await fs.mkdir(lockPath);
+      break;
+    }
+    catch (error) {
+      if (error.code !== 'EEXIST') throw error;
+      if (Date.now() >= deadline) throw Object.assign(new Error('Page is being edited. Please retry.'), { statusCode: 409 });
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+  try { return await callback(); }
+  finally { await fs.rm(lockPath, { recursive: true, force: true }); }
 }
