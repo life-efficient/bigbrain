@@ -73,9 +73,9 @@ asks:
   - An experienced development partner
 ```
 
-The Deals card previews these fields and copies the teaser summary followed by
-the asks as bullets. Copy requires both a nonempty teaser summary and at least
-one ask. Internal titles, internal summaries, page paths, and involvement labels
+The Deals card previews the shared teaser summary and each ask with its own copy
+button. Each button copies the teaser summary followed by only that ask. Copy
+requires a nonempty teaser summary and a nonempty string for the selected ask. Internal titles, internal summaries, page paths, and involvement labels
 are never substituted into the copied message. Authors must prepare anonymous
 wording in these fields; the copy action does not automatically anonymize text.
 The same fields are available through the existing Deals HTTP and MCP endpoints.
