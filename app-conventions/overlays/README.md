@@ -41,7 +41,7 @@ skill, and dashboard experience.
 
 ## Deals
 
-The Deals overlay is a read-only view of the selected Brain's indexed canonical
+The Deals overlay reads the selected Brain's indexed canonical
 `deals/` pages. It includes `deal_involvement` values `active`,
 `network_actionable`, and `network_observed`. Public transactions, unclassified
 pages, and source attachments are excluded. Classifications belong on actual
@@ -80,3 +80,18 @@ are never substituted into the copied message. Authors must prepare anonymous
 wording in these fields; the copy action does not automatically anonymize text.
 The same fields are available through the existing Deals HTTP and MCP endpoints.
 Missing or malformed fields produce an empty string or list.
+
+### Editing asks
+
+Each deal card supports adding and editing asks, deleting an ask after an inline
+confirmation, and editing the shared anonymous teaser summary. Explicit Save
+writes the relevant canonical deal page frontmatter and refreshes the record.
+Cancel leaves the page untouched. Failed saves keep the draft visible.
+
+`POST /api/overlays/deals/asks` accepts `page_slug`, `asks`, optional
+`teaser_summary`, `expected_asks`, and `expected_teaser_summary`. The expected
+fields describe the state read by the editor. Stale edits return HTTP 409 rather
+than overwrite newer changes. Writes require dashboard authentication and write
+access when scoped credentials are used. Only enrolled canonical deal pages can
+be updated. The response contains the updated `record`; the existing MCP Deals
+read endpoint returns these saved frontmatter values too.
