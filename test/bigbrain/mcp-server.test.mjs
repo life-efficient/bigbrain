@@ -8,6 +8,7 @@ import path from 'node:path';
 
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { getPageRecord, listMcpAuditLog, openDatabase } from '../../src/bigbrain/db.js';
+import { upsertOverlayRecord } from '../../src/bigbrain/overlay-store.js';
 import { upsertMember } from '../../src/bigbrain/members.js';
 import { startMcpServer } from '../../src/bigbrain/mcp-server.js';
 import {
@@ -828,6 +829,8 @@ Active person.
     assert.equal(recordReview.inputSchema.required.includes('limit'), true);
     assert.deepEqual(recordReview.inputSchema.properties.decisions.items.properties.outcome.enum, ['added', 'frequency_changed', 'due', 'no_change', 'needs_review']);
 
+    await fs.writeFile(path.join(fixture.brainHome, 'people', 'unindexed.md'), '# Unindexed person\n', 'utf8');
+
     const enrolled = await rpc(running.url, 'tools/call', {
       name: 'overlays/keep-in-touch/enroll',
       arguments: {
@@ -848,6 +851,56 @@ Active person.
     assert.equal(due.error, undefined, due.error?.message);
     assert.equal(due.result.structuredContent.records[0].page_slug, 'people/alice');
     assert.equal(due.result.structuredContent.records[0].priority, 2);
+    assert.equal(due.result.structuredContent.as_of, '2026-08-27T12:00:00.000Z');
+    assert.equal(due.result.structuredContent.next_cursor, null);
+    assert.equal(listDue.inputSchema.properties.cursor.minimum, 0);
+    const emptyReview = await rpc(running.url, 'tools/call', {
+      name: 'overlays/keep-in-touch/review',
+      arguments: { as_of: '1900-01-01T00:00:00Z' },
+    }, 'secret');
+    assert.equal(emptyReview.error, undefined, emptyReview.error?.message);
+    const window = emptyReview.result.structuredContent.review;
+    const recordedReview = await rpc(running.url, 'tools/call', {
+      name: 'overlays/keep-in-touch/record_review',
+      arguments: {
+        review_id: window.review_id, as_of: window.as_of,
+        limit: window.limit, cursor_before: window.cursor_before, decisions: [],
+      },
+    }, 'secret');
+    assert.equal(recordedReview.error, undefined, recordedReview.error?.message);
+    assert.equal(recordedReview.result.structuredContent.review.status, 'recorded');
+    const indexDb = await openDatabase(config);
+    try {
+      assert.equal(await getPageRecord(indexDb, 'people/unindexed') ?? null, null,
+        'Overlay mutations must not trigger an unrelated Brain sync');
+      for (let index = 0; index < 104; index += 1) {
+        await upsertOverlayRecord(indexDb, {
+          ownerKey: 'local', overlayId: 'keep-in-touch', recordType: 'person',
+          scopeKey: `page:people/queue-${index}`,
+          data: { next_due_at: '2026-08-27T08:00:00Z' },
+        });
+      }
+
+    } finally {
+      await indexDb.close?.();
+    }
+
+
+    const firstQueue = await rpc(running.url, 'tools/call', {
+      name: 'overlays/keep-in-touch/list_due',
+      arguments: { as_of: '2026-08-27T12:00:00Z', limit: 100 },
+    }, 'secret');
+    const firstPage = firstQueue.result.structuredContent;
+    assert.equal(firstPage.records.length, 100);
+    assert.equal(firstPage.next_cursor, 100);
+    const lastQueue = await rpc(running.url, 'tools/call', {
+      name: 'overlays_keep_in_touch_list_due',
+      arguments: { as_of: firstPage.as_of, limit: 100, cursor: firstPage.next_cursor },
+    }, 'secret');
+    const lastPage = lastQueue.result.structuredContent;
+    assert.equal(lastPage.records.length, 5);
+    assert.equal(lastPage.next_cursor, null);
+    assert.equal(new Set([...firstPage.records, ...lastPage.records].map((row) => row.page_slug)).size, 105);
 
     const contacted = await rpc(running.url, 'tools/call', {
       name: 'overlays/keep-in-touch/log_contact',

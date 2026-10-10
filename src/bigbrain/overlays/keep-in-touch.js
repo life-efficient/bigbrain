@@ -49,12 +49,7 @@ export async function setKeepInTouchEnabled(config, db, input, { actor = null, n
 export async function buildKeepInTouchPayload(config, db, { actor = null, now = new Date() } = {}) {
   const ownerKey = keepInTouchOwnerKey(actor);
   const [records, people, settings] = await Promise.all([
-    listOverlayRecords(db, {
-      ownerKey,
-      overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
-      recordType: KEEP_IN_TOUCH_RECORD_TYPE,
-      limit: 500,
-    }),
+    listAllKeepInTouchPersonRecords(db, ownerKey),
     listPages(db, { type: 'people' }),
     getKeepInTouchSettings(db, { actor }),
   ]);
@@ -89,6 +84,44 @@ export async function buildKeepInTouchPayload(config, db, { actor = null, now = 
         title: person.title,
         summary: person.summary,
       })),
+  };
+}
+
+export async function listAllKeepInTouchPersonRecords(db, ownerKey) {
+  const records = [];
+  for (let cursor = 0; ; cursor += 500) {
+    const batch = await listOverlayRecords(db, {
+      ownerKey,
+      overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
+      recordType: KEEP_IN_TOUCH_RECORD_TYPE,
+      limit: 500,
+      cursor,
+    });
+    records.push(...batch);
+    if (batch.length < 500) return records;
+  }
+}
+
+export async function buildKeepInTouchDuePayload(config, db, {
+  actor = null, asOf = new Date(), limit = 50, cursor = 0,
+} = {}) {
+  const now = new Date(normalizeTimestamp(asOf, 'as_of'));
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) {
+    throw new Error('Keep in Touch due limit must be an integer from 1 to 100.');
+  }
+  if (!Number.isSafeInteger(cursor) || cursor < 0) {
+    throw new Error('Keep in Touch due cursor must be a non-negative integer.');
+  }
+  const payload = await buildKeepInTouchPayload(config, db, { actor, now });
+  const due = payload.records.filter((record) => record.is_due);
+  const records = due.slice(cursor, cursor + limit);
+  return {
+    overlay: payload.overlay,
+    brain: payload.brain,
+    summary: { ...payload.summary, returned: records.length },
+    as_of: now.toISOString(),
+    next_cursor: cursor + records.length < due.length ? cursor + records.length : null,
+    records,
   };
 }
 

@@ -78,7 +78,7 @@ import {
 import { canonicalPagePath, canonicalPageUrl, isLoopbackHost, localPageUrl } from './page-links.js';
 import { queryPagesByFrontmatter } from './frontmatter-query.js';
 import {
-  buildKeepInTouchPayload,
+  buildKeepInTouchDuePayload,
   enrollKeepInTouchPerson,
   logKeepInTouchContact,
   setKeepInTouchPriority,
@@ -1526,17 +1526,12 @@ async function toolPagesQuery(config, args) {
 async function toolKeepInTouchListDue(config, args, actor) {
   const db = await openDatabase(config);
   try {
-    const payload = await buildKeepInTouchPayload(config, db, {
+    return await buildKeepInTouchDuePayload(config, db, {
       actor,
-      now: args.as_of ? new Date(args.as_of) : new Date(),
+      asOf: args.as_of ?? new Date(),
+      limit: args.limit ?? 50,
+      cursor: args.cursor ?? 0,
     });
-    const records = payload.records.filter((record) => record.is_due).slice(0, normalizeLimit(args.limit, 50));
-    return {
-      overlay: payload.overlay,
-      brain: payload.brain,
-      summary: { ...payload.summary, returned: records.length },
-      records,
-    };
   } finally {
     await db.close?.();
   }
@@ -1558,9 +1553,8 @@ async function toolKeepInTouchReview(config, args, actor) {
 async function toolKeepInTouchRecordReview(config, args, actor) {
   const db = await openDatabase(config);
   try {
-    const result = await recordKeepInTouchReview(config, db, args, { actor });
-    await postWriteMaintenance(config, false, actor, args.commit_message);
-    return result;
+    // The review transaction already persists all state. No page index changed.
+    return await recordKeepInTouchReview(config, db, args, { actor });
   } finally {
     await db.close?.();
   }
@@ -1576,7 +1570,6 @@ async function toolKeepInTouchMutation(config, args, actor, action) {
     if (action === 'set-frequency') result = await setKeepInTouchFrequency(config, db, args, { actor });
     if (action === 'set-enabled') result = await setKeepInTouchEnabled(config, db, args, { actor });
     if (action === 'snooze') result = await snoozeKeepInTouchPerson(config, db, args, { actor });
-    await postWriteMaintenance(config, false, actor, args.commit_message);
     return result;
   } finally {
     await db.close?.();
@@ -3266,6 +3259,7 @@ function keepInTouchListDueSchema() {
     type: 'object',
     properties: {
       limit: { type: 'integer', minimum: 1, maximum: 100, default: 50 },
+      cursor: { type: 'integer', minimum: 0, default: 0, description: 'Offset from next_cursor. Reuse the returned as_of to keep the due-time cutoff fixed.' },
       as_of: { type: 'string', format: 'date-time', description: 'Optional RFC3339 timestamp used to determine whether a person is due.' },
     },
   };

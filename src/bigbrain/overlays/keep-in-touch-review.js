@@ -1,7 +1,6 @@
 import { queryPagesByFrontmatter } from '../frontmatter-query.js';
 import {
   getOverlayRecord,
-  listOverlayRecords,
   upsertOverlayRecord,
   withOverlayTransaction,
 } from '../overlay-store.js';
@@ -14,6 +13,7 @@ import {
   KEEP_IN_TOUCH_SCHEMA_VERSION,
   buildKeepInTouchPayload,
   getKeepInTouchSettings,
+  listAllKeepInTouchPersonRecords,
   keepInTouchOwnerKey,
 } from './keep-in-touch.js';
 
@@ -86,7 +86,8 @@ export async function buildKeepInTouchReviewPayload(config, db, {
       summary: {
         ...emptySummary(),
         scanned: candidates.length,
-        due: queue.records.filter((record) => record.is_due).length,
+        due_now: queue.records.filter((record) => record.is_due).length,
+        overdue: queue.records.filter((record) => record.is_overdue).length,
       },
     },
   };
@@ -121,7 +122,7 @@ export async function recordKeepInTouchReview(config, db, input, { actor = null,
       limit: normalizedLimit,
     });
     const decisions = normalizeDecisions(input?.decisions, candidates, normalizedAsOf);
-    const records = await listAllPersonRecords(transactionDb, ownerKey);
+    const records = await listAllKeepInTouchPersonRecords(transactionDb, ownerKey);
     const recordsBySlug = new Map(records.map((record) => [pageSlugFromScope(record.scope_key), record]));
     const applied = [];
 
@@ -277,23 +278,6 @@ async function listReviewCandidates(db, { asOf, cursorBefore, limit }) {
     cursor = result.next_cursor;
   }
   return pages.slice(0, limit);
-}
-
-async function listAllPersonRecords(db, ownerKey) {
-  const records = [];
-  let cursor = 0;
-  while (true) {
-    const page = await listOverlayRecords(db, {
-      ownerKey,
-      overlayId: KEEP_IN_TOUCH_OVERLAY_ID,
-      recordType: 'person',
-      limit: 500,
-      cursor,
-    });
-    records.push(...page);
-    if (page.length < 500) return records;
-    cursor += page.length;
-  }
 }
 
 async function upsertPersonRecord(db, ownerKey, pageSlug, data, now) {
