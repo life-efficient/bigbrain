@@ -83,8 +83,9 @@ Missing or malformed fields produce an empty string or list.
 
 ### Editing asks
 
-Each deal card supports adding and editing asks, deleting an ask after an inline
-confirmation, and editing the shared anonymous teaser summary. Explicit Save
+Each deal card supports adding and editing asks, deleting an ask after a modal
+confirmation, and editing the shared anonymous teaser summary. Add and edit actions
+open a dialog so the deal card layout stays stable. Explicit Save
 writes the relevant canonical deal page frontmatter and refreshes the record.
 Cancel leaves the page untouched. Failed saves keep the draft visible.
 
