@@ -9,7 +9,13 @@ export function dealTeaserParts(record = {}) {
 export function formatDealTeaser(record, askIndex) {
   const { summary, asks } = dealTeaserParts(record);
   if (!summary || !Number.isInteger(askIndex) || askIndex < 0 || askIndex >= asks.length) return '';
-  return `${summary}\n\nLooking for:\n• ${asks[askIndex]}`;
+  return `${summary}\n\n${asks[askIndex]}`;
+}
+
+export function formatAllDealAsks(record) {
+  const { summary, asks } = dealTeaserParts(record);
+  if (!summary || !asks.length) return '';
+  return `${summary}\n\nWhat is needed:\n${asks.map((ask) => `• ${ask}`).join('\n')}`;
 }
 
 // Fall back to the browser copy command when clipboard permission is denied.
@@ -43,6 +49,16 @@ function copyUsingSelection(message, document) {
 export async function copyDealTeaser(record, askIndex, clipboard = globalThis.navigator?.clipboard, document = globalThis.document) {
   const message = formatDealTeaser(record, askIndex);
   if (!message) throw new Error('Add a teaser summary and select a valid ask first.');
+  return copyMessage(message, clipboard, document);
+}
+
+export async function copyAllDealAsks(record, clipboard = globalThis.navigator?.clipboard, document = globalThis.document) {
+  const message = formatAllDealAsks(record);
+  if (!message) throw new Error('Add a teaser summary and at least one ask first.');
+  return copyMessage(message, clipboard, document);
+}
+
+async function copyMessage(message, clipboard, document) {
   if (clipboard?.writeText) {
     try { await clipboard.writeText(message); return; }
     catch { /* Try the synchronous browser copy fallback next. */ }

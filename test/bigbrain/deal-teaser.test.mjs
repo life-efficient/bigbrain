@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { copyDealTeaser, formatDealTeaser } from '../../src/dashboard-client/overlays/deal-teaser.js';
+import { copyAllDealAsks, copyDealTeaser, formatAllDealAsks, formatDealTeaser } from '../../src/dashboard-client/overlays/deal-teaser.js';
 
 test('copied teaser includes only explicitly supplied anonymous fields', () => {
   const record = {
@@ -10,8 +10,8 @@ test('copied teaser includes only explicitly supplied anonymous fields', () => {
     teaser_summary: '  European infrastructure opportunity.  ',
     asks: [' Equity partner ', '', null, 42, 'Operator introduction'],
   };
-  assert.equal(formatDealTeaser(record, 0), 'European infrastructure opportunity.\n\nLooking for:\n• Equity partner');
-  assert.equal(formatDealTeaser(record, 1), 'European infrastructure opportunity.\n\nLooking for:\n• Operator introduction');
+  assert.equal(formatDealTeaser(record, 0), 'European infrastructure opportunity.\n\nEquity partner');
+  assert.equal(formatDealTeaser(record, 1), 'European infrastructure opportunity.\n\nOperator introduction');
   for (const index of [undefined, -1, 2, 0.5, '0']) assert.equal(formatDealTeaser(record, index), '');
 });
 
@@ -52,4 +52,26 @@ test('embedded browser fallback copies the selected ask and restores focus', asy
   let copied;
   await copyDealTeaser(record, 0, { writeText: async (text) => { copied = text; } }, document);
   assert.equal(copied, formatDealTeaser(record, 0));
+});
+
+
+test('all-asks message shares the anonymous teaser and lists only sanitized asks', async () => {
+  const record = { title: 'Private title', summary: 'Private detail', teaser_summary: ' Anonymous opportunity. ',
+    asks: [' An operator is needed. ', null, '', 'An investment partner is sought.'] };
+  const expected = 'Anonymous opportunity.\n\nWhat is needed:\n• An operator is needed.\n• An investment partner is sought.';
+  assert.equal(formatAllDealAsks(record), expected);
+  assert.equal(formatDealTeaser(record, 0), 'Anonymous opportunity.\n\nAn operator is needed.');
+  let copied;
+  await copyAllDealAsks(record, { writeText: async (message) => { copied = message; } });
+  assert.equal(copied, expected);
+  let selected;
+  const textarea = { style: {}, setAttribute() {}, focus() {}, select() { selected = this.value; }, remove() {} };
+  const document = { body: { appendChild() {} }, createElement: () => textarea, execCommand: () => true };
+  await copyAllDealAsks(record, { writeText: async () => { throw Error('Denied'); } }, document);
+  assert.equal(selected, expected);
+  await assert.rejects(copyAllDealAsks(record, { writeText: async () => { throw Error('Denied'); } }, {}), /Automatic copying is unavailable/);
+  for (const missing of [{ summary: 'Private', asks: ['Ask'] }, { teaser_summary: 'Anonymous', asks: [] }]) {
+    assert.equal(formatAllDealAsks(missing), '');
+    await assert.rejects(copyAllDealAsks(missing, {}), /at least one ask/);
+  }
 });

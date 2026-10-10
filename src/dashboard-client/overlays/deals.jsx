@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Plus, Pencil, Trash2, Copy } from 'lucide-react';
-import { copyDealTeaser, dealTeaserParts, formatDealTeaser } from './deal-teaser.js';
+import { copyAllDealAsks, copyDealTeaser, dealTeaserParts, formatAllDealAsks, formatDealTeaser } from './deal-teaser.js';
 
 const INVOLVEMENT_LABELS = {
   active: 'Our work',
@@ -56,6 +56,29 @@ function DealAsk({ record, askIndex, ask, disabled, onEdit, onDelete }) {
 function DealTeaser({ record, onSaved }) {
   const { summary, asks } = dealTeaserParts(record);
   const [editor, setEditor] = useState(null);
+  const [copyingAll, setCopyingAll] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState('');
+  const [manualCopyAll, setManualCopyAll] = useState(false);
+  const manualAllRef = useRef(null);
+  const allMessage = formatAllDealAsks(record);
+  useEffect(() => {
+    if (manualCopyAll) { manualAllRef.current?.focus({ preventScroll: true }); manualAllRef.current?.select(); }
+  }, [manualCopyAll]);
+
+  async function copyAll() {
+    setCopyingAll(true);
+    setCopyFeedback('');
+    setManualCopyAll(false);
+    try {
+      await copyAllDealAsks(record);
+      setCopyFeedback('Copied all asks. Ready to paste into WhatsApp.');
+    } catch (error) {
+      setManualCopyAll(true);
+      setCopyFeedback(error.message);
+    } finally {
+      setCopyingAll(false);
+    }
+  }
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState('');
   const savingRef = useRef(false);
@@ -114,10 +137,15 @@ function DealTeaser({ record, onSaved }) {
       <div className="deal-teaser-head">
       <span className="eyebrow">Anonymous asks</span>
       <div className="deal-teaser-actions">
+        <button type="button" className="graph-button" disabled={!allMessage || copyingAll} onClick={copyAll}><Copy size={14} />{copyingAll ? 'Copying…' : 'Copy all asks'}</button>
         <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('summary')}><Pencil size={14} />{summary ? 'Edit summary' : 'Add summary'}</button>
         <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('add')}><Plus size={14} />Add ask</button>
       </div>
       </div>
+      {manualCopyAll ? <textarea ref={manualAllRef} className="overlay-search deal-editor-input" rows={7}
+        readOnly value={allMessage} aria-label="Complete message with all asks"
+        onFocus={(event) => event.target.select()} /> : null}
+      {copyFeedback ? <p className="meta" role="status" aria-live="polite">{copyFeedback}</p> : null}
       {summary ? <p className="deal-teaser-summary">{summary}</p> : null}
       {!summary || !asks.length ? <p className="meta">{!summary && !asks.length ? 'Add an anonymous teaser summary and asks to prepare messages.' : !summary ? 'Add an anonymous teaser summary to enable copying each ask.' : 'Add at least one ask to prepare a message.'}</p> : null}
       {asks.map((ask, askIndex) => <DealAsk key={`${askIndex}:${ask}`} record={record} askIndex={askIndex} ask={ask}
@@ -144,7 +172,7 @@ function DealTeaser({ record, onSaved }) {
                   {editor.type === 'summary' ? 'Teaser summary' : 'Ask'}
                   <textarea autoFocus rows={editor.type === 'summary' ? 6 : 4} value={editor.text} disabled={saving}
                     onChange={(event) => setEditor((current) => ({ ...current, text: event.target.value }))}
-                    className="overlay-search deal-editor-input" placeholder={editor.type === 'summary' ? 'Describe the opportunity without identifying details…' : 'What help or introduction are you looking for?'} />
+                    className="overlay-search deal-editor-input" placeholder={editor.type === 'summary' ? 'Describe the opportunity without identifying details…' : 'Describe the specific partner, expertise or introduction needed…'} />
                 </label>
               )}
               {feedback ? <p className="deal-modal-error" role="alert">{feedback}</p> : null}
