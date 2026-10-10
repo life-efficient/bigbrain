@@ -25,11 +25,11 @@ skill, and dashboard experience.
 - Overlays are secondary workflows. Their only primary-shell entry point is
   the `Overlays` button and its menu.
 - Do not append enabled overlays to the header `views` array, add overlay
-  chips, or expose a overlay shortcut as a platform navigation tab.
+  chips, or expose an overlay shortcut as a platform navigation tab.
 - An overlay shortcut may open an enabled overlay panel, but it must be
   registered and handled inside the overlay shell.
 
-## Adding a overlay
+## Adding an overlay
 
 1. Add the domain and storage implementation under `src/bigbrain/overlays/`.
 2. Add the dashboard panel under `src/dashboard-client/overlays/`.

@@ -105,7 +105,7 @@ export async function deleteOverlayRecord(db, input) {
 }
 
 export async function withOverlayTransaction(db, work) {
-  if (typeof work !== 'function') throw new Error('A overlay transaction callback is required.');
+  if (typeof work !== 'function') throw new Error('An overlay transaction callback is required.');
   if (db.backend === 'sqlite') {
     const raw = sqlite(db);
     raw.exec('BEGIN IMMEDIATE');
@@ -143,7 +143,7 @@ export async function withOverlayTransaction(db, work) {
 }
 
 function normalizeRecordKey(input) {
-  if (!input || typeof input !== 'object') throw new Error('A overlay record key is required.');
+  if (!input || typeof input !== 'object') throw new Error('An overlay record key is required.');
   return {
     ownerKey: normalizeIdentifier(input.ownerKey, 'ownerKey'),
     overlayId: normalizeIdentifier(input.overlayId, 'overlayId'),

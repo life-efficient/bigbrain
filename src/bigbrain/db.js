@@ -250,20 +250,29 @@ export function initializeSqliteSchema(db) {
 
 // Upgrade existing installations without rebuilding private workflow records.
 function migrateLegacyOverlaySqlite(raw) {
-  const legacy = raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'playbook_records'").get();
-  const current = raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'overlay_records'").get();
-  if (!legacy || current) return;
-  raw.exec(`BEGIN IMMEDIATE;
-    ALTER TABLE playbook_records RENAME TO overlay_records;
-    ALTER TABLE overlay_records RENAME COLUMN playbook_id TO overlay_id;
-    UPDATE overlay_records SET scope_key = 'overlay' WHERE scope_key = 'playbook';
-    COMMIT;`);
+  // Acquire the writer lock before inspecting the schema so two startup
+  // processes cannot both observe and attempt the same legacy rename.
+  raw.exec('BEGIN IMMEDIATE');
+  try {
+    const legacy = raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'playbook_records'").get();
+    const current = raw.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'overlay_records'").get();
+    if (legacy && !current) {
+      raw.exec(`ALTER TABLE playbook_records RENAME TO overlay_records;
+        ALTER TABLE overlay_records RENAME COLUMN playbook_id TO overlay_id;
+        UPDATE overlay_records SET scope_key = 'overlay' WHERE scope_key = 'playbook';`);
+    }
+    raw.exec('COMMIT');
+  } catch (error) {
+    raw.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 export async function initializePostgresSchema(db) {
   const pg = unwrapPostgres(db);
   await pg.query('CREATE EXTENSION IF NOT EXISTS vector');
   await pg.query(`DO $$ BEGIN
+    PERFORM pg_advisory_xact_lock(hashtext('bigbrain-overlay-records-migration'));
     IF to_regclass('playbook_records') IS NOT NULL AND to_regclass('overlay_records') IS NULL THEN
       ALTER TABLE playbook_records RENAME TO overlay_records;
       ALTER TABLE overlay_records RENAME COLUMN playbook_id TO overlay_id;
