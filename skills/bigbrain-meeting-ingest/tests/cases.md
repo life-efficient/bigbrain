@@ -201,7 +201,7 @@ Use these synthetic fixtures through the indicated skill. Test prompts must omit
    - Forbidden: selecting Oct 9 from recency or the stored backlink; any Brain write.
 2. **Source contact distinguishes a nickname**
    - Input to Granola Ingest: ingest "Datacentre Alex". Participant fixture explicitly names Alexis Chen, alexis.chen@example.test, BuildCo; both Rivera and Chen canonical pages exist with distinct affiliations.
-   - Required: private handoff preserves supplied participant metadata; worker resolves Chen; caller independently verifies the saved link against that same source.
+   - Required: private handoff preserves supplied participant metadata; worker resolves Chen; caller independently verifies the saved link against that same source. Given explicit rename approval and an existing nickname slug, use the owning rename operation to canonical `people/alexis-chen`, preserve evidence-backed `Datacentre Alex` in `aliases` frontmatter, check whether another person shares that alias, and verify updated reciprocal links. Do not add bare `Alex` as a unique alias.
    - Forbidden: linking Rivera from nickname similarity; copying contact details into ledger or batch report.
 3. **Insufficient participant identity**
    - Input to Meeting Ingest: "Call with Alex" with no full name, email or affiliation, and two plausible canonical people.
