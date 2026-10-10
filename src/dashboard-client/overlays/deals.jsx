@@ -81,7 +81,9 @@ function DealTeaser({ record, onSaved }) {
       }
       onSaved(data.record);
       setEditor(null);
-      setFeedback('Saved to the deal page.');
+      setFeedback(data.maintenance_warning
+        ? `Saved to the deal page. ${data.maintenance_warning}`
+        : 'Saved to the deal page.');
     } catch (error) {
       setFeedback(error instanceof Error ? error.message : 'Unable to save changes. Your draft is kept.');
     } finally {
