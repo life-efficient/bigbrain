@@ -19,6 +19,13 @@ test('current subject briefing guidance survives custom filing principles and pa
     assert.match(guidance, /Preserve useful current commercial and technical details/);
     assert.match(guidance, /Do not append dated Update/);
     assert.match(guidance, /deadline, freshness, or uncertainty/);
+    const timeline = rules.timeline_guidance.join('\n');
+    assert.match(timeline, /inventory substantive source events/);
+    assert.match(timeline, /occurred_at from the evidenced event date/);
+    assert.match(timeline, /recorded_at from the actual write time/);
+    assert.match(timeline, /Preserve existing entries, avoid duplicates/);
+    assert.match(timeline, /one present-day cleanup entry does not replace/);
+    for (const instruction of rules.timeline_guidance) assert.ok(rules.markdown.includes(instruction));
     assert.match(rules.markdown, /## Current Body Writing/);
     for (const instruction of rules.current_body_guidance) assert.ok(rules.markdown.includes(instruction));
   } finally {
@@ -32,4 +39,7 @@ test('schema explains consolidation without erasing useful current detail', () =
   assert.match(markdown, /Preserve useful current technical details, attribution, and uncertainty/);
   assert.match(markdown, /Do not append dated update sections/);
   assert.match(markdown, /dates defining material facts or deadlines may remain/);
+  assert.match(markdown, /inventory substantive source events/);
+  assert.match(markdown, /do not guess dates or turn plans into completed actions/);
+  assert.match(markdown, /Record administrative filing corrections separately/);
 });

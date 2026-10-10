@@ -86,6 +86,7 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
    - Anti-patterns: fake action items, backlog tasks for uninvoked offers, raw dumps in the canonical page, orphan raw artifacts, placeholder transcripts
 5. Reconcile supported entity and task updates.
    - Apply the shared checklist to attendees and all identifiable entities mentioned in the accepted meeting evidence, including people who did not attend. Use `$bigbrain-page` for canonical reconciliation.
+   - Append each material meeting outcome or changed deal state to the affected subject timeline using the meeting event date as `occurred_at` and the actual write time as `recorded_at`, with source provenance. Check existing timeline coverage first; linking the meeting or logging an ingestion correction alone does not preserve substantive progress. Keep plans and proposals distinct from completed actions.
    - For follow-on subject pages, integrate the supported meeting facts into a synthesized current briefing through `$bigbrain-page`. Reconcile superseded states, retain useful technical and commercial detail, and link the source meeting. Do not append a dated meeting update or copy the meeting chronology into an ordinary subject body; the meeting record and writer-managed timeline retain that evidence.
    - Read open, in-progress, or waiting tasks relevant to the meeting before action review.
    - Pass source-attributed action evidence, relevant Brain context, live tasks, and approval limits to `$bigbrain-action-review` before any task creation or update.

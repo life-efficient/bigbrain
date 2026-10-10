@@ -2500,7 +2500,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'update_page',
-      description: 'Replace an existing page’s detailed body and optionally its first-class summary, then append one writer-managed timeline entry. Any summary must be a substantive reader-facing takeaway, not an explanation of Brain or page mechanics. Returns a quick read-back page health check.',
+      description: 'Replace an existing page’s detailed body and optionally its first-class summary, then append writer-managed timeline entries. When consolidating or repairing historical coverage, preserve each missing substantive milestone using timeline with its evidenced occurred_at, actual recorded_at, and per-event provenance; a present-day administrative cleanup entry is not a substitute. Any summary must be a substantive reader-facing takeaway, not an explanation of Brain or page mechanics. Returns a quick read-back page health check.',
       inputSchema: {
         type: 'object',
         properties: {
@@ -3687,7 +3687,7 @@ function timelineInputProperties() {
       type: 'array',
       minItems: 1,
       items: timelineEntrySchema(),
-      description: 'Structured append-only timeline entries. occurred_at defaults to the current time and may be overridden for historical events; recorded_at defaults to the actual write time. Provenance is stored on each entry, not as mutable page-level source metadata.',
+      description: 'Structured append-only timeline entries. occurred_at defaults to the current time and may be overridden for historical events; recorded_at defaults to the actual write time. Provenance is stored on each entry, not as mutable page-level source metadata. For historical backfill, append each missing substantive milestone with its evidenced event date, avoiding duplicate events and invented dates or completion. Preserve existing entries and distinguish administrative filing corrections from subject progress.',
     },
   };
 }

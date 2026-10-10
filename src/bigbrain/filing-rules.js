@@ -34,6 +34,7 @@ const CURRENT_BODY_GUIDANCE = [
 ];
 
 const TIMELINE_WRITING_GUIDANCE = [
+  'When consolidating a legacy body, migrating a canonical page, or repairing missing history, inventory substantive source events against the existing timeline and append each missing milestone through structured timeline entries. Use occurred_at from the evidenced event date and recorded_at from the actual write time; retain per-event provenance. Preserve existing entries, avoid duplicates, and do not guess dates or turn plans into completed actions. Record administrative filing corrections separately; one present-day cleanup entry does not replace substantive deal or subject progress.',
   'Write each timeline entry as a concise, subject-first summary of the durable page change.',
   'Page updates are already authored and attributable through the page operation and provenance; do not lead with the current user\'s name or repeat an implicit approval such as `Harry approved ...`.',
   'Keep source wording and approval context in provenance.source_message; retain a person\'s name in visible timeline text only when the actor\'s identity materially changes the meaning.',

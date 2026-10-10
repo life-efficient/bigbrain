@@ -27,3 +27,15 @@ Expected behavior:
 - Read the body alone to verify it gives the current understanding without reconstructing updates.
 
 Adjacent request: Summarize the chronology of a specific meeting transcript. Keep the meeting-specific chronology in that specialized record; do not apply the subject-page consolidation rule to erase a requested source account.
+
+
+## Preserve substantive history during consolidation
+
+Request: Repair a deal page whose body contains three dated meeting updates but whose timeline records only filing corrections.
+
+Expected behavior:
+- Build a source-event inventory from the three updates and their linked evidence, then compare against existing timeline entries.
+- Synthesize the current body and append each missing substantial milestone through the writer's structured timeline input with its evidenced event date and current recording time.
+- Preserve existing entries and per-event provenance; do not duplicate the same event across a meeting and WhatsApp report.
+- Keep a proposed investor introduction as proposed unless evidence verifies it happened. Hold an undated milestone rather than assigning the migration date as its occurrence.
+- Keep administrative correction separate from progress and verify milestone coverage on read-back. A single cleanup event or links alone fail this case.
