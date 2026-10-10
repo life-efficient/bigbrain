@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Search"
   short_description: "Find Brain evidence and answer with source citations"
-  default_prompt: "Use $bigbrain-search to retrieve complete page evidence from the selected Brain, check omissions, and answer here with cited page slugs."
+  default_prompt: "Use $bigbrain-search to retrieve complete page evidence from the selected Brain, check omissions, and answer here with cited page slugs. Reconcile source participant identity before person attribution and verify it against original evidence; do not resolve shared nicknames from backlinks or recency."

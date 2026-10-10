@@ -16,3 +16,5 @@
    - Use identity resolution and pages/query or the appropriate task tool for exact filtering. Do not call the deprecated natural-language query tool.
 8. Legacy invocation: "Use $bigbrain-query to answer this question."
    - Follow the compatibility skill to bigbrain-search, with no internal answer-model call.
+
+Apply the five synthetic [person identity regression cases](../../bigbrain-meeting-ingest/tests/cases.md#person-identity-regression-cases) to the indicated Granola, Meeting Ingest and Search stages.

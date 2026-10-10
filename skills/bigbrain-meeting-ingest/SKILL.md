@@ -70,6 +70,7 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
    - For every action-relevant statement, preserve the source speaker separately from the responsible actor and distinguish accepted commitments, requests, external actions, optional offers, proposals, and discussion.
    - Prefer the transcript over a generated summary or `Action Items` heading when ownership, wording, or commitment strength conflicts.
    - Mark uncertain identities, affiliations, authority, ownership, decisions, and commitments explicitly rather than resolving them by proximity or action verbs.
+   - Apply the shared checklist's person identity reconciliation before attendee links or person-owned updates: compare full names, supplied contact identifiers, affiliations and roles against canonical candidates, including competing aliases. Keep attendees distinct from mentions; hold unresolved identity without a guessed link. Existing backlinks and shared nicknames do not establish identity.
    - Classify every candidate transaction as an actual deal, meeting-only preparation or context, or a deal-owned artifact. Resolve names, counterparties, and aliases against existing deal pages. Keep an ambiguous candidate on the meeting page with its uncertainty rather than inventing a deal record.
    - Review transcripts for specifically unsafe, slanderous, highly personal, or sensitive spans. Redact only the unsafe span when required and leave a clear marker.
    - Anti-patterns: conflating speaker with actor, treating a request as acceptance, converting optional help into a commitment, broad redaction, promoting a summary inference over transcript evidence
@@ -105,6 +106,7 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
 7. Verify the per-meeting result.
    - Complete the shared checklist before declaring this meeting complete, including in delegated mode.
    - Read back every changed meeting, sidecar, entity, deal, project, and task page through the same destination Brain.
+   - Reconcile each saved person attribution against the original source participant evidence and any explicit user correction. Two mutually consistent saved pages cannot verify identity; unresolved conflicts prevent complete entity reconciliation.
    - Verify each actual raw transcript or attachment against the source content or available size and metadata evidence. For a note-only meeting, verify the summary sidecar and note provenance, and confirm that no fabricated raw transcript or dangling transcript link remains.
    - Re-scan for duplicate meeting provenance, confirm canonical links and filing-rule compliance, and check that every task-backed action bullet links exactly once to the verified task path.
    - If a task is unreadable, a link is broken, or an action bullet is missing its task link, repair the affected task or source page in the same run, then read back both sides again. Repeat while a concrete repair is available; do not leave a known broken link or task-backed action unresolved.
@@ -134,3 +136,5 @@ Do not accept or expose routing lease tokens, cursor state, credentials, or priv
 In standalone mode, briefly report the meeting page created, updated, repaired, or unchanged; whether prep was preserved; verified source artifacts; supported entity and task changes; and any issue requiring attention.
 
 In delegated mode, return a compact prose handoff to the named caller. State whether the per-meeting result is `complete`, `partial`, or `failed`, the canonical meeting outcome, required-artifact verification, related changes, and any blockers, then explicitly return control. Preserve those existing transport outcomes without imposing a field template, persisted schema, or competing user-facing batch report.
+
+Behavioral review cases, including source-to-person identity regressions, are in [tests/cases.md](tests/cases.md).

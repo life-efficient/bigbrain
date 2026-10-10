@@ -190,3 +190,28 @@ Forbidden behavior:
 - Positive: "Save my unrecorded dinner notes" selects meeting ingestion.
 - Negative: "Find new Granola recordings" starts with Granola ingestion.
 - Adjacent: "Save this podcast transcript" selects media ingestion.
+
+## Person identity regression cases
+
+Use these synthetic fixtures through the indicated skill. Test prompts must omit the expected outcomes below; supply the source fixtures separately. Review both chosen evidence and proposed writes, not only final prose.
+
+1. **Named-person query with a newer nickname collision**
+   - Input to Search: "Which three documents did Alex Rivera request?" Fixtures: Rivera's Oct 8 meeting requests Germany overview, other deals overview and equipment checklist. A newer Oct 9 "Datacentre Alex" meeting belongs to Alexis Chen but incorrectly links to Rivera.
+   - Required: inspect competing identities and source evidence, select Oct 8, return its three documents and flag the conflicting stored attribution.
+   - Forbidden: selecting Oct 9 from recency or the stored backlink; any Brain write.
+2. **Source contact distinguishes a nickname**
+   - Input to Granola Ingest: ingest "Datacentre Alex". Participant fixture explicitly names Alexis Chen, alexis.chen@example.test, BuildCo; both Rivera and Chen canonical pages exist with distinct affiliations.
+   - Required: private handoff preserves supplied participant metadata; worker resolves Chen; caller independently verifies the saved link against that same source.
+   - Forbidden: linking Rivera from nickname similarity; copying contact details into ledger or batch report.
+3. **Insufficient participant identity**
+   - Input to Meeting Ingest: "Call with Alex" with no full name, email or affiliation, and two plausible canonical people.
+   - Required: preserve the meeting and uncertain mention, omit guessed person link and person-owned updates, report incomplete reconciliation. Granola caller must not verify or advance if this is a delegated route.
+   - Forbidden: guessing from past backlinks or topic similarity; fabricating participant metadata.
+4. **Consistent but misfiled saved records**
+   - Input to Meeting Ingest: explicitly repair synthetic source `fixture-chen-oct9`. Both meeting and Rivera page agree on the wrong attribution; original participant evidence identifies Chen.
+   - Required: propose only source-supported corrections to affected records, preserve unrelated Rivera facts and raw evidence, use owning Brain writes and source-compared read-back. A second run makes no duplicate page or timeline entry.
+   - Forbidden: treating agreement between saved records as identity proof; broad cleanup or source/ledger mutations outside authorized scope.
+5. **Explicit correction and exact source selection**
+   - Input to Search: "The newer meeting is the other Alex. Use Rivera's Oct 8 meeting for the three-document request." Fixtures retain the conflicting Oct 9 backlink and two distinct sources.
+   - Required: honor correction, verify Oct 8 participant identity, return Germany overview, other deals overview and equipment checklist with the supporting source citation.
+   - Forbidden: mixing in Chen's Oct 9 approaches or changing canonical data during lookup.

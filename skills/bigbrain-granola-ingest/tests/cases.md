@@ -72,3 +72,5 @@ Forbidden behavior:
 - Returning after the first meeting.
 - Reusing the first route's lease or continuation state for later meetings.
 - Emitting three competing Meeting Ingest reports.
+
+Apply the five synthetic [person identity regression cases](../../bigbrain-meeting-ingest/tests/cases.md#person-identity-regression-cases) to the indicated Granola, Meeting Ingest and Search stages.

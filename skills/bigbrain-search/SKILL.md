@@ -22,6 +22,7 @@ Retrieve complete BigBrain page evidence and write the answer in the calling har
    - Use the user's selected or named Brain and its owning MCP. If the owning Brain is unclear, inspect available Brain identities before proceeding.
    - Send a specific name, phrase, or self-contained question as `search`'s `query` argument. Include necessary context from the conversation, since BigBrain does not receive that conversation.
    - For a known page path, use `read({path: "people/alex-rivera"})` directly.
+   - For a named-person meeting question, resolve the requested canonical person and plausible competing aliases before choosing a meeting. Full names, supplied contact identifiers, affiliations and roles carry identity evidence; a shared first name or nickname does not.
    - Anti-patterns: searching an arbitrary Brain, passing an ambiguous pronoun, repeating search when the exact page is known.
 2. Retrieve ranked evidence:
    - Call `search({query: "Alex Rivera advisory history", limit: 10, mode: "balanced"})` on the selected Brain. Use `balanced` by default; it has expansion and model reranking disabled. Semantic search can still call the embedding provider.
@@ -36,6 +37,7 @@ Retrieve complete BigBrain page evidence and write the answer in the calling har
    - Anti-patterns: claiming omitted pages were read, equating missing embeddings with no knowledge, silently inferring facts from titles, treating old timeline entries as current state.
 4. Answer from the evidence:
    - Synthesize directly in the current harness. Cite the supporting page slugs, identify conflicts, and state what the retrieved evidence cannot establish.
+   - Before attributing a selected meeting to the requested person, compare its source participant evidence with that person. Read the indexed source or original source through its owning connector when needed and authorized. A stored backlink, title similarity or newer date cannot independently establish identity. If evidence conflicts or remains unavailable, state the attribution gap and do not substitute a different person's meeting; keep this lookup read-only.
    - Stop when the evidence answers the question; do not issue an extra BigBrain answer-model call.
    - Anti-patterns: adding unsupported details, sending evidence to another model for summarization, hiding conflicting dates or sources.
 

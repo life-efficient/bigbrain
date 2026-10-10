@@ -29,6 +29,13 @@ Apply this checklist to each source accepted for ingestion. A source rejected by
 - For each actual deal established by a non-article source, search deal names, counterparties, and aliases, then create or update exactly one canonical `deals/` page when its identity is sufficiently clear. Set `deal_involvement` from evidence when the destination schema supports it. Keep prep on the source meeting page and VDR or diligence evidence in an owner-local `.raw/` sidecar rather than creating a second top-level deal page.
 - If identity is ambiguous, preserve the mention and uncertainty in the source record, report the unresolved gap, and do not merge unrelated entities or invent an identity. Follow filing-rule restrictions and explicitly report any coverage they prevent.
 
+### Person identity reconciliation
+
+- Before linking a person or applying person-owned facts, compare the accepted source's full name, supplied email or stable contact identifier, organization and contextual role with the canonical candidate. Search plausible competing identities when aliases collide. A shared first name, nickname, title similarity, recency or existing backlink is not sufficient identity evidence.
+- Treat source participant metadata and explicit user corrections as evidence; distinguish attendees from mentioned people. Do not infer that an email belongs to another meeting's participant. If metadata, transcript and canonical page disagree, inspect the relevant original source and preserve the conflict rather than allowing an existing page to decide it.
+- Keep the reconciliation in temporary working context: source identity, candidate person, supporting evidence and unresolved conflicts. Persist supported attribution through the owning Brain's existing page/provenance fields; do not introduce a separate identity registry or fixed schema.
+- When identity remains unresolved, retain the supported source and mention with uncertainty, omit the guessed person link and person-owned updates, and report incomplete entity reconciliation. During read-back, compare saved attribution against original source evidence again. Agreement between two saved pages is not independent identity verification.
+
 ## 3. Cover the knowledge without competing accounts
 
 - For non-article routes that require exhaustive canonical coverage, make the full-source result mutually exclusive and collectively exhaustive at the level of canonical subject ownership. For articles, preserve the full accessible publisher body on the article page; further canonical enrichment is independent. For a partial preview, save only the readable portion and explicitly record that the unseen content was not captured.
