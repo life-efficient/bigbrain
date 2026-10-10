@@ -67,6 +67,8 @@ export function schemaDescription() {
     deal_page_shape: {
       path: 'deals/<deal-slug>.md',
       frontmatter: {
+        asks: 'Optional list of anonymous, externally shareable request strings, one specific ask per item.',
+        teaser_summary: 'Optional anonymous, externally shareable opportunity summary, separate from the internal summary.',
         deal_involvement: {
           public_unrelated: 'A public deal unrelated to us.',
           network_observed: 'A network contact is working on it, with no active involvement from us.',
@@ -154,10 +156,16 @@ export function renderSchemaMarkdown() {
     '---',
     'title: Example transaction',
     'deal_involvement: network_actionable',
+    'teaser_summary: European infrastructure development seeking an investment partner.',
+    'asks:',
+    '  - Introductions to infrastructure equity investors comfortable with development-stage projects.',
     '---',
     '```',
     '',
     '- `deal_involvement` is optional for existing records and must be one of `public_unrelated`, `network_observed`, `network_actionable`, or `active` when present.',
+    '- `asks` is an optional list of strings, one specific externally shareable request per item.',
+    '- `teaser_summary` is optional anonymous shareable copy, distinct from the internal `summary`. Combine it with `asks` for a message to your network.',
+    '- Keep both fields free of company, project, and contact names, source routes, private URLs, and combinations of identifying details. Do not infer shareable copy from the internal title or summary.',
     '- `public_unrelated` is a public deal unrelated to us.',
     '- `network_observed` is a deal a network contact mentioned they are working on, without our active involvement.',
     '- `network_actionable` is a network deal where we may be able to help, for example by finding a vendor or investor.',

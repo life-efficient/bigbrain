@@ -280,6 +280,8 @@ function defaultDealSchema() {
     pattern: 'deals/<deal-slug>.md',
     frontmatter: {
       deal_involvement: ['public_unrelated', 'network_observed', 'network_actionable', 'active'],
+      asks: 'Optional list of anonymous, externally shareable request strings, one specific ask per item.',
+      teaser_summary: 'Optional anonymous, externally shareable opportunity summary, separate from the internal summary.',
     },
     guidance: [
       'Create one top-level deal page only for an independently evolving actual transaction, raise, investment, mandate, acquisition, or commercial opportunity.',
@@ -291,6 +293,8 @@ function defaultDealSchema() {
       'Set deal_involvement to active when we are directly working on the deal.',
       'Set deal_involvement on every newly created actual deal page; this field does not make a prep note or artifact a deal page.',
       'This field is optional for legacy deal pages.',
+      'Use asks for a list of specific requests and teaser_summary for anonymous opportunity copy that can be combined into a message to your network.',
+      'Keep both fields free of company, project, and contact names, source routes, private URLs, and combinations of identifying details. Do not infer shareable copy from the internal title or summary.',
     ],
   };
 }
@@ -316,6 +320,8 @@ function renderDealSchemaMarkdownLines(schema) {
     `- Pattern: \`${schema.pattern}\``,
     '- Frontmatter:',
     `  - \`deal_involvement\`: ${schema.frontmatter.deal_involvement.map((item) => `\`${item}\``).join(', ')}`,
+    `  - \`asks\`: ${schema.frontmatter.asks}`,
+    `  - \`teaser_summary\`: ${schema.frontmatter.teaser_summary}`,
     ...schema.guidance.map((item) => `- ${item}`),
   ];
 }

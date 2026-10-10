@@ -8,7 +8,7 @@ import { CANONICAL_SCHEMA_DIRS } from './constants.js';
 
 export const PAGE_SCHEMA_REGISTRY_FILENAME = 'page-schemas.yaml';
 export const PAGE_SCHEMA_REGISTRY_VERSION = 1;
-export const PAGE_SCHEMA_DEFAULTS_VERSION = 3;
+export const PAGE_SCHEMA_DEFAULTS_VERSION = 4;
 
 const SCHEMA_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const FIELD_TYPES = ['string', 'number', 'boolean', 'array', 'object'];
@@ -147,6 +147,15 @@ function defaultPeopleFields() {
 
 function defaultDealFields() {
   return {
+    asks: {
+      type: 'array',
+      items: { type: 'string' },
+      description: 'Optional anonymous, externally shareable requests for capital, partners, buyers, or introductions. Each string is one specific ask.',
+    },
+    teaser_summary: {
+      type: 'string',
+      description: 'Optional anonymous, externally shareable opportunity summary. Avoid company, project, and contact names and combinations of identifying details. Keep separate from the internal summary.',
+    },
     deal_involvement: {
       type: 'string',
       enum: ['public_unrelated', 'network_observed', 'network_actionable', 'active'],
@@ -325,6 +334,22 @@ function applyPageSchemaDefaultsMigration(registry, config, version, added) {
     }
     schema.fields.deal_involvement = defaultDealFields().deal_involvement;
     added.push(`${id}.deal_involvement`);
+    return;
+  }
+  if (version === 4) {
+    const dealEntry = Object.entries(registry.schemas)
+      .find(([, schema]) => normalizePathPrefix(schema.path_prefix) === 'deals');
+    if (!dealEntry) return;
+    const [id, schema] = dealEntry;
+    schema.fields ||= {};
+    if (Object.keys(schema.fields).length === 0 && schema.additional_properties === undefined) {
+      schema.additional_properties = true;
+    }
+    for (const field of ['asks', 'teaser_summary']) {
+      if (Object.prototype.hasOwnProperty.call(schema.fields, field)) continue;
+      schema.fields[field] = defaultDealFields()[field];
+      added.push(`${id}.${field}`);
+    }
     return;
   }
   throw new Error(`Missing page schema defaults migration for version ${version}.`);
@@ -515,6 +540,15 @@ export function pageSchemaComplianceIssues(registry, { pagePath, frontmatter = {
         },
       });
       continue;
+    }
+    if (definition.type === 'array' && FIELD_TYPES.includes(definition.items?.type)) {
+      value.forEach((item, index) => {
+        if (matchesSchemaFieldType(item, definition.items.type)) return;
+        issues.push({
+          type: 'schema_field_type_mismatch',
+          details: { field, item_index: index, expected_type: definition.items.type, actual_type: schemaValueType(item) },
+        });
+      });
     }
     if (Array.isArray(definition.enum) && !definition.enum.some((candidate) => Object.is(candidate, value))) {
       issues.push({
