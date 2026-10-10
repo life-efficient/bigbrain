@@ -34,7 +34,7 @@ test('copy waits for clipboard completion and reports failures without claiming 
 });
 
 
-test('embedded browser copy runs during the click and restores focus', async () => {
+test('embedded browser fallback copies the selected ask and restores focus', async () => {
   const record = { teaser_summary: 'Anonymous.', asks: ['Investor', 'Operator'] };
   let removed = false;
   let focused = false;
@@ -45,7 +45,7 @@ test('embedded browser copy runs during the click and restores focus', async () 
     createElement: () => textarea, execCommand(command) { assert.equal(command, 'copy'); assert.equal(selected, true); return true; } };
   await copyDealTeaser(record, 1, { writeText: async () => { apiCalled = true; throw Error('Denied'); } }, document);
   assert.equal(textarea.value, formatDealTeaser(record, 1));
-  assert.equal(apiCalled, false);
+  assert.equal(apiCalled, true);
   assert.equal(removed, true);
   assert.equal(focused, true);
   document.execCommand = () => false;

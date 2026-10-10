@@ -12,7 +12,7 @@ export function formatDealTeaser(record, askIndex) {
   return `${summary}\n\nLooking for:\n• ${asks[askIndex]}`;
 }
 
-// Try the synchronous browser copy command while the click gesture is active.
+// Fall back to the browser copy command when clipboard permission is denied.
 // Embedded browsers can deny the asynchronous clipboard API even on localhost.
 function copyUsingSelection(message, document) {
   if (!document?.body || !document?.execCommand) return false;
@@ -43,10 +43,10 @@ function copyUsingSelection(message, document) {
 export async function copyDealTeaser(record, askIndex, clipboard = globalThis.navigator?.clipboard, document = globalThis.document) {
   const message = formatDealTeaser(record, askIndex);
   if (!message) throw new Error('Add a teaser summary and select a valid ask first.');
-  if (copyUsingSelection(message, document)) return;
   if (clipboard?.writeText) {
     try { await clipboard.writeText(message); return; }
-    catch { /* The visible manual-copy field is the final fallback. */ }
+    catch { /* Try the synchronous browser copy fallback next. */ }
   }
+  if (copyUsingSelection(message, document)) return;
   throw new Error('Automatic copying is unavailable. The complete message is selected below. Press Ctrl+C or Command+C to copy it.');
 }
