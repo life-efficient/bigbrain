@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { load as loadYaml, JSON_SCHEMA as YAML_JSON_SCHEMA } from 'js-yaml';
 
 import { parseTimeline } from './timeline.js';
 
@@ -127,7 +128,9 @@ function splitMarkdownFrontmatter(markdown) {
 function parseSimpleYaml(raw) {
   const result = {};
   let scalarListKey = null;
-  for (const line of raw.split('\n')) {
+  const lines = raw.split('\n');
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    const line = lines[lineIndex];
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
     const listItem = trimmed.match(/^-\s+(.+)$/)?.[1]?.trim();
@@ -141,7 +144,13 @@ function parseSimpleYaml(raw) {
     if (index <= 0) continue;
     const key = trimmed.slice(0, index).trim();
     const value = trimmed.slice(index + 1).trim();
-    result[key] = parseYamlValue(value);
+    if (/^[>|][+-]?[1-9]?$/.test(value)) {
+      const block = [line];
+      while (lineIndex + 1 < lines.length && (!lines[lineIndex + 1].trim() || /^\s/.test(lines[lineIndex + 1]))) {
+        block.push(lines[++lineIndex]);
+      }
+      result[key] = loadYaml(block.join('\n') + '\n', { schema: YAML_JSON_SCHEMA })[key];
+    } else result[key] = parseYamlValue(value);
     if (!value) scalarListKey = key;
   }
   return result;
@@ -149,6 +158,9 @@ function parseSimpleYaml(raw) {
 
 function parseYamlValue(value) {
   if (!value) return '';
+  if (value.startsWith('"') && value.endsWith('"')) {
+    try { return JSON.parse(value); } catch { /* Keep legacy quoted text fallback. */ }
+  }
   if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith('\'') && value.endsWith('\''))) return value.slice(1, -1);
   if (value === 'true') return true;
   if (value === 'false') return false;
@@ -160,6 +172,10 @@ function parseYamlValue(value) {
       // Preserve the existing compact YAML-like list syntax for values such as
       // [people, active], which are not valid JSON without quoted strings.
     }
+    try {
+      const parsed = loadYaml(value, { schema: YAML_JSON_SCHEMA });
+      if (Array.isArray(parsed)) return parsed;
+    } catch { /* Preserve legacy malformed compact-list fallback. */ }
     return value.slice(1, -1).split(',').map((item) => item.trim()).filter(Boolean);
   }
   if (value.startsWith('{') && value.endsWith('}')) {

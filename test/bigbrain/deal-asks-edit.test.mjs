@@ -17,14 +17,14 @@ test('Deal asks edits persist in canonical frontmatter, refresh the index and pr
     const config = await loadConfig({ configPath: init.configPath });
     await fs.mkdir(path.join(config.brainDir, 'deals'), { recursive: true });
     for (const [slug, involvement] of [['sample', 'active'], ['public', 'public_unrelated']]) {
-      await fs.writeFile(path.join(config.brainDir, 'deals', `${slug}.md`), `---\ntitle: Sample\ndeal_involvement: ${involvement}\nsummary: Internal summary\ncustom_field: Preserve me\nasks:\n  - Find investor\nteaser_summary: Anonymous opportunity\n---\n# Sample\n\nPreserve this body.\n\n---\n\n## Timeline\n\n`);
+      await fs.writeFile(path.join(config.brainDir, 'deals', `${slug}.md`), `---\ntitle: Sample\ndeal_involvement: ${involvement}\nsummary: Internal summary\ncustom_field: Preserve me\nasks:\n  - Find investor\nteaser_summary: >-\n  Anonymous\n  opportunity\nretained_list:\n  - one\n  - two\n---\n# Sample\n\nPreserve this body.\n\n---\n\n## Timeline\n\n`);
     }
     server = await startDashboard(config, { host: '127.0.0.1', port: 0 });
     const base = `http://127.0.0.1:${server.address().port}`;
     const before = await readBrainPage({ config, pagePath: 'deals/sample' });
     const baseline = { page_slug: 'deals/sample', expected_asks: ['Find investor'], expected_teaser_summary: 'Anonymous opportunity' };
     const post = (data) => fetch(`${base}/api/overlays/deals/asks`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
-    const simultaneous = await Promise.all([post({ ...baseline, asks: ['Find operator'], teaser_summary: 'Anonymous updated' }), post({ ...baseline, asks: ['Find buyer'] })]);
+    const simultaneous = await Promise.all([post({ ...baseline, asks: ['Find investor', 'Find operator, developer: [experienced]'], teaser_summary: 'Anonymous updated' }), post({ ...baseline, asks: ['Find buyer'] })]);
     assert.deepEqual(simultaneous.map((r) => r.status).sort(), [200, 409]);
     const successful = await simultaneous.find((r) => r.status === 200).json();
     assert.ok(successful.record);
@@ -32,6 +32,9 @@ test('Deal asks edits persist in canonical frontmatter, refresh the index and pr
     assert.deepEqual(after.frontmatter.asks, successful.record.asks);
     assert.equal(after.frontmatter.teaser_summary, successful.record.teaser_summary);
     assert.equal(after.frontmatter.custom_field, before.frontmatter.custom_field);
+    assert.deepEqual(after.frontmatter.retained_list, ['one', 'two']);
+    assert.equal(after.frontmatter.deal_involvement, 'active');
+    assert.doesNotMatch(after.frontmatter_raw, /  - Find investor|  Anonymous|  opportunity/);
     assert.equal(after.frontmatter.summary, before.frontmatter.summary);
     assert.equal(after.body, before.body);
     assert.match(after.timeline, /Updated anonymous deal asks and teaser/);
@@ -39,7 +42,16 @@ test('Deal asks edits persist in canonical frontmatter, refresh the index and pr
     const indexed = await fetch(`${base}/api/overlays/deals`).then((r) => r.json());
     assert.deepEqual(indexed.records[0], successful.record);
     const refreshed = { page_slug: 'deals/sample', expected_asks: successful.record.asks, expected_teaser_summary: successful.record.teaser_summary };
-    const deleteAll = await post({ ...refreshed, asks: [] });
+    const complexAsks = ['Find investor', 'Lenders for construction, permits, and equipment', 'An operator: "experienced" [preferred]'];
+    const complexResponse = await post({ ...refreshed, asks: complexAsks, teaser_summary: 'A "quoted" teaser\nwith a second line.' });
+    assert.equal(complexResponse.status, 200);
+    const complexRecord = (await complexResponse.json()).record;
+    assert.deepEqual(complexRecord.asks, complexAsks);
+    const complexPage = await readBrainPage({ config, pagePath: 'deals/sample' });
+    assert.deepEqual(complexPage.frontmatter.asks, complexAsks);
+    assert.equal(complexPage.frontmatter.teaser_summary, 'A "quoted" teaser\nwith a second line.');
+    const deleteAll = await post({ page_slug: 'deals/sample', expected_asks: complexRecord.asks,
+      expected_teaser_summary: complexRecord.teaser_summary, asks: [] });
     assert.equal(deleteAll.status, 200);
     assert.deepEqual((await deleteAll.json()).record.asks, []);
     for (const changes of [{ asks: [3] }, { asks: [''] }, { asks: 'bad' }, { page_slug: '../people/sample' }, { expected_asks: null }, { teaser_summary: 5 }]) {

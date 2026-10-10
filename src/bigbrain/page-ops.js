@@ -1,5 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
+import { createHash } from 'node:crypto';
 
 import { DEFAULT_RAW_FILE_MAX_BYTES } from './constants.js';
 import { assertRegisteredPageDomains } from './domains.js';
@@ -825,7 +827,16 @@ function omitReservedFrontmatter(frontmatter) {
 
 function setFrontmatterValue(frontmatterRaw, key, value) {
   const lines = String(frontmatterRaw || '').split('\n');
-  const next = lines.filter((line) => !new RegExp(`^\\s*${escapeRegExp(key)}\\s*:`).test(line));
+  const keyPattern = new RegExp(`^${escapeRegExp(key)}\\s*:`);
+  const next = [];
+  let removingValue = false;
+  for (const line of lines) {
+    if (keyPattern.test(line)) { removingValue = true; continue; }
+    // YAML block scalars, nested mappings and sequences belong to their
+    // top-level key until the next mapping entry. Unindented sequences are valid.
+    if (removingValue && /^[^\s#-][^:]*:/.test(line)) removingValue = false;
+    if (!removingValue) next.push(line);
+  }
   next.push(`${key}: ${formatYamlValue(value)}`);
   return next.filter((line, index, array) => line.trim() || index < array.length - 1).join('\n');
 }
@@ -842,14 +853,16 @@ function sameDomainMembership(left, right) {
 }
 
 function formatYamlValue(value) {
+  // JSON values are valid YAML and retain commas, quotes, brackets, newlines,
+  // and scalar-looking strings without changing their types.
   if (Array.isArray(value)) {
-    if (value.some((item) => item && typeof item === 'object')) return JSON.stringify(value);
-    return `[${value.map((item) => String(item)).join(', ')}]`;
+    const safe = value.every((item) => typeof item === 'string' && /^[A-Za-z][A-Za-z0-9_ ./-]*$/.test(item) && !/^(?:true|false|null|yes|no|on|off)$/i.test(item));
+    return safe ? `[${value.join(', ')}]` : JSON.stringify(value);
   }
   if (value && typeof value === 'object') return JSON.stringify(value);
-  if (typeof value === 'boolean') return value ? 'true' : 'false';
-  const text = String(value);
-  return /[:#\n]|^\s|\s$/.test(text) ? JSON.stringify(text) : text;
+  if (typeof value !== 'string') return JSON.stringify(value);
+  return /[:#\n]|^\s|\s$|^[\[\]{}&*!|>'"%@`-]|^(?:true|false|null|yes|no|on|off|[0-9])$/i.test(value)
+    ? JSON.stringify(value) : value;
 }
 
 function escapeRegExp(value) {
@@ -1204,7 +1217,9 @@ function requireNonEmpty(value, name) {
 
 // A filesystem lock also serializes dashboard and MCP writes in separate processes.
 async function withPageWriteLock(config, relative, callback) {
-  const lockPath = `${safeBrainPath(config.brainDir, relative)}.write-lock`;
+  const lockRoot = path.join(os.tmpdir(), 'bigbrain-page-write-locks');
+  await fs.mkdir(lockRoot, { recursive: true });
+  const lockPath = path.join(lockRoot, createHash('sha256').update(safeBrainPath(config.brainDir, relative)).digest('hex'));
   const deadline = Date.now() + 10000;
   for (;;) {
     try {
