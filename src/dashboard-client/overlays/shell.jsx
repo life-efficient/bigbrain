@@ -9,7 +9,6 @@ const OVERLAY_STORAGE_PREFIX = 'bigbrain:overlays:';
 
 export function OverlaysController({
   brainId,
-  brainName,
   activeView,
   onActiveViewChange,
   onOpenPage,
@@ -19,7 +18,6 @@ export function OverlaysController({
   const [menuOpen, setMenuOpen] = useState(false);
   const [enabledOverlays, setEnabledOverlays] = useState([]);
   const [actionError, setActionError] = useState('');
-  const [workingId, setWorkingId] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -107,7 +105,6 @@ export function OverlaysController({
     if (!enabled && activeView === overlayId) onActiveViewChange('graph');
     if (!definition.enabledEndpoint) return;
 
-    setWorkingId(overlayId);
     fetchJson(definition.enabledEndpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -116,7 +113,7 @@ export function OverlaysController({
       setEnabledOverlays(previous);
       saveEnabledOverlays(brainId, previous);
       setActionError(`${definition.label} setting failed: ${error instanceof Error ? error.message : String(error)}`);
-    }).finally(() => setWorkingId(''));
+    });
   }
 
   function openOverlay(overlayId) {
@@ -141,12 +138,7 @@ export function OverlaysController({
       </button>
       {menuOpen ? (
         <OverlayLauncher
-          brainName={brainName}
-          enabledOverlays={enabledOverlays}
           actionError={actionError}
-          workingId={workingId}
-          onEnable={(overlayId) => setOverlayEnabled(overlayId, true)}
-          onDisable={(overlayId) => setOverlayEnabled(overlayId, false)}
           onOpen={openOverlay}
         />
       ) : null}
@@ -164,45 +156,21 @@ export function OverlaysController({
   return children({ menu, content, menuOpen });
 }
 
-function OverlayLauncher({
-  brainName,
-  enabledOverlays,
-  actionError,
-  workingId,
-  onEnable,
-  onDisable,
-  onOpen,
-}) {
+function OverlayLauncher({ actionError, onOpen }) {
   return (
-    <div className="overlays-dropdown" role="menu">
-      <div className="overlays-dropdown-head">
-        <strong>Overlays</strong>
-        <span className="meta">{brainName || 'Selected Brain'}</span>
-      </div>
-      {OVERLAYS.map((overlay) => {
-        const enabled = enabledOverlays.includes(overlay.id);
-        const working = workingId === overlay.id;
-        return (
-          <div className="overlay-launcher-item" key={overlay.id}>
-            <div className="overlay-launcher-copy">
-              <strong>{overlay.label}</strong>
-              <span>{overlay.description}</span>
-            </div>
-            {enabled ? (
-              <div className="overlay-launcher-actions">
-                <button type="button" className="settings-link selected" onClick={() => onOpen(overlay.id)} disabled={working}>
-                  Open <span className="meta">{overlay.shortcut}</span>
-                </button>
-                <button type="button" className="overlay-text-button" onClick={() => onDisable(overlay.id)} disabled={working}>Disable</button>
-              </div>
-            ) : (
-              <button type="button" className="settings-link" onClick={() => onEnable(overlay.id)} disabled={working}>Enable</button>
-            )}
-          </div>
-        );
-      })}
+    <div className="overlays-dropdown" role="menu" aria-label="Overlays">
+      {OVERLAYS.map((overlay) => (
+        <button
+          key={overlay.id}
+          type="button"
+          role="menuitem"
+          className="settings-link"
+          onClick={() => onOpen(overlay.id)}
+        >
+          {overlay.label}
+        </button>
+      ))}
       {actionError ? <div className="overlay-inline-error" role="alert">{actionError}</div> : null}
-      <div className="overlays-dropdown-foot">Overlays are enabled separately for each Brain.</div>
     </div>
   );
 }
