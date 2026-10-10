@@ -3,7 +3,7 @@ export const OVERLAYS = [
     id: 'deals',
     label: 'Deals',
     description: 'Our deals and opportunities from our network.',
-    shortcut: 'D',
+    shortcut: 'B',
   },
   {
     id: 'keep-in-touch',
