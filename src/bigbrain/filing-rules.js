@@ -25,6 +25,14 @@ const DEFAULT_RULES = {
   archive: 'Historical or superseded material that should not stay active.',
 };
 
+const CURRENT_BODY_GUIDANCE = [
+  'For ordinary canonical subject pages, write the body as a synthesized current briefing organized by the subject, not by ingestion dates or successive updates.',
+  'On every substantive update, integrate new evidence into the relevant sections, reconcile contradictions, and replace or qualify superseded claims. Preserve useful current commercial and technical details, attribution, and uncertainty.',
+  'Do not append dated Update, Meeting update, or Latest update sections to the current body. Keep change chronology and superseded states in the writer-managed Timeline; keep meeting-specific discussion in the linked meeting or source record.',
+  'Retain a date in current prose when it materially defines a fact, deadline, freshness, or uncertainty. Historical context may remain when it explains the current subject; do not turn it into an ingestion log.',
+  'Before writing and on read-back, check that the body alone explains what the subject is, its current state, material terms and constraints, relationships, and open questions without requiring the reader to reconstruct successive updates.',
+];
+
 const TIMELINE_WRITING_GUIDANCE = [
   'Write each timeline entry as a concise, subject-first summary of the durable page change.',
   'Page updates are already authored and attributable through the page operation and provenance; do not lead with the current user\'s name or repeat an implicit approval such as `Harry approved ...`.',
@@ -72,6 +80,7 @@ export async function filingRulesForBrain({ config }) {
     brain_dir: config.brainDir,
     markdown: renderFilingRulesMarkdown({ config, sharedGuidance, collections, rawFileRules }),
     shared_guidance: sharedGuidance,
+    current_body_guidance: CURRENT_BODY_GUIDANCE,
     timeline_guidance: TIMELINE_WRITING_GUIDANCE,
     collections,
     page_shape: sharedGuidance.pageShape.length > 0 ? sharedGuidance.pageShape : [
@@ -161,6 +170,10 @@ function renderFilingRulesMarkdown({ config, sharedGuidance, collections, rawFil
   }
 
   sections.push(
+    '## Current Body Writing',
+    '',
+    ...CURRENT_BODY_GUIDANCE.map((item) => `- ${item}`),
+    '',
     '## Timeline Writing',
     '',
     ...TIMELINE_WRITING_GUIDANCE.map((item) => `- ${item}`),

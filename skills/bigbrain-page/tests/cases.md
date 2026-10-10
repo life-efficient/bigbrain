@@ -14,3 +14,16 @@
 ## Should not trigger by itself
 
 - Change page visibility, maintain the Brain, or create a task.
+
+## Existing deal has successive dated meeting updates
+
+Prompt: Audit and repair a deal whose body begins with an old opportunity description, then appends three dated meeting updates. The newest meeting revises the phase-one capacity, withdraws an earlier claimed customer commitment, and adds technical constraints; some earlier engineering details remain valid.
+
+Expected behavior:
+- Read the complete existing page and linked source evidence before rewriting.
+- Produce one substantive current briefing organized by the deal, its current terms and technical constraints, relationships, and open questions.
+- Replace superseded phase-one capacity and qualify the customer commitment from evidence. Preserve still-useful engineering details, attribution, and uncertainty.
+- Keep the three source meetings linked and preserve chronology in the writer-managed timeline. Do not append another dated update section or move a useful technical briefing wholesale out of the body.
+- Read the body alone to verify it gives the current understanding without reconstructing updates.
+
+Adjacent request: Summarize the chronology of a specific meeting transcript. Keep the meeting-specific chronology in that specialized record; do not apply the subject-page consolidation rule to erase a requested source account.

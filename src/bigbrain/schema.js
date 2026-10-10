@@ -87,6 +87,8 @@ export function schemaDescription() {
     notes: [
       'summary is a first-class frontmatter field, rendered separately and indexed alongside the body. It must not be duplicated in the body.',
       'The detailed current-state body lives above --- and gets rewritten as understanding changes.',
+      'For ordinary canonical subjects, synthesize the body by topic, integrate new evidence into existing sections, and replace or qualify superseded claims. Preserve useful current technical details, attribution, and uncertainty.',
+      'Do not append dated update sections to the current body. Keep change chronology in Timeline and meeting-specific detail in source meetings; dates defining material facts or deadlines may remain in current prose.',
       'Timeline lives below --- and is append-only evidence.',
       'New timeline entries require per-entry source provenance with event_id, source_type, source_label, and source_message; legacy entries remain readable for repair and migration.',
       'Source attribution belongs to the timeline entry that it caused, not to mutable page-level source frontmatter.',
