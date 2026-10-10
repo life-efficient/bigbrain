@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
+import * as Dialog from '@radix-ui/react-dialog';
+import { X, Plus, Pencil, Trash2, Copy } from 'lucide-react';
 import { copyDealTeaser, dealTeaserParts, formatDealTeaser } from './deal-teaser.js';
 
 const INVOLVEMENT_LABELS = {
@@ -38,10 +40,10 @@ function DealAsk({ record, askIndex, ask, disabled, onEdit, onDelete }) {
       <p className="deal-ask-text">{ask}</p>
       <div className="deal-ask-actions">
       <button type="button" className="graph-button" disabled={!message || copying} onClick={copy} aria-label={`Copy ask ${askIndex + 1} for WhatsApp`}>
-        {copying ? 'Copying…' : 'Copy for WhatsApp'}
+        <Copy size={14} />{copying ? 'Copying…' : 'Copy for WhatsApp'}
       </button>
-      <button type="button" className="graph-button" disabled={disabled} onClick={onEdit} aria-label={`Edit ask ${askIndex + 1}`}>Edit</button>
-      <button type="button" className="graph-button" disabled={disabled} onClick={onDelete} aria-label={`Delete ask ${askIndex + 1}`}>Delete</button>
+      <button type="button" className="graph-button" disabled={disabled} onClick={onEdit} aria-label={`Edit ask ${askIndex + 1}`}><Pencil size={14} />Edit</button>
+      <button type="button" className="graph-button" disabled={disabled} onClick={onDelete} aria-label={`Delete ask ${askIndex + 1}`}><Trash2 size={14} />Delete</button>
       </div>
       {manualCopy ? <textarea ref={manualRef} className="overlay-search deal-editor-input" rows={5}
         readOnly value={message} aria-label={`Complete message for ask ${askIndex + 1}`}
@@ -57,8 +59,11 @@ function DealTeaser({ record, onSaved }) {
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState('');
   const savingRef = useRef(false);
+  const modalContainerRef = useRef(null);
+  const returnFocusRef = useRef(null);
 
   function begin(type, index = null) {
+    returnFocusRef.current = document.activeElement;
     setFeedback('');
     setEditor({ type, index, text: type === 'summary' ? summary : type === 'add' ? '' : asks[index],
       baseAsks: Array.isArray(record.asks) ? [...record.asks] : [],
@@ -105,42 +110,56 @@ function DealTeaser({ record, onSaved }) {
   }
 
   return (
-    <div className="deal-teaser">
+    <div className="deal-teaser" ref={modalContainerRef}>
       <div className="deal-teaser-head">
       <span className="eyebrow">Anonymous asks</span>
       <div className="deal-teaser-actions">
-        <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('summary')}>{summary ? 'Edit teaser summary' : 'Add teaser summary'}</button>
-        <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('add')}>Add ask</button>
+        <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('summary')}><Pencil size={14} />{summary ? 'Edit summary' : 'Add summary'}</button>
+        <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('add')}><Plus size={14} />Add ask</button>
       </div>
       </div>
       {summary ? <p className="deal-teaser-summary">{summary}</p> : null}
       {!summary || !asks.length ? <p className="meta">{!summary && !asks.length ? 'Add an anonymous teaser summary and asks to prepare messages.' : !summary ? 'Add an anonymous teaser summary to enable copying each ask.' : 'Add at least one ask to prepare a message.'}</p> : null}
       {asks.map((ask, askIndex) => <DealAsk key={`${askIndex}:${ask}`} record={record} askIndex={askIndex} ask={ask}
         disabled={!!editor || saving} onEdit={() => begin('edit', askIndex)} onDelete={() => begin('delete', askIndex)} />)}
-      {editor ? (
-        <form className="deal-teaser-editor" onSubmit={save}>
-          {editor.type === 'delete' ? (
-            <div role="alert">
-              <p>Delete this ask from the deal page?</p>
-              <p className="deal-ask-text">{editor.text}</p>
+      <Dialog.Root open={!!editor} onOpenChange={(open) => {
+        if (!open && !savingRef.current) { setEditor(null); setFeedback(''); }
+      }}>
+        {editor ? <Dialog.Portal container={modalContainerRef.current}>
+          <Dialog.Overlay className="deal-modal-backdrop" />
+          <Dialog.Content className="deal-modal"
+            onEscapeKeyDown={(event) => { if (savingRef.current) event.preventDefault(); }}
+            onPointerDownOutside={(event) => event.preventDefault()}
+            onCloseAutoFocus={(event) => { event.preventDefault(); returnFocusRef.current?.focus(); }}>
+            <div className="deal-modal-head">
+              <Dialog.Title>{editor.type === 'delete' ? 'Delete ask' : editor.type === 'summary' ? 'Edit teaser summary' : editor.type === 'add' ? 'Add ask' : 'Edit ask'}</Dialog.Title>
+              <Dialog.Close className="deal-modal-close" disabled={saving} aria-label="Close dialog"><X size={18} /></Dialog.Close>
             </div>
-          ) : (
-            <label className="deal-editor-label">
-              {editor.type === 'summary' ? 'Shared anonymous teaser summary' : editor.type === 'add' ? 'New ask' : 'Edit ask'}
-              <textarea rows={editor.type === 'summary' ? 5 : 3} value={editor.text} disabled={saving}
-                onChange={(event) => setEditor((current) => ({ ...current, text: event.target.value }))}
-                className="overlay-search deal-editor-input" />
-            </label>
-          )}
-          <div className="deal-teaser-actions">
-            <button type="submit" className="graph-button" disabled={saving || (editor.type !== 'delete' && editor.type !== 'summary' && !editor.text.trim())}>
-              {saving ? 'Saving…' : editor.type === 'delete' ? 'Confirm delete' : 'Save'}
-            </button>
-            <button type="button" className="graph-button" disabled={saving} onClick={() => { setEditor(null); setFeedback(''); }}>Cancel</button>
-          </div>
-        </form>
-      ) : null}
-      {feedback ? <p className="meta" role={editor ? 'alert' : 'status'} aria-live="polite">{feedback}</p> : null}
+            <Dialog.Description>
+              {editor.type === 'delete' ? 'Remove this ask from the deal. The teaser summary will stay unchanged.' : 'Prepare anonymous wording to share with your network.'}
+            </Dialog.Description>
+            <form className="deal-teaser-editor" onSubmit={save}>
+              {editor.type === 'delete' ? <p className="deal-ask-text">{editor.text}</p> : (
+                <label className="deal-editor-label">
+                  {editor.type === 'summary' ? 'Teaser summary' : 'Ask'}
+                  <textarea autoFocus rows={editor.type === 'summary' ? 6 : 4} value={editor.text} disabled={saving}
+                    onChange={(event) => setEditor((current) => ({ ...current, text: event.target.value }))}
+                    className="overlay-search deal-editor-input" placeholder={editor.type === 'summary' ? 'Describe the opportunity without identifying details…' : 'What help or introduction are you looking for?'} />
+                </label>
+              )}
+              {feedback ? <p className="deal-modal-error" role="alert">{feedback}</p> : null}
+              <div className="deal-modal-footer">
+                <Dialog.Close asChild><button type="button" className="graph-button" disabled={saving}>Cancel</button></Dialog.Close>
+                <button type="submit" autoFocus={editor.type === 'delete'} className={`graph-button ${editor.type === 'delete' ? 'destructive' : 'primary'}`}
+                  disabled={saving || (editor.type !== 'delete' && editor.type !== 'summary' && !editor.text.trim())}>
+                  {saving ? 'Saving…' : editor.type === 'delete' ? 'Delete ask' : 'Save changes'}
+                </button>
+              </div>
+            </form>
+          </Dialog.Content>
+        </Dialog.Portal> : null}
+      </Dialog.Root>
+      {feedback && !editor ? <p className="meta" role="status" aria-live="polite">{feedback}</p> : null}
     </div>
   );
 }

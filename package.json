@@ -24,6 +24,7 @@
     "test": "node --test test/bigbrain/*.test.mjs"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.2.0",
     "@radix-ui/react-select": "^2.2.6",
     "@tiptap/extension-image": "^3.23.5",
     "@tiptap/extension-link": "^3.23.5",
