@@ -4,11 +4,14 @@ import { ComprehensionPanel } from './comprehension.jsx';
 import { DealsPanel } from './deals.jsx';
 import { KeepInTouchPanel } from './keep-in-touch.jsx';
 import { OVERLAYS, overlayById } from './registry.js';
+import { dashboardNavigationHref } from '../navigation.js';
 
 const OVERLAY_STORAGE_PREFIX = 'bigbrain:overlays:';
 
 export function OverlaysController({
   brainId,
+  brainName,
+  basePath,
   activeView,
   onActiveViewChange,
   onOpenPage,
@@ -138,6 +141,8 @@ export function OverlaysController({
       </button>
       {menuOpen ? (
         <OverlayLauncher
+          brainName={brainName}
+          basePath={basePath}
           actionError={actionError}
           onOpen={openOverlay}
         />
@@ -156,19 +161,30 @@ export function OverlaysController({
   return children({ menu, content, menuOpen });
 }
 
-function OverlayLauncher({ actionError, onOpen }) {
+function OverlayLauncher({ brainName, basePath, actionError, onOpen }) {
   return (
     <div className="overlays-dropdown" role="menu" aria-label="Overlays">
+      <div className="overlays-dropdown-head">
+        <strong>Overlays</strong>
+        <span className="meta">{brainName || 'Selected Brain'}</span>
+      </div>
       {OVERLAYS.map((overlay) => (
-        <button
+        <a
           key={overlay.id}
-          type="button"
           role="menuitem"
-          className="settings-link"
-          onClick={() => onOpen(overlay.id)}
+          className="overlay-launcher-item overlay-launcher-link"
+          href={dashboardNavigationHref({ view: overlay.id }, basePath)}
+          onClick={(event) => {
+            if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+            event.preventDefault();
+            onOpen(overlay.id);
+          }}
         >
-          {overlay.label}
-        </button>
+          <div className="overlay-launcher-copy">
+            <strong>{overlay.label}</strong>
+            <span>{overlay.description}</span>
+          </div>
+        </a>
       ))}
       {actionError ? <div className="overlay-inline-error" role="alert">{actionError}</div> : null}
     </div>

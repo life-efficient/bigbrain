@@ -1015,6 +1015,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .overlays-dropdown-head, .overlay-section-head, .overlay-queue-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
       .overlays-dropdown-head { padding-bottom: 2px; }
       .overlay-launcher-item { display: grid; gap: 12px; padding: 13px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+      .overlay-launcher-link { color: var(--ink); text-decoration: none; cursor: pointer; }
+      .overlay-launcher-link:hover { border-color: var(--line-strong); background: var(--surface-muted); }
+      .overlay-launcher-link:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
       .overlay-launcher-copy { display: grid; gap: 5px; }
       .overlay-launcher-copy strong { font-size: 13px; }
       .overlay-launcher-copy span, .overlays-dropdown-foot { color: var(--muted); font-size: 11px; line-height: 1.45; }

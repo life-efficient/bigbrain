@@ -886,6 +886,7 @@ function DashboardApp() {
     <OverlaysController
       brainId={about?.brain_id || 'current'}
       brainName={about?.brain_name}
+      basePath={dashboardBasePath}
       activeView={view}
       onActiveViewChange={setView}
       onOpenPage={openPageBySlug}
