@@ -164,7 +164,7 @@ export function renderSchemaMarkdown() {
     '',
     '- `deal_involvement` is optional for existing records and must be one of `public_unrelated`, `network_observed`, `network_actionable`, or `active` when present.',
     '- `asks` is an optional list of strings, one specific externally shareable request per item.',
-    '- `teaser_summary` is optional anonymous shareable copy, distinct from the internal `summary`. Combine it with `asks` for a message to your network.',
+    '- `teaser_summary` is optional anonymous shareable copy, distinct from the internal `summary`. Combine it with one selected `asks` item for a message to your network.',
     '- Keep both fields free of company, project, and contact names, source routes, private URLs, and combinations of identifying details. Do not infer shareable copy from the internal title or summary.',
     '- `public_unrelated` is a public deal unrelated to us.',
     '- `network_observed` is a deal a network contact mentioned they are working on, without our active involvement.',
