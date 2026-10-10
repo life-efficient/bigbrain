@@ -15,7 +15,7 @@ function fixture() {
       raw.prepare('INSERT INTO pages VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
         slug, `${slug}.md`, options.type || 'deals', options.kind || 'canonical',
         options.title || slug, options.summary ?? 'A concise deal summary.', '2026-10-10T09:00:00Z',
-        JSON.stringify(involvement === undefined ? {} : { deal_involvement: involvement }),
+        JSON.stringify({ ...(involvement === undefined ? {} : { deal_involvement: involvement }), ...options.frontmatter }),
         options.body ?? 'Indexed readable content.',
       );
     },
@@ -38,7 +38,7 @@ test('deals overlay includes explicit actual and network deals, excluding public
     assert.equal(result.overlay.enabled, true);
     assert.equal(result.brain.brain_id, 'personal');
     assert.deepEqual(result.records.map((r) => r.deal_involvement), ['active', 'network_actionable', 'network_observed']);
-    assert.deepEqual(Object.keys(result.records[0]).sort(), ['deal_involvement', 'page_slug', 'summary', 'title', 'updated_at']);
+    assert.deepEqual(Object.keys(result.records[0]).sort(), ['asks', 'deal_involvement', 'page_slug', 'summary', 'teaser_summary', 'title', 'updated_at']);
     const filtered = await buildDealsPayload(config, f.db, { deal_involvement: 'network_observed' });
     assert.equal(filtered.total, 1);
   } finally { f.close(); }
@@ -111,4 +111,17 @@ test('Postgres query stays parameterized and normalizes timestamps', async () =>
   assert.ok(calls[0].params.includes('active'));
   assert.match(calls[2].sql, /WHERE slug IN \(\$1\)/);
   assert.deepEqual(calls[2].params, ['deals/a']);
+});
+
+ test('teaser fields use only explicit frontmatter and normalize malformed values', async () => {
+  const f = fixture();
+  try {
+    f.add('deals/a', 'active', { frontmatter: { asks: [' Equity partner ', '', 42, 'Operator'], teaser_summary: ' Anonymous project. ' } });
+    f.add('deals/b', 'active', { frontmatter: { asks: 'Not a list', teaser_summary: 42 } });
+    const { records } = await buildDealsPayload(config, f.db);
+    assert.deepEqual(records[0].asks, ['Equity partner', 'Operator']);
+    assert.equal(records[0].teaser_summary, 'Anonymous project.');
+    assert.deepEqual(records[1].asks, []);
+    assert.equal(records[1].teaser_summary, '');
+  } finally { f.close(); }
 });

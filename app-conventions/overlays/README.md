@@ -53,9 +53,30 @@ deal pages, not buyer research or supporting documents.
 - Both endpoints accept `limit` (1 to 100, default 100), `cursor` (an offset),
   and an optional single `deal_involvement` filter.
 - Results contain `records` with `page_slug`, `title`, `summary`,
-  `deal_involvement`, and `updated_at`, plus `total` and `next_cursor`.
+  `deal_involvement`, `asks`, `teaser_summary`, and `updated_at`, plus `total` and `next_cursor`.
   Follow `next_cursor` until null to retrieve all deals.
 - First-class summaries are returned in full. Pages without one use a bounded
   excerpt from indexed text; the request never scans source files or calls a model.
 - This view is derived, so it requires no enrollment records or knowledge copies.
   It is Brain-scoped and protected by the existing dashboard and MCP read access.
+
+### Anonymous deal messages
+
+Canonical deal frontmatter can include an anonymous `teaser_summary` string and
+an `asks` list of strings:
+
+```yaml
+teaser_summary: >-
+  European digital infrastructure project seeking partners for phased development.
+asks:
+  - Introductions to infrastructure equity investors
+  - An experienced development partner
+```
+
+The Deals card previews these fields and copies the teaser summary followed by
+the asks as bullets. Copy requires both a nonempty teaser summary and at least
+one ask. Internal titles, internal summaries, page paths, and involvement labels
+are never substituted into the copied message. Authors must prepare anonymous
+wording in these fields; the copy action does not automatically anonymize text.
+The same fields are available through the existing Deals HTTP and MCP endpoints.
+Missing or malformed fields produce an empty string or list.
