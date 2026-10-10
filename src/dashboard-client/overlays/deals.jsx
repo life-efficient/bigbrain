@@ -125,7 +125,7 @@ function DealTeaser({ record, onSaved }) {
       <Dialog.Root open={!!editor} onOpenChange={(open) => {
         if (!open && !savingRef.current) { setEditor(null); setFeedback(''); }
       }}>
-        {editor ? <Dialog.Portal container={modalContainerRef.current}>
+        {editor ? <Dialog.Portal container={modalContainerRef.current?.closest('.page-shell')}>
           <Dialog.Overlay className="deal-modal-backdrop" />
           <Dialog.Content className="deal-modal"
             onEscapeKeyDown={(event) => { if (savingRef.current) event.preventDefault(); }}
