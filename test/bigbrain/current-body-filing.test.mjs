@@ -13,6 +13,12 @@ test('current subject briefing guidance survives custom filing principles and pa
     const rules = await filingRulesForBrain({ config: { brainDir } });
     assert.deepEqual(rules.page_shape, ['Custom shape.']);
     assert.deepEqual(rules.filing_principles, ['Custom principle.']);
+    const summary = rules.summary_guidance.join('\n');
+    assert.match(summary, /one sentence a reader should read/);
+    assert.match(summary, /routine diligence, unverified-claims, or authorization disclaimers/);
+    assert.match(summary, /materially misrepresent/);
+    assert.match(summary, /Do not strengthen the evidence/);
+    for (const instruction of rules.summary_guidance) assert.ok(rules.markdown.includes(instruction));
     const guidance = rules.current_body_guidance.join('\n');
     assert.match(guidance, /synthesized current briefing/);
     assert.match(guidance, /replace or qualify superseded claims/);

@@ -47,7 +47,7 @@ import {
   upsertSharedGroup,
   upsertPageProvenance,
 } from './db.js';
-import { filingRulesForBrain } from './filing-rules.js';
+import { filingRulesForBrain, SUMMARY_GUIDANCE } from './filing-rules.js';
 import {
   listContactChannels,
   normalizeContactChannels,
@@ -1178,7 +1178,7 @@ async function sampleCanonicalPagesForQualityAudit(config, requestedSampleSize =
     requested_sample_size: sampleSize,
     sampled_pages: candidates.slice(0, sampleSize).map(({ path: pagePath, title, type }) => ({ path: pagePath, title, type })),
     rubric: [
-      'Summary states the substantive subject and takeaway, not Brain or page mechanics.',
+      ...SUMMARY_GUIDANCE,
       'Body works as a standalone Pareto-style one-pager for the stated scope.',
       'Explanation is internally structured, non-overlapping, and covers the important ground for the stated scope.',
     ],
@@ -2371,7 +2371,7 @@ function toolDefinitions(config = null) {
           ...mutationProperties(),
           path: { type: 'string' },
           title: { type: 'string' },
-          summary: { type: 'string', description: 'Substantive 1–3 sentence takeaway. State the page subject, core argument, or current state and what a reader will learn. Do not mention the Brain or page architecture, transcripts, raw artifacts, timelines, provenance, source storage, indexing, or rendering.' },
+          summary: { type: 'string', description: SUMMARY_GUIDANCE.join(' ') },
           compiled_truth: { type: 'string', description: 'Legacy alias for body. Use body for new calls.' },
           body: { type: 'string', description: 'Detailed subject-matter content, written as a standalone document for a reader. Do not refer to the Brain, page architecture, storage, indexing, raw artifacts, transcripts, or rendering. For canonical subject pages, synthesize the current briefing by topic: integrate new evidence into existing sections, reconcile contradictions, and replace or qualify superseded claims. Do not append dated update sections or a meeting-by-meeting log; preserve useful current technical details and material uncertainty. Dates that define facts or deadlines may remain. Do not include the separator or ## Timeline; the writer owns them.' },
           ...timelineInputProperties(),
@@ -2506,7 +2506,7 @@ function toolDefinitions(config = null) {
         properties: {
           ...mutationProperties(),
           path: { type: 'string' },
-          summary: { type: 'string', description: 'Optional replacement substantive 1–3 sentence takeaway. State the page subject, core argument, or current state and what a reader will learn. Do not mention the Brain or page architecture, transcripts, raw artifacts, timelines, provenance, source storage, indexing, or rendering.' },
+          summary: { type: 'string', description: `Optional replacement summary. ${SUMMARY_GUIDANCE.join(' ')}` },
           compiled_truth: { type: 'string', description: 'Legacy alias for body. Use body for new calls.' },
           body: { type: 'string', description: 'Replacement detailed subject-matter content, written as a standalone document for a reader. Do not refer to the Brain, page architecture, storage, indexing, raw artifacts, transcripts, or rendering. For canonical subject pages, synthesize the current briefing by topic: integrate new evidence into existing sections, reconcile contradictions, and replace or qualify superseded claims. Do not append dated update sections or a meeting-by-meeting log; preserve useful current technical details and material uncertainty. Dates that define facts or deadlines may remain. Do not include the separator or ## Timeline; the writer owns them.' },
           ...timelineInputProperties(),
@@ -2560,7 +2560,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'maintenance/sample_page_quality',
-      description: 'Select a random sample of canonical pages for judgment-based maintenance. Read and assess the returned pages against this rubric: Summary states the substantive subject and takeaway, not Brain or page mechanics; body works as a standalone Pareto-style one-pager; the explanation is internally structured, non-overlapping, and covers the important ground for its stated scope. This tool selects candidates only: the caller must make and record the editorial judgment.',
+      description: 'Select a random sample of canonical pages for judgment-based maintenance. Read and assess the returned pages against this rubric: Summary delivers the subject and core opportunity or concrete development in one sentence; omit routine diligence, unverified-claims, and authorization disclaimers while retaining precise qualifiers essential to avoid misrepresentation; body works as a standalone Pareto-style one-pager; the explanation is internally structured, non-overlapping, and covers the important ground for its stated scope. This tool selects candidates only: the caller must make and record the editorial judgment.',
       inputSchema: {
         type: 'object',
         properties: {

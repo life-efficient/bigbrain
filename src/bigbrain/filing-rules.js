@@ -25,6 +25,13 @@ const DEFAULT_RULES = {
   archive: 'Historical or superseded material that should not stay active.',
 };
 
+export const SUMMARY_GUIDANCE = [
+  'State the substantive subject and takeaway, not Brain or page mechanics. Do not describe transcripts, raw artifacts, timelines, provenance, source storage, indexing, or rendering.',
+  'Write the first-class summary as the one sentence a reader should read if they read nothing else: identify the subject and its core opportunity, argument, significance, or concrete current development.',
+  'For deals, lead with the asset or business, transaction or partnership opportunity, and our role or meaningful progress when established. Use concrete evidence-backed language rather than routine diligence, unverified-claims, or authorization disclaimers.',
+  'Keep source attribution, diligence gaps, uncertainty, and action permissions accurately in the detailed body or appropriate source and task records. Include uncertainty in the summary only when omitting that specific uncertainty would materially misrepresent the opportunity or current state; use a precise qualifier, not boilerplate. Do not strengthen the evidence or turn proposals into completed actions.',
+];
+
 const CURRENT_BODY_GUIDANCE = [
   'For ordinary canonical subject pages, write the body as a synthesized current briefing organized by the subject, not by ingestion dates or successive updates.',
   'On every substantive update, integrate new evidence into the relevant sections, reconcile contradictions, and replace or qualify superseded claims. Preserve useful current commercial and technical details, attribution, and uncertainty.',
@@ -81,6 +88,7 @@ export async function filingRulesForBrain({ config }) {
     brain_dir: config.brainDir,
     markdown: renderFilingRulesMarkdown({ config, sharedGuidance, collections, rawFileRules }),
     shared_guidance: sharedGuidance,
+    summary_guidance: SUMMARY_GUIDANCE,
     current_body_guidance: CURRENT_BODY_GUIDANCE,
     timeline_guidance: TIMELINE_WRITING_GUIDANCE,
     collections,
@@ -171,6 +179,10 @@ function renderFilingRulesMarkdown({ config, sharedGuidance, collections, rawFil
   }
 
   sections.push(
+    '## Summary Writing',
+    '',
+    ...SUMMARY_GUIDANCE.map((item) => `- ${item}`),
+    '',
     '## Current Body Writing',
     '',
     ...CURRENT_BODY_GUIDANCE.map((item) => `- ${item}`),

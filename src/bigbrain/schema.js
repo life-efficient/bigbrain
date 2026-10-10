@@ -27,7 +27,7 @@ export function schemaDescription() {
     page_shape: [
       'YAML frontmatter',
       'Title',
-      'A required concise summary field: the page’s standalone takeaway',
+      'A required concise summary field: the one sentence a reader should read if they read nothing else; state the subject and core opportunity, significance, or concrete development. Omit routine diligence, unverified-claims, and authorization disclaimers; retain a precise qualifier only when essential to avoid material misrepresentation. Preserve evidence, uncertainty, and action permissions in the detailed body or appropriate source and task records.',
       'Detailed current-state body; assignable work belongs in tasks/',
       'Optional ordered image attachments are stored as page metadata and point to existing image files under collection/.raw/',
       '--- followed by ## Timeline',
