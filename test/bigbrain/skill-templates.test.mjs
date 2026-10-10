@@ -126,7 +126,7 @@ test('Comprehension skill preserves iterative evidence-based summary behavior', 
   assert.match(skill, /## Workflow/);
   assert.match(skill, /## Anti-Patterns/);
   assert.match(skill, /## Output/);
-  assert.match(skill, /playbooks\/comprehension\/session/);
+  assert.match(skill, /overlays\/comprehension\/session/);
   assert.match(skill, /after every meaningful interaction/);
   assert.match(skill, /especially during voice or realtime sessions/);
   assert.match(skill, /prior session summaries across pages/);

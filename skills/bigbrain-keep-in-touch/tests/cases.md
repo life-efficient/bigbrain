@@ -21,5 +21,5 @@ the registry or frequency, and make the uncertainty visible.
 
 ## Should pause cleanly
 
-The playbook settings record is disabled. Return a paused report, do not read
+The overlay settings record is disabled. Return a paused report, do not read
 candidate pages, do not write review history, and do not advance the cursor.

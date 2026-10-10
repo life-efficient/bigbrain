@@ -16,14 +16,14 @@ test('Keep in Touch skill owns the review protocol and visible report contract',
   assert.equal(steps.length, 4);
   for (const [, body] of steps) assert.match(body, /Anti-patterns:/);
   for (const phrase of [
-    'playbooks/keep-in-touch/review',
-    'playbooks/keep-in-touch/record_review',
-    'playbooks/keep-in-touch/set_frequency',
+    'overlays/keep-in-touch/review',
+    'overlays/keep-in-touch/record_review',
+    'overlays/keep-in-touch/set_frequency',
     'one outcome for every candidate',
     '7 days as the default frequency',
     '3, 7, 14, 30, or 60 days',
     'Review at most 20 people pages per run by default',
-    'oldest-first from the playbook cursor',
+    'oldest-first from the overlay cursor',
     'bounded `limit`',
     'cursor will resume after the last page in this batch',
     'ordinary natural-language output, not raw MCP JSON',
