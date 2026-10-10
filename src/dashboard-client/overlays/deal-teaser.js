@@ -6,15 +6,15 @@ export function dealTeaserParts(record = {}) {
   return { summary, asks };
 }
 
-export function formatDealTeaser(record) {
+export function formatDealTeaser(record, askIndex) {
   const { summary, asks } = dealTeaserParts(record);
-  if (!summary || !asks.length) return '';
-  return `${summary}\n\nLooking for:\n${asks.map((ask) => `• ${ask}`).join('\n')}`;
+  if (!summary || !Number.isInteger(askIndex) || askIndex < 0 || askIndex >= asks.length) return '';
+  return `${summary}\n\nLooking for:\n• ${asks[askIndex]}`;
 }
 
-export async function copyDealTeaser(record, clipboard = globalThis.navigator?.clipboard) {
-  const message = formatDealTeaser(record);
-  if (!message) throw new Error('Add a teaser summary and at least one ask first.');
+export async function copyDealTeaser(record, askIndex, clipboard = globalThis.navigator?.clipboard) {
+  const message = formatDealTeaser(record, askIndex);
+  if (!message) throw new Error('Add a teaser summary and select a valid ask first.');
   if (!clipboard?.writeText) throw new Error('Clipboard access is unavailable. Select and copy the teaser below.');
   try {
     await clipboard.writeText(message);

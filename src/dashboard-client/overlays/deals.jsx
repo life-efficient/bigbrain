@@ -8,17 +8,16 @@ const INVOLVEMENT_LABELS = {
   public_unrelated: 'Public deal',
 };
 
-function DealTeaser({ record }) {
+function DealAsk({ record, askIndex, ask }) {
   const [feedback, setFeedback] = useState('');
   const [copying, setCopying] = useState(false);
-  const { summary, asks } = dealTeaserParts(record);
-  const message = formatDealTeaser(record);
+  const message = formatDealTeaser(record, askIndex);
 
   async function copy() {
     setCopying(true);
     setFeedback('');
     try {
-      await copyDealTeaser(record);
+      await copyDealTeaser(record, askIndex);
       setFeedback('Copied. Ready to paste into WhatsApp.');
     } catch (error) {
       setFeedback(error.message);
@@ -28,21 +27,24 @@ function DealTeaser({ record }) {
   }
 
   return (
-    <div className="deal-teaser" style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '12px' }}>
-      <span className="eyebrow">Anonymous teaser</span>
-      {message ? (
-        <p className="deal-teaser-preview" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', userSelect: 'text' }}>{message}</p>
-      ) : (
-        <>
-          {summary ? <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{summary}</p> : null}
-          {asks.length ? <ul>{asks.map((ask, index) => <li key={index}>{ask}</li>)}</ul> : null}
-          <p className="meta">{!summary && !asks.length ? 'Add an anonymous teaser summary and asks to prepare a message.' : !summary ? 'Add an anonymous teaser summary to enable copying.' : 'Add at least one ask to enable copying.'}</p>
-        </>
-      )}
-      <button type="button" className="graph-button" disabled={!message || copying} onClick={copy}>
+    <div className="deal-ask" style={{ marginTop: '12px' }}>
+      <p className="deal-teaser-preview" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', userSelect: 'text' }}>{message || `Looking for: ${ask}`}</p>
+      <button type="button" className="graph-button" disabled={!message || copying} onClick={copy} aria-label={`Copy ask ${askIndex + 1} for WhatsApp`}>
         {copying ? 'Copying…' : 'Copy for WhatsApp'}
       </button>
       {feedback ? <p className="meta" role="status" aria-live="polite">{feedback}</p> : null}
+    </div>
+  );
+}
+
+function DealTeaser({ record }) {
+  const { summary, asks } = dealTeaserParts(record);
+  return (
+    <div className="deal-teaser" style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '12px' }}>
+      <span className="eyebrow">Anonymous asks</span>
+      {!summary || !asks.length ? <p className="meta">{!summary && !asks.length ? 'Add an anonymous teaser summary and asks to prepare messages.' : !summary ? 'Add an anonymous teaser summary to enable copying each ask.' : 'Add at least one ask to prepare a message.'}</p> : null}
+      {!asks.length && summary ? <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{summary}</p> : null}
+      {asks.map((ask, askIndex) => <DealAsk key={`${askIndex}:${ask}`} record={record} askIndex={askIndex} ask={ask} />)}
     </div>
   );
 }
