@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { copyDealTeaser, dealTeaserParts, formatDealTeaser } from './deal-teaser.js';
 
 const INVOLVEMENT_LABELS = {
   active: 'Our work',
@@ -6,6 +7,45 @@ const INVOLVEMENT_LABELS = {
   network_observed: 'Network observed',
   public_unrelated: 'Public deal',
 };
+
+function DealTeaser({ record }) {
+  const [feedback, setFeedback] = useState('');
+  const [copying, setCopying] = useState(false);
+  const { summary, asks } = dealTeaserParts(record);
+  const message = formatDealTeaser(record);
+
+  async function copy() {
+    setCopying(true);
+    setFeedback('');
+    try {
+      await copyDealTeaser(record);
+      setFeedback('Copied. Ready to paste into WhatsApp.');
+    } catch (error) {
+      setFeedback(error.message);
+    } finally {
+      setCopying(false);
+    }
+  }
+
+  return (
+    <div className="deal-teaser" style={{ borderTop: '1px solid var(--border)', paddingTop: '12px', marginTop: '12px' }}>
+      <span className="eyebrow">Anonymous teaser</span>
+      {message ? (
+        <p className="deal-teaser-preview" style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', userSelect: 'text' }}>{message}</p>
+      ) : (
+        <>
+          {summary ? <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{summary}</p> : null}
+          {asks.length ? <ul>{asks.map((ask, index) => <li key={index}>{ask}</li>)}</ul> : null}
+          <p className="meta">{!summary && !asks.length ? 'Add an anonymous teaser summary and asks to prepare a message.' : !summary ? 'Add an anonymous teaser summary to enable copying.' : 'Add at least one ask to enable copying.'}</p>
+        </>
+      )}
+      <button type="button" className="graph-button" disabled={!message || copying} onClick={copy}>
+        {copying ? 'Copying…' : 'Copy for WhatsApp'}
+      </button>
+      {feedback ? <p className="meta" role="status" aria-live="polite">{feedback}</p> : null}
+    </div>
+  );
+}
 
 export function DealsPanel({ onOpenPage }) {
   const [state, setState] = useState({ status: 'loading', records: [], error: null });
@@ -81,7 +121,7 @@ export function DealsPanel({ onOpenPage }) {
 
   const needle = search.trim().toLowerCase();
   const records = state.records.filter((record) => !needle || [
-    record.title, record.summary, record.page_slug,
+    record.title, record.summary, record.page_slug, record.teaser_summary, ...(Array.isArray(record.asks) ? record.asks : []),
     INVOLVEMENT_LABELS[record.deal_involvement] || 'Involvement not set',
   ].join(' ').toLowerCase().includes(needle));
 
@@ -125,6 +165,7 @@ export function DealsPanel({ onOpenPage }) {
                     {record.summary}
                   </p>
                 ) : <p className="overlay-record-summary deal-record-summary">No summary yet.</p>}
+                <DealTeaser record={record} />
               </div>
             </article>
           ))}
