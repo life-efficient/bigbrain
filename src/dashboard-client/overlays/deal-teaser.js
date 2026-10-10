@@ -12,13 +12,41 @@ export function formatDealTeaser(record, askIndex) {
   return `${summary}\n\nLooking for:\n• ${asks[askIndex]}`;
 }
 
-export async function copyDealTeaser(record, askIndex, clipboard = globalThis.navigator?.clipboard) {
+// Try the synchronous browser copy command while the click gesture is active.
+// Embedded browsers can deny the asynchronous clipboard API even on localhost.
+function copyUsingSelection(message, document) {
+  if (!document?.body || !document?.execCommand) return false;
+  const focused = document.activeElement;
+  const selection = document.getSelection?.();
+  const ranges = [];
+  for (let i = 0; selection && i < selection.rangeCount; i++) ranges.push(selection.getRangeAt(i).cloneRange());
+  const textarea = document.createElement('textarea');
+  textarea.value = message;
+  textarea.setAttribute('readonly', '');
+  textarea.style.cssText = 'position:fixed;left:-9999px;top:0;';
+  document.body.appendChild(textarea);
+  try {
+    textarea.focus({ preventScroll: true });
+    textarea.select();
+    return document.execCommand('copy') === true;
+  } catch { return false; }
+  finally {
+    textarea.remove();
+    focused?.focus?.({ preventScroll: true });
+    if (selection) {
+      selection.removeAllRanges();
+      for (const range of ranges) selection.addRange(range);
+    }
+  }
+}
+
+export async function copyDealTeaser(record, askIndex, clipboard = globalThis.navigator?.clipboard, document = globalThis.document) {
   const message = formatDealTeaser(record, askIndex);
   if (!message) throw new Error('Add a teaser summary and select a valid ask first.');
-  if (!clipboard?.writeText) throw new Error('Clipboard access is unavailable. Select and copy the teaser below.');
-  try {
-    await clipboard.writeText(message);
-  } catch {
-    throw new Error('Could not copy. Select and copy the teaser below.');
+  if (copyUsingSelection(message, document)) return;
+  if (clipboard?.writeText) {
+    try { await clipboard.writeText(message); return; }
+    catch { /* The visible manual-copy field is the final fallback. */ }
   }
+  throw new Error('Automatic copying is unavailable. The complete message is selected below. Press Ctrl+C or Command+C to copy it.');
 }

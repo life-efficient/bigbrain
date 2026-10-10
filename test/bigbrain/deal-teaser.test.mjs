@@ -29,6 +29,27 @@ test('copy waits for clipboard completion and reports failures without claiming 
   let copied;
   await copyDealTeaser(record, 0, { writeText: async (message) => { copied = message; } });
   assert.equal(copied, formatDealTeaser(record, 0));
-  await assert.rejects(copyDealTeaser(record, 0, {}), /Clipboard access is unavailable/);
-  await assert.rejects(copyDealTeaser(record, 0, { writeText: async () => { throw new Error('Denied'); } }), /Could not copy/);
+  await assert.rejects(copyDealTeaser(record, 0, {}), /Automatic copying is unavailable/);
+  await assert.rejects(copyDealTeaser(record, 0, { writeText: async () => { throw new Error('Denied'); } }), /Automatic copying is unavailable/);
+});
+
+
+test('embedded browser copy runs during the click and restores focus', async () => {
+  const record = { teaser_summary: 'Anonymous.', asks: ['Investor', 'Operator'] };
+  let removed = false;
+  let focused = false;
+  let selected = false;
+  let apiCalled = false;
+  const textarea = { style: {}, setAttribute() {}, focus() {}, select() { selected = true; }, remove() { removed = true; } };
+  const document = { activeElement: { focus() { focused = true; } }, body: { appendChild() {} },
+    createElement: () => textarea, execCommand(command) { assert.equal(command, 'copy'); assert.equal(selected, true); return true; } };
+  await copyDealTeaser(record, 1, { writeText: async () => { apiCalled = true; throw Error('Denied'); } }, document);
+  assert.equal(textarea.value, formatDealTeaser(record, 1));
+  assert.equal(apiCalled, false);
+  assert.equal(removed, true);
+  assert.equal(focused, true);
+  document.execCommand = () => false;
+  let copied;
+  await copyDealTeaser(record, 0, { writeText: async (text) => { copied = text; } }, document);
+  assert.equal(copied, formatDealTeaser(record, 0));
 });

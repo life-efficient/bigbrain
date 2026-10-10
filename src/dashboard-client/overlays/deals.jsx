@@ -11,15 +11,22 @@ const INVOLVEMENT_LABELS = {
 function DealAsk({ record, askIndex, ask, disabled, onEdit, onDelete }) {
   const [feedback, setFeedback] = useState('');
   const [copying, setCopying] = useState(false);
+  const [manualCopy, setManualCopy] = useState(false);
+  const manualRef = useRef(null);
+  useEffect(() => {
+    if (manualCopy) { manualRef.current?.focus({ preventScroll: true }); manualRef.current?.select(); }
+  }, [manualCopy]);
   const message = formatDealTeaser(record, askIndex);
 
   async function copy() {
     setCopying(true);
     setFeedback('');
+    setManualCopy(false);
     try {
       await copyDealTeaser(record, askIndex);
       setFeedback('Copied. Ready to paste into WhatsApp.');
     } catch (error) {
+      setManualCopy(true);
       setFeedback(error.message);
     } finally {
       setCopying(false);
@@ -36,6 +43,9 @@ function DealAsk({ record, askIndex, ask, disabled, onEdit, onDelete }) {
       <button type="button" className="graph-button" disabled={disabled} onClick={onEdit} aria-label={`Edit ask ${askIndex + 1}`}>Edit</button>
       <button type="button" className="graph-button" disabled={disabled} onClick={onDelete} aria-label={`Delete ask ${askIndex + 1}`}>Delete</button>
       </div>
+      {manualCopy ? <textarea ref={manualRef} className="overlay-search deal-editor-input" rows={5}
+        readOnly value={message} aria-label={`Complete message for ask ${askIndex + 1}`}
+        onFocus={(event) => event.target.select()} style={{ gridColumn: '1 / -1' }} /> : null}
       {feedback ? <p className="meta" role="status" aria-live="polite">{feedback}</p> : null}
     </div>
   );
