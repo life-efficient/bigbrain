@@ -92,7 +92,7 @@ export function KeepInTouchPanel({ onOpenPerson }) {
       <div className="overlay-metrics">
         <Metric label="Due now" value={dueCount} tone={dueCount ? 'warm' : 'quiet'} />
         <Metric label="Overdue" value={overdueCount} tone={overdueCount ? 'alert' : 'quiet'} />
-        <Metric label="Enrolled" value={records.length} tone="quiet" />
+        <Metric label="Enrolled" value={records.filter((record) => getFrequency(record) !== null).length} tone="quiet" />
       </div>
 
       {enrollOpen ? (
@@ -181,13 +181,16 @@ export function KeepInTouchPanel({ onOpenPerson }) {
 
 function KeepInTouchRecord({ record, workingKey, onOpenPerson, onAction }) {
   const priority = normalizePriority(record.priority);
-  const dueLabel = record.is_overdue
+  const frequency = getFrequency(record);
+  const paused = frequency === null;
+  const dueLabel = paused ? 'No reminders' : record.is_overdue
     ? `${Math.max(1, Number(record.overdue_days || 1))}d overdue`
     : record.is_due
       ? 'Due today'
       : `Due ${formatDate(record.next_due_at)}`;
   const contactKey = `contact:${record.page_slug}`;
   const snoozeKey = `snooze:${record.page_slug}`;
+  const frequencyKey = `frequency:${record.page_slug}`;
   const priorityKey = (next) => `priority:${record.page_slug}:${next}`;
 
   return (
@@ -202,12 +205,28 @@ function KeepInTouchRecord({ record, workingKey, onOpenPerson, onAction }) {
         <div className="overlay-record-meta">
           <span className={record.is_overdue ? 'overlay-due overdue' : record.is_due ? 'overlay-due due' : 'overlay-due'}>{dueLabel}</span>
           <span>{record.stage || 'building'}</span>
-          <span>Every {record.cadence_days || DEFAULT_CADENCE_DAYS}d</span>
+          <span>{paused ? 'Frequency: None' : `Every ${frequency}d`}</span>
           {record.last_contacted_at ? <span>Last touch {formatDate(record.last_contacted_at)}</span> : <span>Not contacted yet</span>}
         </div>
         {record.summary ? <p className="overlay-record-summary">{record.summary}</p> : null}
       </div>
       <div className="overlay-record-actions">
+        <label>
+          Frequency{' '}
+          <select
+            className="overlay-small-button"
+            aria-label={`Keep in Touch frequency for ${record.title || record.page_slug}`}
+            value={paused ? 'none' : String(frequency)}
+            disabled={workingKey === frequencyKey}
+            onChange={(event) => onAction('set-frequency', frequencyKey, {
+              page_slug: record.page_slug,
+              frequency_days: event.target.value === 'none' ? null : Number(event.target.value),
+            })}
+          >
+            <option value="none">None</option>
+            {[3, 7, 14, 30, 60].map((days) => <option key={days} value={days}>Every {days} days</option>)}
+          </select>
+        </label>
         <button
           type="button"
           className="graph-button overlay-action-primary"
@@ -219,7 +238,7 @@ function KeepInTouchRecord({ record, workingKey, onOpenPerson, onAction }) {
         <button
           type="button"
           className="overlay-small-button"
-          disabled={workingKey === snoozeKey}
+          disabled={paused || workingKey === snoozeKey}
           onClick={() => onAction('snooze', snoozeKey, { page_slug: record.page_slug, days: 7 })}
         >
           {workingKey === snoozeKey ? 'Saving…' : 'Snooze 7d'}
@@ -249,6 +268,12 @@ function Metric({ label, value, tone }) {
 function normalizePriority(value) {
   const number = Number(value);
   return Number.isInteger(number) && number >= 1 && number <= 5 ? number : DEFAULT_PRIORITY;
+}
+
+function getFrequency(record) {
+  if (record.frequency_days !== undefined) return record.frequency_days;
+  if (record.cadence_days !== undefined) return record.cadence_days;
+  return DEFAULT_CADENCE_DAYS;
 }
 
 function formatDate(value) {

@@ -45,6 +45,7 @@ import {
   enrollKeepInTouchPerson,
   logKeepInTouchContact,
   setKeepInTouchEnabled,
+  setKeepInTouchFrequency,
   setKeepInTouchPriority,
   snoozeKeepInTouchPerson,
 } from './overlays/keep-in-touch.js';
@@ -448,6 +449,8 @@ async function handleKeepInTouchMutation(config, db, req, requestUrl, actor = nu
       return logKeepInTouchContact(config, db, input, { actor });
     case 'set-priority':
       return setKeepInTouchPriority(config, db, input, { actor });
+    case 'set-frequency':
+      return setKeepInTouchFrequency(config, db, input, { actor });
     case 'snooze':
       return snoozeKeepInTouchPerson(config, db, input, { actor });
     case 'set-enabled':

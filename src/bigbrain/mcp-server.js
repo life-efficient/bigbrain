@@ -2146,7 +2146,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'overlays/keep-in-touch/set_frequency',
-      description: 'Set the Keep in Touch frequency for one enrolled person using the overlay. The daily review uses only 3, 7, 14, 30, or 60 days.',
+      description: 'Set the Keep in Touch frequency for one person. Use null for None to disable reminders, or 3, 7, 14, 30, or 60 days to explicitly enable them.',
       inputSchema: keepInTouchSetFrequencySchema(),
     },
     {
@@ -3349,7 +3349,7 @@ function keepInTouchRecordReviewSchema() {
             reason: { type: 'string' },
             evidence: { type: 'array', items: { type: 'string' }, minItems: 1 },
             confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
-            frequency_days: { type: 'integer', enum: [3, 7, 14, 30, 60] },
+            frequency_days: { type: ['integer', 'null'], enum: [3, 7, 14, 30, 60, null], description: 'Set null for None to disable reminders until explicitly re-enabled.' },
             last_contacted_at: { type: 'string', format: 'date-time' },
           },
           required: ['page_slug', 'outcome', 'reason', 'evidence', 'confidence'],
@@ -3365,10 +3365,11 @@ function keepInTouchSetFrequencySchema() {
   return {
     type: 'object',
     properties: {
+      ...mutationProperties(),
       page_slug: { type: 'string', description: 'Enrolled people page slug such as people/alice.' },
-      frequency_days: { type: 'integer', enum: [3, 7, 14, 30, 60] },
+      frequency_days: { type: ['integer', 'null'], enum: [3, 7, 14, 30, 60, null], description: 'Set null for None to disable reminders until explicitly re-enabled.' },
     },
-    required: ['page_slug', 'frequency_days'],
+    required: ['page_slug', 'frequency_days', ...mutationRequired()],
   };
 }
 

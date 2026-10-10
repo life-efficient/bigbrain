@@ -72,7 +72,7 @@ export async function buildKeepInTouchPayload(config, db, { actor = null, now = 
       brain_name: config.brainName,
     },
     summary: {
-      enrolled: hydratedRecords.length,
+      enrolled: hydratedRecords.filter((record) => record.frequency_days !== null).length,
       due: hydratedRecords.filter((record) => record.is_due).length,
       overdue: hydratedRecords.filter((record) => record.is_overdue).length,
     },
@@ -129,14 +129,21 @@ export async function enrollKeepInTouchPerson(config, db, input, { actor = null,
   const pageSlug = requirePersonSlug(input.page_slug);
   await requirePersonPage(db, pageSlug);
   const existing = await getRecord(db, actor, pageSlug);
+  const explicitFrequency = input.frequency_days !== undefined || input.cadence_days !== undefined;
+  const frequencyDays = explicitFrequency
+    ? normalizeCadence(input.frequency_days ?? input.cadence_days)
+    : keepInTouchRecordFrequency(existing?.data);
   const data = {
-    status: existing?.data?.status || 'active',
+    ...existing?.data,
+    status: frequencyDays === null ? 'paused' : 'active',
     priority: normalizePriority(input.priority ?? existing?.data?.priority ?? 3),
-    stage: normalizeStage(input.stage ?? existing?.data?.stage ?? 'building'),
-    frequency_days: normalizeCadence(input.frequency_days ?? input.cadence_days ?? existing?.data?.frequency_days ?? existing?.data?.cadence_days ?? KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS),
+    stage: frequencyDays === null ? 'paused' : normalizeStage(input.stage ?? (existing?.data?.stage === 'paused' ? 'building' : existing?.data?.stage)),
+    frequency_days: frequencyDays,
     last_contacted_at: normalizeOptionalTimestamp(input.last_contacted_at ?? existing?.data?.last_contacted_at),
-    next_due_at: normalizeOptionalTimestamp(input.next_due_at ?? existing?.data?.next_due_at) || now.toISOString(),
+    next_due_at: frequencyDays === null ? null : normalizeOptionalTimestamp(input.next_due_at ?? existing?.data?.next_due_at) || now.toISOString(),
   };
+  delete data.cadence_days;
+  if (explicitFrequency) { delete data.excluded_by_user; delete data.exclusion_reason; }
   await saveRecord(db, actor, pageSlug, data, now);
   return buildKeepInTouchPayload(config, db, { actor, now });
 }
@@ -147,14 +154,15 @@ export async function logKeepInTouchContact(config, db, input, { actor = null, n
   const existing = await getRecord(db, actor, pageSlug);
   if (!existing) throw new Error(`Keep in Touch person is not enrolled: ${pageSlug}`);
   const contactedAt = normalizeTimestamp(input.contacted_at || now.toISOString(), 'contacted_at');
-  const cadenceDays = normalizeCadence(input.cadence_days ?? input.frequency_days ?? existing.data.frequency_days ?? existing.data.cadence_days ?? KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS);
-  const nextDue = new Date(Date.parse(contactedAt) + cadenceDays * 24 * 60 * 60 * 1000).toISOString();
+  const cadenceDays = keepInTouchRecordFrequency(existing.data) === null ? null
+    : normalizeCadence(input.cadence_days ?? input.frequency_days ?? keepInTouchRecordFrequency(existing.data));
+  const nextDue = cadenceDays === null ? null : new Date(Date.parse(contactedAt) + cadenceDays * 24 * 60 * 60 * 1000).toISOString();
   await saveRecord(db, actor, pageSlug, {
     ...existing.data,
-    status: 'active',
+    status: cadenceDays === null ? 'paused' : 'active',
     frequency_days: cadenceDays,
     last_contacted_at: contactedAt,
-    next_due_at: nextDue,
+    next_due_at: cadenceDays === null ? null : nextDue,
   }, now);
   return buildKeepInTouchPayload(config, db, { actor, now });
 }
@@ -174,17 +182,23 @@ export async function setKeepInTouchFrequency(config, db, input, { actor = null,
   const pageSlug = requirePersonSlug(input.page_slug);
   const existing = await getRecord(db, actor, pageSlug);
   if (!existing) throw new Error(`Keep in Touch person is not enrolled: ${pageSlug}`);
-  const frequencyDays = normalizeFrequency(input.frequency_days);
+  const frequencyDays = input.frequency_days === null ? null : normalizeFrequency(input.frequency_days);
   const lastContactedAt = normalizeOptionalTimestamp(existing.data.last_contacted_at);
-  const nextDueAt = lastContactedAt
+  const nextDueAt = frequencyDays === null ? null : lastContactedAt
     ? new Date(Date.parse(lastContactedAt) + frequencyDays * 24 * 60 * 60 * 1000).toISOString()
     : now.toISOString();
-  await saveRecord(db, actor, pageSlug, {
+  const data = {
     ...existing.data,
+    status: frequencyDays === null ? 'paused' : 'active',
+    stage: frequencyDays === null ? 'paused' : existing.data.stage === 'paused' ? 'maintaining' : normalizeStage(existing.data.stage),
     frequency_days: frequencyDays,
     last_contacted_at: lastContactedAt,
     next_due_at: nextDueAt,
-  }, now);
+  };
+  delete data.cadence_days;
+  delete data.excluded_by_user;
+  delete data.exclusion_reason;
+  await saveRecord(db, actor, pageSlug, data, now);
   return buildKeepInTouchPayload(config, db, { actor, now });
 }
 
@@ -192,6 +206,7 @@ export async function snoozeKeepInTouchPerson(config, db, input, { actor = null,
   const pageSlug = requirePersonSlug(input.page_slug);
   const existing = await getRecord(db, actor, pageSlug);
   if (!existing) throw new Error(`Keep in Touch person is not enrolled: ${pageSlug}`);
+  if (keepInTouchRecordFrequency(existing.data) === null) throw new Error('Keep in Touch frequency is None; set a frequency before snoozing.');
   const days = normalizeCadence(input.days ?? 7);
   const nextDue = new Date(now.getTime() + days * 24 * 60 * 60 * 1000).toISOString();
   await saveRecord(db, actor, pageSlug, {
@@ -234,7 +249,8 @@ function hydrateRecord(record, page, nowMs) {
   const pageSlug = page?.slug || pageSlugFromScope(record.scope_key);
   if (!pageSlug) return null;
   const data = record.data || {};
-  const dueMs = data.next_due_at ? Date.parse(data.next_due_at) : Number.NaN;
+  const frequencyDays = keepInTouchRecordFrequency(data);
+  const dueMs = frequencyDays !== null && data.status !== 'paused' && data.stage !== 'paused' && data.next_due_at ? Date.parse(data.next_due_at) : Number.NaN;
   const isDue = Number.isFinite(dueMs) && dueMs <= nowMs;
   const isOverdue = Number.isFinite(dueMs) && dueMs < nowMs;
   const overdueDays = isOverdue ? Math.max(1, Math.ceil((nowMs - dueMs) / (24 * 60 * 60 * 1000))) : 0;
@@ -245,8 +261,8 @@ function hydrateRecord(record, page, nowMs) {
     status: data.status || 'active',
     priority: normalizePriority(data.priority ?? 3),
     stage: normalizeStage(data.stage),
-    frequency_days: normalizeCadence(data.frequency_days ?? data.cadence_days ?? KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS),
-    cadence_days: normalizeCadence(data.frequency_days ?? data.cadence_days ?? KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS),
+    frequency_days: frequencyDays,
+    cadence_days: frequencyDays,
     last_contacted_at: normalizeOptionalTimestamp(data.last_contacted_at),
     next_due_at: normalizeOptionalTimestamp(data.next_due_at),
     is_due: isDue,
@@ -287,6 +303,11 @@ function normalizeCadence(value) {
   const number = Number(value);
   if (!Number.isInteger(number) || number < 1 || number > 3650) throw new Error('Keep in Touch cadence must be an integer from 1 to 3650 days.');
   return number;
+}
+
+export function keepInTouchRecordFrequency(data = {}) {
+  if (data?.frequency_days === null || data?.excluded_by_user === true) return null;
+  return normalizeCadence(data?.frequency_days ?? data?.cadence_days ?? KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS);
 }
 
 function normalizeFrequency(value) {

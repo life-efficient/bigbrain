@@ -15,6 +15,7 @@ import {
   getKeepInTouchSettings,
   listAllKeepInTouchPersonRecords,
   keepInTouchOwnerKey,
+  keepInTouchRecordFrequency,
 } from './keep-in-touch.js';
 
 const KEEP_IN_TOUCH_CURSOR_SCOPE_KEY = 'daily-review';
@@ -152,6 +153,7 @@ export async function recordKeepInTouchReview(config, db, input, { actor = null,
       if (decision.outcome === 'frequency_changed') {
         if (!existing) throw new Error(`Keep in Touch frequency change requires an enrolled person: ${decision.page_slug}`);
         const beforeFrequency = frequencyFromRecord(existing);
+        if (beforeFrequency === null) throw new Error(`Keep in Touch frequency is None for ${decision.page_slug}; only an explicit user frequency change can re-enable it.`);
         if (beforeFrequency === decision.frequency_days) {
           throw new Error(`Keep in Touch frequency change did not change the frequency: ${decision.page_slug}`);
         }
@@ -349,18 +351,20 @@ function normalizeReviewLimit(value) {
 }
 
 function frequencyFromRecord(record) {
-  const value = Number(record?.data?.frequency_days ?? record?.data?.cadence_days ?? KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS);
-  return Number.isInteger(value) ? value : KEEP_IN_TOUCH_DEFAULT_FREQUENCY_DAYS;
+  return keepInTouchRecordFrequency(record?.data);
 }
 
 function recordIsDue(record, asOf) {
-  return Boolean(record?.data?.next_due_at && Date.parse(record.data.next_due_at) <= Date.parse(asOf));
+  return Boolean(frequencyFromRecord(record) !== null && record?.data?.status !== 'paused'
+    && record?.data?.stage !== 'paused' && record?.data?.next_due_at
+    && Date.parse(record.data.next_due_at) <= Date.parse(asOf));
 }
 
 function registrySnapshot(record) {
   if (!record) return null;
   return {
-    enrolled: true,
+    enrolled: record.frequency_days !== null,
+    excluded: record.frequency_days === null,
     frequency_days: record.frequency_days,
     last_contacted_at: record.last_contacted_at,
     next_due_at: record.next_due_at,

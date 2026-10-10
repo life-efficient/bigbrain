@@ -902,6 +902,24 @@ Active person.
     assert.equal(lastPage.next_cursor, null);
     assert.equal(new Set([...firstPage.records, ...lastPage.records].map((row) => row.page_slug)).size, 105);
 
+    const frequencyTool = listed.result.tools.find((tool) => tool.name === 'overlays/keep-in-touch/set_frequency');
+    assert.ok(frequencyTool.inputSchema.properties.frequency_days.enum.includes(null));
+    assert.ok(frequencyTool.inputSchema.required.includes('provenance'));
+    const disabledFrequency = await rpc(running.url, 'tools/call', {
+      name: 'overlays/keep-in-touch/set_frequency',
+      arguments: { page_slug: 'people/alice', frequency_days: null },
+    }, 'secret');
+    assert.equal(disabledFrequency.error, undefined, disabledFrequency.error?.message);
+    const disabledPerson = disabledFrequency.result.structuredContent.records.find((row) => row.page_slug === 'people/alice');
+    assert.equal(disabledPerson.frequency_days, null);
+    assert.equal(disabledPerson.next_due_at, null);
+    assert.equal(disabledPerson.is_due, false);
+    const enabledFrequency = await rpc(running.url, 'tools/call', {
+      name: 'overlays_keep_in_touch_set_frequency',
+      arguments: { page_slug: 'people/alice', frequency_days: 3 },
+    }, 'secret');
+    assert.equal(enabledFrequency.error, undefined, enabledFrequency.error?.message);
+
     const contacted = await rpc(running.url, 'tools/call', {
       name: 'overlays/keep-in-touch/log_contact',
       arguments: { page_slug: 'people/alice', contacted_at: '2026-08-27T12:00:00Z' },
