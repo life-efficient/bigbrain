@@ -67,7 +67,7 @@ export function schemaDescription() {
     deal_page_shape: {
       path: 'deals/<deal-slug>.md',
       frontmatter: {
-        asks: 'Optional anonymous, externally shareable asks. Each string is one complete prose sentence stating the specific counterparty or contribution needed and its role in the opportunity. Avoid first-person questions, salutations, headings, and bullet prefixes; each ask must read naturally after the shared teaser.',
+        asks: 'Optional anonymous, externally shareable asks. Default to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per complete sentence, with separate asks for distinct counterparties or roles. Use "We welcome introductions to..." only when access to a counterparty is the actual need. Avoid questions, salutations, headings, bullet prefixes, identifying details, and unsupported claims or commitments; each ask must read naturally after the shared teaser without repeating it.',
         teaser_summary: 'Optional anonymous, externally shareable teaser that makes the opportunity clear and exciting through concrete, evidence-backed substance: the asset or project, its distinguishing features, and the proposed transaction or partnership. Avoid invented claims or commitments, company, project, and contact names, and combinations of identifying details. Keep separate from the internal summary.',
         deal_involvement: {
           public_unrelated: 'A public deal unrelated to us.',
@@ -158,12 +158,12 @@ export function renderSchemaMarkdown() {
     'deal_involvement: network_actionable',
     'teaser_summary: European infrastructure development seeking an investment partner.',
     'asks:',
-    '  - An infrastructure equity partner is needed to fund phased development.',
+    '  - We are seeking an infrastructure equity partner to fund phased development.',
     '---',
     '```',
     '',
     '- `deal_involvement` is optional for existing records and must be one of `public_unrelated`, `network_observed`, `network_actionable`, or `active` when present.',
-    '- `asks` is an optional list of complete prose sentences stating the specific counterparty or contribution needed. Avoid first-person questions, headings, and bullet prefixes inside each string.',
+    '- `asks` is an optional list of complete prose sentences. Default to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per ask; separate distinct counterparties or roles. Use "We welcome introductions to..." only when access is the actual need. Avoid questions, headings, bullet prefixes, and repetition of the shared teaser.',
     '- `teaser_summary` makes the anonymous opportunity clear and exciting with concrete, evidence-backed substance, distinct from the internal `summary`. Append one selected ask as prose for an individual message; the all-asks message may present the asks as bullets. Do not invent claims or commitments.',
     '- Keep both fields free of company, project, and contact names, source routes, private URLs, and combinations of identifying details. Do not infer shareable copy from the internal title or summary.',
     '- `public_unrelated` is a public deal unrelated to us.',

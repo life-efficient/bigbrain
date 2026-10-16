@@ -164,7 +164,7 @@ function DealTeaser({ record, onSaved }) {
               <Dialog.Close className="deal-modal-close" disabled={saving} aria-label="Close dialog"><X size={18} /></Dialog.Close>
             </div>
             <Dialog.Description>
-              {editor.type === 'delete' ? 'Remove this ask from the deal. The teaser summary will stay unchanged.' : 'Prepare anonymous wording to share with your network.'}
+              {editor.type === 'delete' ? 'Remove this ask from the deal. The teaser summary will stay unchanged.' : editor.type === 'summary' ? 'Prepare anonymous wording to share with your network.' : 'Start with “We are seeking…” and name the counterparty and role needed now. Keep one need per ask. Use “We welcome introductions to…” when access is the need. Omit identifying details and unsupported claims.'}
             </Dialog.Description>
             <form className="deal-teaser-editor" onSubmit={save}>
               {editor.type === 'delete' ? <p className="deal-ask-text">{editor.text}</p> : (
@@ -172,7 +172,7 @@ function DealTeaser({ record, onSaved }) {
                   {editor.type === 'summary' ? 'Teaser summary' : 'Ask'}
                   <textarea autoFocus rows={editor.type === 'summary' ? 6 : 4} value={editor.text} disabled={saving}
                     onChange={(event) => setEditor((current) => ({ ...current, text: event.target.value }))}
-                    className="overlay-search deal-editor-input" placeholder={editor.type === 'summary' ? 'Describe the opportunity without identifying details…' : 'Describe the specific partner, expertise or introduction needed…'} />
+                    className="overlay-search deal-editor-input" placeholder={editor.type === 'summary' ? 'Describe the opportunity without identifying details…' : 'We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context].'} />
                 </label>
               )}
               {feedback ? <p className="deal-modal-error" role="alert">{feedback}</p> : null}

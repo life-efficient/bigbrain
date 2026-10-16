@@ -70,16 +70,21 @@ teaser_summary: >-
   A European digital infrastructure site offers a phased development opportunity,
   with an incoming partner able to shape the facility and delivery model.
 asks:
-  - An infrastructure equity partner is needed to fund phased development.
-  - An experienced developer is needed to shape the facility and delivery plan.
+  - We are seeking an infrastructure equity partner to fund phased development.
+  - We are seeking an experienced developer to shape the facility and delivery plan.
 ```
 
 The Deals card previews the shared teaser summary and each ask with its own copy
 button. Each button copies the teaser summary followed by only that ask as prose,
 without a heading or bullet. **Copy all asks** combines the shared teaser with a
 bulleted list of all asks. Write each stored ask as a complete sentence stating
-the specific counterparty or contribution needed, without first-person questions
-or bullet prefixes. Make the teaser clear and exciting through concrete,
+one evidence-backed need at the current deal stage. Default to **“We are seeking
+[specific counterparty] to [specific role or transaction], for [brief anonymous
+opportunity context].”** Include only context needed to understand the ask without
+repeating the shared teaser. Separate distinct needs, such as an investor and an
+operating partner, into individual asks. Use **“We welcome introductions to…”**
+only when access to a counterparty is the actual need. Avoid questions, salutations,
+headings, and bullet prefixes. Make the teaser clear and exciting through concrete,
 evidence-backed opportunity details; do not invent claims or commitments. Copy
 requires a nonempty teaser summary and a nonempty string for the selected ask. Internal titles, internal summaries, page paths, and involvement labels
 are never substituted into the copied message. Authors must prepare anonymous

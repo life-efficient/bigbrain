@@ -150,7 +150,7 @@ function defaultDealFields() {
     asks: {
       type: 'array',
       items: { type: 'string' },
-      description: 'Optional anonymous, externally shareable asks. Each string is one complete prose sentence stating the specific counterparty or contribution needed and its role in the opportunity. Avoid first-person questions, salutations, headings, and bullet prefixes; each ask must read naturally after the shared teaser.',
+      description: 'Optional anonymous, externally shareable asks. Default to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per complete sentence, with separate asks for distinct counterparties or roles. Use "We welcome introductions to..." only when access to a counterparty is the actual need. Avoid questions, salutations, headings, bullet prefixes, identifying details, and unsupported claims or commitments; each ask must read naturally after the shared teaser without repeating it.',
     },
     teaser_summary: {
       type: 'string',
