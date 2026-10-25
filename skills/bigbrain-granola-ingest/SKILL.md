@@ -20,6 +20,7 @@ Discover and route recent Granola meetings, delegate each claimed meeting to `$b
 - Before delegation, a continuation checklist records the Granola-owned steps that remain after the delegated result returns.
 - A delegated Meeting Ingest result is intermediate and cannot complete the Granola run, verify a route, advance a cursor, or emit the batch report.
 - Partial or failed delegated results never verify the route or advance the cursor.
+- Reconcile confirmed participant contact separately from ingestion using `$bigbrain-keep-in-touch` Contact Evidence Rules and step 4. The canonical relationship Brain is Personal Brain; a verified meeting or timeline update alone does not verify its contact overlay.
 - Rely on the destination Brain MCP for automatic propagation and backup, and perform independent caller read-back before reporting success. Run manual sync or maintenance only if verification identifies a failed side effect that requires repair.
 - Final output is count-first, grouped by destination-brain headings with meeting-title bullets and created-page sub-bullets, and privacy-safe.
 
@@ -33,7 +34,9 @@ helper. Do not use removed `bigbrain granola cursor` or low-level
    Stop when the ledger is not writable, its schema is incompatible, integrity
    is not `ok`, or foreign-key violations are present.
 2. Run `bigbrain-granola-ledger inspect --source granola --item ID` before
-   recording a route. A verified route is a duplicate and permits no new write.
+   recording a route. A verified route is a duplicate and permits no new
+   ingestion write. The independent contact-overlay correction in step 5
+   does not reopen or change that verified route.
 3. Record one decision with `bigbrain-granola-ledger record`, then atomically
    claim an approved route with `bigbrain-granola-ledger claim`. A response with
    `claimed: false` permits no worker and no destination write.
@@ -92,6 +95,7 @@ prompts, credentials, or other private content to the ledger helper.
    - In machine-wide routing mode, also check the global routing ledger and destination provenance by Granola ID before attempting any write.
    - Treat matching Granola coverage as already ingested even if the title changed.
    - Skip duplicates unless a missing transcript, missing sidecar, stale participant/entity link, or clear task/status update needs repair.
+   - A verified duplicate can still need contact-overlay reconciliation. Use its traceable original participant evidence and actual meeting time, following the contact reconciliation step below. Do not re-ingest the meeting, fetch its transcript without an evidence gap, or reopen its verified ledger route solely for an overlay correction.
    - Anti-patterns: duplicate meeting pages, relying on title-only dedupe, ignoring changed titles with same Granola ID, skipping a new processable meeting because it feels low-value, repairing pages without a concrete gap
 6. Prepare the delegated meeting handoff and continuation checklist.
    - Complete the routing-ledger `record` and `claim` steps before allowing any destination write. Invoke Meeting Ingest only after the route is successfully claimed with `claimed: true`; a route with `claimed: false` permits no delegation.
@@ -119,6 +123,9 @@ prompts, credentials, or other private content to the ledger helper.
    - Only after delegated completion, Granola final read-back, and required-artifact verification succeed may the caller run `bigbrain-granola-ledger verify` with a non-sensitive verification reference.
    - Run `bigbrain-granola-ledger advance` only after the same route is verified. If any post-delegation check fails, use `fail` with a non-sensitive code and leave the cursor unchanged.
    - Mark the route's continuation checklist complete only after verify and any eligible advance succeed.
+   - After ingestion verification, reconcile confirmed direct participants against Personal Brain using `$bigbrain-keep-in-touch` Contact Evidence Rules and step 4. Verify canonical identity, overlay enablement, and existing enrollment; call `log_contact` only for a confirmed completed meeting whose evidenced timestamp is newer than stored contact. Preserve cadence and skip equal/older events, disabled overlays, and unenrolled people. A meeting invitation, proposed call, mentioned person, or ambiguous participant is not confirmed contact.
+   - Preserve user snoozes: if logging would overwrite an active snooze, or snooze state cannot be verified, hold the overlay correction and report it. Read back contact, due state, and the person timeline after logging. Live tool descriptions and implementations may differ about timeline side effects; verify the actual result instead of assuming either behavior. Add missing substantive meeting facts only once, never a duplicate contact-only entry. An unknown exact timestamp remains pending rather than becoming the ingestion time.
+   - Keep overlay-only failure separate from source ingestion: preserve successful route verification and cursor advancement, retain the event reference and blocker in the run report for retry, and state that contact reconciliation remains pending. Never report the backlog as reconciled merely because the meeting was ingested.
    - Anti-patterns: trusting the delegated report without independent caller read-back, failing to resume after delegation, verifying before final read-back, advancing before verify, leaving a claimed route unresolved, treating a failed advance as successful completion
 9. Continue the batch.
    - Repeat claim, continuation recording, one-meeting delegation, caller resumption, final verification, and cursor handling for every processable candidate.
@@ -140,6 +147,7 @@ prompts, credentials, or other private content to the ledger helper.
 ## Anti-Patterns
 
 - Treating the router as a source of per-brain filing policy instead of reading live destination rules.
+- Treating a verified Granola route or person timeline as proof that Keep in Touch contact state is current, or rolling back successful source ingestion solely because contact logging failed.
 - Treating an absent optional Personal Brain protocol as a blocker or searching every brain for one.
 - Reintroducing purpose tags, approved profiles, examples, or source rules as machine-wide routing gates.
 - Using ambiguous meeting titles or keywords as a substitute for brain-description classification.
@@ -154,6 +162,8 @@ prompts, credentials, or other private content to the ledger helper.
 - Quoting unsafe, slanderous, highly personal, sensitive, or private transcript text in the final report.
 
 ## Output
+
+For behavioral validation, use [composition and contact-reconciliation cases](tests/cases.md). These are designed forward scenarios, not evidence of live-source execution.
 
 Granola Ingest owns the sole user-facing batch report; delegated Meeting Ingest results remain internal handoffs. Start with a plain count sentence, such as `3 meetings ingested, 1 repaired`. For successful ingests, group concise meeting-title bullets by destination Brain and mention newly created non-meeting pages beneath the relevant meeting. Omit assumed meeting pages and transcript sidecars from that created-page list. If nothing changed, say `0 meetings ingested`.
 

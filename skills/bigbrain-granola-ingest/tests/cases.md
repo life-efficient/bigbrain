@@ -74,3 +74,27 @@ Forbidden behavior:
 - Emitting three competing Meeting Ingest reports.
 
 Apply the five synthetic [person identity regression cases](../../bigbrain-meeting-ingest/tests/cases.md#person-identity-regression-cases) to the indicated Granola, Meeting Ingest and Search stages.
+
+## Confirmed participant contact after successful ingestion
+
+Prompt state: A completed meeting has traceable participant identity and an exact timestamp newer than the enrolled person's stored contact in enabled Personal Brain Keep in Touch.
+
+Expected: Follow Keep in Touch evidence rules, re-read current enrollment and snooze state, log the event timestamp without cadence overrides, and read back contact/due state and timeline. Preserve substantive meeting entries without duplicating any timeline side effect. Hold the correction if an active snooze would be overwritten or cannot be verified.
+
+Forbidden: Log ingestion time, enroll automatically, use an organizational overlay, or treat an invitation or a name mentioned in the meeting as direct participation.
+
+## Verified duplicate with a stale contact overlay
+
+Prompt state: The Granola route is already verified and its canonical meeting proves direct participation, but the contact overlay predates it.
+
+Expected: Reconcile only contact state using traceable existing evidence. Equal or older events are no-ops. Missing identity or exact event time remains pending.
+
+Forbidden: Reopen the verified route, duplicate the meeting or transcript, or assume duplicate ingestion implies current contact state.
+
+## Overlay-only failure preserves source progress
+
+Prompt state: Meeting ingestion, read-back, ledger verification, and cursor advancement succeeded; the subsequent contact log fails.
+
+Expected: Retain successful source progress and report contact reconciliation pending with its event reference and retry blocker.
+
+Forbidden: Roll back the source cursor or claim the relationship backlog is reconciled.
