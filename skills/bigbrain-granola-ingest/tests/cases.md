@@ -95,6 +95,6 @@ Forbidden: Reopen the verified route, duplicate the meeting or transcript, or as
 
 Prompt state: Meeting ingestion, read-back, ledger verification, and cursor advancement succeeded; the subsequent contact log fails.
 
-Expected: Retain successful source progress and report contact reconciliation pending with its event reference and retry blocker.
+Expected: Retain successful source progress and the event reference/retry blocker in the private run continuation record. Report the pending correction count and blocker without provider identifiers or participant details.
 
 Forbidden: Roll back the source cursor or claim the relationship backlog is reconciled.
