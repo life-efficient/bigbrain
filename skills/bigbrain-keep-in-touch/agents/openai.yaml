@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Keep in Touch"
-  short_description: "Review changed people pages and surface the next useful relationship touches"
-  default_prompt: "Use $bigbrain-keep-in-touch to run the daily Keep in Touch review in a bounded oldest-first batch, update its private registry and cursor, and report every scanned person and outcome. Include the complete due and overdue queue, a suggested channel for each person, and unsent message drafts wherever evidence supports them. Never send or queue messages."
+  short_description: "Reconcile recent contact before recommending relationship follow-ups"
+  default_prompt: "Use $bigbrain-keep-in-touch in the canonical Personal Brain to review the bounded daily batch or requested backlog. Reconcile WhatsApp and Granola evidence before ranking anyone as overdue, log only verified newer contact, verify resulting due state, and separate unresolved evidence. Preserve the daily cursor contract and report every scanned outcome. Suggest channels and unsent drafts without sending messages."
