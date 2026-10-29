@@ -5,6 +5,13 @@ hierarchy, shared primitives, control placement, compact layouts, interaction
 primitives, modal behavior, responsive behavior, layout constraints, and visual
 states.
 
+## Dropdowns
+
+- Use shadcn-grade accessible components for every visible dropdown, including filters, forms, settings, and action menus. Build on Radix or an equivalent established primitive and reuse the app's shared controls.
+- Never render browser-native `<select>` dropdowns or native datalist menus. Styling the closed native control does not satisfy this rule. Hidden native form controls used internally by accessible components are acceptable.
+- Match the app's trigger, popup, border, spacing, focus ring, hover, disabled, and selected-state treatment. Menus should handle viewport edges and scrolling without clipping.
+- Preserve accessible labels, keyboard navigation, typeahead where applicable, Escape dismissal, and focus restoration. Verify the open menu in the rendered app, not only the closed trigger.
+
 ## Loading Skeletons
 
 - Fixed chrome should render first: app bars, sidebars, route headers, tabs, and
