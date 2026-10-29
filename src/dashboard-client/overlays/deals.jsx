@@ -273,6 +273,8 @@ export function DealsPanel({ onOpenPage }) {
   const [selectedSlugs, setSelectedSlugs] = useState(() => new Set());
   function toggleSelection(slug) { setSelectedSlugs(current => { const next = new Set(current); if (next.has(slug)) next.delete(slug); else next.add(slug); return next; }); }
   const searchToggleRef = useRef(null);
+  const searchInputRef = useRef(null);
+  useEffect(() => { if (searchExpanded) searchInputRef.current?.focus(); }, [searchExpanded]);
   const [dealType, setDealType] = useState('');
   const [dealStatus, setDealStatus] = useState('active');
   const [introductionStatus, setIntroductionStatus] = useState('active');
@@ -419,9 +421,6 @@ export function DealsPanel({ onOpenPage }) {
               changeView(next); tabRefs.current[next]?.focus();
             }}>{label}</button>)}
         </div>
-        <span className="meta deal-result-count" aria-live="polite" aria-label={current.status === 'ready' ? `${records.length} of ${current.records.length} ${noun}s` : `Loading ${noun}s`}>
-          {current.status === 'ready' ? `${records.length} / ${current.records.length}` : '…'}
-        </span>
         <div className="deal-layout-controls">
         <div className="deal-view-tabs deal-layout-tabs" role="tablist" aria-label={showingIntroductions ? 'Introduction layout' : 'Deal layout'}>
           {DEAL_LAYOUTS.map(({ id, label, Icon }, index) => <button type="button" key={id} role="tab"
@@ -447,17 +446,22 @@ export function DealsPanel({ onOpenPage }) {
           : current.status === 'error' ? <div className="overlay-error card" role="alert"><h2>Unable to load {noun}s</h2><p>{current.error}</p><button type="button" className="graph-button" onClick={() => setReload(value => value + 1)}>Retry</button></div>
           : <>
             {current.records.length ? <div className="deal-filters">
+              <div className="deal-filter-controls">
+        <span className="meta deal-result-count" aria-live="polite" aria-label={current.status === 'ready' ? `${records.length} of ${current.records.length} ${noun}s` : `Loading ${noun}s`}>
+          {current.status === 'ready' ? `${records.length} / ${current.records.length}` : '…'}
+        </span>
+
               {!showingIntroductions ? <div className="deal-selection-controls">
                 <button type="button" role="checkbox" aria-checked={allVisibleSelected} aria-label="Select all visible deals" title="Select all visible deals" className="deal-selection-toggle" disabled={downloading || !selectableRecords.length} onClick={() => setSelectedSlugs(current => { const next = new Set(current); selectableRecords.forEach(record => allVisibleSelected ? next.delete(record.page_slug) : next.add(record.page_slug)); return next; })}>{allVisibleSelected ? <CheckSquare size={16} /> : <Square size={16} />}</button>
                 {selectedSlugs.size ? <><span>{selectedSlugs.size} selected</span><button type="button" className="deal-selection-toggle" aria-label="Clear selection" title="Clear selection" disabled={downloading} onClick={() => setSelectedSlugs(new Set())}><X size={14} /></button></> : null}
               </div> : null}
-              <div className="deal-compact-search">
-                <button ref={searchToggleRef} type="button" className="graph-button deal-icon-action" aria-label="Search this view" title="Search" aria-expanded={searchExpanded || !!(showingIntroductions ? introductionSearch : search)} onClick={() => setSearchExpanded(value => !value)}><Search size={16} aria-hidden="true" /></button>
-                {searchExpanded || (showingIntroductions ? introductionSearch : search) ? <input autoFocus className="deal-search-input" type="search" value={showingIntroductions ? introductionSearch : search}
+              <div className={`deal-compact-search${searchExpanded || (showingIntroductions ? introductionSearch : search) ? ' is-expanded' : ''}`}>
+                <button ref={searchToggleRef} type="button" className="graph-button deal-icon-action" aria-label="Search this view" title="Search" aria-expanded={searchExpanded || !!(showingIntroductions ? introductionSearch : search)} onPointerDown={event => event.preventDefault()} onClick={() => { setSearchExpanded(value => !value); if (searchExpanded) searchToggleRef.current?.focus(); }}><Search size={16} aria-hidden="true" /></button>
+                <input ref={searchInputRef} tabIndex={searchExpanded || (showingIntroductions ? introductionSearch : search) ? 0 : -1} aria-hidden={!(searchExpanded || (showingIntroductions ? introductionSearch : search))} className="deal-search-input" type="search" value={showingIntroductions ? introductionSearch : search}
                   onChange={event => showingIntroductions ? setIntroductionSearch(event.target.value) : setSearch(event.target.value)}
                   onBlur={() => setSearchExpanded(false)}
                   onKeyDown={event => { if (event.key === 'Escape') { showingIntroductions ? setIntroductionSearch('') : setSearch(''); setSearchExpanded(false); searchToggleRef.current?.focus(); } }}
-                  placeholder="Search…" aria-label={showingIntroductions ? 'Search introductions, parties or deals' : 'Search deals'} /> : null}
+                  placeholder="Search…" aria-label={showingIntroductions ? 'Search introductions, parties or deals' : 'Search deals'} />
               </div>
               <div className="deal-filter-field">
                 <span className="sr-only" id="deal-status-filter-label">Status</span>
@@ -479,16 +483,17 @@ export function DealsPanel({ onOpenPage }) {
             className="deal-view-tab" aria-pressed={textMode === id} disabled={!!savingStage || !!savingStatus || !!savingArrangement}
             onClick={() => changeTextMode(id)}>{label}</button>)}
         </div> : null}
+              {filtersChanged ? <button type="button" className="graph-button" onClick={() => {
+                if (showingIntroductions) { setIntroductionSearch(''); setIntroductionStage(''); setIntroductionStatus('active'); }
+                else { setSearch(''); setDealType(''); setStage(''); setDealStatus('active'); }
+              }}>Clear filters</button> : null}
+              </div>
         {!showingIntroductions ? <button type="button" className="graph-button deal-download-button"
           title={downloading ? 'Preparing PDF…' : selectedSlugs.size ? 'Download anonymised PDF of selected deals' : 'Download anonymised PDF of all active deals'}
           aria-label={downloading ? 'Preparing PDF' : selectedSlugs.size ? 'Download anonymised PDF of selected deals' : 'Download anonymised PDF of all active deals'}
           onClick={downloadPdf} disabled={downloading || state.status !== 'ready' || !state.records.some(record => recordStatus(record) === 'active')}>
           <Download size={16} aria-hidden="true" />{downloading ? 'Preparing PDF…' : selectedSlugs.size ? `Download selected (${selectedSlugs.size})` : 'Download PDF'}
         </button> : null}
-              {filtersChanged ? <button type="button" className="graph-button" onClick={() => {
-                if (showingIntroductions) { setIntroductionSearch(''); setIntroductionStage(''); setIntroductionStatus('active'); }
-                else { setSearch(''); setDealType(''); setStage(''); setDealStatus('active'); }
-              }}>Clear filters</button> : null}
             </div> : null}
             <div role="tabpanel" id={`deal-layout-${layout}`} aria-labelledby={`deal-layout-tab-${layout}`} tabIndex={0}>
             {records.length ? showingIntroductions && layout === 'kanban' ? <DealIntroductionKanban onEdit={editRecord} records={records} onOpenPage={onOpenPage} onMoveStage={moveIntroductionStage} savingSlug={savingStage} statusSavingSlug={savingStatus} arrangementSavingSlug={savingArrangement} onStatusChange={changeStatus} onArrangementChange={changeArrangement} /> : !showingIntroductions && layout === 'kanban' ? <DealKanban onEdit={editRecord} selectedSlugs={selectedSlugs} onToggleSelection={toggleSelection} selectionDisabled={downloading} textMode={textMode} records={records} onOpenPage={onOpenPage} onMoveStage={moveDealStage} savingSlug={savingStage} statusSavingSlug={savingStatus || savingArrangement} onStatusChange={changeStatus} /> : <div className="overlay-record-list">
