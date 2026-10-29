@@ -1128,6 +1128,30 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-kanban-summary { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; overflow-wrap: anywhere; }
       .deals-page .deal-kanban-types { display: flex; flex-wrap: wrap; gap: 5px; }
       .deals-page .deal-kanban-waiting { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+      .deals-page .deal-kanban { align-items: stretch; max-height: max(340px, calc(100dvh - 390px)); min-height: 320px; padding: 3px 3px 16px; }
+      .deals-page .deal-kanban-column { display: flex; flex-direction: column; min-height: 300px; transition: border-color 140ms ease, background 140ms ease; }
+      .deals-page .deal-kanban-cards { display: flex; flex-direction: column; overflow-y: auto; min-height: 0; padding: 2px; scrollbar-width: thin; }
+      .deals-page .deal-kanban-card { position: relative; flex: none; transition: opacity 140ms ease, box-shadow 140ms ease; }
+      .deals-page .deal-kanban-card-head { display: flex; gap: 8px; align-items: flex-start; }
+      .deals-page .deal-kanban-card-head .deal-kanban-title { flex: 1; min-width: 0; }
+      .deals-page .deal-drag-handle { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 28px; height: 30px; margin: -4px -6px 0 0; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: grab; touch-action: none; }
+      .deals-page .deal-drag-handle:hover { color: var(--ink); background: rgba(255,255,255,0.08); }
+      .deals-page .deal-drag-handle:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+      .deals-page .deal-drag-handle:active { cursor: grabbing; }
+      .deals-page .deal-drag-handle:disabled { cursor: wait; opacity: 0.35; }
+      .deals-page .deal-kanban-card.is-dragging { opacity: 0.28; border-style: dashed; }
+      .deals-page .deal-kanban-card.is-saving { border-color: var(--line-strong); }
+      .deals-page .deal-kanban-column.is-drop-target { border-color: var(--accent-strong); background: rgba(255,255,255,0.065); box-shadow: inset 0 0 0 1px var(--accent-strong); }
+      .deals-page .deal-drop-preview { flex: none; border: 1px dashed var(--accent-strong); border-radius: 9px; padding: 16px 12px; color: var(--ink); font-size: 12px; background: rgba(255,255,255,0.04); }
+      .deals-page .deal-empty-column { padding: 28px 12px; border: 1px dashed var(--line); border-radius: 9px; color: var(--muted); font-size: 12px; text-align: center; }
+      .deals-page .deal-drag-hint { margin: 0 0 8px; color: var(--muted); font-size: 11px; }
+      .deals-page .deal-card-saving { font-size: 11px; color: var(--muted); }
+      .deal-drag-overlay { width: 100%; pointer-events: none; }
+      .deal-drag-overlay .deal-kanban-card { transform: rotate(1deg); border-color: var(--accent-strong); box-shadow: 0 20px 55px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3); background: var(--panel); }
+      .deals-page .deal-stage-feedback { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line-strong); border-radius: 9px; padding: 10px 12px; font-size: 12px; background: var(--panel); }
+      .deals-page .deal-stage-feedback.is-error { border-color: #aa5f5f; }
+      .deals-page .deal-stage-feedback button { display: inline-flex; padding: 3px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
+      @media (prefers-reduced-motion: reduce) { .deals-page .deal-kanban-card, .deals-page .deal-kanban-column { transition: none; } .deal-drag-overlay .deal-kanban-card { transform: none; } }
       .deals-page .deal-kanban:focus-visible, .deals-page .deal-kanban-title:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 3px; }
       @media (max-width: 600px) { .deals-page .deal-kanban-column { flex-basis: min(290px, 85vw); } .deals-page .deal-layout-controls { gap: 8px; } }
       .deals-page .deal-filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }

@@ -5,6 +5,7 @@ import { X, Plus, Pencil, Trash2, Copy, Download, List, Columns3 } from 'lucide-
 import { copyAllDealAsks, copyDealTeaser, dealTeaserParts, formatAllDealAsks, formatDealTeaser } from './deal-teaser.js';
 import { DEAL_STAGE_LABELS, DEAL_TYPE_LABELS, INTRODUCTION_STAGE_LABELS, matchesDealFilters, matchesIntroductionFilters } from './deal-progress.js';
 import { DealKanban } from './deal-kanban.jsx';
+import { saveDealStage } from './deal-kanban.js';
 import { DealIntroductionRow, DealNextActions, DealProgress } from './deal-progress.jsx';
 
 import { fetchAnonymisedDealsPdf, loadAllDealRecords } from './deal-view-data.js';
@@ -247,6 +248,25 @@ export function DealsPanel({ onOpenPage }) {
   const [introductions] = useDealCollection('/api/overlays/deals/introductions', reload);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState('');
+  const [savingStage, setSavingStage] = useState(null);
+  const [stageFeedback, setStageFeedback] = useState(null);
+  const stagePending = useRef(false);
+  async function moveDealStage(record, nextStage) {
+    if (stagePending.current) return;
+    stagePending.current = true;
+    setSavingStage(record.page_slug);
+    setStageFeedback({ kind: 'pending', text: `Saving ${record.title} to ${DEAL_STAGE_LABELS[nextStage]}…` });
+    setState(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, deal_stage: nextStage } : item) }));
+    try {
+      const data = await saveDealStage(record, nextStage);
+      setState(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, ...data.record } : item) }));
+      setStageFeedback({ kind: data.maintenance_warning ? 'warning' : 'success', text: data.maintenance_warning || `${record.title} moved to ${DEAL_STAGE_LABELS[nextStage]}.` });
+    } catch (error) {
+      setState(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, deal_stage: record.deal_stage, stage_as_of: record.stage_as_of } : item) }));
+      setStageFeedback({ kind: 'error', text: error.message });
+      if (error.status === 409) setReload(value => value + 1);
+    } finally { stagePending.current = false; setSavingStage(null); }
+  }
   const downloadPending = useRef(false);
   const tabRefs = useRef({});
 
@@ -328,6 +348,9 @@ export function DealsPanel({ onOpenPage }) {
         {current.status === 'ready' ? <span className="meta">{filtered ? `${records.length} of ` : ''}{current.records.length} {noun}{current.records.length === 1 ? '' : 's'}</span> : null}
         </div>
       </div>
+      {stageFeedback ? <div className={`deal-stage-feedback is-${stageFeedback.kind}`} role={stageFeedback.kind === 'error' ? 'alert' : 'status'} aria-live="polite">
+        <span>{stageFeedback.text}</span>{stageFeedback.kind !== 'pending' ? <button type="button" aria-label="Dismiss stage update" onClick={() => setStageFeedback(null)}><X size={15} /></button> : null}
+      </div> : null}
       {downloadError && !showingIntroductions ? <p className="deal-export-error" role="alert">{downloadError}</p> : null}
       <div className="deal-view-panel" role="tabpanel" id={`deal-panel-${view}`} aria-labelledby={`deal-view-${view}`} tabIndex={0}>
         {current.status === 'loading' ? <div className="deal-list-skeleton" role="status" aria-label={`Loading ${noun}s`}><div /><div /><div /></div>
@@ -355,7 +378,7 @@ export function DealsPanel({ onOpenPage }) {
             </div> : null}
             <div role={showingIntroductions ? undefined : 'tabpanel'} id={showingIntroductions ? undefined : `deal-layout-${layout}`}
               aria-labelledby={showingIntroductions ? undefined : `deal-layout-tab-${layout}`} tabIndex={showingIntroductions ? undefined : 0}>
-            {records.length ? !showingIntroductions && layout === 'kanban' ? <DealKanban records={records} onOpenPage={onOpenPage} /> : <div className="overlay-record-list">
+            {records.length ? !showingIntroductions && layout === 'kanban' ? <DealKanban records={records} onOpenPage={onOpenPage} onMoveStage={moveDealStage} savingSlug={savingStage} /> : <div className="overlay-record-list">
               {showingIntroductions ? records.map(introduction => <DealIntroductionRow key={introduction.page_slug} introduction={introduction} onOpenPage={onOpenPage} />)
                 : records.map(record => <article className="overlay-record card deal-record" key={record.page_slug}>
                   <div className="overlay-record-main">
