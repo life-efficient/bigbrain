@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Plus, Pencil, Trash2, Copy } from 'lucide-react';
 import { copyAllDealAsks, copyDealTeaser, dealTeaserParts, formatAllDealAsks, formatDealTeaser } from './deal-teaser.js';
+import { DEAL_STAGE_LABELS, DEAL_TYPE_LABELS, matchesDealFilters } from './deal-progress.js';
+import { DealIntroductions, DealNextActions, DealProgress } from './deal-progress.jsx';
 
 const INVOLVEMENT_LABELS = {
   active: 'Our work',
@@ -151,7 +153,7 @@ function DealTeaser({ record, onSaved }) {
       {copyFeedback ? <p className="meta" role="status" aria-live="polite">{copyFeedback}</p> : null}
       {title ? <h3>{title}</h3> : null}
       {summary ? <p className="deal-teaser-summary">{summary}</p> : null}
-      {!title || !summary || !asks.length ? <p className="meta">Add an anonymised title, description, and at least one ask to prepare messages.</p> : null}
+      {!asks.length ? <p className="meta">No external ask recorded.</p> : !title || !summary ? <p className="meta">Add an anonymised title and description to copy these asks.</p> : null}
       {asks.map((ask, askIndex) => <DealAsk key={`${askIndex}:${ask}`} record={record} askIndex={askIndex} ask={ask}
         disabled={!!editor || saving} onEdit={() => begin('edit', askIndex)} onDelete={() => begin('delete', askIndex)} />)}
       <Dialog.Root open={!!editor} onOpenChange={(open) => {
@@ -168,7 +170,7 @@ function DealTeaser({ record, onSaved }) {
               <Dialog.Close className="deal-modal-close" disabled={saving} aria-label="Close dialog"><X size={18} /></Dialog.Close>
             </div>
             <Dialog.Description>
-              {editor.type === 'delete' ? 'Remove this ask from the deal. The title and description will stay unchanged.' : ['title', 'summary'].includes(editor.type) ? 'Prepare anonymised wording to share with your network.' : 'Start with “We are seeking…” and name the counterparty and role needed now. Keep one need per ask. Use “We welcome introductions to…” when access is the need. Omit identifying details and unsupported claims.'}
+              {editor.type === 'delete' ? 'Remove this ask from the deal. The title and description will stay unchanged.' : ['title', 'summary'].includes(editor.type) ? 'Prepare anonymised wording to share with your network.' : 'Describe a contribution sought from a new participant, such as investment, compute capacity, customers or delivery support. Keep one need per ask and omit identifying details. Requests for documents, decisions or replies from existing parties belong in follow-up tasks.'}
             </Dialog.Description>
             <form className="deal-teaser-editor" onSubmit={save}>
               {editor.type === 'delete' ? <p className="deal-ask-text">{editor.text}</p> : (
@@ -199,6 +201,8 @@ function DealTeaser({ record, onSaved }) {
 export function DealsPanel({ onOpenPage }) {
   const [state, setState] = useState({ status: 'loading', records: [], error: null });
   const [search, setSearch] = useState('');
+  const [dealType, setDealType] = useState('');
+  const [stage, setStage] = useState('');
   const [reload, setReload] = useState(0);
   const requestVersion = useRef(0);
 
@@ -268,11 +272,8 @@ export function DealsPanel({ onOpenPage }) {
     );
   }
 
-  const needle = search.trim().toLowerCase();
-  const records = state.records.filter((record) => !needle || [
-    record.title, record.summary, record.page_slug, record.anonymised_title, record.anonymised_description, ...(Array.isArray(record.anonymised_asks) ? record.anonymised_asks : []),
-    INVOLVEMENT_LABELS[record.deal_involvement] || 'Involvement not set',
-  ].join(' ').toLowerCase().includes(needle));
+  const records = state.records.filter((record) => matchesDealFilters(record, { search, dealType, stage }));
+  const filtered = search.trim() || dealType || stage;
 
   return (
     <section className="overlay-page deals-page">
@@ -280,20 +281,31 @@ export function DealsPanel({ onOpenPage }) {
         <div>
           <span className="eyebrow">Overlay · Deals</span>
           <h1>Deals</h1>
-          <p>Deal summaries and how we are involved.</p>
+          <p>Deals, introductions and the next steps for each party.</p>
         </div>
-        <span className="meta">{state.records.length} {state.records.length === 1 ? 'deal' : 'deals'}</span>
+        <span className="meta">{filtered ? `${records.length} of ` : ''}{state.records.length} {state.records.length === 1 ? 'deal' : 'deals'}</span>
       </div>
 
       {state.records.length ? (
+        <div className="deal-filters">
         <input
           className="overlay-search"
           type="search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search deals…"
-          aria-label="Search deals"
+          placeholder="Search deals, introductions or parties…"
+          aria-label="Search deals, introductions or parties"
         />
+        <label>Deal type<select value={dealType} onChange={event => setDealType(event.target.value)}>
+          <option value="">All types</option>
+          {Object.entries(DEAL_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select></label>
+        <label>Deal stage<select value={stage} onChange={event => setStage(event.target.value)}>
+          <option value="">All stages</option>
+          {Object.entries(DEAL_STAGE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select></label>
+        {filtered ? <button type="button" className="graph-button" onClick={() => { setSearch(''); setDealType(''); setStage(''); }}>Clear filters</button> : null}
+        </div>
       ) : null}
 
       {records.length ? (
@@ -314,8 +326,11 @@ export function DealsPanel({ onOpenPage }) {
                     {record.summary}
                   </p>
                 ) : <p className="overlay-record-summary deal-record-summary">No summary yet.</p>}
+                <DealProgress record={record} />
+                <DealNextActions tasks={record.tasks} onOpenPage={onOpenPage} />
+                <DealIntroductions introductions={record.introductions} onOpenPage={onOpenPage} />
                 <DealTeaser record={record} onSaved={(savedRecord) => setState((current) => ({
-                  ...current, records: current.records.map((item) => item.page_slug === savedRecord.page_slug ? savedRecord : item),
+                  ...current, records: current.records.map((item) => item.page_slug === savedRecord.page_slug ? { ...item, ...savedRecord } : item),
                 }))} />
               </div>
             </article>
@@ -325,7 +340,7 @@ export function DealsPanel({ onOpenPage }) {
         <div className="overlay-empty card">
           <div>
             <h2>{state.records.length ? 'No matching deals' : 'No deals yet'}</h2>
-            <p>{state.records.length ? 'Try a different search.' : 'Deal pages will appear here when they are added to this Brain.'}</p>
+            <p>{state.records.length ? 'Try a different search or clear the filters.' : 'Deal pages will appear here when they are added to this Brain.'}</p>
           </div>
         </div>
       )}

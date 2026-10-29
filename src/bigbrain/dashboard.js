@@ -1087,6 +1087,26 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-teaser-head strong { font-size: 14px; font-weight: 600; }
       .deals-page .deal-record-main, .deals-page .overlay-record-main { gap: 10px; }
       .deals-page .deal-record-summary { max-width: 920px; white-space: pre-wrap; overflow-wrap: anywhere; overflow: visible; font-size: 13px; line-height: 1.55; }
+      .deals-page .deal-filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
+      .deals-page .deal-filters > input { flex: 1 1 280px; min-width: 180px; }
+      .deals-page .deal-filters > label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
+      .deals-page .deal-filters select { min-height: 38px; max-width: 230px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); font: inherit; font-size: 12px; }
+      .deals-page .deal-progress-meta, .deals-page .deal-stage-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+      .deals-page .deal-introductions { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 12px; }
+      .deals-page .deal-introductions > summary { cursor: pointer; padding: 4px 0; color: var(--ink); font-size: 14px; font-weight: 600; }
+      .deals-page .deal-introduction-list { display: grid; gap: 10px; margin-top: 12px; }
+      .deals-page .deal-introduction { display: grid; gap: 10px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 13px; line-height: 1.55; }
+      .deals-page .deal-introduction-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
+      .deals-page .deal-reference-link { padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+      .deals-page .deal-reference-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+      .deals-page .deal-introduction-title { font-size: 15px; font-weight: 600; }
+      .deals-page .deal-next-actions { display: grid; gap: 8px; padding-top: 8px; }
+      .deals-page .deal-next-actions h4 { margin: 0; color: var(--muted); font-size: 12px; font-weight: 600; }
+      .deals-page .deal-next-actions ul { display: grid; gap: 12px; list-style: none; margin: 0; padding: 0; }
+      .deals-page .deal-next-actions li { display: grid; gap: 4px; padding-left: 12px; border-left: 2px solid var(--line-strong); font-size: 13px; line-height: 1.5; }
+      .deals-page .deal-action-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 12px; }
+      .deals-page .deal-action-meta .deal-reference-link { color: inherit; }
+      .deals-page .deal-reference-link:focus-visible, .deals-page .deal-introductions > summary:focus-visible, .deals-page .deal-filters select:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 3px; }
       .deals-page .deal-teaser { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px; margin-top: 4px; }
       .deals-page .deal-teaser-head { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; }
       .deals-page .deal-teaser-actions, .deals-page .deal-ask-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
