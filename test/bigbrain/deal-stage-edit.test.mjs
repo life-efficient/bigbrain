@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { startDashboard } from '../../src/bigbrain/dashboard.js';
-import { updateDealStage, updateDealStatus, updateIntroductionArrangement, buildDealIntroductionsPayload, buildDealsPayload } from '../../src/bigbrain/overlays/deals.js';
+import { updateDealStage, updateIntroductionStage, updateDealStatus, updateIntroductionArrangement, buildDealIntroductionsPayload, buildDealsPayload } from '../../src/bigbrain/overlays/deals.js';
 import { readBrainPage } from '../../src/bigbrain/page-ops.js';
 import { openDatabase, replacePageIndex } from '../../src/bigbrain/db.js';
 
@@ -151,4 +151,73 @@ test('introduction arrangement changes preserve stage and status, reject stale w
  const result=await updateIntroductionArrangement(config,db,input,{indexPage:async()=>{throw new Error('unavailable');}});
  assert.equal(result.record.arrangement_status,'establishing');assert.ok(result.maintenance_warning);
  assert.equal(result.record.stage,'negotiating');assert.equal(result.record.introduction_status,'archived');
+}));
+
+
+async function introductionFixture(run) {
+ return fixture(async context => {
+  const {config,base}=context;
+  await fs.mkdir(path.join(config.brainDir,'organizations'),{recursive:true});
+  for(const name of ['one','two']) await fs.writeFile(path.join(config.brainDir,'organizations',name+'.md'),`---\ntitle: ${name}\nsummary: Party\n---\n# Party\n`);
+  await fs.mkdir(path.join(config.brainDir,'deal_introductions'),{recursive:true});
+  for(const [slug,status,stage,date] of [['sample','active','proposed','2026-10-20'],['archived','archived','proposed','2026-10-20'],['unknown','active','unknown',null]]) {
+   await fs.writeFile(path.join(config.brainDir,'deal_introductions',slug+'.md'),`---\ntitle: Introduction\nsummary: Commercial discussion\ndeal: deals/sample\nparties: [organizations/one, organizations/two]\npurpose: Supply\nintroduction_status: ${status}\narrangement_status: establishing\nstage: ${stage}\n${date?'stage_as_of: '+date+'\n':''}custom_field: Preserve me\n---\n# Introduction\n\nSubstantive route details.\n`);
+  }
+  const endpoint=base+'/api/overlays/deals/introductions/stage';
+  const post=data=>fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)});
+  await run({...context,endpoint,post});
+ });
+}
+const introBaseline={page_slug:'deal_introductions/sample',stage:'introduced',expected_stage:'proposed',expected_stage_as_of:'2026-10-20',expected_introduction_status:'active'};
+
+test('introduction stage moves persist independently, reject competing stale changes, and retain arrangement',async()=>introductionFixture(async({config,db,post})=>{
+ const before=await readBrainPage({config,pagePath:introBaseline.page_slug});
+ const parent=await readBrainPage({config,pagePath:'deals/sample'});
+ const responses=await Promise.all([post(introBaseline),post({...introBaseline,stage:'discussing'})]);
+ assert.deepEqual(responses.map(r=>r.status).sort(),[200,409]);
+ const {record}=await responses.find(r=>r.status===200).json();
+ const after=await readBrainPage({config,pagePath:introBaseline.page_slug});
+ assert.equal(after.body,before.body);assert.equal(after.summary,before.summary);assert.equal(after.frontmatter.custom_field,'Preserve me');
+ assert.equal(after.frontmatter.arrangement_status,'establishing');assert.equal(record.arrangement_status,'establishing');
+ assert.equal(after.frontmatter.stage,record.stage);assert.equal(after.frontmatter.stage_as_of,record.stage_as_of);assert.match(record.stage_as_of,/^\d{4}-\d{2}-\d{2}T/);
+ assert.equal(record.introduction_status,'active');assert.match(after.timeline,/Manually changed introduction stage from proposed/);assert.match(after.timeline,/direct_edit/);
+ assert.equal((await readBrainPage({config,pagePath:'deals/sample'})).markdown,parent.markdown);
+ assert.equal((await buildDealIntroductionsPayload(config,db)).records.find(r=>r.page_slug===introBaseline.page_slug).stage,record.stage);
+ const next={...introBaseline,stage:'negotiating',expected_stage:record.stage,expected_stage_as_of:record.stage_as_of};
+ assert.equal((await post({...next,expected_stage_as_of:'2026-10-01'})).status,409);
+ assert.equal((await post({...next,stage:record.stage})).status,200);
+ assert.equal((await readBrainPage({config,pagePath:introBaseline.page_slug})).markdown,after.markdown);
+ assert.equal((await post(next)).status,200);
+}));
+
+test('introduction stage route validates scope, stage, date, status and methods',async()=>introductionFixture(async({config,db,post,endpoint})=>{
+ for(const patch of [{stage:'preparing'},{stage:'paused'},{page_slug:'deals/sample'},{page_slug:'deal_introductions/../sample'},{page_slug:'deal_introductions/.raw/sample'},{page_slug:'deal_introductions/sample.md'},{expected_stage:null},{expected_stage_as_of:undefined},{expected_stage_as_of:'2026-02-30'},{expected_introduction_status:undefined}])assert.equal((await post({...introBaseline,...patch})).status,400);
+ assert.equal((await post({...introBaseline,page_slug:'deal_introductions/missing'})).status,404);
+ assert.equal((await post({...introBaseline,page_slug:'deal_introductions/archived'})).status,409);
+ assert.equal((await post({...introBaseline,page_slug:'deal_introductions/archived',expected_introduction_status:'archived'})).status,409);
+ assert.equal((await fetch(endpoint)).status,405);assert.equal((await fetch(endpoint,{method:'POST',body:'{bad'})).status,400);
+ for(const scopes of [['brain:read'],['brain:create'],[]])await assert.rejects(updateIntroductionStage(config,db,introBaseline,{actor:{scopes}}),{statusCode:403});
+ const before=await readBrainPage({config,pagePath:'deal_introductions/unknown'});
+ assert.equal((await post({...introBaseline,page_slug:'deal_introductions/unknown',stage:'unknown',expected_stage:'unknown',expected_stage_as_of:null})).status,200);
+ assert.equal((await readBrainPage({config,pagePath:'deal_introductions/unknown'})).markdown,before.markdown);
+ assert.equal((await post({...introBaseline,page_slug:'deal_introductions/unknown',expected_stage:'unknown',expected_stage_as_of:null})).status,200);
+}));
+
+test('introduction stage returns authoritative state if indexing fails',async()=>introductionFixture(async({config,db})=>{
+ const result=await updateIntroductionStage(config,db,introBaseline,{indexPage:async()=>{throw new Error('unavailable');}});
+ assert.equal(result.record.stage,'introduced');assert.ok(result.maintenance_warning);assert.equal(result.record.arrangement_status,'establishing');
+ assert.equal(result.record.stage_as_of,(await readBrainPage({config,pagePath:introBaseline.page_slug})).frontmatter.stage_as_of);
+}));
+
+test('introduction stage and arrangement indexing remain ordered under the page lock',async()=>introductionFixture(async({config,db})=>{
+ let release,ready;
+ const started=new Promise(resolve=>{ready=resolve;});const gate=new Promise(resolve=>{release=resolve;});
+ const first=updateIntroductionStage(config,db,introBaseline,{indexPage:async(database,page)=>{ready();await gate;await replacePageIndex(database,page);}});
+ await started;
+ let secondFinished=false;
+ const second=updateIntroductionArrangement(config,db,{page_slug:introBaseline.page_slug,arrangement_status:'agreed',expected_arrangement_status:'establishing'}).then(value=>{secondFinished=true;return value;});
+ await new Promise(resolve=>setTimeout(resolve,25));assert.equal(secondFinished,false);
+ release();await first;await second;
+ const row=(await buildDealIntroductionsPayload(config,db)).records.find(r=>r.page_slug===introBaseline.page_slug);
+ assert.equal(row.stage,'introduced');assert.equal(row.arrangement_status,'agreed');
 }));

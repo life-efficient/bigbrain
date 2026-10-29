@@ -1,6 +1,6 @@
 import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
-import { dealMetadataSchema, commercialProgress } from '../deal-schema.js';
+import { dealMetadataSchema, dealIntroductionSchema, commercialProgress } from '../deal-schema.js';
 import { parseMarkdownPage } from '../markdown.js';
 import { queryPagesByFrontmatter } from '../frontmatter-query.js';
 import { sqliteRawDatabase, replacePageIndex } from '../db.js';
@@ -225,6 +225,85 @@ export async function updateDealStage(config, db, input, { actor = null, indexPa
     title: page.title, summary: page.summary, deal_involvement: page.frontmatter.deal_involvement,
     deal_types: stringList(page.frontmatter.deal_types), ...anonymisedDealFields(page.frontmatter),
     ...commercialProgress(page.frontmatter), stage_as_of: page.frontmatter.stage_as_of || null,
+    ...(changed ? { updated_at: stageAsOf } : {}) }, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
+}
+
+export async function updateIntroductionStage(config, db, input, { actor = null, indexPage = replacePageIndex } = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidInput('Introduction stage input must be an object.');
+  if (actor?.scopes && !actor.scopes.some(scope => ['brain:admin', 'brain:write'].includes(scope))) {
+    throw Object.assign(new Error('Changing introduction stages requires write access.'), { statusCode: 403 });
+  }
+  const slug = input.page_slug;
+  if (typeof slug !== 'string' || !/^deal_introductions\/(?!.*(?:^|\/)\.{1,2}(?:\/|$))(?!.*\.raw(?:\/|$))[A-Za-z0-9][A-Za-z0-9_/-]*$/.test(slug) || slug.endsWith('/') || slug.includes('//')) {
+    throw invalidInput('page_slug must be a canonical introduction slug.');
+  }
+  const stageSchema = dealIntroductionSchema.shape.stage;
+  if (!stageSchema.safeParse(input.stage).success) throw invalidInput('stage must be a supported introduction stage.');
+  if (typeof input.expected_stage !== 'string' || !input.expected_stage || input.expected_stage.length > 100) throw invalidInput('expected_stage is required.');
+  if (!Object.hasOwn(input, 'expected_stage_as_of') || (input.expected_stage_as_of !== null && (typeof input.expected_stage_as_of !== 'string' || !dealMetadataSchema.shape.stage_as_of.safeParse(input.expected_stage_as_of).success))) {
+    throw invalidInput('expected_stage_as_of must be the previously read date or null.');
+  }
+  if (!['active', 'archived'].includes(input.expected_introduction_status)) throw invalidInput('expected_introduction_status is required.');
+  const stageAsOf = new Date().toISOString();
+  const timelineText = `Manually changed introduction stage from ${input.expected_stage} to ${input.stage} in the Deal introductions board.`;
+  const noChange = Symbol('no stage change');
+  const { updateBrainPage } = await import('../page-ops.js');
+  let page;
+  let changed = false;
+  let maintenanceWarning = null;
+  try {
+    page = await updateBrainPage({ config, pagePath: slug,
+      frontmatterValues: { stage: input.stage, stage_as_of: stageAsOf },
+      timelineEntry: timelineText, timelineSignificance: 'minor',
+      timelineProvenance: { event_id: `dashboard:introduction-stage:${slug}:${randomUUID()}`, source_type: 'direct_edit',
+        source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timelineText },
+      validateExisting(existing) {
+        if (existing.type !== 'deal_introductions') throw Object.assign(new Error('Page is not a deal introduction.'), { statusCode: 404 });
+        const progress = commercialProgress(existing.frontmatter, true);
+        if (progress.introduction_status !== input.expected_introduction_status || progress.introduction_status === 'archived') throw Object.assign(new Error('This introduction is archived or its status changed. Refresh before moving it.'), { statusCode: 409 });
+        if (progress.stage !== input.expected_stage || (existing.frontmatter.stage_as_of || null) !== input.expected_stage_as_of) {
+          throw Object.assign(new Error('This introduction stage changed elsewhere. Refresh the board before moving it.'), { statusCode: 409 });
+        }
+        // Exit under the write lock before any file, date or timeline mutation.
+        if ((existing.frontmatter.stage || 'unknown') === input.stage) throw { marker: noChange, page: existing };
+      },
+      async afterWrite(saved) {
+        try {
+          const parsed = parseMarkdownPage(saved.markdown, slug);
+          await indexPage(db, { ...parsed, path: path.join(config.brainDir, saved.path), pageKind: 'canonical',
+            contentHash: createHash('sha256').update(saved.markdown).digest('hex'), updatedAt: stageAsOf });
+        } catch {
+          maintenanceWarning = 'The stage was saved, but index maintenance needs attention. Refresh before another move.';
+        }
+      },
+    });
+    changed = true;
+  } catch (error) {
+    if (error.marker === noChange) page = error.page;
+    else { if (error.code === 'ENOENT') error.statusCode = 404; throw error; }
+  }
+  if (changed && process.env.BIGBRAIN_MCP_GIT_BACKUP === '1') {
+    try {
+      const { postWriteMaintenance } = await import('../mcp-server.js');
+      await postWriteMaintenance(config, true, actor, `Change introduction stage for ${page.title}`);
+    } catch {
+      maintenanceWarning = 'The stage was saved, but index or backup maintenance needs attention. Refresh before another move.';
+    }
+  }
+  let record;
+  try {
+    for (let cursor = 0; cursor !== null && !record;) {
+      const batch = await buildDealIntroductionsPayload(config, db, { limit: 100, cursor });
+      record = batch.records.find(item => item.page_slug === slug);
+      cursor = batch.next_cursor;
+    }
+  } catch {
+    maintenanceWarning ||= 'The stage was saved, but the updated board could not be loaded. Refresh before another move.';
+  }
+  return { record: { ...(record || { page_slug: slug }),
+    title: page.title, summary: page.summary, purpose: page.frontmatter.purpose,
+    arrangement_status: page.frontmatter.arrangement_status || 'none',
+    ...commercialProgress(page.frontmatter, true), stage_as_of: page.frontmatter.stage_as_of || null,
     ...(changed ? { updated_at: stageAsOf } : {}) }, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
 }
 
