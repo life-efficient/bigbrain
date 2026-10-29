@@ -920,11 +920,11 @@ function DashboardApp() {
                   <kbd className="view-chip-kbd">{item.shortcut}</kbd>
                 </button>
               ))}
-              <DashboardSearch nodes={searchableNodes} onSelectPage={focusGraphNode} />
+              {menu}
             </div>
+            <DashboardSearch nodes={searchableNodes} onSelectPage={focusGraphNode} />
             <div className="topline-actions">
               {demoMode ? <span className="demo-mode-badge">Demo mode</span> : null}
-              {menu}
               <div className="settings-menu" ref={settingsMenuRef}>
                 <button
                   type="button"

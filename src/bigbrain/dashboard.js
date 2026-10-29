@@ -924,19 +924,19 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       h3 { margin: 0 0 10px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
       p { color: var(--muted); margin: 0; }
       .desktop-drag-strip { display: none; }
-      .topline { display: grid; grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; gap: 16px; margin-bottom: 18px; padding-top: 20px; -webkit-app-region: no-drag; user-select: none; }
-      .topline-brand { display: flex; align-items: center; justify-self: start; min-width: 0; width: 100%; }
-      .topline-actions { display: flex; align-items: center; gap: 12px; justify-self: end; }
+      .topline { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; margin-bottom: 18px; padding-top: 20px; -webkit-app-region: no-drag; user-select: none; }
+      .topline-brand { display: flex; align-items: center; flex: 0 1 auto; min-width: 0; }
+      .topline-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 12px; margin-left: auto; }
       .topline-brand .history-nav { margin-right: 4px; }
       .demo-mode-badge { display: inline-flex; align-items: center; min-height: 28px; padding: 0 10px; border: 1px solid rgba(0,255,102,0.28); border-radius: 999px; background: rgba(0,255,102,0.08); color: var(--ink); font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em; text-transform: uppercase; }
       .view-nav { display: flex; gap: 10px; flex-wrap: wrap; }
-      .view-nav-header { justify-content: center; justify-self: center; }
+      .view-nav-header { align-items: center; flex: 0 1 auto; min-width: 0; gap: 8px; }
       .view-nav, .view-chip, .dashboard-search, .dashboard-search-form, .dashboard-search-results, .topline-actions, .topline-actions > *, .settings-button, .health-button, .settings-dropdown, .health-dropdown { -webkit-app-region: no-drag; }
       html.bigbrain-desktop .desktop-drag-strip { display: block; position: absolute; z-index: 20; top: 0; left: 74px; right: 14px; height: 14px; -webkit-app-region: drag; }
-      html.bigbrain-desktop .topline { grid-template-columns: minmax(190px, 1fr) auto minmax(190px, 1fr); padding-left: 60px; }
+      html.bigbrain-desktop .topline { padding-left: 60px; }
       html.bigbrain-desktop .topline-brand .history-nav { margin-left: -60px; }
       @media (max-width: 820px) {
-        html.bigbrain-desktop .topline { grid-template-columns: minmax(150px, 1fr) auto minmax(150px, 1fr); gap: 8px; padding-left: 58px; }
+        html.bigbrain-desktop .topline { gap: 8px; padding-left: 60px; }
         html.bigbrain-desktop .view-nav, html.bigbrain-desktop .topline-actions { gap: 8px; }
         .dashboard-search { width: min(220px, 30vw); }
       }
@@ -955,7 +955,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .view-chip.active .view-chip-count { background: rgba(255,255,255,0.1); }
       .view-chip-kbd { font: inherit; font-size: 11px; line-height: 1; color: var(--muted); border: 1px solid var(--line); border-bottom-color: var(--line-strong); background: var(--surface-strong); border-radius: 7px; padding: 4px 6px; min-width: 20px; text-align: center; box-shadow: inset 0 -1px 0 rgba(148,163,184,0.12); }
       .view-chip.active .view-chip-kbd { color: var(--ink); background: var(--surface); border-color: var(--line-strong); }
-      .dashboard-search { position: relative; width: min(240px, 28vw); min-width: 160px; }
+      .dashboard-search { position: relative; flex: 1 1 160px; width: min(240px, 28vw); max-width: 240px; min-width: 140px; margin-left: auto; }
       .dashboard-search-form { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); box-shadow: 0 6px 18px rgba(15,23,42,0.04); }
       .dashboard-search-form:focus-within { border-color: var(--line-strong); background: var(--surface-muted); }
       .dashboard-search-icon { width: 15px; height: 15px; flex: 0 0 auto; color: var(--muted); }
@@ -2490,10 +2490,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         .view-stage-list { justify-content: center; }
         .list-page-card { width: 100%; max-width: 760px; }
         .view-tasks.preview-open .list-page-card { max-width: 760px; margin: 0 auto; }
-        .topline { grid-template-columns: minmax(44px, 1fr) auto minmax(44px, 1fr); align-items: center; justify-items: initial; }
-        .topline-brand { justify-self: start; }
-        .view-nav-header { justify-self: center; justify-content: center; }
-        .topline-actions { justify-self: end; }
+        .topline { gap: 12px; }
         .page-shell.preview-open { --sidecar-width: 0px; }
         .sidecar-shell { position: fixed; top: 0; right: 0; bottom: 0; left: auto; width: min(var(--sidecar-resized-width, 560px), 92vw); height: 100vh; padding: 0; z-index: 10; }
         .sidecar-panel { border-top: 0; border-radius: 0; }
