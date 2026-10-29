@@ -63,9 +63,12 @@ Both views default to Active and offer Archived and All status filters. Archive
 and Restore are explicit independent actions. Neither cascades to related pages
 or tasks, and neither changes the last commercial stage or its evidence date.
 
-Qualifying is a stage. Establishing arrangement follows it and covers our mandate,
-fees, scope and authority with the originating party. Counterparty-specific
-investment or supply terms belong to the introduction's discussion/negotiation.
+Qualifying is a deal stage. Arrangement is an independent three-option
+pill on deal introductions: No arrangement (`none`), Establishing arrangement
+(`establishing`), and Arrangement agreed (`agreed`). It records facilitation
+scope, fees, authority or permissions for that route without replacing its stage.
+Unset defaults to No arrangement, meaning no arrangement is recorded.
+Counterparty-specific investment or supply terms remain discussion/negotiation.
 Paused and Dropped are not deal stages; use Archived status. Declined remains a
 valid introduction outcome. Archived cards retain their stage but cannot be
 dragged until restored. Stage saves check status as well as stage and evidence
