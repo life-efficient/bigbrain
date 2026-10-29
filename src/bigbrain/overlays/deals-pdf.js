@@ -12,7 +12,14 @@ const exportError = message => Object.assign(new Error(message), { statusCode: 4
 
 // This projection is the export boundary: no internal names, summaries, links,
 // workflow state or legacy teaser fallbacks can reach the PDF renderer.
-export async function readAnonymisedDeals(db) {
+export async function readAnonymisedDeals(db, { pageSlugs } = {}) {
+  if (pageSlugs !== undefined && (!Array.isArray(pageSlugs) || !pageSlugs.length
+    || pageSlugs.some(slug => typeof slug !== 'string' || !slug.startsWith('deals/')
+      || slug !== slug.trim() || slug.split('/').some(part => !part || part === '.' || part === '..')))) {
+    throw exportError('Select one or more valid deals to export.');
+  }
+  const selected = pageSlugs === undefined ? null : new Set(pageSlugs);
+  const exported = new Set();
   const records = [];
   let cursor = 0;
   let expectedTotal;
@@ -20,7 +27,8 @@ export async function readAnonymisedDeals(db) {
   do {
     const page = await queryPagesByFrontmatter({ db, pathPrefix: 'deals', type: 'deals',
       filters: [{ field: 'page_kind', operator: 'eq', value: 'canonical' },
-        { field: 'deal_involvement', operator: 'in', value: [...DEALS_INVOLVEMENTS] }],
+        { field: 'deal_involvement', operator: 'in', value: [...DEALS_INVOLVEMENTS] },
+        ...(selected ? [{ field: 'slug', operator: 'in', value: [...selected] }] : [])],
       fields: ['deal_status', 'deal_stage', 'anonymised_title', 'anonymised_description', 'anonymised_asks'],
       orderBy: [{ field: 'slug', direction: 'asc' }], limit: 100, cursor });
     expectedTotal ??= page.total;
@@ -36,6 +44,7 @@ export async function readAnonymisedDeals(db) {
       if (!Array.isArray(f.anonymised_asks) || f.anonymised_asks.some(a => typeof a !== 'string' || !a.trim())) {
         throw exportError('Some deals have incomplete anonymised asks. Correct those fields in Deals, then download again.');
       }
+      exported.add(p.slug);
       records.push({ title: f.anonymised_title.trim(), description: f.anonymised_description.trim(), asks: f.anonymised_asks.map(a => a.trim()) });
     }
     if (page.next_cursor !== null && (!Number.isInteger(page.next_cursor) || page.next_cursor <= cursor)) {
@@ -44,12 +53,13 @@ export async function readAnonymisedDeals(db) {
     cursor = page.next_cursor;
   } while (cursor !== null);
   if (loadedCount !== expectedTotal) throw exportError('The complete deal list could not be loaded. Please retry.');
+  if (selected && exported.size !== selected.size) throw exportError('Some selected deals are no longer available for export. Refresh Deals and select active deals again.');
   if (!records.length) throw exportError('There are no deals to export yet.');
   return records.sort((a, b) => a.title.localeCompare(b.title, 'en'));
 }
 
-export async function buildDealsPdf(config, db, { generatedAt = new Date() } = {}) {
-  const records = await readAnonymisedDeals(db);
+export async function buildDealsPdf(config, db, { generatedAt = new Date(), pageSlugs } = {}) {
+  const records = await readAnonymisedDeals(db, { pageSlugs });
   coverage ||= openSync(REGULAR);
   for (const record of records) {
     for (const text of [record.title, record.description, ...record.asks]) {

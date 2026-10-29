@@ -96,3 +96,47 @@ test('PDF excludes archived and legacy paused or dropped deals before checking s
  assert.deepEqual(await readAnonymisedDeals(f.db),[{title:anonymous.anonymised_title,description:anonymous.anonymised_description,asks:[]}]);
  } finally {f.close();}
 });
+
+test('selected PDF exports only requested active deals through the anonymised projection', async () => {
+  const f = fixture();
+  try {
+    f.add('deals/selected', { ...anonymous, anonymised_title: 'Selected project', anonymised_asks: ['A delivery partner.'] });
+    f.add('deals/unselected', { ...anonymous, anonymised_title: 'Unselected 🦄', anonymised_description: '' });
+    const options = { pageSlugs: ['deals/selected', 'deals/selected'] };
+    assert.deepEqual(await readAnonymisedDeals(f.db, options), [
+      { title: 'Selected project', description: anonymous.anonymised_description, asks: ['A delivery partner.'] },
+    ]);
+    const pdf = await buildDealsPdf({}, f.db, options);
+    assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+    assert.doesNotMatch(pdf.toString('latin1'), /PRIVATE_|deals\//);
+    await assert.rejects(buildDealsPdf({}, f.db), /anonymised title or description/);
+  } finally { f.close(); }
+});
+
+test('explicit empty, malformed, missing or ineligible PDF selections never export all deals', async () => {
+  const f = fixture();
+  try {
+    f.add('deals/active', anonymous);
+    f.add('deals/archived', { ...anonymous, deal_status: 'archived' });
+    f.add('deals/unrelated', { ...anonymous, deal_involvement: 'public_unrelated' });
+    f.add('deals/attachment', anonymous, { kind: 'attachment' });
+    for (const pageSlugs of [[], null, 'deals/active', [null], [''], ['people/private'],
+      ['deals/../active'], ['deals/active '], ['deals/missing'], ['deals/archived'],
+      ['deals/unrelated'], ['deals/attachment'], ['deals/active', 'deals/missing']]) {
+      await assert.rejects(buildDealsPdf({}, f.db, { pageSlugs }),
+        error => error.statusCode === 422 && !/PRIVATE_|deals\//.test(error.message));
+    }
+  } finally { f.close(); }
+});
+
+test('selected export retains pagination and requires complete anonymised fields', async () => {
+  const f = fixture();
+  try {
+    const pageSlugs = Array.from({ length: 105 }, (_, i) => `deals/selected-${i}`);
+    for (const slug of pageSlugs) f.add(slug, anonymous);
+    f.add('deals/not-selected', anonymous);
+    assert.equal((await readAnonymisedDeals(f.db, { pageSlugs })).length, 105);
+    f.add('deals/incomplete', { ...anonymous, anonymised_asks: null });
+    await assert.rejects(buildDealsPdf({}, f.db, { pageSlugs: ['deals/incomplete'] }), /incomplete anonymised asks/);
+  } finally { f.close(); }
+});
