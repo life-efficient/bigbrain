@@ -28,18 +28,18 @@ function CardContent({ record, onOpenPage, handle, actions, selection, overlay =
   const waiting = [...new Map(tasks.flatMap(task => (task.waiting_on || []).map(pageReference).filter(Boolean)).map(ref => [ref.page_slug, ref])).values()];
   return <>
     <div className="deal-kanban-card-head">
-      {selection}
       {overlay ? <span className="deal-kanban-title">{title}</span> : <button type="button" className="overlay-person-link deal-kanban-title" onClick={() => onOpenPage?.(record.page_slug)}>{title}</button>}
-      <div className="deal-kanban-card-actions">{handle}{actions}</div>
+      <div className="deal-kanban-card-actions">{handle}</div>
     </div>
     <p className="deal-kanban-summary">{description}</p>
     <div className="deal-kanban-types">{(record.deal_types || []).map(type => <span className="deal-involvement" key={type}>{DEAL_TYPE_LABELS[type] || type}</span>)}</div>
     {tasks.length ? <span className="meta">{tasks.length} open {tasks.length === 1 ? 'action' : 'actions'}</span> : null}
     {waiting.length ? <p className="deal-kanban-waiting">Waiting on: {waiting.map(ref => ref.title).join(', ')}</p> : null}
+    {!overlay ? <div className="deal-kanban-card-footer">{selection}<div className="deal-kanban-card-actions">{actions}</div></div> : null}
   </>;
 }
 
-function DraggableDeal({ record, onOpenPage, disabled, saving, statusPending, onStatusChange, textMode, selected, onToggleSelection, selectionDisabled }) {
+function DraggableDeal({ record, onOpenPage, disabled, saving, statusPending, onStatusChange, onEdit, textMode, selected, onToggleSelection, selectionDisabled }) {
   const { title } = dealDisplayText(record, textMode);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: record.page_slug, data: { record }, disabled: disabled || recordStatus(record) === 'archived' });
   return <article ref={setNodeRef} className={`deal-kanban-card${isDragging ? ' is-dragging' : ''}${saving ? ' is-saving' : ''}${selected ? ' is-selected' : ''}`} aria-busy={saving || undefined}>
@@ -47,13 +47,13 @@ function DraggableDeal({ record, onOpenPage, disabled, saving, statusPending, on
       selection={onToggleSelection && recordStatus(record) === 'active' ? <button type="button" role="checkbox" aria-checked={!!selected}
         className="deal-selection-toggle" aria-label={`Select ${title}`} title={`Select ${title}`} disabled={selectionDisabled}
         onClick={() => onToggleSelection(record.page_slug)}>{selected ? <CheckSquare size={16} aria-hidden="true" /> : <Square size={16} aria-hidden="true" />}</button> : null}
-      actions={<DealStatusAction menu record={record} displayTitle={title} onChange={onStatusChange} pending={statusPending} disabled={disabled} />} handle={recordStatus(record) !== 'archived' ? <button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
+      actions={<DealStatusAction menu record={record} displayTitle={title} onEdit={onEdit} onChange={onStatusChange} pending={statusPending} disabled={disabled} />} handle={recordStatus(record) !== 'archived' ? <button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
       data-deal-handle={record.page_slug} aria-label={`Move ${title}`} title="Drag to change stage" disabled={disabled}><GripVertical size={16} aria-hidden="true" /></button> : null} />
     {saving ? <span className="deal-card-saving">Saving stage…</span> : null}
   </article>;
 }
 
-function StageColumn({ column, active, overStage, savingSlug, statusSavingSlug, onStatusChange, disabled, onOpenPage, textMode, selectedSlugs, onToggleSelection, selectionDisabled }) {
+function StageColumn({ column, active, overStage, savingSlug, statusSavingSlug, onStatusChange, onEdit, disabled, onOpenPage, textMode, selectedSlugs, onToggleSelection, selectionDisabled }) {
   const { setNodeRef, isOver } = useDroppable({ id: `stage:${column.stage}`, disabled });
   const entering = active && overStage === column.stage && dealStage(active) !== column.stage;
   const leaving = active && overStage && dealStage(active) === column.stage && overStage !== column.stage;
@@ -62,13 +62,13 @@ function StageColumn({ column, active, overStage, savingSlug, statusSavingSlug, 
     <header className="deal-kanban-column-head"><h2 id={`deal-column-${column.stage}`}>{column.label}</h2><span className="meta">{count}</span></header>
     <div className="deal-kanban-cards">
       {entering ? <div className="deal-drop-preview" aria-hidden="true">Move to {column.label}</div> : null}
-      {column.records.map(record => <DraggableDeal key={record.page_slug} record={record} textMode={textMode} selected={selectedSlugs?.has(record.page_slug)} onToggleSelection={onToggleSelection} selectionDisabled={selectionDisabled} onOpenPage={onOpenPage} disabled={disabled} saving={savingSlug === record.page_slug} statusPending={statusSavingSlug === record.page_slug} onStatusChange={onStatusChange} />)}
+      {column.records.map(record => <DraggableDeal key={record.page_slug} record={record} textMode={textMode} selected={selectedSlugs?.has(record.page_slug)} onToggleSelection={onToggleSelection} selectionDisabled={selectionDisabled} onOpenPage={onOpenPage} disabled={disabled} saving={savingSlug === record.page_slug} statusPending={statusSavingSlug === record.page_slug} onEdit={onEdit} onStatusChange={onStatusChange} />)}
       {!column.records.length && !entering ? <div className="deal-empty-column">{active ? 'Drop here' : 'No deals'}</div> : null}
     </div>
   </section>;
 }
 
-export function DealKanban({ records, onOpenPage, onMoveStage, savingSlug, statusSavingSlug, onStatusChange, textMode = 'regular', selectedSlugs, onToggleSelection, selectionDisabled = false }) {
+export function DealKanban({ records, onOpenPage, onMoveStage, savingSlug, statusSavingSlug, onStatusChange, onEdit, textMode = 'regular', selectedSlugs, onToggleSelection, selectionDisabled = false }) {
   const boardRef = useRef(null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -129,7 +129,7 @@ export function DealKanban({ records, onOpenPage, onMoveStage, savingSlug, statu
     }}>
     <div ref={boardRef} className={`deal-kanban${active ? ' is-drag-active' : ''}`} role="region" aria-label="Deals by stage" tabIndex={0}>
       {columns.map(column => <StageColumn key={column.stage} column={column} textMode={textMode} selectedSlugs={selectedSlugs} onToggleSelection={onToggleSelection} selectionDisabled={selectionDisabled} active={active} overStage={overStage} savingSlug={savingSlug}
-        statusSavingSlug={statusSavingSlug} onStatusChange={onStatusChange} disabled={!!savingSlug || !!statusSavingSlug} onOpenPage={onOpenPage} />)}
+        statusSavingSlug={statusSavingSlug} onEdit={onEdit} onStatusChange={onStatusChange} disabled={!!savingSlug || !!statusSavingSlug} onOpenPage={onOpenPage} />)}
     </div>
     {createPortal(<DragOverlay dropAnimation={reducedMotion ? null : { duration: 180, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }} zIndex={100}>
       {active ? <div className="deals-page deal-drag-overlay" aria-hidden="true"><article className="deal-kanban-card"><CardContent record={active} textMode={textMode} overlay handle={<GripVertical size={16} />} /></article></div> : null}

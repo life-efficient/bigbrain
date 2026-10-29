@@ -1,3 +1,4 @@
+import { DealRecordEditor } from './deal-record-editor.jsx';
 import { DealIntroductionKanban } from './deal-introduction-kanban.jsx';
 import { saveIntroductionStage } from './deal-introduction-kanban.js';
 import { saveIntroductionArrangement } from './deal-arrangement.js';
@@ -265,6 +266,8 @@ export function DealsPanel({ onOpenPage }) {
     if (view === 'introductions') setIntroductionLayout(next); else setDealLayout(next);
     try { window.sessionStorage.setItem(view === 'introductions' ? introductionLayoutKey : layoutStorageKey, next); } catch { /* Storage is optional. */ }
   }
+  const [editingRecord, setEditingRecord] = useState(null);
+  const editRecord = (record, introduction = false) => setEditingRecord({ record, introduction });
   const [search, setSearch] = useState('');
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [selectedSlugs, setSelectedSlugs] = useState(() => new Set());
@@ -488,7 +491,7 @@ export function DealsPanel({ onOpenPage }) {
               }}>Clear filters</button> : null}
             </div> : null}
             <div role="tabpanel" id={`deal-layout-${layout}`} aria-labelledby={`deal-layout-tab-${layout}`} tabIndex={0}>
-            {records.length ? showingIntroductions && layout === 'kanban' ? <DealIntroductionKanban records={records} onOpenPage={onOpenPage} onMoveStage={moveIntroductionStage} savingSlug={savingStage} statusSavingSlug={savingStatus} arrangementSavingSlug={savingArrangement} onStatusChange={changeStatus} onArrangementChange={changeArrangement} /> : !showingIntroductions && layout === 'kanban' ? <DealKanban selectedSlugs={selectedSlugs} onToggleSelection={toggleSelection} selectionDisabled={downloading} textMode={textMode} records={records} onOpenPage={onOpenPage} onMoveStage={moveDealStage} savingSlug={savingStage} statusSavingSlug={savingStatus || savingArrangement} onStatusChange={changeStatus} /> : <div className="overlay-record-list">
+            {records.length ? showingIntroductions && layout === 'kanban' ? <DealIntroductionKanban onEdit={editRecord} records={records} onOpenPage={onOpenPage} onMoveStage={moveIntroductionStage} savingSlug={savingStage} statusSavingSlug={savingStatus} arrangementSavingSlug={savingArrangement} onStatusChange={changeStatus} onArrangementChange={changeArrangement} /> : !showingIntroductions && layout === 'kanban' ? <DealKanban onEdit={editRecord} selectedSlugs={selectedSlugs} onToggleSelection={toggleSelection} selectionDisabled={downloading} textMode={textMode} records={records} onOpenPage={onOpenPage} onMoveStage={moveDealStage} savingSlug={savingStage} statusSavingSlug={savingStatus || savingArrangement} onStatusChange={changeStatus} /> : <div className="overlay-record-list">
               {showingIntroductions ? records.map(introduction => <DealIntroductionRow key={introduction.page_slug} introduction={introduction} onOpenPage={onOpenPage} onStatusChange={changeStatus} statusPending={savingStatus === introduction.page_slug} onArrangementChange={changeArrangement} arrangementPending={savingArrangement === introduction.page_slug} disabled={!!savingStatus || !!savingStage || !!savingArrangement} />)
                 : records.map(record => <article className={`overlay-record card deal-record${selectedSlugs.has(record.page_slug) ? ' is-selected' : ''}`} key={record.page_slug}>
                   <div className="overlay-record-main">
@@ -513,6 +516,8 @@ export function DealsPanel({ onOpenPage }) {
             </div>
           </>}
       </div>
+      {editingRecord ? <DealRecordEditor record={editingRecord.record} introduction={editingRecord.introduction}
+        onClose={() => setEditingRecord(null)} onSaved={(record, warning) => { setEditingRecord(null); setStageFeedback({ kind: warning ? 'warning' : 'success', text: warning || 'Changes saved.' }); setReload(value => value + 1); }} /> : null}
     </section>
   );
 }

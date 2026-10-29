@@ -138,12 +138,12 @@ must not publish pages, change visibility, or upload the document elsewhere.
 
 Add/edit actions use dialogs with explicit Save and Cancel. Failed saves retain
 the draft. Writes update canonical frontmatter and refresh the record. Optimistic
-concurrency checks reject stale edits instead of overwriting newer values.
+concurrency checks reject stale edits instead of overwriting newer values. Kanban editing includes internal title and description plus anonymised title, description and asks for deals; introductions expose title, purpose and arrangement. Preserve page content and unrelated stage/status fields.
 
 Per-deal copy, edit, add, delete, archive and restore controls use compact icon
 buttons with specific accessible labels and tooltips. Keep explicit labels on
 dialog confirmations and the primary PDF export. Kanban Archive / Restore lives
-in a Radix action menu in the card header, separate from the drag handle.
+in a Radix action menu in the card footer, alongside deal selection. The menu also opens the editing dialog. Keep the drag handle in the header.
 
 ## Deals toolbar
 

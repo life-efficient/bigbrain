@@ -39,7 +39,7 @@ function CardContent({ record, onOpenPage, handle, actions, overlay = false, onA
   return <>
     <div className="deal-kanban-card-head">
       {overlay ? <span className="deal-kanban-title">{title}</span> : <button type="button" className="overlay-person-link deal-kanban-title" onClick={() => onOpenPage?.(record.page_slug)}>{title}</button>}
-      <div className="deal-kanban-card-actions">{handle}{actions}</div>
+      <div className="deal-kanban-card-actions">{handle}</div>
     </div>
     {parent ? <p className="meta introduction-kanban-parent">Deal: {overlay ? parent.title : <button type="button" className="deal-reference-link" onClick={() => onOpenPage?.(parent.page_slug)}>{parent.title}</button>}</p> : null}
     {parties.length ? <p className="meta introduction-kanban-parties">Parties: {overlay ? parties.map(ref => ref.title).join(', ') : <PageReferences references={parties} onOpenPage={onOpenPage} />}</p> : null}
@@ -51,20 +51,21 @@ function CardContent({ record, onOpenPage, handle, actions, overlay = false, onA
     {recordStatus(record, true) === 'archived' ? <span className="deal-stage-badge">Archived</span> : null}
     {tasks.length ? <span className="meta">{tasks.length} open {tasks.length === 1 ? 'action' : 'actions'}</span> : null}
     {waiting.length ? <p className="deal-kanban-waiting">Waiting on: {waiting.map(ref => ref.title).join(', ')}</p> : null}
+    {!overlay ? <div className="deal-kanban-card-footer"><div className="deal-kanban-card-actions">{actions}</div></div> : null}
   </>;
 }
 
-function DraggableIntroduction({ record, onOpenPage, disabled, saving, statusPending, onStatusChange, onArrangementChange, arrangementPending }) {
+function DraggableIntroduction({ record, onOpenPage, disabled, saving, statusPending, onStatusChange, onEdit, onArrangementChange, arrangementPending }) {
   const title = record.title || record.page_slug;
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: record.page_slug, data: { record }, disabled: disabled || recordStatus(record, true) === 'archived' });
   return <article ref={setNodeRef} className={`deal-kanban-card introduction-kanban-card${isDragging ? ' is-dragging' : ''}${saving ? ' is-saving' : ''}`} aria-busy={saving || undefined}>
-    <CardContent record={record} onArrangementChange={onArrangementChange} arrangementPending={arrangementPending} disabled={disabled} onOpenPage={onOpenPage} actions={<DealStatusAction menu introduction record={record} displayTitle={title} onChange={onStatusChange} pending={statusPending} disabled={disabled} />} handle={recordStatus(record, true) !== 'archived' ? <button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
+    <CardContent record={record} onArrangementChange={onArrangementChange} arrangementPending={arrangementPending} disabled={disabled} onOpenPage={onOpenPage} actions={<DealStatusAction menu introduction record={record} displayTitle={title} onEdit={onEdit} onChange={onStatusChange} pending={statusPending} disabled={disabled} />} handle={recordStatus(record, true) !== 'archived' ? <button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
       data-introduction-handle={record.page_slug} aria-label={`Move ${title}`} title="Drag to change stage" disabled={disabled}><GripVertical size={16} aria-hidden="true" /></button> : null} />
     {saving ? <span className="deal-card-saving">Saving stage…</span> : null}
   </article>;
 }
 
-function StageColumn({ column, active, overStage, savingSlug, statusSavingSlug, arrangementSavingSlug, onStatusChange, onArrangementChange, disabled, onOpenPage }) {
+function StageColumn({ column, active, overStage, savingSlug, statusSavingSlug, arrangementSavingSlug, onStatusChange, onEdit, onArrangementChange, disabled, onOpenPage }) {
   const { setNodeRef, isOver } = useDroppable({ id: `introduction-stage:${column.stage}`, disabled });
   const entering = active && overStage === column.stage && introductionStage(active) !== column.stage;
   const leaving = active && overStage && introductionStage(active) === column.stage && overStage !== column.stage;
@@ -73,13 +74,13 @@ function StageColumn({ column, active, overStage, savingSlug, statusSavingSlug, 
     <header className="deal-kanban-column-head"><h2 id={`introduction-column-${column.stage}`}>{column.label}</h2><span className="meta">{count}</span></header>
     <div className="deal-kanban-cards">
       {entering ? <div className="deal-drop-preview" aria-hidden="true">Move to {column.label}</div> : null}
-      {column.records.map(record => <DraggableIntroduction key={record.page_slug} record={record} onArrangementChange={onArrangementChange} arrangementPending={arrangementSavingSlug === record.page_slug} onOpenPage={onOpenPage} disabled={disabled} saving={savingSlug === record.page_slug} statusPending={statusSavingSlug === record.page_slug} onStatusChange={onStatusChange} />)}
+      {column.records.map(record => <DraggableIntroduction key={record.page_slug} record={record} onArrangementChange={onArrangementChange} arrangementPending={arrangementSavingSlug === record.page_slug} onOpenPage={onOpenPage} disabled={disabled} saving={savingSlug === record.page_slug} statusPending={statusSavingSlug === record.page_slug} onEdit={onEdit} onStatusChange={onStatusChange} />)}
       {!column.records.length && !entering ? <div className="deal-empty-column">{active ? 'Drop here' : 'No introductions'}</div> : null}
     </div>
   </section>;
 }
 
-export function DealIntroductionKanban({ records, onOpenPage, onMoveStage, savingSlug, statusSavingSlug, arrangementSavingSlug, onStatusChange, onArrangementChange }) {
+export function DealIntroductionKanban({ records, onOpenPage, onMoveStage, savingSlug, statusSavingSlug, arrangementSavingSlug, onStatusChange, onEdit, onArrangementChange }) {
   const boardRef = useRef(null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -140,7 +141,7 @@ export function DealIntroductionKanban({ records, onOpenPage, onMoveStage, savin
     }}>
     <div ref={boardRef} className={`deal-kanban introduction-kanban${active ? ' is-drag-active' : ''}`} role="region" aria-label="Introductions by stage" tabIndex={0}>
       {columns.map(column => <StageColumn key={column.stage} column={column} arrangementSavingSlug={arrangementSavingSlug} onArrangementChange={onArrangementChange} active={active} overStage={overStage} savingSlug={savingSlug}
-        statusSavingSlug={statusSavingSlug} onStatusChange={onStatusChange} disabled={!!savingSlug || !!statusSavingSlug || !!arrangementSavingSlug} onOpenPage={onOpenPage} />)}
+        statusSavingSlug={statusSavingSlug} onEdit={onEdit} onStatusChange={onStatusChange} disabled={!!savingSlug || !!statusSavingSlug || !!arrangementSavingSlug} onOpenPage={onOpenPage} />)}
     </div>
     {createPortal(<DragOverlay dropAnimation={reducedMotion ? null : { duration: 180, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }} zIndex={100}>
       {active ? <div className="deals-page deal-drag-overlay" aria-hidden="true"><article className="deal-kanban-card introduction-kanban-card"><CardContent record={active} overlay handle={<GripVertical size={16} />} /></article></div> : null}

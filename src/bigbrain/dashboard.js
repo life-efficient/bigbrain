@@ -54,7 +54,7 @@ import {
   updateComprehensionSetup,
 } from './overlays/comprehension.js';
 import { getRelatedLinkHistory } from './link-history.js';
-import { buildDealsPayload, buildDealIntroductionsPayload, updateDealAsks, updateDealStage, updateDealStatus, updateIntroductionArrangement, updateIntroductionStage } from './overlays/deals.js';
+import { buildDealsPayload, buildDealIntroductionsPayload, updateDealDetails, updateDealAsks, updateDealStage, updateDealStatus, updateIntroductionArrangement, updateIntroductionStage } from './overlays/deals.js';
 import { buildDealsPdf } from './overlays/deals-pdf.js';
 import {
   normalizePageVisibility,
@@ -374,6 +374,13 @@ export async function createDashboardRequestHandler(config, {
         try { input = await readJsonRequest(req); }
         catch (error) { throw Object.assign(error, { statusCode: 400 }); }
         return json(res, await updateDealStage(config, db, input, { actor }), { noStore: true });
+      }
+      if (requestUrl.pathname === '/api/overlays/deals/edit') {
+        if (req.method !== 'POST') throw Object.assign(new Error('Deal edits require POST.'), { statusCode: 405 });
+        let input;
+        try { input = await readJsonRequest(req); }
+        catch (error) { throw Object.assign(error, { statusCode: 400 }); }
+        return json(res, await updateDealDetails(config, db, input, { actor }), { noStore: true });
       }
       if (requestUrl.pathname === '/api/overlays/deals/asks') {
         if (req.method !== 'POST') throw Object.assign(new Error('Deal ask updates require POST.'), { statusCode: 405 });
@@ -1148,6 +1155,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-kanban-column { display: flex; flex-direction: column; min-height: 300px; transition: border-color 140ms ease, background 140ms ease; }
       .deals-page .deal-kanban-cards { display: flex; flex-direction: column; overflow-y: auto; min-height: 0; padding: 2px; scrollbar-width: thin; }
       .deals-page .deal-kanban-card { position: relative; flex: none; transition: opacity 140ms ease, box-shadow 140ms ease; }
+      .deals-page .deal-kanban-card-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      .deals-page .deal-kanban-card-footer > .deal-kanban-card-actions { margin-left: auto; }
       .deals-page .deal-kanban-card-head { display: flex; gap: 8px; align-items: flex-start; }
       .deals-page .deal-kanban-card-head .deal-kanban-title { flex: 1; min-width: 0; }
       .deals-page .deal-drag-handle { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: grab; touch-action: none; }
