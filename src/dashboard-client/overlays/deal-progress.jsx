@@ -1,5 +1,6 @@
 import { DealStatusAction } from './deal-status.jsx';
 import React from 'react';
+import { Select } from '../components/select.jsx';
 import { activeDealTasks, DEAL_STAGE_LABELS, DEAL_TYPE_LABELS, INTRODUCTION_STAGE_LABELS, pageReference, progressDate, TASK_STATUS_LABELS } from './deal-progress.js';
 
 export function PageReferences({ references = [], onOpenPage }) {
@@ -62,14 +63,23 @@ export function DealIntroductions({ introductions = [], onOpenPage }) {
   </details>;
 }
 
-export function DealIntroductionRow({ introduction, onOpenPage, onStatusChange, statusPending, disabled }) {
+export function DealIntroductionRow({ introduction, onOpenPage, onStatusChange, statusPending, onArrangementChange, arrangementPending, disabled }) {
+  const arrangementStatus = introduction.arrangement_status || 'none';
   const parent = pageReference(introduction.parent_deal || introduction.deal);
   return <article className="deal-introduction deal-introduction-row">
     <div className="deal-introduction-heading">
       <button type="button" className="deal-reference-link deal-introduction-title" onClick={() => onOpenPage?.(introduction.page_slug)}>{introduction.title || pageReference(introduction)?.title}</button>
       <DealStage stage={introduction.stage} asOf={introduction.stage_as_of} introduction />
     </div>
-    <DealStatusAction record={introduction} introduction onChange={onStatusChange} pending={statusPending} disabled={disabled} />
+    <div className="deal-introduction-options">
+      <Select className="deal-arrangement-pill" value={arrangementStatus}
+        aria-label={`Arrangement for ${introduction.title || introduction.page_slug}`}
+        aria-busy={arrangementPending || undefined} disabled={disabled || arrangementPending}
+        data-arrangement-status={arrangementStatus}
+        onValueChange={next => onArrangementChange?.(introduction, next)}
+        options={[{ value: 'none', label: 'No arrangement' }, { value: 'establishing', label: 'Establishing arrangement' }, { value: 'agreed', label: 'Arrangement agreed' }]} />
+      <DealStatusAction record={introduction} introduction onChange={onStatusChange} pending={statusPending} disabled={disabled} />
+    </div>
     {parent ? <p className="meta">Deal: <button type="button" className="deal-reference-link" onClick={() => onOpenPage?.(parent.page_slug)}>{parent.title}</button></p> : null}
     {introduction.parties?.length ? <p className="meta">Parties: <PageReferences references={introduction.parties} onOpenPage={onOpenPage} /></p> : null}
     {introduction.purpose || introduction.summary ? <p>{introduction.purpose || introduction.summary}</p> : null}

@@ -5,7 +5,7 @@ export const DEAL_TYPE_LABELS = {
   advisory: 'Advisory', other: 'Other',
 };
 export const DEAL_STAGE_LABELS = {
-  unknown: 'Stage not established', qualifying: 'Qualifying', establishing_arrangement: 'Establishing arrangement', preparing: 'Preparing',
+  unknown: 'Stage not established', qualifying: 'Qualifying', preparing: 'Preparing',
   seeking_counterparties: 'Seeking counterparties', negotiating: 'Negotiating', closing: 'Closing',
   delivering: 'Delivering', completed: 'Completed',
 };

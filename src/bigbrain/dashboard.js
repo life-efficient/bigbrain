@@ -1161,6 +1161,11 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-introductions > summary { cursor: pointer; padding: 4px 0; color: var(--ink); font-size: 14px; font-weight: 600; }
       .deals-page .deal-introduction-list { display: grid; gap: 10px; margin-top: 12px; }
       .deals-page .deal-introduction { display: grid; gap: 10px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 13px; line-height: 1.55; }
+      .deals-page .deal-introduction-options { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .deals-page .deal-arrangement-pill { width: auto; min-height: 28px; box-shadow: none; display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; line-height: 16px; cursor: pointer; }
+      .deals-page .deal-arrangement-pill:not([data-arrangement-status="none"]) { border-color: var(--line-strong); background: var(--surface-muted); color: var(--ink); }
+      .deals-page .deal-arrangement-pill:hover:not(:disabled) { background: var(--surface); color: var(--ink); }
+      .deals-page .deal-arrangement-pill:disabled { cursor: default; opacity: 0.55; }
       .deals-page .deal-introduction-heading { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 14px; }
       .deals-page .deal-reference-link { padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
       .deals-page .deal-reference-link:hover { text-decoration: underline; text-underline-offset: 3px; }

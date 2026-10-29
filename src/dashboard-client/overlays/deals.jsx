@@ -1,3 +1,4 @@
+import { saveIntroductionArrangement } from './deal-arrangement.js';
 import { dealDisplayText } from './deal-display.js';
 import { DealStatusAction } from './deal-status.jsx';
 import { recordStatus, saveRecordStatus } from './deal-status.js';
@@ -263,6 +264,7 @@ export function DealsPanel({ onOpenPage }) {
   const [dealStatus, setDealStatus] = useState('active');
   const [introductionStatus, setIntroductionStatus] = useState('active');
   const [savingStatus, setSavingStatus] = useState(null);
+  const [savingArrangement, setSavingArrangement] = useState(null);
   const [stage, setStage] = useState('');
   const [introductionSearch, setIntroductionSearch] = useState('');
   const [introductionStage, setIntroductionStage] = useState('');
@@ -308,6 +310,23 @@ export function DealsPanel({ onOpenPage }) {
       setStageFeedback({ kind: 'error', text: error.message });
       if (error.status === 409) setReload(value => value + 1);
     } finally { stagePending.current = false; setSavingStatus(null); }
+  }
+  async function changeArrangement(record, arrangementStatus) {
+    if (stagePending.current) return;
+    stagePending.current = true;
+    setSavingArrangement(record.page_slug);
+    setStageFeedback({ kind: 'pending', text: `Saving arrangement option for ${record.title}…` });
+    try {
+      const data = await saveIntroductionArrangement(record, arrangementStatus);
+      setIntroductions(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, ...data.record } : item) }));
+      setState(current => ({ ...current, records: current.records.map(item => ({ ...item,
+        introductions: item.introductions?.map(introduction => introduction.page_slug === record.page_slug ? { ...introduction, ...data.record } : introduction),
+      })) }));
+      setStageFeedback({ kind: data.maintenance_warning ? 'warning' : 'success', text: data.maintenance_warning || `Arrangement updated for ${record.title}.` });
+    } catch (error) {
+      setStageFeedback({ kind: 'error', text: error.message });
+      if (error.status === 409) setReload(value => value + 1);
+    } finally { stagePending.current = false; setSavingArrangement(null); }
   }
   const downloadPending = useRef(false);
   const tabRefs = useRef({});
@@ -379,7 +398,7 @@ export function DealsPanel({ onOpenPage }) {
         <div className="deal-layout-controls">
         {!showingIntroductions ? <div className="deal-view-tabs" role="group" aria-label="Deal text">
           {[['regular', 'Regular'], ['anonymised', 'Anonymised']].map(([id, label]) => <button key={id} type="button"
-            className="deal-view-tab" aria-pressed={textMode === id} disabled={!!savingStage || !!savingStatus}
+            className="deal-view-tab" aria-pressed={textMode === id} disabled={!!savingStage || !!savingStatus || !!savingArrangement}
             onClick={() => changeTextMode(id)}>{label}</button>)}
         </div> : null}
         {!showingIntroductions ? <div className="deal-view-tabs deal-layout-tabs" role="tablist" aria-label="Deal layout">
@@ -431,8 +450,8 @@ export function DealsPanel({ onOpenPage }) {
             </div> : null}
             <div role={showingIntroductions ? undefined : 'tabpanel'} id={showingIntroductions ? undefined : `deal-layout-${layout}`}
               aria-labelledby={showingIntroductions ? undefined : `deal-layout-tab-${layout}`} tabIndex={showingIntroductions ? undefined : 0}>
-            {records.length ? !showingIntroductions && layout === 'kanban' ? <DealKanban textMode={textMode} records={records} onOpenPage={onOpenPage} onMoveStage={moveDealStage} savingSlug={savingStage} statusSavingSlug={savingStatus} onStatusChange={changeStatus} /> : <div className="overlay-record-list">
-              {showingIntroductions ? records.map(introduction => <DealIntroductionRow key={introduction.page_slug} introduction={introduction} onOpenPage={onOpenPage} onStatusChange={changeStatus} statusPending={savingStatus === introduction.page_slug} disabled={!!savingStatus || !!savingStage} />)
+            {records.length ? !showingIntroductions && layout === 'kanban' ? <DealKanban textMode={textMode} records={records} onOpenPage={onOpenPage} onMoveStage={moveDealStage} savingSlug={savingStage} statusSavingSlug={savingStatus || savingArrangement} onStatusChange={changeStatus} /> : <div className="overlay-record-list">
+              {showingIntroductions ? records.map(introduction => <DealIntroductionRow key={introduction.page_slug} introduction={introduction} onOpenPage={onOpenPage} onStatusChange={changeStatus} statusPending={savingStatus === introduction.page_slug} onArrangementChange={changeArrangement} arrangementPending={savingArrangement === introduction.page_slug} disabled={!!savingStatus || !!savingStage || !!savingArrangement} />)
                 : records.map(record => <article className="overlay-record card deal-record" key={record.page_slug}>
                   <div className="overlay-record-main">
                     <div className="overlay-record-title-row">
@@ -441,7 +460,7 @@ export function DealsPanel({ onOpenPage }) {
                     </div>
                     <p className="overlay-record-summary deal-record-summary">{dealDisplayText(record, textMode).description}</p>
                     <DealProgress record={record} />
-                    <DealStatusAction record={record} displayTitle={dealDisplayText(record, textMode).title} onChange={changeStatus} pending={savingStatus === record.page_slug} disabled={!!savingStatus || !!savingStage} />
+                    <DealStatusAction record={record} displayTitle={dealDisplayText(record, textMode).title} onChange={changeStatus} pending={savingStatus === record.page_slug} disabled={!!savingStatus || !!savingStage || !!savingArrangement} />
                     <DealNextActions tasks={record.tasks} onOpenPage={onOpenPage} />
                     <DealTeaser record={record} hideOverview={textMode === 'anonymised'} onSaved={savedRecord => setState(current => ({
                       ...current, records: current.records.map(item => item.page_slug === savedRecord.page_slug ? { ...item, ...savedRecord } : item),
