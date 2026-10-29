@@ -56,6 +56,21 @@ and source attachments. Follow pagination to retrieve the complete collection.
 Search and filters apply to the active view; introduction-stage filtering uses
 its own stage rather than its parent's stage.
 
+### Status and stage
+
+`deal_status` and `introduction_status` each distinguish `active` from `archived`.
+Both views default to Active and offer Archived and All status filters. Archive
+and Restore are explicit independent actions. Neither cascades to related pages
+or tasks, and neither changes the last commercial stage or its evidence date.
+
+Qualifying is a stage. Establishing arrangement follows it and covers our mandate,
+fees, scope and authority with the originating party. Counterparty-specific
+investment or supply terms belong to the introduction's discussion/negotiation.
+Paused and Dropped are not deal stages; use Archived status. Declined remains a
+valid introduction outcome. Archived cards retain their stage but cannot be
+dragged until restored. Stage saves check status as well as stage and evidence
+date to prevent edits racing an archive action.
+
 ### Deal layouts
 
 The Deals view has an icon toggle for list and kanban layouts, with accessible
@@ -94,8 +109,8 @@ attempt automatic anonymisation of internal text.
 
 ### PDF overview
 
-**Download PDF** exports all enrolled deals, regardless of the current search,
-filters, or pagination. It downloads an actual PDF containing each anonymised
+**Download PDF** exports all active enrolled deals, regardless of the current search,
+filters, or pagination. Archived deals are excluded. It downloads an actual PDF containing each anonymised
 title, description, and ask list. Do not use the browser print dialog or export
 the internal screen. Keep typography black, with readable wrapping, pagination,
 and page numbers. Missing required anonymised information must produce a useful
