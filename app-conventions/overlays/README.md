@@ -64,8 +64,8 @@ layout within the session. Both layouts use the same search and filters.
 
 Kanban groups deals by their recorded deal stage in lifecycle order, with counts
 and compact cards that open the ordinary deal page. Missing or unrecognised
-stages appear under Stage not established. Display populated columns and keep
-horizontal scrolling inside the board. Changing layouts does not change deal
+stages appear under Stage not established. Keep stage columns stable, including
+empty destinations, and horizontal scrolling inside the board. Changing layouts does not change deal
 stages or the complete anonymised PDF export.
 
 Drag a deal by its dedicated handle to change its stage. Use an accessible
