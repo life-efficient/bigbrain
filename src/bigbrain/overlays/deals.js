@@ -1,6 +1,9 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
+import path from 'node:path';
+import { dealMetadataSchema } from '../deal-schema.js';
+import { parseMarkdownPage } from '../markdown.js';
 import { queryPagesByFrontmatter } from '../frontmatter-query.js';
-import { sqliteRawDatabase } from '../db.js';
+import { sqliteRawDatabase, replacePageIndex } from '../db.js';
 
 export const DEALS_OVERLAY_ID = 'deals';
 export const DEALS_INVOLVEMENTS = Object.freeze(['active', 'network_actionable', 'network_observed']);
@@ -144,6 +147,82 @@ export async function updateDealAsks(config, db, input, { actor = null } = {}) {
     deal_involvement: page.frontmatter.deal_involvement }),
     ...anonymisedDealFields(page.frontmatter) };
   return { record, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
+}
+
+export async function updateDealStage(config, db, input, { actor = null, indexPage = replacePageIndex } = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidInput('Deal stage input must be an object.');
+  if (actor?.scopes && !actor.scopes.some(scope => ['brain:admin', 'brain:write'].includes(scope))) {
+    throw Object.assign(new Error('Changing deal stages requires write access.'), { statusCode: 403 });
+  }
+  const slug = input.page_slug;
+  if (typeof slug !== 'string' || !/^deals\/(?!.*(?:^|\/)\.{1,2}(?:\/|$))(?!.*\.raw(?:\/|$))[A-Za-z0-9][A-Za-z0-9_/-]*$/.test(slug) || slug.endsWith('/') || slug.includes('//')) {
+    throw invalidInput('page_slug must be a canonical deal slug.');
+  }
+  const stageSchema = dealMetadataSchema.shape.deal_stage.unwrap();
+  if (!stageSchema.safeParse(input.deal_stage).success) throw invalidInput('deal_stage must be a supported deal stage.');
+  if (typeof input.expected_deal_stage !== 'string' || !input.expected_deal_stage || input.expected_deal_stage.length > 100) throw invalidInput('expected_deal_stage is required.');
+  if (!Object.hasOwn(input, 'expected_stage_as_of') || (input.expected_stage_as_of !== null && (typeof input.expected_stage_as_of !== 'string' || !dealMetadataSchema.shape.stage_as_of.safeParse(input.expected_stage_as_of).success))) {
+    throw invalidInput('expected_stage_as_of must be the previously read date or null.');
+  }
+  const stageAsOf = new Date().toISOString();
+  const timelineText = `Manually changed deal stage from ${input.expected_deal_stage} to ${input.deal_stage} in the Deals board.`;
+  const noChange = Symbol('no stage change');
+  const { updateBrainPage } = await import('../page-ops.js');
+  let page;
+  let changed = false;
+  let maintenanceWarning = null;
+  try {
+    page = await updateBrainPage({ config, pagePath: slug,
+      frontmatterValues: { deal_stage: input.deal_stage, stage_as_of: stageAsOf },
+      timelineEntry: timelineText, timelineSignificance: 'minor',
+      timelineProvenance: { event_id: `dashboard:deal-stage:${slug}:${randomUUID()}`, source_type: 'direct_edit',
+        source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timelineText },
+      validateExisting(existing) {
+        if (existing.type !== 'deals' || !DEALS_INVOLVEMENTS.includes(existing.frontmatter.deal_involvement)) throw Object.assign(new Error('Page is not enrolled in the Deals overlay.'), { statusCode: 404 });
+        if ((existing.frontmatter.deal_stage || 'unknown') !== input.expected_deal_stage || (existing.frontmatter.stage_as_of || null) !== input.expected_stage_as_of) {
+          throw Object.assign(new Error('This deal stage changed elsewhere. Refresh the board before moving it.'), { statusCode: 409 });
+        }
+        // Exit under the write lock before any file, date or timeline mutation.
+        if ((existing.frontmatter.deal_stage || 'unknown') === input.deal_stage) throw { marker: noChange, page: existing };
+      },
+      async afterWrite(saved) {
+        try {
+          const parsed = parseMarkdownPage(saved.markdown, slug);
+          await indexPage(db, { ...parsed, path: path.join(config.brainDir, saved.path), pageKind: 'canonical',
+            contentHash: createHash('sha256').update(saved.markdown).digest('hex'), updatedAt: stageAsOf });
+        } catch {
+          maintenanceWarning = 'The stage was saved, but index maintenance needs attention. Refresh before another move.';
+        }
+      },
+    });
+    changed = true;
+  } catch (error) {
+    if (error.marker === noChange) page = error.page;
+    else { if (error.code === 'ENOENT') error.statusCode = 404; throw error; }
+  }
+  if (changed && process.env.BIGBRAIN_MCP_GIT_BACKUP === '1') {
+    try {
+      const { postWriteMaintenance } = await import('../mcp-server.js');
+      await postWriteMaintenance(config, true, actor, `Change deal stage for ${page.title}`);
+    } catch {
+      maintenanceWarning = 'The stage was saved, but index or backup maintenance needs attention. Refresh before another move.';
+    }
+  }
+  let record;
+  try {
+    for (let cursor = 0; cursor !== null && !record;) {
+      const batch = await buildDealsPayload(config, db, { limit: 100, cursor });
+      record = batch.records.find(item => item.page_slug === slug);
+      cursor = batch.next_cursor;
+    }
+  } catch {
+    maintenanceWarning ||= 'The stage was saved, but the updated board could not be loaded. Refresh before another move.';
+  }
+  return { record: { ...(record || { page_slug: slug }),
+    title: page.title, summary: page.summary, deal_involvement: page.frontmatter.deal_involvement,
+    deal_types: stringList(page.frontmatter.deal_types), ...anonymisedDealFields(page.frontmatter),
+    deal_stage: page.frontmatter.deal_stage || 'unknown', stage_as_of: page.frontmatter.stage_as_of || null,
+    ...(changed ? { updated_at: stageAsOf } : {}) }, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
 }
 
 function normalizedAsks(value) {

@@ -54,7 +54,7 @@ import {
   updateComprehensionSetup,
 } from './overlays/comprehension.js';
 import { getRelatedLinkHistory } from './link-history.js';
-import { buildDealsPayload, buildDealIntroductionsPayload, updateDealAsks } from './overlays/deals.js';
+import { buildDealsPayload, buildDealIntroductionsPayload, updateDealAsks, updateDealStage } from './overlays/deals.js';
 import { buildDealsPdf } from './overlays/deals-pdf.js';
 import {
   normalizePageVisibility,
@@ -344,6 +344,13 @@ export async function createDashboardRequestHandler(config, {
         const input = {};
         for (const key of ['limit', 'cursor']) if (requestUrl.searchParams.has(key)) input[key] = Number(requestUrl.searchParams.get(key));
         return json(res, await buildDealIntroductionsPayload(config, db, input), { noStore: true });
+      }
+      if (requestUrl.pathname === '/api/overlays/deals/stage') {
+        if (req.method !== 'POST') throw Object.assign(new Error('Deal stage updates require POST.'), { statusCode: 405 });
+        let input;
+        try { input = await readJsonRequest(req); }
+        catch (error) { throw Object.assign(error, { statusCode: 400 }); }
+        return json(res, await updateDealStage(config, db, input, { actor }), { noStore: true });
       }
       if (requestUrl.pathname === '/api/overlays/deals/asks') {
         if (req.method !== 'POST') throw Object.assign(new Error('Deal ask updates require POST.'), { statusCode: 405 });

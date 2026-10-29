@@ -399,7 +399,7 @@ export async function listRawFiles({
   return normalizedLimit === null ? entries : entries.slice(0, normalizedLimit);
 }
 
-export async function updateBrainPage({ config, pagePath, compiledTruth = undefined, body = undefined, summary = undefined, timelineEntry, timelineEntries = null, timelineProvenance = null, timelineSignificance = null, frontmatterValues = {}, validateExisting = null }) {
+export async function updateBrainPage({ config, pagePath, compiledTruth = undefined, body = undefined, summary = undefined, timelineEntry, timelineEntries = null, timelineProvenance = null, timelineSignificance = null, frontmatterValues = {}, validateExisting = null, afterWrite = null }) {
   const relative = normalizePagePath(pagePath);
   assertAllowedPagePath(relative);
   return withPageWriteLock(config, relative, async () => {
@@ -451,7 +451,11 @@ export async function updateBrainPage({ config, pagePath, compiledTruth = undefi
     timeline: nextTimeline,
   });
   await fs.writeFile(safeBrainPath(config.brainDir, relative), markdown, 'utf8');
-  return readBrainPage({ config, pagePath: relative });
+  const saved = await readBrainPage({ config, pagePath: relative });
+  // Let callers refresh derived state before a subsequent page writer can
+  // commit a newer version. Callbacks must not recursively write this page.
+  if (afterWrite) await afterWrite(saved);
+  return saved;
   });
 }
 
