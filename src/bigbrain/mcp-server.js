@@ -78,6 +78,7 @@ import {
 import { canonicalPagePath, canonicalPageUrl, isLoopbackHost, localPageUrl } from './page-links.js';
 import { queryPagesByFrontmatter } from './frontmatter-query.js';
 import { buildDealsPayload } from './overlays/deals.js';
+import { dealsMcpMutationNames, dealsMcpPolicies, dealsMcpToolDefinitions, executeDealsMcpTool, isDealsMcpTool } from './overlays/deals-mcp.js';
 import {
   buildKeepInTouchDuePayload,
   enrollKeepInTouchPerson,
@@ -462,6 +463,11 @@ async function executeToolCall({ config, name, args, gitBackupEnabled, actor, au
     args.provenance = mutation.provenance;
   }
   if (significance) args.significance = significance;
+  if (isDealsMcpTool(name)) {
+    const db = await openDatabase(config);
+    try { return await executeDealsMcpTool(name, config, db, args, { actor, provenance: args.provenance, commitMessage: args.commit_message, gitBackupEnabled }, toolJson); }
+    finally { await db.close?.(); }
+  }
   switch (name) {
     case 'me':
       return toolJson(await toolMe(config, actor, authConfig));
@@ -1733,6 +1739,7 @@ function toolDefinitions(config = null) {
   const domainRegistry = config ? loadDomainRegistrySync(config) : null;
   const domainField = domainMembershipFieldSchema(domainRegistry);
   return [
+    ...dealsMcpToolDefinitions(mutationProperties()),
     {
       name: 'me',
       description: 'Return the authenticated MCP actor and the matching active BigBrain member, if one exists.',
@@ -2078,7 +2085,7 @@ function toolDefinitions(config = null) {
     },
     {
       name: 'overlays/deals',
-      description: 'Quickly retrieve our deals and network opportunities from the selected Brain index, with titles and summaries. Includes active, network_actionable and network_observed deals; excludes public transactions and supporting documents. Follow next_cursor to retrieve remaining results.',
+      description: 'Retrieve enrolled deals from the selected Brain index with internal and anonymised titles/descriptions/asks, edit_values for safe edits, deal types, status, commercial stage, related introductions and linked next actions. Includes active, network_actionable and network_observed involvement; active status alone does not mean actively fundraising. Excludes public transactions and supporting documents. Follow next_cursor for complete coverage.',
       inputSchema: dealsOverlaySchema(),
     },
     {
@@ -2728,6 +2735,7 @@ function EVENT_STATE_SCHEMA_VALUES() {
 }
 
 const TOOL_POLICIES = {
+  ...dealsMcpPolicies,
   'overlays/deals': { layer: 'read', scopes: ['brain:read'] },
   overlays_deals: { layer: 'read', scopes: ['brain:read'] },
   me: { layer: 'read', scopes: ['brain:read'] },
@@ -2866,6 +2874,7 @@ const TOOL_POLICIES = {
 };
 
 const GIT_SYNC_MUTATION_TOOLS = new Set([
+  ...dealsMcpMutationNames,
   'tasks/create',
   'tasks/update',
   'domains/create',
@@ -3049,6 +3058,7 @@ function rolePermissionForTool(name) {
 }
 
 function pageEditPathsForTool(name, args) {
+  if (dealsMcpMutationNames.includes(name)) return [args.page_slug].filter(Boolean);
   switch (name) {
     case 'create_page':
     case 'update_page':
