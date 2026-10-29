@@ -1166,6 +1166,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-status-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .deals-page .deal-status-actions .graph-button { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
       .deals-page .deal-kanban-card .deal-status-actions { margin-top: 10px; }
+      .deals-page .introduction-kanban-parent, .deals-page .introduction-kanban-parties { margin: 0; overflow-wrap: anywhere; line-height: 1.5; }
+      .deals-page .introduction-kanban-card .deal-reference-link { font-size: inherit; line-height: inherit; text-align: left; }
+      .deals-page .introduction-kanban-card .deal-arrangement-pill { justify-self: start; max-width: 100%; }
+      .deals-page .introduction-kanban-card .deal-stage-badge { justify-self: start; }
       .deals-page .deal-filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
       .deals-page .deal-filters > input { flex: 1 1 280px; min-width: 180px; }
       .deals-page .deal-filters > .deal-filter-field { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }

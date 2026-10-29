@@ -1,3 +1,5 @@
+import { DealIntroductionKanban } from './deal-introduction-kanban.jsx';
+import { saveIntroductionStage } from './deal-introduction-kanban.js';
 import { saveIntroductionArrangement } from './deal-arrangement.js';
 import { dealDisplayText } from './deal-display.js';
 import { DealStatusAction } from './deal-status.jsx';
@@ -238,11 +240,15 @@ export function DealsPanel({ onOpenPage }) {
     try { return window.sessionStorage.getItem(viewStorageKey) === 'introductions' ? 'introductions' : 'deals'; }
     catch { return 'deals'; }
   });
-  const layoutStorageKey = `bigbrain:deals-layout:${window.location.pathname}`;
-  const [layout, setLayout] = useState(() => {
-    try { return window.sessionStorage.getItem(layoutStorageKey) === 'kanban' ? 'kanban' : 'list'; }
-    catch { return 'list'; }
-  });
+  const layoutStorageKey = `bigbrain:deals-layout-v2:${window.location.pathname}`;
+  const introductionLayoutKey = `bigbrain:introductions-layout:${window.location.pathname}`;
+  const readLayout = key => {
+    try { return window.sessionStorage.getItem(key) === 'list' ? 'list' : 'kanban'; }
+    catch { return 'kanban'; }
+  };
+  const [dealLayout, setDealLayout] = useState(() => readLayout(layoutStorageKey));
+  const [introductionLayout, setIntroductionLayout] = useState(() => readLayout(introductionLayoutKey));
+  const layout = view === 'introductions' ? introductionLayout : dealLayout;
   const textModeStorageKey = `bigbrain:deals-text-mode:${window.location.pathname}`;
   const [textMode, setTextMode] = useState(() => {
     try { return window.sessionStorage.getItem(textModeStorageKey) === 'anonymised' ? 'anonymised' : 'regular'; }
@@ -256,8 +262,8 @@ export function DealsPanel({ onOpenPage }) {
   const layoutRefs = useRef({});
   const panelRef = useRef(null);
   function changeLayout(next) {
-    setLayout(next);
-    try { window.sessionStorage.setItem(layoutStorageKey, next); } catch { /* Storage is optional. */ }
+    if (view === 'introductions') setIntroductionLayout(next); else setDealLayout(next);
+    try { window.sessionStorage.setItem(view === 'introductions' ? introductionLayoutKey : layoutStorageKey, next); } catch { /* Storage is optional. */ }
   }
   const [search, setSearch] = useState('');
   const [dealType, setDealType] = useState('');
@@ -288,6 +294,23 @@ export function DealsPanel({ onOpenPage }) {
       setStageFeedback({ kind: data.maintenance_warning ? 'warning' : 'success', text: data.maintenance_warning || `${dealDisplayText(record, textMode).title} moved to ${DEAL_STAGE_LABELS[nextStage]}.` });
     } catch (error) {
       setState(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, deal_stage: record.deal_stage, stage_as_of: record.stage_as_of } : item) }));
+      setStageFeedback({ kind: 'error', text: error.message });
+      if (error.status === 409) setReload(value => value + 1);
+    } finally { stagePending.current = false; setSavingStage(null); }
+  }
+  async function moveIntroductionStage(record, nextStage) {
+    if (stagePending.current) return;
+    stagePending.current = true;
+    setSavingStage(record.page_slug);
+    setStageFeedback({ kind: 'pending', text: `Saving ${record.title} to ${INTRODUCTION_STAGE_LABELS[nextStage]}…` });
+    setIntroductions(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, stage: nextStage } : item) }));
+    try {
+      const data = await saveIntroductionStage(record, nextStage);
+      setIntroductions(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, ...data.record } : item) }));
+      setState(current => ({ ...current, records: current.records.map(item => ({ ...item, introductions: (item.introductions || []).map(intro => intro.page_slug === record.page_slug ? { ...intro, ...data.record } : intro) })) }));
+      setStageFeedback({ kind: data.maintenance_warning ? 'warning' : 'success', text: data.maintenance_warning || `${record.title} moved to ${INTRODUCTION_STAGE_LABELS[nextStage]}.` });
+    } catch (error) {
+      setIntroductions(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, stage: record.stage, stage_as_of: record.stage_as_of } : item) }));
       setStageFeedback({ kind: 'error', text: error.message });
       if (error.status === 409) setReload(value => value + 1);
     } finally { stagePending.current = false; setSavingStage(null); }
@@ -401,7 +424,7 @@ export function DealsPanel({ onOpenPage }) {
             className="deal-view-tab" aria-pressed={textMode === id} disabled={!!savingStage || !!savingStatus || !!savingArrangement}
             onClick={() => changeTextMode(id)}>{label}</button>)}
         </div> : null}
-        {!showingIntroductions ? <div className="deal-view-tabs deal-layout-tabs" role="tablist" aria-label="Deal layout">
+        <div className="deal-view-tabs deal-layout-tabs" role="tablist" aria-label={showingIntroductions ? 'Introduction layout' : 'Deal layout'}>
           {DEAL_LAYOUTS.map(({ id, label, Icon }, index) => <button type="button" key={id} role="tab"
             ref={element => { layoutRefs.current[id] = element; }} id={`deal-layout-tab-${id}`} aria-controls={`deal-layout-${id}`}
             aria-label={label} title={label} aria-selected={layout === id} tabIndex={layout === id ? 0 : -1}
@@ -411,7 +434,7 @@ export function DealsPanel({ onOpenPage }) {
               const next = event.key === 'Home' ? 'list' : event.key === 'End' ? 'kanban' : DEAL_LAYOUTS[(index + 1) % 2].id;
               changeLayout(next); layoutRefs.current[next]?.focus();
             }}><Icon size={17} aria-hidden="true" /></button>)}
-        </div> : null}
+        </div>
         {current.status === 'ready' ? <span className="meta">{filtered ? `${records.length} of ` : ''}{current.records.length} {noun}{current.records.length === 1 ? '' : 's'}</span> : null}
         </div>
       </div>
@@ -448,9 +471,8 @@ export function DealsPanel({ onOpenPage }) {
                 else { setSearch(''); setDealType(''); setStage(''); setDealStatus('active'); }
               }}>Clear filters</button> : null}
             </div> : null}
-            <div role={showingIntroductions ? undefined : 'tabpanel'} id={showingIntroductions ? undefined : `deal-layout-${layout}`}
-              aria-labelledby={showingIntroductions ? undefined : `deal-layout-tab-${layout}`} tabIndex={showingIntroductions ? undefined : 0}>
-            {records.length ? !showingIntroductions && layout === 'kanban' ? <DealKanban textMode={textMode} records={records} onOpenPage={onOpenPage} onMoveStage={moveDealStage} savingSlug={savingStage} statusSavingSlug={savingStatus || savingArrangement} onStatusChange={changeStatus} /> : <div className="overlay-record-list">
+            <div role="tabpanel" id={`deal-layout-${layout}`} aria-labelledby={`deal-layout-tab-${layout}`} tabIndex={0}>
+            {records.length ? showingIntroductions && layout === 'kanban' ? <DealIntroductionKanban records={records} onOpenPage={onOpenPage} onMoveStage={moveIntroductionStage} savingSlug={savingStage} statusSavingSlug={savingStatus} arrangementSavingSlug={savingArrangement} onStatusChange={changeStatus} onArrangementChange={changeArrangement} /> : !showingIntroductions && layout === 'kanban' ? <DealKanban textMode={textMode} records={records} onOpenPage={onOpenPage} onMoveStage={moveDealStage} savingSlug={savingStage} statusSavingSlug={savingStatus || savingArrangement} onStatusChange={changeStatus} /> : <div className="overlay-record-list">
               {showingIntroductions ? records.map(introduction => <DealIntroductionRow key={introduction.page_slug} introduction={introduction} onOpenPage={onOpenPage} onStatusChange={changeStatus} statusPending={savingStatus === introduction.page_slug} onArrangementChange={changeArrangement} arrangementPending={savingArrangement === introduction.page_slug} disabled={!!savingStatus || !!savingStage || !!savingArrangement} />)
                 : records.map(record => <article className="overlay-record card deal-record" key={record.page_slug}>
                   <div className="overlay-record-main">

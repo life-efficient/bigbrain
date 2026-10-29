@@ -76,9 +76,16 @@ date to prevent edits racing an archive action.
 
 ### Deal layouts
 
-The Deals view has an icon toggle for list and kanban layouts, with accessible
-names, keyboard navigation, and a visible selected state. Retain the selected
-layout within the session. Both layouts use the same search and filters.
+Deals and Deal introductions default to kanban and each have an icon toggle
+for list and kanban layouts, with accessible names, keyboard navigation and a
+visible selected state. Retain each view's layout independently within the session.
+Both layouts use the same search and filters.
+
+Introduction kanban groups by introduction stage, independent of the parent deal
+and arrangement option. Cards show parties, parent deal, purpose, arrangement
+pill and next-action context; Archive / Restore stays in the card menu. Dragging
+an active introduction updates only its stage and evidence date with concurrency
+checks. Preserve its arrangement option and parent deal.
 
 A shared Regular / Anonymised toggle switches deal titles and descriptions in
 both layouts, including drag previews and action labels. Retain the selection
