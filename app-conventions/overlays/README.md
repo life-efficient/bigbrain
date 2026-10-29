@@ -56,6 +56,18 @@ and source attachments. Follow pagination to retrieve the complete collection.
 Search and filters apply to the active view; introduction-stage filtering uses
 its own stage rather than its parent's stage.
 
+### Deal layouts
+
+The Deals view has an icon toggle for list and kanban layouts, with accessible
+names, keyboard navigation, and a visible selected state. Retain the selected
+layout within the session. Both layouts use the same search and filters.
+
+Kanban groups deals by their recorded deal stage in lifecycle order, with counts
+and compact cards that open the ordinary deal page. Missing or unrecognised
+stages appear under Stage not established. Display populated columns and keep
+horizontal scrolling inside the board. Changing layouts does not change deal
+stages or the complete anonymised PDF export.
+
 ### Anonymised information
 
 Canonical deal fields are `anonymised_title`, `anonymised_description`, and
