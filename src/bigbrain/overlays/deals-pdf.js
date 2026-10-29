@@ -2,6 +2,7 @@ import { fileURLToPath } from 'node:url';
 import PDFDocument from 'pdfkit';
 import { openSync } from 'fontkit';
 import { queryPagesByFrontmatter } from '../frontmatter-query.js';
+import { commercialProgress } from '../deal-schema.js';
 import { DEALS_INVOLVEMENTS } from './deals.js';
 
 const REGULAR = fileURLToPath(new URL('./fonts/NotoSans-Regular.ttf', import.meta.url));
@@ -15,16 +16,19 @@ export async function readAnonymisedDeals(db) {
   const records = [];
   let cursor = 0;
   let expectedTotal;
+  let loadedCount = 0;
   do {
     const page = await queryPagesByFrontmatter({ db, pathPrefix: 'deals', type: 'deals',
       filters: [{ field: 'page_kind', operator: 'eq', value: 'canonical' },
         { field: 'deal_involvement', operator: 'in', value: [...DEALS_INVOLVEMENTS] }],
-      fields: ['anonymised_title', 'anonymised_description', 'anonymised_asks'],
+      fields: ['deal_status', 'deal_stage', 'anonymised_title', 'anonymised_description', 'anonymised_asks'],
       orderBy: [{ field: 'slug', direction: 'asc' }], limit: 100, cursor });
     expectedTotal ??= page.total;
     if (page.total !== expectedTotal) throw exportError('The deal list changed during export. Please retry.');
     for (const p of page.pages) {
+      loadedCount++;
       const f = p.frontmatter;
+      if (commercialProgress(f).deal_status !== 'active') continue;
       if (typeof f.anonymised_title !== 'string' || !f.anonymised_title.trim()
         || typeof f.anonymised_description !== 'string' || !f.anonymised_description.trim()) {
         throw exportError('Some deals need an anonymised title or description. Complete those fields in Deals, then download again.');
@@ -39,7 +43,7 @@ export async function readAnonymisedDeals(db) {
     }
     cursor = page.next_cursor;
   } while (cursor !== null);
-  if (records.length !== expectedTotal) throw exportError('The complete deal list could not be loaded. Please retry.');
+  if (loadedCount !== expectedTotal) throw exportError('The complete deal list could not be loaded. Please retry.');
   if (!records.length) throw exportError('There are no deals to export yet.');
   return records.sort((a, b) => a.title.localeCompare(b.title, 'en'));
 }

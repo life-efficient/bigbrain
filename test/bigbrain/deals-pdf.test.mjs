@@ -87,3 +87,12 @@ test('footer stays on the content page instead of creating a trailing page', asy
     assert.equal((pdf.toString('latin1').match(/\/Type \/Page\b/g) || []).length, 1);
   } finally { f.close(); }
 });
+
+
+test('PDF excludes archived and legacy paused or dropped deals before checking shareable fields', async () => {
+ const f=fixture();try {
+ f.add('deals/active',anonymous);
+ for(const [slug,metadata] of [['archived',{deal_status:'archived',deal_stage:'qualifying'}],['paused',{deal_stage:'paused'}],['dropped',{deal_stage:'dropped'}]]) f.add(`deals/${slug}`,{deal_involvement:'active',...metadata});
+ assert.deepEqual(await readAnonymisedDeals(f.db),[{title:anonymous.anonymised_title,description:anonymous.anonymised_description,asks:[]}]);
+ } finally {f.close();}
+});

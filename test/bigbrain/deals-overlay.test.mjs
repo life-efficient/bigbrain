@@ -38,7 +38,7 @@ test('deals overlay includes explicit actual and network deals, excluding public
     assert.equal(result.overlay.enabled, true);
     assert.equal(result.brain.brain_id, 'personal');
     assert.deepEqual(result.records.map((r) => r.deal_involvement), ['active', 'network_actionable', 'network_observed']);
-    assert.deepEqual(Object.keys(result.records[0]).sort(), ['anonymised_asks', 'anonymised_description', 'anonymised_title', 'deal_involvement', 'deal_stage', 'deal_types', 'introductions', 'page_slug', 'stage_as_of', 'summary', 'tasks', 'title', 'updated_at']);
+    assert.deepEqual(Object.keys(result.records[0]).sort(), ['anonymised_asks', 'anonymised_description', 'anonymised_title', 'deal_involvement', 'deal_stage', 'deal_status', 'deal_types', 'introductions', 'page_slug', 'stage_as_of', 'summary', 'tasks', 'title', 'updated_at']);
     const filtered = await buildDealsPayload(config, f.db, { deal_involvement: 'network_observed' });
     assert.equal(filtered.total, 1);
   } finally { f.close(); }
@@ -143,4 +143,17 @@ test('legacy sharing fields migrate on read without overriding explicit canonica
     assert.equal(Object.hasOwn(records[0], 'asks'), false);
     assert.equal(Object.hasOwn(records[0], 'teaser_summary'), false);
   } finally { f.close(); }
+});
+
+test('legacy statuses read as archived with unknown stage and explicit status takes precedence', async () => {
+ const f=fixture();try {
+ for(const stage of ['paused','dropped']) f.add(`deals/${stage}`,'active',{frontmatter:{deal_stage:stage}});
+ f.add('deals/restored','active',{frontmatter:{deal_stage:'paused',deal_status:'active'}});
+ f.add('deals/current','active',{frontmatter:{deal_stage:'establishing_arrangement'}});
+ const records=(await buildDealsPayload(config,f.db)).records;
+ for(const stage of ['paused','dropped']) {const r=records.find(p=>p.page_slug===`deals/${stage}`);assert.equal(r.deal_status,'archived');assert.equal(r.deal_stage,'unknown');}
+ assert.equal(records.find(p=>p.page_slug==='deals/restored').deal_status,'active');
+ assert.equal(records.find(p=>p.page_slug==='deals/current').deal_status,'active');
+ assert.equal(records.find(p=>p.page_slug==='deals/current').deal_stage,'establishing_arrangement');
+ }finally{f.close();}
 });

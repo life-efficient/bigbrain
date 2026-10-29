@@ -10,7 +10,7 @@ import { CANONICAL_SCHEMA_DIRS } from './constants.js';
 
 export const PAGE_SCHEMA_REGISTRY_FILENAME = 'page-schemas.yaml';
 export const PAGE_SCHEMA_REGISTRY_VERSION = 1;
-export const PAGE_SCHEMA_DEFAULTS_VERSION = 6;
+export const PAGE_SCHEMA_DEFAULTS_VERSION = 7;
 
 const SCHEMA_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const FIELD_TYPES = ['string', 'number', 'boolean', 'array', 'object'];
@@ -278,6 +278,7 @@ export async function migratePageSchemaRegistry(config) {
   if (loaded.status === 'missing') {
     const registry = defaultPageSchemaRegistry({ schemaDirs: config.schemaDirs, compatibility: true });
     applyPageSchemaDefaultsMigration(registry, config, 6, []);
+    applyPageSchemaDefaultsMigration(registry, config, 7, []);
     await writePageSchemaRegistry(config, registry);
     return {
       ...(await loadPageSchemaRegistry(config, { allowMissing: false })),
@@ -396,6 +397,19 @@ function applyPageSchemaDefaultsMigration(registry, config, version, added) {
       for (const [field, definition] of Object.entries(fields)) {
         if (Object.hasOwn(schema.fields, field)) continue;
         schema.fields[field] = definition;
+        added.push(`${id}.${field}`);
+      }
+    }
+    return;
+  }
+  if (version === 7) {
+    for (const [id, schema] of Object.entries(registry.schemas)) {
+      const prefix = normalizePathPrefix(schema.path_prefix);
+      const fields = prefix === 'deals' ? dealMetadataFields() : prefix === 'deal_introductions' ? dealIntroductionFields() : {};
+      const keys = prefix === 'deals' ? ['deal_status', 'deal_stage'] : ['introduction_status', 'stage'];
+      for (const field of keys) if (fields[field]) {
+        schema.fields ||= {};
+        schema.fields[field] = fields[field];
         added.push(`${id}.${field}`);
       }
     }

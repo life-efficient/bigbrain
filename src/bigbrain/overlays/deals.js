@@ -1,6 +1,6 @@
 import { randomUUID, createHash } from 'node:crypto';
 import path from 'node:path';
-import { dealMetadataSchema } from '../deal-schema.js';
+import { dealMetadataSchema, commercialProgress } from '../deal-schema.js';
 import { parseMarkdownPage } from '../markdown.js';
 import { queryPagesByFrontmatter } from '../frontmatter-query.js';
 import { sqliteRawDatabase, replacePageIndex } from '../db.js';
@@ -26,7 +26,7 @@ export async function buildDealsPayload(config, db, input = {}) {
       { field: 'page_kind', operator: 'eq', value: 'canonical' },
       { field: 'deal_involvement', operator: 'in', value: involvement ? [involvement] : [...DEALS_INVOLVEMENTS] },
     ],
-    fields: ['deal_types', 'deal_stage', 'stage_as_of', 'deal_involvement', 'anonymised_title', 'anonymised_asks', 'anonymised_description', 'asks', 'teaser_summary'],
+    fields: ['deal_status', 'deal_types', 'deal_stage', 'stage_as_of', 'deal_involvement', 'anonymised_title', 'anonymised_asks', 'anonymised_description', 'asks', 'teaser_summary'],
     orderBy: [{ field: 'title', direction: 'asc' }],
     limit,
     cursor,
@@ -43,7 +43,7 @@ export async function buildDealsPayload(config, db, input = {}) {
       summary: page.summary?.trim() || readableSummary(fallback.get(page.slug)),
       deal_involvement: page.frontmatter.deal_involvement,
       deal_types: stringList(page.frontmatter.deal_types),
-      deal_stage: page.frontmatter.deal_stage || 'unknown',
+      ...commercialProgress(page.frontmatter),
       stage_as_of: page.frontmatter.stage_as_of || null,
       introductions: related.introductions.get(page.slug) || [],
       tasks: related.tasks.get(page.slug) || [],
@@ -164,6 +164,7 @@ export async function updateDealStage(config, db, input, { actor = null, indexPa
   if (!Object.hasOwn(input, 'expected_stage_as_of') || (input.expected_stage_as_of !== null && (typeof input.expected_stage_as_of !== 'string' || !dealMetadataSchema.shape.stage_as_of.safeParse(input.expected_stage_as_of).success))) {
     throw invalidInput('expected_stage_as_of must be the previously read date or null.');
   }
+  if (!['active', 'archived'].includes(input.expected_deal_status)) throw invalidInput('expected_deal_status is required.');
   const stageAsOf = new Date().toISOString();
   const timelineText = `Manually changed deal stage from ${input.expected_deal_stage} to ${input.deal_stage} in the Deals board.`;
   const noChange = Symbol('no stage change');
@@ -179,7 +180,9 @@ export async function updateDealStage(config, db, input, { actor = null, indexPa
         source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timelineText },
       validateExisting(existing) {
         if (existing.type !== 'deals' || !DEALS_INVOLVEMENTS.includes(existing.frontmatter.deal_involvement)) throw Object.assign(new Error('Page is not enrolled in the Deals overlay.'), { statusCode: 404 });
-        if ((existing.frontmatter.deal_stage || 'unknown') !== input.expected_deal_stage || (existing.frontmatter.stage_as_of || null) !== input.expected_stage_as_of) {
+        const progress = commercialProgress(existing.frontmatter);
+        if (progress.deal_status !== input.expected_deal_status || progress.deal_status === 'archived') throw Object.assign(new Error('This deal is archived or its status changed. Refresh before moving it.'), { statusCode: 409 });
+        if (progress.deal_stage !== input.expected_deal_stage || (existing.frontmatter.stage_as_of || null) !== input.expected_stage_as_of) {
           throw Object.assign(new Error('This deal stage changed elsewhere. Refresh the board before moving it.'), { statusCode: 409 });
         }
         // Exit under the write lock before any file, date or timeline mutation.
@@ -221,7 +224,7 @@ export async function updateDealStage(config, db, input, { actor = null, indexPa
   return { record: { ...(record || { page_slug: slug }),
     title: page.title, summary: page.summary, deal_involvement: page.frontmatter.deal_involvement,
     deal_types: stringList(page.frontmatter.deal_types), ...anonymisedDealFields(page.frontmatter),
-    deal_stage: page.frontmatter.deal_stage || 'unknown', stage_as_of: page.frontmatter.stage_as_of || null,
+    ...commercialProgress(page.frontmatter), stage_as_of: page.frontmatter.stage_as_of || null,
     ...(changed ? { updated_at: stageAsOf } : {}) }, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
 }
 
@@ -270,7 +273,7 @@ async function relatedCommercialPages(db, dealSlugs, selectedIntroductions = nul
   const tasks = new Map();
   if (!dealSlugs.length && !selectedIntroductions?.length) return { introductions, tasks };
   const selectedDeals = new Set(dealSlugs);
-  const introPages = selectedIntroductions || (await allIndexedPages(db, 'deal_introductions', ['deal', 'parties', 'purpose', 'stage', 'stage_as_of']))
+  const introPages = selectedIntroductions || (await allIndexedPages(db, 'deal_introductions', ['deal', 'parties', 'purpose', 'stage', 'stage_as_of', 'introduction_status']))
     .filter(p => selectedDeals.has(p.frontmatter.deal));
   const owners = new Set([...dealSlugs, ...introPages.map(p => p.slug)]);
   const taskPages = (await allIndexedPages(db, 'tasks', ['source', 'status', 'assignees', 'waiting_on', 'due']))
@@ -298,7 +301,7 @@ async function relatedCommercialPages(db, dealSlugs, selectedIntroductions = nul
   }
   for (const p of introPages) {
     const record = { page_slug: p.slug, title: p.title, summary: p.summary || '', deal: p.frontmatter.deal,
-      parties: references(p.frontmatter.parties), purpose: p.frontmatter.purpose || '', stage: p.frontmatter.stage || 'unknown',
+      parties: references(p.frontmatter.parties), purpose: p.frontmatter.purpose || '', ...commercialProgress(p.frontmatter, true),
       stage_as_of: p.frontmatter.stage_as_of || null, updated_at: p.updated_at, tasks: tasks.get(p.slug) || [] };
     if (!introductions.has(record.deal)) introductions.set(record.deal, []);
     introductions.get(record.deal).push(record);
@@ -313,7 +316,7 @@ export async function buildDealIntroductionsPayload(config, db, input = {}) {
   const cursor = integer(input.cursor, 0, 0, Number.MAX_SAFE_INTEGER, 'cursor');
   const result = await queryPagesByFrontmatter({ db, pathPrefix: 'deal_introductions', type: 'deal_introductions',
     filters: [{ field: 'page_kind', operator: 'eq', value: 'canonical' }],
-    fields: ['deal', 'parties', 'purpose', 'stage', 'stage_as_of'],
+    fields: ['deal', 'parties', 'purpose', 'stage', 'stage_as_of', 'introduction_status'],
     orderBy: [{ field: 'title', direction: 'asc' }], limit, cursor });
   const parentSlugs = [...new Set(result.pages.map(p => p.frontmatter.deal).filter(Boolean))];
   const parents = parentSlugs.length ? await queryPagesByFrontmatter({ db,
@@ -324,4 +327,55 @@ export async function buildDealIntroductionsPayload(config, db, input = {}) {
   return { records: result.pages.map(p => ({ ...recordsBySlug.get(p.slug),
     parent_deal: { page_slug: p.frontmatter.deal || '', title: parentTitles.get(p.frontmatter.deal) || p.frontmatter.deal || 'Parent deal not recorded' },
   })), total: result.total, next_cursor: result.next_cursor };
+}
+
+export async function updateDealStatus(config, db, input, { actor = null, indexPage = replacePageIndex } = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidInput('Status input must be an object.');
+  if (actor?.scopes && !actor.scopes.some(scope => ['brain:admin', 'brain:write'].includes(scope))) throw Object.assign(new Error('Changing status requires write access.'), { statusCode: 403 });
+  const slug = input.page_slug;
+  if (typeof slug !== 'string' || !/^(deals|deal_introductions)\/[A-Za-z0-9][A-Za-z0-9_/-]*$/.test(slug) || slug.endsWith('/') || slug.includes('//')) throw invalidInput('page_slug must be a canonical deal or introduction slug.');
+  for (const key of ['status', 'expected_status']) if (!['active', 'archived'].includes(input[key])) throw invalidInput(`${key} must be active or archived.`);
+  if (typeof input.expected_stage !== 'string' || !input.expected_stage || input.expected_stage.length > 100) throw invalidInput('expected_stage is required.');
+  if (!Object.hasOwn(input, 'expected_stage_as_of') || (input.expected_stage_as_of !== null && !dealMetadataSchema.shape.stage_as_of.safeParse(input.expected_stage_as_of).success)) throw invalidInput('expected_stage_as_of must be the previously read date or null.');
+  const introduction = slug.startsWith('deal_introductions/');
+  const statusKey = introduction ? 'introduction_status' : 'deal_status';
+  const stageKey = introduction ? 'stage' : 'deal_stage';
+  const timestamp = new Date().toISOString();
+  const timeline = `${input.status === 'archived' ? 'Archived' : 'Restored'} ${introduction ? 'deal introduction' : 'deal'} in the Deals overview. Commercial stage and evidence date preserved.`;
+  const noChange = Symbol('no status change');
+  const { updateBrainPage } = await import('../page-ops.js');
+  let page, changed = false, maintenanceWarning = null;
+  try {
+    page = await updateBrainPage({ config, pagePath: slug, frontmatterValues: { [statusKey]: input.status },
+      timelineEntry: timeline, timelineSignificance: 'minor',
+      timelineProvenance: { event_id: `dashboard:deal-status:${slug}:${randomUUID()}`, source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timeline },
+      validateExisting(existing) {
+        if (existing.type !== (introduction ? 'deal_introductions' : 'deals') || (!introduction && !DEALS_INVOLVEMENTS.includes(existing.frontmatter.deal_involvement))) throw Object.assign(new Error('Page is not enrolled in the Deals overview.'), { statusCode: 404 });
+        const progress = commercialProgress(existing.frontmatter, introduction);
+        if (progress[statusKey] !== input.expected_status || progress[stageKey] !== input.expected_stage || (existing.frontmatter.stage_as_of || null) !== input.expected_stage_as_of) throw Object.assign(new Error('This record changed elsewhere. Refresh before changing its status.'), { statusCode: 409 });
+        if (progress[statusKey] === input.status) throw { marker: noChange, page: existing };
+      },
+      async afterWrite(saved) {
+        try { await indexPage(db, { ...parseMarkdownPage(saved.markdown, slug), path: path.join(config.brainDir, saved.path), pageKind: 'canonical', contentHash: createHash('sha256').update(saved.markdown).digest('hex'), updatedAt: timestamp }); }
+        catch { maintenanceWarning = 'Status was saved, but index maintenance needs attention. Refresh before another change.'; }
+      },
+    });
+    changed = true;
+  } catch (error) {
+    if (error.marker === noChange) page = error.page;
+    else { if (error.code === 'ENOENT') error.statusCode = 404; throw error; }
+  }
+  if (changed && process.env.BIGBRAIN_MCP_GIT_BACKUP === '1') {
+    try { const { postWriteMaintenance } = await import('../mcp-server.js'); await postWriteMaintenance(config, true, actor, `Change status for ${page.title}`); }
+    catch { maintenanceWarning = 'Status was saved, but backup maintenance needs attention.'; }
+  }
+  let record;
+  try {
+    for (let cursor = 0; cursor !== null && !record;) {
+      const batch = await (introduction ? buildDealIntroductionsPayload : buildDealsPayload)(config, db, { limit: 100, cursor });
+      record = batch.records.find(item => item.page_slug === slug); cursor = batch.next_cursor;
+    }
+  } catch { maintenanceWarning ||= 'Status was saved, but the updated overview could not be loaded. Refresh before another change.'; }
+  return { record: { ...(record || { page_slug: slug }), title: page.title, ...commercialProgress(page.frontmatter, introduction), stage_as_of: page.frontmatter.stage_as_of || null,
+    ...(changed ? { updated_at: timestamp } : {}) }, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
 }

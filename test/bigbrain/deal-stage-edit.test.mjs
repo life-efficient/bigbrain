@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { startDashboard } from '../../src/bigbrain/dashboard.js';
-import { updateDealStage } from '../../src/bigbrain/overlays/deals.js';
+import { updateDealStage, updateDealStatus, buildDealIntroductionsPayload } from '../../src/bigbrain/overlays/deals.js';
 import { readBrainPage } from '../../src/bigbrain/page-ops.js';
 import { openDatabase, replacePageIndex } from '../../src/bigbrain/db.js';
 
@@ -25,7 +25,7 @@ async function fixture(run) {
   await run({config,db,base,post});
  } finally {await server?.close();db?.raw?.close();await db?.close?.();await fs.rm(root,{recursive:true,force:true});}
 }
-const baseline={page_slug:'deals/sample',deal_stage:'negotiating',expected_deal_stage:'qualifying',expected_stage_as_of:'2026-10-20'};
+const baseline={expected_deal_status:'active',page_slug:'deals/sample',deal_stage:'negotiating',expected_deal_stage:'qualifying',expected_stage_as_of:'2026-10-20'};
 
 test('stage changes persist, index, preserve content, and reject competing stale moves',async()=>fixture(async({config,base,post})=>{
  const before=await readBrainPage({config,pagePath:'deals/sample'});
@@ -87,4 +87,35 @@ test('page lock orders saved stages and delayed index updates together',async()=
  const row=db.raw.prepare('SELECT frontmatter_json FROM pages WHERE slug = ?').get('deals/sample');
  assert.equal(JSON.parse(row.frontmatter_json).deal_stage,'closing');
  assert.equal((await readBrainPage({config,pagePath:'deals/sample'})).frontmatter.deal_stage,'closing');
+}));
+
+
+test('archive and restore preserve commercial stage, date and body, and prevent stale changes',async()=>fixture(async({config,db,base,post})=>{
+ const before=await readBrainPage({config,pagePath:'deals/sample'});
+ const input={page_slug:'deals/sample',status:'archived',expected_status:'active',expected_stage:'qualifying',expected_stage_as_of:'2026-10-20'};
+ const response=await fetch(base+'/api/overlays/deals/status',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input)});
+ assert.equal(response.status,200);assert.equal((await response.json()).record.deal_status,'archived');
+ const archived=await readBrainPage({config,pagePath:'deals/sample'});
+ assert.equal(archived.frontmatter.deal_stage,before.frontmatter.deal_stage);assert.equal(archived.frontmatter.stage_as_of,before.frontmatter.stage_as_of);assert.equal(archived.body,before.body);
+ assert.match(archived.timeline,/Archived deal/);
+ assert.equal((await post(baseline)).status,409);
+ await assert.rejects(updateDealStatus(config,db,input),{statusCode:409});
+ await assert.rejects(updateDealStatus(config,db,{...input,status:'active',expected_status:'archived',expected_stage:'preparing'}),{statusCode:409});
+ const restored=await updateDealStatus(config,db,{...input,status:'active',expected_status:'archived'});
+ assert.equal(restored.record.deal_status,'active');assert.equal(restored.record.deal_stage,'qualifying');assert.equal(restored.record.stage_as_of,'2026-10-20');
+ assert.equal((await post({...baseline,deal_stage:'establishing_arrangement'})).status,200);
+}));
+
+test('introduction archiving is independent and preserves stage',async()=>fixture(async({config,db})=>{
+ await fs.mkdir(path.join(config.brainDir,'organizations'),{recursive:true});
+ for(const name of ['one','two']) await fs.writeFile(path.join(config.brainDir,'organizations',name+'.md'),`---\ntitle: ${name}\nsummary: Party\n---\n# Party\n`);
+ await fs.mkdir(path.join(config.brainDir,'deal_introductions'),{recursive:true});
+ await fs.writeFile(path.join(config.brainDir,'deal_introductions','sample.md'),'---\ntitle: Introduction\nsummary: Commercial discussion\ndeal: deals/sample\nparties: [organizations/one, organizations/two]\npurpose: Supply\nstage: negotiating\nstage_as_of: 2026-10-20\n---\n# Introduction\n');
+ const args={page_slug:'deal_introductions/sample',status:'archived',expected_status:'active',expected_stage:'negotiating',expected_stage_as_of:'2026-10-20'};
+ const result=await updateDealStatus(config,db,args);
+ assert.equal(result.record.introduction_status,'archived');assert.equal(result.record.stage,'negotiating');
+ assert.equal((await readBrainPage({config,pagePath:'deals/sample'})).frontmatter.deal_status,undefined);
+ const list=await buildDealIntroductionsPayload(config,db);assert.equal(list.records[0].introduction_status,'archived');
+ await updateDealStatus(config,db,{...args,status:'active',expected_status:'archived'});
+ assert.equal((await buildDealIntroductionsPayload(config,db)).records[0].introduction_status,'active');
 }));
