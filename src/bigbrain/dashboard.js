@@ -54,7 +54,8 @@ import {
   updateComprehensionSetup,
 } from './overlays/comprehension.js';
 import { getRelatedLinkHistory } from './link-history.js';
-import { buildDealsPayload, updateDealAsks } from './overlays/deals.js';
+import { buildDealsPayload, buildDealIntroductionsPayload, updateDealAsks } from './overlays/deals.js';
+import { buildDealsPdf } from './overlays/deals-pdf.js';
 import {
   normalizePageVisibility,
   normalizeRawPath,
@@ -329,6 +330,21 @@ export async function createDashboardRequestHandler(config, {
         return json(res, await buildHealthPayload(config, { dashboardSurface: resolvedDashboardSurface }));
       }
       if (requestUrl.pathname === '/api/analytics') return json(res, await buildAnalyticsPayload(config, db));
+      if (requestUrl.pathname === '/api/overlays/deals/export.pdf') {
+        if (req.method !== 'GET') throw Object.assign(new Error('Deal exports require GET.'), { statusCode: 405 });
+        const pdf = await buildDealsPdf(config, db);
+        res.writeHead(200, { 'Content-Type': 'application/pdf',
+          'Content-Disposition': 'attachment; filename="anonymised-deals-overview.pdf"',
+          'Content-Length': pdf.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+        res.end(pdf);
+        return;
+      }
+      if (requestUrl.pathname === '/api/overlays/deals/introductions') {
+        if (req.method !== 'GET') throw Object.assign(new Error('Introduction reads require GET.'), { statusCode: 405 });
+        const input = {};
+        for (const key of ['limit', 'cursor']) if (requestUrl.searchParams.has(key)) input[key] = Number(requestUrl.searchParams.get(key));
+        return json(res, await buildDealIntroductionsPayload(config, db, input), { noStore: true });
+      }
       if (requestUrl.pathname === '/api/overlays/deals/asks') {
         if (req.method !== 'POST') throw Object.assign(new Error('Deal ask updates require POST.'), { statusCode: 405 });
         let input;

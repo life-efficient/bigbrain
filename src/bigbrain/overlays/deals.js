@@ -186,12 +186,12 @@ async function allIndexedPages(db, pathPrefix, fields) {
   return result;
 }
 
-async function relatedCommercialPages(db, dealSlugs) {
+async function relatedCommercialPages(db, dealSlugs, selectedIntroductions = null) {
   const introductions = new Map();
   const tasks = new Map();
-  if (!dealSlugs.length) return { introductions, tasks };
+  if (!dealSlugs.length && !selectedIntroductions?.length) return { introductions, tasks };
   const selectedDeals = new Set(dealSlugs);
-  const introPages = (await allIndexedPages(db, 'deal_introductions', ['deal', 'parties', 'purpose', 'stage', 'stage_as_of']))
+  const introPages = selectedIntroductions || (await allIndexedPages(db, 'deal_introductions', ['deal', 'parties', 'purpose', 'stage', 'stage_as_of']))
     .filter(p => selectedDeals.has(p.frontmatter.deal));
   const owners = new Set([...dealSlugs, ...introPages.map(p => p.slug)]);
   const taskPages = (await allIndexedPages(db, 'tasks', ['source', 'status', 'assignees', 'waiting_on', 'due']))
@@ -225,4 +225,24 @@ async function relatedCommercialPages(db, dealSlugs) {
     introductions.get(record.deal).push(record);
   }
   return { introductions, tasks };
+}
+
+
+export async function buildDealIntroductionsPayload(config, db, input = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidInput('Introductions input must be an object.');
+  const limit = integer(input.limit, 100, 1, 100, 'limit');
+  const cursor = integer(input.cursor, 0, 0, Number.MAX_SAFE_INTEGER, 'cursor');
+  const result = await queryPagesByFrontmatter({ db, pathPrefix: 'deal_introductions', type: 'deal_introductions',
+    filters: [{ field: 'page_kind', operator: 'eq', value: 'canonical' }],
+    fields: ['deal', 'parties', 'purpose', 'stage', 'stage_as_of'],
+    orderBy: [{ field: 'title', direction: 'asc' }], limit, cursor });
+  const parentSlugs = [...new Set(result.pages.map(p => p.frontmatter.deal).filter(Boolean))];
+  const parents = parentSlugs.length ? await queryPagesByFrontmatter({ db,
+    filters: [{ field: 'slug', operator: 'in', value: parentSlugs }], fields: [], limit: 100 }) : { pages: [] };
+  const parentTitles = new Map(parents.pages.map(p => [p.slug, p.title]));
+  const related = await relatedCommercialPages(db, parentSlugs, result.pages);
+  const recordsBySlug = new Map([...related.introductions.values()].flat().map(p => [p.page_slug, p]));
+  return { records: result.pages.map(p => ({ ...recordsBySlug.get(p.slug),
+    parent_deal: { page_slug: p.frontmatter.deal || '', title: parentTitles.get(p.frontmatter.deal) || p.frontmatter.deal || 'Parent deal not recorded' },
+  })), total: result.total, next_cursor: result.next_cursor };
 }
