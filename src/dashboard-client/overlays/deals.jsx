@@ -387,7 +387,6 @@ export function DealsPanel({ onOpenPage }) {
   const records = showingIntroductions
     ? introductions.records.filter(record => matchesIntroductionFilters(record, { search: introductionSearch, stage: introductionStage, status: introductionStatus }))
     : state.records.filter(record => matchesDealFilters(record, { search, dealType, stage, status: dealStatus }));
-  const filtered = showingIntroductions ? introductionSearch.trim() || introductionStage || introductionStatus !== 'all' : search.trim() || dealType || stage || dealStatus !== 'all';
   const filtersChanged = showingIntroductions ? introductionSearch.trim() || introductionStage || introductionStatus !== 'active' : search.trim() || dealType || stage || dealStatus !== 'active';
   const noun = showingIntroductions ? 'introduction' : 'deal';
 
@@ -406,12 +405,10 @@ export function DealsPanel({ onOpenPage }) {
               changeView(next); tabRefs.current[next]?.focus();
             }}>{label}</button>)}
         </div>
+        <span className="meta deal-result-count" aria-live="polite" aria-label={current.status === 'ready' ? `${records.length} of ${current.records.length} ${noun}s` : `Loading ${noun}s`}>
+          {current.status === 'ready' ? `${records.length} / ${current.records.length}` : '…'}
+        </span>
         <div className="deal-layout-controls">
-        {!showingIntroductions ? <div className="deal-view-tabs" role="group" aria-label="Deal text">
-          {[['regular', 'Regular'], ['anonymised', 'Anonymised']].map(([id, label]) => <button key={id} type="button"
-            className="deal-view-tab" aria-pressed={textMode === id} disabled={!!savingStage || !!savingStatus || !!savingArrangement}
-            onClick={() => changeTextMode(id)}>{label}</button>)}
-        </div> : null}
         <div className="deal-view-tabs deal-layout-tabs" role="tablist" aria-label={showingIntroductions ? 'Introduction layout' : 'Deal layout'}>
           {DEAL_LAYOUTS.map(({ id, label, Icon }, index) => <button type="button" key={id} role="tab"
             ref={element => { layoutRefs.current[id] = element; }} id={`deal-layout-tab-${id}`} aria-controls={`deal-layout-${id}`}
@@ -423,13 +420,8 @@ export function DealsPanel({ onOpenPage }) {
               changeLayout(next); layoutRefs.current[next]?.focus();
             }}><Icon size={17} aria-hidden="true" /></button>)}
         </div>
-        {current.status === 'ready' ? <span className="meta">{filtered ? `${records.length} of ` : ''}{current.records.length} {noun}{current.records.length === 1 ? '' : 's'}</span> : null}
-        {!showingIntroductions ? <button type="button" className="graph-button deal-icon-action"
-          title={downloading ? 'Preparing PDF…' : 'Download anonymised PDF of all active deals'}
-          aria-label={downloading ? 'Preparing PDF' : 'Download anonymised PDF of all active deals'}
-          onClick={downloadPdf} disabled={downloading || state.status !== 'ready' || !state.records.some(record => recordStatus(record) === 'active')}>
-          <Download size={16} aria-hidden="true" />
-        </button> : null}
+
+
         </div>
       </div>
       {stageFeedback ? <div className={`deal-stage-feedback is-${stageFeedback.kind}`} role={stageFeedback.kind === 'error' ? 'alert' : 'status'} aria-live="polite">
@@ -460,6 +452,17 @@ export function DealsPanel({ onOpenPage }) {
                 <Select value={showingIntroductions ? introductionStage : stage} onValueChange={showingIntroductions ? setIntroductionStage : setStage} aria-labelledby="deal-stage-filter-label"
                   options={[{ value: '', label: 'All stages' }, ...Object.entries(showingIntroductions ? INTRODUCTION_STAGE_LABELS : DEAL_STAGE_LABELS).map(([value, label]) => ({ value, label }))]} />
               </div>
+        {!showingIntroductions ? <div className="deal-view-tabs" role="group" aria-label="Deal text">
+          {[['regular', 'Regular'], ['anonymised', 'Anonymised']].map(([id, label]) => <button key={id} type="button"
+            className="deal-view-tab" aria-pressed={textMode === id} disabled={!!savingStage || !!savingStatus || !!savingArrangement}
+            onClick={() => changeTextMode(id)}>{label}</button>)}
+        </div> : null}
+        {!showingIntroductions ? <button type="button" className="graph-button deal-icon-action"
+          title={downloading ? 'Preparing PDF…' : 'Download anonymised PDF of all active deals'}
+          aria-label={downloading ? 'Preparing PDF' : 'Download anonymised PDF of all active deals'}
+          onClick={downloadPdf} disabled={downloading || state.status !== 'ready' || !state.records.some(record => recordStatus(record) === 'active')}>
+          <Download size={16} aria-hidden="true" />
+        </button> : null}
               {filtersChanged ? <button type="button" className="graph-button" onClick={() => {
                 if (showingIntroductions) { setIntroductionSearch(''); setIntroductionStage(''); setIntroductionStatus('active'); }
                 else { setSearch(''); setDealType(''); setStage(''); setDealStatus('active'); }

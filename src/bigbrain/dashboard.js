@@ -1108,7 +1108,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page { width: 100%; max-width: 1080px; margin: 0 auto; gap: 10px; padding: 0 4px 20px; }
       .deals-page .overlay-head { align-items: flex-start; padding: 10px 0 0; }
       .deals-page .deal-export { display: grid; justify-items: end; gap: 6px; }
-      .deals-page .deal-view-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+      .deals-page .deal-view-toolbar { display: flex; align-items: center; gap: 12px; }
+      .deals-page .deal-result-count { flex: 0 0 10ch; white-space: nowrap; font-variant-numeric: tabular-nums; }
+      .deals-page .deal-view-toolbar > .deal-layout-controls { margin-left: auto; flex-shrink: 0; }
       .deals-page .deal-view-tabs { display: inline-flex; gap: 3px; border: 0; background: var(--surface); padding: 4px; border-radius: 9px; }
       .deals-page .deal-view-tab { border: 0; border-radius: 6px; padding: 6px 10px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
       .deals-page .deal-view-tab[aria-selected="true"], .deals-page .deal-view-tab[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.16); }
@@ -1171,8 +1173,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .introduction-kanban-card .deal-reference-link { font-size: inherit; line-height: inherit; text-align: left; }
       .deals-page .introduction-kanban-card .deal-arrangement-pill { justify-self: start; max-width: 100%; }
       .deals-page .introduction-kanban-card .deal-stage-badge { justify-self: start; }
-      .deals-page .deal-filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
-      .deals-page .deal-filters > input { flex: 1 1 280px; min-width: 180px; }
+      .deals-page .deal-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+      .deals-page .deal-filters > input { flex: 1 1 180px; min-width: 140px; }
       .deals-page .deal-filters > .deal-filter-field { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
       .deals-page .deal-filters .shadcn-select-trigger { min-height: 38px; max-width: 230px; padding: 8px 10px; border: 0; border-radius: 8px; color: var(--ink); background: var(--surface); font: inherit; font-size: 12px; }
       .deals-page .deal-progress-meta, .deals-page .deal-stage-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
