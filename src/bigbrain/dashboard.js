@@ -2169,7 +2169,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .shadcn-select-trigger:hover { border-color: var(--line-strong); background: rgba(255,255,255,0.07); }
       .shadcn-select-trigger[data-disabled] { cursor: wait; opacity: 0.68; }
       .shadcn-select-icon { display: inline-flex; align-items: center; justify-content: center; align-self: center; width: 16px; height: 16px; color: var(--muted); font-size: 15px; line-height: 1; }
-      .shadcn-select-content { z-index: 80; min-width: var(--radix-select-trigger-width); max-height: min(320px, var(--radix-select-content-available-height)); overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); box-shadow: 0 18px 48px rgba(0,0,0,0.28); }
+      .shadcn-select-content { z-index: 110; min-width: var(--radix-select-trigger-width); max-height: min(320px, var(--radix-select-content-available-height)); overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); box-shadow: 0 18px 48px rgba(0,0,0,0.28); }
       .shadcn-select-viewport { padding: 5px; }
       .shadcn-select-scroll { display: flex; align-items: center; justify-content: center; height: 24px; color: var(--muted); }
       .shadcn-select-trigger.overlay-frequency-select { width: auto; min-width: 140px; }
