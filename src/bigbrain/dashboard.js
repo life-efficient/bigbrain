@@ -1190,7 +1190,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-filter-controls > * { flex-shrink: 0; white-space: nowrap; }
       .deals-page .deal-selection-toggle { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 28px; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; }
       .deals-page .deal-selection-toggle[aria-checked="true"] { color: var(--ink); background: var(--surface-muted); }
-      .deals-page .deal-kanban-card.is-selected, .deals-page .deal-record.is-selected { border-color: var(--ink); }
+      .deals-page .deal-record.is-selected { border-color: var(--ink); }
       .deals-page .deal-selection-controls { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); }
       .deals-page .deal-compact-search { display: inline-flex; align-items: center; flex: 0 0 36px; width: 36px; overflow: hidden; border-radius: 8px; background: var(--surface); transition: flex-basis 220ms ease, width 220ms ease; }
       .deals-page .deal-compact-search.is-expanded { flex-basis: 186px; width: 186px; }
