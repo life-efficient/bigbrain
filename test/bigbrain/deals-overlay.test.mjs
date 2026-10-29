@@ -38,7 +38,7 @@ test('deals overlay includes explicit actual and network deals, excluding public
     assert.equal(result.overlay.enabled, true);
     assert.equal(result.brain.brain_id, 'personal');
     assert.deepEqual(result.records.map((r) => r.deal_involvement), ['active', 'network_actionable', 'network_observed']);
-    assert.deepEqual(Object.keys(result.records[0]).sort(), ['anonymised_asks', 'anonymised_description', 'anonymised_title', 'deal_involvement', 'deal_stage', 'deal_status', 'deal_types', 'introductions', 'page_slug', 'stage_as_of', 'summary', 'tasks', 'title', 'updated_at']);
+    assert.deepEqual(Object.keys(result.records[0]).sort(), ['anonymised_asks', 'anonymised_description', 'anonymised_title', 'deal_involvement', 'deal_stage', 'deal_status', 'deal_types', 'edit_values', 'introductions', 'page_slug', 'stage_as_of', 'summary', 'tasks', 'title', 'updated_at']);
     const filtered = await buildDealsPayload(config, f.db, { deal_involvement: 'network_observed' });
     assert.equal(filtered.total, 1);
   } finally { f.close(); }

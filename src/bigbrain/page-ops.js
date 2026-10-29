@@ -446,8 +446,8 @@ export async function updateBrainPage({ config, pagePath, compiledTruth = undefi
   }
   const markdown = renderPageMarkdown({
     frontmatterRaw,
-    title: existing.title,
-    body: currentBody,
+    title: nextFrontmatterValues.title ?? existing.title,
+    body: nextFrontmatterValues.title === undefined ? currentBody : replaceLeadingHeading(currentBody, existing.title, nextFrontmatterValues.title),
     timeline: nextTimeline,
   });
   await fs.writeFile(safeBrainPath(config.brainDir, relative), markdown, 'utf8');

@@ -26,7 +26,7 @@ export async function buildDealsPayload(config, db, input = {}) {
       { field: 'page_kind', operator: 'eq', value: 'canonical' },
       { field: 'deal_involvement', operator: 'in', value: involvement ? [involvement] : [...DEALS_INVOLVEMENTS] },
     ],
-    fields: ['deal_status', 'deal_types', 'deal_stage', 'stage_as_of', 'deal_involvement', 'anonymised_title', 'anonymised_asks', 'anonymised_description', 'asks', 'teaser_summary'],
+    fields: ['summary', 'deal_status', 'deal_types', 'deal_stage', 'stage_as_of', 'deal_involvement', 'anonymised_title', 'anonymised_asks', 'anonymised_description', 'asks', 'teaser_summary'],
     orderBy: [{ field: 'title', direction: 'asc' }],
     limit,
     cursor,
@@ -40,6 +40,7 @@ export async function buildDealsPayload(config, db, input = {}) {
     records: result.pages.map((page) => ({
       page_slug: page.slug,
       title: page.title,
+      edit_values: editableDealValues(page.title, { ...page.frontmatter, summary: page.summary }),
       summary: page.summary?.trim() || readableSummary(fallback.get(page.slug)),
       deal_involvement: page.frontmatter.deal_involvement,
       deal_types: stringList(page.frontmatter.deal_types),
@@ -379,7 +380,7 @@ async function relatedCommercialPages(db, dealSlugs, selectedIntroductions = nul
     }
   }
   for (const p of introPages) {
-    const record = { page_slug: p.slug, title: p.title, summary: p.summary || '', deal: p.frontmatter.deal,
+    const record = { page_slug: p.slug, title: p.title, edit_values: editableDealValues(p.title, p.frontmatter, true), summary: p.summary || '', deal: p.frontmatter.deal,
       parties: references(p.frontmatter.parties), purpose: p.frontmatter.purpose || '', ...commercialProgress(p.frontmatter, true),
       arrangement_status: p.frontmatter.arrangement_status || 'none',
       stage_as_of: p.frontmatter.stage_as_of || null, updated_at: p.updated_at, tasks: tasks.get(p.slug) || [] };
@@ -506,4 +507,57 @@ export async function updateIntroductionArrangement(config, db, input, { actor =
     arrangement_status: page.frontmatter.arrangement_status || 'none',
     ...commercialProgress(page.frontmatter, true), stage_as_of: page.frontmatter.stage_as_of || null,
     ...(changed ? { updated_at: timestamp } : {}) }, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
+}
+
+
+function editableDealValues(title, frontmatter, introduction = false) {
+  return introduction ? { title, purpose: frontmatter.purpose || '', arrangement_status: frontmatter.arrangement_status || 'none' }
+    : { title, summary: frontmatter.summary || '', ...anonymisedDealFields(frontmatter) };
+}
+
+export async function updateDealDetails(config, db, input, { actor = null, indexPage = replacePageIndex } = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidInput('Edit input must be an object.');
+  if (actor?.scopes && !actor.scopes.some(scope => ['brain:admin', 'brain:write'].includes(scope))) throw Object.assign(new Error('Editing requires write access.'), { statusCode: 403 });
+  const slug = input.page_slug;
+  if (typeof slug !== 'string' || !/^(deals|deal_introductions)\/[A-Za-z0-9][A-Za-z0-9_/-]*$/.test(slug) || slug.endsWith('/') || slug.includes('//')) throw invalidInput('page_slug must be a canonical deal or introduction slug.');
+  const introduction = slug.startsWith('deal_introductions/');
+  const fields = introduction ? ['title', 'purpose', 'arrangement_status'] : ['title', 'summary', 'anonymised_title', 'anonymised_description', 'anonymised_asks'];
+  function validate(values) {
+    if (!values || typeof values !== 'object' || Array.isArray(values) || Object.keys(values).some(key => !fields.includes(key))) throw invalidInput('Invalid editable fields.');
+    const result = {};
+    for (const key of fields) {
+      if (key === 'anonymised_asks') { result[key] = validateAsks(values[key], key); continue; }
+      if (typeof values[key] !== 'string' || values[key].length > (key.includes('title') ? 500 : 20000)) throw invalidInput(`${key} is missing or too long.`);
+      result[key] = values[key].trim();
+      if (key === 'title' && !result[key]) throw invalidInput('Title is required.');
+      if (key === 'arrangement_status' && !['none', 'establishing', 'agreed'].includes(result[key])) throw invalidInput('Invalid arrangement status.');
+    }
+    return result;
+  }
+  const values = validate(input.values), expected = validate(input.expected_values);
+  if (introduction && !values.purpose) throw invalidInput('Purpose is required.');
+  const timestamp = new Date().toISOString();
+  const timeline = `Edited ${introduction ? 'deal introduction' : 'deal'} details in the Deals overview.`;
+  const { updateBrainPage } = await import('../page-ops.js');
+  let page, maintenanceWarning;
+  try {
+    page = await updateBrainPage({ config, pagePath: slug, frontmatterValues: values,
+      timelineEntry: timeline, timelineSignificance: 'minor',
+      timelineProvenance: { event_id: `dashboard:deal-details:${slug}:${randomUUID()}`, source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timeline },
+      validateExisting(existing) {
+        if (existing.type !== (introduction ? 'deal_introductions' : 'deals') || (!introduction && !DEALS_INVOLVEMENTS.includes(existing.frontmatter.deal_involvement))) throw Object.assign(new Error('Page is not enrolled in the Deals overview.'), { statusCode: 404 });
+        const current = editableDealValues(existing.title, existing.frontmatter, introduction);
+        if (fields.some(key => JSON.stringify(current[key]) !== JSON.stringify(expected[key]))) throw Object.assign(new Error('This record changed elsewhere. Your draft is kept. Refresh before saving.'), { statusCode: 409 });
+      },
+      async afterWrite(saved) {
+        try { await indexPage(db, { ...parseMarkdownPage(saved.markdown, slug), path: path.join(config.brainDir, saved.path), pageKind: 'canonical', contentHash: createHash('sha256').update(saved.markdown).digest('hex'), updatedAt: timestamp }); }
+        catch { maintenanceWarning = 'Details were saved, but index maintenance needs attention. Refresh before another edit.'; }
+      },
+    });
+  } catch (error) { if (error.code === 'ENOENT') error.statusCode = 404; throw error; }
+  if (process.env.BIGBRAIN_MCP_GIT_BACKUP === '1') {
+    try { const { postWriteMaintenance } = await import('../mcp-server.js'); await postWriteMaintenance(config, true, actor, `Edit details for ${page.title}`); }
+    catch { maintenanceWarning = 'Details were saved, but backup maintenance needs attention.'; }
+  }
+  return { record: { page_slug: slug, ...editableDealValues(page.title, page.frontmatter, introduction), edit_values: editableDealValues(page.title, page.frontmatter, introduction), updated_at: timestamp }, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
 }
