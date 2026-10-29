@@ -77,6 +77,11 @@ The Deals view has an icon toggle for list and kanban layouts, with accessible
 names, keyboard navigation, and a visible selected state. Retain the selected
 layout within the session. Both layouts use the same search and filters.
 
+A shared Regular / Anonymised toggle switches deal titles and descriptions in
+both layouts, including drag previews and action labels. Retain the selection
+within the session. Missing anonymised text gets an explicit empty state, never
+an internal-title or summary fallback. The PDF and copy actions remain anonymised.
+
 Kanban groups deals by their recorded deal stage in lifecycle order, with counts
 and compact cards that open the ordinary deal page. Missing or unrecognised
 stages appear under Stage not established. Keep stage columns stable, including

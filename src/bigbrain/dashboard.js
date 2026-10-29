@@ -1096,7 +1096,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-view-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
       .deals-page .deal-view-tabs { display: inline-flex; gap: 3px; border: 1px solid var(--line); background: var(--surface); padding: 4px; border-radius: 9px; }
       .deals-page .deal-view-tab { border: 0; border-radius: 6px; padding: 8px 14px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
-      .deals-page .deal-view-tab[aria-selected="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.16); }
+      .deals-page .deal-view-tab[aria-selected="true"], .deals-page .deal-view-tab[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.16); }
       .deals-page .deal-view-panel { display: grid; gap: 20px; outline: none; min-width: 0; max-width: 100%; }
       .deals-page .deal-view-panel > [role="tabpanel"] { min-width: 0; max-width: 100%; }
       .deals-page .deal-introduction-row { margin: 0; padding: 22px; background: var(--card); }
@@ -1113,7 +1113,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-teaser-head strong { font-size: 14px; font-weight: 600; }
       .deals-page .deal-record-main, .deals-page .overlay-record-main { gap: 10px; }
       .deals-page .deal-record-summary { max-width: 920px; white-space: pre-wrap; overflow-wrap: anywhere; overflow: visible; font-size: 13px; line-height: 1.55; }
-      .deals-page .deal-layout-controls { display: flex; align-items: center; gap: 14px; }
+      .deals-page .deal-layout-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
       .deals-page .deal-layout-tab { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 32px; padding: 0; }
       .deals-page .deal-kanban { display: flex; align-items: flex-start; gap: 14px; overflow-x: auto; overscroll-behavior-x: contain; width: 100%; max-width: 100%; padding-bottom: 16px; scroll-snap-type: x proximity; }
       .deals-page .deal-kanban-column { flex: 0 0 290px; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.015); padding: 12px; scroll-snap-align: start; }

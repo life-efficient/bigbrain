@@ -1,3 +1,4 @@
+import { dealDisplayText } from './deal-display.js';
 import { DealStatusAction } from './deal-status.jsx';
 import { recordStatus, saveRecordStatus } from './deal-status.js';
 import React, { useEffect, useRef, useState } from 'react';
@@ -62,7 +63,7 @@ function DealAsk({ record, askIndex, ask, disabled, onEdit, onDelete }) {
   );
 }
 
-function DealTeaser({ record, onSaved }) {
+function DealTeaser({ record, onSaved, hideOverview = false }) {
   const { title, summary, asks } = dealTeaserParts(record);
   const [editor, setEditor] = useState(null);
   const [copyingAll, setCopyingAll] = useState(false);
@@ -158,8 +159,8 @@ function DealTeaser({ record, onSaved }) {
         readOnly value={allMessage} aria-label="Complete message with all asks"
         onFocus={(event) => event.target.select()} /> : null}
       {copyFeedback ? <p className="meta" role="status" aria-live="polite">{copyFeedback}</p> : null}
-      {title ? <h3>{title}</h3> : null}
-      {summary ? <p className="deal-teaser-summary">{summary}</p> : null}
+      {!hideOverview && title ? <h3>{title}</h3> : null}
+      {!hideOverview && summary ? <p className="deal-teaser-summary">{summary}</p> : null}
       {!asks.length ? <p className="meta">No external ask recorded.</p> : !title || !summary ? <p className="meta">Add an anonymised title and description to copy these asks.</p> : null}
       {asks.map((ask, askIndex) => <DealAsk key={`${askIndex}:${ask}`} record={record} askIndex={askIndex} ask={ask}
         disabled={!!editor || saving} onEdit={() => begin('edit', askIndex)} onDelete={() => begin('delete', askIndex)} />)}
@@ -235,6 +236,16 @@ export function DealsPanel({ onOpenPage }) {
     try { return window.sessionStorage.getItem(layoutStorageKey) === 'kanban' ? 'kanban' : 'list'; }
     catch { return 'list'; }
   });
+  const textModeStorageKey = `bigbrain:deals-text-mode:${window.location.pathname}`;
+  const [textMode, setTextMode] = useState(() => {
+    try { return window.sessionStorage.getItem(textModeStorageKey) === 'anonymised' ? 'anonymised' : 'regular'; }
+    catch { return 'regular'; }
+  });
+  function changeTextMode(next) {
+    setTextMode(next);
+    setStageFeedback(null);
+    try { window.sessionStorage.setItem(textModeStorageKey, next); } catch { /* Storage is optional. */ }
+  }
   const layoutRefs = useRef({});
   const panelRef = useRef(null);
   function changeLayout(next) {
@@ -261,12 +272,12 @@ export function DealsPanel({ onOpenPage }) {
     if (stagePending.current) return;
     stagePending.current = true;
     setSavingStage(record.page_slug);
-    setStageFeedback({ kind: 'pending', text: `Saving ${record.title} to ${DEAL_STAGE_LABELS[nextStage]}…` });
+    setStageFeedback({ kind: 'pending', text: `Saving ${dealDisplayText(record, textMode).title} to ${DEAL_STAGE_LABELS[nextStage]}…` });
     setState(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, deal_stage: nextStage } : item) }));
     try {
       const data = await saveDealStage(record, nextStage);
       setState(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, ...data.record } : item) }));
-      setStageFeedback({ kind: data.maintenance_warning ? 'warning' : 'success', text: data.maintenance_warning || `${record.title} moved to ${DEAL_STAGE_LABELS[nextStage]}.` });
+      setStageFeedback({ kind: data.maintenance_warning ? 'warning' : 'success', text: data.maintenance_warning || `${dealDisplayText(record, textMode).title} moved to ${DEAL_STAGE_LABELS[nextStage]}.` });
     } catch (error) {
       setState(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, deal_stage: record.deal_stage, stage_as_of: record.stage_as_of } : item) }));
       setStageFeedback({ kind: 'error', text: error.message });
@@ -278,12 +289,12 @@ export function DealsPanel({ onOpenPage }) {
     stagePending.current = true;
     const actionButton = document.activeElement;
     setSavingStatus(record.page_slug);
-    setStageFeedback({ kind: 'pending', text: `${status === 'archived' ? 'Archiving' : 'Restoring'} ${record.title}…` });
+    setStageFeedback({ kind: 'pending', text: `${status === 'archived' ? 'Archiving' : 'Restoring'} ${introduction ? record.title : dealDisplayText(record, textMode).title}…` });
     try {
       const data = await saveRecordStatus(record, status, introduction);
       const update = introduction ? setIntroductions : setState;
       update(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, ...data.record } : item) }));
-      setStageFeedback({ kind: data.maintenance_warning ? 'warning' : 'success', text: data.maintenance_warning || `${record.title} ${status === 'archived' ? 'archived' : 'restored'}.` });
+      setStageFeedback({ kind: data.maintenance_warning ? 'warning' : 'success', text: data.maintenance_warning || `${introduction ? record.title : dealDisplayText(record, textMode).title} ${status === 'archived' ? 'archived' : 'restored'}.` });
       requestAnimationFrame(() => {
         if (actionButton && !actionButton.isConnected && document.activeElement === document.body && document.hasFocus()) panelRef.current?.focus({ preventScroll: true });
       });
@@ -360,6 +371,11 @@ export function DealsPanel({ onOpenPage }) {
             }}>{label}</button>)}
         </div>
         <div className="deal-layout-controls">
+        {!showingIntroductions ? <div className="deal-view-tabs" role="group" aria-label="Deal text">
+          {[['regular', 'Regular'], ['anonymised', 'Anonymised']].map(([id, label]) => <button key={id} type="button"
+            className="deal-view-tab" aria-pressed={textMode === id} disabled={!!savingStage || !!savingStatus}
+            onClick={() => changeTextMode(id)}>{label}</button>)}
+        </div> : null}
         {!showingIntroductions ? <div className="deal-view-tabs deal-layout-tabs" role="tablist" aria-label="Deal layout">
           {DEAL_LAYOUTS.map(({ id, label, Icon }, index) => <button type="button" key={id} role="tab"
             ref={element => { layoutRefs.current[id] = element; }} id={`deal-layout-tab-${id}`} aria-controls={`deal-layout-${id}`}
@@ -409,19 +425,19 @@ export function DealsPanel({ onOpenPage }) {
             </div> : null}
             <div role={showingIntroductions ? undefined : 'tabpanel'} id={showingIntroductions ? undefined : `deal-layout-${layout}`}
               aria-labelledby={showingIntroductions ? undefined : `deal-layout-tab-${layout}`} tabIndex={showingIntroductions ? undefined : 0}>
-            {records.length ? !showingIntroductions && layout === 'kanban' ? <DealKanban records={records} onOpenPage={onOpenPage} onMoveStage={moveDealStage} savingSlug={savingStage} statusSavingSlug={savingStatus} onStatusChange={changeStatus} /> : <div className="overlay-record-list">
+            {records.length ? !showingIntroductions && layout === 'kanban' ? <DealKanban textMode={textMode} records={records} onOpenPage={onOpenPage} onMoveStage={moveDealStage} savingSlug={savingStage} statusSavingSlug={savingStatus} onStatusChange={changeStatus} /> : <div className="overlay-record-list">
               {showingIntroductions ? records.map(introduction => <DealIntroductionRow key={introduction.page_slug} introduction={introduction} onOpenPage={onOpenPage} onStatusChange={changeStatus} statusPending={savingStatus === introduction.page_slug} disabled={!!savingStatus || !!savingStage} />)
                 : records.map(record => <article className="overlay-record card deal-record" key={record.page_slug}>
                   <div className="overlay-record-main">
                     <div className="overlay-record-title-row">
-                      <button type="button" className="overlay-person-link deal-page-link" onClick={() => onOpenPage?.(record.page_slug)}>{record.title || record.page_slug}</button>
+                      <button type="button" className="overlay-person-link deal-page-link" onClick={() => onOpenPage?.(record.page_slug)}>{dealDisplayText(record, textMode).title}</button>
                       <span className={`deal-involvement involvement-${record.deal_involvement || 'unset'}`}>{INVOLVEMENT_LABELS[record.deal_involvement] || 'Involvement not set'}</span>
                     </div>
-                    <p className="overlay-record-summary deal-record-summary">{record.summary || 'No summary yet.'}</p>
+                    <p className="overlay-record-summary deal-record-summary">{dealDisplayText(record, textMode).description}</p>
                     <DealProgress record={record} />
-                    <DealStatusAction record={record} onChange={changeStatus} pending={savingStatus === record.page_slug} disabled={!!savingStatus || !!savingStage} />
+                    <DealStatusAction record={record} displayTitle={dealDisplayText(record, textMode).title} onChange={changeStatus} pending={savingStatus === record.page_slug} disabled={!!savingStatus || !!savingStage} />
                     <DealNextActions tasks={record.tasks} onOpenPage={onOpenPage} />
-                    <DealTeaser record={record} onSaved={savedRecord => setState(current => ({
+                    <DealTeaser record={record} hideOverview={textMode === 'anonymised'} onSaved={savedRecord => setState(current => ({
                       ...current, records: current.records.map(item => item.page_slug === savedRecord.page_slug ? { ...item, ...savedRecord } : item),
                     }))} />
                   </div>
