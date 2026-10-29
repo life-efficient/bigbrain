@@ -4,7 +4,7 @@ import { MoreHorizontal, Loader2 } from 'lucide-react';
 
 export function ActionMenu({ label, items, disabled, pending }) {
   const dialogOpening = useRef(false);
-  return <DropdownMenu.Root onOpenChange={open => { if (open) dialogOpening.current = false; }}>
+  return <DropdownMenu.Root modal={false} onOpenChange={open => { if (open) dialogOpening.current = false; }}>
     <DropdownMenu.Trigger asChild>
       <button type="button" className="graph-button deal-icon-action" aria-label={label} title="More actions" disabled={disabled || pending} aria-busy={pending || undefined}>
         {pending ? <Loader2 size={16} className="is-spinning" aria-hidden="true" /> : <MoreHorizontal size={16} aria-hidden="true" />}
