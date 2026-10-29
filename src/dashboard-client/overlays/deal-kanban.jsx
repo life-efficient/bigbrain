@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, pointerWithin, closestCenter, MeasuringStrategy } from '@dnd-kit/core';
 import { GripVertical } from 'lucide-react';
@@ -38,7 +38,7 @@ function DraggableDeal({ record, onOpenPage, disabled, saving }) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: record.page_slug, data: { record }, disabled });
   return <article ref={setNodeRef} className={`deal-kanban-card${isDragging ? ' is-dragging' : ''}${saving ? ' is-saving' : ''}`} aria-busy={saving || undefined}>
     <CardContent record={record} onOpenPage={onOpenPage} handle={<button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
-      aria-label={`Move ${record.title || record.page_slug}`} title="Drag to change stage" disabled={disabled}><GripVertical size={17} aria-hidden="true" /></button>} />
+      data-deal-handle={record.page_slug} aria-label={`Move ${record.title || record.page_slug}`} title="Drag to change stage" disabled={disabled}><GripVertical size={17} aria-hidden="true" /></button>} />
     {saving ? <span className="deal-card-saving">Saving stage…</span> : null}
   </article>;
 }
@@ -59,6 +59,9 @@ function StageColumn({ column, active, overStage, savingSlug, disabled, onOpenPa
 }
 
 export function DealKanban({ records, onOpenPage, onMoveStage, savingSlug }) {
+  const boardRef = useRef(null);
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [active, setActive] = useState(null);
   const [overStage, setOverStage] = useState(null);
   const [reducedMotion, setReducedMotion] = useState(false);
@@ -84,14 +87,38 @@ export function DealKanban({ records, onOpenPage, onMoveStage, savingSlug }) {
     onDragStart={({ active }) => { setActive(active.data.current.record); setOverStage(dealStage(active.data.current.record)); }}
     onDragOver={({ over }) => setOverStage(stageDropTarget(over?.id))}
     onDragCancel={reset}
-    onDragEnd={({ active: dragged, over }) => {
+    onDragEnd={async ({ active: dragged, over, activatorEvent }) => {
       const record = dragged.data.current.record;
       const next = stageDropTarget(over?.id);
       reset();
-      if (next && next !== dealStage(record)) onMoveStage?.(record, next);
+      if (!next || next === dealStage(record)) return;
+      const keyboard = activatorEvent?.type === 'keydown';
+      const sourceHandle = document.activeElement;
+      let focusMoved = false;
+      const relinquishFocus = () => { focusMoved = true; };
+      const watchKeyboard = event => { if (event.key === 'Tab') relinquishFocus(); };
+      if (keyboard) {
+        document.addEventListener('pointerdown', relinquishFocus, true);
+        document.addEventListener('keydown', watchKeyboard, true);
+      }
+      try { await onMoveStage?.(record, next); }
+      finally {
+        if (keyboard) requestAnimationFrame(() => {
+          document.removeEventListener('pointerdown', relinquishFocus, true);
+          document.removeEventListener('keydown', watchKeyboard, true);
+          if (!mounted.current || focusMoved || !document.hasFocus()) return;
+          const target = [...(boardRef.current?.querySelectorAll('[data-deal-handle]') || [])].find(node => node.dataset.dealHandle === record.page_slug);
+          const focused = document.activeElement;
+          // A stage move remounts the card in a new column. Restore its keyboard
+          // handle only while focus is still ours, never over a user's next action.
+          if (focused === document.body || focused === sourceHandle || focused === target) {
+            (target && !target.disabled ? target : boardRef.current)?.focus({ preventScroll: true });
+          }
+        });
+      }
     }}>
     <p className="deal-drag-hint">Drag a deal's handle to change its stage.</p>
-    <div className={`deal-kanban${active ? ' is-drag-active' : ''}`} role="region" aria-label="Deals by stage" tabIndex={0}>
+    <div ref={boardRef} className={`deal-kanban${active ? ' is-drag-active' : ''}`} role="region" aria-label="Deals by stage" tabIndex={0}>
       {columns.map(column => <StageColumn key={column.stage} column={column} active={active} overStage={overStage} savingSlug={savingSlug}
         disabled={!!savingSlug} onOpenPage={onOpenPage} />)}
     </div>
