@@ -43,7 +43,7 @@ function DraggableDeal({ record, onOpenPage, disabled, saving, statusPending, on
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: record.page_slug, data: { record }, disabled: disabled || recordStatus(record) === 'archived' });
   return <article ref={setNodeRef} className={`deal-kanban-card${isDragging ? ' is-dragging' : ''}${saving ? ' is-saving' : ''}`} aria-busy={saving || undefined}>
     <CardContent record={record} textMode={textMode} onOpenPage={onOpenPage} actions={<DealStatusAction menu record={record} displayTitle={title} onChange={onStatusChange} pending={statusPending} disabled={disabled} />} handle={recordStatus(record) !== 'archived' ? <button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
-      data-deal-handle={record.page_slug} aria-label={`Move ${title}`} title="Drag to change stage" disabled={disabled}><GripVertical size={17} aria-hidden="true" /></button> : null} />
+      data-deal-handle={record.page_slug} aria-label={`Move ${title}`} title="Drag to change stage" disabled={disabled}><GripVertical size={16} aria-hidden="true" /></button> : null} />
     {saving ? <span className="deal-card-saving">Saving stage…</span> : null}
   </article>;
 }
@@ -127,7 +127,7 @@ export function DealKanban({ records, onOpenPage, onMoveStage, savingSlug, statu
         statusSavingSlug={statusSavingSlug} onStatusChange={onStatusChange} disabled={!!savingSlug || !!statusSavingSlug} onOpenPage={onOpenPage} />)}
     </div>
     {createPortal(<DragOverlay dropAnimation={reducedMotion ? null : { duration: 180, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }} zIndex={100}>
-      {active ? <div className="deals-page deal-drag-overlay" aria-hidden="true"><article className="deal-kanban-card"><CardContent record={active} textMode={textMode} overlay handle={<GripVertical size={17} />} /></article></div> : null}
+      {active ? <div className="deals-page deal-drag-overlay" aria-hidden="true"><article className="deal-kanban-card"><CardContent record={active} textMode={textMode} overlay handle={<GripVertical size={16} />} /></article></div> : null}
     </DragOverlay>, document.body)}
   </DndContext>;
 }

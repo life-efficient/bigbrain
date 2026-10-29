@@ -1148,7 +1148,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-kanban-card { position: relative; flex: none; transition: opacity 140ms ease, box-shadow 140ms ease; }
       .deals-page .deal-kanban-card-head { display: flex; gap: 8px; align-items: flex-start; }
       .deals-page .deal-kanban-card-head .deal-kanban-title { flex: 1; min-width: 0; }
-      .deals-page .deal-drag-handle { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 28px; height: 30px; margin: -4px -6px 0 0; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: grab; touch-action: none; }
+      .deals-page .deal-drag-handle { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 28px; height: 28px; margin: 0; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: grab; touch-action: none; }
       .deals-page .deal-drag-handle:hover { color: var(--ink); background: rgba(255,255,255,0.08); }
       .deals-page .deal-drag-handle:active { cursor: grabbing; }
       .deals-page .deal-drag-handle:disabled { cursor: wait; opacity: 0.35; }
@@ -2099,7 +2099,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .graph-button.deal-icon-action { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 32px; height: 32px; min-height: 32px; padding: 0; gap: 0; border-radius: 7px; background: transparent; color: var(--muted); box-shadow: none; }
       .deals-page .deal-icon-action:hover:not(:disabled) { background: var(--surface-muted); color: var(--ink); }
       .deals-page .deal-kanban-card-actions { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
-      .deals-page .deal-kanban-card-actions .deal-icon-action { width: 26px; height: 28px; min-height: 28px; border-color: transparent; background: transparent; color: var(--muted); }
+      .deals-page .deal-kanban-card-actions .deal-icon-action { width: 28px; height: 28px; min-height: 28px; border-radius: 6px; border-color: transparent; background: transparent; color: var(--muted); }
+      .deals-page .deal-kanban-card-actions svg { width: 16px; height: 16px; flex-shrink: 0; stroke-width: 2; }
       .deals-page .deal-kanban-card-actions .deal-icon-action:hover, .deals-page .deal-kanban-card-actions .deal-icon-action[data-state="open"] { color: var(--ink); background: var(--surface-muted); }
       .action-menu-content { z-index: 160; min-width: 160px; max-width: var(--radix-dropdown-menu-content-available-width); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; padding: 5px; border: 1px solid rgba(255,255,255,0.14); border-radius: 9px; background: #27272a; color: #fafafa; box-shadow: 0 18px 45px rgba(0,0,0,0.4); }
       .action-menu-item { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 6px 9px; border-radius: 5px; font-size: 13px; cursor: default; outline: none; user-select: none; }
