@@ -9,8 +9,13 @@ states.
 
 - Use shadcn-grade accessible components for every visible dropdown, including filters, forms, settings, and action menus. Build on Radix or an equivalent established primitive and reuse the app's shared controls.
 - Never render browser-native `<select>` dropdowns or native datalist menus. Styling the closed native control does not satisfy this rule. Hidden native form controls used internally by accessible components are acceptable.
-- Match the app's trigger, popup, border, spacing, focus ring, hover, disabled, and selected-state treatment. Menus should handle viewport edges and scrolling without clipping.
+- Match the app's trigger, popup, border, spacing, hover, disabled, and selected-state treatment. Menus should handle viewport edges and scrolling without clipping.
 - Preserve accessible labels, keyboard navigation, typeahead where applicable, Escape dismissal, and focus restoration. Verify the open menu in the rendered app, not only the closed trigger.
+
+## Focus Styling
+
+- Do not render focus rings, focus outlines, or focus-only box-shadow halos on any app surface, including dashboard pages, overlays, authentication, desktop onboarding, and shadow-root controls. Suppress browser-default outlines at each surface root.
+- Preserve keyboard navigation, focus restoration, accessible names, and existing background or text-colour feedback. Keep selection indicators and ordinary elevation shadows independent of focus.
 
 ## Loading Skeletons
 
