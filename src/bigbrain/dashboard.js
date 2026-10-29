@@ -1154,7 +1154,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-drag-hint { margin: 0 0 8px; color: var(--muted); font-size: 11px; }
       .deals-page .deal-card-saving { font-size: 11px; color: var(--muted); }
       .deal-drag-overlay { width: 100%; pointer-events: none; }
-      .deal-drag-overlay .deal-kanban-card { transform: rotate(1deg); border-color: var(--accent-strong); box-shadow: 0 20px 55px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3); background: var(--panel); }
+      .deal-drag-overlay .deal-kanban-card { transform: rotate(1deg); border-color: var(--accent-strong); box-shadow: 0 20px 55px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.3); background: var(--bg, #18181b); }
       .deals-page .deal-stage-feedback { display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--line-strong); border-radius: 9px; padding: 10px 12px; font-size: 12px; background: var(--panel); }
       .deals-page .deal-stage-feedback.is-error { border-color: #aa5f5f; }
       .deals-page .deal-stage-feedback button { display: inline-flex; padding: 3px; border: 0; background: transparent; color: var(--muted); cursor: pointer; }
