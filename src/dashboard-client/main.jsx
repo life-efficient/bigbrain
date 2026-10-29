@@ -1,6 +1,6 @@
 import React, { memo, useEffect, useEffectEvent, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import * as SelectPrimitive from '@radix-ui/react-select';
+import { Select } from './components/select.jsx';
 import {
   ArrowLeft,
   ArrowRight,
@@ -2381,7 +2381,6 @@ function isTypingTarget(target) {
   return target.isContentEditable || tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
 }
 
-const ALL_MEMBERS_VALUE = '__all_members__';
 const GRAPH_FLOW_INPUT_LIMIT = 6;
 const GRAPH_ACTIVITY_MODES = [
   { id: 'bars', label: 'Bars' },
@@ -2391,45 +2390,20 @@ const GRAPH_ACTIVITY_MODES = [
 ];
 
 function AssigneeFilter({ members, value, onChange, disabled = false }) {
-  const selectedValue = value || ALL_MEMBERS_VALUE;
   return (
     <div className="filter-bar" aria-label="Assignee filter">
       <span className="filter-label" id="assignee-filter-label">Member</span>
-      <SelectPrimitive.Root
-        value={selectedValue}
-        onValueChange={(nextValue) => onChange(nextValue === ALL_MEMBERS_VALUE ? '' : nextValue)}
+      <Select
+        value={value || ''}
+        onValueChange={onChange}
         disabled={disabled}
-      >
-        <SelectPrimitive.Trigger
-          className="shadcn-select-trigger"
-          aria-labelledby="assignee-filter-label"
-        >
-          <SelectPrimitive.Value />
-          <SelectPrimitive.Icon className="shadcn-select-icon" aria-hidden="true">⌄</SelectPrimitive.Icon>
-        </SelectPrimitive.Trigger>
-        <SelectPrimitive.Portal>
-          <SelectPrimitive.Content className="shadcn-select-content" position="popper" sideOffset={6}>
-            <SelectPrimitive.Viewport className="shadcn-select-viewport">
-              <SelectItem value={ALL_MEMBERS_VALUE}>All members</SelectItem>
-              {members.map((member) => (
-                <SelectItem key={member.person_slug} value={member.person_slug}>
-                  {member.name || member.person_slug}
-                </SelectItem>
-              ))}
-            </SelectPrimitive.Viewport>
-          </SelectPrimitive.Content>
-        </SelectPrimitive.Portal>
-      </SelectPrimitive.Root>
+        aria-labelledby="assignee-filter-label"
+        options={[
+          { value: '', label: 'All members' },
+          ...members.map(member => ({ value: member.person_slug, label: member.name || member.person_slug })),
+        ]}
+      />
     </div>
-  );
-}
-
-function SelectItem({ value, children }) {
-  return (
-    <SelectPrimitive.Item className="shadcn-select-item" value={value}>
-      <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
-      <SelectPrimitive.ItemIndicator className="shadcn-select-check" aria-hidden="true">✓</SelectPrimitive.ItemIndicator>
-    </SelectPrimitive.Item>
   );
 }
 

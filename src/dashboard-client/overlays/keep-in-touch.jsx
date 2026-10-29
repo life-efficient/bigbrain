@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Select } from '../components/select.jsx';
 
 const DEFAULT_CADENCE_DAYS = 7;
 const DEFAULT_PRIORITY = 3;
@@ -213,19 +214,20 @@ function KeepInTouchRecord({ record, workingKey, onOpenPerson, onAction }) {
       <div className="overlay-record-actions">
         <label>
           Frequency{' '}
-          <select
-            className="overlay-small-button"
+          <Select
+            className="overlay-frequency-select"
             aria-label={`Keep in Touch frequency for ${record.title || record.page_slug}`}
             value={paused ? 'none' : String(frequency)}
             disabled={workingKey === frequencyKey}
-            onChange={(event) => onAction('set-frequency', frequencyKey, {
+            onValueChange={(value) => onAction('set-frequency', frequencyKey, {
               page_slug: record.page_slug,
-              frequency_days: event.target.value === 'none' ? null : Number(event.target.value),
+              frequency_days: value === 'none' ? null : Number(value),
             })}
-          >
-            <option value="none">None</option>
-            {[3, 7, 14, 30, 60].map((days) => <option key={days} value={days}>Every {days} days</option>)}
-          </select>
+            options={[
+              { value: 'none', label: 'None' },
+              ...[3, 7, 14, 30, 60].map(days => ({ value: String(days), label: `Every ${days} days` })),
+            ]}
+          />
         </label>
         <button
           type="button"

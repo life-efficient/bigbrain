@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Select } from '../components/select.jsx';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X, Plus, Pencil, Trash2, Copy } from 'lucide-react';
 import { copyAllDealAsks, copyDealTeaser, dealTeaserParts, formatAllDealAsks, formatDealTeaser } from './deal-teaser.js';
@@ -296,14 +297,16 @@ export function DealsPanel({ onOpenPage }) {
           placeholder="Search deals, introductions or parties…"
           aria-label="Search deals, introductions or parties"
         />
-        <label>Deal type<select value={dealType} onChange={event => setDealType(event.target.value)}>
-          <option value="">All types</option>
-          {Object.entries(DEAL_TYPE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select></label>
-        <label>Deal stage<select value={stage} onChange={event => setStage(event.target.value)}>
-          <option value="">All stages</option>
-          {Object.entries(DEAL_STAGE_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select></label>
+        <div className="deal-filter-field">
+          <span id="deal-type-filter-label">Deal type</span>
+          <Select value={dealType} onValueChange={setDealType} aria-labelledby="deal-type-filter-label"
+            options={[{ value: '', label: 'All types' }, ...Object.entries(DEAL_TYPE_LABELS).map(([value, label]) => ({ value, label }))]} />
+        </div>
+        <div className="deal-filter-field">
+          <span id="deal-stage-filter-label">Deal stage</span>
+          <Select value={stage} onValueChange={setStage} aria-labelledby="deal-stage-filter-label"
+            options={[{ value: '', label: 'All stages' }, ...Object.entries(DEAL_STAGE_LABELS).map(([value, label]) => ({ value, label }))]} />
+        </div>
         {filtered ? <button type="button" className="graph-button" onClick={() => { setSearch(''); setDealType(''); setStage(''); }}>Clear filters</button> : null}
         </div>
       ) : null}

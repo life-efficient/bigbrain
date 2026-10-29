@@ -1089,8 +1089,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-record-summary { max-width: 920px; white-space: pre-wrap; overflow-wrap: anywhere; overflow: visible; font-size: 13px; line-height: 1.55; }
       .deals-page .deal-filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
       .deals-page .deal-filters > input { flex: 1 1 280px; min-width: 180px; }
-      .deals-page .deal-filters > label { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
-      .deals-page .deal-filters select { min-height: 38px; max-width: 230px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); font: inherit; font-size: 12px; }
+      .deals-page .deal-filters > .deal-filter-field { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
+      .deals-page .deal-filters .shadcn-select-trigger { min-height: 38px; max-width: 230px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); font: inherit; font-size: 12px; }
       .deals-page .deal-progress-meta, .deals-page .deal-stage-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
       .deals-page .deal-introductions { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 12px; }
       .deals-page .deal-introductions > summary { cursor: pointer; padding: 4px 0; color: var(--ink); font-size: 14px; font-weight: 600; }
@@ -1106,7 +1106,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-next-actions li { display: grid; gap: 4px; padding-left: 12px; border-left: 2px solid var(--line-strong); font-size: 13px; line-height: 1.5; }
       .deals-page .deal-action-meta { display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 12px; }
       .deals-page .deal-action-meta .deal-reference-link { color: inherit; }
-      .deals-page .deal-reference-link:focus-visible, .deals-page .deal-introductions > summary:focus-visible, .deals-page .deal-filters select:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 3px; }
+      .deals-page .deal-reference-link:focus-visible, .deals-page .deal-introductions > summary:focus-visible, .deals-page .deal-filters .shadcn-select-trigger:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 3px; }
       .deals-page .deal-teaser { display: grid; gap: 12px; border-top: 1px solid var(--line); padding-top: 14px; margin-top: 4px; }
       .deals-page .deal-teaser-head { display: flex; align-items: center; justify-content: space-between; gap: 10px 16px; flex-wrap: wrap; }
       .deals-page .deal-teaser-actions, .deals-page .deal-ask-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
@@ -2053,6 +2053,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .shadcn-select-icon { display: inline-flex; align-items: center; justify-content: center; align-self: center; width: 16px; height: 16px; color: var(--muted); font-size: 15px; line-height: 1; }
       .shadcn-select-content { z-index: 80; min-width: var(--radix-select-trigger-width); max-height: min(320px, var(--radix-select-content-available-height)); overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); box-shadow: 0 18px 48px rgba(0,0,0,0.28); }
       .shadcn-select-viewport { padding: 5px; }
+      .shadcn-select-scroll { display: flex; align-items: center; justify-content: center; height: 24px; color: var(--muted); }
+      .shadcn-select-trigger.overlay-frequency-select { width: auto; min-width: 140px; }
       .shadcn-select-item { position: relative; display: flex; min-height: 32px; align-items: center; border-radius: 6px; padding: 6px 30px 6px 9px; color: var(--ink); font-size: 13px; line-height: 1.35; cursor: default; outline: none; user-select: none; }
       .shadcn-select-item[data-highlighted] { background: rgba(255,255,255,0.08); color: var(--ink); }
       .shadcn-select-item[data-state="checked"] { background: rgba(255,255,255,0.06); }
