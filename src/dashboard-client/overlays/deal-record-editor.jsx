@@ -11,7 +11,7 @@ export function DealRecordEditor({ record, introduction = false, onClose, onSave
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const savingRef = useRef(false);
-  const anchor = useRef(null);
+
   const change = (key, value) => setValues(current => ({ ...current, [key]: value }));
   async function save(event) {
     event.preventDefault();
@@ -31,8 +31,8 @@ export function DealRecordEditor({ record, introduction = false, onClose, onSave
     return <label className="deal-editor-label">{label}<textarea className="overlay-search deal-editor-input" style={{ minHeight: rows === 2 ? 64 : 96 }} rows={rows}
       value={values[key]} required={required} maxLength={key.includes('title') ? 500 : 20000} disabled={saving} onChange={event => change(key, event.target.value)} /></label>;
   }
-  return <><span ref={anchor} hidden /><Dialog.Root open onOpenChange={open => { if (!open && !savingRef.current) onClose?.(); }}>
-    <Dialog.Portal container={anchor.current?.closest('.page-shell')}>
+  return <><Dialog.Root open onOpenChange={open => { if (!open && !savingRef.current) onClose?.(); }}>
+    <Dialog.Portal container={document.querySelector('.page-shell') || document.body}>
       <Dialog.Overlay className="deal-modal-backdrop" />
       <Dialog.Content className="deal-modal deal-record-editor" onOpenAutoFocus={event => { event.preventDefault(); const field = event.currentTarget.querySelector('textarea'); requestAnimationFrame(() => field?.focus()); }} onPointerDownOutside={event => event.preventDefault()}
         onEscapeKeyDown={event => { if (savingRef.current) event.preventDefault(); }}
