@@ -943,7 +943,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       @media (max-width: 740px) {
         html.bigbrain-desktop .view-chip-kbd { display: none; }
       }
-      .view-chip { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 10px 14px; font-size: 13px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.04); display: inline-flex; align-items: center; gap: 8px; }
+      .view-chip { border: 0; background: var(--surface); color: var(--muted); border-radius: 7px; padding: 10px 14px; font-size: 13px; cursor: pointer; box-shadow: none; display: inline-flex; align-items: center; gap: 8px; }
       .view-chip.active { color: var(--ink); border-color: var(--line-strong); background: rgba(255,255,255,0.08); }
       .view-chip:disabled { opacity: 0.38; cursor: default; box-shadow: none; }
       .history-nav { display: inline-flex; align-items: center; gap: 2px; }
@@ -976,12 +976,12 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         min-width: 38px;
         height: 38px;
         padding: 0 11px;
-        border-radius: 999px;
-        border: 1px solid var(--line);
+        border-radius: 7px;
+        border: 0;
         background: var(--surface);
         color: var(--muted);
         cursor: pointer;
-        box-shadow: 0 6px 18px rgba(15,23,42,0.04);
+        box-shadow: none;
         display: inline-flex;
         align-items: center;
         justify-content: center;
@@ -991,9 +991,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
         width: 38px;
         padding: 0;
         color: var(--ink);
-        background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.03));
+        background: transparent;
       }
-      .settings-button.open, .health-button.open { box-shadow: 0 12px 28px rgba(15,23,42,0.08); }
+      .settings-button.open, .health-button.open { box-shadow: none; }
       .settings-icon { width: 16px; height: 16px; }
       .settings-dropdown, .health-dropdown {
         position: absolute;
@@ -1039,7 +1039,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .settings-demo-toggle strong { font-size: 11px; font-weight: 700; }
       .settings-shortcut { display: inline-flex; align-items: center; justify-content: center; min-width: 18px; margin-left: 5px; padding: 3px 5px; border: 1px solid var(--line); border-bottom-color: var(--line-strong); border-radius: 5px; color: var(--muted); font: 700 10px/1 ui-monospace, SFMono-Regular, Menlo, monospace; }
       .overlays-menu { position: relative; }
-      .overlays-button { min-height: 38px; display: inline-flex; align-items: center; gap: 8px; padding: 0 13px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 140ms ease, border-color 140ms ease; }
+      .overlays-button { min-height: 38px; display: inline-flex; align-items: center; gap: 8px; padding: 0 13px; border: 0; border-radius: 8px; background: var(--surface); color: var(--muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; transition: background 140ms ease, border-color 140ms ease; }
       .overlays-button:hover, .overlays-button.open { color: var(--ink); border-color: var(--line-strong); background: var(--surface-muted); }
       .overlays-live-dot { width: 6px; height: 6px; border-radius: 999px; background: #73ecb8; box-shadow: 0 0 10px #73ecb8; }
       .overlays-dropdown { position: absolute; top: calc(100% + 10px); right: 0; z-index: 24; width: min(280px, calc(100vw - 40px)); display: grid; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); box-shadow: var(--shadow-float); backdrop-filter: blur(18px); }
@@ -1079,7 +1079,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .overlay-candidate-copy { min-width: 0; display: grid; gap: 3px; }
       .overlay-candidate-copy strong { overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
       .overlay-candidate-copy span { overflow: hidden; color: var(--muted); font: 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace; text-overflow: ellipsis; white-space: nowrap; }
-      .overlay-small-button { flex: 0 0 auto; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; cursor: pointer; }
+      .overlay-small-button { flex: 0 0 auto; padding: 7px 9px; border: 0; border-radius: 8px; background: var(--surface); color: var(--ink); font: inherit; font-size: 11px; cursor: pointer; }
       .overlay-small-button:hover { border-color: var(--line-strong); background: var(--surface-muted); }
       .overlay-small-button:disabled { opacity: 0.52; cursor: not-allowed; }
       .overlay-record-list { display: grid; gap: 10px; }
@@ -1108,7 +1108,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .overlay-head { align-items: flex-start; padding: 10px 0 0; }
       .deals-page .deal-export { display: grid; justify-items: end; gap: 6px; }
       .deals-page .deal-view-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-      .deals-page .deal-view-tabs { display: inline-flex; gap: 3px; border: 1px solid var(--line); background: var(--surface); padding: 4px; border-radius: 9px; }
+      .deals-page .deal-view-tabs { display: inline-flex; gap: 3px; border: 0; background: var(--surface); padding: 4px; border-radius: 9px; }
       .deals-page .deal-view-tab { border: 0; border-radius: 6px; padding: 8px 14px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
       .deals-page .deal-view-tab[aria-selected="true"], .deals-page .deal-view-tab[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.16); }
       .deals-page .deal-view-panel { display: grid; gap: 20px; outline: none; min-width: 0; max-width: 100%; }
@@ -1173,14 +1173,14 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
       .deals-page .deal-filters > input { flex: 1 1 280px; min-width: 180px; }
       .deals-page .deal-filters > .deal-filter-field { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
-      .deals-page .deal-filters .shadcn-select-trigger { min-height: 38px; max-width: 230px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--surface); font: inherit; font-size: 12px; }
+      .deals-page .deal-filters .shadcn-select-trigger { min-height: 38px; max-width: 230px; padding: 8px 10px; border: 0; border-radius: 8px; color: var(--ink); background: var(--surface); font: inherit; font-size: 12px; }
       .deals-page .deal-progress-meta, .deals-page .deal-stage-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
       .deals-page .deal-introductions { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 12px; }
       .deals-page .deal-introductions > summary { cursor: pointer; padding: 4px 0; color: var(--ink); font-size: 14px; font-weight: 600; }
       .deals-page .deal-introduction-list { display: grid; gap: 10px; margin-top: 12px; }
       .deals-page .deal-introduction { display: grid; gap: 10px; padding: 16px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; font-size: 13px; line-height: 1.55; }
       .deals-page .deal-introduction-options { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-      .deals-page .deal-arrangement-pill { width: auto; min-height: 28px; box-shadow: none; display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; line-height: 16px; cursor: pointer; }
+      .deals-page .deal-arrangement-pill { width: auto; min-height: 28px; box-shadow: none; display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border: 0; border-radius: 999px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; line-height: 16px; cursor: pointer; }
       .deals-page .deal-arrangement-pill:not([data-arrangement-status="none"]) { border-color: var(--line-strong); background: var(--surface-muted); color: var(--ink); }
       .deals-page .deal-arrangement-pill:hover:not(:disabled) { background: var(--surface); color: var(--ink); }
       .deals-page .deal-arrangement-pill:disabled { cursor: default; opacity: 0.55; }
@@ -2086,9 +2086,12 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-activity-point { fill: #ffffff; stroke: rgba(255,255,255,0.32); stroke-width: 1; vector-effect: non-scaling-stroke; }
       .graph-controls { display: flex; gap: 8px; }
       .graph-controls-inline { position: static; z-index: auto; }
-      .graph-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; vertical-align: middle; line-height: 18px; white-space: nowrap; border: 1px solid var(--line); background: var(--surface-strong); color: var(--ink); border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); }
+      .graph-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; vertical-align: middle; line-height: 18px; white-space: nowrap; border: 0; background: var(--surface-strong); color: var(--ink); border-radius: 7px; padding: 8px 12px; font-size: 12px; cursor: pointer; box-shadow: none; }
       .graph-button > svg { display: block; flex: 0 0 auto; }
-      .deals-page .graph-button.deal-icon-action { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 32px; height: 32px; min-height: 32px; padding: 0; gap: 0; border-radius: 7px; box-shadow: none; }
+      .graph-button { min-height: 36px; font-weight: 500; transition: background 140ms ease, color 140ms ease; }
+      .view-chip:hover:not(:disabled), .settings-button:hover, .health-button:hover { background: var(--surface-muted); }
+      .deals-page .graph-button.deal-icon-action { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 32px; height: 32px; min-height: 32px; padding: 0; gap: 0; border-radius: 7px; background: transparent; color: var(--muted); box-shadow: none; }
+      .deals-page .deal-icon-action:hover:not(:disabled) { background: var(--surface-muted); color: var(--ink); }
       .deals-page .deal-kanban-card-actions { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
       .deals-page .deal-kanban-card-actions .deal-icon-action { width: 26px; height: 28px; min-height: 28px; border-color: transparent; background: transparent; color: var(--muted); }
       .deals-page .deal-kanban-card-actions .deal-icon-action:hover, .deals-page .deal-kanban-card-actions .deal-icon-action[data-state="open"] { color: var(--ink); background: var(--surface-muted); }
@@ -2099,11 +2102,11 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .is-spinning { animation: action-spin 1s linear infinite; }
       @keyframes action-spin { to { transform: rotate(360deg); } }
       @media (prefers-reduced-motion: reduce) { .is-spinning { animation: none; } }
-      .graph-button:hover { background: var(--surface); }
+      .graph-button:hover:not(:disabled) { background: rgba(255,255,255,0.10); }
       .graph-button:disabled { opacity: 0.52; cursor: not-allowed; }
       .graph-button-active { background: rgba(255,255,255,0.08); border-color: var(--line-strong); }
-      .icon-button { width: 38px; height: 38px; padding: 0; border-radius: 999px; border: 1px solid var(--line); background: var(--surface-strong); color: var(--ink); cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); display: inline-flex; align-items: center; justify-content: center; }
-      .icon-button:hover { background: var(--surface); }
+      .icon-button { width: 38px; height: 38px; padding: 0; border-radius: 7px; border: 0; background: transparent; color: var(--ink); cursor: pointer; box-shadow: none; display: inline-flex; align-items: center; justify-content: center; }
+      .icon-button:hover:not(:disabled) { background: var(--surface-muted); }
       .graph-flow-column-head .graph-flow-source-filter-button { width: 18px; height: 18px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: rgba(161,161,170,0.8); box-shadow: none; }
       .graph-flow-column-head .graph-flow-source-filter-button:hover, .graph-flow-column-head .graph-flow-source-filter-button:focus-visible, .graph-flow-column-head .graph-flow-source-filter-button.graph-button-active { border: 0; background: rgba(244,244,245,0.08); color: rgba(244,244,245,0.92); }
       .graph-flow-column-head .graph-flow-source-filter-button .settings-icon { width: 14px; height: 14px; }
@@ -2122,7 +2125,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-menu-field.disabled { opacity: 0.55; }
       .graph-menu-field span { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
       .graph-option-grid { display: flex; flex-wrap: wrap; gap: 8px; }
-      .graph-option-button { border: 1px solid var(--line); background: var(--surface); color: var(--muted); border-radius: 999px; padding: 8px 12px; font-size: 12px; line-height: 1; cursor: pointer; transition: background 140ms ease, border-color 140ms ease, color 140ms ease; }
+      .graph-option-button { border: 0; background: var(--surface); color: var(--muted); border-radius: 7px; padding: 8px 12px; font-size: 12px; line-height: 1; cursor: pointer; transition: background 140ms ease, border-color 140ms ease, color 140ms ease; }
       .graph-option-button:hover { background: rgba(255,255,255,0.06); color: var(--ink); }
       .graph-option-button.selected { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.28); color: var(--ink); }
       .graph-option-button:disabled { cursor: not-allowed; }
@@ -2140,7 +2143,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .task-section { width: min(680px, 100%); margin: 0 auto; }
       .filter-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; width: min(680px, 100%); margin: 0 auto 14px; }
       .filter-label { color: var(--muted); font-size: 12px; font-weight: 700; }
-      .shadcn-select-trigger { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; width: min(100%, 280px); border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 8px; padding: 7px 10px 7px 12px; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+      .shadcn-select-trigger { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; width: min(100%, 280px); border: 0; background: var(--surface); color: var(--ink); border-radius: 8px; padding: 7px 10px 7px 12px; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; box-shadow: none; }
       .shadcn-select-trigger:hover { border-color: var(--line-strong); background: rgba(255,255,255,0.07); }
       .shadcn-select-trigger[data-disabled] { cursor: wait; opacity: 0.68; }
       .shadcn-select-icon { display: inline-flex; align-items: center; justify-content: center; align-self: center; width: 16px; height: 16px; color: var(--muted); font-size: 15px; line-height: 1; }
@@ -2177,12 +2180,12 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .recents-head-copy { min-width: 0; }
       .recents-head h1 { margin: 0; font-size: 29px; line-height: 1.08; letter-spacing: -0.035em; }
       .recents-controls { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
-      .recents-kind-switch, .recents-activity-switch { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-muted); }
+      .recents-kind-switch, .recents-activity-switch { display: inline-flex; align-items: center; gap: 3px; padding: 3px; border: 0; border-radius: 9px; background: var(--surface-muted); }
       .recents-kind-switch button, .recents-activity-switch button { min-height: 33px; padding: 0 14px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; }
-      .recents-kind-switch button.active, .recents-activity-switch button.active { background: var(--surface-strong); color: var(--ink); box-shadow: 0 1px 6px rgba(0,0,0,0.16); }
+      .recents-kind-switch button.active, .recents-activity-switch button.active { background: var(--surface-strong); color: var(--ink); box-shadow: none; }
       .recents-kind-switch button:hover, .recents-activity-switch button:hover { color: var(--ink); }
       .recents-collection-shell { position: relative; }
-      .recents-collection-trigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 172px; max-width: min(250px, 36vw); min-height: 41px; padding: 0 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface-muted); color: var(--ink); font-size: 12px; font-weight: 700; cursor: pointer; }
+      .recents-collection-trigger { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 172px; max-width: min(250px, 36vw); min-height: 41px; padding: 0 12px; border: 0; border-radius: 9px; background: var(--surface-muted); color: var(--ink); font-size: 12px; font-weight: 700; cursor: pointer; }
       .recents-collection-trigger:hover, .recents-collection-trigger.active { border-color: var(--line-strong); background: var(--surface); }
       .recents-collection-trigger span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .recents-filter-reset { width: 41px; height: 41px; flex: 0 0 auto; border-radius: 9px; }
@@ -2195,7 +2198,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .recents-scroll { min-height: 0; flex: 1; overflow-y: auto; padding: 24px 30px 40px; }
       .recents-source-filter { width: 100%; max-width: none; min-width: 0; box-sizing: border-box; display: flex; align-items: flex-start; justify-content: center; gap: 5px; margin: 0 0 22px; }
       .recents-source-strip { min-width: 0; flex: 0 1 auto; width: max-content; max-width: calc(100% - 32px); display: flex; align-items: center; gap: 5px; padding: 1px 1px 8px; overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; -webkit-overflow-scrolling: touch; -webkit-mask-image: linear-gradient(to right, transparent, #000 10px, #000 calc(100% - 12px), transparent); mask-image: linear-gradient(to right, transparent, #000 10px, #000 calc(100% - 12px), transparent); }
-      .recents-source-pill { --source-accent: var(--accent-strong); flex: 0 0 auto; min-height: 27px; display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 10px; font-weight: 700; white-space: nowrap; cursor: pointer; transition: border-color 140ms ease, background 140ms ease, color 140ms ease, opacity 140ms ease; }
+      .recents-source-pill { --source-accent: var(--accent-strong); flex: 0 0 auto; min-height: 27px; display: inline-flex; align-items: center; gap: 4px; padding: 0 7px; border: 0; border-radius: 999px; background: var(--surface); color: var(--muted); font-size: 10px; font-weight: 700; white-space: nowrap; cursor: pointer; transition: border-color 140ms ease, background 140ms ease, color 140ms ease, opacity 140ms ease; }
       .recents-source-pill:hover { border-color: color-mix(in srgb, var(--source-accent) 55%, var(--line)); color: var(--ink); }
       .recents-source-pill.active { border-color: color-mix(in srgb, var(--source-accent) 40%, var(--line)); background: color-mix(in srgb, var(--source-accent) 8%, var(--surface)); color: var(--ink); }
       .recents-source-pill:not(.active) .recents-source-pill-icon { opacity: 0.45; }
@@ -2278,7 +2281,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       body.explorer-resizing { cursor: col-resize; user-select: none; }
       .explorer-tree-head { min-height: 36px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 2px 10px 6px 12px; color: var(--muted); }
       .explorer-tree-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
-      .explorer-view-toggle { flex: none; display: inline-flex; align-items: center; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: rgba(255,255,255,0.035); }
+      .explorer-view-toggle { flex: none; display: inline-flex; align-items: center; padding: 2px; border: 0; border-radius: 8px; background: rgba(255,255,255,0.035); }
       .explorer-toggle-button { height: 24px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 11px; font-weight: 650; cursor: pointer; }
       .explorer-toggle-button:hover { color: var(--ink); }
       .explorer-toggle-button.active { background: var(--surface); color: var(--ink); box-shadow: 0 1px 0 rgba(255,255,255,0.06), 0 8px 18px rgba(2,6,23,0.18); }
@@ -2450,7 +2453,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .sidecar-section { display: grid; gap: 11px; }
       .sidecar-section h3 { margin: 0; }
       .sidecar-link-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-      .sidecar-link-button { min-width: 0; border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: 12px; padding: 10px 11px; text-align: left; cursor: pointer; display: grid; gap: 4px; }
+      .sidecar-link-button { min-width: 0; border: 0; background: var(--surface); color: var(--ink); border-radius: 12px; padding: 10px 11px; text-align: left; cursor: pointer; display: grid; gap: 4px; }
       .sidecar-link-button:hover { border-color: var(--line-strong); background: rgba(255,255,255,0.07); }
       .sidecar-link-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 700; }
       .sidecar-link-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }

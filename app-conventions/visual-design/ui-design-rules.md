@@ -16,6 +16,7 @@ states.
 
 - Shared action buttons align icons and labels with inline flex, centred alignment, a consistent 6px gap, and non-shrinking SVG icons. Do not rely on inline SVG baselines or whitespace in JSX for spacing.
 - Keep icon-only buttons centred and preserve their accessible labels.
+- Buttons use borderless shadcn-style surfaces: neutral secondary fills, ghost icon actions, 6–8px corners for general controls, and background contrast for hover and selected states. Avoid outlined button borders, gradients and decorative button shadows. Keep form-field, popup and card boundaries distinct from buttons.
 
 ## Focus Styling
 
