@@ -54,7 +54,7 @@ import {
   updateComprehensionSetup,
 } from './overlays/comprehension.js';
 import { getRelatedLinkHistory } from './link-history.js';
-import { buildDealsPayload, buildDealIntroductionsPayload, updateDealAsks, updateDealStage, updateDealStatus, updateIntroductionArrangement } from './overlays/deals.js';
+import { buildDealsPayload, buildDealIntroductionsPayload, updateDealAsks, updateDealStage, updateDealStatus, updateIntroductionArrangement, updateIntroductionStage } from './overlays/deals.js';
 import { buildDealsPdf } from './overlays/deals-pdf.js';
 import {
   normalizePageVisibility,
@@ -344,6 +344,13 @@ export async function createDashboardRequestHandler(config, {
         const input = {};
         for (const key of ['limit', 'cursor']) if (requestUrl.searchParams.has(key)) input[key] = Number(requestUrl.searchParams.get(key));
         return json(res, await buildDealIntroductionsPayload(config, db, input), { noStore: true });
+      }
+      if (requestUrl.pathname === '/api/overlays/deals/introductions/stage') {
+        if (req.method !== 'POST') throw Object.assign(new Error('Introduction stage updates require POST.'), { statusCode: 405 });
+        let input;
+        try { input = await readJsonRequest(req); }
+        catch (error) { throw Object.assign(error, { statusCode: 400 }); }
+        return json(res, await updateIntroductionStage(config, db, input, { actor }), { noStore: true });
       }
       if (requestUrl.pathname === '/api/overlays/deals/introductions/arrangement') {
         if (req.method !== 'POST') throw Object.assign(new Error('Arrangement updates require POST.'), { statusCode: 405 });
