@@ -586,6 +586,7 @@ function htmlPage(title, body) {
       --danger-bg: rgba(127, 29, 29, 0.32);
     }
     * { box-sizing: border-box; }
+    :focus, :focus-visible { outline: none; }
     body {
       min-height: 100vh;
       margin: 0;
@@ -653,7 +654,7 @@ function htmlPage(title, body) {
       overflow-wrap: anywhere;
       outline: none;
     }
-    .copy-box:focus { border-color: rgba(125, 211, 252, 0.62); box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.14); }
+    .copy-box:focus { border-color: rgba(125, 211, 252, 0.62); }
     .copy-actions {
       display: flex;
       justify-content: flex-end;
@@ -676,7 +677,7 @@ function htmlPage(title, body) {
       cursor: pointer;
       transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
     }
-    .copy-button:hover { border-color: rgba(125, 211, 252, 0.58); background: rgba(14, 165, 233, 0.18); transform: translateY(-1px); }
+    .copy-button:hover, .copy-button:focus-visible { border-color: rgba(125, 211, 252, 0.58); background: rgba(14, 165, 233, 0.18); transform: translateY(-1px); }
     .copy-button:active { transform: translateY(0); }
     .copy-icon {
       width: 15px;
@@ -723,7 +724,7 @@ function htmlPage(title, body) {
       font-weight: 800;
       box-shadow: 0 14px 36px rgba(14, 165, 233, 0.22);
     }
-    .button:hover { filter: brightness(1.05); }
+    .button:hover, .button:focus-visible { filter: brightness(1.05); }
     .google-mark {
       display: grid;
       place-items: center;

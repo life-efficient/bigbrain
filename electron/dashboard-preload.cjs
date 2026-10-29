@@ -29,11 +29,11 @@ async function mountBrainSelector(container) {
   style.textContent = `
     :host { display: block; width: min(190px, 100%); color: #fafafa; font: 13px ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     * { box-sizing: border-box; }
+    :focus, :focus-visible { outline: none; }
     .wrap { position: relative; }
     button { font: inherit; cursor: pointer; -webkit-app-region: no-drag; }
     .trigger { width: 100%; height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; background: rgba(255,255,255,.05); color: #fafafa; padding: 0 14px; font-weight: 650; box-shadow: 0 6px 18px rgba(0,0,0,.12); outline: none; }
-    .trigger:hover, .trigger[aria-expanded="true"] { border-color: rgba(255,255,255,.28); background: rgba(255,255,255,.09); }
-    .trigger:focus-visible { box-shadow: 0 0 0 2px rgba(255,255,255,.18); }
+    .trigger:hover, .trigger:focus-visible, .trigger[aria-expanded="true"] { border-color: rgba(255,255,255,.28); background: rgba(255,255,255,.09); }
     .label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .chevron { flex: 0 0 auto; width: 7px; height: 7px; border-right: 1.5px solid #a1a1aa; border-bottom: 1.5px solid #a1a1aa; transform: translateY(-2px) rotate(45deg); }
     .menu { position: absolute; z-index: 1000; top: 48px; left: 0; width: 224px; padding: 5px; border: 1px solid rgba(255,255,255,.14); border-radius: 10px; background: #27272a; box-shadow: 0 18px 45px rgba(0,0,0,.48); }
@@ -166,13 +166,13 @@ async function mountUpdateStatus(actions) {
   style.textContent = `
     :host { position: relative; display: block; color: #fafafa; font: 12px ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; -webkit-app-region: no-drag; }
     * { box-sizing: border-box; }
+    :focus, :focus-visible { outline: none; }
     [hidden] { display: none !important; }
     button { font: inherit; cursor: pointer; -webkit-app-region: no-drag; }
     .wrap { position: relative; display: flex; align-items: center; gap: 8px; }
     .version { color: #a1a1aa; font: 650 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .01em; white-space: nowrap; }
     .trigger { position: relative; width: 38px; height: 38px; display: inline-grid; place-items: center; border: 1px solid rgba(96,165,250,.5); border-radius: 999px; background: rgba(59,130,246,.18); color: #bfdbfe; font-weight: 800; outline: none; }
-    .trigger:hover, .trigger[aria-expanded="true"] { border-color: rgba(147,197,253,.82); background: rgba(59,130,246,.3); }
-    .trigger:focus-visible { box-shadow: 0 0 0 2px rgba(96,165,250,.32); }
+    .trigger:hover, .trigger:focus-visible, .trigger[aria-expanded="true"] { border-color: rgba(147,197,253,.82); background: rgba(59,130,246,.3); }
     .trigger[data-tone="error"] { border-color: rgba(251,191,36,.42); background: rgba(251,191,36,.1); color: #fde68a; }
     .trigger[data-tone="error"]:hover, .trigger[data-tone="error"][aria-expanded="true"] { border-color: rgba(251,191,36,.68); background: rgba(251,191,36,.18); }
     .icon { font-size: 13px; line-height: 1; }
@@ -187,7 +187,7 @@ async function mountUpdateStatus(actions) {
     .progress { height: 4px; margin-top: 10px; overflow: hidden; border-radius: 999px; background: rgba(255,255,255,.1); }
     .progress-bar { height: 100%; width: 0; border-radius: inherit; background: #60a5fa; transition: width 160ms ease; }
     .action { width: 100%; margin-top: 12px; border: 1px solid rgba(255,255,255,.22); border-radius: 8px; background: rgba(255,255,255,.08); color: #fafafa; padding: 8px 10px; }
-    .action:hover { background: rgba(255,255,255,.13); }
+    .action:hover, .action:focus-visible { background: rgba(255,255,255,.13); }
     .action:disabled { opacity: .55; cursor: default; }
   `;
   const wrap = document.createElement('div');
