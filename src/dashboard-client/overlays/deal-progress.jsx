@@ -1,3 +1,4 @@
+import { DealStatusAction } from './deal-status.jsx';
 import React from 'react';
 import { activeDealTasks, DEAL_STAGE_LABELS, DEAL_TYPE_LABELS, INTRODUCTION_STAGE_LABELS, pageReference, progressDate, TASK_STATUS_LABELS } from './deal-progress.js';
 
@@ -61,13 +62,14 @@ export function DealIntroductions({ introductions = [], onOpenPage }) {
   </details>;
 }
 
-export function DealIntroductionRow({ introduction, onOpenPage }) {
+export function DealIntroductionRow({ introduction, onOpenPage, onStatusChange, statusPending, disabled }) {
   const parent = pageReference(introduction.parent_deal || introduction.deal);
   return <article className="deal-introduction deal-introduction-row">
     <div className="deal-introduction-heading">
       <button type="button" className="deal-reference-link deal-introduction-title" onClick={() => onOpenPage?.(introduction.page_slug)}>{introduction.title || pageReference(introduction)?.title}</button>
       <DealStage stage={introduction.stage} asOf={introduction.stage_as_of} introduction />
     </div>
+    <DealStatusAction record={introduction} introduction onChange={onStatusChange} pending={statusPending} disabled={disabled} />
     {parent ? <p className="meta">Deal: <button type="button" className="deal-reference-link" onClick={() => onOpenPage?.(parent.page_slug)}>{parent.title}</button></p> : null}
     {introduction.parties?.length ? <p className="meta">Parties: <PageReferences references={introduction.parties} onOpenPage={onOpenPage} /></p> : null}
     {introduction.purpose || introduction.summary ? <p>{introduction.purpose || introduction.summary}</p> : null}

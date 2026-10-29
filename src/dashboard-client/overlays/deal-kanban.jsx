@@ -1,3 +1,5 @@
+import { DealStatusAction } from './deal-status.jsx';
+import { recordStatus } from './deal-status.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, useSensor, useSensors, useDraggable, useDroppable, pointerWithin, closestCenter, MeasuringStrategy } from '@dnd-kit/core';
@@ -34,16 +36,17 @@ function CardContent({ record, onOpenPage, handle, overlay = false }) {
   </>;
 }
 
-function DraggableDeal({ record, onOpenPage, disabled, saving }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: record.page_slug, data: { record }, disabled });
+function DraggableDeal({ record, onOpenPage, disabled, saving, statusPending, onStatusChange }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: record.page_slug, data: { record }, disabled: disabled || recordStatus(record) === 'archived' });
   return <article ref={setNodeRef} className={`deal-kanban-card${isDragging ? ' is-dragging' : ''}${saving ? ' is-saving' : ''}`} aria-busy={saving || undefined}>
-    <CardContent record={record} onOpenPage={onOpenPage} handle={<button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
-      data-deal-handle={record.page_slug} aria-label={`Move ${record.title || record.page_slug}`} title="Drag to change stage" disabled={disabled}><GripVertical size={17} aria-hidden="true" /></button>} />
+    <CardContent record={record} onOpenPage={onOpenPage} handle={recordStatus(record) !== 'archived' ? <button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
+      data-deal-handle={record.page_slug} aria-label={`Move ${record.title || record.page_slug}`} title="Drag to change stage" disabled={disabled}><GripVertical size={17} aria-hidden="true" /></button> : null} />
+    <DealStatusAction record={record} onChange={onStatusChange} pending={statusPending} disabled={disabled} />
     {saving ? <span className="deal-card-saving">Saving stage…</span> : null}
   </article>;
 }
 
-function StageColumn({ column, active, overStage, savingSlug, disabled, onOpenPage }) {
+function StageColumn({ column, active, overStage, savingSlug, statusSavingSlug, onStatusChange, disabled, onOpenPage }) {
   const { setNodeRef, isOver } = useDroppable({ id: `stage:${column.stage}`, disabled });
   const entering = active && overStage === column.stage && dealStage(active) !== column.stage;
   const leaving = active && overStage && dealStage(active) === column.stage && overStage !== column.stage;
@@ -52,13 +55,13 @@ function StageColumn({ column, active, overStage, savingSlug, disabled, onOpenPa
     <header className="deal-kanban-column-head"><h2 id={`deal-column-${column.stage}`}>{column.label}</h2><span className="meta">{count}</span></header>
     <div className="deal-kanban-cards">
       {entering ? <div className="deal-drop-preview" aria-hidden="true">Move to {column.label}</div> : null}
-      {column.records.map(record => <DraggableDeal key={record.page_slug} record={record} onOpenPage={onOpenPage} disabled={disabled} saving={savingSlug === record.page_slug} />)}
+      {column.records.map(record => <DraggableDeal key={record.page_slug} record={record} onOpenPage={onOpenPage} disabled={disabled} saving={savingSlug === record.page_slug} statusPending={statusSavingSlug === record.page_slug} onStatusChange={onStatusChange} />)}
       {!column.records.length && !entering ? <div className="deal-empty-column">{active ? 'Drop here' : 'No deals'}</div> : null}
     </div>
   </section>;
 }
 
-export function DealKanban({ records, onOpenPage, onMoveStage, savingSlug }) {
+export function DealKanban({ records, onOpenPage, onMoveStage, savingSlug, statusSavingSlug, onStatusChange }) {
   const boardRef = useRef(null);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -117,10 +120,10 @@ export function DealKanban({ records, onOpenPage, onMoveStage, savingSlug }) {
         });
       }
     }}>
-    <p className="deal-drag-hint">Drag a deal's handle to change its stage.</p>
+    <p className="deal-drag-hint">{records.some(record => recordStatus(record) === 'active') ? "Drag a deal's handle to change its stage." : 'Restore an archived deal to change its stage.'}</p>
     <div ref={boardRef} className={`deal-kanban${active ? ' is-drag-active' : ''}`} role="region" aria-label="Deals by stage" tabIndex={0}>
       {columns.map(column => <StageColumn key={column.stage} column={column} active={active} overStage={overStage} savingSlug={savingSlug}
-        disabled={!!savingSlug} onOpenPage={onOpenPage} />)}
+        statusSavingSlug={statusSavingSlug} onStatusChange={onStatusChange} disabled={!!savingSlug || !!statusSavingSlug} onOpenPage={onOpenPage} />)}
     </div>
     {createPortal(<DragOverlay dropAnimation={reducedMotion ? null : { duration: 180, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' }} zIndex={100}>
       {active ? <div className="deals-page deal-drag-overlay" aria-hidden="true"><article className="deal-kanban-card"><CardContent record={active} overlay handle={<GripVertical size={17} />} /></article></div> : null}

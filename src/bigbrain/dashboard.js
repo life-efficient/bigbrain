@@ -1168,6 +1168,9 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       @media (prefers-reduced-motion: reduce) { .deals-page .deal-kanban-card, .deals-page .deal-kanban-column { transition: none; } .deal-drag-overlay .deal-kanban-card { transform: none; } }
       .deals-page .deal-kanban:focus-visible, .deals-page .deal-kanban-title:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 3px; }
       @media (max-width: 600px) { .deals-page .deal-kanban-column { flex-basis: min(290px, 85vw); } .deals-page .deal-layout-controls { gap: 8px; } }
+      .deals-page .deal-status-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+      .deals-page .deal-status-actions .graph-button { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; }
+      .deals-page .deal-kanban-card .deal-status-actions { margin-top: 10px; }
       .deals-page .deal-filters { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; }
       .deals-page .deal-filters > input { flex: 1 1 280px; min-width: 180px; }
       .deals-page .deal-filters > .deal-filter-field { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }

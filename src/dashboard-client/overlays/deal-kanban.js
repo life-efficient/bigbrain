@@ -1,3 +1,4 @@
+import { recordStatus } from './deal-status.js';
 import { DEAL_STAGE_LABELS } from './deal-progress.js';
 
 export function groupDealsByStage(records, { includeEmpty = false } = {}) {
@@ -18,10 +19,11 @@ export function stageDropTarget(id) {
 }
 
 export async function saveDealStage(record, nextStage, fetchImpl = fetch) {
+  if (recordStatus(record) === 'archived') throw new Error('Restore this deal before changing its stage.');
   if (!Object.hasOwn(DEAL_STAGE_LABELS, nextStage)) throw new Error('Choose a valid deal stage.');
   if (nextStage === dealStage(record)) return { record };
   const response = await fetchImpl('/api/overlays/deals/stage', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ page_slug: record.page_slug, deal_stage: nextStage, expected_deal_stage: record.deal_stage || 'unknown', expected_stage_as_of: record.stage_as_of || null }) });
+    body: JSON.stringify({ page_slug: record.page_slug, expected_deal_status: recordStatus(record), deal_stage: nextStage, expected_deal_stage: record.deal_stage || 'unknown', expected_stage_as_of: record.stage_as_of || null }) });
   let data;
   try { data = await response.json(); } catch { throw new Error('The stage change could not be verified. Refresh before trying again.'); }
   if (!response.ok) throw Object.assign(new Error(data.error || 'Unable to save the stage. Please retry.'), { status: response.status });

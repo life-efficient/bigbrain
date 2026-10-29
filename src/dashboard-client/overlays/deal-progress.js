@@ -1,17 +1,18 @@
+import { recordStatus } from './deal-status.js';
 export const DEAL_TYPE_LABELS = {
   capital_raise: 'Capital raise', acquisition: 'Acquisition', compute_brokerage: 'Compute brokerage',
   customer_introduction: 'Customer introduction', commercial_partnership: 'Commercial partnership',
   advisory: 'Advisory', other: 'Other',
 };
 export const DEAL_STAGE_LABELS = {
-  unknown: 'Stage not established', qualifying: 'Qualifying', preparing: 'Preparing',
+  unknown: 'Stage not established', qualifying: 'Qualifying', establishing_arrangement: 'Establishing arrangement', preparing: 'Preparing',
   seeking_counterparties: 'Seeking counterparties', negotiating: 'Negotiating', closing: 'Closing',
-  delivering: 'Delivering', completed: 'Completed', paused: 'Paused', dropped: 'Dropped',
+  delivering: 'Delivering', completed: 'Completed',
 };
 export const INTRODUCTION_STAGE_LABELS = {
   unknown: 'Stage not established', candidate: 'Candidate', proposed: 'Introduction proposed',
   introduced: 'Introduced', discussing: 'Discussing', negotiating: 'Negotiating', agreed: 'Agreed',
-  delivering: 'Delivering', completed: 'Completed', paused: 'Paused', declined: 'Declined',
+  delivering: 'Delivering', completed: 'Completed', declined: 'Declined',
 };
 export const TASK_STATUS_LABELS = { open: 'Open', in_progress: 'In progress', waiting: 'Waiting' };
 
@@ -37,7 +38,8 @@ function taskSearchText(task) {
     ...(task.waiting_on || []).map(ref => pageReference(ref)?.title)].join(' ');
 }
 
-export function matchesDealFilters(record, { search = '', dealType = '', stage = '' } = {}) {
+export function matchesDealFilters(record, { search = '', dealType = '', stage = '', status = '' } = {}) {
+  if (status && status !== 'all' && recordStatus(record) !== status) return false;
   if (dealType && !(record.deal_types || []).includes(dealType)) return false;
   if (stage && (record.deal_stage || 'unknown') !== stage) return false;
   const needle = search.trim().toLowerCase();
@@ -53,7 +55,8 @@ export function matchesDealFilters(record, { search = '', dealType = '', stage =
   return text.includes(needle);
 }
 
-export function matchesIntroductionFilters(introduction, { search = '', stage = '' } = {}) {
+export function matchesIntroductionFilters(introduction, { search = '', stage = '', status = '' } = {}) {
+  if (status && status !== 'all' && recordStatus(introduction, true) !== status) return false;
   if (stage && (introduction.stage || 'unknown') !== stage) return false;
   const needle = search.trim().toLowerCase();
   if (!needle) return true;
