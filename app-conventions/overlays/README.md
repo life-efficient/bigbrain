@@ -68,6 +68,18 @@ stages appear under Stage not established. Display populated columns and keep
 horizontal scrolling inside the board. Changing layouts does not change deal
 stages or the complete anonymised PDF export.
 
+Drag a deal by its dedicated handle to change its stage. Use an accessible
+drag-and-drop primitive with pointer, touch, and keyboard support, a lifted card
+preview, clear drop targets, cancellation, and horizontal autoscroll. Empty
+stages must be reachable destinations. Keep page links independently clickable.
+
+Stage moves write the canonical deal page and record the explicit manual change
+with an evidence timestamp. Check the previously read stage and timestamp to
+prevent overwriting newer edits. Show immediate movement and saving feedback;
+restore the previous position on failure and refresh stale data. A cancelled or
+same-stage drop does not write. Verify real persistence using synthetic fixtures
+rather than changing actual deal facts during UI testing.
+
 ### Anonymised information
 
 Canonical deal fields are `anonymised_title`, `anonymised_description`, and
