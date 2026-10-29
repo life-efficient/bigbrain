@@ -1,5 +1,9 @@
 # Search behavior cases
 
+The [deal consistency forward regressions](../../bigbrain-page/tests/deal-consistency/README.md)
+include metadata freshness, linked canonical scale conflicts, and quote scope
+mismatches. Run those cases with mock tools and retain observed traces.
+
 1. Positive trigger: "What do we know about Alex Rivera's advisory work?"
    - Select bigbrain-search, resolve the Brain, search in balanced mode, and answer in the harness using retrieved content with source slugs.
 2. Negative trigger: "Save these new notes about Alex Rivera."

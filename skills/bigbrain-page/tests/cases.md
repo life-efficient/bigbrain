@@ -1,5 +1,9 @@
 ## Should trigger
 
+Run the seven synthetic [deal consistency forward regressions](deal-consistency/README.md)
+for linked deal/task updates. They define prompts, mock records, read/write/send
+traces, and an evaluator. Evaluator unit tests are not agent behavior results.
+
 - Create a new canonical page when no owner exists and evidence is sufficient.
 - Update an existing canonical page when evidence changes durable understanding.
 - Return a verified no-op when a source adds no material change.
