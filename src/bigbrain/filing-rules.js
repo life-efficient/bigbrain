@@ -287,8 +287,6 @@ function defaultDealSchema() {
       deal_involvement: ['public_unrelated', 'network_observed', 'network_actionable', 'active'],
       ...Object.fromEntries(Object.entries(dealMetadataFields()).map(([key, field]) => [key, field.description])),
       anonymised_asks: ANONYMISED_ASKS_DESCRIPTION,
-      anonymised_title: 'Externally shareable title without names or identifying combinations of details. Keep separate from the internal title.',
-      anonymised_description: 'Optional anonymous, externally shareable teaser that makes the opportunity clear and exciting through concrete, evidence-backed substance: the asset or project, its distinguishing features, and the proposed transaction or partnership. Avoid invented claims or commitments, company, project, and contact names, and combinations of identifying details. Keep separate from the internal summary.',
     },
     guidance: [
       'Create one top-level deal page only for an independently evolving actual transaction, raise, investment, mandate, acquisition, or commercial opportunity.',
@@ -303,7 +301,7 @@ function defaultDealSchema() {
       'Keep individual counterparty introductions in deal_introductions/ with a parent deal reference, named parties, purpose, evidence-backed stage and timeline. Keep actionable follow-ups in tasks/ linked through source.',
       ANONYMISED_ASKS_DESCRIPTION,
       'Write anonymised_description as clear, exciting anonymous opportunity prose supported by the deal evidence. Default each ask to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per ask, separating distinct counterparties or roles. Use "We welcome introductions to..." only when access is the actual need. Avoid questions, bullet prefixes, and repetition of the shared teaser. Append one ask as prose to the teaser; only the all-asks message may format the asks as bullets. Do not invent claims or commitments.',
-      'Keep all three fields free of company, project, and contact names, source routes, private URLs, and combinations of identifying details. Do not infer shareable copy from the internal title or summary.',
+      'Remove party names while preserving concrete, evidenced deal substance and differentiators. Keep source routes and strategy private unless explicitly authorised for the audience. Do not automatically copy the internal title or summary into shareable fields.',
     ],
   };
 }

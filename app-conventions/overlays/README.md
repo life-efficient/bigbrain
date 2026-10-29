@@ -122,6 +122,16 @@ titles, summaries, page paths, parties, tasks, relationship history, or private
 commercial details. Authors prepare the anonymised wording; export does not
 attempt automatic anonymisation of internal text.
 
+Anonymisation removes company, project and person names, not the deal's substance.
+Keep evidenced technology, capacity, scale, geography, traction, economics and
+commercial requirements. Preserve authorised differentiators, including family
+pedigree and government relationships, without naming the parties. Do not erase
+useful facts merely because they are distinctive or potentially recognisable.
+Keep specific material uncertainty, but avoid generic defensive caveats. Private
+sourcing routes, contact details and strategy remain excluded unless explicitly
+authorised for the audience. Zod is the description authority for both ordinary
+page schemas and the Deals MCP editing fields.
+
 ### PDF overview
 
 **Download PDF** exports all active enrolled deals, regardless of the current search,

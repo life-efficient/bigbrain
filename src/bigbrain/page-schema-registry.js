@@ -10,7 +10,23 @@ import { CANONICAL_SCHEMA_DIRS } from './constants.js';
 
 export const PAGE_SCHEMA_REGISTRY_FILENAME = 'page-schemas.yaml';
 export const PAGE_SCHEMA_REGISTRY_VERSION = 1;
-export const PAGE_SCHEMA_DEFAULTS_VERSION = 8;
+export const PAGE_SCHEMA_DEFAULTS_VERSION = 9;
+
+// Only replace shipped defaults; explicit local sharing policies remain intact.
+const LEGACY_ANONYMISED_DESCRIPTIONS = {
+  "anonymised_title": [
+    "Short externally shareable deal title without party names or identifying combinations of details. Separate from the internal title.",
+    "Externally shareable title without names or identifying combinations of details. Keep separate from the internal title.",
+    "Externally shareable title without company, project, or contact names or identifying combinations of details. Keep separate from the internal title."
+  ],
+  "anonymised_description": [
+    "Concise evidenced description of the offering or requirement and proposed commercial arrangement. Omit identities, private economics, provenance and identifying combinations of details; preserve material uncertainty without inventing commitments. Separate from the internal summary.",
+    "Optional anonymous, externally shareable teaser that makes the opportunity clear and exciting through concrete, evidence-backed substance: the asset or project, its distinguishing features, and the proposed transaction or partnership. Avoid invented claims or commitments, company, project, and contact names, and combinations of identifying details. Keep separate from the internal summary."
+  ],
+  "anonymised_asks": [
+    "Evidence-backed, externally shareable requests for contributions from potential new participants in the deal, such as capital, compute supply, customers, acquisition, delivery or introductions. Each complete sentence states the participant sought and their role. Excludes documents, clarification, approvals and follow-ups owed by parties already involved; record actionable prerequisites as linked tasks. Use an empty array when no external ask is established. Never invent an ask to complete the record. Omit identifying details, private economics and unsupported commitments."
+  ]
+};
 
 const SCHEMA_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const FIELD_TYPES = ['string', 'number', 'boolean', 'array', 'object'];
@@ -151,19 +167,6 @@ function defaultPeopleFields() {
 
 function defaultDealFields() {
   return {
-    anonymised_title: {
-      type: 'string',
-      description: 'Externally shareable title without company, project, or contact names or identifying combinations of details. Keep separate from the internal title.',
-    },
-    anonymised_asks: {
-      type: 'array',
-      items: { type: 'string' },
-      description: 'Optional anonymous, externally shareable asks. Default to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per complete sentence, with separate asks for distinct counterparties or roles. Use "We welcome introductions to..." only when access to a counterparty is the actual need. Avoid questions, salutations, headings, bullet prefixes, identifying details, and unsupported claims or commitments; each ask must read naturally after the shared teaser without repeating it.',
-    },
-    anonymised_description: {
-      type: 'string',
-      description: 'Optional anonymous, externally shareable teaser that makes the opportunity clear and exciting through concrete, evidence-backed substance: the asset or project, its distinguishing features, and the proposed transaction or partnership. Avoid invented claims or commitments, company, project, and contact names, and combinations of identifying details. Keep separate from the internal summary.',
-    },
     ...dealMetadataFields(),
     deal_involvement: {
       type: 'string',
@@ -423,6 +426,20 @@ function applyPageSchemaDefaultsMigration(registry, config, version, added) {
       schema.fields ||= {};
       schema.fields[field] = (prefix === 'deals' ? dealMetadataFields() : dealIntroductionFields())[field];
       added.push(`${id}.${field}`);
+    }
+    return;
+  }
+  if (version === 9) {
+    const fields = dealMetadataFields();
+    for (const [id, schema] of Object.entries(registry.schemas)) {
+      if (normalizePathPrefix(schema.path_prefix) !== 'deals') continue;
+      for (const [field, descriptions] of Object.entries(LEGACY_ANONYMISED_DESCRIPTIONS)) {
+        const definition = schema.fields?.[field];
+        if (definition && (!definition.description || descriptions.includes(definition.description))) {
+          definition.description = fields[field].description;
+          added.push(`${id}.${field}.description`);
+        }
+      }
     }
     return;
   }

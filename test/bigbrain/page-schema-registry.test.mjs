@@ -434,3 +434,34 @@ schemas:
   assert.equal((await migratePageSchemaRegistry(config)).migration.changed,false);
  }finally{await fs.rm(fixture.rootDir,{recursive:true,force:true});}
 });
+
+test('anonymisation description migration updates shipped policy but preserves custom policy and constraints', async () => {
+  const fixture = await createFixture('bigbrain-anonymisation-policy-');
+  try {
+    const config = await loadConfig({ configPath: fixture.configPath });
+    await fs.writeFile(path.join(fixture.brainHome, PAGE_SCHEMA_REGISTRY_FILENAME), `schema_version: 1
+defaults_version: 8
+schemas:
+  transactions:
+    path_prefix: deals
+    fields:
+      anonymised_title:
+        type: string
+        required: true
+        description: Short externally shareable deal title without party names or identifying combinations of details. Separate from the internal title.
+      anonymised_description:
+        type: string
+        description: Custom sharing policy.
+      anonymised_asks:
+        type: array
+        items: {type: string}
+`);
+    const migrated = await migratePageSchemaRegistry(config);
+    const fields = migrated.registry.schemas.transactions.fields;
+    assert.match(fields.anonymised_title.description, /Retain the specific asset/);
+    assert.equal(fields.anonymised_title.required, true);
+    assert.equal(fields.anonymised_description.description, 'Custom sharing policy.');
+    assert.match(fields.anonymised_asks.description, /retaining concrete amounts/);
+    assert.equal((await migratePageSchemaRegistry(config)).migration.changed, false);
+  } finally { await fs.rm(fixture.rootDir, { recursive: true, force: true }); }
+});

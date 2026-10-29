@@ -73,8 +73,6 @@ export function schemaDescription() {
       frontmatter: {
         ...Object.fromEntries(Object.entries(dealMetadataFields()).map(([key, field]) => [key, field.description])),
         anonymised_asks: ANONYMISED_ASKS_DESCRIPTION,
-        anonymised_title: 'Externally shareable title without names or identifying combinations of details. Keep separate from the internal title.',
-        anonymised_description: 'Optional anonymous, externally shareable teaser that makes the opportunity clear and exciting through concrete, evidence-backed substance: the asset or project, its distinguishing features, and the proposed transaction or partnership. Avoid invented claims or commitments, company, project, and contact names, and combinations of identifying details. Keep separate from the internal summary.',
         deal_involvement: {
           public_unrelated: 'A public deal unrelated to us.',
           network_observed: 'A network contact is working on it, with no active involvement from us.',
@@ -171,9 +169,9 @@ export function renderSchemaMarkdown() {
     '',
     '- `deal_involvement` is optional for existing records and must be one of `public_unrelated`, `network_observed`, `network_actionable`, or `active` when present.',
     ANONYMISED_ASKS_DESCRIPTION,
-    '- `anonymised_title` is the shareable heading, separate from the internal title and free of identifying details.',
+    '- `anonymised_title` is the shareable heading, separate from the internal title, with names removed and concrete differentiators preserved.',
     '- `anonymised_description` makes the anonymous opportunity clear and exciting with concrete, evidence-backed substance, distinct from the internal `summary`. Append one selected ask as prose for an individual message; the all-asks message may present the asks as bullets. Do not invent claims or commitments.',
-    '- Keep all three fields free of company, project, and contact names, source routes, private URLs, and combinations of identifying details. Do not infer shareable copy from the internal title or summary.',
+    '- Remove party names while preserving concrete, evidenced deal substance and differentiators. Keep source routes and strategy private unless explicitly authorised for the audience. Do not automatically copy the internal title or summary into shareable fields.',
     '- `public_unrelated` is a public deal unrelated to us.',
     '- `network_observed` is a deal a network contact mentioned they are working on, without our active involvement.',
     '- `network_actionable` is a network deal where we may be able to help, for example by finding a vendor or investor.',
