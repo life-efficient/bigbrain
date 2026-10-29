@@ -34,7 +34,7 @@ export function DealRecordEditor({ record, introduction = false, onClose, onSave
   return <><span ref={anchor} hidden /><Dialog.Root open onOpenChange={open => { if (!open && !savingRef.current) onClose?.(); }}>
     <Dialog.Portal container={anchor.current?.closest('.page-shell')}>
       <Dialog.Overlay className="deal-modal-backdrop" />
-      <Dialog.Content className="deal-modal deal-record-editor" onOpenAutoFocus={event => { event.preventDefault(); event.currentTarget.querySelector('textarea')?.focus(); }} onPointerDownOutside={event => event.preventDefault()}
+      <Dialog.Content className="deal-modal deal-record-editor" onOpenAutoFocus={event => { event.preventDefault(); const field = event.currentTarget.querySelector('textarea'); requestAnimationFrame(() => field?.focus()); }} onPointerDownOutside={event => event.preventDefault()}
         onEscapeKeyDown={event => { if (savingRef.current) event.preventDefault(); }}
         onCloseAutoFocus={event => { event.preventDefault(); requestAnimationFrame(() => {
           const buttons = [...document.querySelectorAll('button[aria-label]')];
