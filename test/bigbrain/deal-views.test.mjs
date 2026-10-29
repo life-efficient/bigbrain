@@ -44,3 +44,14 @@ test('PDF errors and wrong content never become a downloaded document', async ()
   await assert.rejects(fetchAnonymisedDealsPdf(async () => ({ ok: false, status: 422, json: async () => ({ error: 'Complete the anonymised descriptions first.' }) })), /Complete the anonymised/);
   await assert.rejects(fetchAnonymisedDealsPdf(async () => ({ ok: true, headers: new Headers({ 'content-type': 'text/html' }) })), /could not be generated/);
 });
+
+ test('selected PDF download sends only explicit selection in POST body', async () => {
+  let request;
+  await fetchAnonymisedDealsPdf(async (url, options) => {
+    request = { url, options };
+    return new Response(new Blob(['pdf']), { headers: { 'Content-Type': 'application/pdf' } });
+  }, ['deals/selected-one', 'deals/selected-two']);
+  assert.equal(request.options.method, 'POST');
+  assert.deepEqual(JSON.parse(request.options.body), { page_slugs: ['deals/selected-one', 'deals/selected-two'] });
+  assert.equal(request.url, '/api/overlays/deals/export.pdf');
+});

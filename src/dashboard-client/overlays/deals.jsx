@@ -7,7 +7,7 @@ import { recordStatus, saveRecordStatus } from './deal-status.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { Select } from '../components/select.jsx';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, Plus, Pencil, Trash2, Copy, Search, Download, List, Columns3, Type, FileText, Loader2 } from 'lucide-react';
+import { X, Plus, Pencil, Trash2, Copy, Square, CheckSquare, Search, Download, List, Columns3, Type, FileText, Loader2 } from 'lucide-react';
 import { copyAllDealAsks, copyDealTeaser, dealTeaserParts, formatAllDealAsks, formatDealTeaser } from './deal-teaser.js';
 import { DEAL_STAGE_LABELS, DEAL_TYPE_LABELS, INTRODUCTION_STAGE_LABELS, matchesDealFilters, matchesIntroductionFilters } from './deal-progress.js';
 import { DealKanban } from './deal-kanban.jsx';
@@ -267,6 +267,8 @@ export function DealsPanel({ onOpenPage }) {
   }
   const [search, setSearch] = useState('');
   const [searchExpanded, setSearchExpanded] = useState(false);
+  const [selectedSlugs, setSelectedSlugs] = useState(() => new Set());
+  function toggleSelection(slug) { setSelectedSlugs(current => { const next = new Set(current); if (next.has(slug)) next.delete(slug); else next.add(slug); return next; }); }
   const searchToggleRef = useRef(null);
   const [dealType, setDealType] = useState('');
   const [dealStatus, setDealStatus] = useState('active');
@@ -278,6 +280,11 @@ export function DealsPanel({ onOpenPage }) {
   const [introductionStage, setIntroductionStage] = useState('');
   const [reload, setReload] = useState(0);
   const [state, setState] = useDealCollection('/api/overlays/deals', reload);
+  useEffect(() => {
+    if (state.status !== 'ready') return;
+    const active = new Set(state.records.filter(record => recordStatus(record) === 'active').map(record => record.page_slug));
+    setSelectedSlugs(current => { const next = new Set([...current].filter(slug => active.has(slug))); return next.size === current.size ? current : next; });
+  }, [state.records, state.status]);
   const [introductions, setIntroductions] = useDealCollection('/api/overlays/deals/introductions', reload);
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState('');
@@ -367,11 +374,11 @@ export function DealsPanel({ onOpenPage }) {
     setDownloading(true);
     setDownloadError('');
     try {
-      const blob = await fetchAnonymisedDealsPdf();
+      const blob = await fetchAnonymisedDealsPdf(undefined, selectedSlugs.size ? [...selectedSlugs] : undefined);
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = 'anonymised-deals-overview.pdf';
+      link.download = selectedSlugs.size ? 'anonymised-selected-deals.pdf' : 'anonymised-deals-overview.pdf';
       document.body.appendChild(link);
       link.click();
       link.remove();
@@ -390,6 +397,8 @@ export function DealsPanel({ onOpenPage }) {
     ? introductions.records.filter(record => matchesIntroductionFilters(record, { search: introductionSearch, stage: introductionStage, status: introductionStatus }))
     : state.records.filter(record => matchesDealFilters(record, { search, dealType, stage, status: dealStatus }));
   const filtersChanged = showingIntroductions ? introductionSearch.trim() || introductionStage || introductionStatus !== 'active' : search.trim() || dealType || stage || dealStatus !== 'active';
+  const selectableRecords = records.filter(record => recordStatus(record) === 'active');
+  const allVisibleSelected = selectableRecords.length > 0 && selectableRecords.every(record => selectedSlugs.has(record.page_slug));
   const noun = showingIntroductions ? 'introduction' : 'deal';
 
   return (
@@ -435,6 +444,10 @@ export function DealsPanel({ onOpenPage }) {
           : current.status === 'error' ? <div className="overlay-error card" role="alert"><h2>Unable to load {noun}s</h2><p>{current.error}</p><button type="button" className="graph-button" onClick={() => setReload(value => value + 1)}>Retry</button></div>
           : <>
             {current.records.length ? <div className="deal-filters">
+              {!showingIntroductions ? <div className="deal-selection-controls">
+                <button type="button" role="checkbox" aria-checked={allVisibleSelected} aria-label="Select all visible deals" title="Select all visible deals" className="deal-selection-toggle" disabled={downloading || !selectableRecords.length} onClick={() => setSelectedSlugs(current => { const next = new Set(current); selectableRecords.forEach(record => allVisibleSelected ? next.delete(record.page_slug) : next.add(record.page_slug)); return next; })}>{allVisibleSelected ? <CheckSquare size={16} /> : <Square size={16} />}</button>
+                {selectedSlugs.size ? <><span>{selectedSlugs.size} selected</span><button type="button" className="deal-selection-toggle" aria-label="Clear selection" title="Clear selection" disabled={downloading} onClick={() => setSelectedSlugs(new Set())}><X size={14} /></button></> : null}
+              </div> : null}
               <div className="deal-compact-search">
                 <button ref={searchToggleRef} type="button" className="graph-button deal-icon-action" aria-label="Search this view" title="Search" aria-expanded={searchExpanded || !!(showingIntroductions ? introductionSearch : search)} onClick={() => setSearchExpanded(value => !value)}><Search size={16} aria-hidden="true" /></button>
                 {searchExpanded || (showingIntroductions ? introductionSearch : search) ? <input autoFocus className="deal-search-input" type="search" value={showingIntroductions ? introductionSearch : search}
@@ -464,10 +477,10 @@ export function DealsPanel({ onOpenPage }) {
             onClick={() => changeTextMode(id)}>{label}</button>)}
         </div> : null}
         {!showingIntroductions ? <button type="button" className="graph-button deal-download-button"
-          title={downloading ? 'Preparing PDF…' : 'Download anonymised PDF of all active deals'}
-          aria-label={downloading ? 'Preparing PDF' : 'Download anonymised PDF of all active deals'}
+          title={downloading ? 'Preparing PDF…' : selectedSlugs.size ? 'Download anonymised PDF of selected deals' : 'Download anonymised PDF of all active deals'}
+          aria-label={downloading ? 'Preparing PDF' : selectedSlugs.size ? 'Download anonymised PDF of selected deals' : 'Download anonymised PDF of all active deals'}
           onClick={downloadPdf} disabled={downloading || state.status !== 'ready' || !state.records.some(record => recordStatus(record) === 'active')}>
-          <Download size={16} aria-hidden="true" />{downloading ? 'Preparing PDF…' : 'Download PDF'}
+          <Download size={16} aria-hidden="true" />{downloading ? 'Preparing PDF…' : selectedSlugs.size ? `Download selected (${selectedSlugs.size})` : 'Download PDF'}
         </button> : null}
               {filtersChanged ? <button type="button" className="graph-button" onClick={() => {
                 if (showingIntroductions) { setIntroductionSearch(''); setIntroductionStage(''); setIntroductionStatus('active'); }
@@ -475,11 +488,12 @@ export function DealsPanel({ onOpenPage }) {
               }}>Clear filters</button> : null}
             </div> : null}
             <div role="tabpanel" id={`deal-layout-${layout}`} aria-labelledby={`deal-layout-tab-${layout}`} tabIndex={0}>
-            {records.length ? showingIntroductions && layout === 'kanban' ? <DealIntroductionKanban records={records} onOpenPage={onOpenPage} onMoveStage={moveIntroductionStage} savingSlug={savingStage} statusSavingSlug={savingStatus} arrangementSavingSlug={savingArrangement} onStatusChange={changeStatus} onArrangementChange={changeArrangement} /> : !showingIntroductions && layout === 'kanban' ? <DealKanban textMode={textMode} records={records} onOpenPage={onOpenPage} onMoveStage={moveDealStage} savingSlug={savingStage} statusSavingSlug={savingStatus || savingArrangement} onStatusChange={changeStatus} /> : <div className="overlay-record-list">
+            {records.length ? showingIntroductions && layout === 'kanban' ? <DealIntroductionKanban records={records} onOpenPage={onOpenPage} onMoveStage={moveIntroductionStage} savingSlug={savingStage} statusSavingSlug={savingStatus} arrangementSavingSlug={savingArrangement} onStatusChange={changeStatus} onArrangementChange={changeArrangement} /> : !showingIntroductions && layout === 'kanban' ? <DealKanban selectedSlugs={selectedSlugs} onToggleSelection={toggleSelection} selectionDisabled={downloading} textMode={textMode} records={records} onOpenPage={onOpenPage} onMoveStage={moveDealStage} savingSlug={savingStage} statusSavingSlug={savingStatus || savingArrangement} onStatusChange={changeStatus} /> : <div className="overlay-record-list">
               {showingIntroductions ? records.map(introduction => <DealIntroductionRow key={introduction.page_slug} introduction={introduction} onOpenPage={onOpenPage} onStatusChange={changeStatus} statusPending={savingStatus === introduction.page_slug} onArrangementChange={changeArrangement} arrangementPending={savingArrangement === introduction.page_slug} disabled={!!savingStatus || !!savingStage || !!savingArrangement} />)
-                : records.map(record => <article className="overlay-record card deal-record" key={record.page_slug}>
+                : records.map(record => <article className={`overlay-record card deal-record${selectedSlugs.has(record.page_slug) ? ' is-selected' : ''}`} key={record.page_slug}>
                   <div className="overlay-record-main">
                     <div className="overlay-record-title-row">
+                      {recordStatus(record) === 'active' ? <button type="button" role="checkbox" aria-checked={selectedSlugs.has(record.page_slug)} aria-label={`Select ${dealDisplayText(record, textMode).title}`} className="deal-selection-toggle" disabled={downloading} onClick={() => toggleSelection(record.page_slug)}>{selectedSlugs.has(record.page_slug) ? <CheckSquare size={16} /> : <Square size={16} />}</button> : null}
                       <button type="button" className="overlay-person-link deal-page-link" onClick={() => onOpenPage?.(record.page_slug)}>{dealDisplayText(record, textMode).title}</button>
                       <span className={`deal-involvement involvement-${record.deal_involvement || 'unset'}`}>{INVOLVEMENT_LABELS[record.deal_involvement] || 'Involvement not set'}</span>
                     </div>

@@ -23,8 +23,8 @@ export async function loadAllDealRecords(endpoint, { signal, fetchImpl = fetch }
   return records;
 }
 
-export async function fetchAnonymisedDealsPdf(fetchImpl = fetch) {
-  const response = await fetchImpl('/api/overlays/deals/export.pdf', { cache: 'no-store' });
+export async function fetchAnonymisedDealsPdf(fetchImpl = fetch, pageSlugs) {
+  const response = await fetchImpl('/api/overlays/deals/export.pdf', { cache: 'no-store', ...(pageSlugs ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page_slugs: pageSlugs }) } : {}) });
   if (!response.ok) {
     let message = '';
     try { const data = await response.json(); message = data.error || data.message || ''; } catch { /* Use the status fallback. */ }

@@ -152,3 +152,5 @@ in a Radix action menu in the card header, separate from the drag handle.
 - Use accessible labels for filters and a descriptive tooltip for anonymised PDF export. Avoid repeated subtitles, export captions, and persistent drag instructions above the board.
 
 - PDF export is a key action: keep a visible Download PDF label and primary emphasis in the second row. Search defaults to a compact magnifying-glass trigger and expands on demand.
+
+- Deals support active-deal selection across list and kanban, select-all-visible and clear-selection controls. PDF export uses exactly the selection when present, otherwise all active deals. Selection survives filtering and layout changes; archived or removed deals are pruned. Selected exports use the same strict anonymised-field projection and reject missing or ineligible requested deals.
