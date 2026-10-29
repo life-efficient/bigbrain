@@ -2063,7 +2063,8 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-activity-point { fill: #ffffff; stroke: rgba(255,255,255,0.32); stroke-width: 1; vector-effect: non-scaling-stroke; }
       .graph-controls { display: flex; gap: 8px; }
       .graph-controls-inline { position: static; z-index: auto; }
-      .graph-button { border: 1px solid var(--line); background: var(--surface-strong); color: var(--ink); border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); }
+      .graph-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; vertical-align: middle; line-height: 18px; white-space: nowrap; border: 1px solid var(--line); background: var(--surface-strong); color: var(--ink); border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); }
+      .graph-button > svg { display: block; flex: 0 0 auto; }
       .graph-button:hover { background: var(--surface); }
       .graph-button:disabled { opacity: 0.52; cursor: not-allowed; }
       .graph-button-active { background: rgba(255,255,255,0.08); border-color: var(--line-strong); }

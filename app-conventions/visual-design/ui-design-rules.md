@@ -12,6 +12,11 @@ states.
 - Match the app's trigger, popup, border, spacing, hover, disabled, and selected-state treatment. Menus should handle viewport edges and scrolling without clipping.
 - Preserve accessible labels, keyboard navigation, typeahead where applicable, Escape dismissal, and focus restoration. Verify the open menu in the rendered app, not only the closed trigger.
 
+## Buttons
+
+- Shared action buttons align icons and labels with inline flex, centred alignment, a consistent 6px gap, and non-shrinking SVG icons. Do not rely on inline SVG baselines or whitespace in JSX for spacing.
+- Keep icon-only buttons centred and preserve their accessible labels.
+
 ## Focus Styling
 
 - Do not render focus rings, focus outlines, or focus-only box-shadow halos on any app surface, including dashboard pages, overlays, authentication, desktop onboarding, and shadow-root controls. Suppress browser-default outlines at each surface root.
