@@ -7,7 +7,7 @@ import { recordStatus, saveRecordStatus } from './deal-status.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { Select } from '../components/select.jsx';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, Plus, Pencil, Trash2, Copy, Download, List, Columns3, Type, FileText, Loader2 } from 'lucide-react';
+import { X, Plus, Pencil, Trash2, Copy, Search, Download, List, Columns3, Type, FileText, Loader2 } from 'lucide-react';
 import { copyAllDealAsks, copyDealTeaser, dealTeaserParts, formatAllDealAsks, formatDealTeaser } from './deal-teaser.js';
 import { DEAL_STAGE_LABELS, DEAL_TYPE_LABELS, INTRODUCTION_STAGE_LABELS, matchesDealFilters, matchesIntroductionFilters } from './deal-progress.js';
 import { DealKanban } from './deal-kanban.jsx';
@@ -266,6 +266,8 @@ export function DealsPanel({ onOpenPage }) {
     try { window.sessionStorage.setItem(view === 'introductions' ? introductionLayoutKey : layoutStorageKey, next); } catch { /* Storage is optional. */ }
   }
   const [search, setSearch] = useState('');
+  const [searchExpanded, setSearchExpanded] = useState(false);
+  const searchToggleRef = useRef(null);
   const [dealType, setDealType] = useState('');
   const [dealStatus, setDealStatus] = useState('active');
   const [introductionStatus, setIntroductionStatus] = useState('active');
@@ -433,10 +435,14 @@ export function DealsPanel({ onOpenPage }) {
           : current.status === 'error' ? <div className="overlay-error card" role="alert"><h2>Unable to load {noun}s</h2><p>{current.error}</p><button type="button" className="graph-button" onClick={() => setReload(value => value + 1)}>Retry</button></div>
           : <>
             {current.records.length ? <div className="deal-filters">
-              <input className="overlay-search" type="search" value={showingIntroductions ? introductionSearch : search}
-                onChange={event => showingIntroductions ? setIntroductionSearch(event.target.value) : setSearch(event.target.value)}
-                placeholder={showingIntroductions ? 'Search introductions, parties or deals…' : 'Search deals…'}
-                aria-label={showingIntroductions ? 'Search introductions, parties or deals' : 'Search deals'} />
+              <div className="deal-compact-search">
+                <button ref={searchToggleRef} type="button" className="graph-button deal-icon-action" aria-label="Search this view" title="Search" aria-expanded={searchExpanded || !!(showingIntroductions ? introductionSearch : search)} onClick={() => setSearchExpanded(value => !value)}><Search size={16} aria-hidden="true" /></button>
+                {searchExpanded || (showingIntroductions ? introductionSearch : search) ? <input autoFocus className="deal-search-input" type="search" value={showingIntroductions ? introductionSearch : search}
+                  onChange={event => showingIntroductions ? setIntroductionSearch(event.target.value) : setSearch(event.target.value)}
+                  onBlur={() => setSearchExpanded(false)}
+                  onKeyDown={event => { if (event.key === 'Escape') { showingIntroductions ? setIntroductionSearch('') : setSearch(''); setSearchExpanded(false); searchToggleRef.current?.focus(); } }}
+                  placeholder="Search…" aria-label={showingIntroductions ? 'Search introductions, parties or deals' : 'Search deals'} /> : null}
+              </div>
               <div className="deal-filter-field">
                 <span className="sr-only" id="deal-status-filter-label">Status</span>
                 <Select value={showingIntroductions ? introductionStatus : dealStatus} onValueChange={showingIntroductions ? setIntroductionStatus : setDealStatus} aria-labelledby="deal-status-filter-label"
@@ -457,11 +463,11 @@ export function DealsPanel({ onOpenPage }) {
             className="deal-view-tab" aria-pressed={textMode === id} disabled={!!savingStage || !!savingStatus || !!savingArrangement}
             onClick={() => changeTextMode(id)}>{label}</button>)}
         </div> : null}
-        {!showingIntroductions ? <button type="button" className="graph-button deal-icon-action"
+        {!showingIntroductions ? <button type="button" className="graph-button deal-download-button"
           title={downloading ? 'Preparing PDF…' : 'Download anonymised PDF of all active deals'}
           aria-label={downloading ? 'Preparing PDF' : 'Download anonymised PDF of all active deals'}
           onClick={downloadPdf} disabled={downloading || state.status !== 'ready' || !state.records.some(record => recordStatus(record) === 'active')}>
-          <Download size={16} aria-hidden="true" />
+          <Download size={16} aria-hidden="true" />{downloading ? 'Preparing PDF…' : 'Download PDF'}
         </button> : null}
               {filtersChanged ? <button type="button" className="graph-button" onClick={() => {
                 if (showingIntroductions) { setIntroductionSearch(''); setIntroductionStage(''); setIntroductionStatus('active'); }

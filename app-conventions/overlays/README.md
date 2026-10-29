@@ -150,3 +150,5 @@ in a Radix action menu in the card header, separate from the drag handle.
 - Use the Deals and Deal introductions tabs as the visible page heading. Keep the semantic heading visually hidden.
 - Keep view tabs, a fixed-width numeric result count beside them, and the list/kanban toggle in the top toolbar. Put all view-specific controls, including text mode, PDF export, search, and filters, in the row below. Counts use tabular numerals and reserved width so updates never shift controls.
 - Use accessible labels for filters and a descriptive tooltip for anonymised PDF export. Avoid repeated subtitles, export captions, and persistent drag instructions above the board.
+
+- PDF export is a key action: keep a visible Download PDF label and primary emphasis in the second row. Search defaults to a compact magnifying-glass trigger and expands on demand.

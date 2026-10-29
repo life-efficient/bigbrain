@@ -1174,7 +1174,10 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .introduction-kanban-card .deal-arrangement-pill { justify-self: start; max-width: 100%; }
       .deals-page .introduction-kanban-card .deal-stage-badge { justify-self: start; }
       .deals-page .deal-filters { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-      .deals-page .deal-filters > input { flex: 1 1 180px; min-width: 140px; }
+      .deals-page .deal-compact-search { display: inline-flex; align-items: center; flex: 0 0 auto; border-radius: 8px; background: var(--surface); }
+      .deals-page .deal-search-input { width: 150px; min-width: 0; padding: 8px 8px 8px 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12px; outline: none; }
+      .deals-page .graph-button.deal-download-button { margin-left: auto; flex-shrink: 0; background: var(--ink); color: var(--bg); font-weight: 600; min-height: 36px; }
+      .deals-page .graph-button.deal-download-button:hover:not(:disabled) { opacity: 0.85; }
       .deals-page .deal-filters > .deal-filter-field { display: grid; gap: 5px; color: var(--muted); font-size: 11px; }
       .deals-page .deal-filters .shadcn-select-trigger { min-height: 38px; max-width: 230px; padding: 8px 10px; border: 0; border-radius: 8px; color: var(--ink); background: var(--surface); font: inherit; font-size: 12px; }
       .deals-page .deal-progress-meta, .deals-page .deal-stage-meta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
