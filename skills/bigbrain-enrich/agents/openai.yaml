@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Enrich"
   short_description: "Deepen a BigBrain page when new signal materially improves it"
-  default_prompt: "Use BigBrain: Enrich to update or create a stronger BigBrain page when new signal materially changes what the brain should know."
+  default_prompt: "Use $bigbrain-enrich to deepen a canonical BigBrain page from durable evidence, reconciling linked deal-task state through $bigbrain-page when material progress changes."

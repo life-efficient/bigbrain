@@ -1,4 +1,4 @@
 interface:
   display_name: "BigBrain: Refresh Tasks"
   short_description: "Refresh task pages from current BigBrain evidence"
-  default_prompt: "Use BigBrain: Refresh Tasks to reconcile BigBrain task pages with current brain evidence, updating stale statuses, readiness, and metadata through MCP task tools."
+  default_prompt: "Use $bigbrain-refresh-tasks to audit current BigBrain task evidence and propose grounded updates, including linked deal drift. Keep the review read-only until specific changes are explicitly authorized."

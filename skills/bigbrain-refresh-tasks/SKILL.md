@@ -1,19 +1,6 @@
 ---
-name: "BigBrain: Refresh Tasks"
-version: 1.0.0
-description: |
-  Refresh BigBrain task pages from current brain evidence. Use when the user
-  asks to refresh tasks, reconcile stale task pages, suggest task-status changes
-  from recent progress, or audit in_progress/waiting/open task metadata.
-triggers:
-  - "refresh tasks"
-  - "reconcile tasks"
-  - "update stale tasks"
-  - "refresh BigBrain tasks"
-  - "clean up task statuses"
-tools:
-  - mcp
-mutating: false
+name: bigbrain-refresh-tasks
+description: Audit existing BigBrain task pages against current Brain evidence and suggest grounded status, ownership, readiness, and context changes. Use for refresh tasks, reconcile stale tasks, or task-status reviews. Read-only by default; apply specific recommendations only when explicitly authorized after review. Do not use for new roadmap ideation.
 ---
 
 # BigBrain: Refresh Tasks
@@ -26,7 +13,7 @@ This skill is advisory by default. It should not create, update, close,
 archive, reassign, or reprioritize task pages unless the user explicitly asks
 for mutation in the current turn after seeing the recommendations.
 
-## Contract
+## Contract Checklist
 
 - Use BigBrain MCP for current context when an MCP-backed brain is available.
 - Prefer suggestions for existing task pages over suggestions to create new
@@ -55,12 +42,15 @@ for mutation in the current turn after seeing the recommendations.
 ## Workflow
 
 1. Call `me` and `members/list` to identify the requester and active members.
+   - Anti-patterns: assuming requester identity, assigning non-members.
 2. Retrieve task context:
    - `filing_rules` for current task-page conventions
    - `tasks/list` for in_progress, open, waiting, and recently done tasks
    - `search` for recent meetings, project updates, blockers,
      decisions, legacy inbox notes, and roadmap pages related to those tasks
    - direct `read` on task pages and source pages that may change task state
+   - For material deal-task progress, read the canonical deal and affected task and use [Deal and Task Consistency](../bigbrain-page/SKILL.md#deal-and-task-consistency) as a read-only comparison. Check completed actions, next actor, dependencies, unresolved terms, and scope against current bodies and source chronology; recent metadata edits do not establish substantive freshness.
+   - Anti-patterns: task-only verification, reconstructing state from timestamps alone.
 3. For each relevant task, decide whether to recommend that it should be:
    - left unchanged
    - marked `done` because source evidence shows completion
@@ -88,16 +78,24 @@ for mutation in the current turn after seeing the recommendations.
    - reassigned only when the new assignee is an active member and the evidence
      supports the ownership change
    - updated with better source links or body context
+   - Anti-patterns: closing tasks from silence, conflating delivered scenarios with supplier-confirmed terms.
 4. For existing tasks whose metadata or body looks stale, report a suggested
    `tasks/update` payload or concise diff rather than applying it.
+   - If the task records completed delivery while the deal still instructs preparation or delivery, recommend the corresponding canonical deal reconciliation with exact evidence and current next actor. Keep the review read-only.
+   - Anti-patterns: repairing pages during an advisory review, reporting only task drift while omitting linked deal drift.
 5. For close/archive recommendations, identify the next concrete task first
    unless no successor is needed, then include the required completion handoff
    text in the recommendation.
+   - Anti-patterns: closure without a successor disposition, repeating completed delivery.
 6. Suggest `tasks/create` only when current evidence shows a clear missing task
    that is concrete, useful, deduplicated, and assignable.
+   - Anti-patterns: speculative tasks, duplicating existing follow-ups.
 7. Leave ambiguous items as review questions rather than mutations.
+   - Anti-patterns: resolving conflicting scope without evidence, silently guessing authority.
 8. Verify the recommendation set with `tasks/list`, direct `read`, or retrieved
    source evidence; do not verify by writing changes.
+   - If explicitly authorized to apply a recommendation later, use the owning page/task write workflow and read back the affected deal and task together; report partial reconciliation if either fails and never resend a deliverable to repair logging.
+   - Anti-patterns: write-response-only success, hiding missing reads or partial reconciliation.
 
 ## Output
 
@@ -112,7 +110,7 @@ Return:
   recommendation
 - `Verification`: checks performed
 
-## Guardrails
+## Anti-Patterns
 
 - Do not create speculative tasks that are not grounded in the brain.
 - Do not create, update, close, archive, reassign, or reprioritize tasks during

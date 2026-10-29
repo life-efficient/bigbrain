@@ -22,6 +22,7 @@ Create or update one ordinary BigBrain page from durable evidence.
 - Write each timeline entry as a concise, subject-first summary of the durable page change. Page updates are already authored and attributable through the page operation and provenance, so do not lead with the current user's name or repeat an implicit approval such as `Harry approved ...`.
 - Keep source wording and approval context in `provenance.source_message`; retain a person's name in the visible timeline only when the actor's identity materially changes the meaning.
 - Preserve specialized task, meeting, and source-sidecar shapes in their own workflows.
+- For material deal progress recorded on a task or communication, apply the bounded [Deal and Task Consistency](#deal-and-task-consistency) check before declaring reconciliation complete.
 
 ## Workflow
 
@@ -35,6 +36,7 @@ Create or update one ordinary BigBrain page from durable evidence.
    - Update the compiled-truth paragraph if necessary. Keep it as the one-paragraph core understanding of the subject, then update any current-context content that the evidence requires.
    - Keep the page subject-focused, explain important context and relationships in natural prose, use inline links where relevant, and separate current understanding from timeline evidence. Treat evidence and scope boundaries as contextual prose and links by default; do not add generic `## Evidence` or `## Boundaries` headings unless the subject genuinely requires one.
    - Reconcile the entire current body before writing: consolidate dated update sections into the appropriate subject sections and retire superseded statements. Do not preserve an obsolete assertion as current merely because it appeared in an earlier body. Keep materially relevant history as brief context with attribution.
+   - For a deal or linked task affected by material progress, apply [Deal and Task Consistency](#deal-and-task-consistency) within the authorized scope. A task update or a new timeline entry alone does not reconcile the deal's current briefing.
    - Before consolidating dated body sections, migrating, or repairing history, inventory substantial source events and compare them with the existing timeline. Append each missing milestone through structured `timeline` entries with its evidenced `occurred_at`, actual-write `recorded_at`, and per-event provenance. Keep administrative filing corrections separate from deal or subject progress. Preserve existing entries; avoid duplicate events, guessed dates, and invented completion. A single present-day cleanup entry does not preserve past milestones.
    - Record the evidence-backed timeline entry using the endpoint's required provenance and significance fields. Prefer `Added X after approval` or `Updated Y with Z` over `Harry approved adding X` or `Harry updated Y`.
    - Anti-patterns: source dumps, incidental entity stubs, invented links, taxonomy commentary, direct filesystem writes, sending `---` or `## Timeline`, copying a linked subject's full account.
@@ -43,8 +45,20 @@ Create or update one ordinary BigBrain page from durable evidence.
    - Confirm the Brain and path, frontmatter, title, compiled truth, current content, single separator, timeline entry, provenance, links, and page health.
    - Reconcile the source-event inventory against the read-back timeline: verify every supported milestone selected for preservation is present at its evidenced date, with provenance, and report unresolved source or date gaps.
    - Read the body without its timeline: the reader must understand the current subject without reconstructing a sequence of updates. Verify useful technical detail, attribution, and unresolved uncertainty survived consolidation.
+   - For material deal progress, read back the affected task and canonical deal together and compare their current bodies using the consistency check below.
    - Do not trust the write response alone. If the read-back shows no material change was needed, leave the page untouched.
    - Anti-patterns: skipping read-back, accepting the wrong owner or path, duplicate separators or timelines, missing evidence, declaring success from the write response alone.
+
+## Deal and Task Consistency
+
+When verified evidence changes a deal-related task's progress, delivery, decision, scope, or next actor:
+
+- Read the canonical deal and affected task, including relevant current evidence. Bound the check to this deal and the directly affected tasks; do not fan out into unrelated records.
+- Compare the current summary/body, completed actions, next action and actor, dependencies, unresolved technical/commercial terms, and scope. Remove instructions to repeat completed preparation or delivery, while retaining genuinely outstanding work. Delivery does not establish customer acceptance, supplier confirmation, completed qualification, or agreed commission.
+- Keep the deal's concise commercial synthesis on the canonical deal and execution detail on its task. One event owner avoids duplicate narratives, but does not excuse contradictory current bodies on linked records. Preserve source attribution, uncertainty, and existing history; append missing material milestones at evidenced occurrence dates with actual recording dates, deduplicating by source event.
+- Keep customer requirements, authorized quotation assumptions, quoted configuration, and derived estimates distinct. Do not infer a GPU count from one VGPU line or silently replace an uncertain verbal scale account with a power estimate.
+- Judge substantive freshness from the underlying commercial evidence and chronology. Metadata, anonymisation, linkage, or stage edits, including a recent modification timestamp, do not establish that the body is current. Evidence hidden in timeline provenance must be reconciled into the current briefing when material.
+- Update only authorized records and read back each affected record through the owning Brain. If access, authorization, or either write/read-back fails, identify the unreconciled record and report partial reconciliation. Preserve verified delivery completion and never resend a deliverable to repair logging. In a read-only review, propose the exact reconciliation instead of writing.
 
 ## Anti-Patterns
 

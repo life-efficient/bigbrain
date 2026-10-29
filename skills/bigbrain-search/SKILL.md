@@ -13,6 +13,7 @@ Retrieve complete BigBrain page evidence and write the answer in the calling har
 - Use `search` and `read`; the deprecated `query` tool no longer generates answers.
 - Ground claims in complete content from `retrieval_context.context` or direct page reads.
 - Inspect omissions and warnings before treating retrieval as sufficient.
+- For deal status, scope, sizing, or next-action questions, compare the canonical deal with relevant current task evidence before answering.
 - Cite supporting page slugs and distinguish current statements from historical timeline entries.
 - Keep the workflow read-only and synthesize the answer in the current harness.
 
@@ -34,9 +35,12 @@ Retrieve complete BigBrain page evidence and write the answer in the calling har
    - Read relevant omitted pages with `read({path: "returned/page-slug"})`, or CLI `bigbrain --brain-home /absolute/path/to/brain get returned/page-slug`. An empty context is not proof that the Brain lacks an answer.
    - Reformulate focused searches when needed. For exact metadata filtering, counts, or ordering, use `pages/query`; that structured tool is separate from the deprecated natural-language `query`.
    - Missing embeddings can leave keyword results available. State any material retrieval gap; do not rebuild indexes or raise embedding guards as part of a lookup.
+   - When task evidence supplies a known canonical deal link, retrieve and read that deal before answering its status, scope, sizing, or next actions. Also inspect relevant current linked tasks for newer evidence. Complete canonical and task content already included in `retrieval_context.context` satisfies this read requirement; do not repeat reads solely for formality. If the required record is unavailable, state the coverage gap and qualify the answer.
+   - Compare summary and current body with material source chronology. A recent metadata, anonymisation, stage, or linkage edit is not proof of substantive freshness; surface stale-body contradictions even when newer facts appear in timeline provenance.
    - Anti-patterns: claiming omitted pages were read, equating missing embeddings with no knowledge, silently inferring facts from titles, treating old timeline entries as current state.
 4. Answer from the evidence:
    - Synthesize directly in the current harness. Cite the supporting page slugs, identify conflicts, and state what the retrieved evidence cannot establish.
+   - Disclose material source conflicts before presenting a derived estimate. Distinguish customer requirements, quotation assumptions, quoted configuration, and estimated power; one VGPU quotation line does not confirm four/eight GPUs or a fixed MW requirement. Preserve uncertainty in contextual meeting-to-deal attribution rather than promoting an uncertain verbal scale account to a confirmed requirement.
    - Before attributing a selected meeting to the requested person, compare its source participant evidence with that person. Read the indexed source or original source through its owning connector when needed and authorized. A stored backlink, title similarity or newer date cannot independently establish identity. If evidence conflicts or remains unavailable, state the attribution gap and do not substitute a different person's meeting; keep this lookup read-only.
    - Stop when the evidence answers the question; do not issue an extra BigBrain answer-model call.
    - Anti-patterns: adding unsupported details, sending evidence to another model for summarization, hiding conflicting dates or sources.
