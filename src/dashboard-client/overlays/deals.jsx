@@ -4,7 +4,7 @@ import { recordStatus, saveRecordStatus } from './deal-status.js';
 import React, { useEffect, useRef, useState } from 'react';
 import { Select } from '../components/select.jsx';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, Plus, Pencil, Trash2, Copy, Download, List, Columns3 } from 'lucide-react';
+import { X, Plus, Pencil, Trash2, Copy, Download, List, Columns3, Type, FileText, Loader2 } from 'lucide-react';
 import { copyAllDealAsks, copyDealTeaser, dealTeaserParts, formatAllDealAsks, formatDealTeaser } from './deal-teaser.js';
 import { DEAL_STAGE_LABELS, DEAL_TYPE_LABELS, INTRODUCTION_STAGE_LABELS, matchesDealFilters, matchesIntroductionFilters } from './deal-progress.js';
 import { DealKanban } from './deal-kanban.jsx';
@@ -49,11 +49,12 @@ function DealAsk({ record, askIndex, ask, disabled, onEdit, onDelete }) {
     <div className="deal-ask">
       <p className="deal-ask-text">{ask}</p>
       <div className="deal-ask-actions">
-      <button type="button" className="graph-button" disabled={!message || copying} onClick={copy} aria-label={`Copy ask ${askIndex + 1} for WhatsApp`}>
-        <Copy size={14} />{copying ? 'Copying…' : 'Copy for WhatsApp'}
+      <button type="button" className="graph-button deal-icon-action" disabled={!message || copying} onClick={copy}
+        aria-label={copying ? `Copying ask ${askIndex + 1}` : `Copy ask ${askIndex + 1} for WhatsApp`} title={copying ? 'Copying…' : 'Copy for WhatsApp'} aria-busy={copying || undefined}>
+        {copying ? <Loader2 size={14} className="is-spinning" aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
       </button>
-      <button type="button" className="graph-button" disabled={disabled} onClick={onEdit} aria-label={`Edit ask ${askIndex + 1}`}><Pencil size={14} />Edit</button>
-      <button type="button" className="graph-button" disabled={disabled} onClick={onDelete} aria-label={`Delete ask ${askIndex + 1}`}><Trash2 size={14} />Delete</button>
+      <button type="button" className="graph-button deal-icon-action" disabled={disabled} onClick={onEdit} aria-label={`Edit ask ${askIndex + 1}`} title="Edit ask"><Pencil size={14} aria-hidden="true" /></button>
+      <button type="button" className="graph-button deal-icon-action" disabled={disabled} onClick={onDelete} aria-label={`Delete ask ${askIndex + 1}`} title="Delete ask"><Trash2 size={14} aria-hidden="true" /></button>
       </div>
       {manualCopy ? <textarea ref={manualRef} className="overlay-search deal-editor-input" rows={5}
         readOnly value={message} aria-label={`Complete message for ask ${askIndex + 1}`}
@@ -149,10 +150,15 @@ function DealTeaser({ record, onSaved, hideOverview = false }) {
       <div className="deal-teaser-head">
       <span className="eyebrow">Anonymised details</span>
       <div className="deal-teaser-actions">
-        <button type="button" className="graph-button" disabled={!allMessage || copyingAll} onClick={copyAll}><Copy size={14} />{copyingAll ? 'Copying…' : 'Copy all asks'}</button>
-        <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('title')}><Pencil size={14} />{title ? 'Edit title' : 'Add title'}</button>
-        <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('summary')}><Pencil size={14} />{summary ? 'Edit description' : 'Add description'}</button>
-        <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('add')}><Plus size={14} />Add ask</button>
+        <button type="button" className="graph-button deal-icon-action" disabled={!allMessage || copyingAll} onClick={copyAll}
+          aria-label={copyingAll ? 'Copying all asks' : 'Copy all asks'} title={copyingAll ? 'Copying…' : 'Copy all asks'} aria-busy={copyingAll || undefined}>
+          {copyingAll ? <Loader2 size={14} className="is-spinning" aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+        </button>
+        <button type="button" className="graph-button deal-icon-action" disabled={!!editor || saving} onClick={() => begin('title')}
+          aria-label={title ? 'Edit anonymised title' : 'Add anonymised title'} title={title ? 'Edit anonymised title' : 'Add anonymised title'}><Type size={14} aria-hidden="true" /></button>
+        <button type="button" className="graph-button deal-icon-action" disabled={!!editor || saving} onClick={() => begin('summary')}
+          aria-label={summary ? 'Edit anonymised description' : 'Add anonymised description'} title={summary ? 'Edit anonymised description' : 'Add anonymised description'}><FileText size={14} aria-hidden="true" /></button>
+        <button type="button" className="graph-button deal-icon-action" disabled={!!editor || saving} onClick={() => begin('add')} aria-label="Add ask" title="Add ask"><Plus size={14} aria-hidden="true" /></button>
       </div>
       </div>
       {manualCopyAll ? <textarea ref={manualAllRef} className="overlay-search deal-editor-input" rows={7}
