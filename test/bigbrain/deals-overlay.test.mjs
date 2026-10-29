@@ -38,7 +38,7 @@ test('deals overlay includes explicit actual and network deals, excluding public
     assert.equal(result.overlay.enabled, true);
     assert.equal(result.brain.brain_id, 'personal');
     assert.deepEqual(result.records.map((r) => r.deal_involvement), ['active', 'network_actionable', 'network_observed']);
-    assert.deepEqual(Object.keys(result.records[0]).sort(), ['asks', 'deal_involvement', 'page_slug', 'summary', 'teaser_summary', 'title', 'updated_at']);
+    assert.deepEqual(Object.keys(result.records[0]).sort(), ['anonymised_asks', 'anonymised_description', 'anonymised_title', 'deal_involvement', 'page_slug', 'summary', 'title', 'updated_at']);
     const filtered = await buildDealsPayload(config, f.db, { deal_involvement: 'network_observed' });
     assert.equal(filtered.total, 1);
   } finally { f.close(); }
@@ -116,12 +116,31 @@ test('Postgres query stays parameterized and normalizes timestamps', async () =>
  test('teaser fields use only explicit frontmatter and normalize malformed values', async () => {
   const f = fixture();
   try {
-    f.add('deals/a', 'active', { frontmatter: { asks: [' Equity partner ', '', 42, 'Operator'], teaser_summary: ' Anonymous project. ' } });
-    f.add('deals/b', 'active', { frontmatter: { asks: 'Not a list', teaser_summary: 42 } });
+    f.add('deals/a', 'active', { frontmatter: { anonymised_asks: [' Equity partner ', '', 42, 'Operator'], anonymised_description: ' Anonymous project. ' } });
+    f.add('deals/b', 'active', { frontmatter: { anonymised_asks: 'Not a list', anonymised_description: 42 } });
     const { records } = await buildDealsPayload(config, f.db);
-    assert.deepEqual(records[0].asks, ['Equity partner', 'Operator']);
-    assert.equal(records[0].teaser_summary, 'Anonymous project.');
-    assert.deepEqual(records[1].asks, []);
-    assert.equal(records[1].teaser_summary, '');
+    assert.deepEqual(records[0].anonymised_asks, ['Equity partner', 'Operator']);
+    assert.equal(records[0].anonymised_description, 'Anonymous project.');
+    assert.deepEqual(records[1].anonymised_asks, []);
+    assert.equal(records[1].anonymised_description, '');
+  } finally { f.close(); }
+});
+
+
+test('legacy sharing fields migrate on read without overriding explicit canonical values', async () => {
+  const f = fixture();
+  try {
+    f.add('deals/a', 'active', { frontmatter: { asks: [' Legacy ask '], teaser_summary: ' Legacy description ' } });
+    f.add('deals/b', 'active', { frontmatter: { anonymised_title: ' Anonymous title ', anonymised_description: '', anonymised_asks: [], asks: ['Old ask'], teaser_summary: 'Old description' } });
+    const { records, overlay } = await buildDealsPayload(config, f.db);
+    assert.equal(overlay.schema_version, 2);
+    assert.deepEqual(records[0].anonymised_asks, ['Legacy ask']);
+    assert.equal(records[0].anonymised_description, 'Legacy description');
+    assert.equal(records[0].anonymised_title, '');
+    assert.equal(records[1].anonymised_title, 'Anonymous title');
+    assert.deepEqual(records[1].anonymised_asks, []);
+    assert.equal(records[1].anonymised_description, '');
+    assert.equal(Object.hasOwn(records[0], 'asks'), false);
+    assert.equal(Object.hasOwn(records[0], 'teaser_summary'), false);
   } finally { f.close(); }
 });

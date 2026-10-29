@@ -23,7 +23,7 @@ export async function buildDealsPayload(config, db, input = {}) {
       { field: 'page_kind', operator: 'eq', value: 'canonical' },
       { field: 'deal_involvement', operator: 'in', value: involvement ? [involvement] : [...DEALS_INVOLVEMENTS] },
     ],
-    fields: ['deal_involvement', 'asks', 'teaser_summary'],
+    fields: ['deal_involvement', 'anonymised_title', 'anonymised_asks', 'anonymised_description', 'asks', 'teaser_summary'],
     orderBy: [{ field: 'title', direction: 'asc' }],
     limit,
     cursor,
@@ -31,15 +31,14 @@ export async function buildDealsPayload(config, db, input = {}) {
   const missing = result.pages.filter((page) => !page.summary?.trim()).map((page) => page.slug);
   const fallback = await indexedFallbacks(db, missing);
   return {
-    overlay: { id: DEALS_OVERLAY_ID, name: 'Deals', schema_version: 1, enabled: true },
+    overlay: { id: DEALS_OVERLAY_ID, name: 'Deals', schema_version: 2, enabled: true },
     brain: { brain_id: config.brainId, brain_name: config.brainName },
     records: result.pages.map((page) => ({
       page_slug: page.slug,
       title: page.title,
       summary: page.summary?.trim() || readableSummary(fallback.get(page.slug)),
       deal_involvement: page.frontmatter.deal_involvement,
-      asks: Array.isArray(page.frontmatter.asks) ? page.frontmatter.asks.filter((ask) => typeof ask === 'string' && ask.trim()).map((ask) => ask.trim()) : [],
-      teaser_summary: typeof page.frontmatter.teaser_summary === 'string' ? page.frontmatter.teaser_summary.trim() : '',
+      ...anonymisedDealFields(page.frontmatter),
       updated_at: page.updated_at,
     })),
     total: result.total,
@@ -87,11 +86,13 @@ export async function updateDealAsks(config, db, input, { actor = null } = {}) {
   if (typeof slug !== 'string' || !/^deals\/(?!.*(?:^|\/)\.{1,2}(?:\/|$))(?!.*\.raw(?:\/|$))[^\\?#]+$/.test(slug) || slug.endsWith('.md') || slug.endsWith('/')) {
     throw invalidInput('page_slug must be a canonical deal slug.');
   }
-  const asks = validateAsks(input.asks, 'asks');
-  const expectedAsks = validateAsks(input.expected_asks, 'expected_asks');
-  if (typeof input.expected_teaser_summary !== 'string') throw invalidInput('expected_teaser_summary is required.');
-  if (input.teaser_summary !== undefined && typeof input.teaser_summary !== 'string') throw invalidInput('teaser_summary must be a string.');
-  if ((input.teaser_summary?.length || 0) > 20000) throw invalidInput('teaser_summary is too long.');
+  const asks = validateAsks(input.anonymised_asks, 'anonymised_asks');
+  const expectedAsks = validateAsks(input.expected_anonymised_asks, 'expected_anonymised_asks');
+  if (typeof input.expected_anonymised_description !== 'string') throw invalidInput('expected_anonymised_description is required.');
+  if (input.anonymised_description !== undefined && typeof input.anonymised_description !== 'string') throw invalidInput('anonymised_description must be a string.');
+  if ((input.anonymised_description?.length || 0) > 20000) throw invalidInput('anonymised_description is too long.');
+  if (typeof input.expected_anonymised_title !== 'string') throw invalidInput('expected_anonymised_title is required.');
+  if (input.anonymised_title !== undefined && (typeof input.anonymised_title !== 'string' || input.anonymised_title.length > 500)) throw invalidInput('anonymised_title must be a string of up to 500 characters.');
   const { updateBrainPage } = await import('../page-ops.js');
   let page;
   try {
@@ -99,17 +100,16 @@ export async function updateDealAsks(config, db, input, { actor = null } = {}) {
     page = await updateBrainPage({ config, pagePath: slug,
       timelineEntry: timelineText,
       timelineSignificance: 'patch',
-      timelineProvenance: { event_id: `dashboard:deal-asks:${slug}:${randomUUID()}`,
+      timelineProvenance: { event_id: `dashboard:deal-anonymised_asks:${slug}:${randomUUID()}`,
         source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard',
         source_message: timelineText },
-      frontmatterValues: { asks, ...(input.teaser_summary === undefined ? {} : { teaser_summary: input.teaser_summary.trim() }) },
+      frontmatterValues: { anonymised_asks: asks, ...(input.anonymised_title === undefined ? {} : { anonymised_title: input.anonymised_title.trim() }), ...(input.anonymised_description === undefined ? {} : { anonymised_description: input.anonymised_description.trim() }) },
       validateExisting(existing) {
         if (existing.type !== 'deals' || !DEALS_INVOLVEMENTS.includes(existing.frontmatter.deal_involvement)) {
           throw Object.assign(new Error('Page is not enrolled in the Deals overlay.'), { statusCode: 404 });
         }
-        const currentAsks = normalizedAsks(existing.frontmatter.asks);
-        const currentTeaser = typeof existing.frontmatter.teaser_summary === 'string' ? existing.frontmatter.teaser_summary.trim() : '';
-        if (JSON.stringify(currentAsks) !== JSON.stringify(expectedAsks) || currentTeaser !== input.expected_teaser_summary.trim()) {
+        const current = anonymisedDealFields(existing.frontmatter);
+        if (JSON.stringify(current.anonymised_asks) !== JSON.stringify(expectedAsks) || current.anonymised_description !== input.expected_anonymised_description.trim() || current.anonymised_title !== input.expected_anonymised_title.trim()) {
           throw Object.assign(new Error('This deal changed since you opened it. Refresh before saving your edits.'), { statusCode: 409 });
         }
       },
@@ -136,7 +136,7 @@ export async function updateDealAsks(config, db, input, { actor = null } = {}) {
   }
   record = { ...(record || { page_slug: slug, title: page.title, summary: page.summary,
     deal_involvement: page.frontmatter.deal_involvement }),
-    asks: normalizedAsks(page.frontmatter.asks), teaser_summary: typeof page.frontmatter.teaser_summary === 'string' ? page.frontmatter.teaser_summary.trim() : '' };
+    ...anonymisedDealFields(page.frontmatter) };
   return { record, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
 }
 
@@ -148,4 +148,16 @@ function validateAsks(value, field) {
     throw invalidInput(`${field} must be a list of up to 100 nonempty strings.`);
   }
   return value.map((ask) => ask.trim());
+}
+
+function anonymisedDealFields(frontmatter) {
+  // Existing pages remain readable during migration. Explicit canonical values,
+  // including empty ones, always win over legacy data. Never use internal text.
+  const field = (key, legacy) => Object.hasOwn(frontmatter, key) ? frontmatter[key] : frontmatter[legacy];
+  const description = field('anonymised_description', 'teaser_summary');
+  return {
+    anonymised_title: typeof frontmatter.anonymised_title === 'string' ? frontmatter.anonymised_title.trim() : '',
+    anonymised_description: typeof description === 'string' ? description.trim() : '',
+    anonymised_asks: normalizedAsks(field('anonymised_asks', 'asks')),
+  };
 }

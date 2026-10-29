@@ -98,23 +98,27 @@ schemas:
       teaser_summary:
         type: string
         description: Custom sharing policy.
+        required: true
       owner:
         type: string
 `, 'utf8');
     const migrated = await migratePageSchemaRegistry(config);
     const schema = migrated.registry.schemas.transactions;
     assert.equal(schema.additional_properties, false);
-    assert.equal(schema.fields.teaser_summary.description, 'Custom sharing policy.');
+    assert.equal(schema.fields.anonymised_description.description, 'Custom sharing policy.');
+    assert.equal(schema.fields.anonymised_title.type, 'string');
+    assert.equal(schema.fields.anonymised_description.required, true);
+    assert.equal(schema.fields.teaser_summary.required, false);
     assert.equal(schema.fields.owner.type, 'string');
-    assert.deepEqual(schema.fields.asks.items, { type: 'string' });
-    assert.equal(schema.fields.asks.required, undefined);
+    assert.deepEqual(schema.fields.anonymised_asks.items, { type: 'string' });
+    assert.equal(schema.fields.anonymised_asks.required, undefined);
     const check = (frontmatter) => pageSchemaComplianceIssues(migrated.registry, {
       pagePath: 'deals/example.md', frontmatter,
     }).issues;
-    assert.deepEqual(check({}), []);
-    assert.deepEqual(check({ teaser_summary: 'Anonymous opportunity.', asks: ['Seeking a lender.'] }), []);
-    assert.equal(check({ asks: 'Seeking a lender.' })[0].type, 'schema_field_type_mismatch');
-    const invalidItem = check({ asks: ['Seeking a lender.', 42] });
+    assert.equal(check({})[0].type, 'schema_required_field_missing');
+    assert.deepEqual(check({ anonymised_description: 'Anonymous opportunity.', anonymised_asks: ['Seeking a lender.'] }), []);
+    assert.equal(check({ anonymised_description: 'Anonymous', anonymised_asks: 'Seeking a lender.' })[0].type, 'schema_field_type_mismatch');
+    const invalidItem = check({ anonymised_description: 'Anonymous', anonymised_asks: ['Seeking a lender.', 42] });
     assert.equal(invalidItem[0].details.item_index, 1);
     assert.equal(invalidItem[0].details.expected_type, 'string');
     const firstContent = await fs.readFile(registryPath, 'utf8');

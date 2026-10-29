@@ -7,16 +7,17 @@ test('copied teaser includes only explicitly supplied anonymous fields', () => {
     title: 'Confidential project and company name',
     summary: 'Internal location, source and commercial details',
     page_slug: 'deals/confidential',
-    teaser_summary: '  European infrastructure opportunity.  ',
-    asks: [' Equity partner ', '', null, 42, 'Operator introduction'],
+    anonymised_title: ' Infrastructure opportunity ',
+    anonymised_description: '  European infrastructure opportunity.  ',
+    anonymised_asks: [' Equity partner ', '', null, 42, 'Operator introduction'],
   };
-  assert.equal(formatDealTeaser(record, 0), 'European infrastructure opportunity.\n\nEquity partner');
-  assert.equal(formatDealTeaser(record, 1), 'European infrastructure opportunity.\n\nOperator introduction');
+  assert.equal(formatDealTeaser(record, 0), 'Infrastructure opportunity\n\nEuropean infrastructure opportunity.\n\nEquity partner');
+  assert.equal(formatDealTeaser(record, 1), 'Infrastructure opportunity\n\nEuropean infrastructure opportunity.\n\nOperator introduction');
   for (const index of [undefined, -1, 2, 0.5, '0']) assert.equal(formatDealTeaser(record, index), '');
 });
 
 test('missing or malformed teaser fields cannot fall back to private deal text', async () => {
-  for (const record of [undefined, {}, { summary: 'Private', asks: ['Investor'] }, { teaser_summary: 'Anonymous' }, { teaser_summary: 'Anonymous', asks: 'Investor' }, { teaser_summary: '  ', asks: ['Investor'] }, { teaser_summary: 'Anonymous', asks: [' ', null] }]) {
+  for (const record of [undefined, {}, { title: 'Private title', anonymised_description: 'Public description', anonymised_asks: ['Ask'] }, { anonymised_title: 'Public title', summary: 'Private summary', anonymised_asks: ['Ask'] }, { anonymised_title: 'Public title', anonymised_description: 'Public description', asks: ['Legacy ask'] }, { summary: 'Private', anonymised_asks: ['Investor'] }, { anonymised_description: 'Anonymous' }, { anonymised_description: 'Anonymous', anonymised_asks: 'Investor' }, { anonymised_description: '  ', anonymised_asks: ['Investor'] }, { anonymised_description: 'Anonymous', anonymised_asks: [' ', null] }]) {
     assert.equal(formatDealTeaser(record, 0), '');
     let called = false;
     await assert.rejects(copyDealTeaser(record, 0, { writeText: async () => { called = true; } }), /valid ask/);
@@ -25,7 +26,7 @@ test('missing or malformed teaser fields cannot fall back to private deal text',
 });
 
 test('copy waits for clipboard completion and reports failures without claiming success', async () => {
-  const record = { teaser_summary: 'Anonymous opportunity.', asks: ['An introduction'] };
+  const record = { anonymised_title: 'Opportunity', anonymised_description: 'Anonymous opportunity.', anonymised_asks: ['An introduction'] };
   let copied;
   await copyDealTeaser(record, 0, { writeText: async (message) => { copied = message; } });
   assert.equal(copied, formatDealTeaser(record, 0));
@@ -35,7 +36,7 @@ test('copy waits for clipboard completion and reports failures without claiming 
 
 
 test('embedded browser fallback copies the selected ask and restores focus', async () => {
-  const record = { teaser_summary: 'Anonymous.', asks: ['Investor', 'Operator'] };
+  const record = { anonymised_title: 'Opportunity', anonymised_description: 'Anonymous.', anonymised_asks: ['Investor', 'Operator'] };
   let removed = false;
   let focused = false;
   let selected = false;
@@ -56,11 +57,11 @@ test('embedded browser fallback copies the selected ask and restores focus', asy
 
 
 test('all-asks message shares the anonymous teaser and lists only sanitized asks', async () => {
-  const record = { title: 'Private title', summary: 'Private detail', teaser_summary: ' Anonymous opportunity. ',
-    asks: [' An operator is needed. ', null, '', 'An investment partner is sought.'] };
-  const expected = 'Anonymous opportunity.\n\nWhat is needed:\n• An operator is needed.\n• An investment partner is sought.';
+  const record = { anonymised_title: 'Opportunity', title: 'Private title', summary: 'Private detail', anonymised_description: ' Anonymous opportunity. ',
+    anonymised_asks: [' An operator is needed. ', null, '', 'An investment partner is sought.'] };
+  const expected = 'Opportunity\n\nAnonymous opportunity.\n\nWhat is needed:\n• An operator is needed.\n• An investment partner is sought.';
   assert.equal(formatAllDealAsks(record), expected);
-  assert.equal(formatDealTeaser(record, 0), 'Anonymous opportunity.\n\nAn operator is needed.');
+  assert.equal(formatDealTeaser(record, 0), 'Opportunity\n\nAnonymous opportunity.\n\nAn operator is needed.');
   let copied;
   await copyAllDealAsks(record, { writeText: async (message) => { copied = message; } });
   assert.equal(copied, expected);
@@ -70,7 +71,7 @@ test('all-asks message shares the anonymous teaser and lists only sanitized asks
   await copyAllDealAsks(record, { writeText: async () => { throw Error('Denied'); } }, document);
   assert.equal(selected, expected);
   await assert.rejects(copyAllDealAsks(record, { writeText: async () => { throw Error('Denied'); } }, {}), /Automatic copying is unavailable/);
-  for (const missing of [{ summary: 'Private', asks: ['Ask'] }, { teaser_summary: 'Anonymous', asks: [] }]) {
+  for (const missing of [{ summary: 'Private', anonymised_asks: ['Ask'] }, { anonymised_description: 'Anonymous', anonymised_asks: [] }]) {
     assert.equal(formatAllDealAsks(missing), '');
     await assert.rejects(copyAllDealAsks(missing, {}), /at least one ask/);
   }

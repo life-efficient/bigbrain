@@ -54,7 +54,7 @@ function DealAsk({ record, askIndex, ask, disabled, onEdit, onDelete }) {
 }
 
 function DealTeaser({ record, onSaved }) {
-  const { summary, asks } = dealTeaserParts(record);
+  const { title, summary, asks } = dealTeaserParts(record);
   const [editor, setEditor] = useState(null);
   const [copyingAll, setCopyingAll] = useState(false);
   const [copyFeedback, setCopyFeedback] = useState('');
@@ -88,16 +88,16 @@ function DealTeaser({ record, onSaved }) {
   function begin(type, index = null) {
     returnFocusRef.current = document.activeElement;
     setFeedback('');
-    setEditor({ type, index, text: type === 'summary' ? summary : type === 'add' ? '' : asks[index],
-      baseAsks: Array.isArray(record.asks) ? [...record.asks] : [],
-      baseSummary: record.teaser_summary || '' });
+    setEditor({ type, index, text: type === 'title' ? title : type === 'summary' ? summary : type === 'add' ? '' : asks[index],
+      baseAsks: Array.isArray(record.anonymised_asks) ? [...record.anonymised_asks] : [],
+      baseTitle: record.anonymised_title || '', baseSummary: record.anonymised_description || '' });
   }
 
   async function save(event) {
     event?.preventDefault();
     if (!editor || savingRef.current) return;
     const value = editor.text.trim();
-    if (editor.type !== 'delete' && editor.type !== 'summary' && !value) return;
+    if (!['delete', 'summary', 'title'].includes(editor.type) && !value) return;
     const nextAsks = [...editor.baseAsks];
     if (editor.type === 'add') nextAsks.push(value);
     if (editor.type === 'edit') nextAsks[editor.index] = value;
@@ -108,15 +108,17 @@ function DealTeaser({ record, onSaved }) {
     try {
       const response = await fetch('/api/overlays/deals/asks', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ page_slug: record.page_slug, asks: nextAsks,
-          teaser_summary: editor.type === 'summary' ? value : editor.baseSummary,
-          expected_asks: editor.baseAsks, expected_teaser_summary: editor.baseSummary }),
+        body: JSON.stringify({ page_slug: record.page_slug, anonymised_asks: nextAsks,
+          anonymised_title: editor.type === 'title' ? value : editor.baseTitle,
+          expected_anonymised_title: editor.baseTitle,
+          anonymised_description: editor.type === 'summary' ? value : editor.baseSummary,
+          expected_anonymised_asks: editor.baseAsks, expected_anonymised_description: editor.baseSummary }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(response.status === 409
         ? 'This deal changed elsewhere. Your draft is kept. Refresh the page before trying again.'
         : data.error || `Unable to save changes (${response.status}).`);
-      if (!data.record || data.record.page_slug !== record.page_slug || !Array.isArray(data.record.asks)) {
+      if (!data.record || data.record.page_slug !== record.page_slug || !Array.isArray(data.record.anonymised_asks)) {
         throw new Error('The saved deal could not be verified. Your draft is kept.');
       }
       onSaved(data.record);
@@ -135,10 +137,11 @@ function DealTeaser({ record, onSaved }) {
   return (
     <div className="deal-teaser" ref={modalContainerRef}>
       <div className="deal-teaser-head">
-      <span className="eyebrow">Anonymous asks</span>
+      <span className="eyebrow">Anonymised details</span>
       <div className="deal-teaser-actions">
         <button type="button" className="graph-button" disabled={!allMessage || copyingAll} onClick={copyAll}><Copy size={14} />{copyingAll ? 'Copying…' : 'Copy all asks'}</button>
-        <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('summary')}><Pencil size={14} />{summary ? 'Edit summary' : 'Add summary'}</button>
+        <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('title')}><Pencil size={14} />{title ? 'Edit title' : 'Add title'}</button>
+        <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('summary')}><Pencil size={14} />{summary ? 'Edit description' : 'Add description'}</button>
         <button type="button" className="graph-button" disabled={!!editor || saving} onClick={() => begin('add')}><Plus size={14} />Add ask</button>
       </div>
       </div>
@@ -146,8 +149,9 @@ function DealTeaser({ record, onSaved }) {
         readOnly value={allMessage} aria-label="Complete message with all asks"
         onFocus={(event) => event.target.select()} /> : null}
       {copyFeedback ? <p className="meta" role="status" aria-live="polite">{copyFeedback}</p> : null}
+      {title ? <h3>{title}</h3> : null}
       {summary ? <p className="deal-teaser-summary">{summary}</p> : null}
-      {!summary || !asks.length ? <p className="meta">{!summary && !asks.length ? 'Add an anonymous teaser summary and asks to prepare messages.' : !summary ? 'Add an anonymous teaser summary to enable copying each ask.' : 'Add at least one ask to prepare a message.'}</p> : null}
+      {!title || !summary || !asks.length ? <p className="meta">Add an anonymised title, description, and at least one ask to prepare messages.</p> : null}
       {asks.map((ask, askIndex) => <DealAsk key={`${askIndex}:${ask}`} record={record} askIndex={askIndex} ask={ask}
         disabled={!!editor || saving} onEdit={() => begin('edit', askIndex)} onDelete={() => begin('delete', askIndex)} />)}
       <Dialog.Root open={!!editor} onOpenChange={(open) => {
@@ -160,26 +164,26 @@ function DealTeaser({ record, onSaved }) {
             onPointerDownOutside={(event) => event.preventDefault()}
             onCloseAutoFocus={(event) => { event.preventDefault(); returnFocusRef.current?.focus(); }}>
             <div className="deal-modal-head">
-              <Dialog.Title>{editor.type === 'delete' ? 'Delete ask' : editor.type === 'summary' ? 'Edit teaser summary' : editor.type === 'add' ? 'Add ask' : 'Edit ask'}</Dialog.Title>
+              <Dialog.Title>{editor.type === 'delete' ? 'Delete ask' : editor.type === 'title' ? 'Edit anonymised title' : editor.type === 'summary' ? 'Edit anonymised description' : editor.type === 'add' ? 'Add ask' : 'Edit ask'}</Dialog.Title>
               <Dialog.Close className="deal-modal-close" disabled={saving} aria-label="Close dialog"><X size={18} /></Dialog.Close>
             </div>
             <Dialog.Description>
-              {editor.type === 'delete' ? 'Remove this ask from the deal. The teaser summary will stay unchanged.' : editor.type === 'summary' ? 'Prepare anonymous wording to share with your network.' : 'Start with “We are seeking…” and name the counterparty and role needed now. Keep one need per ask. Use “We welcome introductions to…” when access is the need. Omit identifying details and unsupported claims.'}
+              {editor.type === 'delete' ? 'Remove this ask from the deal. The title and description will stay unchanged.' : ['title', 'summary'].includes(editor.type) ? 'Prepare anonymised wording to share with your network.' : 'Start with “We are seeking…” and name the counterparty and role needed now. Keep one need per ask. Use “We welcome introductions to…” when access is the need. Omit identifying details and unsupported claims.'}
             </Dialog.Description>
             <form className="deal-teaser-editor" onSubmit={save}>
               {editor.type === 'delete' ? <p className="deal-ask-text">{editor.text}</p> : (
                 <label className="deal-editor-label">
-                  {editor.type === 'summary' ? 'Teaser summary' : 'Ask'}
-                  <textarea autoFocus rows={editor.type === 'summary' ? 6 : 4} value={editor.text} disabled={saving}
+                  {editor.type === 'title' ? 'Anonymised title' : editor.type === 'summary' ? 'Anonymised description' : 'Ask'}
+                  <textarea autoFocus rows={editor.type === 'title' ? 2 : editor.type === 'summary' ? 6 : 4} maxLength={editor.type === 'title' ? 500 : editor.type === 'summary' ? 20000 : 5000} value={editor.text} disabled={saving}
                     onChange={(event) => setEditor((current) => ({ ...current, text: event.target.value }))}
-                    className="overlay-search deal-editor-input" placeholder={editor.type === 'summary' ? 'Describe the opportunity without identifying details…' : 'We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context].'} />
+                    className="overlay-search deal-editor-input" placeholder={editor.type === 'title' ? 'A short title without identifying details…' : editor.type === 'summary' ? 'Describe the opportunity without identifying details…' : 'We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context].'} />
                 </label>
               )}
               {feedback ? <p className="deal-modal-error" role="alert">{feedback}</p> : null}
               <div className="deal-modal-footer">
                 <Dialog.Close asChild><button type="button" className="graph-button" disabled={saving}>Cancel</button></Dialog.Close>
                 <button type="submit" autoFocus={editor.type === 'delete'} className={`graph-button ${editor.type === 'delete' ? 'destructive' : 'primary'}`}
-                  disabled={saving || (editor.type !== 'delete' && editor.type !== 'summary' && !editor.text.trim())}>
+                  disabled={saving || (!['delete', 'summary', 'title'].includes(editor.type) && !editor.text.trim())}>
                   {saving ? 'Saving…' : editor.type === 'delete' ? 'Delete ask' : 'Save changes'}
                 </button>
               </div>
@@ -266,7 +270,7 @@ export function DealsPanel({ onOpenPage }) {
 
   const needle = search.trim().toLowerCase();
   const records = state.records.filter((record) => !needle || [
-    record.title, record.summary, record.page_slug, record.teaser_summary, ...(Array.isArray(record.asks) ? record.asks : []),
+    record.title, record.summary, record.page_slug, record.anonymised_title, record.anonymised_description, ...(Array.isArray(record.anonymised_asks) ? record.anonymised_asks : []),
     INVOLVEMENT_LABELS[record.deal_involvement] || 'Involvement not set',
   ].join(' ').toLowerCase().includes(needle));
 

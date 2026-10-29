@@ -280,8 +280,9 @@ function defaultDealSchema() {
     pattern: 'deals/<deal-slug>.md',
     frontmatter: {
       deal_involvement: ['public_unrelated', 'network_observed', 'network_actionable', 'active'],
-      asks: 'Optional anonymous, externally shareable asks. Default to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per complete sentence, with separate asks for distinct counterparties or roles. Use "We welcome introductions to..." only when access to a counterparty is the actual need. Avoid questions, salutations, headings, bullet prefixes, identifying details, and unsupported claims or commitments; each ask must read naturally after the shared teaser without repeating it.',
-      teaser_summary: 'Optional anonymous, externally shareable teaser that makes the opportunity clear and exciting through concrete, evidence-backed substance: the asset or project, its distinguishing features, and the proposed transaction or partnership. Avoid invented claims or commitments, company, project, and contact names, and combinations of identifying details. Keep separate from the internal summary.',
+      anonymised_asks: 'Optional anonymous, externally shareable asks. Default to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per complete sentence, with separate asks for distinct counterparties or roles. Use "We welcome introductions to..." only when access to a counterparty is the actual need. Avoid questions, salutations, headings, bullet prefixes, identifying details, and unsupported claims or commitments; each ask must read naturally after the shared teaser without repeating it.',
+      anonymised_title: 'Externally shareable title without names or identifying combinations of details. Keep separate from the internal title.',
+      anonymised_description: 'Optional anonymous, externally shareable teaser that makes the opportunity clear and exciting through concrete, evidence-backed substance: the asset or project, its distinguishing features, and the proposed transaction or partnership. Avoid invented claims or commitments, company, project, and contact names, and combinations of identifying details. Keep separate from the internal summary.',
     },
     guidance: [
       'Create one top-level deal page only for an independently evolving actual transaction, raise, investment, mandate, acquisition, or commercial opportunity.',
@@ -293,8 +294,8 @@ function defaultDealSchema() {
       'Set deal_involvement to active when we are directly working on the deal.',
       'Set deal_involvement on every newly created actual deal page; this field does not make a prep note or artifact a deal page.',
       'This field is optional for legacy deal pages.',
-      'Write teaser_summary as clear, exciting anonymous opportunity prose supported by the deal evidence. Default each ask to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per ask, separating distinct counterparties or roles. Use "We welcome introductions to..." only when access is the actual need. Avoid questions, bullet prefixes, and repetition of the shared teaser. Append one ask as prose to the teaser; only the all-asks message may format the asks as bullets. Do not invent claims or commitments.',
-      'Keep both fields free of company, project, and contact names, source routes, private URLs, and combinations of identifying details. Do not infer shareable copy from the internal title or summary.',
+      'Write anonymised_description as clear, exciting anonymous opportunity prose supported by the deal evidence. Default each ask to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per ask, separating distinct counterparties or roles. Use "We welcome introductions to..." only when access is the actual need. Avoid questions, bullet prefixes, and repetition of the shared teaser. Append one ask as prose to the teaser; only the all-asks message may format the asks as bullets. Do not invent claims or commitments.',
+      'Keep all three fields free of company, project, and contact names, source routes, private URLs, and combinations of identifying details. Do not infer shareable copy from the internal title or summary.',
     ],
   };
 }
@@ -320,8 +321,9 @@ function renderDealSchemaMarkdownLines(schema) {
     `- Pattern: \`${schema.pattern}\``,
     '- Frontmatter:',
     `  - \`deal_involvement\`: ${schema.frontmatter.deal_involvement.map((item) => `\`${item}\``).join(', ')}`,
-    `  - \`asks\`: ${schema.frontmatter.asks}`,
-    `  - \`teaser_summary\`: ${schema.frontmatter.teaser_summary}`,
+    `  - \`anonymised_asks\`: ${schema.frontmatter.anonymised_asks}`,
+    `  - \`anonymised_title\`: ${schema.frontmatter.anonymised_title}`,
+    `  - \`anonymised_description\`: ${schema.frontmatter.anonymised_description}`,
     ...schema.guidance.map((item) => `- ${item}`),
   ];
 }

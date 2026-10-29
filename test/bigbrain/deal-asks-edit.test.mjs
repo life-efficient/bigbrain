@@ -22,15 +22,17 @@ test('Deal asks edits persist in canonical frontmatter, refresh the index and pr
     server = await startDashboard(config, { host: '127.0.0.1', port: 0 });
     const base = `http://127.0.0.1:${server.address().port}`;
     const before = await readBrainPage({ config, pagePath: 'deals/sample' });
-    const baseline = { page_slug: 'deals/sample', expected_asks: ['Find investor'], expected_teaser_summary: 'Anonymous opportunity' };
+    const baseline = { expected_anonymised_title: '', page_slug: 'deals/sample', expected_anonymised_asks: ['Find investor'], expected_anonymised_description: 'Anonymous opportunity' };
     const post = (data) => fetch(`${base}/api/overlays/deals/asks`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(data) });
-    const simultaneous = await Promise.all([post({ ...baseline, asks: ['Find investor', 'Find operator, developer: [experienced]'], teaser_summary: 'Anonymous updated' }), post({ ...baseline, asks: ['Find buyer'] })]);
+    const simultaneous = await Promise.all([post({ ...baseline, anonymised_asks: ['Find investor', 'Find operator, developer: [experienced]'], anonymised_description: 'Anonymous updated' }), post({ ...baseline, anonymised_asks: ['Find buyer'], anonymised_description: 'Anonymous opportunity' })]);
     assert.deepEqual(simultaneous.map((r) => r.status).sort(), [200, 409]);
     const successful = await simultaneous.find((r) => r.status === 200).json();
     assert.ok(successful.record);
     const after = await readBrainPage({ config, pagePath: 'deals/sample' });
-    assert.deepEqual(after.frontmatter.asks, successful.record.asks);
-    assert.equal(after.frontmatter.teaser_summary, successful.record.teaser_summary);
+    assert.deepEqual(after.frontmatter.anonymised_asks, successful.record.anonymised_asks);
+    assert.equal(after.frontmatter.anonymised_description, successful.record.anonymised_description);
+    assert.equal(Object.hasOwn(after.frontmatter, 'asks'), false);
+    assert.equal(Object.hasOwn(after.frontmatter, 'teaser_summary'), false);
     assert.equal(after.frontmatter.custom_field, before.frontmatter.custom_field);
     assert.deepEqual(after.frontmatter.retained_list, ['one', 'two']);
     assert.equal(after.frontmatter.deal_involvement, 'active');
@@ -41,24 +43,26 @@ test('Deal asks edits persist in canonical frontmatter, refresh the index and pr
     assert.match(after.timeline, /direct_edit/);
     const indexed = await fetch(`${base}/api/overlays/deals`).then((r) => r.json());
     assert.deepEqual(indexed.records[0], successful.record);
-    const refreshed = { page_slug: 'deals/sample', expected_asks: successful.record.asks, expected_teaser_summary: successful.record.teaser_summary };
+    const refreshed = { expected_anonymised_title: successful.record.anonymised_title, page_slug: 'deals/sample', expected_anonymised_asks: successful.record.anonymised_asks, expected_anonymised_description: successful.record.anonymised_description };
     const complexAsks = ['Find investor', 'Lenders for construction, permits, and equipment', 'An operator: "experienced" [preferred]'];
-    const complexResponse = await post({ ...refreshed, asks: complexAsks, teaser_summary: 'A "quoted" teaser\nwith a second line.' });
+    const complexResponse = await post({ ...refreshed, anonymised_asks: complexAsks, anonymised_title: 'New anonymous title', anonymised_description: 'A "quoted" teaser\nwith a second line.' });
     assert.equal(complexResponse.status, 200);
     const complexRecord = (await complexResponse.json()).record;
-    assert.deepEqual(complexRecord.asks, complexAsks);
+    assert.deepEqual(complexRecord.anonymised_asks, complexAsks);
+    assert.equal(complexRecord.anonymised_title, 'New anonymous title');
+    assert.equal((await post({ ...refreshed, expected_anonymised_asks: complexAsks, expected_anonymised_description: complexRecord.anonymised_description, anonymised_asks: complexAsks })).status, 409);
     const complexPage = await readBrainPage({ config, pagePath: 'deals/sample' });
-    assert.deepEqual(complexPage.frontmatter.asks, complexAsks);
-    assert.equal(complexPage.frontmatter.teaser_summary, 'A "quoted" teaser\nwith a second line.');
-    const deleteAll = await post({ page_slug: 'deals/sample', expected_asks: complexRecord.asks,
-      expected_teaser_summary: complexRecord.teaser_summary, asks: [] });
+    assert.deepEqual(complexPage.frontmatter.anonymised_asks, complexAsks);
+    assert.equal(complexPage.frontmatter.anonymised_description, 'A "quoted" teaser\nwith a second line.');
+    const deleteAll = await post({ expected_anonymised_title: complexRecord.anonymised_title, page_slug: 'deals/sample', expected_anonymised_asks: complexRecord.anonymised_asks,
+      expected_anonymised_description: complexRecord.anonymised_description, anonymised_asks: [] });
     assert.equal(deleteAll.status, 200);
-    assert.deepEqual((await deleteAll.json()).record.asks, []);
-    for (const changes of [{ asks: [3] }, { asks: [''] }, { asks: 'bad' }, { page_slug: '../people/sample' }, { expected_asks: null }, { teaser_summary: 5 }]) {
-      assert.equal((await post({ ...baseline, asks: ['Valid'], ...changes })).status, 400);
+    assert.deepEqual((await deleteAll.json()).record.anonymised_asks, []);
+    for (const changes of [{ anonymised_asks: [3] }, { anonymised_asks: [''] }, { anonymised_asks: 'bad' }, { page_slug: '../people/sample' }, { expected_anonymised_asks: null }, { anonymised_description: 5 }, { anonymised_title: 5 }, { anonymised_title: 'a'.repeat(501) }, { expected_anonymised_title: null }]) {
+      assert.equal((await post({ ...baseline, anonymised_asks: ['Valid'], ...changes })).status, 400);
     }
-    assert.equal((await post({ ...baseline, page_slug: 'deals/public', asks: [] })).status, 404);
-    assert.equal((await post({ ...baseline, page_slug: 'deals/missing', asks: [] })).status, 404);
+    assert.equal((await post({ ...baseline, page_slug: 'deals/public', anonymised_asks: [] })).status, 404);
+    assert.equal((await post({ ...baseline, page_slug: 'deals/missing', anonymised_asks: [] })).status, 404);
     assert.equal((await fetch(`${base}/api/overlays/deals/asks`)).status, 405);
     assert.equal((await fetch(`${base}/api/overlays/deals/asks`, { method: 'POST', body: '{bad' })).status, 400);
   } finally {

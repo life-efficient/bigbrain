@@ -425,11 +425,21 @@ export async function updateBrainPage({ config, pagePath, compiledTruth = undefi
   if (Object.prototype.hasOwnProperty.call(nextFrontmatterValues, 'images')) {
     nextFrontmatterValues.images = await normalizePageImages({ config, images: nextFrontmatterValues.images });
   }
-  await assertPageSchemaCompliance(config, {
-    pagePath: relative,
-    frontmatter: { ...existing.frontmatter, ...nextFrontmatterValues },
-  });
+  const mergedFrontmatter = { ...existing.frontmatter, ...nextFrontmatterValues };
+  const obsoleteDealFields = [];
+  if (existing.type === 'deals') {
+    for (const [canonical, legacy] of [['anonymised_description', 'teaser_summary'], ['anonymised_asks', 'asks']]) {
+      if (!Object.hasOwn(mergedFrontmatter, canonical)) continue;
+      // The canonical value wins even when explicitly cleared. Remove obsolete
+      // keys before strict-schema validation as well as from the saved YAML.
+      delete mergedFrontmatter[legacy];
+      delete nextFrontmatterValues[legacy];
+      obsoleteDealFields.push(legacy);
+    }
+  }
+  await assertPageSchemaCompliance(config, { pagePath: relative, frontmatter: mergedFrontmatter });
   let frontmatterRaw = existing.frontmatter_raw;
+  for (const key of obsoleteDealFields) frontmatterRaw = removeFrontmatterValue(frontmatterRaw, key);
   for (const [key, value] of Object.entries(nextFrontmatterValues)) {
     if (!PROVENANCE_FRONTMATTER_KEYS.has(key)) frontmatterRaw = setFrontmatterValue(frontmatterRaw, key, value);
   }
@@ -825,7 +835,7 @@ function omitReservedFrontmatter(frontmatter) {
   return Object.fromEntries(Object.entries(rest).filter(([key]) => !PROVENANCE_FRONTMATTER_KEYS.has(key)));
 }
 
-function setFrontmatterValue(frontmatterRaw, key, value) {
+function removeFrontmatterValue(frontmatterRaw, key) {
   const lines = String(frontmatterRaw || '').split('\n');
   const keyPattern = new RegExp(`^${escapeRegExp(key)}\\s*:`);
   const next = [];
@@ -837,8 +847,12 @@ function setFrontmatterValue(frontmatterRaw, key, value) {
     if (removingValue && /^[^\s#-][^:]*:/.test(line)) removingValue = false;
     if (!removingValue) next.push(line);
   }
-  next.push(`${key}: ${formatYamlValue(value)}`);
   return next.filter((line, index, array) => line.trim() || index < array.length - 1).join('\n');
+}
+
+function setFrontmatterValue(frontmatterRaw, key, value) {
+  const remaining = removeFrontmatterValue(frontmatterRaw, key);
+  return [remaining, `${key}: ${formatYamlValue(value)}`].filter(Boolean).join('\n');
 }
 
 function appendUniqueFrontmatterList(existing, value) {

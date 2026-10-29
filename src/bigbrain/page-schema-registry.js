@@ -8,7 +8,7 @@ import { CANONICAL_SCHEMA_DIRS } from './constants.js';
 
 export const PAGE_SCHEMA_REGISTRY_FILENAME = 'page-schemas.yaml';
 export const PAGE_SCHEMA_REGISTRY_VERSION = 1;
-export const PAGE_SCHEMA_DEFAULTS_VERSION = 4;
+export const PAGE_SCHEMA_DEFAULTS_VERSION = 5;
 
 const SCHEMA_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const FIELD_TYPES = ['string', 'number', 'boolean', 'array', 'object'];
@@ -147,12 +147,16 @@ function defaultPeopleFields() {
 
 function defaultDealFields() {
   return {
-    asks: {
+    anonymised_title: {
+      type: 'string',
+      description: 'Externally shareable title without company, project, or contact names or identifying combinations of details. Keep separate from the internal title.',
+    },
+    anonymised_asks: {
       type: 'array',
       items: { type: 'string' },
       description: 'Optional anonymous, externally shareable asks. Default to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per complete sentence, with separate asks for distinct counterparties or roles. Use "We welcome introductions to..." only when access to a counterparty is the actual need. Avoid questions, salutations, headings, bullet prefixes, identifying details, and unsupported claims or commitments; each ask must read naturally after the shared teaser without repeating it.',
     },
-    teaser_summary: {
+    anonymised_description: {
       type: 'string',
       description: 'Optional anonymous, externally shareable teaser that makes the opportunity clear and exciting through concrete, evidence-backed substance: the asset or project, its distinguishing features, and the proposed transaction or partnership. Avoid invented claims or commitments, company, project, and contact names, and combinations of identifying details. Keep separate from the internal summary.',
     },
@@ -345,11 +349,28 @@ function applyPageSchemaDefaultsMigration(registry, config, version, added) {
     if (Object.keys(schema.fields).length === 0 && schema.additional_properties === undefined) {
       schema.additional_properties = true;
     }
-    for (const field of ['asks', 'teaser_summary']) {
+    for (const [field, canonical] of [['asks', 'anonymised_asks'], ['teaser_summary', 'anonymised_description']]) {
       if (Object.prototype.hasOwnProperty.call(schema.fields, field)) continue;
-      schema.fields[field] = defaultDealFields()[field];
+      schema.fields[field] = defaultDealFields()[canonical];
       added.push(`${id}.${field}`);
     }
+    return;
+  }
+  if (version === 5) {
+    const dealEntry = Object.entries(registry.schemas).find(([, schema]) => normalizePathPrefix(schema.path_prefix) === 'deals');
+    if (!dealEntry) return;
+    const [id, schema] = dealEntry;
+    schema.fields ||= {};
+    for (const [field, legacy] of [['anonymised_title', null], ['anonymised_description', 'teaser_summary'], ['anonymised_asks', 'asks']]) {
+      if (Object.hasOwn(schema.fields, field)) continue;
+      schema.fields[field] = legacy && schema.fields[legacy] ? { ...schema.fields[legacy] } : defaultDealFields()[field];
+      added.push(`${id}.${field}`);
+    }
+    for (const legacy of ['asks', 'teaser_summary']) {
+      if (schema.fields[legacy]) schema.fields[legacy] = { ...schema.fields[legacy], required: false };
+    }
+    // Retain legacy declarations so unmigrated strict-schema pages remain editable.
+    // New registries and writes use only the canonical anonymised fields.
     return;
   }
   throw new Error(`Missing page schema defaults migration for version ${version}.`);
