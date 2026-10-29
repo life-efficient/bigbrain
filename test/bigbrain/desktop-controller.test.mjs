@@ -674,7 +674,7 @@ test('desktop onboarding exposes two working action-led setup paths', async () =
   assert.match(desktopSource, /params\.has\('setup'\)\) startOnboarding\(\)/);
   assert.match(desktopSource, /history\.replaceState\(null, '', location\.pathname\)/);
   assert.doesNotMatch(desktopSource, /Choose a brain, or add another one/);
-  assert.match(desktopHtml, /\.primary\{border:1px solid #fafafa;background:#fafafa;color:#18181b/);
+  assert.match(desktopHtml, /\.primary\{border:0;background:#fafafa;color:#18181b/);
   assert.doesNotMatch(desktopHtml, /#207146|#377652|#f4fff7|#f2f4ef/i);
   assert.doesNotMatch(desktopSource, /Hosted mode|Choose a mode|<strong>Local<\/strong>|cannot save service connections/);
   assert.match(readmeSource, /one canonical owner for each local process/);

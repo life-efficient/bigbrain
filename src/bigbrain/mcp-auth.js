@@ -667,17 +667,17 @@ function htmlPage(title, body) {
       gap: 8px;
       min-height: 32px;
       padding: 6px 10px;
-      border: 1px solid rgba(125, 211, 252, 0.28);
+      border: 0;
       border-radius: 8px;
-      color: #dff6ff;
-      background: rgba(14, 165, 233, 0.11);
+      color: #fafafa;
+      background: rgba(255, 255, 255, 0.08);
       font: inherit;
       font-size: 13px;
-      font-weight: 800;
+      font-weight: 500;
       cursor: pointer;
       transition: border-color 160ms ease, background 160ms ease, transform 160ms ease;
     }
-    .copy-button:hover, .copy-button:focus-visible { border-color: rgba(125, 211, 252, 0.58); background: rgba(14, 165, 233, 0.18); transform: translateY(-1px); }
+    .copy-button:hover, .copy-button:focus-visible { background: rgba(255, 255, 255, 0.14); transform: translateY(-1px); }
     .copy-button:active { transform: translateY(0); }
     .copy-icon {
       width: 15px;
@@ -716,13 +716,13 @@ function htmlPage(title, body) {
       gap: 10px;
       min-height: 46px;
       padding: 11px 16px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      border: 0;
       border-radius: 8px;
-      color: #031018;
-      background: linear-gradient(135deg, #e0f2fe, var(--accent-strong));
+      color: #18181b;
+      background: #fafafa;
       text-decoration: none;
-      font-weight: 800;
-      box-shadow: 0 14px 36px rgba(14, 165, 233, 0.22);
+      font-weight: 500;
+      box-shadow: none;
     }
     .button:hover, .button:focus-visible { filter: brightness(1.05); }
     .google-mark {
