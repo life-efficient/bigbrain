@@ -1,7 +1,7 @@
 import React from 'react';
 import { activeDealTasks, DEAL_STAGE_LABELS, DEAL_TYPE_LABELS, INTRODUCTION_STAGE_LABELS, pageReference, progressDate, TASK_STATUS_LABELS } from './deal-progress.js';
 
-function PageReferences({ references = [], onOpenPage }) {
+export function PageReferences({ references = [], onOpenPage }) {
   return references.map(pageReference).filter(Boolean).map((reference, index) => (
     <React.Fragment key={reference.page_slug}>
       {index > 0 ? ', ' : ''}
@@ -59,4 +59,19 @@ export function DealIntroductions({ introductions = [], onOpenPage }) {
       </article>)}
     </div>
   </details>;
+}
+
+export function DealIntroductionRow({ introduction, onOpenPage }) {
+  const parent = pageReference(introduction.parent_deal || introduction.deal);
+  return <article className="deal-introduction deal-introduction-row">
+    <div className="deal-introduction-heading">
+      <button type="button" className="deal-reference-link deal-introduction-title" onClick={() => onOpenPage?.(introduction.page_slug)}>{introduction.title || pageReference(introduction)?.title}</button>
+      <DealStage stage={introduction.stage} asOf={introduction.stage_as_of} introduction />
+    </div>
+    {parent ? <p className="meta">Deal: <button type="button" className="deal-reference-link" onClick={() => onOpenPage?.(parent.page_slug)}>{parent.title}</button></p> : null}
+    {introduction.parties?.length ? <p className="meta">Parties: <PageReferences references={introduction.parties} onOpenPage={onOpenPage} /></p> : null}
+    {introduction.purpose || introduction.summary ? <p>{introduction.purpose || introduction.summary}</p> : null}
+    <DealNextActions tasks={introduction.tasks} onOpenPage={onOpenPage} />
+    {!activeDealTasks(introduction.tasks).length ? <p className="meta">No open follow-up recorded.</p> : null}
+  </article>;
 }

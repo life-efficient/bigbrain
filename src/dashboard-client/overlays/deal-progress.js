@@ -52,3 +52,15 @@ export function matchesDealFilters(record, { search = '', dealType = '', stage =
   ].join(' ').toLowerCase();
   return text.includes(needle);
 }
+
+export function matchesIntroductionFilters(introduction, { search = '', stage = '' } = {}) {
+  if (stage && (introduction.stage || 'unknown') !== stage) return false;
+  const needle = search.trim().toLowerCase();
+  if (!needle) return true;
+  return [introduction.title, introduction.summary, introduction.purpose,
+    pageReference(introduction.parent_deal || introduction.deal)?.title,
+    INTRODUCTION_STAGE_LABELS[introduction.stage || 'unknown'],
+    ...(introduction.parties || []).map(ref => pageReference(ref)?.title),
+    ...activeDealTasks(introduction.tasks).map(taskSearchText),
+  ].join(' ').toLowerCase().includes(needle);
+}

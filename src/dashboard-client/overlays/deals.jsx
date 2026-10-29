@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Select } from '../components/select.jsx';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, Plus, Pencil, Trash2, Copy } from 'lucide-react';
+import { X, Plus, Pencil, Trash2, Copy, Download } from 'lucide-react';
 import { copyAllDealAsks, copyDealTeaser, dealTeaserParts, formatAllDealAsks, formatDealTeaser } from './deal-teaser.js';
-import { DEAL_STAGE_LABELS, DEAL_TYPE_LABELS, matchesDealFilters } from './deal-progress.js';
-import { DealIntroductions, DealNextActions, DealProgress } from './deal-progress.jsx';
+import { DEAL_STAGE_LABELS, DEAL_TYPE_LABELS, INTRODUCTION_STAGE_LABELS, matchesDealFilters, matchesIntroductionFilters } from './deal-progress.js';
+import { DealIntroductionRow, DealNextActions, DealProgress } from './deal-progress.jsx';
+
+import { fetchAnonymisedDealsPdf, loadAllDealRecords } from './deal-view-data.js';
 
 const INVOLVEMENT_LABELS = {
   active: 'Our work',
@@ -199,82 +201,77 @@ function DealTeaser({ record, onSaved }) {
   );
 }
 
-export function DealsPanel({ onOpenPage }) {
+function useDealCollection(endpoint, reload) {
   const [state, setState] = useState({ status: 'loading', records: [], error: null });
+  useEffect(() => {
+    const controller = new AbortController();
+    setState({ status: 'loading', records: [], error: null });
+    loadAllDealRecords(endpoint, { signal: controller.signal }).then(records => {
+      if (!controller.signal.aborted) setState({ status: 'ready', records, error: null });
+    }).catch(error => {
+      if (!controller.signal.aborted) setState({ status: 'error', records: [], error: error.message || String(error) });
+    });
+    return () => controller.abort();
+  }, [endpoint, reload]);
+  return [state, setState];
+}
+
+const DEAL_VIEWS = [{ id: 'deals', label: 'Deals' }, { id: 'introductions', label: 'Deal introductions' }];
+
+export function DealsPanel({ onOpenPage }) {
+  const viewStorageKey = `bigbrain:deals-view:${window.location.pathname}`;
+  const [view, setView] = useState(() => {
+    try { return window.sessionStorage.getItem(viewStorageKey) === 'introductions' ? 'introductions' : 'deals'; }
+    catch { return 'deals'; }
+  });
   const [search, setSearch] = useState('');
   const [dealType, setDealType] = useState('');
   const [stage, setStage] = useState('');
+  const [introductionSearch, setIntroductionSearch] = useState('');
+  const [introductionStage, setIntroductionStage] = useState('');
   const [reload, setReload] = useState(0);
-  const requestVersion = useRef(0);
+  const [state, setState] = useDealCollection('/api/overlays/deals', reload);
+  const [introductions] = useDealCollection('/api/overlays/deals/introductions', reload);
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState('');
+  const downloadPending = useRef(false);
+  const tabRefs = useRef({});
 
-  useEffect(() => {
-    const controller = new AbortController();
-    const version = ++requestVersion.current;
-    setState({ status: 'loading', records: [], error: null });
+  function changeView(next) {
+    setView(next);
+    try { window.sessionStorage.setItem(viewStorageKey, next); } catch { /* Storage is optional. */ }
+  }
 
-    async function load() {
-      try {
-        const records = [];
-        const seenCursors = new Set();
-        let cursor = null;
-        let total = null;
-        do {
-          const params = new URLSearchParams({ limit: '100' });
-          if (cursor !== null) params.set('cursor', String(cursor));
-          const response = await fetch(`/api/overlays/deals?${params}`, { signal: controller.signal });
-          if (!response.ok) throw new Error(`Unable to load deals (${response.status}).`);
-          const data = await response.json();
-          if (!Array.isArray(data.records)) throw new Error('The deals response could not be read.');
-          if (Number.isInteger(data.total) && data.total >= 0) total = data.total;
-          records.push(...data.records);
-          cursor = data.next_cursor ?? null;
-          if (cursor !== null) {
-            const cursorKey = String(cursor);
-            if (seenCursors.has(cursorKey)) throw new Error('Unable to finish loading all deals. Please retry.');
-            seenCursors.add(cursorKey);
-          }
-        } while (cursor !== null);
-        if (total !== null && records.length < total) throw new Error('Unable to finish loading all deals. Please retry.');
-        if (!controller.signal.aborted && requestVersion.current === version) {
-          setState({ status: 'ready', records, error: null });
-        }
-      } catch (error) {
-        if (!controller.signal.aborted && requestVersion.current === version) {
-          setState({ status: 'error', records: [], error: error instanceof Error ? error.message : String(error) });
-        }
-      }
+  async function downloadPdf() {
+    if (downloadPending.current) return;
+    downloadPending.current = true;
+    setDownloading(true);
+    setDownloadError('');
+    try {
+      const blob = await fetchAnonymisedDealsPdf();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'anonymised-deals-overview.pdf';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (error) {
+      setDownloadError(error.message || 'Unable to download the PDF. Please retry.');
+    } finally {
+      downloadPending.current = false;
+      setDownloading(false);
     }
-
-    load();
-    return () => controller.abort();
-  }, [reload]);
-
-  if (state.status === 'loading') {
-    return (
-      <section className="overlay-page deals-page">
-        <div className="list-loading-state" role="status" aria-live="polite">
-          <span className="loading-spinner" aria-hidden="true" />
-          <span>Loading deals</span>
-        </div>
-      </section>
-    );
   }
 
-  if (state.status === 'error') {
-    return (
-      <section className="overlay-page deals-page">
-        <div className="overlay-error card" role="alert">
-          <span className="eyebrow">Deals</span>
-          <h1>Deals unavailable</h1>
-          <p>{state.error}</p>
-          <button type="button" className="graph-button" onClick={() => setReload((value) => value + 1)}>Retry</button>
-        </div>
-      </section>
-    );
-  }
-
-  const records = state.records.filter((record) => matchesDealFilters(record, { search, dealType, stage }));
-  const filtered = search.trim() || dealType || stage;
+  const showingIntroductions = view === 'introductions';
+  const current = showingIntroductions ? introductions : state;
+  const records = showingIntroductions
+    ? introductions.records.filter(record => matchesIntroductionFilters(record, { search: introductionSearch, stage: introductionStage }))
+    : state.records.filter(record => matchesDealFilters(record, { search, dealType, stage }));
+  const filtered = showingIntroductions ? introductionSearch.trim() || introductionStage : search.trim() || dealType || stage;
+  const noun = showingIntroductions ? 'introduction' : 'deal';
 
   return (
     <section className="overlay-page deals-page">
@@ -282,71 +279,76 @@ export function DealsPanel({ onOpenPage }) {
         <div>
           <span className="eyebrow">Overlay · Deals</span>
           <h1>Deals</h1>
-          <p>Deals, introductions and the next steps for each party.</p>
+          <p>Deal information and progress between parties.</p>
         </div>
-        <span className="meta">{filtered ? `${records.length} of ` : ''}{state.records.length} {state.records.length === 1 ? 'deal' : 'deals'}</span>
+        {!showingIntroductions ? <div className="deal-export">
+          <button type="button" className="graph-button" onClick={downloadPdf} disabled={downloading || state.status !== 'ready' || !state.records.length}>
+            <Download size={15} />{downloading ? 'Preparing PDF…' : 'Download PDF'}
+          </button>
+          <span className="meta">All deals, anonymised</span>
+        </div> : null}
       </div>
-
-      {state.records.length ? (
-        <div className="deal-filters">
-        <input
-          className="overlay-search"
-          type="search"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search deals, introductions or parties…"
-          aria-label="Search deals, introductions or parties"
-        />
-        <div className="deal-filter-field">
-          <span id="deal-type-filter-label">Deal type</span>
-          <Select value={dealType} onValueChange={setDealType} aria-labelledby="deal-type-filter-label"
-            options={[{ value: '', label: 'All types' }, ...Object.entries(DEAL_TYPE_LABELS).map(([value, label]) => ({ value, label }))]} />
+      <div className="deal-view-toolbar">
+        <div className="deal-view-tabs" role="tablist" aria-label="Deals views">
+          {DEAL_VIEWS.map(({ id, label }, index) => <button key={id} ref={element => { tabRefs.current[id] = element; }}
+            type="button" role="tab" id={`deal-view-${id}`} aria-controls={`deal-panel-${id}`} aria-selected={view === id}
+            tabIndex={view === id ? 0 : -1} className="deal-view-tab" onClick={() => changeView(id)}
+            onKeyDown={event => {
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+              event.preventDefault();
+              const next = event.key === 'Home' ? DEAL_VIEWS[0].id : event.key === 'End' ? DEAL_VIEWS.at(-1).id : DEAL_VIEWS[(index + 1) % DEAL_VIEWS.length].id;
+              changeView(next); tabRefs.current[next]?.focus();
+            }}>{label}</button>)}
         </div>
-        <div className="deal-filter-field">
-          <span id="deal-stage-filter-label">Deal stage</span>
-          <Select value={stage} onValueChange={setStage} aria-labelledby="deal-stage-filter-label"
-            options={[{ value: '', label: 'All stages' }, ...Object.entries(DEAL_STAGE_LABELS).map(([value, label]) => ({ value, label }))]} />
-        </div>
-        {filtered ? <button type="button" className="graph-button" onClick={() => { setSearch(''); setDealType(''); setStage(''); }}>Clear filters</button> : null}
-        </div>
-      ) : null}
-
-      {records.length ? (
-        <div className="overlay-record-list">
-          {records.map((record) => (
-            <article className="overlay-record card deal-record" key={record.page_slug}>
-              <div className="overlay-record-main">
-                <div className="overlay-record-title-row">
-                  <button type="button" className="overlay-person-link deal-page-link" onClick={() => onOpenPage?.(record.page_slug)}>
-                    {record.title || record.page_slug}
-                  </button>
-                  <span className={`deal-involvement involvement-${record.deal_involvement || 'unset'}`}>
-                    {INVOLVEMENT_LABELS[record.deal_involvement] || 'Involvement not set'}
-                  </span>
-                </div>
-                {record.summary ? (
-                  <p className="overlay-record-summary deal-record-summary">
-                    {record.summary}
-                  </p>
-                ) : <p className="overlay-record-summary deal-record-summary">No summary yet.</p>}
-                <DealProgress record={record} />
-                <DealNextActions tasks={record.tasks} onOpenPage={onOpenPage} />
-                <DealIntroductions introductions={record.introductions} onOpenPage={onOpenPage} />
-                <DealTeaser record={record} onSaved={(savedRecord) => setState((current) => ({
-                  ...current, records: current.records.map((item) => item.page_slug === savedRecord.page_slug ? { ...item, ...savedRecord } : item),
-                }))} />
+        {current.status === 'ready' ? <span className="meta">{filtered ? `${records.length} of ` : ''}{current.records.length} {noun}{current.records.length === 1 ? '' : 's'}</span> : null}
+      </div>
+      {downloadError && !showingIntroductions ? <p className="deal-export-error" role="alert">{downloadError}</p> : null}
+      <div className="deal-view-panel" role="tabpanel" id={`deal-panel-${view}`} aria-labelledby={`deal-view-${view}`} tabIndex={0}>
+        {current.status === 'loading' ? <div className="deal-list-skeleton" role="status" aria-label={`Loading ${noun}s`}><div /><div /><div /></div>
+          : current.status === 'error' ? <div className="overlay-error card" role="alert"><h2>Unable to load {noun}s</h2><p>{current.error}</p><button type="button" className="graph-button" onClick={() => setReload(value => value + 1)}>Retry</button></div>
+          : <>
+            {current.records.length ? <div className="deal-filters">
+              <input className="overlay-search" type="search" value={showingIntroductions ? introductionSearch : search}
+                onChange={event => showingIntroductions ? setIntroductionSearch(event.target.value) : setSearch(event.target.value)}
+                placeholder={showingIntroductions ? 'Search introductions, parties or deals…' : 'Search deals…'}
+                aria-label={showingIntroductions ? 'Search introductions, parties or deals' : 'Search deals'} />
+              {!showingIntroductions ? <div className="deal-filter-field">
+                <span id="deal-type-filter-label">Deal type</span>
+                <Select value={dealType} onValueChange={setDealType} aria-labelledby="deal-type-filter-label"
+                  options={[{ value: '', label: 'All types' }, ...Object.entries(DEAL_TYPE_LABELS).map(([value, label]) => ({ value, label }))]} />
+              </div> : null}
+              <div className="deal-filter-field">
+                <span id="deal-stage-filter-label">{showingIntroductions ? 'Introduction stage' : 'Deal stage'}</span>
+                <Select value={showingIntroductions ? introductionStage : stage} onValueChange={showingIntroductions ? setIntroductionStage : setStage} aria-labelledby="deal-stage-filter-label"
+                  options={[{ value: '', label: 'All stages' }, ...Object.entries(showingIntroductions ? INTRODUCTION_STAGE_LABELS : DEAL_STAGE_LABELS).map(([value, label]) => ({ value, label }))]} />
               </div>
-            </article>
-          ))}
-        </div>
-      ) : (
-        <div className="overlay-empty card">
-          <div>
-            <h2>{state.records.length ? 'No matching deals' : 'No deals yet'}</h2>
-            <p>{state.records.length ? 'Try a different search or clear the filters.' : 'Deal pages will appear here when they are added to this Brain.'}</p>
-          </div>
-        </div>
-      )}
+              {filtered ? <button type="button" className="graph-button" onClick={() => {
+                if (showingIntroductions) { setIntroductionSearch(''); setIntroductionStage(''); }
+                else { setSearch(''); setDealType(''); setStage(''); }
+              }}>Clear filters</button> : null}
+            </div> : null}
+            {records.length ? <div className="overlay-record-list">
+              {showingIntroductions ? records.map(introduction => <DealIntroductionRow key={introduction.page_slug} introduction={introduction} onOpenPage={onOpenPage} />)
+                : records.map(record => <article className="overlay-record card deal-record" key={record.page_slug}>
+                  <div className="overlay-record-main">
+                    <div className="overlay-record-title-row">
+                      <button type="button" className="overlay-person-link deal-page-link" onClick={() => onOpenPage?.(record.page_slug)}>{record.title || record.page_slug}</button>
+                      <span className={`deal-involvement involvement-${record.deal_involvement || 'unset'}`}>{INVOLVEMENT_LABELS[record.deal_involvement] || 'Involvement not set'}</span>
+                    </div>
+                    <p className="overlay-record-summary deal-record-summary">{record.summary || 'No summary yet.'}</p>
+                    <DealProgress record={record} />
+                    <DealNextActions tasks={record.tasks} onOpenPage={onOpenPage} />
+                    <DealTeaser record={record} onSaved={savedRecord => setState(current => ({
+                      ...current, records: current.records.map(item => item.page_slug === savedRecord.page_slug ? { ...item, ...savedRecord } : item),
+                    }))} />
+                  </div>
+                </article>)}
+            </div> : <div className="overlay-empty card"><div>
+              <h2>{current.records.length ? `No matching ${noun}s` : `No ${noun}s yet`}</h2>
+              <p>{current.records.length ? 'Try a different search or clear the filters.' : showingIntroductions ? 'Introductions will appear here when they are recorded for a deal.' : 'Deal pages will appear here when they are added to this Brain.'}</p>
+            </div></div>}
+          </>}
+      </div>
     </section>
   );
 }

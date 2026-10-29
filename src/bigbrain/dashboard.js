@@ -1078,6 +1078,18 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deal-record-summary { max-width: 920px; white-space: pre-wrap; overflow: visible; text-overflow: clip; }
       .deals-page { width: 100%; max-width: 1080px; margin: 0 auto; gap: 20px; padding: 12px 4px 32px; }
       .deals-page .overlay-head { align-items: flex-start; padding: 10px 0 0; }
+      .deals-page .deal-export { display: grid; justify-items: end; gap: 6px; }
+      .deals-page .deal-view-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+      .deals-page .deal-view-tabs { display: inline-flex; gap: 3px; border: 1px solid var(--line); background: var(--surface); padding: 4px; border-radius: 9px; }
+      .deals-page .deal-view-tab { border: 0; border-radius: 6px; padding: 8px 14px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+      .deals-page .deal-view-tab[aria-selected="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.16); }
+      .deals-page .deal-view-tab:focus-visible { outline: 2px solid var(--accent-strong); outline-offset: 2px; }
+      .deals-page .deal-view-panel { display: grid; gap: 20px; outline: none; }
+      .deals-page .deal-introduction-row { margin: 0; padding: 22px; background: var(--card); }
+      .deals-page .deal-introduction-row p { margin: 0; }
+      .deals-page .deal-export-error { margin: 0; color: var(--danger, #ff8e8e); font-size: 13px; }
+      .deals-page .deal-list-skeleton { display: grid; gap: 16px; }
+      .deals-page .deal-list-skeleton > div { min-height: 180px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
       .deals-page .overlay-head h1 { font-size: 30px; line-height: 1.2; letter-spacing: -0.03em; }
       .deals-page .overlay-metric { min-height: 88px; border-radius: 8px; background: var(--card); }
       .deals-page .overlay-record-list { gap: 16px; }
