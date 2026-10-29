@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Select } from '../components/select.jsx';
 import * as Dialog from '@radix-ui/react-dialog';
-import { X, Plus, Pencil, Trash2, Copy, Download } from 'lucide-react';
+import { X, Plus, Pencil, Trash2, Copy, Download, List, Columns3 } from 'lucide-react';
 import { copyAllDealAsks, copyDealTeaser, dealTeaserParts, formatAllDealAsks, formatDealTeaser } from './deal-teaser.js';
 import { DEAL_STAGE_LABELS, DEAL_TYPE_LABELS, INTRODUCTION_STAGE_LABELS, matchesDealFilters, matchesIntroductionFilters } from './deal-progress.js';
+import { DealKanban } from './deal-kanban.jsx';
 import { DealIntroductionRow, DealNextActions, DealProgress } from './deal-progress.jsx';
 
 import { fetchAnonymisedDealsPdf, loadAllDealRecords } from './deal-view-data.js';
@@ -216,6 +217,8 @@ function useDealCollection(endpoint, reload) {
   return [state, setState];
 }
 
+const DEAL_LAYOUTS = [{ id: 'list', label: 'List view', Icon: List }, { id: 'kanban', label: 'Kanban view', Icon: Columns3 }];
+
 const DEAL_VIEWS = [{ id: 'deals', label: 'Deals' }, { id: 'introductions', label: 'Deal introductions' }];
 
 export function DealsPanel({ onOpenPage }) {
@@ -224,6 +227,16 @@ export function DealsPanel({ onOpenPage }) {
     try { return window.sessionStorage.getItem(viewStorageKey) === 'introductions' ? 'introductions' : 'deals'; }
     catch { return 'deals'; }
   });
+  const layoutStorageKey = `bigbrain:deals-layout:${window.location.pathname}`;
+  const [layout, setLayout] = useState(() => {
+    try { return window.sessionStorage.getItem(layoutStorageKey) === 'kanban' ? 'kanban' : 'list'; }
+    catch { return 'list'; }
+  });
+  const layoutRefs = useRef({});
+  function changeLayout(next) {
+    setLayout(next);
+    try { window.sessionStorage.setItem(layoutStorageKey, next); } catch { /* Storage is optional. */ }
+  }
   const [search, setSearch] = useState('');
   const [dealType, setDealType] = useState('');
   const [stage, setStage] = useState('');
@@ -300,7 +313,20 @@ export function DealsPanel({ onOpenPage }) {
               changeView(next); tabRefs.current[next]?.focus();
             }}>{label}</button>)}
         </div>
+        <div className="deal-layout-controls">
+        {!showingIntroductions ? <div className="deal-view-tabs deal-layout-tabs" role="tablist" aria-label="Deal layout">
+          {DEAL_LAYOUTS.map(({ id, label, Icon }, index) => <button type="button" key={id} role="tab"
+            ref={element => { layoutRefs.current[id] = element; }} id={`deal-layout-tab-${id}`} aria-controls={`deal-layout-${id}`}
+            aria-label={label} title={label} aria-selected={layout === id} tabIndex={layout === id ? 0 : -1}
+            className="deal-view-tab deal-layout-tab" onClick={() => changeLayout(id)} onKeyDown={event => {
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+              event.preventDefault();
+              const next = event.key === 'Home' ? 'list' : event.key === 'End' ? 'kanban' : DEAL_LAYOUTS[(index + 1) % 2].id;
+              changeLayout(next); layoutRefs.current[next]?.focus();
+            }}><Icon size={17} aria-hidden="true" /></button>)}
+        </div> : null}
         {current.status === 'ready' ? <span className="meta">{filtered ? `${records.length} of ` : ''}{current.records.length} {noun}{current.records.length === 1 ? '' : 's'}</span> : null}
+        </div>
       </div>
       {downloadError && !showingIntroductions ? <p className="deal-export-error" role="alert">{downloadError}</p> : null}
       <div className="deal-view-panel" role="tabpanel" id={`deal-panel-${view}`} aria-labelledby={`deal-view-${view}`} tabIndex={0}>
@@ -327,7 +353,9 @@ export function DealsPanel({ onOpenPage }) {
                 else { setSearch(''); setDealType(''); setStage(''); }
               }}>Clear filters</button> : null}
             </div> : null}
-            {records.length ? <div className="overlay-record-list">
+            <div role={showingIntroductions ? undefined : 'tabpanel'} id={showingIntroductions ? undefined : `deal-layout-${layout}`}
+              aria-labelledby={showingIntroductions ? undefined : `deal-layout-tab-${layout}`} tabIndex={showingIntroductions ? undefined : 0}>
+            {records.length ? !showingIntroductions && layout === 'kanban' ? <DealKanban records={records} onOpenPage={onOpenPage} /> : <div className="overlay-record-list">
               {showingIntroductions ? records.map(introduction => <DealIntroductionRow key={introduction.page_slug} introduction={introduction} onOpenPage={onOpenPage} />)
                 : records.map(record => <article className="overlay-record card deal-record" key={record.page_slug}>
                   <div className="overlay-record-main">
@@ -347,6 +375,7 @@ export function DealsPanel({ onOpenPage }) {
               <h2>{current.records.length ? `No matching ${noun}s` : `No ${noun}s yet`}</h2>
               <p>{current.records.length ? 'Try a different search or clear the filters.' : showingIntroductions ? 'Introductions will appear here when they are recorded for a deal.' : 'Deal pages will appear here when they are added to this Brain.'}</p>
             </div></div>}
+            </div>
           </>}
       </div>
     </section>
