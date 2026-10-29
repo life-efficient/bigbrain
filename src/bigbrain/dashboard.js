@@ -2065,6 +2065,17 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .graph-controls-inline { position: static; z-index: auto; }
       .graph-button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; vertical-align: middle; line-height: 18px; white-space: nowrap; border: 1px solid var(--line); background: var(--surface-strong); color: var(--ink); border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer; box-shadow: 0 6px 18px rgba(15,23,42,0.05); }
       .graph-button > svg { display: block; flex: 0 0 auto; }
+      .deals-page .graph-button.deal-icon-action { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 32px; height: 32px; min-height: 32px; padding: 0; gap: 0; border-radius: 7px; box-shadow: none; }
+      .deals-page .deal-kanban-card-actions { display: flex; align-items: center; gap: 2px; flex: 0 0 auto; }
+      .deals-page .deal-kanban-card-actions .deal-icon-action { width: 26px; height: 28px; min-height: 28px; border-color: transparent; background: transparent; color: var(--muted); }
+      .deals-page .deal-kanban-card-actions .deal-icon-action:hover, .deals-page .deal-kanban-card-actions .deal-icon-action[data-state="open"] { color: var(--ink); background: var(--surface-muted); }
+      .action-menu-content { z-index: 160; min-width: 160px; max-width: var(--radix-dropdown-menu-content-available-width); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; padding: 5px; border: 1px solid rgba(255,255,255,0.14); border-radius: 9px; background: #27272a; color: #fafafa; box-shadow: 0 18px 45px rgba(0,0,0,0.4); }
+      .action-menu-item { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 6px 9px; border-radius: 5px; font-size: 13px; cursor: default; outline: none; user-select: none; }
+      .action-menu-item[data-highlighted] { background: rgba(255,255,255,0.08); }
+      .action-menu-item[data-disabled] { opacity: 0.45; pointer-events: none; }
+      .is-spinning { animation: action-spin 1s linear infinite; }
+      @keyframes action-spin { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .is-spinning { animation: none; } }
       .graph-button:hover { background: var(--surface); }
       .graph-button:disabled { opacity: 0.52; cursor: not-allowed; }
       .graph-button-active { background: rgba(255,255,255,0.08); border-color: var(--line-strong); }

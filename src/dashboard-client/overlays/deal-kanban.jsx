@@ -22,14 +22,14 @@ function stageKeyboardCoordinates(event, { currentCoordinates, context }) {
     y: currentCoordinates.y + rect.top + Math.min(80, rect.height / 2) - collision.top - collision.height / 2 };
 }
 
-function CardContent({ record, onOpenPage, handle, overlay = false, textMode }) {
+function CardContent({ record, onOpenPage, handle, actions, overlay = false, textMode }) {
   const { title, description } = dealDisplayText(record, textMode);
   const tasks = activeDealTasks(record.tasks);
   const waiting = [...new Map(tasks.flatMap(task => (task.waiting_on || []).map(pageReference).filter(Boolean)).map(ref => [ref.page_slug, ref])).values()];
   return <>
     <div className="deal-kanban-card-head">
       {overlay ? <span className="deal-kanban-title">{title}</span> : <button type="button" className="overlay-person-link deal-kanban-title" onClick={() => onOpenPage?.(record.page_slug)}>{title}</button>}
-      {handle}
+      <div className="deal-kanban-card-actions">{handle}{actions}</div>
     </div>
     <p className="deal-kanban-summary">{description}</p>
     <div className="deal-kanban-types">{(record.deal_types || []).map(type => <span className="deal-involvement" key={type}>{DEAL_TYPE_LABELS[type] || type}</span>)}</div>
@@ -42,9 +42,8 @@ function DraggableDeal({ record, onOpenPage, disabled, saving, statusPending, on
   const { title } = dealDisplayText(record, textMode);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: record.page_slug, data: { record }, disabled: disabled || recordStatus(record) === 'archived' });
   return <article ref={setNodeRef} className={`deal-kanban-card${isDragging ? ' is-dragging' : ''}${saving ? ' is-saving' : ''}`} aria-busy={saving || undefined}>
-    <CardContent record={record} textMode={textMode} onOpenPage={onOpenPage} handle={recordStatus(record) !== 'archived' ? <button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
+    <CardContent record={record} textMode={textMode} onOpenPage={onOpenPage} actions={<DealStatusAction menu record={record} displayTitle={title} onChange={onStatusChange} pending={statusPending} disabled={disabled} />} handle={recordStatus(record) !== 'archived' ? <button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
       data-deal-handle={record.page_slug} aria-label={`Move ${title}`} title="Drag to change stage" disabled={disabled}><GripVertical size={17} aria-hidden="true" /></button> : null} />
-    <DealStatusAction record={record} displayTitle={title} onChange={onStatusChange} pending={statusPending} disabled={disabled} />
     {saving ? <span className="deal-card-saving">Saving stage…</span> : null}
   </article>;
 }
