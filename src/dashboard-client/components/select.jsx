@@ -1,21 +1,24 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { Check, ChevronDown, ChevronUp } from 'lucide-react';
 
 const EMPTY_VALUE = '__dashboard_select_empty__';
 
 export function Select({ value, onValueChange, options, disabled = false, className = '', ...triggerProps }) {
+  const triggerRef = useRef(null);
+  const [portalContainer, setPortalContainer] = useState(undefined);
   return (
     <SelectPrimitive.Root
       value={value === '' ? EMPTY_VALUE : value}
       onValueChange={next => onValueChange(next === EMPTY_VALUE ? '' : next)}
       disabled={disabled}
+      onOpenChange={open => { if (open) setPortalContainer(triggerRef.current?.closest('[role="dialog"]') || undefined); }}
     >
-      <SelectPrimitive.Trigger className={`shadcn-select-trigger ${className}`.trim()} {...triggerProps}>
+      <SelectPrimitive.Trigger ref={triggerRef} className={`shadcn-select-trigger ${className}`.trim()} {...triggerProps}>
         <SelectPrimitive.Value />
         <SelectPrimitive.Icon className="shadcn-select-icon" aria-hidden="true"><ChevronDown size={16} /></SelectPrimitive.Icon>
       </SelectPrimitive.Trigger>
-      <SelectPrimitive.Portal>
+      <SelectPrimitive.Portal container={portalContainer}>
         <SelectPrimitive.Content className="shadcn-select-content" position="popper" sideOffset={6}>
           <SelectPrimitive.ScrollUpButton className="shadcn-select-scroll"><ChevronUp size={14} /></SelectPrimitive.ScrollUpButton>
           <SelectPrimitive.Viewport className="shadcn-select-viewport">
