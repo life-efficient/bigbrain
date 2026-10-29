@@ -38,7 +38,7 @@ test('deals overlay includes explicit actual and network deals, excluding public
     assert.equal(result.overlay.enabled, true);
     assert.equal(result.brain.brain_id, 'personal');
     assert.deepEqual(result.records.map((r) => r.deal_involvement), ['active', 'network_actionable', 'network_observed']);
-    assert.deepEqual(Object.keys(result.records[0]).sort(), ['anonymised_asks', 'anonymised_description', 'anonymised_title', 'deal_involvement', 'page_slug', 'summary', 'title', 'updated_at']);
+    assert.deepEqual(Object.keys(result.records[0]).sort(), ['anonymised_asks', 'anonymised_description', 'anonymised_title', 'deal_involvement', 'deal_stage', 'deal_types', 'introductions', 'page_slug', 'stage_as_of', 'summary', 'tasks', 'title', 'updated_at']);
     const filtered = await buildDealsPayload(config, f.db, { deal_involvement: 'network_observed' });
     assert.equal(filtered.total, 1);
   } finally { f.close(); }
@@ -107,7 +107,7 @@ test('Postgres query stays parameterized and normalizes timestamps', async () =>
   const result = await buildDealsPayload(config, db);
   assert.equal(result.records[0].updated_at, '2026-10-10T09:00:00.000Z');
   assert.equal(result.records[0].summary, 'Readable fallback.');
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 7);
   assert.ok(calls[0].params.includes('active'));
   assert.match(calls[2].sql, /WHERE slug IN \(\$1\)/);
   assert.deepEqual(calls[2].params, ['deals/a']);
@@ -133,7 +133,7 @@ test('legacy sharing fields migrate on read without overriding explicit canonica
     f.add('deals/a', 'active', { frontmatter: { asks: [' Legacy ask '], teaser_summary: ' Legacy description ' } });
     f.add('deals/b', 'active', { frontmatter: { anonymised_title: ' Anonymous title ', anonymised_description: '', anonymised_asks: [], asks: ['Old ask'], teaser_summary: 'Old description' } });
     const { records, overlay } = await buildDealsPayload(config, f.db);
-    assert.equal(overlay.schema_version, 2);
+    assert.equal(overlay.schema_version, 3);
     assert.deepEqual(records[0].anonymised_asks, ['Legacy ask']);
     assert.equal(records[0].anonymised_description, 'Legacy description');
     assert.equal(records[0].anonymised_title, '');

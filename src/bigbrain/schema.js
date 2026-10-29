@@ -1,3 +1,4 @@
+import { ANONYMISED_ASKS_DESCRIPTION, dealIntroductionFields, dealMetadataFields, WAITING_ON_DESCRIPTION } from './deal-schema.js';
 import path from 'node:path';
 
 import { CANONICAL_SCHEMA_DIRS } from './constants.js';
@@ -6,6 +7,7 @@ const FOLDER_RULES = [
   ['people', 'One page per human being. File by the person as the primary subject.'],
   ['organizations', 'One page per company, institution, fund, vendor, partner, government body, university, nonprofit, or other non-person entity.'],
   ['deals', 'Transactions, acquisitions, raises, investments, mandates, opportunities, diligence, valuation, buyer/investor processes, and deal-owned artifacts.'],
+  ['deal_introductions', 'Specific commercial introductions between parties linked to a parent deal, including subsequent discussion, progress and outcome.'],
   ['projects', 'Actively built execution tracks with a repo, spec, or team.'],
   ['ideas', 'Unbuilt possibilities that are not yet active projects.'],
   ['meetings', 'Specific meetings, calls, prep, transcripts, decisions, and action-item context.'],
@@ -41,6 +43,7 @@ export function schemaDescription() {
       'legacy sources/.raw folders remain readable, but new raw files should use the owning collection .raw folder',
       'do not nest page-slug folders or any other folders inside .raw',
     ],
+    deal_introduction_page_shape: { path: 'deal_introductions/<introduction-slug>.md', frontmatter: dealIntroductionFields(), body: 'Current commercial objective, parties, discussion, uncertainty and outcome with linked tasks, followed by an append-only evidence timeline.' },
     task_page_shape: {
       path: 'tasks/<task-slug>.md',
       slug: 'concise stable human-readable identifier; it does not need to match the title',
@@ -50,7 +53,8 @@ export function schemaDescription() {
         execution_mode: ['agent', 'user', 'interactive'],
         priority: ['p0', 'p1', 'p2', 'p3'],
         assignees: 'active member person slugs',
-        source: 'related brain slugs',
+        source: 'related brain slugs, including the deal or deal_introductions page',
+        waiting_on: WAITING_ON_DESCRIPTION,
         due: 'optional YYYY-MM-DD',
       },
       body: 'current task context above --- plus append-only ## Timeline evidence log',
@@ -67,7 +71,8 @@ export function schemaDescription() {
     deal_page_shape: {
       path: 'deals/<deal-slug>.md',
       frontmatter: {
-        anonymised_asks: 'Optional anonymous, externally shareable asks. Default to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per complete sentence, with separate asks for distinct counterparties or roles. Use "We welcome introductions to..." only when access to a counterparty is the actual need. Avoid questions, salutations, headings, bullet prefixes, identifying details, and unsupported claims or commitments; each ask must read naturally after the shared teaser without repeating it.',
+        ...Object.fromEntries(Object.entries(dealMetadataFields()).map(([key, field]) => [key, field.description])),
+        anonymised_asks: ANONYMISED_ASKS_DESCRIPTION,
         anonymised_title: 'Externally shareable title without names or identifying combinations of details. Keep separate from the internal title.',
         anonymised_description: 'Optional anonymous, externally shareable teaser that makes the opportunity clear and exciting through concrete, evidence-backed substance: the asset or project, its distinguishing features, and the proposed transaction or partnership. Avoid invented claims or commitments, company, project, and contact names, and combinations of identifying details. Keep separate from the internal summary.',
         deal_involvement: {
@@ -165,7 +170,7 @@ export function renderSchemaMarkdown() {
     '```',
     '',
     '- `deal_involvement` is optional for existing records and must be one of `public_unrelated`, `network_observed`, `network_actionable`, or `active` when present.',
-    '- `anonymised_asks` is an optional list of complete prose sentences. Default to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per ask; separate distinct counterparties or roles. Use "We welcome introductions to..." only when access is the actual need. Avoid questions, headings, bullet prefixes, and repetition of the shared teaser.',
+    ANONYMISED_ASKS_DESCRIPTION,
     '- `anonymised_title` is the shareable heading, separate from the internal title and free of identifying details.',
     '- `anonymised_description` makes the anonymous opportunity clear and exciting with concrete, evidence-backed substance, distinct from the internal `summary`. Append one selected ask as prose for an individual message; the all-asks message may present the asks as bullets. Do not invent claims or commitments.',
     '- Keep all three fields free of company, project, and contact names, source routes, private URLs, and combinations of identifying details. Do not infer shareable copy from the internal title or summary.',

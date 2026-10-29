@@ -123,6 +123,7 @@ export async function createTaskPage({
   readiness = 'underspecified',
   executionMode = 'agent',
   source = [],
+  waitingOn = [],
   path: taskPath = null,
   timelineEntry = null,
   timelineEntries = null,
@@ -163,6 +164,7 @@ export async function createTaskPage({
       execution_mode: normalizedExecutionMode,
       assignees: assigneeSlugs,
       source: sourceSlugs,
+      waiting_on: waitingOn,
       ...frontmatterValues,
     },
   });
@@ -180,6 +182,7 @@ export async function updateTaskPage({
   executionMode = null,
   assignees = null,
   source = null,
+  waitingOn = null,
   timelineEntry = null,
   timelineEntries = null,
   timelineProvenance = null,
@@ -216,6 +219,7 @@ export async function updateTaskPage({
   } else if (parsed.frontmatter.source !== undefined) {
     frontmatterPatch.source = normalizeSlugList(parsed.frontmatter.source);
   }
+  if (waitingOn !== null && waitingOn !== undefined) frontmatterPatch.waiting_on = waitingOn;
   Object.assign(frontmatterPatch, frontmatterValues || {});
 
   const nextBody = body === null || body === undefined ? parsed.compiledTruth : requireNonEmpty(body, 'body');
@@ -309,6 +313,7 @@ function decorateParsedTask(parsed, memberMap, updatedAt = null, pagePath = null
     assignees: assigneeSlugs.map((slug) => memberMap.get(slug)).filter(Boolean),
     invalid_assignees: assigneeSlugs.filter((slug) => !memberMap.has(slug)),
     source_slugs: normalizeSlugList(parsed.frontmatter.source),
+    waiting_on: normalizeSlugList(parsed.frontmatter.waiting_on),
     body: parsed.compiledTruth,
     timeline: parsed.timeline,
     timeline_entries: parsed.timeline_entries,

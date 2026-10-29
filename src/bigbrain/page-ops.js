@@ -16,6 +16,7 @@ export const DEFAULT_COLLECTIONS = [
   'components',
   'concepts',
   'deals',
+  'deal_introductions',
   'ideas',
   'meetings',
   'organizations',
@@ -994,6 +995,23 @@ function rewriteMarkdownReferences({ markdown, currentPagePath, kind, fromPath, 
   const sourceSlug = currentPagePath.replace(/\.md$/i, '');
   const sourceDir = path.posix.dirname(currentPagePath);
   let next = String(markdown || '');
+  if (kind === 'page' && /^(deal_introductions|tasks)\//.test(currentPagePath)) {
+    const { frontmatterRaw } = splitPageMarkdown(next);
+    if (frontmatterRaw) {
+      const metadata = parseMarkdownPage(next, sourceSlug).frontmatter;
+      const keys = currentPagePath.startsWith('deal_introductions/') ? ['deal', 'parties'] : ['source', 'waiting_on'];
+      const fromSlug = fromPath.replace(/\.md$/i, '');
+      const toSlug = toPath.replace(/\.md$/i, '');
+      let rewritten = frontmatterRaw;
+      for (const key of keys) {
+        const oldValue = metadata[key];
+        const replace = value => value === fromSlug ? toSlug : value === fromPath ? toPath : value;
+        const value = Array.isArray(oldValue) ? oldValue.map(replace) : replace(oldValue);
+        if (JSON.stringify(value) !== JSON.stringify(oldValue)) rewritten = setFrontmatterValue(rewritten, key, value);
+      }
+      if (rewritten !== frontmatterRaw) next = `---\n${rewritten}${next.slice(4 + frontmatterRaw.length)}`;
+    }
+  }
   if (kind === 'raw') {
     next = next.replace(
       /(^\s*(?:raw_file|public_raw_files|images)\s*:\s*)([^\n]+)/gm,

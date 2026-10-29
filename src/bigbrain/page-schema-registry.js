@@ -4,11 +4,13 @@ import path from 'node:path';
 import yaml from 'js-yaml';
 import { z } from 'zod';
 
+import { dealMetadataFields, dealIntroductionFields, taskWaitingOnField, commercialMetadataIssues } from './deal-schema.js';
+
 import { CANONICAL_SCHEMA_DIRS } from './constants.js';
 
 export const PAGE_SCHEMA_REGISTRY_FILENAME = 'page-schemas.yaml';
 export const PAGE_SCHEMA_REGISTRY_VERSION = 1;
-export const PAGE_SCHEMA_DEFAULTS_VERSION = 5;
+export const PAGE_SCHEMA_DEFAULTS_VERSION = 6;
 
 const SCHEMA_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const FIELD_TYPES = ['string', 'number', 'boolean', 'array', 'object'];
@@ -17,7 +19,8 @@ const DEFAULT_SCHEMA_DESCRIPTIONS = {
   videos: 'Canonical pages for externally published videos, with a readable account and preserved source transcript.',
   people: 'Canonical pages for people and relationship context.',
   organizations: 'Canonical pages for organizations and institutions.',
-  deals: 'Canonical pages for transactions and deal work.',
+  deals: 'Canonical pages for underlying commercial offerings, requirements and transactions.',
+  deal_introductions: 'One ordinary indexed page per specific introduction between named parties for a defined parent deal; retain the page through discussion, negotiation, delivery and outcome.',
   projects: 'Canonical pages for active workstreams and execution.',
   ideas: 'Canonical pages for unbuilt possibilities.',
   meetings: 'Canonical pages for meetings, preparation, and decisions.',
@@ -132,6 +135,7 @@ function defaultPageSchema(collection) {
             ? defaultPeopleFields()
             : collection === 'deals'
               ? defaultDealFields()
+              : collection === 'deal_introductions' ? dealIntroductionFields()
             : {},
   };
 }
@@ -160,6 +164,7 @@ function defaultDealFields() {
       type: 'string',
       description: 'Optional anonymous, externally shareable teaser that makes the opportunity clear and exciting through concrete, evidence-backed substance: the asset or project, its distinguishing features, and the proposed transaction or partnership. Avoid invented claims or commitments, company, project, and contact names, and combinations of identifying details. Keep separate from the internal summary.',
     },
+    ...dealMetadataFields(),
     deal_involvement: {
       type: 'string',
       enum: ['public_unrelated', 'network_observed', 'network_actionable', 'active'],
@@ -272,6 +277,7 @@ export async function migratePageSchemaRegistry(config) {
 
   if (loaded.status === 'missing') {
     const registry = defaultPageSchemaRegistry({ schemaDirs: config.schemaDirs, compatibility: true });
+    applyPageSchemaDefaultsMigration(registry, config, 6, []);
     await writePageSchemaRegistry(config, registry);
     return {
       ...(await loadPageSchemaRegistry(config, { allowMissing: false })),
@@ -371,6 +377,28 @@ function applyPageSchemaDefaultsMigration(registry, config, version, added) {
     }
     // Retain legacy declarations so unmigrated strict-schema pages remain editable.
     // New registries and writes use only the canonical anonymised fields.
+    return;
+  }
+  if (version === 6) {
+    const introductionEntry = Object.entries(registry.schemas).find(([, s]) => normalizePathPrefix(s.path_prefix) === 'deal_introductions');
+    if (!introductionEntry) {
+      registry.schemas['deal-introductions'] = defaultPageSchema('deal_introductions');
+      added.push('deal-introductions');
+    }
+    for (const [id, schema] of Object.entries(registry.schemas)) {
+      const prefix = normalizePathPrefix(schema.path_prefix);
+      const fields = prefix === 'deals' ? dealMetadataFields() : prefix === 'tasks' ? { waiting_on: taskWaitingOnField() } : {};
+      schema.fields ||= {};
+      if (prefix === 'deals' && schema.fields.anonymised_asks) {
+        schema.fields.anonymised_asks.description = dealMetadataFields().anonymised_asks.description;
+        added.push(`${id}.anonymised_asks.description`);
+      }
+      for (const [field, definition] of Object.entries(fields)) {
+        if (Object.hasOwn(schema.fields, field)) continue;
+        schema.fields[field] = definition;
+        added.push(`${id}.${field}`);
+      }
+    }
     return;
   }
   throw new Error(`Missing page schema defaults migration for version ${version}.`);
@@ -583,6 +611,7 @@ export function pageSchemaComplianceIssues(registry, { pagePath, frontmatter = {
     }
   }
 
+  issues.push(...commercialMetadataIssues(pagePath, normalizedFrontmatter));
   return {
     schema: {
       id: resolved.id,
@@ -594,6 +623,15 @@ export function pageSchemaComplianceIssues(registry, { pagePath, frontmatter = {
 }
 
 export async function assertPageSchemaCompliance(config, { pagePath, frontmatter = {} } = {}) {
+  const commercialIssues = commercialMetadataIssues(pagePath, frontmatter);
+  if (commercialIssues.length) throw new Error(`Invalid commercial metadata: ${commercialIssues.map(i => i.details.field + ': ' + i.details.message).join('; ')}`);
+  if (String(pagePath).startsWith('deal_introductions/') && !String(pagePath).includes('/.raw/')) {
+    for (const reference of [frontmatter.deal, ...frontmatter.parties]) {
+      const target = path.join(config.brainDir, reference + '.md');
+      try { if (!(await fs.stat(target)).isFile()) throw new Error('Not a file'); }
+      catch { throw new Error(`Commercial reference does not exist: ${reference}`); }
+    }
+  }
   const loaded = await loadPageSchemaRegistry(config);
   if (loaded.status === 'missing') {
     const explicitId = typeof frontmatter?.page_schema === 'string' ? frontmatter.page_schema.trim() : '';
@@ -653,6 +691,7 @@ async function writePageSchemaRegistry(config, registry) {
 
 function defaultTaskFields() {
   return {
+    waiting_on: taskWaitingOnField(),
     status: { type: 'string', enum: ['open', 'in_progress', 'waiting', 'done', 'archived'], default: 'open' },
     priority: { type: 'string', enum: ['p0', 'p1', 'p2', 'p3'], default: 'p3' },
     readiness: { type: 'string', enum: ['underspecified', 'ready'], default: 'underspecified' },

@@ -1,3 +1,4 @@
+import { ANONYMISED_ASKS_DESCRIPTION, dealIntroductionFields, dealMetadataFields, WAITING_ON_DESCRIPTION } from './deal-schema.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
@@ -10,6 +11,7 @@ const DEFAULT_RULES = {
   meetings: 'Specific meetings, calls, meeting prep, and transcripts.',
   videos: 'Externally published videos. Keep a first-class readable video page with its canonical URL and source metadata; preserve the transcript as a linked raw artifact, not as the primary page body.',
   deals: 'One canonical page per distinct transaction, acquisition, raise, investment, mandate, or commercial opportunity. Meeting prep belongs on the meeting page; deal-owned VDR inventories, diligence packs, teasers, and models belong in deals/.raw sidecars linked from the canonical deal.',
+  deal_introductions: 'One ordinary indexed page per specific introduction between parties for a defined parent deal. Store purpose, stage, current discussion and outcome here; assignable follow-ups belong in linked tasks. General relationships belong on people or organization pages.',
   projects: 'Active execution tracks and workstreams.',
   ideas: 'Unbuilt possibilities that are not yet active projects.',
   initiatives: 'Active named workstreams or programs.',
@@ -100,6 +102,7 @@ export async function filingRulesForBrain({ config }) {
     ],
     task_schema: defaultTaskSchema(),
     deal_schema: defaultDealSchema(),
+    deal_introduction_schema: { pattern: 'deal_introductions/<introduction-slug>.md', frontmatter: dealIntroductionFields(), guidance: ['Link exactly one parent deal and at least two distinct named parties. Keep the same page through negotiation, delivery and outcome.', 'A candidate or proposed introduction is not evidence that parties have been introduced. Use evidence dates and unknown stages when appropriate.', 'Link tasks through task.source; use task.waiting_on for external dependencies, separate from member-backed assignees.'] },
     raw_file_rules: rawFileRules,
     filing_principles: sharedGuidance.filingPrinciples.length > 0 ? sharedGuidance.filingPrinciples : [
       'File by primary subject, not by source format.',
@@ -229,6 +232,7 @@ function renderFilingRulesMarkdown({ config, sharedGuidance, collections, rawFil
     '',
   );
 
+  sections.push('## Deal Introduction Schema', '', '- Pattern: `deal_introductions/<introduction-slug>.md`', ...Object.entries(dealIntroductionFields()).map(([key, field]) => `- \`${key}\`: ${field.description}`), '', '- Follow-ups belong in tasks/ with source linking to this introduction and waiting_on identifying the external party.', '');
   return sections.join('\n').replace(/\n{3,}/g, '\n\n').trimEnd() + '\n';
 }
 
@@ -242,7 +246,8 @@ function defaultTaskSchema() {
       execution_mode: ['agent', 'user', 'interactive'],
       priority: ['p0', 'p1', 'p2', 'p3'],
       assignees: 'Array of active member person slugs, for example [people/hani]. Use me only through MCP task tools.',
-      source: 'Array of related brain slugs, for example [meetings/proposal-review].',
+      source: 'Array of related brain slugs, including the relevant deal or deal_introductions page.',
+      waiting_on: WAITING_ON_DESCRIPTION,
       due: 'Optional YYYY-MM-DD date.',
     },
     guidance: [
@@ -280,7 +285,8 @@ function defaultDealSchema() {
     pattern: 'deals/<deal-slug>.md',
     frontmatter: {
       deal_involvement: ['public_unrelated', 'network_observed', 'network_actionable', 'active'],
-      anonymised_asks: 'Optional anonymous, externally shareable asks. Default to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per complete sentence, with separate asks for distinct counterparties or roles. Use "We welcome introductions to..." only when access to a counterparty is the actual need. Avoid questions, salutations, headings, bullet prefixes, identifying details, and unsupported claims or commitments; each ask must read naturally after the shared teaser without repeating it.',
+      ...Object.fromEntries(Object.entries(dealMetadataFields()).map(([key, field]) => [key, field.description])),
+      anonymised_asks: ANONYMISED_ASKS_DESCRIPTION,
       anonymised_title: 'Externally shareable title without names or identifying combinations of details. Keep separate from the internal title.',
       anonymised_description: 'Optional anonymous, externally shareable teaser that makes the opportunity clear and exciting through concrete, evidence-backed substance: the asset or project, its distinguishing features, and the proposed transaction or partnership. Avoid invented claims or commitments, company, project, and contact names, and combinations of identifying details. Keep separate from the internal summary.',
     },
@@ -294,6 +300,8 @@ function defaultDealSchema() {
       'Set deal_involvement to active when we are directly working on the deal.',
       'Set deal_involvement on every newly created actual deal page; this field does not make a prep note or artifact a deal page.',
       'This field is optional for legacy deal pages.',
+      'Keep individual counterparty introductions in deal_introductions/ with a parent deal reference, named parties, purpose, evidence-backed stage and timeline. Keep actionable follow-ups in tasks/ linked through source.',
+      ANONYMISED_ASKS_DESCRIPTION,
       'Write anonymised_description as clear, exciting anonymous opportunity prose supported by the deal evidence. Default each ask to "We are seeking [specific counterparty] to [specific role or transaction], for [brief anonymous opportunity context]." State one evidence-backed need at the current deal stage per ask, separating distinct counterparties or roles. Use "We welcome introductions to..." only when access is the actual need. Avoid questions, bullet prefixes, and repetition of the shared teaser. Append one ask as prose to the teaser; only the all-asks message may format the asks as bullets. Do not invent claims or commitments.',
       'Keep all three fields free of company, project, and contact names, source routes, private URLs, and combinations of identifying details. Do not infer shareable copy from the internal title or summary.',
     ],
@@ -311,6 +319,7 @@ function renderTaskSchemaMarkdownLines(schema) {
     `  - \`priority\`: ${schema.frontmatter.priority.map((item) => `\`${item}\``).join(', ')}`,
     '  - `assignees`: active member person slugs such as `people/hani`',
     '  - `source`: related brain slugs such as `meetings/proposal-review`',
+    '  - `waiting_on`: canonical people/ or organizations/ dependencies, separate from assignees',
     '  - `due`: optional `YYYY-MM-DD` date',
     ...schema.guidance.map((item) => `- ${item}`),
   ];

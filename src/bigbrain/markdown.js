@@ -78,6 +78,16 @@ export function extractLinks(markdown, currentSlug) {
     if (!resolved) continue;
     links.push({ linkText: target, targetRaw: target, toSlug: resolved, kind: 'wikilink' });
   }
+  const { frontmatter } = parseFrontmatter(markdown);
+  const references = currentSlug.startsWith('deal_introductions/')
+    ? [frontmatter.deal, ...(Array.isArray(frontmatter.parties) ? frontmatter.parties : [])]
+    : currentSlug.startsWith('tasks/')
+      ? [...(Array.isArray(frontmatter.source) ? frontmatter.source : []), ...(Array.isArray(frontmatter.waiting_on) ? frontmatter.waiting_on : [])]
+      : [];
+  for (const reference of references) {
+    if (typeof reference !== 'string' || !/^(?:deals|deal_introductions|people|organizations|meetings|projects)\/[A-Za-z0-9][A-Za-z0-9_/-]*$/.test(reference)) continue;
+    links.push({ linkText: reference, targetRaw: reference, toSlug: reference, kind: 'metadata' });
+  }
   return dedupeLinks(links);
 }
 

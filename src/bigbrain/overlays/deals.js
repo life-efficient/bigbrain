@@ -23,21 +23,27 @@ export async function buildDealsPayload(config, db, input = {}) {
       { field: 'page_kind', operator: 'eq', value: 'canonical' },
       { field: 'deal_involvement', operator: 'in', value: involvement ? [involvement] : [...DEALS_INVOLVEMENTS] },
     ],
-    fields: ['deal_involvement', 'anonymised_title', 'anonymised_asks', 'anonymised_description', 'asks', 'teaser_summary'],
+    fields: ['deal_types', 'deal_stage', 'stage_as_of', 'deal_involvement', 'anonymised_title', 'anonymised_asks', 'anonymised_description', 'asks', 'teaser_summary'],
     orderBy: [{ field: 'title', direction: 'asc' }],
     limit,
     cursor,
   });
   const missing = result.pages.filter((page) => !page.summary?.trim()).map((page) => page.slug);
   const fallback = await indexedFallbacks(db, missing);
+  const related = await relatedCommercialPages(db, result.pages.map(page => page.slug));
   return {
-    overlay: { id: DEALS_OVERLAY_ID, name: 'Deals', schema_version: 2, enabled: true },
+    overlay: { id: DEALS_OVERLAY_ID, name: 'Deals', schema_version: 3, enabled: true },
     brain: { brain_id: config.brainId, brain_name: config.brainName },
     records: result.pages.map((page) => ({
       page_slug: page.slug,
       title: page.title,
       summary: page.summary?.trim() || readableSummary(fallback.get(page.slug)),
       deal_involvement: page.frontmatter.deal_involvement,
+      deal_types: stringList(page.frontmatter.deal_types),
+      deal_stage: page.frontmatter.deal_stage || 'unknown',
+      stage_as_of: page.frontmatter.stage_as_of || null,
+      introductions: related.introductions.get(page.slug) || [],
+      tasks: related.tasks.get(page.slug) || [],
       ...anonymisedDealFields(page.frontmatter),
       updated_at: page.updated_at,
     })),
@@ -160,4 +166,63 @@ function anonymisedDealFields(frontmatter) {
     anonymised_description: typeof description === 'string' ? description.trim() : '',
     anonymised_asks: normalizedAsks(field('anonymised_asks', 'asks')),
   };
+}
+
+
+function stringList(value) {
+  return Array.isArray(value) ? value.filter(v => typeof v === 'string' && v.trim()).map(v => v.trim().replace(/\.md$/, '')) : [];
+}
+
+async function allIndexedPages(db, pathPrefix, fields) {
+  const result = [];
+  let cursor = 0;
+  do {
+    const page = await queryPagesByFrontmatter({ db, pathPrefix, type: pathPrefix,
+      filters: [{ field: 'page_kind', operator: 'eq', value: 'canonical' }], fields,
+      orderBy: [{ field: 'title', direction: 'asc' }], limit: 100, cursor });
+    result.push(...page.pages);
+    cursor = page.next_cursor;
+  } while (cursor !== null);
+  return result;
+}
+
+async function relatedCommercialPages(db, dealSlugs) {
+  const introductions = new Map();
+  const tasks = new Map();
+  if (!dealSlugs.length) return { introductions, tasks };
+  const selectedDeals = new Set(dealSlugs);
+  const introPages = (await allIndexedPages(db, 'deal_introductions', ['deal', 'parties', 'purpose', 'stage', 'stage_as_of']))
+    .filter(p => selectedDeals.has(p.frontmatter.deal));
+  const owners = new Set([...dealSlugs, ...introPages.map(p => p.slug)]);
+  const taskPages = (await allIndexedPages(db, 'tasks', ['source', 'status', 'assignees', 'waiting_on', 'due']))
+    .filter(p => !['done', 'archived'].includes(p.frontmatter.status) && stringList(p.frontmatter.source).some(s => owners.has(s)));
+  const referenceSlugs = [...new Set([
+    ...introPages.flatMap(p => stringList(p.frontmatter.parties)),
+    ...taskPages.flatMap(p => [...stringList(p.frontmatter.assignees), ...stringList(p.frontmatter.waiting_on)]),
+  ])];
+  const titles = new Map();
+  // Bounded batches avoid SQLite parameter limits on large deal networks.
+  for (let start = 0; start < referenceSlugs.length; start += 100) {
+    const refs = referenceSlugs.slice(start, start + 100);
+    const result = await queryPagesByFrontmatter({ db, filters: [{ field: 'slug', operator: 'in', value: refs }], fields: [], limit: 100 });
+    for (const p of result.pages) titles.set(p.slug, p.title);
+  }
+  const references = values => stringList(values).map(page_slug => ({ page_slug, title: titles.get(page_slug) || page_slug }));
+  for (const p of taskPages) {
+    const record = { page_slug: p.slug, title: p.title, status: p.frontmatter.status || 'open',
+      assignees: references(p.frontmatter.assignees), waiting_on: references(p.frontmatter.waiting_on), due: p.frontmatter.due || null };
+    for (const owner of new Set(stringList(p.frontmatter.source))) {
+      if (!owners.has(owner)) continue;
+      if (!tasks.has(owner)) tasks.set(owner, []);
+      tasks.get(owner).push(record);
+    }
+  }
+  for (const p of introPages) {
+    const record = { page_slug: p.slug, title: p.title, summary: p.summary || '', deal: p.frontmatter.deal,
+      parties: references(p.frontmatter.parties), purpose: p.frontmatter.purpose || '', stage: p.frontmatter.stage || 'unknown',
+      stage_as_of: p.frontmatter.stage_as_of || null, updated_at: p.updated_at, tasks: tasks.get(p.slug) || [] };
+    if (!introductions.has(record.deal)) introductions.set(record.deal, []);
+    introductions.get(record.deal).push(record);
+  }
+  return { introductions, tasks };
 }

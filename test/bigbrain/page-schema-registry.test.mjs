@@ -110,7 +110,7 @@ schemas:
     assert.equal(schema.fields.anonymised_description.required, true);
     assert.equal(schema.fields.teaser_summary.required, false);
     assert.equal(schema.fields.owner.type, 'string');
-    assert.deepEqual(schema.fields.anonymised_asks.items, { type: 'string' });
+    assert.equal(schema.fields.anonymised_asks.items.type, 'string');
     assert.equal(schema.fields.anonymised_asks.required, undefined);
     const check = (frontmatter) => pageSchemaComplianceIssues(migrated.registry, {
       pagePath: 'deals/example.md', frontmatter,
