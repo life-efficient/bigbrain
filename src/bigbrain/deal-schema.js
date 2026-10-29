@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const DEAL_TYPES = ['capital_raise', 'acquisition', 'compute_brokerage', 'customer_introduction', 'commercial_partnership', 'advisory', 'other'];
-export const DEAL_STAGES = ['unknown', 'qualifying', 'establishing_arrangement', 'preparing', 'seeking_counterparties', 'negotiating', 'closing', 'delivering', 'completed'];
+export const DEAL_STAGES = ['unknown', 'qualifying', 'preparing', 'seeking_counterparties', 'negotiating', 'closing', 'delivering', 'completed'];
 export const INTRODUCTION_STAGES = ['unknown', 'candidate', 'proposed', 'introduced', 'discussing', 'negotiating', 'agreed', 'delivering', 'completed', 'declined'];
 export const ANONYMISED_ASKS_DESCRIPTION = 'Evidence-backed, externally shareable requests for contributions from potential new participants in the deal, such as capital, compute supply, customers, acquisition, delivery or introductions. Each complete sentence states the participant sought and their role. Excludes documents, clarification, approvals and follow-ups owed by parties already involved; record actionable prerequisites as linked tasks. Use an empty array when no external ask is established. Never invent an ask to complete the record. Omit identifying details, private economics and unsupported commitments.';
 export const WAITING_ON_DESCRIPTION = 'Canonical people/ or organizations/ page slugs for parties whose response, information or action is currently awaited. These are dependencies, not task assignees; assignees remain the active Brain members responsible for following up. Empty means no recorded external dependency.';
@@ -15,7 +15,7 @@ export const dealMetadataSchema = z.object({
   anonymised_asks: z.array(z.string().trim().min(1)).describe(ANONYMISED_ASKS_DESCRIPTION).optional(),
   deal_types: z.array(z.enum(DEAL_TYPES)).describe('Commercial purposes of this deal. Multiple may apply; do not assume every deal is a fundraise. Omit or use an empty array when unknown.').optional(),
   deal_status: z.enum(['active', 'archived']).describe('Whether this deal remains in the active working portfolio. Archiving preserves its commercial stage and evidence date and does not archive its introductions. Missing status means active, except legacy paused or dropped stages.').optional(),
-  deal_stage: z.enum(DEAL_STAGES).describe('Evidence-backed stage of the underlying deal, independent of any individual introduction. Establishing arrangement means agreeing our mandate, fees, scope, authority or disclosure permissions with the originating party; counterparty-specific terms belong to the introduction. Seeking counterparties means an active search, not merely a hypothetical need. Use unknown when evidence is insufficient.').optional(),
+  deal_stage: z.enum(DEAL_STAGES).describe('Evidence-backed stage of the underlying deal, independent of any individual introduction. Facilitation arrangements are tracked independently on deal introductions. Seeking counterparties means an active search, not merely a hypothetical need. Use unknown when evidence is insufficient.').optional(),
   stage_as_of: date.describe('Date of evidence supporting the current deal stage, not the metadata entry date.').optional(),
 }).passthrough();
 export const dealIntroductionSchema = z.object({
@@ -23,6 +23,7 @@ export const dealIntroductionSchema = z.object({
   parties: z.array(party).min(2).refine(v => new Set(v).size === v.length, 'Parties must be distinct').describe('At least two distinct canonical organisation or person page slugs participating in this specific commercial introduction. Do not infer that an introduction occurred merely because parties are named.'),
   purpose: z.string().trim().min(1).describe('The specific commercial objective connecting these parties for the parent deal. A different objective may warrant another introduction page.'),
   introduction_status: z.enum(['active', 'archived']).describe('Whether this specific introduction is actively tracked. Independent of parent deal status and other introductions. Archiving preserves stage and evidence date; missing status means active except a legacy paused stage.').optional(),
+  arrangement_status: z.enum(['none', 'establishing', 'agreed']).describe('Status of the facilitation arrangement for this specific introduction, independent of commercial stage. none or omitted means no arrangement is recorded, not proof that none exists; establishing means scope, authority, disclosure permissions or fees are being agreed; agreed requires evidence that the relevant parties have agreed the arrangement, not merely a draft or proposal.').optional(),
   stage: z.enum(INTRODUCTION_STAGES).describe('Evidence-backed progress of this specific introduction. Negotiating includes counterparty-specific commercial terms, such as supply or investment arrangements. Candidate or proposed does not mean introduced; agreed does not mean completed. Use unknown when not established.'),
   stage_as_of: date.describe('Date of evidence for this introduction stage. Do not substitute the filing date for an unknown event date.').optional(),
 }).passthrough();
@@ -48,6 +49,6 @@ export function commercialProgress(frontmatter, introduction = false) {
   const stageKey = introduction ? 'stage' : 'deal_stage';
   const statusKey = introduction ? 'introduction_status' : 'deal_status';
   const legacyArchived = (introduction ? ['paused'] : ['paused', 'dropped']).includes(frontmatter[stageKey]);
-  return { [stageKey]: legacyArchived ? 'unknown' : frontmatter[stageKey] || 'unknown',
+  return { [stageKey]: legacyArchived || (!introduction && frontmatter[stageKey] === 'establishing_arrangement') ? 'unknown' : frontmatter[stageKey] || 'unknown',
     [statusKey]: frontmatter[statusKey] || (legacyArchived ? 'archived' : 'active') };
 }

@@ -273,7 +273,7 @@ async function relatedCommercialPages(db, dealSlugs, selectedIntroductions = nul
   const tasks = new Map();
   if (!dealSlugs.length && !selectedIntroductions?.length) return { introductions, tasks };
   const selectedDeals = new Set(dealSlugs);
-  const introPages = selectedIntroductions || (await allIndexedPages(db, 'deal_introductions', ['deal', 'parties', 'purpose', 'stage', 'stage_as_of', 'introduction_status']))
+  const introPages = selectedIntroductions || (await allIndexedPages(db, 'deal_introductions', ['deal', 'parties', 'purpose', 'stage', 'stage_as_of', 'introduction_status', 'arrangement_status']))
     .filter(p => selectedDeals.has(p.frontmatter.deal));
   const owners = new Set([...dealSlugs, ...introPages.map(p => p.slug)]);
   const taskPages = (await allIndexedPages(db, 'tasks', ['source', 'status', 'assignees', 'waiting_on', 'due']))
@@ -302,6 +302,7 @@ async function relatedCommercialPages(db, dealSlugs, selectedIntroductions = nul
   for (const p of introPages) {
     const record = { page_slug: p.slug, title: p.title, summary: p.summary || '', deal: p.frontmatter.deal,
       parties: references(p.frontmatter.parties), purpose: p.frontmatter.purpose || '', ...commercialProgress(p.frontmatter, true),
+      arrangement_status: p.frontmatter.arrangement_status || 'none',
       stage_as_of: p.frontmatter.stage_as_of || null, updated_at: p.updated_at, tasks: tasks.get(p.slug) || [] };
     if (!introductions.has(record.deal)) introductions.set(record.deal, []);
     introductions.get(record.deal).push(record);
@@ -316,7 +317,7 @@ export async function buildDealIntroductionsPayload(config, db, input = {}) {
   const cursor = integer(input.cursor, 0, 0, Number.MAX_SAFE_INTEGER, 'cursor');
   const result = await queryPagesByFrontmatter({ db, pathPrefix: 'deal_introductions', type: 'deal_introductions',
     filters: [{ field: 'page_kind', operator: 'eq', value: 'canonical' }],
-    fields: ['deal', 'parties', 'purpose', 'stage', 'stage_as_of', 'introduction_status'],
+    fields: ['deal', 'parties', 'purpose', 'stage', 'stage_as_of', 'introduction_status', 'arrangement_status'],
     orderBy: [{ field: 'title', direction: 'asc' }], limit, cursor });
   const parentSlugs = [...new Set(result.pages.map(p => p.frontmatter.deal).filter(Boolean))];
   const parents = parentSlugs.length ? await queryPagesByFrontmatter({ db,
@@ -377,5 +378,53 @@ export async function updateDealStatus(config, db, input, { actor = null, indexP
     }
   } catch { maintenanceWarning ||= 'Status was saved, but the updated overview could not be loaded. Refresh before another change.'; }
   return { record: { ...(record || { page_slug: slug }), title: page.title, ...commercialProgress(page.frontmatter, introduction), stage_as_of: page.frontmatter.stage_as_of || null,
+    ...(changed ? { updated_at: timestamp } : {}) }, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
+}
+
+export async function updateIntroductionArrangement(config, db, input, { actor = null, indexPage = replacePageIndex } = {}) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidInput('Arrangement input must be an object.');
+  if (actor?.scopes && !actor.scopes.some(scope => ['brain:admin', 'brain:write'].includes(scope))) throw Object.assign(new Error('Changing arrangement tracking requires write access.'), { statusCode: 403 });
+  const slug = input.page_slug;
+  if (typeof slug !== 'string' || !/^deal_introductions\/[A-Za-z0-9][A-Za-z0-9_/-]*$/.test(slug) || slug.endsWith('/') || slug.includes('//')) throw invalidInput('page_slug must be a canonical introduction slug.');
+  for (const key of ['arrangement_status', 'expected_arrangement_status']) if (!['none', 'establishing', 'agreed'].includes(input[key])) throw invalidInput(`${key} must be none, establishing or agreed.`);
+  const timestamp = new Date().toISOString();
+  const timeline = `Set introduction facilitation arrangement status to ${input.arrangement_status}. Commercial stage and evidence date preserved.${input.arrangement_status === 'none' ? ' No arrangement recorded does not establish that none exists.' : ''}`;
+  const noChange = Symbol('no arrangement change');
+  const { updateBrainPage } = await import('../page-ops.js');
+  let page, changed = false, maintenanceWarning = null;
+  try {
+    page = await updateBrainPage({ config, pagePath: slug, frontmatterValues: { arrangement_status: input.arrangement_status },
+      timelineEntry: timeline, timelineSignificance: 'minor',
+      timelineProvenance: { event_id: `dashboard:introduction-arrangement:${slug}:${randomUUID()}`, source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timeline },
+      validateExisting(existing) {
+        if (existing.type !== 'deal_introductions') throw Object.assign(new Error('Page is not a deal introduction.'), { statusCode: 404 });
+        const current = existing.frontmatter.arrangement_status || 'none';
+        if (current !== input.expected_arrangement_status) throw Object.assign(new Error('This arrangement status changed elsewhere. Refresh before changing it.'), { statusCode: 409 });
+        if (current === input.arrangement_status) throw { marker: noChange, page: existing };
+      },
+      async afterWrite(saved) {
+        try { await indexPage(db, { ...parseMarkdownPage(saved.markdown, slug), path: path.join(config.brainDir, saved.path), pageKind: 'canonical', contentHash: createHash('sha256').update(saved.markdown).digest('hex'), updatedAt: timestamp }); }
+        catch { maintenanceWarning = 'Arrangement status was saved, but index maintenance needs attention. Refresh before another change.'; }
+      },
+    });
+    changed = true;
+  } catch (error) {
+    if (error.marker === noChange) page = error.page;
+    else { if (error.code === 'ENOENT') error.statusCode = 404; throw error; }
+  }
+  if (changed && process.env.BIGBRAIN_MCP_GIT_BACKUP === '1') {
+    try { const { postWriteMaintenance } = await import('../mcp-server.js'); await postWriteMaintenance(config, true, actor, `Change arrangement tracking for ${page.title}`); }
+    catch { maintenanceWarning = 'Arrangement status was saved, but backup maintenance needs attention.'; }
+  }
+  let record;
+  try {
+    for (let cursor = 0; cursor !== null && !record;) {
+      const batch = await buildDealIntroductionsPayload(config, db, { limit: 100, cursor });
+      record = batch.records.find(item => item.page_slug === slug); cursor = batch.next_cursor;
+    }
+  } catch { maintenanceWarning ||= 'Arrangement status was saved, but the updated overview could not be loaded. Refresh before another change.'; }
+  return { record: { ...(record || { page_slug: slug }), title: page.title,
+    arrangement_status: page.frontmatter.arrangement_status || 'none',
+    ...commercialProgress(page.frontmatter, true), stage_as_of: page.frontmatter.stage_as_of || null,
     ...(changed ? { updated_at: timestamp } : {}) }, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
 }

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { initializeBrainHome, loadConfig } from '../../src/bigbrain/config.js';
 import { startDashboard } from '../../src/bigbrain/dashboard.js';
-import { updateDealStage, updateDealStatus, buildDealIntroductionsPayload } from '../../src/bigbrain/overlays/deals.js';
+import { updateDealStage, updateDealStatus, updateIntroductionArrangement, buildDealIntroductionsPayload, buildDealsPayload } from '../../src/bigbrain/overlays/deals.js';
 import { readBrainPage } from '../../src/bigbrain/page-ops.js';
 import { openDatabase, replacePageIndex } from '../../src/bigbrain/db.js';
 
@@ -103,7 +103,7 @@ test('archive and restore preserve commercial stage, date and body, and prevent 
  await assert.rejects(updateDealStatus(config,db,{...input,status:'active',expected_status:'archived',expected_stage:'preparing'}),{statusCode:409});
  const restored=await updateDealStatus(config,db,{...input,status:'active',expected_status:'archived'});
  assert.equal(restored.record.deal_status,'active');assert.equal(restored.record.deal_stage,'qualifying');assert.equal(restored.record.stage_as_of,'2026-10-20');
- assert.equal((await post({...baseline,deal_stage:'establishing_arrangement'})).status,200);
+ assert.equal((await post({...baseline,deal_stage:'establishing_arrangement'})).status,400);
 }));
 
 test('introduction archiving is independent and preserves stage',async()=>fixture(async({config,db})=>{
@@ -118,4 +118,37 @@ test('introduction archiving is independent and preserves stage',async()=>fixtur
  const list=await buildDealIntroductionsPayload(config,db);assert.equal(list.records[0].introduction_status,'archived');
  await updateDealStatus(config,db,{...args,status:'active',expected_status:'archived'});
  assert.equal((await buildDealIntroductionsPayload(config,db)).records[0].introduction_status,'active');
+}));
+
+test('introduction arrangement changes preserve stage and status, reject stale writes, and index nested data',async()=>fixture(async({config,db,base})=>{
+ await updateDealStage(config,db,baseline);
+ await fs.mkdir(path.join(config.brainDir,'organizations'),{recursive:true});
+ for(const name of ['one','two']) await fs.writeFile(path.join(config.brainDir,'organizations',name+'.md'),`---\ntitle: ${name}\nsummary: Party\n---\n# Party\n`);
+ await fs.mkdir(path.join(config.brainDir,'deal_introductions'),{recursive:true});
+ await fs.writeFile(path.join(config.brainDir,'deal_introductions','sample.md'),'---\ntitle: Introduction\nsummary: Commercial discussion\ndeal: deals/sample\nparties: [organizations/one, organizations/two]\npurpose: Supply\nintroduction_status: archived\nstage: negotiating\nstage_as_of: 2026-10-20\n---\n# Introduction\n');
+ const before=await readBrainPage({config,pagePath:'deal_introductions/sample'});
+ const endpoint=base+'/api/overlays/deals/introductions/arrangement';
+ const post=data=>fetch(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(data)});
+ const input={page_slug:'deal_introductions/sample',arrangement_status:'establishing',expected_arrangement_status:'none'};
+ const responses=await Promise.all([post(input),post({...input,arrangement_status:'agreed'})]);
+ assert.deepEqual(responses.map(r=>r.status).sort(),[200,409]);
+ const {record}=await responses.find(r=>r.status===200).json();
+ assert.ok(['establishing','agreed'].includes(record.arrangement_status));
+ assert.equal(record.stage,'negotiating');assert.equal(record.stage_as_of,'2026-10-20');assert.equal(record.introduction_status,'archived');
+ const after=await readBrainPage({config,pagePath:input.page_slug});
+ assert.equal(after.body,before.body);assert.equal(after.summary,before.summary);assert.match(after.timeline,/facilitation arrangement status/);
+ const next={...input,expected_arrangement_status:record.arrangement_status,arrangement_status:'none'};
+ assert.equal((await post({...next,arrangement_status:record.arrangement_status})).status,200);
+ assert.equal((await readBrainPage({config,pagePath:input.page_slug})).markdown,after.markdown);
+ const nested=(await buildDealsPayload(config,db)).records.find(x=>x.page_slug==='deals/sample').introductions[0];
+ assert.equal(nested.arrangement_status,record.arrangement_status);
+ assert.equal((await buildDealIntroductionsPayload(config,db)).records[0].arrangement_status,record.arrangement_status);
+ assert.equal((await post(next)).status,200);
+ for(const patch of [{arrangement_status:true},{expected_arrangement_status:false},{expected_arrangement_status:undefined},{page_slug:'deals/sample'},{page_slug:'deal_introductions/../sample'},{page_slug:'deal_introductions/sample.md'}])assert.equal((await post({...input,...patch})).status,400);
+ assert.equal((await fetch(endpoint)).status,405);
+ assert.equal((await post({...input,page_slug:'deal_introductions/missing'})).status,404);
+ for(const scopes of [['brain:read'],['brain:create'],[]])await assert.rejects(updateIntroductionArrangement(config,db,input,{actor:{scopes}}),{statusCode:403});
+ const result=await updateIntroductionArrangement(config,db,input,{indexPage:async()=>{throw new Error('unavailable');}});
+ assert.equal(result.record.arrangement_status,'establishing');assert.ok(result.maintenance_warning);
+ assert.equal(result.record.stage,'negotiating');assert.equal(result.record.introduction_status,'archived');
 }));

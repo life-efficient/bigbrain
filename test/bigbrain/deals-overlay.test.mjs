@@ -154,6 +154,6 @@ test('legacy statuses read as archived with unknown stage and explicit status ta
  for(const stage of ['paused','dropped']) {const r=records.find(p=>p.page_slug===`deals/${stage}`);assert.equal(r.deal_status,'archived');assert.equal(r.deal_stage,'unknown');}
  assert.equal(records.find(p=>p.page_slug==='deals/restored').deal_status,'active');
  assert.equal(records.find(p=>p.page_slug==='deals/current').deal_status,'active');
- assert.equal(records.find(p=>p.page_slug==='deals/current').deal_stage,'establishing_arrangement');
+ assert.equal(records.find(p=>p.page_slug==='deals/current').deal_stage,'unknown');
  }finally{f.close();}
 });

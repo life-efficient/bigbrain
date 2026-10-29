@@ -10,7 +10,7 @@ import { CANONICAL_SCHEMA_DIRS } from './constants.js';
 
 export const PAGE_SCHEMA_REGISTRY_FILENAME = 'page-schemas.yaml';
 export const PAGE_SCHEMA_REGISTRY_VERSION = 1;
-export const PAGE_SCHEMA_DEFAULTS_VERSION = 7;
+export const PAGE_SCHEMA_DEFAULTS_VERSION = 8;
 
 const SCHEMA_ID_PATTERN = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
 const FIELD_TYPES = ['string', 'number', 'boolean', 'array', 'object'];
@@ -412,6 +412,17 @@ function applyPageSchemaDefaultsMigration(registry, config, version, added) {
         schema.fields[field] = fields[field];
         added.push(`${id}.${field}`);
       }
+    }
+    return;
+  }
+  if (version === 8) {
+    for (const [id, schema] of Object.entries(registry.schemas)) {
+      const prefix = normalizePathPrefix(schema.path_prefix);
+      const field = prefix === 'deals' ? 'deal_stage' : prefix === 'deal_introductions' ? 'arrangement_status' : null;
+      if (!field) continue;
+      schema.fields ||= {};
+      schema.fields[field] = (prefix === 'deals' ? dealMetadataFields() : dealIntroductionFields())[field];
+      added.push(`${id}.${field}`);
     }
     return;
   }

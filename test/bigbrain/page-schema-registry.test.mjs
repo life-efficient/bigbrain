@@ -406,3 +406,31 @@ async function createFixture(prefix) {
   const init = await initializeBrainHome(brainHome, { env });
   return { rootDir, brainHome, configPath: init.configPath };
 }
+
+test('arrangement migration removes parent stage and adds independent introduction status while preserving custom fields', async () => {
+ const fixture = await createFixture('bigbrain-arrangement-schema-');
+ try {
+  const config = await loadConfig({configPath:fixture.configPath});
+  await fs.writeFile(path.join(fixture.brainHome,PAGE_SCHEMA_REGISTRY_FILENAME),`schema_version: 1
+defaults_version: 7
+schemas:
+  transactions:
+    path_prefix: deals
+    fields:
+      deal_stage: {type: string, enum: [qualifying, establishing_arrangement, preparing]}
+      owner_note: {type: string}
+  introductions:
+    path_prefix: deal_introductions
+    fields:
+      stage: {type: string, enum: [proposed, negotiating]}
+      custom_note: {type: string}
+`);
+  const migrated=await migratePageSchemaRegistry(config);
+  assert.equal(migrated.registry.schemas.transactions.fields.deal_stage.enum.includes('establishing_arrangement'),false);
+  assert.deepEqual(migrated.registry.schemas.introductions.fields.arrangement_status.enum,['none','establishing','agreed']);
+  assert.equal(migrated.registry.schemas.transactions.fields.owner_note.type,'string');
+  assert.equal(migrated.registry.schemas.introductions.fields.custom_note.type,'string');
+  assert.deepEqual(migrated.registry.schemas.introductions.fields.stage.enum,['proposed','negotiating']);
+  assert.equal((await migratePageSchemaRegistry(config)).migration.changed,false);
+ }finally{await fs.rm(fixture.rootDir,{recursive:true,force:true});}
+});
