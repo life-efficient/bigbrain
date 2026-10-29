@@ -41,69 +41,47 @@ skill, and dashboard experience.
 
 ## Deals
 
-The Deals overlay reads the selected Brain's indexed canonical
-`deals/` pages. It includes `deal_involvement` values `active`,
-`network_actionable`, and `network_observed`. Public transactions, unclassified
-pages, and source attachments are excluded. Classifications belong on actual
-deal pages, not buyer research or supporting documents.
+The Deals overlay is available at `/overlays/deals` and has two views:
 
-- Open the panel from Overlays or `/overlays/deals`.
-- Retrieve it through MCP `overlays/deals` (alias `overlays_deals`) or HTTP
-  `GET /api/overlays/deals`.
-- Both endpoints accept `limit` (1 to 100, default 100), `cursor` (an offset),
-  and an optional single `deal_involvement` filter.
-- Results contain `records` with `page_slug`, `title`, `summary`,
-  `deal_involvement`, `asks`, `teaser_summary`, and `updated_at`, plus `total` and `next_cursor`.
-  Follow `next_cursor` until null to retrieve all deals.
-- First-class summaries are returned in full. Pages without one use a bounded
-  excerpt from indexed text; the request never scans source files or calls a model.
-- This view is derived, so it requires no enrollment records or knowledge copies.
-  It is Brain-scoped and protected by the existing dashboard and MCP read access.
+- **Deals** shows the enrolled canonical deal pages, their progress, next actions,
+  and editable anonymised information.
+- **Deal introductions** shows a flat list of canonical `deal_introductions/`
+  pages, with parent deal, participating parties, commercial purpose, stage,
+  evidence date, and linked follow-up tasks. Include introductions even when their
+  parent is not enrolled in the Deals view. Each row opens the ordinary Brain page.
 
-### Anonymous deal messages
+The Deals view includes `deal_involvement` values `active`, `network_actionable`,
+and `network_observed`. Exclude public transactions, unclassified research,
+and source attachments. Follow pagination to retrieve the complete collection.
+Search and filters apply to the active view; introduction-stage filtering uses
+its own stage rather than its parent's stage.
 
-Canonical deal frontmatter can include an anonymous `teaser_summary` string and
-an `asks` list of strings:
+### Anonymised information
 
-```yaml
-teaser_summary: >-
-  A European digital infrastructure site offers a phased development opportunity,
-  with an incoming partner able to shape the facility and delivery model.
-asks:
-  - We are seeking an infrastructure equity partner to fund phased development.
-  - We are seeking an experienced developer to shape the facility and delivery plan.
-```
+Canonical deal fields are `anonymised_title`, `anonymised_description`, and
+`anonymised_asks`. Each ask is a complete, evidence-backed contribution sought
+from a potential new participant. Documents, approvals, or replies owed by an
+existing party belong in linked tasks. An empty ask list is valid.
 
-The Deals card previews the shared teaser summary and each ask with its own copy
-button. Each button copies the teaser summary followed by only that ask as prose,
-without a heading or bullet. **Copy all asks** combines the shared teaser with a
-bulleted list of all asks. Write each stored ask as a complete sentence stating
-one evidence-backed need at the current deal stage. Default to **“We are seeking
-[specific counterparty] to [specific role or transaction], for [brief anonymous
-opportunity context].”** Include only context needed to understand the ask without
-repeating the shared teaser. Separate distinct needs, such as an investor and an
-operating partner, into individual asks. Use **“We welcome introductions to…”**
-only when access to a counterparty is the actual need. Avoid questions, salutations,
-headings, and bullet prefixes. Make the teaser clear and exciting through concrete,
-evidence-backed opportunity details; do not invent claims or commitments. Copy
-requires a nonempty teaser summary and a nonempty string for the selected ask. Internal titles, internal summaries, page paths, and involvement labels
-are never substituted into the copied message. Authors must prepare anonymous
-wording in these fields; the copy action does not automatically anonymize text.
-The same fields are available through the existing Deals HTTP and MCP endpoints.
-Missing or malformed fields produce an empty string or list.
+Copy and export actions use only the anonymised fields. Never substitute internal
+titles, summaries, page paths, parties, tasks, relationship history, or private
+commercial details. Authors prepare the anonymised wording; export does not
+attempt automatic anonymisation of internal text.
 
-### Editing asks
+### PDF overview
 
-Each deal card supports adding and editing asks, deleting an ask after a modal
-confirmation, and editing the shared anonymous teaser summary. Add and edit actions
-open a dialog so the deal card layout stays stable. Explicit Save
-writes the relevant canonical deal page frontmatter and refreshes the record.
-Cancel leaves the page untouched. Failed saves keep the draft visible.
+**Download PDF** exports all enrolled deals, regardless of the current search,
+filters, or pagination. It downloads an actual PDF containing each anonymised
+title, description, and ask list. Do not use the browser print dialog or export
+the internal screen. Keep typography black, with readable wrapping, pagination,
+and page numbers. Missing required anonymised information must produce a useful
+error rather than silently omit a deal or fall back to internal fields.
 
-`POST /api/overlays/deals/asks` accepts `page_slug`, `asks`, optional
-`teaser_summary`, `expected_asks`, and `expected_teaser_summary`. The expected
-fields describe the state read by the editor. Stale edits return HTTP 409 rather
-than overwrite newer changes. Writes require dashboard authentication and write
-access when scoped credentials are used. Only enrolled canonical deal pages can
-be updated. The response contains the updated `record`; the existing MCP Deals
-read endpoint returns these saved frontmatter values too.
+The export remains behind the existing authenticated Brain read boundary and
+must not publish pages, change visibility, or upload the document elsewhere.
+
+### Editing
+
+Add/edit actions use dialogs with explicit Save and Cancel. Failed saves retain
+the draft. Writes update canonical frontmatter and refresh the record. Optimistic
+concurrency checks reject stale edits instead of overwriting newer values.
