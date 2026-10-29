@@ -154,3 +154,37 @@ in a Radix action menu in the card footer, alongside deal selection. The menu al
 - PDF export is a key action: keep a visible Download PDF label and primary emphasis in the second row. Search defaults to a compact magnifying-glass trigger and expands on demand.
 
 - Deals support active-deal selection across list and kanban, select-all-visible and clear-selection controls. PDF export uses exactly the selection when present, otherwise all active deals. Selection survives filtering and layout changes; archived or removed deals are pruned. Selected exports use the same strict anonymised-field projection and reject missing or ineligible requested deals.
+
+
+## Deals MCP tools
+
+The same canonical operations are available through MCP. Every slash name also
+has an underscore alias (for example `overlays_deals_update_details`).
+
+| Tool | Purpose |
+| --- | --- |
+| `overlays/deals` | Paginated enrolled deals, regular and anonymised fields, progress, introductions, tasks and `edit_values`. |
+| `overlays/deals/introductions` | Paginated introductions, including those whose parent is not enrolled. |
+| `overlays/deals/update_details` | Edit a deal's title, description and anonymised fields, or an introduction's title, purpose and arrangement. |
+| `overlays/deals/update_asks` | Edit anonymised asks, optionally title and description. Asks seek contributions from new participants; existing-party follow-ups belong in tasks. |
+| `overlays/deals/update_stage` | Move an active deal to a supported stage. |
+| `overlays/deals/introductions/update_stage` | Move an active introduction independently of its parent. |
+| `overlays/deals/update_status` | Archive or restore a deal or introduction without changing its commercial stage. |
+| `overlays/deals/introductions/update_arrangement` | Set `none`, `establishing` or `agreed`, independently of stage. |
+| `overlays/deals/export` | Export anonymised JSON or an embedded PDF resource, for all active deals or exactly `page_slugs`. |
+
+Read both collections through `next_cursor` until null. Read the record before
+mutating it and pass the corresponding `expected_*` fields. For detail edits,
+copy `edit_values` to `expected_values` and send the desired full field set in
+`values`. Stale writes fail; re-read and reconcile rather than retrying an old
+snapshot. Mutations require `commit_message` and source `provenance`, write
+scope and page-edit permission for the target path. Returned maintenance warnings
+mean the canonical write succeeded but indexing or backup needs attention.
+
+Export defaults to `format: "json"`; `format: "pdf"` returns an MCP embedded
+resource with MIME type `application/pdf`. Omit `page_slugs` for all active deals;
+a supplied selection must be nonempty and every requested deal must be eligible.
+No private field fallback, raw attachment creation, publishing or external upload
+occurs. List/kanban layout and selection remain client state; callers express an
+export selection explicitly. Use ordinary canonical page creation tools to create
+new deals or introductions, then read the overlay for their current snapshots.

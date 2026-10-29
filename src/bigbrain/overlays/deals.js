@@ -87,7 +87,7 @@ async function indexedFallbacks(db, slugs) {
   return new Map(rows.map((row) => [row.slug, row.excerpt]));
 }
 
-export async function updateDealAsks(config, db, input, { actor = null } = {}) {
+export async function updateDealAsks(config, db, input, { actor = null, provenance = null, commitMessage = null, gitBackupEnabled = process.env.BIGBRAIN_MCP_GIT_BACKUP === '1' } = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidInput('Deal ask input must be an object.');
   if (actor?.scopes && !actor.scopes.some((scope) => ['brain:admin', 'brain:write'].includes(scope))) {
     throw Object.assign(new Error('Deal ask editing requires write access.'), { statusCode: 403 });
@@ -106,11 +106,11 @@ export async function updateDealAsks(config, db, input, { actor = null } = {}) {
   const { updateBrainPage } = await import('../page-ops.js');
   let page;
   try {
-    const timelineText = 'Updated anonymous deal asks and teaser from dashboard.';
+    const timelineText = 'Updated anonymised deal title, description and asks in the Deals overlay.';
     page = await updateBrainPage({ config, pagePath: slug,
       timelineEntry: timelineText,
       timelineSignificance: 'patch',
-      timelineProvenance: { event_id: `dashboard:deal-anonymised_asks:${slug}:${randomUUID()}`,
+      timelineProvenance: provenance || { event_id: `dashboard:deal-anonymised_asks:${slug}:${randomUUID()}`,
         source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard',
         source_message: timelineText },
       frontmatterValues: { anonymised_asks: asks, ...(input.anonymised_title === undefined ? {} : { anonymised_title: input.anonymised_title.trim() }), ...(input.anonymised_description === undefined ? {} : { anonymised_description: input.anonymised_description.trim() }) },
@@ -133,7 +133,7 @@ export async function updateDealAsks(config, db, input, { actor = null } = {}) {
   const { postWriteMaintenance } = await import('../mcp-server.js');
   let maintenanceWarning = null;
   try {
-    await postWriteMaintenance(config, process.env.BIGBRAIN_MCP_GIT_BACKUP === '1', actor, `Update deal asks for ${page.title}`);
+    await postWriteMaintenance(config, gitBackupEnabled, actor, commitMessage || `Update deal asks for ${page.title}`);
   } catch (error) {
     maintenanceWarning = `Edits were saved to the page, but index or backup maintenance needs attention: ${error.message}`;
   }
@@ -150,7 +150,7 @@ export async function updateDealAsks(config, db, input, { actor = null } = {}) {
   return { record, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
 }
 
-export async function updateDealStage(config, db, input, { actor = null, indexPage = replacePageIndex } = {}) {
+export async function updateDealStage(config, db, input, { actor = null, indexPage = replacePageIndex, provenance = null, commitMessage = null, gitBackupEnabled = process.env.BIGBRAIN_MCP_GIT_BACKUP === '1' } = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidInput('Deal stage input must be an object.');
   if (actor?.scopes && !actor.scopes.some(scope => ['brain:admin', 'brain:write'].includes(scope))) {
     throw Object.assign(new Error('Changing deal stages requires write access.'), { statusCode: 403 });
@@ -167,7 +167,7 @@ export async function updateDealStage(config, db, input, { actor = null, indexPa
   }
   if (!['active', 'archived'].includes(input.expected_deal_status)) throw invalidInput('expected_deal_status is required.');
   const stageAsOf = new Date().toISOString();
-  const timelineText = `Manually changed deal stage from ${input.expected_deal_stage} to ${input.deal_stage} in the Deals board.`;
+  const timelineText = `Manually changed deal stage from ${input.expected_deal_stage} to ${input.deal_stage} in the Deals overlay.`;
   const noChange = Symbol('no stage change');
   const { updateBrainPage } = await import('../page-ops.js');
   let page;
@@ -177,7 +177,7 @@ export async function updateDealStage(config, db, input, { actor = null, indexPa
     page = await updateBrainPage({ config, pagePath: slug,
       frontmatterValues: { deal_stage: input.deal_stage, stage_as_of: stageAsOf },
       timelineEntry: timelineText, timelineSignificance: 'minor',
-      timelineProvenance: { event_id: `dashboard:deal-stage:${slug}:${randomUUID()}`, source_type: 'direct_edit',
+      timelineProvenance: provenance || { event_id: `dashboard:deal-stage:${slug}:${randomUUID()}`, source_type: 'direct_edit',
         source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timelineText },
       validateExisting(existing) {
         if (existing.type !== 'deals' || !DEALS_INVOLVEMENTS.includes(existing.frontmatter.deal_involvement)) throw Object.assign(new Error('Page is not enrolled in the Deals overlay.'), { statusCode: 404 });
@@ -204,10 +204,10 @@ export async function updateDealStage(config, db, input, { actor = null, indexPa
     if (error.marker === noChange) page = error.page;
     else { if (error.code === 'ENOENT') error.statusCode = 404; throw error; }
   }
-  if (changed && process.env.BIGBRAIN_MCP_GIT_BACKUP === '1') {
+  if (changed && gitBackupEnabled) {
     try {
       const { postWriteMaintenance } = await import('../mcp-server.js');
-      await postWriteMaintenance(config, true, actor, `Change deal stage for ${page.title}`);
+      await postWriteMaintenance(config, true, actor, commitMessage || `Change deal stage for ${page.title}`);
     } catch {
       maintenanceWarning = 'The stage was saved, but index or backup maintenance needs attention. Refresh before another move.';
     }
@@ -229,7 +229,7 @@ export async function updateDealStage(config, db, input, { actor = null, indexPa
     ...(changed ? { updated_at: stageAsOf } : {}) }, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
 }
 
-export async function updateIntroductionStage(config, db, input, { actor = null, indexPage = replacePageIndex } = {}) {
+export async function updateIntroductionStage(config, db, input, { actor = null, indexPage = replacePageIndex, provenance = null, commitMessage = null, gitBackupEnabled = process.env.BIGBRAIN_MCP_GIT_BACKUP === '1' } = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidInput('Introduction stage input must be an object.');
   if (actor?.scopes && !actor.scopes.some(scope => ['brain:admin', 'brain:write'].includes(scope))) {
     throw Object.assign(new Error('Changing introduction stages requires write access.'), { statusCode: 403 });
@@ -256,7 +256,7 @@ export async function updateIntroductionStage(config, db, input, { actor = null,
     page = await updateBrainPage({ config, pagePath: slug,
       frontmatterValues: { stage: input.stage, stage_as_of: stageAsOf },
       timelineEntry: timelineText, timelineSignificance: 'minor',
-      timelineProvenance: { event_id: `dashboard:introduction-stage:${slug}:${randomUUID()}`, source_type: 'direct_edit',
+      timelineProvenance: provenance || { event_id: `dashboard:introduction-stage:${slug}:${randomUUID()}`, source_type: 'direct_edit',
         source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timelineText },
       validateExisting(existing) {
         if (existing.type !== 'deal_introductions') throw Object.assign(new Error('Page is not a deal introduction.'), { statusCode: 404 });
@@ -283,10 +283,10 @@ export async function updateIntroductionStage(config, db, input, { actor = null,
     if (error.marker === noChange) page = error.page;
     else { if (error.code === 'ENOENT') error.statusCode = 404; throw error; }
   }
-  if (changed && process.env.BIGBRAIN_MCP_GIT_BACKUP === '1') {
+  if (changed && gitBackupEnabled) {
     try {
       const { postWriteMaintenance } = await import('../mcp-server.js');
-      await postWriteMaintenance(config, true, actor, `Change introduction stage for ${page.title}`);
+      await postWriteMaintenance(config, true, actor, commitMessage || `Change introduction stage for ${page.title}`);
     } catch {
       maintenanceWarning = 'The stage was saved, but index or backup maintenance needs attention. Refresh before another move.';
     }
@@ -410,7 +410,7 @@ export async function buildDealIntroductionsPayload(config, db, input = {}) {
   })), total: result.total, next_cursor: result.next_cursor };
 }
 
-export async function updateDealStatus(config, db, input, { actor = null, indexPage = replacePageIndex } = {}) {
+export async function updateDealStatus(config, db, input, { actor = null, indexPage = replacePageIndex, provenance = null, commitMessage = null, gitBackupEnabled = process.env.BIGBRAIN_MCP_GIT_BACKUP === '1' } = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidInput('Status input must be an object.');
   if (actor?.scopes && !actor.scopes.some(scope => ['brain:admin', 'brain:write'].includes(scope))) throw Object.assign(new Error('Changing status requires write access.'), { statusCode: 403 });
   const slug = input.page_slug;
@@ -422,16 +422,16 @@ export async function updateDealStatus(config, db, input, { actor = null, indexP
   const statusKey = introduction ? 'introduction_status' : 'deal_status';
   const stageKey = introduction ? 'stage' : 'deal_stage';
   const timestamp = new Date().toISOString();
-  const timeline = `${input.status === 'archived' ? 'Archived' : 'Restored'} ${introduction ? 'deal introduction' : 'deal'} in the Deals overview. Commercial stage and evidence date preserved.`;
+  const timeline = `${input.status === 'archived' ? 'Archived' : 'Restored'} ${introduction ? 'deal introduction' : 'deal'} in the Deals overlay. Commercial stage and evidence date preserved.`;
   const noChange = Symbol('no status change');
   const { updateBrainPage } = await import('../page-ops.js');
   let page, changed = false, maintenanceWarning = null;
   try {
     page = await updateBrainPage({ config, pagePath: slug, frontmatterValues: { [statusKey]: input.status },
       timelineEntry: timeline, timelineSignificance: 'minor',
-      timelineProvenance: { event_id: `dashboard:deal-status:${slug}:${randomUUID()}`, source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timeline },
+      timelineProvenance: provenance || { event_id: `dashboard:deal-status:${slug}:${randomUUID()}`, source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timeline },
       validateExisting(existing) {
-        if (existing.type !== (introduction ? 'deal_introductions' : 'deals') || (!introduction && !DEALS_INVOLVEMENTS.includes(existing.frontmatter.deal_involvement))) throw Object.assign(new Error('Page is not enrolled in the Deals overview.'), { statusCode: 404 });
+        if (existing.type !== (introduction ? 'deal_introductions' : 'deals') || (!introduction && !DEALS_INVOLVEMENTS.includes(existing.frontmatter.deal_involvement))) throw Object.assign(new Error('Page is not enrolled in the Deals overlay.'), { statusCode: 404 });
         const progress = commercialProgress(existing.frontmatter, introduction);
         if (progress[statusKey] !== input.expected_status || progress[stageKey] !== input.expected_stage || (existing.frontmatter.stage_as_of || null) !== input.expected_stage_as_of) throw Object.assign(new Error('This record changed elsewhere. Refresh before changing its status.'), { statusCode: 409 });
         if (progress[statusKey] === input.status) throw { marker: noChange, page: existing };
@@ -446,8 +446,8 @@ export async function updateDealStatus(config, db, input, { actor = null, indexP
     if (error.marker === noChange) page = error.page;
     else { if (error.code === 'ENOENT') error.statusCode = 404; throw error; }
   }
-  if (changed && process.env.BIGBRAIN_MCP_GIT_BACKUP === '1') {
-    try { const { postWriteMaintenance } = await import('../mcp-server.js'); await postWriteMaintenance(config, true, actor, `Change status for ${page.title}`); }
+  if (changed && gitBackupEnabled) {
+    try { const { postWriteMaintenance } = await import('../mcp-server.js'); await postWriteMaintenance(config, true, actor, commitMessage || `Change status for ${page.title}`); }
     catch { maintenanceWarning = 'Status was saved, but backup maintenance needs attention.'; }
   }
   let record;
@@ -461,7 +461,7 @@ export async function updateDealStatus(config, db, input, { actor = null, indexP
     ...(changed ? { updated_at: timestamp } : {}) }, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };
 }
 
-export async function updateIntroductionArrangement(config, db, input, { actor = null, indexPage = replacePageIndex } = {}) {
+export async function updateIntroductionArrangement(config, db, input, { actor = null, indexPage = replacePageIndex, provenance = null, commitMessage = null, gitBackupEnabled = process.env.BIGBRAIN_MCP_GIT_BACKUP === '1' } = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidInput('Arrangement input must be an object.');
   if (actor?.scopes && !actor.scopes.some(scope => ['brain:admin', 'brain:write'].includes(scope))) throw Object.assign(new Error('Changing arrangement tracking requires write access.'), { statusCode: 403 });
   const slug = input.page_slug;
@@ -475,7 +475,7 @@ export async function updateIntroductionArrangement(config, db, input, { actor =
   try {
     page = await updateBrainPage({ config, pagePath: slug, frontmatterValues: { arrangement_status: input.arrangement_status },
       timelineEntry: timeline, timelineSignificance: 'minor',
-      timelineProvenance: { event_id: `dashboard:introduction-arrangement:${slug}:${randomUUID()}`, source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timeline },
+      timelineProvenance: provenance || { event_id: `dashboard:introduction-arrangement:${slug}:${randomUUID()}`, source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timeline },
       validateExisting(existing) {
         if (existing.type !== 'deal_introductions') throw Object.assign(new Error('Page is not a deal introduction.'), { statusCode: 404 });
         const current = existing.frontmatter.arrangement_status || 'none';
@@ -492,8 +492,8 @@ export async function updateIntroductionArrangement(config, db, input, { actor =
     if (error.marker === noChange) page = error.page;
     else { if (error.code === 'ENOENT') error.statusCode = 404; throw error; }
   }
-  if (changed && process.env.BIGBRAIN_MCP_GIT_BACKUP === '1') {
-    try { const { postWriteMaintenance } = await import('../mcp-server.js'); await postWriteMaintenance(config, true, actor, `Change arrangement tracking for ${page.title}`); }
+  if (changed && gitBackupEnabled) {
+    try { const { postWriteMaintenance } = await import('../mcp-server.js'); await postWriteMaintenance(config, true, actor, commitMessage || `Change arrangement tracking for ${page.title}`); }
     catch { maintenanceWarning = 'Arrangement status was saved, but backup maintenance needs attention.'; }
   }
   let record;
@@ -515,7 +515,7 @@ function editableDealValues(title, frontmatter, introduction = false) {
     : { title, summary: frontmatter.summary || '', ...anonymisedDealFields(frontmatter) };
 }
 
-export async function updateDealDetails(config, db, input, { actor = null, indexPage = replacePageIndex } = {}) {
+export async function updateDealDetails(config, db, input, { actor = null, indexPage = replacePageIndex, provenance = null, commitMessage = null, gitBackupEnabled = process.env.BIGBRAIN_MCP_GIT_BACKUP === '1' } = {}) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw invalidInput('Edit input must be an object.');
   if (actor?.scopes && !actor.scopes.some(scope => ['brain:admin', 'brain:write'].includes(scope))) throw Object.assign(new Error('Editing requires write access.'), { statusCode: 403 });
   const slug = input.page_slug;
@@ -537,15 +537,15 @@ export async function updateDealDetails(config, db, input, { actor = null, index
   const values = validate(input.values), expected = validate(input.expected_values);
   if (introduction && !values.purpose) throw invalidInput('Purpose is required.');
   const timestamp = new Date().toISOString();
-  const timeline = `Edited ${introduction ? 'deal introduction' : 'deal'} details in the Deals overview.`;
+  const timeline = `Edited ${introduction ? 'deal introduction' : 'deal'} details in the Deals overlay.`;
   const { updateBrainPage } = await import('../page-ops.js');
   let page, maintenanceWarning;
   try {
     page = await updateBrainPage({ config, pagePath: slug, frontmatterValues: values,
       timelineEntry: timeline, timelineSignificance: 'minor',
-      timelineProvenance: { event_id: `dashboard:deal-details:${slug}:${randomUUID()}`, source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timeline },
+      timelineProvenance: provenance || { event_id: `dashboard:deal-details:${slug}:${randomUUID()}`, source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timeline },
       validateExisting(existing) {
-        if (existing.type !== (introduction ? 'deal_introductions' : 'deals') || (!introduction && !DEALS_INVOLVEMENTS.includes(existing.frontmatter.deal_involvement))) throw Object.assign(new Error('Page is not enrolled in the Deals overview.'), { statusCode: 404 });
+        if (existing.type !== (introduction ? 'deal_introductions' : 'deals') || (!introduction && !DEALS_INVOLVEMENTS.includes(existing.frontmatter.deal_involvement))) throw Object.assign(new Error('Page is not enrolled in the Deals overlay.'), { statusCode: 404 });
         const current = editableDealValues(existing.title, existing.frontmatter, introduction);
         if (fields.some(key => JSON.stringify(current[key]) !== JSON.stringify(expected[key]))) throw Object.assign(new Error('This record changed elsewhere. Your draft is kept. Refresh before saving.'), { statusCode: 409 });
       },
@@ -555,8 +555,8 @@ export async function updateDealDetails(config, db, input, { actor = null, index
       },
     });
   } catch (error) { if (error.code === 'ENOENT') error.statusCode = 404; throw error; }
-  if (process.env.BIGBRAIN_MCP_GIT_BACKUP === '1') {
-    try { const { postWriteMaintenance } = await import('../mcp-server.js'); await postWriteMaintenance(config, true, actor, `Edit details for ${page.title}`); }
+  if (gitBackupEnabled) {
+    try { const { postWriteMaintenance } = await import('../mcp-server.js'); await postWriteMaintenance(config, true, actor, commitMessage || `Edit details for ${page.title}`); }
     catch { maintenanceWarning = 'Details were saved, but backup maintenance needs attention.'; }
   }
   return { record: { page_slug: slug, ...editableDealValues(page.title, page.frontmatter, introduction), edit_values: editableDealValues(page.title, page.frontmatter, introduction), updated_at: timestamp }, ...(maintenanceWarning ? { maintenance_warning: maintenanceWarning } : {}) };

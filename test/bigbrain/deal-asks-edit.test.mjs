@@ -39,7 +39,7 @@ test('Deal asks edits persist in canonical frontmatter, refresh the index and pr
     assert.doesNotMatch(after.frontmatter_raw, /  - Find investor|  Anonymous|  opportunity/);
     assert.equal(after.frontmatter.summary, before.frontmatter.summary);
     assert.equal(after.body, before.body);
-    assert.match(after.timeline, /Updated anonymous deal asks and teaser/);
+    assert.match(after.timeline, /Updated anonymised deal title, description and asks/);
     assert.match(after.timeline, /direct_edit/);
     const indexed = await fetch(`${base}/api/overlays/deals`).then((r) => r.json());
     assert.deepEqual(indexed.records[0], successful.record);
