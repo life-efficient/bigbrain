@@ -138,7 +138,6 @@ export function DealIntroductionKanban({ records, onOpenPage, onMoveStage, savin
         });
       }
     }}>
-    <p className="deal-drag-hint">{records.some(record => recordStatus(record, true) === 'active') ? "Drag an introduction's handle to change its stage." : 'Restore an archived introduction to change its stage.'}</p>
     <div ref={boardRef} className={`deal-kanban introduction-kanban${active ? ' is-drag-active' : ''}`} role="region" aria-label="Introductions by stage" tabIndex={0}>
       {columns.map(column => <StageColumn key={column.stage} column={column} arrangementSavingSlug={arrangementSavingSlug} onArrangementChange={onArrangementChange} active={active} overStage={overStage} savingSlug={savingSlug}
         statusSavingSlug={statusSavingSlug} onStatusChange={onStatusChange} disabled={!!savingSlug || !!statusSavingSlug || !!arrangementSavingSlug} onOpenPage={onOpenPage} />)}

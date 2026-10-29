@@ -393,19 +393,7 @@ export function DealsPanel({ onOpenPage }) {
 
   return (
     <section className="overlay-page deals-page">
-      <div className="overlay-head">
-        <div>
-          <span className="eyebrow">Overlay · Deals</span>
-          <h1>Deals</h1>
-          <p>Deal information and progress between parties.</p>
-        </div>
-        {!showingIntroductions ? <div className="deal-export">
-          <button type="button" className="graph-button" onClick={downloadPdf} disabled={downloading || state.status !== 'ready' || !state.records.some(record => recordStatus(record) === 'active')}>
-            <Download size={15} />{downloading ? 'Preparing PDF…' : 'Download PDF'}
-          </button>
-          <span className="meta">All active deals, anonymised</span>
-        </div> : null}
-      </div>
+      <h1 className="sr-only">Deals</h1>
       <div className="deal-view-toolbar">
         <div className="deal-view-tabs" role="tablist" aria-label="Deals views">
           {DEAL_VIEWS.map(({ id, label }, index) => <button key={id} ref={element => { tabRefs.current[id] = element; }}
@@ -436,6 +424,12 @@ export function DealsPanel({ onOpenPage }) {
             }}><Icon size={17} aria-hidden="true" /></button>)}
         </div>
         {current.status === 'ready' ? <span className="meta">{filtered ? `${records.length} of ` : ''}{current.records.length} {noun}{current.records.length === 1 ? '' : 's'}</span> : null}
+        {!showingIntroductions ? <button type="button" className="graph-button deal-icon-action"
+          title={downloading ? 'Preparing PDF…' : 'Download anonymised PDF of all active deals'}
+          aria-label={downloading ? 'Preparing PDF' : 'Download anonymised PDF of all active deals'}
+          onClick={downloadPdf} disabled={downloading || state.status !== 'ready' || !state.records.some(record => recordStatus(record) === 'active')}>
+          <Download size={16} aria-hidden="true" />
+        </button> : null}
         </div>
       </div>
       {stageFeedback ? <div className={`deal-stage-feedback is-${stageFeedback.kind}`} role={stageFeedback.kind === 'error' ? 'alert' : 'status'} aria-live="polite">
@@ -452,17 +446,17 @@ export function DealsPanel({ onOpenPage }) {
                 placeholder={showingIntroductions ? 'Search introductions, parties or deals…' : 'Search deals…'}
                 aria-label={showingIntroductions ? 'Search introductions, parties or deals' : 'Search deals'} />
               <div className="deal-filter-field">
-                <span id="deal-status-filter-label">Status</span>
+                <span className="sr-only" id="deal-status-filter-label">Status</span>
                 <Select value={showingIntroductions ? introductionStatus : dealStatus} onValueChange={showingIntroductions ? setIntroductionStatus : setDealStatus} aria-labelledby="deal-status-filter-label"
                   options={[{ value: 'active', label: 'Active' }, { value: 'archived', label: 'Archived' }, { value: 'all', label: 'All' }]} />
               </div>
               {!showingIntroductions ? <div className="deal-filter-field">
-                <span id="deal-type-filter-label">Deal type</span>
+                <span className="sr-only" id="deal-type-filter-label">Deal type</span>
                 <Select value={dealType} onValueChange={setDealType} aria-labelledby="deal-type-filter-label"
                   options={[{ value: '', label: 'All types' }, ...Object.entries(DEAL_TYPE_LABELS).map(([value, label]) => ({ value, label }))]} />
               </div> : null}
               <div className="deal-filter-field">
-                <span id="deal-stage-filter-label">{showingIntroductions ? 'Introduction stage' : 'Deal stage'}</span>
+                <span className="sr-only" id="deal-stage-filter-label">{showingIntroductions ? 'Introduction stage' : 'Deal stage'}</span>
                 <Select value={showingIntroductions ? introductionStage : stage} onValueChange={showingIntroductions ? setIntroductionStage : setStage} aria-labelledby="deal-stage-filter-label"
                   options={[{ value: '', label: 'All stages' }, ...Object.entries(showingIntroductions ? INTRODUCTION_STAGE_LABELS : DEAL_STAGE_LABELS).map(([value, label]) => ({ value, label }))]} />
               </div>

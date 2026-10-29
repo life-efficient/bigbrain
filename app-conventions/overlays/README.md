@@ -144,3 +144,9 @@ Per-deal copy, edit, add, delete, archive and restore controls use compact icon
 buttons with specific accessible labels and tooltips. Keep explicit labels on
 dialog confirmations and the primary PDF export. Kanban Archive / Restore lives
 in a Radix action menu in the card header, separate from the drag handle.
+
+## Deals toolbar
+
+- Use the Deals and Deal introductions tabs as the visible page heading. Keep the semantic heading visually hidden.
+- Keep text mode, layout, result count, and PDF export in the same compact toolbar; place search and filters directly below it.
+- Use accessible labels for filters and a descriptive tooltip for anonymised PDF export. Avoid repeated subtitles, export captions, and persistent drag instructions above the board.

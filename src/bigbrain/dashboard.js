@@ -1104,14 +1104,15 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deal-record .overlay-record-title-row { flex-wrap: wrap; }
       .deal-page-link { white-space: normal; overflow-wrap: anywhere; }
       .deal-record-summary { max-width: 920px; white-space: pre-wrap; overflow: visible; text-overflow: clip; }
-      .deals-page { width: 100%; max-width: 1080px; margin: 0 auto; gap: 20px; padding: 12px 4px 32px; }
+      .deals-page .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+      .deals-page { width: 100%; max-width: 1080px; margin: 0 auto; gap: 10px; padding: 0 4px 20px; }
       .deals-page .overlay-head { align-items: flex-start; padding: 10px 0 0; }
       .deals-page .deal-export { display: grid; justify-items: end; gap: 6px; }
       .deals-page .deal-view-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
       .deals-page .deal-view-tabs { display: inline-flex; gap: 3px; border: 0; background: var(--surface); padding: 4px; border-radius: 9px; }
-      .deals-page .deal-view-tab { border: 0; border-radius: 6px; padding: 8px 14px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
+      .deals-page .deal-view-tab { border: 0; border-radius: 6px; padding: 6px 10px; background: transparent; color: var(--muted); font: inherit; font-size: 13px; cursor: pointer; }
       .deals-page .deal-view-tab[aria-selected="true"], .deals-page .deal-view-tab[aria-pressed="true"] { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,0.16); }
-      .deals-page .deal-view-panel { display: grid; gap: 20px; outline: none; min-width: 0; max-width: 100%; }
+      .deals-page .deal-view-panel { display: grid; gap: 10px; outline: none; min-width: 0; max-width: 100%; }
       .deals-page .deal-view-panel > [role="tabpanel"] { min-width: 0; max-width: 100%; }
       .deals-page .deal-introduction-row { margin: 0; padding: 22px; background: var(--card); }
       .deals-page .deal-introduction-row p { margin: 0; }
@@ -1127,7 +1128,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-teaser-head strong { font-size: 14px; font-weight: 600; }
       .deals-page .deal-record-main, .deals-page .overlay-record-main { gap: 10px; }
       .deals-page .deal-record-summary { max-width: 920px; white-space: pre-wrap; overflow-wrap: anywhere; overflow: visible; font-size: 13px; line-height: 1.55; }
-      .deals-page .deal-layout-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+      .deals-page .deal-layout-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
       .deals-page .deal-layout-tab { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 32px; padding: 0; }
       .deals-page .deal-kanban { display: flex; align-items: flex-start; gap: 14px; overflow-x: auto; overscroll-behavior-x: contain; width: 100%; max-width: 100%; padding-bottom: 16px; scroll-snap-type: x proximity; }
       .deals-page .deal-kanban-column { flex: 0 0 290px; min-width: 0; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.015); padding: 12px; scroll-snap-align: start; }
@@ -1139,7 +1140,7 @@ function renderAppHtml({ devVersionPath = '/__bigbrain/dev-version', dashboardBa
       .deals-page .deal-kanban-summary { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.55; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; overflow-wrap: anywhere; }
       .deals-page .deal-kanban-types { display: flex; flex-wrap: wrap; gap: 5px; }
       .deals-page .deal-kanban-waiting { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
-      .deals-page .deal-kanban { align-items: stretch; max-height: max(340px, calc(100dvh - 390px)); min-height: 320px; padding: 3px 3px 16px; }
+      .deals-page .deal-kanban { align-items: stretch; max-height: max(340px, calc(100dvh - 210px)); min-height: 320px; padding: 3px 3px 16px; }
       .deals-page .deal-kanban-column { display: flex; flex-direction: column; min-height: 300px; transition: border-color 140ms ease, background 140ms ease; }
       .deals-page .deal-kanban-cards { display: flex; flex-direction: column; overflow-y: auto; min-height: 0; padding: 2px; scrollbar-width: thin; }
       .deals-page .deal-kanban-card { position: relative; flex: none; transition: opacity 140ms ease, box-shadow 140ms ease; }
