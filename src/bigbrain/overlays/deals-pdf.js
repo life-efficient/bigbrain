@@ -101,9 +101,15 @@ export async function buildDealsPdf(config, db, { generatedAt = new Date() } = {
     doc.fillColor('black').font('Heading').fontSize(10).text('ANONYMISED DEAL OVERVIEW', 48, 30, { width, lineBreak: false });
     doc.font('Body').fontSize(8).text(date, 48, 30, { width, align: 'right', lineBreak: false });
     doc.strokeColor('black').lineWidth(0.4).moveTo(48, 51).lineTo(547.28, 51).stroke();
+    // Footer coordinates intentionally sit below the text-flow margin. Prevent
+    // PDFKit's text wrapper from creating another page for this short label.
+    const bottomMargin = doc.page.margins.bottom;
+    doc.page.margins.bottom = 0;
     doc.font('Body').fontSize(8).fillColor('black').text(`${i + 1} / ${range.count}`, 48, doc.page.height - 35,
       { width, align: 'right', lineBreak: false });
+    doc.page.margins.bottom = bottomMargin;
   }
+  if (doc.bufferedPageRange().count !== range.count) throw new Error('PDF pagination changed while drawing page furniture.');
   doc.end();
   return completed;
 }

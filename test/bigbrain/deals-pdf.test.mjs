@@ -77,3 +77,13 @@ test('introduction list includes unenrolled parents and paginates with linked ta
     assert.equal(second.records.length, 3); assert.equal(second.next_cursor, null);
   } finally { f.close(); }
 });
+
+
+test('footer stays on the content page instead of creating a trailing page', async () => {
+  const f = fixture();
+  try {
+    f.add('deals/one', anonymous);
+    const pdf = await buildDealsPdf({}, f.db);
+    assert.equal((pdf.toString('latin1').match(/\/Type \/Page\b/g) || []).length, 1);
+  } finally { f.close(); }
+});
