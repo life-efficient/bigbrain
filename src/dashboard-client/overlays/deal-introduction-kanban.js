@@ -9,7 +9,7 @@ export function groupIntroductionsByStage(records, { includeEmpty = false } = {}
   const columns = Object.entries(INTRODUCTION_STAGE_LABELS).map(([stage, label]) => ({ stage, label, records: [] }));
   const byStage = new Map(columns.map(column => [column.stage, column]));
   for (const record of records) byStage.get(introductionStage(record)).records.push(record);
-  return includeEmpty ? columns : columns.filter(column => column.records.length);
+  return columns.filter(column => column.records.length || (includeEmpty && column.stage !== 'unknown'));
 }
 
 export function introductionStageDropTarget(id) {

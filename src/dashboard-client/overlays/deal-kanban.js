@@ -5,7 +5,7 @@ export function groupDealsByStage(records, { includeEmpty = false } = {}) {
   const columns = Object.entries(DEAL_STAGE_LABELS).map(([stage, label]) => ({ stage, label, records: [] }));
   const byStage = new Map(columns.map(column => [column.stage, column]));
   for (const record of records) (byStage.get(record.deal_stage) || byStage.get('unknown')).records.push(record);
-  return includeEmpty ? columns : columns.filter(column => column.records.length);
+  return columns.filter(column => column.records.length || (includeEmpty && column.stage !== 'unknown'));
 }
 
 export function dealStage(record) {
