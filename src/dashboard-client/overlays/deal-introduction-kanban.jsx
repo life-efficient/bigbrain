@@ -57,10 +57,11 @@ function CardContent({ record, onOpenPage, handle, actions, overlay = false, onA
 
 function DraggableIntroduction({ record, onOpenPage, disabled, saving, statusPending, onStatusChange, onEdit, onArrangementChange, arrangementPending }) {
   const title = record.title || record.page_slug;
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: record.page_slug, data: { record }, disabled: disabled || recordStatus(record, true) === 'archived' });
+  const archived = recordStatus(record, true) === 'archived';
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: record.page_slug, data: { record }, disabled: disabled || archived });
   return <article ref={setNodeRef} className={`deal-kanban-card introduction-kanban-card${isDragging ? ' is-dragging' : ''}${saving ? ' is-saving' : ''}`} aria-busy={saving || undefined}>
-    <CardContent record={record} onArrangementChange={onArrangementChange} arrangementPending={arrangementPending} disabled={disabled} onOpenPage={onOpenPage} actions={<DealStatusAction menu introduction record={record} displayTitle={title} onEdit={onEdit} onChange={onStatusChange} pending={statusPending} disabled={disabled} />} handle={recordStatus(record, true) !== 'archived' ? <button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
-      data-introduction-handle={record.page_slug} aria-label={`Move ${title}`} title="Drag to change stage" disabled={disabled}><GripVertical size={16} aria-hidden="true" /></button> : null} />
+    <CardContent record={record} onArrangementChange={onArrangementChange} arrangementPending={arrangementPending} disabled={disabled} onOpenPage={onOpenPage} actions={<DealStatusAction menu introduction record={record} displayTitle={title} onEdit={onEdit} onChange={onStatusChange} pending={statusPending} disabled={disabled} />} handle={<button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
+      data-introduction-handle={record.page_slug} aria-label={`Move ${title}`} title={archived ? 'Restore this introduction to change its stage' : 'Drag to change stage'} disabled={disabled || archived}><GripVertical size={16} aria-hidden="true" /></button>} />
     {saving ? <span className="deal-card-saving">Saving stage…</span> : null}
   </article>;
 }

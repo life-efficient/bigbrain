@@ -42,14 +42,15 @@ function CardContent({ record, onOpenPage, handle, actions, selection, overlay =
 
 function DraggableDeal({ record, onOpenPage, disabled, saving, statusPending, onStatusChange, onEdit, textMode, selected, onToggleSelection, selectionDisabled }) {
   const { title } = dealDisplayText(record, textMode);
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: record.page_slug, data: { record }, disabled: disabled || recordStatus(record) === 'archived' });
+  const archived = recordStatus(record) === 'archived';
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: record.page_slug, data: { record }, disabled: disabled || archived });
   return <article ref={setNodeRef} className={`deal-kanban-card${isDragging ? ' is-dragging' : ''}${saving ? ' is-saving' : ''}${selected ? ' is-selected' : ''}`} aria-busy={saving || undefined}>
     <CardContent record={record} textMode={textMode} onOpenPage={onOpenPage}
-      selection={onToggleSelection && record.shareable !== false && recordStatus(record) === 'active' ? <button type="button" role="checkbox" aria-checked={!!selected}
-        className="deal-selection-toggle" aria-label={`Select ${title}`} title={`Select ${title}`} disabled={selectionDisabled}
+      selection={onToggleSelection ? <button type="button" role="checkbox" aria-checked={!!selected}
+        className="deal-selection-toggle" aria-label={`Select ${title}`} title={archived ? 'Restore this deal to select it' : record.shareable === false ? 'This deal is not shareable' : `Select ${title}`} disabled={selectionDisabled || archived || record.shareable === false}
         onClick={() => onToggleSelection(record.page_slug)}>{selected ? <CheckSquare size={16} aria-hidden="true" /> : <Square size={16} aria-hidden="true" />}</button> : null}
-      actions={<DealStatusAction menu record={record} displayTitle={title} onEdit={onEdit} onChange={onStatusChange} pending={statusPending} disabled={disabled} />} handle={recordStatus(record) !== 'archived' ? <button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
-      data-deal-handle={record.page_slug} aria-label={`Move ${title}`} title="Drag to change stage" disabled={disabled}><GripVertical size={16} aria-hidden="true" /></button> : null} />
+      actions={<DealStatusAction menu record={record} displayTitle={title} onEdit={onEdit} onChange={onStatusChange} pending={statusPending} disabled={disabled} />} handle={<button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}
+      data-deal-handle={record.page_slug} aria-label={`Move ${title}`} title={archived ? 'Restore this deal to change its stage' : 'Drag to change stage'} disabled={disabled || archived}><GripVertical size={16} aria-hidden="true" /></button>} />
     {saving ? <span className="deal-card-saving">Saving stage…</span> : null}
   </article>;
 }
