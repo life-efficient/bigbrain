@@ -20,7 +20,7 @@ Preserve time-based media and create a comprehensive, readable account of what t
 - Make the sidecar a comprehensive chronological prose exposition, not a condensed thematic summary or an analytical rewrite.
 - Write as a third-person observer taking detailed, readable meeting minutes: preserve the source's sequence, substance, reported facts, definitions, examples, evidence, counterarguments, qualifications, and key short quotes without forcing them into a rigid schema.
 - Attribute claims to the source and distinguish what the source reports from independently verified facts. Do not add an unlabelled agent take.
-- Apply [the Fact Sheet standard](../bigbrain-ingest/references/fact-sheet.md) to the verified transcript. When substantial recall-worthy facts qualify, put a short attributed `## Fact Sheet` near the top of the sidecar, before the chronological account; omit it otherwise.
+- Apply [the Fact Sheet standard](../bigbrain-ingest/references/fact-sheet.md) to the verified transcript. When substantial recall-worthy facts qualify, put a short attributed, numbers-only `## Fact Sheet` near the top of the sidecar, before the chronological account; omit it otherwise.
 - Reconcile canonical subjects and every identifiable mentioned entity using the shared checklist and `$bigbrain-page`; keep the source sidecar on its specialized shape.
 - Rely on the owning Brain MCP for automatic propagation and backup, and independently read back the sidecar, raw transcript, and canonical updates. Run manual sync or maintenance only if verification identifies a failed side effect that requires repair.
 

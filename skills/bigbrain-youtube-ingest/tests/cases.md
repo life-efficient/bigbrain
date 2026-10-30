@@ -12,6 +12,12 @@ Prompt: `Ingest this single-speaker YouTube lecture. I want to read it like an a
 
 Expected behavior: create a separate raw transcript page with timestamps and coverage details, then create a canonical Video page in faithful article-style prose that preserves the speaker's argument, sequence, examples, and distinctive phrasing. Include meaningful source visuals inline when they can be captured faithfully. Do not add a Fact Sheet, executive summary, timestamp syntax, or analyst thesis.
 
+## Numbers-only Fact Sheet request
+
+Input: "Ingest this video and give me a Fact Sheet. I only care about the numbers."
+
+Expected behavior: preserve the source normally and add a near-top Fact Sheet only when substantial quantitative claims qualify. Each bullet states the number, units, period, comparison baseline or denominator, source location, and attribution or uncertainty. Exclude standalone slogans, qualitative quotes, and numbers with no useful context.
+
 ## Interview format
 
 Prompt: `Ingest this YouTube interview and keep who said what readable.`

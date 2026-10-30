@@ -15,7 +15,7 @@ Preserve a document and reconcile its supported knowledge into canonical BigBrai
 - Keep document-specific comprehensive extraction on the sidecar and compiled cross-document belief on subject pages
 - Route canonical subject-page creation and updates through `$bigbrain-page`
 - Verify source artifacts and canonical changes through the owning Brain's MCP
-- Apply [the Fact Sheet standard](../bigbrain-ingest/references/fact-sheet.md) to the indexed sidecar when the readable document contains substantial recall-worthy facts; omit the heading otherwise.
+- Apply [the Fact Sheet standard](../bigbrain-ingest/references/fact-sheet.md) to the indexed sidecar when the readable document contains substantial recall-worthy facts. Default to numbers-only bullets with scale, units, period, and comparison baseline; omit the heading otherwise.
 
 ## Workflow
 
@@ -31,7 +31,7 @@ Preserve a document and reconcile its supported knowledge into canonical BigBrai
 3. Extract and summarize the document at the right level:
    - Read the complete available document and state any missing or unreadable coverage.
    - executive summary
-   - a near-top `## Fact Sheet` of concise, attributed, page-located bullets only when facts meet the linked standard
+   - a near-top `## Fact Sheet` of concise, attributed, page-located quantitative bullets only when facts meet the linked standard; exclude standalone qualitative quotes and slogans unless the user explicitly requests them
    - key facts or sections
    - notable open threads or implications
    - Anti-patterns: excerpt-only review, omitting secondary entities, treating claims as verified facts
