@@ -17,7 +17,7 @@ async function fixture(run) {
   const config=await loadConfig({configPath:init.configPath});
   await fs.mkdir(path.join(config.brainDir,'deals'),{recursive:true});
   for(const [slug,involvement,stage] of [['sample','active','qualifying'],['public','public_unrelated','qualifying'],['unknown','active',null]]) {
-   await fs.writeFile(path.join(config.brainDir,'deals',slug+'.md'),`---\ntitle: Sample\nsummary: Internal summary\ndeal_involvement: ${involvement}\n${stage?'deal_stage: '+stage+'\nstage_as_of: 2026-10-20\n':''}anonymised_title: Shareable title\nanonymised_description: Shareable description\nanonymised_asks: []\ncustom_field: Preserve me\n---\n# Sample\n\nSubstantive body with [party](../organizations/party.md).\n\n---\n\n## Timeline\n\n`);
+   await fs.writeFile(path.join(config.brainDir,'deals',slug+'.md'),`---\ntitle: Sample\nsummary: Internal summary\ndeal_involvement: ${involvement}\n${stage?'deal_stage: '+stage+'\nstage_as_of: 2026-10-20\n':''}anonymised_title: Shareable title\nanonymised_description: Shareable description\nanonymised_asks: []\nanonymised_stage_comment: The owner is confirming qualification information.\ncustom_field: Preserve me\n---\n# Sample\n\nSubstantive body with [party](../organizations/party.md).\n\n---\n\n## Timeline\n\n`);
   }
   server=await startDashboard(config,{host:'127.0.0.1',port:0});db=await openDatabase(config);
   const base=`http://127.0.0.1:${server.address().port}`;
@@ -33,6 +33,7 @@ test('stage changes persist, index, preserve content, and reject competing stale
  assert.deepEqual(responses.map(r=>r.status).sort(),[200,409]);
  const {record}=await responses.find(r=>r.status===200).json();
  const after=await readBrainPage({config,pagePath:'deals/sample'});
+ assert.equal(after.frontmatter.anonymised_stage_comment, '');assert.equal(record.anonymised_stage_comment, '');
  assert.equal(after.body,before.body);assert.equal(after.summary,before.summary);
  assert.equal(after.frontmatter.custom_field,'Preserve me');assert.deepEqual(after.frontmatter.anonymised_asks,[]);
  assert.equal(after.frontmatter.deal_stage,record.deal_stage);assert.equal(after.frontmatter.stage_as_of,record.stage_as_of);

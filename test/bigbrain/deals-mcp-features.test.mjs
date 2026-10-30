@@ -121,8 +121,8 @@ test('MCP detail and anonymised-ask edits persist, reject stale snapshots, and p
   const record = content(await call('overlays/deals')).records.find(record => record.page_slug === 'deals/sample');
   const before = await read(record.page_slug);
   const values = { ...record.edit_values, title: 'Renamed internal project', summary: 'Updated internal summary',
-    anonymised_title: 'Updated anonymous title', anonymised_description: 'Updated anonymous description', anonymised_asks: ['Seeking delivery partners.'] };
-  const input = { page_slug: record.page_slug, values, expected_values: record.edit_values };
+    anonymised_title: 'Updated anonymous title', anonymised_description: 'Updated anonymous description', anonymised_asks: ['Seeking delivery partners.'], anonymised_stage_comment: 'The developer is confirming the power allocation.' };
+  const input = { page_slug: record.page_slug, values, expected_values: record.edit_values, expected_deal_stage: record.deal_stage, expected_stage_as_of: record.stage_as_of };
   error(await call(names.details, input), /commit_message|provenance/);
   const editMetadata = metadata();
   const saved = content(await call(names.details, { ...input, ...editMetadata })).record;
@@ -138,6 +138,7 @@ test('MCP detail and anonymised-ask edits persist, reject stale snapshots, and p
   assert.equal(after.frontmatter.custom_field, before.frontmatter.custom_field);
   assert.equal(after.frontmatter.stage_as_of, before.frontmatter.stage_as_of);
   assert.deepEqual(after.frontmatter.anonymised_asks, values.anonymised_asks);
+  assert.equal(after.frontmatter.anonymised_stage_comment, values.anonymised_stage_comment);
   error(await mutate(alias(names.details), { ...input, values: { ...values, title: 'Stale overwrite' } }), /changed elsewhere/);
   assert.equal((await read(record.page_slug)).title, values.title);
   const askInput = { page_slug: record.page_slug, anonymised_asks: ['Seeking regional customers.'], expected_anonymised_asks: values.anonymised_asks,
@@ -188,7 +189,7 @@ test('MCP stage, arrangement and archive controls preserve independent state and
 test('MCP exports contain only anonymised selected fields, return real PDFs, and never broaden invalid selections', async () => fixture(async ({ call }) => {
   const selected = content(await call(names.export, { page_slugs: ['deals/sample'] }));
   assert.equal(selected.total, 1);
-  assert.deepEqual(selected.records, [{ title: 'Anonymous compute project', description: 'A regional compute deployment.', asks: ['Seeking compute buyers.'] }]);
+  assert.deepEqual(selected.records, [{ title: 'Anonymous compute project', description: 'A regional compute deployment.', asks: ['Seeking compute buyers.'], stage: 'qualifying', stage_label: 'Qualifying', stage_comment: '' }]);
   assert.doesNotMatch(JSON.stringify(selected), /PRIVATE_|UNSELECTED_|deals\//);
   const complete = content(await call(alias(names.export), {}));
   assert.equal(complete.total, 2, 'Archived deals must be excluded');

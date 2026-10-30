@@ -94,8 +94,8 @@ an internal-title or summary fallback. The PDF and copy actions remain anonymise
 
 Kanban groups deals by their recorded deal stage in lifecycle order, with counts
 and compact cards that open the ordinary deal page. Missing or unrecognised
-stages appear under Stage not established. Keep stage columns stable, including
-empty destinations, and horizontal scrolling inside the board. Changing layouts does not change deal
+stages appear under Stage not established. Keep valid stage columns stable, including
+empty destinations; show Stage not established only when it contains records, and horizontal scrolling inside the board. Changing layouts does not change deal
 stages or the complete anonymised PDF export.
 
 Drag a deal by its dedicated handle to change its stage. Use an accessible
@@ -112,12 +112,13 @@ rather than changing actual deal facts during UI testing.
 
 ### Anonymised information
 
-Canonical deal fields are `anonymised_title`, `anonymised_description`, and
-`anonymised_asks`. Each ask is a complete, evidence-backed contribution sought
+Canonical deal fields are `anonymised_title`, `anonymised_description`, `anonymised_asks`, and `anonymised_stage_comment`. Each ask is a complete, evidence-backed contribution sought
 from a potential new participant. Documents, approvals, or replies owed by an
 existing party belong in linked tasks. An empty ask list is valid.
 
-Copy and export actions use only the anonymised fields. Never substitute internal
+The stage comment explains current progress, the next dependency and the party role that needs to act, using shareable wording rather than internal task text. A real stage move clears the previous comment; edit it for the new stage. Comment writes include the current stage and evidence-date snapshot so a stale editor cannot restore old progress.
+
+Copy and export actions use only the anonymised fields and an allowlisted stage label. Never substitute internal
 titles, summaries, page paths, parties, tasks, relationship history, or private
 commercial details. Authors prepare the anonymised wording; export does not
 attempt automatic anonymisation of internal text.
@@ -135,8 +136,8 @@ page schemas and the Deals MCP editing fields.
 ### PDF overview
 
 **Download PDF** exports all active enrolled deals, regardless of the current search,
-filters, or pagination. Archived deals are excluded. It downloads an actual PDF containing each anonymised
-title, description, and ask list. Do not use the browser print dialog or export
+filters, or pagination. Archived deals and records explicitly marked `shareable: false` are excluded. Explicit selections containing either are rejected. It downloads an actual PDF containing each anonymised
+title, description, stage, stage comment and ask list. Legacy blank comments are permitted; do not invent a fallback from internal notes. Do not use the browser print dialog or export
 the internal screen. Keep typography black, with readable wrapping, pagination,
 and page numbers. Missing required anonymised information must produce a useful
 error rather than silently omit a deal or fall back to internal fields.

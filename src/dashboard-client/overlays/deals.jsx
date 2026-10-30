@@ -287,7 +287,7 @@ export function DealsPanel({ onOpenPage }) {
   const [state, setState] = useDealCollection('/api/overlays/deals', reload);
   useEffect(() => {
     if (state.status !== 'ready') return;
-    const active = new Set(state.records.filter(record => recordStatus(record) === 'active').map(record => record.page_slug));
+    const active = new Set(state.records.filter(record => record.shareable !== false && recordStatus(record) === 'active').map(record => record.page_slug));
     setSelectedSlugs(current => { const next = new Set([...current].filter(slug => active.has(slug))); return next.size === current.size ? current : next; });
   }, [state.records, state.status]);
   const [introductions, setIntroductions] = useDealCollection('/api/overlays/deals/introductions', reload);
@@ -301,13 +301,13 @@ export function DealsPanel({ onOpenPage }) {
     stagePending.current = true;
     setSavingStage(record.page_slug);
     setStageFeedback({ kind: 'pending', text: `Saving ${dealDisplayText(record, textMode).title} to ${DEAL_STAGE_LABELS[nextStage]}…` });
-    setState(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, deal_stage: nextStage } : item) }));
+    setState(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, deal_stage: nextStage, anonymised_stage_comment: '' } : item) }));
     try {
       const data = await saveDealStage(record, nextStage);
       setState(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, ...data.record } : item) }));
-      setStageFeedback({ kind: data.maintenance_warning ? 'warning' : 'success', text: data.maintenance_warning || `${dealDisplayText(record, textMode).title} moved to ${DEAL_STAGE_LABELS[nextStage]}.` });
+      setStageFeedback({ kind: data.maintenance_warning ? 'warning' : 'success', text: data.maintenance_warning || `${dealDisplayText(record, textMode).title} moved to ${DEAL_STAGE_LABELS[nextStage]}. Update the stage comment in Edit deal.` });
     } catch (error) {
-      setState(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, deal_stage: record.deal_stage, stage_as_of: record.stage_as_of } : item) }));
+      setState(current => ({ ...current, records: current.records.map(item => item.page_slug === record.page_slug ? { ...item, deal_stage: record.deal_stage, anonymised_stage_comment: record.anonymised_stage_comment, stage_as_of: record.stage_as_of } : item) }));
       setStageFeedback({ kind: 'error', text: error.message });
       if (error.status === 409) setReload(value => value + 1);
     } finally { stagePending.current = false; setSavingStage(null); }
@@ -402,7 +402,7 @@ export function DealsPanel({ onOpenPage }) {
     ? introductions.records.filter(record => matchesIntroductionFilters(record, { search: introductionSearch, stage: introductionStage, status: introductionStatus }))
     : state.records.filter(record => matchesDealFilters(record, { search, dealType, stage, status: dealStatus }));
   const filtersChanged = showingIntroductions ? introductionSearch.trim() || introductionStage || introductionStatus !== 'active' : search.trim() || dealType || stage || dealStatus !== 'active';
-  const selectableRecords = records.filter(record => recordStatus(record) === 'active');
+  const selectableRecords = records.filter(record => record.shareable !== false && recordStatus(record) === 'active');
   const allVisibleSelected = selectableRecords.length > 0 && selectableRecords.every(record => selectedSlugs.has(record.page_slug));
   const noun = showingIntroductions ? 'introduction' : 'deal';
 
@@ -489,9 +489,9 @@ export function DealsPanel({ onOpenPage }) {
               }}>Clear filters</button> : null}
               </div>
         {!showingIntroductions ? <button type="button" className="graph-button deal-download-button"
-          title={downloading ? 'Preparing PDF…' : selectedSlugs.size ? 'Download anonymised PDF of selected deals' : 'Download anonymised PDF of all active deals'}
-          aria-label={downloading ? 'Preparing PDF' : selectedSlugs.size ? 'Download anonymised PDF of selected deals' : 'Download anonymised PDF of all active deals'}
-          onClick={downloadPdf} disabled={downloading || state.status !== 'ready' || !state.records.some(record => recordStatus(record) === 'active')}>
+          title={downloading ? 'Preparing PDF…' : selectedSlugs.size ? 'Download anonymised PDF of selected deals' : 'Download anonymised PDF of all active shareable deals'}
+          aria-label={downloading ? 'Preparing PDF' : selectedSlugs.size ? 'Download anonymised PDF of selected deals' : 'Download anonymised PDF of all active shareable deals'}
+          onClick={downloadPdf} disabled={downloading || state.status !== 'ready' || !state.records.some(record => record.shareable !== false && recordStatus(record) === 'active')}>
           <Download size={16} aria-hidden="true" />{downloading ? 'Preparing PDF…' : selectedSlugs.size ? `Download selected (${selectedSlugs.size})` : 'Download PDF'}
         </button> : null}
             </div> : null}
@@ -501,11 +501,12 @@ export function DealsPanel({ onOpenPage }) {
                 : records.map(record => <article className={`overlay-record card deal-record${selectedSlugs.has(record.page_slug) ? ' is-selected' : ''}`} key={record.page_slug}>
                   <div className="overlay-record-main">
                     <div className="overlay-record-title-row">
-                      {recordStatus(record) === 'active' ? <button type="button" role="checkbox" aria-checked={selectedSlugs.has(record.page_slug)} aria-label={`Select ${dealDisplayText(record, textMode).title}`} className="deal-selection-toggle" disabled={downloading} onClick={() => toggleSelection(record.page_slug)}>{selectedSlugs.has(record.page_slug) ? <CheckSquare size={16} /> : <Square size={16} />}</button> : null}
+                      {record.shareable !== false && recordStatus(record) === 'active' ? <button type="button" role="checkbox" aria-checked={selectedSlugs.has(record.page_slug)} aria-label={`Select ${dealDisplayText(record, textMode).title}`} className="deal-selection-toggle" disabled={downloading} onClick={() => toggleSelection(record.page_slug)}>{selectedSlugs.has(record.page_slug) ? <CheckSquare size={16} /> : <Square size={16} />}</button> : null}
                       <button type="button" className="overlay-person-link deal-page-link" onClick={() => onOpenPage?.(record.page_slug)}>{dealDisplayText(record, textMode).title}</button>
                       <span className={`deal-involvement involvement-${record.deal_involvement || 'unset'}`}>{INVOLVEMENT_LABELS[record.deal_involvement] || 'Involvement not set'}</span>
                     </div>
                     <p className="overlay-record-summary deal-record-summary">{dealDisplayText(record, textMode).description}</p>
+                    {record.anonymised_stage_comment ? <p className="meta">{record.anonymised_stage_comment}</p> : null}
                     <DealProgress record={record} />
                     <DealStatusAction record={record} displayTitle={dealDisplayText(record, textMode).title} onChange={changeStatus} pending={savingStatus === record.page_slug} disabled={!!savingStatus || !!savingStage || !!savingArrangement} />
                     <DealNextActions tasks={record.tasks} onOpenPage={onOpenPage} />

@@ -1,22 +1,26 @@
+import { DEAL_STAGE_LABELS } from './deal-progress.js';
+
 export function dealTeaserParts(record = {}) {
   const title = typeof record.anonymised_title === 'string' ? record.anonymised_title.trim() : '';
   const summary = typeof record.anonymised_description === 'string' ? record.anonymised_description.trim() : '';
   const asks = Array.isArray(record.anonymised_asks)
     ? record.anonymised_asks.filter((ask) => typeof ask === 'string').map((ask) => ask.trim()).filter(Boolean)
     : [];
-  return { title, summary, asks };
+  const stage = Object.hasOwn(DEAL_STAGE_LABELS, record.deal_stage) ? DEAL_STAGE_LABELS[record.deal_stage] : DEAL_STAGE_LABELS.unknown;
+  const comment = typeof record.anonymised_stage_comment === 'string' ? record.anonymised_stage_comment.trim() : '';
+  return { title, summary, asks, progress: `Stage: ${stage}${comment ? `\n${comment}` : ''}` };
 }
 
 export function formatDealTeaser(record, askIndex) {
-  const { title, summary, asks } = dealTeaserParts(record);
-  if (!title || !summary || !Number.isInteger(askIndex) || askIndex < 0 || askIndex >= asks.length) return '';
-  return `${title}\n\n${summary}\n\n${asks[askIndex]}`;
+  const { title, summary, asks, progress } = dealTeaserParts(record);
+  if (record?.shareable === false || !title || !summary || !Number.isInteger(askIndex) || askIndex < 0 || askIndex >= asks.length) return '';
+  return `${title}\n\n${summary}\n\n${progress}\n\n${asks[askIndex]}`;
 }
 
 export function formatAllDealAsks(record) {
-  const { title, summary, asks } = dealTeaserParts(record);
-  if (!title || !summary || !asks.length) return '';
-  return `${title}\n\n${summary}\n\nWhat is needed:\n${asks.map((ask) => `• ${ask}`).join('\n')}`;
+  const { title, summary, asks, progress } = dealTeaserParts(record);
+  if (record?.shareable === false || !title || !summary || !asks.length) return '';
+  return `${title}\n\n${summary}\n\n${progress}\n\nWhat is needed:\n${asks.map((ask) => `• ${ask}`).join('\n')}`;
 }
 
 // Fall back to the browser copy command when clipboard permission is denied.

@@ -10,7 +10,7 @@ import { CANONICAL_SCHEMA_DIRS } from './constants.js';
 
 export const PAGE_SCHEMA_REGISTRY_FILENAME = 'page-schemas.yaml';
 export const PAGE_SCHEMA_REGISTRY_VERSION = 1;
-export const PAGE_SCHEMA_DEFAULTS_VERSION = 9;
+export const PAGE_SCHEMA_DEFAULTS_VERSION = 10;
 
 // Only replace shipped defaults; explicit local sharing policies remain intact.
 const LEGACY_ANONYMISED_DESCRIPTIONS = {
@@ -439,6 +439,18 @@ function applyPageSchemaDefaultsMigration(registry, config, version, added) {
           definition.description = fields[field].description;
           added.push(`${id}.${field}.description`);
         }
+      }
+    }
+    return;
+  }
+  if (version === 10) {
+    const definition = dealMetadataFields().anonymised_stage_comment;
+    for (const [id, schema] of Object.entries(registry.schemas)) {
+      if (normalizePathPrefix(schema.path_prefix) !== 'deals') continue;
+      schema.fields ||= {};
+      if (!schema.fields.anonymised_stage_comment) {
+        schema.fields.anonymised_stage_comment = { ...definition };
+        added.push(`${id}.anonymised_stage_comment`);
       }
     }
     return;

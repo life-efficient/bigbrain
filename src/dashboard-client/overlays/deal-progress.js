@@ -44,7 +44,7 @@ export function matchesDealFilters(record, { search = '', dealType = '', stage =
   if (stage && (record.deal_stage || 'unknown') !== stage) return false;
   const needle = search.trim().toLowerCase();
   if (!needle) return true;
-  const text = [record.title, record.summary, record.page_slug, record.anonymised_title, record.anonymised_description,
+  const text = [record.title, record.summary, record.page_slug, record.anonymised_title, record.anonymised_description, record.anonymised_stage_comment,
     ...(Array.isArray(record.anonymised_asks) ? record.anonymised_asks : []),
     ...(record.deal_types || []).map(type => DEAL_TYPE_LABELS[type]), DEAL_STAGE_LABELS[record.deal_stage || 'unknown'],
     ...activeDealTasks(record.tasks).map(taskSearchText),

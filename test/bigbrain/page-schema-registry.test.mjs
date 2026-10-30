@@ -462,6 +462,7 @@ schemas:
     assert.equal(fields.anonymised_title.required, true);
     assert.equal(fields.anonymised_description.description, 'Custom sharing policy.');
     assert.match(fields.anonymised_asks.description, /retaining concrete amounts/);
+    assert.match(fields.anonymised_stage_comment.description, /next concrete step/);
     assert.equal((await migratePageSchemaRegistry(config)).migration.changed, false);
   } finally { await fs.rm(fixture.rootDir, { recursive: true, force: true }); }
 });

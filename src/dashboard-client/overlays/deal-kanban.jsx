@@ -32,6 +32,7 @@ function CardContent({ record, onOpenPage, handle, actions, selection, overlay =
       <div className="deal-kanban-card-actions">{handle}</div>
     </div>
     <p className="deal-kanban-summary">{description}</p>
+    {record.anonymised_stage_comment ? <p className="deal-kanban-waiting">{record.anonymised_stage_comment}</p> : null}
     <div className="deal-kanban-types">{(record.deal_types || []).map(type => <span className="deal-involvement" key={type}>{DEAL_TYPE_LABELS[type] || type}</span>)}</div>
     {tasks.length ? <span className="meta">{tasks.length} open {tasks.length === 1 ? 'action' : 'actions'}</span> : null}
     {waiting.length ? <p className="deal-kanban-waiting">Waiting on: {waiting.map(ref => ref.title).join(', ')}</p> : null}
@@ -44,7 +45,7 @@ function DraggableDeal({ record, onOpenPage, disabled, saving, statusPending, on
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: record.page_slug, data: { record }, disabled: disabled || recordStatus(record) === 'archived' });
   return <article ref={setNodeRef} className={`deal-kanban-card${isDragging ? ' is-dragging' : ''}${saving ? ' is-saving' : ''}${selected ? ' is-selected' : ''}`} aria-busy={saving || undefined}>
     <CardContent record={record} textMode={textMode} onOpenPage={onOpenPage}
-      selection={onToggleSelection && recordStatus(record) === 'active' ? <button type="button" role="checkbox" aria-checked={!!selected}
+      selection={onToggleSelection && record.shareable !== false && recordStatus(record) === 'active' ? <button type="button" role="checkbox" aria-checked={!!selected}
         className="deal-selection-toggle" aria-label={`Select ${title}`} title={`Select ${title}`} disabled={selectionDisabled}
         onClick={() => onToggleSelection(record.page_slug)}>{selected ? <CheckSquare size={16} aria-hidden="true" /> : <Square size={16} aria-hidden="true" />}</button> : null}
       actions={<DealStatusAction menu record={record} displayTitle={title} onEdit={onEdit} onChange={onStatusChange} pending={statusPending} disabled={disabled} />} handle={recordStatus(record) !== 'archived' ? <button type="button" ref={setActivatorNodeRef} className="deal-drag-handle" {...attributes} {...listeners}

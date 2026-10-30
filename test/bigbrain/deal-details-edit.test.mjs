@@ -36,8 +36,9 @@ test('deal modal edits persist atomically, update heading, preserve unrelated co
  const record = (await fetch(base + '/api/overlays/deals').then(r => r.json())).records[0];
  assert.equal(record.edit_values.summary, 'Internal summary');
  const before = await readBrainPage({ config, pagePath: record.page_slug });
- const values = { ...record.edit_values, title: 'Renamed sample', summary: 'New internal description', anonymised_title: 'New blind title', anonymised_description: 'New blind description', anonymised_asks: ['Seeking compute buyers.'] };
- const input = { page_slug: record.page_slug, expected_values: record.edit_values, values };
+ const values = { ...record.edit_values, title: 'Renamed sample', summary: 'New internal description', anonymised_title: 'New blind title', anonymised_description: 'New blind description', anonymised_asks: ['Seeking compute buyers.'], anonymised_stage_comment: 'The owner is confirming the power allocation.' };
+ const input = { page_slug: record.page_slug, expected_deal_stage: record.deal_stage, expected_stage_as_of: record.stage_as_of, expected_values: record.edit_values, values };
+ assert.equal((await post({ ...input, expected_deal_stage: 'negotiating' })).status, 409);
  const responses = await Promise.all([post(input), post({ ...input, values: { ...values, title: 'Competing edit' } })]);
  assert.deepEqual(responses.map(r => r.status).sort(), [200, 409]);
  const saved = (await responses.find(r => r.status === 200).json()).record;
@@ -49,6 +50,7 @@ test('deal modal edits persist atomically, update heading, preserve unrelated co
  assert.equal(after.frontmatter.deal_stage, 'qualifying');
  assert.equal(after.frontmatter.stage_as_of, '2026-10-20');
  assert.equal(after.summary, values.summary);
+ assert.equal(after.frontmatter.anonymised_stage_comment, values.anonymised_stage_comment);
  assert.deepEqual(after.frontmatter.anonymised_asks, values.anonymised_asks);
  const indexed = (await fetch(base + '/api/overlays/deals').then(r => r.json())).records[0];
  assert.deepEqual(indexed.edit_values, saved.edit_values);

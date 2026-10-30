@@ -11,8 +11,8 @@ test('copied teaser includes only explicitly supplied anonymous fields', () => {
     anonymised_description: '  European infrastructure opportunity.  ',
     anonymised_asks: [' Equity partner ', '', null, 42, 'Operator introduction'],
   };
-  assert.equal(formatDealTeaser(record, 0), 'Infrastructure opportunity\n\nEuropean infrastructure opportunity.\n\nEquity partner');
-  assert.equal(formatDealTeaser(record, 1), 'Infrastructure opportunity\n\nEuropean infrastructure opportunity.\n\nOperator introduction');
+  assert.equal(formatDealTeaser(record, 0), 'Infrastructure opportunity\n\nEuropean infrastructure opportunity.\n\nStage: Stage not established\n\nEquity partner');
+  assert.equal(formatDealTeaser(record, 1), 'Infrastructure opportunity\n\nEuropean infrastructure opportunity.\n\nStage: Stage not established\n\nOperator introduction');
   for (const index of [undefined, -1, 2, 0.5, '0']) assert.equal(formatDealTeaser(record, index), '');
 });
 
@@ -59,9 +59,9 @@ test('embedded browser fallback copies the selected ask and restores focus', asy
 test('all-asks message shares the anonymous teaser and lists only sanitized asks', async () => {
   const record = { anonymised_title: 'Opportunity', title: 'Private title', summary: 'Private detail', anonymised_description: ' Anonymous opportunity. ',
     anonymised_asks: [' An operator is needed. ', null, '', 'An investment partner is sought.'] };
-  const expected = 'Opportunity\n\nAnonymous opportunity.\n\nWhat is needed:\n• An operator is needed.\n• An investment partner is sought.';
+  const expected = 'Opportunity\n\nAnonymous opportunity.\n\nStage: Stage not established\n\nWhat is needed:\n• An operator is needed.\n• An investment partner is sought.';
   assert.equal(formatAllDealAsks(record), expected);
-  assert.equal(formatDealTeaser(record, 0), 'Opportunity\n\nAnonymous opportunity.\n\nAn operator is needed.');
+  assert.equal(formatDealTeaser(record, 0), 'Opportunity\n\nAnonymous opportunity.\n\nStage: Stage not established\n\nAn operator is needed.');
   let copied;
   await copyAllDealAsks(record, { writeText: async (message) => { copied = message; } });
   assert.equal(copied, expected);
@@ -75,4 +75,13 @@ test('all-asks message shares the anonymous teaser and lists only sanitized asks
     assert.equal(formatAllDealAsks(missing), '');
     await assert.rejects(copyAllDealAsks(missing, {}), /at least one ask/);
   }
+});
+
+
+test('copy includes only allowlisted stage and shareable progress and blocks private records', () => {
+ const record = { anonymised_title: 'Compute', anonymised_description: 'Capacity placement.', anonymised_asks: ['Operators are sought.'], deal_stage: 'qualifying', anonymised_stage_comment: 'The owner is confirming the power allocation.', stage_comment: 'PRIVATE_ROUTE' };
+ assert.match(formatDealTeaser(record, 0), /Stage: Qualifying\nThe owner is confirming the power allocation/);
+ assert.doesNotMatch(formatAllDealAsks(record), /PRIVATE_ROUTE/);
+ assert.equal(formatAllDealAsks({ ...record, shareable: false }), '');
+ assert.doesNotMatch(formatDealTeaser({ ...record, deal_stage: 'PRIVATE_STAGE' }, 0), /PRIVATE_STAGE/);
 });

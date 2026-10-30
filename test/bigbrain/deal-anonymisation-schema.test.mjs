@@ -9,7 +9,7 @@ import { defaultPageSchemaRegistry } from '../../src/bigbrain/page-schema-regist
 import { filingRulesForBrain } from '../../src/bigbrain/filing-rules.js';
 import { schemaDescription } from '../../src/bigbrain/schema.js';
 
-const fields = ['anonymised_title', 'anonymised_description', 'anonymised_asks'];
+const fields = ['anonymised_title', 'anonymised_description', 'anonymised_asks', 'anonymised_stage_comment'];
 
 test('anonymisation guidance removes names while preserving substantive differentiators and material qualifiers', () => {
   const descriptions = dealMetadataFields();

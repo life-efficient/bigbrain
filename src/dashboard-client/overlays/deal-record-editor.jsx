@@ -6,8 +6,9 @@ import { Select } from '../components/select.jsx';
 export function DealRecordEditor({ record, introduction = false, onClose, onSaved }) {
   const base = useRef(record.edit_values || (introduction
     ? { title: record.title || '', purpose: record.purpose || '', arrangement_status: record.arrangement_status || 'none' }
-    : { title: record.title || '', summary: record.summary || '', anonymised_title: record.anonymised_title || '', anonymised_description: record.anonymised_description || '', anonymised_asks: record.anonymised_asks || [] }));
-  const [values, setValues] = useState(() => ({ ...base.current, ...(introduction ? {} : { summary: base.current.summary || record.summary || '', anonymised_asks: [...base.current.anonymised_asks] }) }));
+    : { title: record.title || '', summary: record.summary || '', anonymised_title: record.anonymised_title || '', anonymised_description: record.anonymised_description || '', anonymised_stage_comment: record.anonymised_stage_comment || '', anonymised_asks: record.anonymised_asks || [] }));
+  if (!introduction && base.current.anonymised_stage_comment === undefined) base.current.anonymised_stage_comment = '';
+  const [values, setValues] = useState(() => ({ ...base.current, ...(introduction ? {} : { summary: base.current.summary || record.summary || '', anonymised_stage_comment: base.current.anonymised_stage_comment || '', anonymised_asks: [...base.current.anonymised_asks] }) }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const savingRef = useRef(false);
@@ -19,7 +20,7 @@ export function DealRecordEditor({ record, introduction = false, onClose, onSave
     savingRef.current = true; setSaving(true); setError('');
     try {
       const response = await fetch('/api/overlays/deals/edit', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ page_slug: record.page_slug, values, expected_values: base.current }) });
+        body: JSON.stringify({ page_slug: record.page_slug, values, expected_values: base.current, ...(!introduction ? { expected_deal_stage: record.deal_stage || 'unknown', expected_stage_as_of: record.stage_as_of || null } : {}) }) });
       const data = await response.json();
       if (!response.ok) throw new Error(response.status === 409 ? 'This record changed elsewhere. Your draft is kept. Refresh before saving.' : data.error || 'Unable to save changes. Your draft is kept.');
       if (data.record?.page_slug !== record.page_slug || !data.record.edit_values) throw new Error('The saved record could not be verified. Your draft is kept.');
@@ -53,6 +54,8 @@ export function DealRecordEditor({ record, introduction = false, onClose, onSave
             {field('summary', 'Description', 3)}
             {field('anonymised_title', 'Anonymised title')}
             {field('anonymised_description', 'Anonymised description', 3)}
+            {field('anonymised_stage_comment', 'Anonymised stage comment', 3)}
+            <p className="meta">Current progress, next step and who needs to act, using party roles rather than names. Included in the PDF.</p>
             <div className="deal-editor-label">Anonymised asks
               <p className="meta">Contributions sought from new participants. Requests to existing parties belong in follow-up tasks.</p>
               {values.anonymised_asks.map((ask, index) => <div key={index} style={{ display: 'flex', gap: 8, alignItems: 'start' }}>

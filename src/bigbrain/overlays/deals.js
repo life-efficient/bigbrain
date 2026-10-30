@@ -26,7 +26,7 @@ export async function buildDealsPayload(config, db, input = {}) {
       { field: 'page_kind', operator: 'eq', value: 'canonical' },
       { field: 'deal_involvement', operator: 'in', value: involvement ? [involvement] : [...DEALS_INVOLVEMENTS] },
     ],
-    fields: ['summary', 'deal_status', 'deal_types', 'deal_stage', 'stage_as_of', 'deal_involvement', 'anonymised_title', 'anonymised_asks', 'anonymised_description', 'asks', 'teaser_summary'],
+    fields: ['summary', 'deal_status', 'deal_types', 'deal_stage', 'stage_as_of', 'deal_involvement', 'anonymised_title', 'anonymised_asks', 'anonymised_description', 'anonymised_stage_comment', 'shareable', 'asks', 'teaser_summary'],
     orderBy: [{ field: 'title', direction: 'asc' }],
     limit,
     cursor,
@@ -46,6 +46,7 @@ export async function buildDealsPayload(config, db, input = {}) {
       deal_types: stringList(page.frontmatter.deal_types),
       ...commercialProgress(page.frontmatter),
       stage_as_of: page.frontmatter.stage_as_of || null,
+      shareable: page.frontmatter.shareable !== false,
       introductions: related.introductions.get(page.slug) || [],
       tasks: related.tasks.get(page.slug) || [],
       ...anonymisedDealFields(page.frontmatter),
@@ -62,6 +63,14 @@ function integer(value, fallback, minimum, maximum, label) {
     throw invalidInput(`${label} must be an integer between ${minimum} and ${maximum}.`);
   }
   return value;
+}
+
+function assertStageCommentSnapshot(existing, input, nextComment) {
+  if (nextComment === undefined || nextComment.trim() === (existing.frontmatter.anonymised_stage_comment || '').trim()) return;
+  if (typeof input.expected_deal_stage !== 'string' || !Object.hasOwn(input, 'expected_stage_as_of')) throw invalidInput('The current stage and evidence date are required when changing the stage comment.');
+  if (commercialProgress(existing.frontmatter).deal_stage !== input.expected_deal_stage || (existing.frontmatter.stage_as_of || null) !== input.expected_stage_as_of) {
+    throw Object.assign(new Error('The deal stage changed. Refresh before editing its progress comment.'), { statusCode: 409 });
+  }
 }
 
 function invalidInput(message) {
@@ -103,6 +112,7 @@ export async function updateDealAsks(config, db, input, { actor = null, provenan
   if ((input.anonymised_description?.length || 0) > 20000) throw invalidInput('anonymised_description is too long.');
   if (typeof input.expected_anonymised_title !== 'string') throw invalidInput('expected_anonymised_title is required.');
   if (input.anonymised_title !== undefined && (typeof input.anonymised_title !== 'string' || input.anonymised_title.length > 500)) throw invalidInput('anonymised_title must be a string of up to 500 characters.');
+  if (input.anonymised_stage_comment !== undefined && (typeof input.anonymised_stage_comment !== 'string' || input.anonymised_stage_comment.length > 20000 || typeof input.expected_anonymised_stage_comment !== 'string')) throw invalidInput('A stage comment and its previous value must be strings.');
   const { updateBrainPage } = await import('../page-ops.js');
   let page;
   try {
@@ -113,13 +123,14 @@ export async function updateDealAsks(config, db, input, { actor = null, provenan
       timelineProvenance: provenance || { event_id: `dashboard:deal-anonymised_asks:${slug}:${randomUUID()}`,
         source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard',
         source_message: timelineText },
-      frontmatterValues: { anonymised_asks: asks, ...(input.anonymised_title === undefined ? {} : { anonymised_title: input.anonymised_title.trim() }), ...(input.anonymised_description === undefined ? {} : { anonymised_description: input.anonymised_description.trim() }) },
+      frontmatterValues: { anonymised_asks: asks, ...(input.anonymised_stage_comment === undefined ? {} : { anonymised_stage_comment: input.anonymised_stage_comment.trim() }), ...(input.anonymised_title === undefined ? {} : { anonymised_title: input.anonymised_title.trim() }), ...(input.anonymised_description === undefined ? {} : { anonymised_description: input.anonymised_description.trim() }) },
       validateExisting(existing) {
         if (existing.type !== 'deals' || !DEALS_INVOLVEMENTS.includes(existing.frontmatter.deal_involvement)) {
           throw Object.assign(new Error('Page is not enrolled in the Deals overlay.'), { statusCode: 404 });
         }
+        assertStageCommentSnapshot(existing, input, input.anonymised_stage_comment);
         const current = anonymisedDealFields(existing.frontmatter);
-        if (JSON.stringify(current.anonymised_asks) !== JSON.stringify(expectedAsks) || current.anonymised_description !== input.expected_anonymised_description.trim() || current.anonymised_title !== input.expected_anonymised_title.trim()) {
+        if ((input.anonymised_stage_comment !== undefined && current.anonymised_stage_comment !== input.expected_anonymised_stage_comment.trim()) || JSON.stringify(current.anonymised_asks) !== JSON.stringify(expectedAsks) || current.anonymised_description !== input.expected_anonymised_description.trim() || current.anonymised_title !== input.expected_anonymised_title.trim()) {
           throw Object.assign(new Error('This deal changed since you opened it. Refresh before saving your edits.'), { statusCode: 409 });
         }
       },
@@ -175,7 +186,7 @@ export async function updateDealStage(config, db, input, { actor = null, indexPa
   let maintenanceWarning = null;
   try {
     page = await updateBrainPage({ config, pagePath: slug,
-      frontmatterValues: { deal_stage: input.deal_stage, stage_as_of: stageAsOf },
+      frontmatterValues: { deal_stage: input.deal_stage, stage_as_of: stageAsOf, anonymised_stage_comment: '' },
       timelineEntry: timelineText, timelineSignificance: 'minor',
       timelineProvenance: provenance || { event_id: `dashboard:deal-stage:${slug}:${randomUUID()}`, source_type: 'direct_edit',
         source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timelineText },
@@ -326,6 +337,7 @@ function anonymisedDealFields(frontmatter) {
   return {
     anonymised_title: typeof frontmatter.anonymised_title === 'string' ? frontmatter.anonymised_title.trim() : '',
     anonymised_description: typeof description === 'string' ? description.trim() : '',
+    anonymised_stage_comment: typeof frontmatter.anonymised_stage_comment === 'string' ? frontmatter.anonymised_stage_comment.trim() : '',
     anonymised_asks: normalizedAsks(field('anonymised_asks', 'asks')),
   };
 }
@@ -521,11 +533,12 @@ export async function updateDealDetails(config, db, input, { actor = null, index
   const slug = input.page_slug;
   if (typeof slug !== 'string' || !/^(deals|deal_introductions)\/[A-Za-z0-9][A-Za-z0-9_/-]*$/.test(slug) || slug.endsWith('/') || slug.includes('//')) throw invalidInput('page_slug must be a canonical deal or introduction slug.');
   const introduction = slug.startsWith('deal_introductions/');
-  const fields = introduction ? ['title', 'purpose', 'arrangement_status'] : ['title', 'summary', 'anonymised_title', 'anonymised_description', 'anonymised_asks'];
+  const fields = introduction ? ['title', 'purpose', 'arrangement_status'] : ['title', 'summary', 'anonymised_title', 'anonymised_description', 'anonymised_asks', 'anonymised_stage_comment'];
   function validate(values) {
     if (!values || typeof values !== 'object' || Array.isArray(values) || Object.keys(values).some(key => !fields.includes(key))) throw invalidInput('Invalid editable fields.');
     const result = {};
     for (const key of fields) {
+      if (key === 'anonymised_stage_comment' && values[key] === undefined) continue;
       if (key === 'anonymised_asks') { result[key] = validateAsks(values[key], key); continue; }
       if (typeof values[key] !== 'string' || values[key].length > (key.includes('title') ? 500 : 20000)) throw invalidInput(`${key} is missing or too long.`);
       result[key] = values[key].trim();
@@ -535,6 +548,7 @@ export async function updateDealDetails(config, db, input, { actor = null, index
     return result;
   }
   const values = validate(input.values), expected = validate(input.expected_values);
+  if (Object.hasOwn(values, 'anonymised_stage_comment') && !Object.hasOwn(expected, 'anonymised_stage_comment')) throw invalidInput('expected_values.anonymised_stage_comment is required when editing the stage comment.');
   if (introduction && !values.purpose) throw invalidInput('Purpose is required.');
   const timestamp = new Date().toISOString();
   const timeline = `Edited ${introduction ? 'deal introduction' : 'deal'} details in the Deals overlay.`;
@@ -546,8 +560,9 @@ export async function updateDealDetails(config, db, input, { actor = null, index
       timelineProvenance: provenance || { event_id: `dashboard:deal-details:${slug}:${randomUUID()}`, source_type: 'direct_edit', source_label: actor?.email ? `BigBrain dashboard (${actor.email})` : 'BigBrain dashboard', source_message: timeline },
       validateExisting(existing) {
         if (existing.type !== (introduction ? 'deal_introductions' : 'deals') || (!introduction && !DEALS_INVOLVEMENTS.includes(existing.frontmatter.deal_involvement))) throw Object.assign(new Error('Page is not enrolled in the Deals overlay.'), { statusCode: 404 });
+        if (!introduction) assertStageCommentSnapshot(existing, input, values.anonymised_stage_comment);
         const current = editableDealValues(existing.title, existing.frontmatter, introduction);
-        if (fields.some(key => JSON.stringify(current[key]) !== JSON.stringify(expected[key]))) throw Object.assign(new Error('This record changed elsewhere. Your draft is kept. Refresh before saving.'), { statusCode: 409 });
+        if (fields.some(key => (key !== 'anonymised_stage_comment' || Object.hasOwn(expected, key) || Object.hasOwn(values, key)) && JSON.stringify(current[key]) !== JSON.stringify(expected[key]))) throw Object.assign(new Error('This record changed elsewhere. Your draft is kept. Refresh before saving.'), { statusCode: 409 });
       },
       async afterWrite(saved) {
         try { await indexPage(db, { ...parseMarkdownPage(saved.markdown, slug), path: path.join(config.brainDir, saved.path), pageKind: 'canonical', contentHash: createHash('sha256').update(saved.markdown).digest('hex'), updatedAt: timestamp }); }

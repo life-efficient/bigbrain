@@ -25,7 +25,7 @@ test('PDF projection loads beyond 100 and admits only anonymised fields', async 
     const records = await readAnonymisedDeals(f.db);
     assert.equal(records.length, 137);
     assert.ok(records.some(r => r.title === 'Anonymous 136'));
-    assert.deepEqual(Object.keys(records[0]).sort(), ['asks', 'description', 'title']);
+    assert.deepEqual(Object.keys(records[0]).sort(), ['asks', 'description', 'stage', 'stage_comment', 'stage_label', 'title']);
     assert.doesNotMatch(JSON.stringify(records), /PRIVATE_|private-|public_unrelated/);
   } finally { f.close(); }
 });
@@ -93,7 +93,7 @@ test('PDF excludes archived and legacy paused or dropped deals before checking s
  const f=fixture();try {
  f.add('deals/active',anonymous);
  for(const [slug,metadata] of [['archived',{deal_status:'archived',deal_stage:'qualifying'}],['paused',{deal_stage:'paused'}],['dropped',{deal_stage:'dropped'}]]) f.add(`deals/${slug}`,{deal_involvement:'active',...metadata});
- assert.deepEqual(await readAnonymisedDeals(f.db),[{title:anonymous.anonymised_title,description:anonymous.anonymised_description,asks:[]}]);
+ assert.deepEqual(await readAnonymisedDeals(f.db),[{title:anonymous.anonymised_title,description:anonymous.anonymised_description,asks:[], stage: 'unknown', stage_label: 'Stage not established', stage_comment: ''}]);
  } finally {f.close();}
 });
 
@@ -104,7 +104,7 @@ test('selected PDF exports only requested active deals through the anonymised pr
     f.add('deals/unselected', { ...anonymous, anonymised_title: 'Unselected 🦄', anonymised_description: '' });
     const options = { pageSlugs: ['deals/selected', 'deals/selected'] };
     assert.deepEqual(await readAnonymisedDeals(f.db, options), [
-      { title: 'Selected project', description: anonymous.anonymised_description, asks: ['A delivery partner.'] },
+      { title: 'Selected project', description: anonymous.anonymised_description, asks: ['A delivery partner.'], stage: 'unknown', stage_label: 'Stage not established', stage_comment: '' },
     ]);
     const pdf = await buildDealsPdf({}, f.db, options);
     assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
@@ -139,4 +139,32 @@ test('selected export retains pagination and requires complete anonymised fields
     f.add('deals/incomplete', { ...anonymous, anonymised_asks: null });
     await assert.rejects(buildDealsPdf({}, f.db, { pageSlugs: ['deals/incomplete'] }), /incomplete anonymised asks/);
   } finally { f.close(); }
+});
+
+
+test('export includes safe stage progress and excludes explicitly non-shareable records', async () => {
+ const f = fixture();
+ try {
+  f.add('deals/shareable', { ...anonymous, deal_stage: 'qualifying', anonymised_stage_comment: 'The owner is confirming the power allocation.', stage_comment: 'PRIVATE_ROUTE' });
+  f.add('deals/restricted', { deal_involvement: 'active', shareable: false });
+  const records = await readAnonymisedDeals(f.db);
+  assert.equal(records.length, 1);
+  assert.equal(records[0].stage_label, 'Qualifying');
+  assert.equal(records[0].stage_comment, 'The owner is confirming the power allocation.');
+  assert.doesNotMatch(JSON.stringify(records), /PRIVATE_/);
+  await assert.rejects(readAnonymisedDeals(f.db, { pageSlugs: ['deals/restricted'] }), /no longer available/);
+  const pdf = await buildDealsPdf({}, f.db);
+  assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+ } finally { f.close(); }
+});
+
+test('invalid stages never leak arbitrary text and invalid comments fail safely', async () => {
+ const f = fixture();
+ try {
+  f.add('deals/unknown', { ...anonymous, deal_stage: 'PRIVATE_STAGE', stage_comment: 'PRIVATE_COMMENT' });
+  assert.equal((await readAnonymisedDeals(f.db))[0].stage, 'unknown');
+  assert.doesNotMatch(JSON.stringify(await readAnonymisedDeals(f.db)), /PRIVATE_/);
+  f.add('deals/bad-comment', { ...anonymous, anonymised_stage_comment: { name: 'PRIVATE_PERSON' } });
+  await assert.rejects(readAnonymisedDeals(f.db), /invalid anonymised stage comment/);
+ } finally { f.close(); }
 });
